@@ -5,7 +5,7 @@
 // assassination, with N independent samples instead of one shot. Results are
 // folded back into the artifact (probes.virtualAssassin).
 //
-//   node server/eval/probe.ts <artifacts.jsonl> [...more] [--model gpt-oss]
+//   node server/eval/probe.ts <artifacts.jsonl> [...more] [--model deepseek]
 //     [--samples 3] [--force]
 
 import { parseArgs } from 'node:util'
@@ -20,12 +20,12 @@ import type { OpenRouterClient } from '../llm/openrouter.ts'
 
 export interface ProbeOpts {
   client: OpenRouterClient
-  model?: string   // roster id; default gpt-oss (cheapest seat)
+  model?: string   // roster id; default deepseek (cheap seat; gpt-oss, the old default, is benched)
   samples?: number
 }
 
 export async function virtualAssassin(a: GameArtifact, opts: ProbeOpts): Promise<VirtualAssassinResult> {
-  const modelId = opts.model ?? 'gpt-oss'
+  const modelId = opts.model ?? 'deepseek'
   const samples = opts.samples ?? 3
   const entry = rosterById(modelId)
   const merlinSeat = a.players.find((p) => p.role === 'merlin')?.seat
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
-      model: { type: 'string', default: 'gpt-oss' },
+      model: { type: 'string', default: 'deepseek' },
       samples: { type: 'string', default: '3' },
       force: { type: 'boolean', default: false },
     },

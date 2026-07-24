@@ -42,20 +42,29 @@ export const ROSTER: RosterEntry[] = [
     id: 'glm', displayName: 'GLM', slug: 'z-ai/glm-4.6',
     badge: { color: '#8B5CF6' }, tier: 'mid',
   },
-  {
-    id: 'gpt-oss', displayName: 'GPT-OSS', slug: 'openai/gpt-oss-120b',
-    badge: { color: '#10A37F' }, tier: 'cheap',
-  },
+  // GPT-OSS is benched on reliability, not cost. As the cheapest seat it was
+  // the source of nearly every mechanical failure in playtests: its reasoning-
+  // suppression policy doesn't hold (frequent >100-token leaks), it returns
+  // blank under response_format (burning a paid call before the fallback), and
+  // its erratic voting reads as a false evil tell. Kept commented (not deleted)
+  // so it's a one-line restore — its reasoning-suppression policy and Arcana
+  // glyph are still wired up.
+  // {
+  //   id: 'gpt-oss', displayName: 'GPT-OSS', slug: 'openai/gpt-oss-120b',
+  //   badge: { color: '#10A37F' }, tier: 'cheap',
+  // },
   {
     id: 'seed', displayName: 'Seed', slug: 'bytedance-seed/seed-2.0-lite',
     badge: { color: '#F0424C' }, tier: 'cheap',
   },
 ]
 
-// Default 6-bot table (7p game with one human), family-diverse on purpose.
-// (Haiku held the 6th seat until it was benched on cost — see above; Seed keeps
-// the family diversity without the premium bill.)
-export const DEFAULT_TABLE = ['deepseek', 'gemini', 'seed', 'kimi', 'glm', 'gpt-oss']
+// Default 6-bot table (7p game with one human), spread across model families.
+// (Haiku held the 6th seat until it was benched on cost; GPT-OSS held the last
+// until it was benched on reliability — see above. GPT-OSS was the roster's
+// only OpenAI seat, so with it out Gemini Flash fills the seat — which doubles
+// up the Google family rather than leaving the seat empty.)
+export const DEFAULT_TABLE = ['deepseek', 'gemini', 'seed', 'kimi', 'glm', 'gemini-flash']
 
 // What a personality-only agent (no model in its def) plays on when the seat
 // doesn't override. Provisional: deepseek is just the cheap starting point —
