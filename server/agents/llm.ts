@@ -19,7 +19,7 @@ import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { AvalonAgent } from './types.ts'
 
 export interface LlmAgentOpts {
-  modelId: string           // roster id, e.g. 'deepseek'
+  modelId: string           // roster id, e.g. 'deepseek-flash'
   client: OpenRouterClient
   agentId?: string          // library agent id, used for spend tags (defaults to modelId)
   label?: string            // display label for degrade attribution, e.g. 'Merlin Hunter v2'

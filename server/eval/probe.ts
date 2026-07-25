@@ -20,12 +20,12 @@ import type { OpenRouterClient } from '../llm/openrouter.ts'
 
 export interface ProbeOpts {
   client: OpenRouterClient
-  model?: string   // roster id; default deepseek (cheap seat; gpt-oss, the old default, is benched)
+  model?: string   // roster id; default deepseek-flash (cheap seat; gpt-oss, the old default, is benched)
   samples?: number
 }
 
 export async function virtualAssassin(a: GameArtifact, opts: ProbeOpts): Promise<VirtualAssassinResult> {
-  const modelId = opts.model ?? 'deepseek'
+  const modelId = opts.model ?? 'deepseek-flash'
   const samples = opts.samples ?? 3
   const entry = rosterById(modelId)
   const merlinSeat = a.players.find((p) => p.role === 'merlin')?.seat
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
-      model: { type: 'string', default: 'deepseek' },
+      model: { type: 'string', default: 'deepseek-flash' },
       samples: { type: 'string', default: '3' },
       force: { type: 'boolean', default: false },
     },

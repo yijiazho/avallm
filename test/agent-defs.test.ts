@@ -24,7 +24,7 @@ test('publicInfo fills badges and maps engine to a display model', () => {
   assert.ok(auto.color.length > 0)
   const custom = publicInfo(validateDef({
     id: 'chaos-goblin', name: 'Chaos Goblin',
-    engine: { type: 'llm', model: 'deepseek', personality: 'be chaotic' },
+    engine: { type: 'llm', model: 'deepseek-flash', personality: 'be chaotic' },
   }))
   assert.ok(custom.color.length > 0)
   assert.equal(custom.personality, 'be chaotic')
@@ -55,10 +55,10 @@ test('resolveModel precedence: seat override > def suggestion > DEFAULT_MODEL', 
   const noModel = validateDef({ id: 'bb', name: 'B', engine: { type: 'llm', personality: 'x' } })
   assert.equal(resolveModel(noModel), DEFAULT_MODEL)         // fallback
   assert.equal(resolveModel(withModel), 'kimi')              // def suggestion
-  assert.equal(resolveModel(withModel, 'gemini'), 'gemini')  // seat override wins
+  assert.equal(resolveModel(withModel, 'gemini-flash-lite'), 'gemini-flash-lite')  // seat override wins
   assert.equal(resolveModel(noModel, 'kimi'), 'kimi')
   // The override also drives the transparency badge.
-  assert.equal(publicInfo(withModel, 'gemini').model, rosterById('gemini').slug)
+  assert.equal(publicInfo(withModel, 'gemini-flash-lite').model, rosterById('gemini-flash-lite').slug)
 })
 
 test('parseTableSeat accepts both wire shapes and rejects bad overrides', () => {
@@ -69,15 +69,15 @@ test('parseTableSeat accepts both wire shapes and rejects bad overrides', () => 
     return d
   }
   assert.deepEqual(parseTableSeat('kimi', byId), { agent: 'kimi' })           // legacy bare id
-  assert.deepEqual(parseTableSeat({ agent: 'kimi', model: 'gemini' }, byId), { agent: 'kimi', model: 'gemini' })
+  assert.deepEqual(parseTableSeat({ agent: 'kimi', model: 'gemini-flash-lite' }, byId), { agent: 'kimi', model: 'gemini-flash-lite' })
   assert.throws(() => parseTableSeat('nope', byId), /unknown agent/)
   assert.throws(() => parseTableSeat({ agent: 'kimi', model: 'nope' }, byId), /unknown roster/)
   // A model override on a non-llm engine is a create-time error, not a start-time surprise.
-  assert.throws(() => parseTableSeat({ agent: 'autopilot', model: 'gemini' }, byId), /does not take a model/)
+  assert.throws(() => parseTableSeat({ agent: 'autopilot', model: 'gemini-flash-lite' }, byId), /does not take a model/)
 })
 
 test('validateDef: new layer fields — key checks, caps, temperature, CRLF', () => {
-  const ok = (engine: object) => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', model: 'deepseek', ...engine } })
+  const ok = (engine: object) => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', model: 'deepseek-flash', ...engine } })
   // unknown guidance keys fail loudly at save time
   assert.throws(() => ok({ kindGuidance: { sing: 'la' } }), /unknown kind "sing"/)
   assert.throws(() => ok({ roleGuidance: { wizard: 'zap' } }), /unknown role "wizard"/)
@@ -113,7 +113,7 @@ test('validateDef: agent names get the player-name policy (sanitize + reserved w
 })
 
 test('validateDef: guidance keys reject prototype-chain names', () => {
-  const ok = (engine: object) => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', model: 'deepseek', ...engine } })
+  const ok = (engine: object) => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', model: 'deepseek-flash', ...engine } })
   // `in` would accept these via Object.prototype; Object.hasOwn must not.
   assert.throws(() => ok({ kindGuidance: { toString: 'x' } }), /unknown kind "toString"/)
   assert.throws(() => ok({ roleGuidance: { constructor: 'x' } }), /unknown role "constructor"/)
@@ -123,7 +123,7 @@ test('validateDef: guidance keys reject prototype-chain names', () => {
 test('validateDef: legacy string versions read as integers; lenient mode keeps dead models', () => {
   const legacy = validateDef({
     id: 'old', name: 'Old', version: '1.0',
-    engine: { type: 'llm', model: 'deepseek' },
+    engine: { type: 'llm', model: 'deepseek-flash' },
   })
   assert.equal(legacy.version, 1)
   // load mode accepts a vanished roster model so it can be surfaced, not skipped

@@ -19,11 +19,19 @@ interface PolicyRule extends ReasoningPolicy {
 }
 
 export const POLICIES: PolicyRule[] = [
+  // deepseek + qwen re-probed 2026-07 against v4-pro / qwen3.7-plus: the family
+  // rows already here hold for the newer members (effort:'none' → rt 0). Qwen is
+  // the loudest default on the roster — 1256 rt/call unsuppressed.
   { family: 'deepseek', match: /^deepseek\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'moonshot', match: /^moonshotai\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'glm', match: /^z-ai\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'qwen', match: /^qwen\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'openai-reasoning', match: /^openai\/(gpt-oss|o\d)/, suppress: { effort: 'low' }, canSuppress: true },
+  // gpt-5 nano is measured (probe, 2026-07): it reasons ~0 by DEFAULT, and the
+  // wider gpt-5 rule below is actively wrong for it — effort:'minimal' leaks
+  // ~33 rt/call and 'low' ~41. Narrower rule first so the nano seat sends
+  // nothing. The general gpt-5 row is unprobed; re-measure before seating one.
+  { family: 'openai-gpt5-nano', match: /^openai\/gpt-5(\.\d+)?-nano/, suppress: null, canSuppress: true },
   { family: 'openai-gpt5', match: /^openai\/gpt-5/, suppress: { effort: 'minimal' }, canSuppress: true },
   { family: 'openai', match: /^openai\//, suppress: null, canSuppress: true },
   { family: 'xai', match: /^x-ai\//, suppress: { effort: 'none' }, canSuppress: true },
@@ -36,6 +44,16 @@ export const POLICIES: PolicyRule[] = [
   { family: 'gemini-flash', match: /^google\/gemini-3(\.\d+)?-flash/, suppress: null, canSuppress: true },
   { family: 'anthropic', match: /^anthropic\//, suppress: null, canSuppress: true },
   { family: 'mistral', match: /^mistralai\//, suppress: null, canSuppress: true },
+  // Probed 2026-07 (docs/model-onboarding.md living record). All four of these
+  // measured rt≈0 under BOTH effort:'none' and enabled:false; effort:'none' is
+  // written here to keep one idiom across the table. xiaomi and tencent are the
+  // sharp ones: left unsuppressed they don't merely leak, they blank 5/5 under
+  // the JSON ASK — so a missing policy row for these families would read as a
+  // broken model, not a chatty one.
+  { family: 'xiaomi', match: /^xiaomi\//, suppress: { effort: 'none' }, canSuppress: true },
+  { family: 'tencent', match: /^tencent\//, suppress: { effort: 'none' }, canSuppress: true },
+  { family: 'minimax', match: /^minimax\//, suppress: { effort: 'none' }, canSuppress: true },
+  { family: 'upstage', match: /^upstage\//, suppress: null, canSuppress: true },
 ]
 
 const UNKNOWN: ReasoningPolicy = { family: 'unknown', suppress: null, canSuppress: true }

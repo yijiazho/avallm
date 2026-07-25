@@ -49,8 +49,8 @@ const noop = () => {}
 const bot = (id: string, name: string, model: string, color: string, about: string): AgentInfo =>
   ({ id, name, model, color, about, custom: false, tunedChars: 0, tier: 'builtin' })
 const bots: Record<number, AgentInfo> = {
-  1: bot('gemini', 'Gemini', 'google/gemini-3.1-flash-lite', '#6c8fd9', 'Fast and confident; over-commits early.'),
-  2: bot('deepseek', 'DeepSeek', 'deepseek/deepseek-v4-flash', '#c9a84c', 'Terse and punchy. Occasionally forgets it is playing a game.'),
+  1: bot('gemini-flash-lite', 'Gemini', 'google/gemini-3.1-flash-lite', '#6c8fd9', 'Fast and confident; over-commits early.'),
+  2: bot('deepseek-flash', 'DeepSeek', 'deepseek/deepseek-v4-flash', '#c9a84c', 'Terse and punchy. Occasionally forgets it is playing a game.'),
   3: bot('claude', 'Claude', 'anthropic/claude-4.5', '#c98a4c', 'The premium seat. Calm, deliberate, hard to rattle.'),
   4: bot('gptoss', 'GPT-OSS', 'openai/gpt-oss-120b', '#7bc47f', 'Open-weights OpenAI. Cheapest seat at the table.'),
   5: bot('kimi', 'Kimi', 'moonshotai/kimi-k2.5', '#b06ed9', 'Warm and literary. Writes paragraphs when nervous.'),

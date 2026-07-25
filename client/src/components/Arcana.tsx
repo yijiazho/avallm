@@ -23,8 +23,8 @@ export const SPECTATOR_ARCANA = { numeral: '0', title: 'The Witness', emblem: 'b
 // among the machines. Unknown/custom agents draw deterministically from the
 // outer pool so a given name always keeps its glyph.
 const CELESTIAL: Record<string, { glyph: string; body: string }> = {
-  deepseek: { glyph: '☿', body: 'Mercury' },
-  gemini: { glyph: '♊︎', body: 'Gemini' },
+  'deepseek-flash': { glyph: '☿', body: 'Mercury' },
+  'gemini-flash-lite': { glyph: '♊︎', body: 'Gemini' },
   'gemini-flash': { glyph: '☄︎', body: 'the Comet' },
   haiku: { glyph: '☉', body: 'Sol' },
   kimi: { glyph: '☽', body: 'Luna' },
@@ -33,6 +33,17 @@ const CELESTIAL: Record<string, { glyph: string; body: string }> = {
   seed: { glyph: '♆', body: 'Neptune' },
   nemotron: { glyph: '♂', body: 'Mars' },
   autopilot: { glyph: '⚙', body: 'the Clockwork' },
+  // The 2026-07 batch. Deliberately drawn from OUTSIDE OUTER_POOL: that pool is
+  // the deterministic fallback for custom agents, so a named seat sharing a
+  // glyph with it would collide at the table.
+  'deepseek-pro': { glyph: '⚸', body: 'the Dark Moon' },
+  mimo: { glyph: '⚷', body: 'Chiron' },
+  hunyuan: { glyph: '★', body: 'the Fixed Star' },
+  minimax: { glyph: '✦', body: 'the Morning Star' },
+  qwen: { glyph: '✧', body: 'the Evening Star' },
+  mistral: { glyph: '✷', body: 'the North Star' },
+  'gpt-nano': { glyph: '✵', body: 'the Wandering Star' },
+  solar: { glyph: '✺', body: 'the Corona' },
 }
 const OUTER_POOL: { glyph: string; body: string }[] = [
   { glyph: '♅', body: 'Uranus' },

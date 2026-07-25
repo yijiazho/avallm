@@ -28,17 +28,17 @@ const view0 = viewFor(game, 0)
 
 test('clean decision carries thinking into the Decision', async () => {
   const client = fakeClient(() => '{"thinking": "seat 2 is loud", "vote": "approve"}')
-  const agent = createLlmAgent({ modelId: 'deepseek', client })
+  const agent = createLlmAgent({ modelId: 'deepseek-flash', client })
   const d = await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)
   assert.deepEqual(d, { kind: 'vote', vote: 'approve', thinking: 'seat 2 is loud' })
   assert.equal(client.calls.length, 1)
-  assert.equal(client.calls[0].tag, 'deepseek/vote')
+  assert.equal(client.calls[0].tag, 'deepseek-flash/vote')
 })
 
 test('good quest cards skip the LLM call entirely; evil still decides', async () => {
   const client = fakeClient(() => '{"thinking": "one fail is enough", "card": "fail"}')
   const good = game.players.find((p) => p.alignment === 'good')!
-  const goodAgent = createLlmAgent({ modelId: 'deepseek', client })
+  const goodAgent = createLlmAgent({ modelId: 'deepseek-flash', client })
   const d = await goodAgent.decide(
     { kind: 'quest', seat: good.seat, round: 1, proposalNum: 1 }, viewFor(game, good.seat),
   )
@@ -46,13 +46,13 @@ test('good quest cards skip the LLM call entirely; evil still decides', async ()
   assert.equal(client.calls.length, 0, 'a forced decision must not burn a call')
 
   const evil = game.players.find((p) => p.alignment === 'evil')!
-  const evilAgent = createLlmAgent({ modelId: 'deepseek', client })
+  const evilAgent = createLlmAgent({ modelId: 'deepseek-flash', client })
   const d2 = await evilAgent.decide(
     { kind: 'quest', seat: evil.seat, round: 1, proposalNum: 1 }, viewFor(game, evil.seat),
   )
   assert.equal((d2 as any).card, 'fail')
   assert.equal(client.calls.length, 1)
-  assert.equal(client.calls[0].tag, 'deepseek/quest')
+  assert.equal(client.calls[0].tag, 'deepseek-flash/quest')
 })
 
 test('one malformed reply triggers exactly one correction retry', async () => {
@@ -64,7 +64,7 @@ test('one malformed reply triggers exactly one correction retry', async () => {
     assert.ok(messages.some((m) => m.role === 'user' && /not usable/.test(m.content)))
     return '{"vote": "reject"}'
   })
-  const agent = createLlmAgent({ modelId: 'gemini', client })
+  const agent = createLlmAgent({ modelId: 'gemini-flash-lite', client })
   const d = await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)
   assert.equal((d as any).vote, 'reject')
   assert.equal(n, 2)
@@ -83,7 +83,7 @@ test('propose is commit-then-explain: pitch generated with the team locked', asy
     }
     throw new Error(`unexpected call ${opts.tag}`)
   })
-  const agent = createLlmAgent({ modelId: 'deepseek', client })
+  const agent = createLlmAgent({ modelId: 'deepseek-flash', client })
   const d = await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)
   assert.deepEqual((d as any).team, [0, 2])
   assert.equal((d as any).pitch, 'Clean start with a proven pair.')
@@ -95,7 +95,7 @@ test('a failed pitch call still yields a (silent) proposal', async () => {
     if (opts.tag?.endsWith('/propose')) return '{"team": [0, 1]}'
     throw new Error('pitch model exploded')
   })
-  const agent = createLlmAgent({ modelId: 'gemini', client })
+  const agent = createLlmAgent({ modelId: 'gemini-flash-lite', client })
   const d = await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)
   assert.deepEqual((d as any).team, [0, 1])
   assert.equal((d as any).pitch, undefined)

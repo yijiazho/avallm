@@ -13,12 +13,15 @@ export interface RosterEntry {
 }
 
 export const ROSTER: RosterEntry[] = [
+  // Ids name the SPECIFIC model, not just the family: a family can seat more
+  // than one entry (google already seats two), so "deepseek"/"gemini" would be
+  // ambiguous the moment a second sibling joins.
   {
-    id: 'deepseek', displayName: 'DeepSeek', slug: 'deepseek/deepseek-v4-flash',
+    id: 'deepseek-flash', displayName: 'DeepSeek Flash', slug: 'deepseek/deepseek-v4-flash',
     badge: { color: '#4D6BFE' }, tier: 'cheap',
   },
   {
-    id: 'gemini', displayName: 'Gemini', slug: 'google/gemini-3.1-flash-lite',
+    id: 'gemini-flash-lite', displayName: 'Gemini Flash Lite', slug: 'google/gemini-3.1-flash-lite',
     badge: { color: '#1A73E8' }, tier: 'cheap',
   },
   {
@@ -66,21 +69,82 @@ export const ROSTER: RosterEntry[] = [
     id: 'nemotron', displayName: 'Nemotron', slug: 'nvidia/nemotron-3-super-120b-a12b',
     badge: { color: '#76B900' }, tier: 'cheap',
   },
+  // Onboarded 2026-07 as a batch (docs/model-onboarding.md living record).
+  // Six new families (Xiaomi, Tencent, MiniMax, Alibaba/Qwen, Mistral, Upstage)
+  // plus an OpenAI seat to replace benched GPT-OSS and a smarter DeepSeek sibling.
+  // All are in DEFAULT_TABLE, but behind the curated six — see the ordering note
+  // there, which is what decides who actually sits at a given table.
+  {
+    id: 'deepseek-pro', displayName: 'DeepSeek Pro', slug: 'deepseek/deepseek-v4-pro',
+    badge: { color: '#2A3EB1' }, tier: 'mid',
+  },
+  {
+    id: 'mimo', displayName: 'MiMo', slug: 'xiaomi/mimo-v2.5',
+    badge: { color: '#F7A600' }, tier: 'cheap',
+  },
+  {
+    id: 'hunyuan', displayName: 'Hunyuan', slug: 'tencent/hy3',
+    badge: { color: '#0052D9' }, tier: 'cheap',
+  },
+  {
+    id: 'minimax', displayName: 'MiniMax', slug: 'minimax/minimax-m3',
+    badge: { color: '#C2185B' }, tier: 'mid',
+  },
+  {
+    id: 'qwen', displayName: 'Qwen', slug: 'qwen/qwen3.7-plus',
+    badge: { color: '#5B4BF5' }, tier: 'mid',
+  },
+  {
+    id: 'mistral', displayName: 'Mistral', slug: 'mistralai/mistral-small-2603',
+    badge: { color: '#FA520F' }, tier: 'cheap',
+  },
+  {
+    id: 'gpt-nano', displayName: 'GPT Nano', slug: 'openai/gpt-5.4-nano',
+    badge: { color: '#10A37F' }, tier: 'cheap',
+  },
+  {
+    id: 'solar', displayName: 'Solar', slug: 'upstage/solar-pro-3',
+    badge: { color: '#00838F' }, tier: 'cheap',
+  },
 ]
 
-// Default 6-bot table (7p game with one human), one model family per seat.
-// (Seat churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was
-// benched on reliability — see above — and after a brief Gemini Flash stopgap
-// that doubled the Google family, Nemotron (NVIDIA) took the seat once it
-// cleared docs/model-onboarding.md. Nemotron restores one-family-per-seat and
-// was the cheapest seat measured in its onboarding playtest.)
-export const DEFAULT_TABLE = ['deepseek', 'gemini', 'seed', 'kimi', 'glm', 'nemotron']
+// The default seating order: every seated model, most-preferred first. A game
+// takes the first `botCount` (server.ts) — so the leading SIX are the real
+// default 7p table, and the tail only seats in 8-10p games. Ordering is
+// therefore the product decision, not membership.
+//
+// The leading six are unchanged and deliberately one-family-per-seat. (Seat
+// churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was benched
+// on reliability — see above — and after a brief Gemini Flash stopgap that
+// doubled the Google family, Nemotron (NVIDIA) took the seat once it cleared
+// docs/model-onboarding.md. Nemotron restores one-family-per-seat and was the
+// cheapest seat measured in its onboarding playtest.)
+//
+// The tail is the 2026-07 batch plus Gemini Flash. Families repeat down there
+// (two Google, two DeepSeek), which is fine for overflow seats but is why they
+// sit behind the curated six rather than among them — and why the two doubled
+// families are last of all.
+//
+// Because this now names EVERY seated model, benching one means deleting it
+// here as well as commenting out its ROSTER entry: a leftover id would resolve
+// to no agent def and 500 the lobby. test/llm-policies.test.ts walks this list
+// through rosterById, so that mistake reddens the suite rather than shipping.
+// Tail order is by MEASURED playtest quality, not preference: the three that
+// ran a clean game (0 degrades, 0 reasoning leaks) come first, so a 10p table —
+// which seats the first nine — draws only vetted seats. Then the two that
+// degraded once, then the unranked / on-probation seats. MiniMax is last of the
+// batch on purpose: 2 degrades and 3 reasoning leaks despite a clean probe.
+export const DEFAULT_TABLE = [
+  'deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron',
+  'hunyuan', 'solar', 'gpt-nano', 'mistral', 'mimo', 'qwen',
+  'deepseek-pro', 'minimax', 'gemini-flash',
+]
 
 // What a personality-only agent (no model in its def) plays on when the seat
-// doesn't override. Provisional: deepseek is just the cheap starting point —
-// the real pick is whatever balances cost, interesting table talk, and good
-// play once we've measured that.
-export const DEFAULT_MODEL = 'deepseek'
+// doesn't override. Provisional: deepseek-flash is just the cheap starting
+// point — the real pick is whatever balances cost, interesting table talk, and
+// good play once we've measured that.
+export const DEFAULT_MODEL = 'deepseek-flash'
 
 export function rosterById(id: string): RosterEntry {
   const entry = ROSTER.find((r) => r.id === id)

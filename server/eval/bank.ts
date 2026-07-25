@@ -151,7 +151,7 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
 // version produced which, beyond the labels here — and "fixed" requires the
 // flaw to be gone, not merely different.
 export async function checkReplay(
-  item: BankItem, replayed: Decision, model = 'gemini',
+  item: BankItem, replayed: Decision, model = 'gemini-flash-lite',
 ): Promise<{ verdict: 'fixed' | 'same-flaw' | 'unclear'; note: string }> {
   const { getClient } = await import('../llm/client.ts')
   const s = item.snapshot
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
       candidate: { type: 'string' },
       limit: { type: 'string' },
       check: { type: 'boolean', default: false },
-      checkModel: { type: 'string', default: 'gemini' },
+      checkModel: { type: 'string', default: 'gemini-flash-lite' },
     },
   })
   const [cmd, ...files] = positionals
