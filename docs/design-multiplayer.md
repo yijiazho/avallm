@@ -112,7 +112,7 @@ rate-limits token spend. Out of v1 to keep the engine untouched.
 
 - **LAN play works the day this ships**: share `http://<lan-ip>:8787/#/join/…`.
 - **Internet play needs hosting** (Railway/Fly + a domain). That exposes the OpenRouter key to
-  strangers' games, so a public deployment must port datingsim's invite-gate pattern (game
+  strangers' games, so a public deployment must add an invite-gate pattern (game
   creation gated on an invite code) on top of the existing spend ceiling. Config flag; off for
   local play.
 - **Server restarts kill in-memory games** (same as today). Mitigation when it matters: the

@@ -1,5 +1,5 @@
 // Contract tests: the roster only names models the policy tables know, and
-// the measured suppression flags survive the port from datingsim.
+// the measured reasoning-suppression flags stay pinned.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ROSTER, DEFAULT_TABLE, rosterById } from '../server/llm/roster.ts'

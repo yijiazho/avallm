@@ -39,7 +39,7 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 5. **Model coherence harness.** Scripted golden-set game states with a known best action; score
    every roster model; drop or demote models that fallback >10% or play incoherently. This is the
    honest answer to "how much scaffolding before it stops being the model playing" and gates
-   roster additions. (datingsim `tools/rearch-spike` pattern.)
+   roster additions.
 6. **Balance measurement with LLM tables.** Heuristic self-play is evil-favored (~66/34 at 7p,
    ~80/20 at 5p/10p) because heuristic good has no discussion channel. Measure LLM-table win
    rates now that bots talk, signal leans, and answer questions; only then tune.
@@ -85,7 +85,7 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 15. **Per-user agent libraries** — requires identity, so parked until accounts matter for other
     reasons. Global-shared library is the right call at friends-scale.
 16. **Roster refresh discipline.** OpenRouter slugs go stale; the roster is one file, additions
-    should ride the coherence harness (#5). Revisit each time datingsim's MODELS.md updates.
+    should ride the coherence harness (#5). Revisit as OpenRouter's roster shifts.
 
 ## Rules content (engine-ready, unscheduled)
 

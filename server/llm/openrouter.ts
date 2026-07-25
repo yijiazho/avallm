@@ -1,5 +1,4 @@
-// OpenRouter client + spend accounting, ported from datingsim
-// game/lib/openrouter.cjs. One chokepoint for every paid LLM call:
+// OpenRouter client + spend accounting. One chokepoint for every paid LLM call:
 //   - live OPENROUTER_API_KEY read per call
 //   - AbortController timeout (default 60s / OPENROUTER_TIMEOUT_MS)
 //   - per-tag spend map using OpenRouter's real usage.cost

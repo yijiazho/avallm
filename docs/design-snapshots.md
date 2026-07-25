@@ -166,9 +166,8 @@ they can't be deleted at end-of-game — but they accumulate. Recommend:
 ## Schema versioning
 
 Wrap every persisted file in an envelope with a `snapshotVersion`. On load,
-mismatch ⇒ migrate if cheap, else log-and-skip (never crash). Borrow the
-snapshot-versioning pattern from the sibling `datingsim` repo (noted in
-CLAUDE.md). The load-boundary try/catch above is the safety net regardless.
+mismatch ⇒ migrate if cheap, else log-and-skip (never crash). The
+load-boundary try/catch above is the safety net regardless.
 
 ## Testing
 

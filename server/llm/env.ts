@@ -1,4 +1,4 @@
-// .env loader, ported from datingsim game/lib/env.js. Walks UP from startDir
+// .env loader. Walks UP from startDir
 // loading the NEAREST .env; real OS env vars always win.
 
 import fs from 'node:fs'

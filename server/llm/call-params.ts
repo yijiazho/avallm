@@ -1,5 +1,5 @@
 // kind -> call params, one checked-in table shared by the live server and
-// any headless harness so they can't drift (datingsim v2-call-params pattern).
+// any headless harness so they can't drift.
 // reflect is the scratchpad-update call (not an engine decision kind).
 
 // 'pitch' is the second half of proposing: the team is chosen first, then

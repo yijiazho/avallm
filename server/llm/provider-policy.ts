@@ -1,5 +1,4 @@
-// Per-model OpenRouter provider constraints, ported from datingsim
-// game/lib/provider-policy.cjs. Most models need NO entry (an unmeasured
+// Per-model OpenRouter provider constraints. Most models need NO entry (an unmeasured
 // constraint is a silent routing experiment). glm-5.2's pin is carried over
 // because its unconstrained rotation measurably leaks reasoning tokens.
 

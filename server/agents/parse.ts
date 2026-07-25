@@ -1,5 +1,5 @@
-// Tolerant parsing of LLM decision output (datingsim parse-json philosophy:
-// salvage first, explicit parseFailed distinct from empty). Legality beyond
+// Tolerant parsing of LLM decision output. Salvage-first philosophy:
+// salvage first, explicit parseFailed distinct from empty. Legality beyond
 // shape (team size, seat ranges) is checked by the agent/engine, not here.
 
 import { teamsEqual } from '../engine/rules.ts'
