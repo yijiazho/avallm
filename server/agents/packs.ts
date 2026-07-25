@@ -35,6 +35,15 @@ export const PACKS: AgentPack[] = [
     // absence, precedent, probability, pressure.
     agents: ['sherlock', 'poirot', 'benoit-blanc', 'miss-marple', 'ryuzaki', 'batman'],
   },
+  {
+    id: 'middle-earth',
+    name: 'Middle-earth',
+    blurb: 'Wizards, hobbits, a dwarf, a king, and two things that should not be trusted with a ring.',
+    // Eight members fills a 9-player table exactly. Alignment is dealt at random,
+    // so no member's persona may assume its own side: Sauron and Smaug are
+    // written as manner and method, not as evil.
+    agents: ['gandalf', 'aragorn', 'samwise', 'gollum', 'bilbo', 'gimli', 'smaug', 'sauron'],
+  },
 ]
 
 export type ResolvedPack = AgentPack

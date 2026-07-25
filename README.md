@@ -11,7 +11,7 @@ The other players are not anonymous "Player 3" slots. Each seat is openly labele
 You sit down at an Avalon table of 5 to 10 seats. You take one; bots fill the rest. Before the deal you choose who those bots are:
 
 - **LLM bots**, a few cents per game on OpenRouter, or **free rule-based bots** that play from hand-written heuristics and never touch the network.
-- Both come from a browsable **agent library**. It ships curated character cards (Sherlock Holmes, Sun Tzu, Socrates, Gandalf, Gollum, Bob Ross), and you can define your own. A custom agent can carry author-written strategy, not just flavor, while the engine keeps what it can see and how its output is read locked down (see [`docs/design-custom-agents.md`](docs/design-custom-agents.md)).
+- Both come from a browsable **agent library**. It ships curated character cards grouped into **packs** you can seat in one click (The Detectives, Middle-earth), and you can define your own. Each character reads the game its own way, so a pack is several genuinely different players rather than one voice in costumes. A custom agent can carry author-written strategy, not just flavor, while the engine keeps what it can see and how its output is read locked down (see [`docs/design-custom-agents.md`](docs/design-custom-agents.md)).
 
 The bots do not just vote in silence. Each round the leader proposes a team, the whole table discusses it in a live chat feed, the leader can revise, and only then does everyone vote. You read the leans and the table talk before casting your own vote, the same way you would at a real table.
 
