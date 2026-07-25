@@ -6,6 +6,7 @@
 // the shared floor that personality work layers on top of, so pin them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { buildMessages, TABLE_TALK_NORMS } from '../server/agents/prompts.ts'
@@ -94,6 +95,42 @@ test('no rendered prompt shows the model a construction the norms ban', () => {
         BANNED_SLOGAN,
         `${where} contains a "that's not X, that's Y" reframe`,
       )
+    }
+  }
+})
+
+// CURATED agents ship WITH the repo (read-only, baked into the deploy image),
+// so their personality/strategy text is ours and gets the same house style as
+// the engine prompts. It matters MORE here than anywhere else: persona text is
+// the layer closest to "how to talk", and its quoted example lines are the text
+// bots copy hardest. All six curated agents violated this when written (12
+// dashes, all in persona slots).
+//
+// USER agents (data/agents/*.json, authored at runtime through the API) are
+// deliberately NOT checked, and must never be. That text belongs to the user:
+// rejecting their punctuation would break the custom-agent feature for no good
+// reason, and mimicry there is a FEATURE, since someone who writes a persona in
+// a distinctive voice should get that voice back. The line is authorship, not
+// file format: we hold OUR text to the style, never theirs.
+test('curated agent prompt text follows the same house style', () => {
+  const dir = new URL('../agents/', import.meta.url)
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
+  assert.ok(files.length > 0, 'expected curated agents to exist')
+  for (const file of files) {
+    const def = JSON.parse(fs.readFileSync(new URL(file, dir), 'utf8'))
+    const e = def.engine ?? {}
+    if (e.type !== 'llm') continue
+    const fields: [string, unknown][] = [
+      ['personality', e.personality],
+      ['strategy', e.strategy],
+      ...Object.entries(e.roleGuidance ?? {}).map(([k, v]) => [`roleGuidance.${k}`, v] as [string, unknown]),
+      ...Object.entries(e.kindGuidance ?? {}).map(([k, v]) => [`kindGuidance.${k}`, v] as [string, unknown]),
+    ]
+    for (const [name, text] of fields) {
+      if (typeof text !== 'string') continue
+      const where = `${file} ${name}`
+      assert.doesNotMatch(text, BANNED_DASH, `${where} contains an em or en dash`)
+      assert.doesNotMatch(text, BANNED_SLOGAN, `${where} contains a "that's not X, that's Y" reframe`)
     }
   }
 })
