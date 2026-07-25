@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PACKS, randomModels, resolvePacks, seatPack } from '../server/agents/packs.ts'
 import { loadAgentLibrary, validateDef } from '../server/agents/defs.ts'
-import { CORE_TABLE, DEFAULT_TABLE, ROSTER } from '../server/llm/roster.ts'
+import { DEFAULT_TABLE, ROSTER } from '../server/llm/roster.ts'
 import { makeRng } from '../server/engine/prng.ts'
 import type { AgentDef } from '../server/agents/defs.ts'
 
@@ -56,13 +56,26 @@ test('seatPack: every member seated first, leftovers from the default library, n
   const seated = table.slice(0, pack.agents.length).map((s) => s.agent)
   assert.deepEqual([...seated].sort(), [...pack.agents].sort(), 'a full-size table seats the whole pack')
   const leftovers = table.slice(pack.agents.length).map((s) => s.agent)
-  // CORE_TABLE, not DEFAULT_TABLE: the latter lists every seated model, so
-  // asserting against it would still pass if the two-tier preference in
-  // leftoverPool collapsed into a flat draw over the whole roster. Leftovers
-  // must come from the curated core while the core still has seats to give.
-  assert.ok(leftovers.every((id) => CORE_TABLE.includes(id)), `unexpected leftovers: ${leftovers}`)
+  assert.ok(leftovers.every((id) => DEFAULT_TABLE.includes(id)), `unexpected leftovers: ${leftovers}`)
   assert.ok(leftovers.every((id) => !pack.agents.includes(id)))
-  assert.ok(CORE_TABLE.length < DEFAULT_TABLE.length, 'the two tiers must stay distinct for the check above to bite')
+})
+
+test('seatPack: leftovers draw FLAT over the roster, not just the historical six', () => {
+  // leftoverPool used to prefer the default six and queue newer models behind
+  // them, so a newly seated model could go unseen indefinitely. The draw is now
+  // flat; this pins that, since the preference could be reintroduced without
+  // any other test noticing.
+  const lib = loadAgentLibrary()
+  const pack = lib.packs.find((p) => p.id === 'detectives')!
+  const historicalSix = DEFAULT_TABLE.slice(0, 6)
+  const seen = new Set<string>()
+  for (let i = 0; i < 60; i++) {
+    for (const s of seatPack(pack, 9, lib.agents, makeRng(`flat-${i}`)).slice(pack.agents.length)) {
+      seen.add(s.agent)
+    }
+  }
+  const beyond = [...seen].filter((id) => !historicalSix.includes(id))
+  assert.ok(beyond.length > 0, `leftovers never reached past the default six: ${[...seen]}`)
 })
 
 test('seatPack: a table smaller than the pack draws a subset, and rotates across seeds', () => {

@@ -688,16 +688,11 @@ function defaultTable(library: Library | null, count: number, exclude: string[] 
     .filter((a) => a.tier === 'builtin' && agentIsLlm(a) && !exclude.includes(a.id))
     .map((a) => a.id) ?? []
   if (models.length === 0) return Array.from({ length: count }, () => ({ agent: 'autopilot' }))
-  // The server's curated core (one model family per seat) still says WHICH
-  // models are preferred when the roster outgrows the table; the shuffle only
-  // decides who sits where, and any newer roster model queues behind them.
-  // coreTable, NOT defaultTable — the latter lists every seated model, so it
-  // would put all of them in `preferred` and leave the second group empty.
-  // Falls back to defaultTable for a server too old to send coreTable.
-  const preferred = (library?.coreTable ?? library?.defaultTable ?? []).filter((id) => models.includes(id))
-  const order = preferred.length
-    ? [...shuffled(preferred), ...shuffled(models.filter((id) => !preferred.includes(id)))]
-    : shuffled(models)
+  // A flat shuffle over every built-in model, mirroring leftoverPool in
+  // server/agents/packs.ts — keep the two in step. No preferred subset: a model
+  // on the roster is a model that can take a seat, and one that shouldn't be
+  // drawn belongs benched in roster.ts rather than ranked last here.
+  const order = shuffled(models)
   return Array.from({ length: count }, (_, i) => ({ agent: order[i % order.length] }))
 }
 

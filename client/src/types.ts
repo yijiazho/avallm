@@ -123,10 +123,6 @@ export interface Library {
   }
   gated?: boolean
   defaultTable?: string[]
-  // The curated core (one model family per seat). Preferred over defaultTable
-  // for auto-filled seats: defaultTable lists EVERY seated model, so preferring
-  // it would flatten the two-tier draw into "any model at all".
-  coreTable?: string[]
   defaultModel?: string
 }
 

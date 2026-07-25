@@ -117,41 +117,30 @@ export const ROSTER: RosterEntry[] = [
   },
 ]
 
-// The curated core, one model family per seat — the six we'd actually pick.
+// Every seated model — the pool a table draws from. Auto-fill paths
+// (leftoverPool in agents/packs.ts, defaultTable in the client's App.tsx)
+// SHUFFLE this whole pool, so order is discarded on every path a human
+// touches. It survives in exactly one place: the server's fallback when a
+// caller posts no table at all (server.ts) takes the first `botCount` off the
+// front. The client never hits that — its setup screen always posts a table —
+// so treat the order below as a tiebreak for API/sim callers, nothing more.
+//
+// The leading six are the historical default table, one model family per seat.
 // (Seat churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was
 // benched on reliability — see above — and after a brief Gemini Flash stopgap
 // that doubled the Google family, Nemotron (NVIDIA) took the seat once it
-// cleared docs/model-onboarding.md. Nemotron restores one-family-per-seat and
-// was the cheapest seat measured in its onboarding playtest.)
-//
-// This is a separate export because the MEMBERSHIP SPLIT is the real lever,
-// not the ordering. Both auto-fill paths — leftoverPool in agents/packs.ts and
-// defaultTable in the client's App.tsx — shuffle within "preferred" and within
-// "the rest", so position inside a group is discarded. What survives the
-// shuffle is only which group a model lands in. Folding these six into
-// DEFAULT_TABLE would put all fifteen in "preferred", empty "the rest", and
-// silently flatten that two-tier draw without any call site changing.
-export const CORE_TABLE = ['deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron']
-
-// Every seated model, core first. Ordering here only bites on ONE path: the
-// server's fallback when a caller posts no table at all (server.ts), which
-// takes the first `botCount` off the front. The client never hits it — its
-// setup screen always posts a table. So treat this order as a tiebreak for
-// API/sim callers, not as the product decision.
-//
-// The tail is the 2026-07 batch plus Gemini Flash, ordered by measured playtest
-// quality so that fallback path stays sane: the three that ran a clean game
-// (0 degrades, 0 reasoning leaks) first, then the two that degraded once, then
-// the expensive and on-probation seats. MiniMax is last of the batch on
-// purpose — 2 degrades and 3 reasoning leaks despite a clean probe — and the
-// two doubled families (Google, DeepSeek) sit at the very back.
+// cleared docs/model-onboarding.md.) The tail is the 2026-07 batch plus Gemini
+// Flash, ordered by measured playtest quality so the fallback path stays sane:
+// clean games first, then the two that degraded once, then the expensive and
+// on-probation seats. Because the pool is drawn flat, a table CAN now seat two
+// Google or two DeepSeek variants; they're distinct models, distinctly badged.
 //
 // Because this names EVERY seated model, benching one means deleting it here
 // as well as commenting out its ROSTER entry: a leftover id would resolve to
 // no agent def and 500 the lobby. test/llm-policies.test.ts walks this list
 // through rosterById, so that mistake reddens the suite rather than shipping.
 export const DEFAULT_TABLE = [
-  ...CORE_TABLE,
+  'deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron',
   'hunyuan', 'solar', 'gpt-nano', 'mistral', 'mimo', 'qwen',
   'deepseek-pro', 'minimax', 'gemini-flash',
 ]
