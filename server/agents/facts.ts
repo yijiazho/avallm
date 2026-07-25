@@ -246,7 +246,7 @@ export function factsDossier(view: PlayerView): string {
     rows.push(`  ${fields.join(' | ')}`)
   }
   sections.push(
-    `Per-player record — one row each, pipe-separated "key: value" fields. ` +
+    `Per-player record, one row each, pipe-separated "key: value" fields. ` +
     `on-team = quests this seat PLAYED on, with result. ` +
     `voted = how this seat voted on each approved-and-played team (Q<n> vote→result); ` +
     `being placed ON a team is NOT the same as voting to approve it. ` +
@@ -260,9 +260,9 @@ export function factsDossier(view: PlayerView): string {
   // Hammer proximity — how much rejection runway is left this round.
   const rejectsLeft = MAX_PROPOSALS - view.proposalNum
   if (rejectsLeft <= 2 && view.proposalNum < MAX_PROPOSALS) {
-    sections.push(`Hammer proximity: proposal ${view.proposalNum} of ${MAX_PROPOSALS} this round — up to ${rejectsLeft} more proposal${rejectsLeft > 1 ? 's' : ''} can be rejected before the 5th is auto-approved.`)
+    sections.push(`Hammer proximity: proposal ${view.proposalNum} of ${MAX_PROPOSALS} this round, so up to ${rejectsLeft} more proposal${rejectsLeft > 1 ? 's' : ''} can be rejected before the 5th is auto-approved.`)
   }
 
   if (!sections.length) return ''
-  return `== DERIVED FACTS (computed from the public record — anyone at the table can derive these) ==\n${sections.join('\n')}`
+  return `== DERIVED FACTS (computed from the public record, so anyone at the table can derive these) ==\n${sections.join('\n')}`
 }
