@@ -1,6 +1,7 @@
 // Headless simulation CLI.
 //   node server/sim/sim.ts --players 7 --seed 42            # one game, transcript
 //   node server/sim/sim.ts --players 7 --games 200          # aggregate stats
+//   node server/sim/sim.ts --model kimi --games 5           # homogeneous LLM table (one model, every seat)
 //   node server/sim/sim.ts --games 20 --concurrency 5       # 5 games at once (aggregate)
 //   node server/sim/sim.ts --agents random --talk 0
 import { parseArgs } from 'node:util'
