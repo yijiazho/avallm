@@ -72,11 +72,17 @@ export function resolvePacks(agents: AgentDef[]): { packs: ResolvedPack[]; probl
 }
 
 // Roster ids for the seats that need one, dealt without repeats until the
-// roster runs out. Personality-only agents (no model suggestion in the def)
+// pool runs out. Personality-only agents (no model suggestion in the def)
 // would otherwise all land on DEFAULT_MODEL, making a themed table sound like
 // one model wearing six hats.
-export function randomModels(count: number, rng: Rng): string[] {
-  const ids = ROSTER.map((r) => r.id)
+//
+// `pool` narrows the draw to a subset of roster ids (the sim's --tier passes one
+// cost tier). Dealing by repeated shuffle rather than independent picks is the
+// point of sharing this: over 7 seats from a 4-model tier it guarantees every
+// model appears before any appears a third time, where independent picks can
+// hand four seats to one model and never seat another.
+export function randomModels(count: number, rng: Rng, pool?: readonly string[]): string[] {
+  const ids = pool ? [...pool] : ROSTER.map((r) => r.id)
   // Models get benched by commenting them out of the roster; an empty roster
   // must fail downstream (resolveModel's DEFAULT_MODEL lookup) rather than
   // spin here forever.

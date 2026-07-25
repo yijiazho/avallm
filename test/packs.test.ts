@@ -131,3 +131,24 @@ test('randomModels: distinct until the roster runs out, then cycles', () => {
   assert.equal(many.length, ROSTER.length + 2)
   assert.ok(many.every((id) => ROSTER.some((r) => r.id === id)))
 })
+
+// The sim's --tier draws its per-game cast through this pool argument. Dealing
+// by shuffle is the whole point: independent picks could hand a 7-seat table
+// four copies of one model and never seat another, which would quietly make a
+// "tier" benchmark a measurement of whichever model got lucky.
+test('randomModels: a pool narrows the draw and still spreads across it', () => {
+  const pool = ['a', 'b', 'c', 'd']
+  const seats = randomModels(7, rng(), pool)
+  assert.equal(seats.length, 7)
+  assert.ok(seats.every((id) => pool.includes(id)), 'never draws outside the pool')
+  assert.equal(new Set(seats).size, pool.length, 'every pool member is seated at least once')
+  // 7 seats over a 4-model pool: two full shuffles, so nothing appears 3 times.
+  for (const id of pool) {
+    assert.ok(seats.filter((s) => s === id).length <= 2, `${id} seated at most twice`)
+  }
+})
+
+test('randomModels: the same seed deals the same pool cast', () => {
+  const pool = ['a', 'b', 'c', 'd']
+  assert.deepEqual(randomModels(7, rng(), pool), randomModels(7, rng(), pool))
+})

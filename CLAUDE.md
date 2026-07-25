@@ -11,12 +11,12 @@ AvaLLM — a web implementation of The Resistance: Avalon where the other player
 ```
 npm test                                   # all tests (node:test, no API key or network needed)
 node --test test/rules.test.ts             # a single test file
+npm run sim -- --help                      # EVERY sim flag, with examples and live roster ids
 npm run sim -- --players 7 --seed 42       # one headless heuristic game, full transcript
 npm run sim -- --games 200 --talk 0,0      # aggregate win-rate stats
 npm run sim -- --agents llm --players 5    # headless game with real LLM calls + cost breakdown
-npm run sim -- --model kimi --games 5      # homogeneous table: every seat one model (isolates prompt vs. model quality)
-npm run sim -- --games 20 --concurrency 5  # play aggregate games in parallel (faster wall-clock; shares the spend ceiling)
-npm run sim -- --pack detectives           # seat a curated agent pack (implies LLM; costs money)
+npm run sim -- --tier mid --games 8 --concurrency 4 --talk 3,2 --transcripts runs/
+                                           # benchmark a cost tier: random cast per game, readable after
 npm run play                               # terminal play vs heuristic bots
 
 npm --prefix client install                # client deps (one-time)

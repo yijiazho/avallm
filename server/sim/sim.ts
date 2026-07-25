@@ -1,16 +1,13 @@
-// Headless simulation CLI.
-//   node server/sim/sim.ts --players 7 --seed 42            # one game, transcript
-//   node server/sim/sim.ts --players 7 --games 200          # aggregate stats
-//   node server/sim/sim.ts --model kimi --games 5           # homogeneous LLM table (one model, every seat)
-//   node server/sim/sim.ts --games 20 --concurrency 5       # 5 games at once (aggregate)
-//   node server/sim/sim.ts --agents random --talk 0
-//   node server/sim/sim.ts --pack detectives --players 7    # seat a curated pack
+// Headless simulation CLI. Run `npm run sim -- --help` for the full flag list;
+// USAGE below is that help text, so the two can never drift apart.
+import fs from 'node:fs'
+import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { makeRng } from '../engine/prng.ts'
 import { createAgent, createAgentFromDef } from '../agents/registry.ts'
 import { loadAgentLibrary } from '../agents/defs.ts'
-import { seatPack } from '../agents/packs.ts'
+import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
@@ -19,20 +16,69 @@ import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
 import type { Seat } from '../engine/types.ts'
 
+const USAGE = `npm run sim -- [flags]        headless Avalon simulator
+
+TABLE (all LLM tables cost money; heuristic/random are free)
+  --agents <kind>       heuristic (default) | random | mixed | llm
+  --model <roster-id>   force EVERY seat onto one model (implies --agents llm).
+                        A homogeneous table isolates prompt quality from model spread.
+  --tier <tier>         seat a RANDOM model of this cost tier per seat, redrawn per
+                        game from that game's seed (implies --agents llm).
+  --pack <pack-id>      seat a curated character pack; leftover seats come from the
+                        default library (implies --agents llm).
+  --players <n>         table size (default 7)
+
+GAME
+  --seed <string>       base seed (default "sim"). Aggregate runs suffix it per game,
+                        so the same --seed always replays the same batch.
+  --games <n>           how many games (default 1). >1 prints aggregate stats only.
+  --talk <r[,r2]>       table-talk rounds, and rounds after a team revision (default 0)
+  --concurrency <n>     aggregate mode: play n games at once (shares the spend ceiling)
+
+OUTPUT
+  --out <file.jsonl>    append replayable game artifacts for eval tooling
+  --transcripts <dir>   write one rendered transcript per game into <dir>. A single
+                        game prints its transcript anyway; aggregate runs print none,
+                        so this is how a batch stays readable.
+  --quiet               suppress per-game chatter
+  --help                this text
+
+EXAMPLES
+  npm run sim -- --players 7 --seed 42                    one free game, full transcript
+  npm run sim -- --games 200 --talk 0                     aggregate win rates, no API cost
+  npm run sim -- --agents llm --players 7 --talk 3,2      one real LLM game
+  npm run sim -- --tier mid --games 8 --concurrency 4 \\
+       --talk 3,2 --transcripts runs/          batch of mid-tier tables, readable after
+  npm run sim -- --model kimi --games 5                   one model on every seat
+  npm run sim -- --pack detectives --players 7            seat a curated cast
+
+ROSTER IDS
+${(['cheap', 'mid', 'premium'] as const)
+    .map((t) => `  ${t.padEnd(8)} ${ROSTER.filter((r) => r.tier === t).map((r) => r.id).join(', ')}`)
+    .join('\n')}`
+
 const { values } = parseArgs({
   options: {
+    help: { type: 'boolean', default: false },
     players: { type: 'string', default: '7' },
     seed: { type: 'string', default: 'sim' },
     games: { type: 'string', default: '1' },
     agents: { type: 'string', default: 'heuristic' }, // heuristic | random | mixed | llm
     model: { type: 'string' },                        // force EVERY seat onto one roster id (implies --agents llm) — a homogeneous table to isolate prompt quality from model spread
+    tier: { type: 'string' },                         // seat a RANDOM model from this cost tier per seat, redrawn per game (implies --agents llm)
     pack: { type: 'string' },                         // seat a curated pack (server/agents/packs.ts), leftovers from the default library (implies --agents llm)
     talk: { type: 'string', default: '0' },           // maxRounds[,maxRoundsAfterChange]
     out: { type: 'string' },                          // append game artifacts (JSONL) for eval tooling
+    transcripts: { type: 'string' },                  // write one rendered transcript per game into this dir (aggregate runs print none)
     concurrency: { type: 'string', default: '1' },    // aggregate mode: play this many independent games at once (shares the spend ceiling)
     quiet: { type: 'boolean', default: false },
   },
 })
+
+if (values.help) {
+  console.log(USAGE)
+  process.exit(0)
+}
 
 const playerCount = Number(values.players)
 const games = Number(values.games)
@@ -41,6 +87,32 @@ const [maxRounds, maxRoundsAfterChange = 0] = values.talk!.split(',').map(Number
 // --model forces a homogeneous LLM table, so it implies --agents llm. Validate the
 // id up front (rosterById throws on an unknown id) for a clear error before any game runs.
 const forcedModel = values.model ? rosterById(values.model).id : undefined
+
+// --tier draws a random model of one cost tier PER SEAT. Unlike --pack (one cast
+// for the whole run) the draw is redrawn per game from that game's own seed, so a
+// batch sweeps casts instead of repeating one, and any single game still replays
+// exactly from its seed. Both --model and --pack decide seating themselves, so
+// combining them with --tier would silently drop it: reject instead.
+const TIERS = ['cheap', 'mid', 'premium'] as const
+type Tier = typeof TIERS[number]
+let tierModels: string[] | undefined
+if (values.tier !== undefined) {
+  if (!TIERS.includes(values.tier as Tier)) {
+    throw new Error(`unknown tier: ${values.tier}. Known tiers: ${TIERS.join(', ')}`)
+  }
+  if (forcedModel) throw new Error('--tier and --model both choose seating; pass only one')
+  if (values.pack) throw new Error('--tier and --pack both choose seating; pass only one')
+  tierModels = ROSTER.filter((r) => r.tier === values.tier).map((r) => r.id)
+  if (!tierModels.length) throw new Error(`no models in tier "${values.tier}"`)
+}
+
+// The per-game cast for --tier, drawn from that game's seed so it is reproducible.
+// randomModels deals by shuffle rather than independent picks, so a 7-seat table
+// covers a 4-model tier instead of possibly seating one model four times.
+function tierTableFor(seed: string): string[] | undefined {
+  if (!tierModels) return undefined
+  return randomModels(playerCount, makeRng(`${seed}:tier`), tierModels)
+}
 
 // --pack seats library defs instead of bare model specs. The table is resolved
 // ONCE (from --seed, not per game) so an aggregate run compares the same cast
@@ -69,25 +141,41 @@ if (values.pack) {
 }
 
 const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable !== undefined
+  || tierModels !== undefined
 
-function specFor(seat: Seat): AgentSpec {
-  if (isLlm) return { type: 'llm', model: forcedModel ?? ROSTER[seat % ROSTER.length].id }
+// `tierTable` is this game's cast for --tier, threaded through rather than read
+// from module state: with --concurrency > 1 several games are in flight at once,
+// each with its own draw, so a shared "current table" would let one game name its
+// seats from another's cast.
+function specFor(seat: Seat, tierTable?: string[]): AgentSpec {
+  if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length].id }
   if (values.agents === 'random') return { type: 'random' }
   if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
   return { type: 'heuristic' }
 }
 
-function agentFor(seat: Seat, seed: string): AvalonAgent {
+function agentFor(seat: Seat, seed: string, tierTable?: string[]): AvalonAgent {
   if (packTable && packDefs) return createAgentFromDef(packDefs[seat], { seed, seat }, packTable[seat].model)
-  return createAgent(specFor(seat), { seed, seat })
+  return createAgent(specFor(seat, tierTable), { seed, seat })
 }
 
 // LLM tables are named after their models — the premise of the game. A homogeneous
 // table numbers every seat (Kimi 1..Kimi 7) so the transcript can still tell them apart.
 // A pack table is named after its characters (the models still show in the spend
 // breakdown), with the same dedupe if a name repeats.
-function namesFor(count: number): string[] | undefined {
+function namesFor(count: number, tierTable?: string[]): string[] | undefined {
   if (!isLlm) return undefined
+  // A --tier cast repeats models freely (4 mid models over 7 seats), so dedupe by
+  // display name the same way a homogeneous table does.
+  if (tierTable) {
+    const used = new Map<string, number>()
+    return Array.from({ length: count }, (_, seat) => {
+      const display = rosterById(tierTable[seat]).displayName
+      const n = (used.get(display) ?? 0) + 1
+      used.set(display, n)
+      return n === 1 ? display : `${display} ${n}`
+    })
+  }
   if (packDefs) {
     const used = new Map<string, number>()
     return packDefs.slice(0, count).map((def) => {
@@ -111,17 +199,35 @@ const tally = { good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 
 
 async function playGame(i: number): Promise<void> {
   const seed = games === 1 ? values.seed! : `${values.seed}-${i}`
+  const tierTable = tierTableFor(seed)
   const game = createGame({
-    seed, playerCount, names: namesFor(playerCount),
+    seed, playerCount, names: namesFor(playerCount, tierTable),
     talk: { maxRounds, maxRoundsAfterChange },
   })
   const agents = new Map<Seat, AvalonAgent>(
-    game.players.map((p) => [p.seat, agentFor(p.seat, seed)]),
+    game.players.map((p) => [p.seat, agentFor(p.seat, seed, tierTable)]),
   )
   const verbose = games === 1 && !values.quiet
+  // Collected rather than streamed: with --concurrency > 1 several games emit at
+  // once, so writing one file per game at the end is what keeps a batch readable.
+  const captured: string[] = []
+  if (values.transcripts) {
+    captured.push(`=== seed ${seed} | ${playerCount}p | talk ${values.talk} ===`)
+    if (tierTable) {
+      captured.push(`table: ${game.players.map((p) => `${p.name}=${tierTable[p.seat]}`).join(', ')}`)
+    }
+    captured.push('')
+  }
   const result = await runGame({
     game, agents,
-    onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
+    onEvent: verbose || values.transcripts
+      ? (ev) => {
+        const line = renderEvent(ev, game)
+        if (!line) return
+        if (verbose) console.log(line)
+        if (values.transcripts) captured.push(line)
+      }
+      : undefined,
   })
   // Tally + artifact writes run synchronously between awaits, so even with games
   // in flight concurrently there is no interleaving here: no shared-state race on
@@ -136,7 +242,7 @@ async function playGame(i: number): Promise<void> {
         const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
         return `${packDefs[seat].id}${model ? `:${model}` : ''}`
       }
-      const spec = specFor(seat)
+      const spec = specFor(seat, tierTable)
       return spec.type === 'llm' ? `llm:${spec.model}` : spec.type
     }
     appendArtifact(values.out, toArtifact(game, {
@@ -145,12 +251,23 @@ async function playGame(i: number): Promise<void> {
       steps: result.steps,
     }))
   }
-  if (verbose) {
-    console.log('\n' + revealRoles(game))
-    console.log(`\nWinner: ${game.winner} (${game.winReason})  [seed ${seed}]`)
-    for (const d of result.degraded) {
-      console.log(`degraded: seat ${d.seat} ${d.kind} — ${d.error.slice(0, 120)}`)
-    }
+  // Roles, outcome, and degradations close both the printed transcript and the
+  // written one: a transcript without the reveal cannot be read for play quality,
+  // since who was evil is exactly what the table talk has to be judged against.
+  const footer = [
+    '',
+    revealRoles(game),
+    '',
+    `Winner: ${game.winner} (${game.winReason})  [seed ${seed}]`,
+    ...result.degraded.map((d) => `degraded: seat ${d.seat} ${d.kind} — ${d.error.slice(0, 120)}`),
+  ]
+  if (verbose) console.log(footer.join('\n'))
+  if (values.transcripts) {
+    fs.mkdirSync(values.transcripts, { recursive: true })
+    fs.writeFileSync(
+      path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${seed}.txt`),
+      captured.concat(footer).join('\n'),
+    )
   }
 }
 
