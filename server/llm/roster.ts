@@ -10,7 +10,8 @@
 // bill roughly 27:1 — a model with a cheap prompt rate and an alarming
 // completion rate is cheap HERE. Tier by `2800·prompt + 100·completion` in
 // µ$/call: cheap < 500, mid < 1200, premium above. That ordering is why Kimi
-// (1881) is premium while MiniMax (960) is mid despite similar-looking cards.
+// (1881) is premium while Qwen (1024) is mid, and why DeepSeek Pro is premium
+// on prompt price alone despite the gentlest completion rate of the three.
 // Re-derive the mix if call-params.ts budgets change materially.
 
 export interface RosterEntry {
@@ -79,10 +80,10 @@ export const ROSTER: RosterEntry[] = [
     badge: { color: '#76B900' }, tier: 'cheap',
   },
   // Onboarded 2026-07 as a batch (docs/model-onboarding.md living record).
-  // Six new families (Xiaomi, Tencent, MiniMax, Alibaba/Qwen, Mistral, Upstage)
-  // plus an OpenAI seat to replace benched GPT-OSS and a smarter DeepSeek sibling.
-  // All are in DEFAULT_TABLE, but behind the curated six — see the ordering note
-  // there, which is what decides who actually sits at a given table.
+  // Five new families (Xiaomi, Tencent, Alibaba/Qwen, Mistral, Upstage) plus an
+  // OpenAI seat to replace benched GPT-OSS and a smarter DeepSeek sibling. A
+  // sixth, MiniMax, was seated and benched a playtest later — see below.
+  // Seven of the eight ship; each is drawn like any other seated model.
   {
     id: 'deepseek-pro', displayName: 'DeepSeek Pro', slug: 'deepseek/deepseek-v4-pro',
     badge: { color: '#2A3EB1' }, tier: 'premium',
@@ -95,10 +96,20 @@ export const ROSTER: RosterEntry[] = [
     id: 'hunyuan', displayName: 'Hunyuan', slug: 'tencent/hy3',
     badge: { color: '#0052D9' }, tier: 'cheap',
   },
-  {
-    id: 'minimax', displayName: 'MiniMax', slug: 'minimax/minimax-m3',
-    badge: { color: '#C2185B' }, tier: 'mid',
-  },
+  // MiniMax is benched on reliability, one playtest after being seated. It is
+  // the only model so far to PASS the suppression probe and then fail in play:
+  // effort:'none' measured rt 0 across 5 samples, but a real game leaked
+  // reasoning on 3 of 191 calls — the Step 1 → Step 3 gap the playbook warns
+  // about. It also degraded twice in that game (propose returned an
+  // out-of-range seat; finalize broke the stick/team contract) and, partly
+  // from paying for reasoning nobody asked for, cost 2-4× the other new seats.
+  // Kept commented (not deleted) so it's a one-line restore — its
+  // reasoning-policy family and Arcana glyph are still wired up. Re-probe with
+  // more samples before restoring; 5 was not enough to catch this.
+  // {
+  //   id: 'minimax', displayName: 'MiniMax', slug: 'minimax/minimax-m3',
+  //   badge: { color: '#C2185B' }, tier: 'mid',
+  // },
   {
     id: 'qwen', displayName: 'Qwen', slug: 'qwen/qwen3.7-plus',
     badge: { color: '#5B4BF5' }, tier: 'mid',
@@ -131,9 +142,9 @@ export const ROSTER: RosterEntry[] = [
 // that doubled the Google family, Nemotron (NVIDIA) took the seat once it
 // cleared docs/model-onboarding.md.) The tail is the 2026-07 batch plus Gemini
 // Flash, ordered by measured playtest quality so the fallback path stays sane:
-// clean games first, then the two that degraded once, then the expensive and
-// on-probation seats. Because the pool is drawn flat, a table CAN now seat two
-// Google or two DeepSeek variants; they're distinct models, distinctly badged.
+// clean games first, then the two that degraded once, then the expensive seats.
+// Because the pool is drawn flat, a table CAN now seat two Google or two
+// DeepSeek variants; they're distinct models, distinctly badged.
 //
 // Because this names EVERY seated model, benching one means deleting it here
 // as well as commenting out its ROSTER entry: a leftover id would resolve to
@@ -142,7 +153,7 @@ export const ROSTER: RosterEntry[] = [
 export const DEFAULT_TABLE = [
   'deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron',
   'hunyuan', 'solar', 'gpt-nano', 'mistral', 'mimo', 'qwen',
-  'deepseek-pro', 'minimax', 'gemini-flash',
+  'deepseek-pro', 'gemini-flash',
 ]
 
 // What a personality-only agent (no model in its def) plays on when the seat

@@ -50,8 +50,16 @@ export const POLICIES: PolicyRule[] = [
   // sharp ones: left unsuppressed they don't merely leak, they blank 5/5 under
   // the JSON ASK — so a missing policy row for these families would read as a
   // broken model, not a chatty one.
+  //
+  // A clean probe is necessary, not sufficient: minimax passed this sweep and
+  // still leaked in play (see below). Five samples of one short ASK is a weak
+  // sample; Step 3's real game is what confirms a row.
   { family: 'xiaomi', match: /^xiaomi\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'tencent', match: /^tencent\//, suppress: { effort: 'none' }, canSuppress: true },
+  // minimax is BENCHED in roster.ts (its probe result did not survive a real
+  // game — 3 leaked calls out of 191). The row stays per the retirement
+  // pattern so restoring is one uncommented entry, but treat this suppress
+  // value as unproven: it is exactly what failed.
   { family: 'minimax', match: /^minimax\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'upstage', match: /^upstage\//, suppress: null, canSuppress: true },
 ]
