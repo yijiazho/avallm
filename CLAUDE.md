@@ -100,4 +100,4 @@ git push --force-with-lease origin <old-sha>:deploy   # rollback
 
 ## Docs
 
-`docs/design-implementation.md` is the architecture reference (kept current; cite sections when relevant). `docs/research-strategy.md` feeds the bot prompts. `docs/ROADMAP.md` tracks deferred work. The design borrows patterns from the sibling repo `C:\Users\liual\Claude Projects\datingsim` (OpenRouter client, snapshot versioning).
+`docs/design-implementation.md` is the architecture reference (kept current; cite sections when relevant). `docs/research-strategy.md` feeds the bot prompts. `docs/model-onboarding.md` is the playbook + living record for adding/retiring roster models (reasoning-suppression probe, cost/reliability gates, wiring checklist). `docs/ROADMAP.md` tracks deferred work.

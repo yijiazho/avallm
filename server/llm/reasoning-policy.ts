@@ -1,7 +1,7 @@
-// Per-model-family reasoning suppression, ported from datingsim
-// game/lib/reasoning-policy.cjs (values are MEASURED there, not guessed —
-// see datingsim MODELS.md § Plumbing). The openrouter chokepoint suppresses
-// by default using this table; call sites cannot forget.
+// Per-model-family reasoning suppression. Values are MEASURED, not guessed
+// (see server/eval/reasoning-probe.ts and docs/model-onboarding.md § 1). The
+// openrouter chokepoint suppresses by default using this table; call sites
+// cannot forget.
 //
 // The traps this encodes: deepseek needs effort:'none' (low maps UP);
 // kimi burns ~3k reasoning tokens/turn unless 'none'; gemini flash reasons
@@ -28,6 +28,10 @@ export const POLICIES: PolicyRule[] = [
   { family: 'openai', match: /^openai\//, suppress: null, canSuppress: true },
   { family: 'xai', match: /^x-ai\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'seed', match: /^bytedance-seed\//, suppress: { effort: 'none' }, canSuppress: true },
+  // nvidia: measured via reasoning-probe.ts on nemotron-3-super — effort:'none'
+  // zeroes reasoning tokens; effort:'low'/'minimal' do NOT suppress (they reason
+  // as much or more). Same shape as deepseek/seed.
+  { family: 'nvidia', match: /^nvidia\//, suppress: { effort: 'none' }, canSuppress: true },
   { family: 'gemini-pro', match: /^google\/gemini-3\.1-pro/, suppress: null, canSuppress: false },
   { family: 'gemini-flash', match: /^google\/gemini-3(\.\d+)?-flash/, suppress: null, canSuppress: true },
   { family: 'anthropic', match: /^anthropic\//, suppress: null, canSuppress: true },

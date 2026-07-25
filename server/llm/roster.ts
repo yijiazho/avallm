@@ -1,5 +1,5 @@
 // The model roster — the cast of characters. Bots ARE models, openly badged.
-// Slugs deliberately limited to ones measured in datingsim's MODELS.md
+// Slugs deliberately limited to ones vetted via docs/model-onboarding.md
 // (rate cards + reasoning-suppression behavior verified there); prices are
 // $/M prompt/completion as of 2026-07 and only inform tier labels — real
 // cost accounting uses OpenRouter's usage.cost.
@@ -57,14 +57,24 @@ export const ROSTER: RosterEntry[] = [
     id: 'seed', displayName: 'Seed', slug: 'bytedance-seed/seed-2.0-lite',
     badge: { color: '#F0424C' }, tier: 'cheap',
   },
+  // Onboarded 2026-07 via docs/model-onboarding.md. Reasoning-suppression probe
+  // (reasoning-probe.ts) found effort:'none' is the clean flag (effort:'low'/
+  // 'minimal' do NOT suppress — the usual per-model trap); see the nvidia family
+  // in reasoning-policy.ts. Paid slug (not :free) so live games don't hit the
+  // free-tier per-minute rate limit; at $0.085/$0.40 per M it's cheap tier.
+  {
+    id: 'nemotron', displayName: 'Nemotron', slug: 'nvidia/nemotron-3-super-120b-a12b',
+    badge: { color: '#76B900' }, tier: 'cheap',
+  },
 ]
 
-// Default 6-bot table (7p game with one human), spread across model families.
-// (Haiku held the 6th seat until it was benched on cost; GPT-OSS held the last
-// until it was benched on reliability — see above. GPT-OSS was the roster's
-// only OpenAI seat, so with it out Gemini Flash fills the seat — which doubles
-// up the Google family rather than leaving the seat empty.)
-export const DEFAULT_TABLE = ['deepseek', 'gemini', 'seed', 'kimi', 'glm', 'gemini-flash']
+// Default 6-bot table (7p game with one human), one model family per seat.
+// (Seat churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was
+// benched on reliability — see above — and after a brief Gemini Flash stopgap
+// that doubled the Google family, Nemotron (NVIDIA) took the seat once it
+// cleared docs/model-onboarding.md. Nemotron restores one-family-per-seat and
+// was the cheapest seat measured in its onboarding playtest.)
+export const DEFAULT_TABLE = ['deepseek', 'gemini', 'seed', 'kimi', 'glm', 'nemotron']
 
 // What a personality-only agent (no model in its def) plays on when the seat
 // doesn't override. Provisional: deepseek is just the cheap starting point —

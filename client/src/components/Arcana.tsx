@@ -31,6 +31,7 @@ const CELESTIAL: Record<string, { glyph: string; body: string }> = {
   glm: { glyph: '♃', body: 'Jupiter' },
   'gpt-oss': { glyph: '♄', body: 'Saturn' },
   seed: { glyph: '♆', body: 'Neptune' },
+  nemotron: { glyph: '♂', body: 'Mars' },
   autopilot: { glyph: '⚙', body: 'the Clockwork' },
 }
 const OUTER_POOL: { glyph: string; body: string }[] = [
