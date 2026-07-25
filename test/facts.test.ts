@@ -242,3 +242,39 @@ test('dossier leaks no hidden information across a full game, every seat', async
     await runGame({ game, agents })
   }
 })
+
+// Quest evidence: the two deductions every model got wrong in the 2026-07-25
+// mid-tier benchmark. A success was read as CLEARING its team, and the identity
+// of who played a Fail was asserted as public fact (in one game a fabricated
+// claim of that shape was echoed until it read as consensus, seating three evil
+// on one team).
+test('quest evidence states the fail-count floor and keeps card identities private', () => {
+  const d = factsDossier(view({
+    round: 5,
+    quests: [
+      quest(1, 2, { team: [0, 1], result: 'success', failCount: 0 }),
+      quest(2, 4, { team: [0, 1, 2, 3], result: 'fail', failCount: 3 }),
+      quest(3, 3, { team: [1, 2, 3], result: 'fail', failCount: 1 }),
+    ],
+  }))
+  // The decisive arithmetic: 3 Fails on a 4-person team pins 3 of those 4.
+  assert.match(d, /3 Fail cards, so at least 3 of these 4 are evil/)
+  // Singular reads naturally, and the floor holds at one.
+  assert.match(d, /1 Fail card, so at least 1 of these 3 are evil/)
+  // Card identity is never derivable, and the row carrying the count says so.
+  assert.match(d, /which of them played a Fail is NOT public/)
+  // A success clears nobody.
+  assert.match(d, /proves nothing about these players: evil may play Success/)
+})
+
+test('quest evidence is data, not instruction', () => {
+  const d = factsDossier(view({
+    quests: [quest(1, 2, { team: [0, 1], result: 'fail', failCount: 1 })],
+  }))
+  // The facts layer carries observations; what to DO about them is agent policy
+  // (design-bot-guidance.md §6.1). Guard the boundary this section is closest to
+  // crossing, since "at least N are evil" is one short step from "so reject them".
+  for (const imperative of [/\bso reject\b/i, /\bdo not approve\b/i, /\byou should\b/i, /\bavoid\b/i]) {
+    assert.doesNotMatch(d, imperative)
+  }
+})

@@ -193,6 +193,53 @@ export function dossierEnabled(): boolean {
   return process.env.AVALON_NO_DOSSIER !== '1'
 }
 
+// What each RESOLVED quest actually proves about the players who played it.
+// Both halves fix a specific failure seen in every model of the 2026-07-25
+// mid-tier benchmark:
+//
+//   - Bots treat "was on a team that succeeded" as CLEARED, and build later
+//     teams from those players as though they were confirmed good. The rules
+//     digest already says evil may play Success, but stated once in a
+//     1200-word prompt it loses to the vivid quest board. Said per quest, at
+//     the row the bot is reasoning over, it lands.
+//   - Bots assert who played a Fail card as settled fact ("you literally
+//     played the Fail card"), which is not public and cannot be derived. In
+//     one benchmark game three players echoed a fabricated claim of this shape
+//     until the table treated it as consensus, which put three evil on one
+//     team. The fail COUNT is public; the identities are not, and the row that
+//     carries the count is the place to say so.
+//
+// The arithmetic here is the one deduction that is decisive rather than
+// probabilistic: a quest showing N Fails had at least N evil aboard, because a
+// good player cannot play Fail (the single engine-enforced rule). Any player at
+// the table can derive it, so it stays inside the facts layer's contract.
+//
+// Stated as evidence, never as instruction: "at least 3 of these 4 are evil" is
+// a fact, while "so reject teams containing them" would be policy and belongs
+// in a guidance slot (design-bot-guidance.md §6.1).
+function questEvidenceSection(view: PlayerView): string {
+  const rows: string[] = []
+  for (const q of view.quests) {
+    if (q.result === undefined || !q.team) continue
+    const team = q.team.map((s) => nameOf(view, s)).join(', ')
+    const cells = [questResultTag(q.num, q.result === 'fail'), `team: ${team}`]
+    if (q.result === 'fail') {
+      const n = q.failCount ?? 0
+      cells.push(
+        `${n} Fail card${n === 1 ? '' : 's'}, so at least ${n} of these ${q.team.length} are evil`,
+        `which of them played a Fail is NOT public`,
+      )
+    } else {
+      cells.push(`proves nothing about these players: evil may play Success to buy trust`)
+    }
+    rows.push(`  ${cells.join(' | ')}`)
+  }
+  if (!rows.length) return ''
+  return 'What each resolved quest proves about the players who played it '
+    + '(public arithmetic: a good player cannot play Fail, so N Fails means at least N evil were aboard).\n'
+    + rows.join('\n')
+}
+
 // Returns '' when there is nothing derived to report yet (early game), so the
 // prompt doesn't carry an empty section.
 export function factsDossier(view: PlayerView): string {
@@ -208,6 +255,12 @@ export function factsDossier(view: PlayerView): string {
   // it on). Suppressed with the rest of the dossier before the first resolve,
   // where the score is 0-0 and says nothing.
   sections.push(boardStakesSection(view))
+
+  // Quest evidence sits between the board and the player rows on purpose: it is
+  // the bridge between them. The board says what is at stake, this says what the
+  // record has already proven, and the rows below say who did what.
+  const questEvidence = questEvidenceSection(view)
+  if (questEvidence) sections.push(questEvidence)
 
   // Per-player public record — ONE row per player, so every derived fact about a
   // player is a single lookup instead of being scattered across sections (which
