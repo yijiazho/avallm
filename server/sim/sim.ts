@@ -106,6 +106,12 @@ if (values.tier !== undefined) {
   if (!tierModels.length) throw new Error(`no models in tier "${values.tier}"`)
 }
 
+// Create the transcript directory BEFORE any game runs. Created lazily at the
+// first write it would surface an unwritable path only after a full LLM batch
+// had been played and paid for, which is the most expensive possible moment to
+// learn the output target is bad.
+if (values.transcripts) fs.mkdirSync(values.transcripts, { recursive: true })
+
 // The per-game cast for --tier, drawn from that game's seed so it is reproducible.
 // randomModels deals by shuffle rather than independent picks, so a 7-seat table
 // covers a 4-model tier instead of possibly seating one model four times.
@@ -197,6 +203,19 @@ function namesFor(count: number, tierTable?: string[]): string[] | undefined {
 
 const tally = { good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0 }
 
+// What actually sat in a seat, for the artifact AND the transcript header. One
+// definition so a transcript can never disagree with the artifact beside it
+// about which model played which seat.
+function seatDescriptor(seat: Seat, tierTable?: string[]): string {
+  if (packTable && packDefs) {
+    const engine = packDefs[seat].engine
+    const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
+    return `${packDefs[seat].id}${model ? `:${model}` : ''}`
+  }
+  const spec = specFor(seat, tierTable)
+  return spec.type === 'llm' ? `llm:${spec.model}` : spec.type
+}
+
 async function playGame(i: number): Promise<void> {
   const seed = games === 1 ? values.seed! : `${values.seed}-${i}`
   const tierTable = tierTableFor(seed)
@@ -213,9 +232,11 @@ async function playGame(i: number): Promise<void> {
   const captured: string[] = []
   if (values.transcripts) {
     captured.push(`=== seed ${seed} | ${playerCount}p | talk ${values.talk} ===`)
-    if (tierTable) {
-      captured.push(`table: ${game.players.map((p) => `${p.name}=${tierTable[p.seat]}`).join(', ')}`)
-    }
+    // Always record the seating, not just for --tier. A pack transcript names
+    // seats after characters and a homogeneous one numbers them, so without this
+    // line neither says which model actually spoke, which is most of what a
+    // transcript is read for.
+    captured.push(`table: ${game.players.map((p) => `${p.name}=${seatDescriptor(p.seat, tierTable)}`).join(', ')}`)
     captured.push('')
   }
   const result = await runGame({
@@ -236,17 +257,8 @@ async function playGame(i: number): Promise<void> {
   tally.reasons.set(result.game.winReason!, (tally.reasons.get(result.game.winReason!) ?? 0) + 1)
   tally.degraded += result.degraded.length
   if (values.out) {
-    const descriptor = (seat: Seat) => {
-      if (packTable && packDefs) {
-        const engine = packDefs[seat].engine
-        const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
-        return `${packDefs[seat].id}${model ? `:${model}` : ''}`
-      }
-      const spec = specFor(seat, tierTable)
-      return spec.type === 'llm' ? `llm:${spec.model}` : spec.type
-    }
     appendArtifact(values.out, toArtifact(game, {
-      agents: game.players.map((p) => descriptor(p.seat)),
+      agents: game.players.map((p) => seatDescriptor(p.seat, tierTable)),
       degraded: result.degraded,
       steps: result.steps,
     }))
@@ -263,9 +275,12 @@ async function playGame(i: number): Promise<void> {
   ]
   if (verbose) console.log(footer.join('\n'))
   if (values.transcripts) {
-    fs.mkdirSync(values.transcripts, { recursive: true })
+    // The seed is arbitrary user text and goes into a FILENAME. An unsanitized
+    // "a/b" resolves into a subdirectory that does not exist, so the write threw
+    // ENOENT after the game had already been played and paid for.
+    const safeSeed = seed.replace(/[^a-zA-Z0-9._-]+/g, '_')
     fs.writeFileSync(
-      path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${seed}.txt`),
+      path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${safeSeed}.txt`),
       captured.concat(footer).join('\n'),
     )
   }
