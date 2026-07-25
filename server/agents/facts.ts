@@ -155,7 +155,7 @@ function boardStakesSection(view: PlayerView): string {
 
   const score = `Score: good ${successes} of ${QUESTS_TO_WIN} successes | evil ${fails} of ${QUESTS_TO_WIN} fails`
   if (!pending) {
-    return `Board state — the score, with the quest phase over.\n  ${score} | no quest remains to be played.`
+    return `Board state: the score, with the quest phase over.\n  ${score} | no quest remains to be played.`
   }
 
   const after = view.quests.filter((x) => x.num > pending.num).map((x) => `Q${x.num}`)
@@ -171,7 +171,7 @@ function boardStakesSection(view: PlayerView): string {
   const ifSuccess = successes + 1 >= QUESTS_TO_WIN
     ? `good's ${QUESTS_TO_WIN}rd success, which ends the quest phase` +
       (shotRemains
-        ? ` — no further quest is played, and the Assassin's single shot at Merlin becomes the whole game`
+        ? `, after which no further quest is played and the Assassin's single shot at Merlin becomes the whole game`
         : ` and the game, with no assassination to follow`)
     : `good ${successes + 1} of ${QUESTS_TO_WIN}, needing ${QUESTS_TO_WIN - successes - 1} more`
   const ifFail = fails + 1 >= QUESTS_TO_WIN
@@ -179,7 +179,7 @@ function boardStakesSection(view: PlayerView): string {
     : `evil ${fails + 1} of ${QUESTS_TO_WIN}, needing ${QUESTS_TO_WIN - fails - 1} more`
   const needs = pending.failsRequired === 2 ? ', needs 2 fails' : ''
 
-  return `Board state — the score, and what each outcome of the pending quest would produce.\n` +
+  return `Board state: the score, and what each outcome of the pending quest would produce.\n` +
     `  ${score}${runway}\n` +
     `  Q${pending.num}(size ${pending.teamSize}${needs}) is pending | if it SUCCEEDS: ${ifSuccess} | if it FAILS: ${ifFail}`
 }

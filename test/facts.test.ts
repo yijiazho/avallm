@@ -126,7 +126,7 @@ test('once the quest phase is over the board drops the pending-quest row', () =>
     quest(4, 4, { failsRequired: 2 }),
     quest(5, 4, {}),
   ])
-  assert.match(done, /Board state — the score, with the quest phase over\./)
+  assert.match(done, /Board state: the score, with the quest phase over\./)
   assert.match(done, /Score: good 3 of 3 successes \| evil 0 of 3 fails \| no quest remains to be played\./)
   assert.doesNotMatch(done, /is pending/)
   assert.doesNotMatch(done, /quests after this one/, 'Q4 and Q5 will never be played')
