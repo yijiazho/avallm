@@ -3,6 +3,15 @@
 // (rate cards + reasoning-suppression behavior verified there); prices are
 // $/M prompt/completion as of 2026-07 and only inform tier labels — real
 // cost accounting uses OpenRouter's usage.cost.
+//
+// TIERS are a blend, not a raw rate card. This game spends ~2800 prompt tokens
+// against ~100 completion tokens per call (solved from two measured games and
+// confirmed within 1% on three more, 2026-07), so PROMPT price dominates the
+// bill roughly 27:1 — a model with a cheap prompt rate and an alarming
+// completion rate is cheap HERE. Tier by `2800·prompt + 100·completion` in
+// µ$/call: cheap < 500, mid < 1200, premium above. That ordering is why Kimi
+// (1881) is premium while MiniMax (960) is mid despite similar-looking cards.
+// Re-derive the mix if call-params.ts budgets change materially.
 
 export interface RosterEntry {
   id: string           // stable internal id
@@ -22,11 +31,11 @@ export const ROSTER: RosterEntry[] = [
   },
   {
     id: 'gemini-flash-lite', displayName: 'Gemini Flash Lite', slug: 'google/gemini-3.1-flash-lite',
-    badge: { color: '#1A73E8' }, tier: 'cheap',
+    badge: { color: '#1A73E8' }, tier: 'mid',
   },
   {
     id: 'gemini-flash', displayName: 'Gemini Flash', slug: 'google/gemini-3-flash-preview',
-    badge: { color: '#34A853' }, tier: 'mid',
+    badge: { color: '#34A853' }, tier: 'premium',
   },
   // Haiku is temporarily benched: at ~$1/$5 per M tokens it runs an order of
   // magnitude pricier than every other seat here, which dominates the spend on
@@ -39,11 +48,11 @@ export const ROSTER: RosterEntry[] = [
   // },
   {
     id: 'kimi', displayName: 'Kimi', slug: 'moonshotai/kimi-k2.5',
-    badge: { color: '#16A8A8' }, tier: 'mid',
+    badge: { color: '#16A8A8' }, tier: 'premium',
   },
   {
     id: 'glm', displayName: 'GLM', slug: 'z-ai/glm-4.6',
-    badge: { color: '#8B5CF6' }, tier: 'mid',
+    badge: { color: '#8B5CF6' }, tier: 'premium',
   },
   // GPT-OSS is benched on reliability, not cost. As the cheapest seat it was
   // the source of nearly every mechanical failure in playtests: its reasoning-
@@ -58,7 +67,7 @@ export const ROSTER: RosterEntry[] = [
   // },
   {
     id: 'seed', displayName: 'Seed', slug: 'bytedance-seed/seed-2.0-lite',
-    badge: { color: '#F0424C' }, tier: 'cheap',
+    badge: { color: '#F0424C' }, tier: 'mid',
   },
   // Onboarded 2026-07 via docs/model-onboarding.md. Reasoning-suppression probe
   // (reasoning-probe.ts) found effort:'none' is the clean flag (effort:'low'/
@@ -76,7 +85,7 @@ export const ROSTER: RosterEntry[] = [
   // there, which is what decides who actually sits at a given table.
   {
     id: 'deepseek-pro', displayName: 'DeepSeek Pro', slug: 'deepseek/deepseek-v4-pro',
-    badge: { color: '#2A3EB1' }, tier: 'mid',
+    badge: { color: '#2A3EB1' }, tier: 'premium',
   },
   {
     id: 'mimo', displayName: 'MiMo', slug: 'xiaomi/mimo-v2.5',
@@ -100,7 +109,7 @@ export const ROSTER: RosterEntry[] = [
   },
   {
     id: 'gpt-nano', displayName: 'GPT Nano', slug: 'openai/gpt-5.4-nano',
-    badge: { color: '#10A37F' }, tier: 'cheap',
+    badge: { color: '#10A37F' }, tier: 'mid',
   },
   {
     id: 'solar', displayName: 'Solar', slug: 'upstage/solar-pro-3',

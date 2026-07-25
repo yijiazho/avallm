@@ -187,6 +187,14 @@ Update this whenever a model is seated, benched, or rejected. Reasoning control 
 `suppress` value from `reasoning-policy.ts`; tier is the rate-card label in `roster.ts`.
 Prices move — treat the tier as the durable fact and check OpenRouter for live rates.
 
+Tiers were recalibrated 2026-07 onto a **blended** number rather than a raw rate card.
+This game spends roughly 2800 prompt tokens against 100 completion tokens per call
+(solved from two measured games, confirmed within 1% on three more), so prompt price
+dominates the bill about 27:1. Tier by `2800·prompt + 100·completion` in µ$/call:
+cheap < 500, mid < 1200, premium above. That is why Kimi (1881) reads premium while
+MiniMax (960) reads mid despite similar-looking cards — and why DeepSeek Pro, whose
+completion rate is only 2× its prompt rate, still lands premium on prompt price alone.
+
 Measured cost is quoted **per call**, not per game: game length varies wildly with how
 many proposals get rejected (120 to 369 calls across the 2026-07 batch, same 7p setup),
 so per-game totals compare game luck as much as they compare models. The 2026-07 batch
@@ -196,11 +204,11 @@ are not a latency signal** and none are quoted here.
 | Model | Slug | Status | Reasoning control | Tier | Notes |
 |---|---|---|---|---|---|
 | DeepSeek Flash (`deepseek-flash`) | `deepseek/deepseek-v4-flash` | **seated** (default) | `effort:'none'` (`'low'` maps up) | cheap | `DEFAULT_MODEL`; also the assassin-probe default. Renamed from `deepseek` 2026-07: ids name the specific model, since a family can seat siblings. |
-| Gemini Flash Lite (`gemini-flash-lite`) | `google/gemini-3.1-flash-lite` | **seated** (default) | send nothing (`null`) | cheap | Reasons only if asked. Renamed from `gemini` 2026-07 (same reason). |
-| Gemini Flash (`gemini-flash`) | `google/gemini-3-flash-preview` | **seated** (pickable) | send nothing (`null`) | mid | Briefly held GPT-OSS's default seat; handed it to Nemotron to restore family diversity. Still selectable. No non-preview `gemini-3-flash` was ever published — Google went straight to 3.5/3.6 Flash at ~3× the price, so the preview slug stands until we decide to pay up. |
-| Seed | `bytedance-seed/seed-2.0-lite` | **seated** (default) | `effort:'none'` | cheap | Took Haiku's seat. |
-| Kimi | `moonshotai/kimi-k2.5` | **seated** (default) | `effort:'none'` | mid | Burns ~3k reasoning tok/turn without it. |
-| GLM | `z-ai/glm-4.6` | **seated** (default) | `effort:'none'` | mid | glm-*5.2* would need a provider pin; 4.6 does not. |
+| Gemini Flash Lite (`gemini-flash-lite`) | `google/gemini-3.1-flash-lite` | **seated** (default) | send nothing (`null`) | mid | Reasons only if asked. Renamed from `gemini` 2026-07 (same reason). |
+| Gemini Flash (`gemini-flash`) | `google/gemini-3-flash-preview` | **seated** (pickable) | send nothing (`null`) | premium | Briefly held GPT-OSS's default seat; handed it to Nemotron to restore family diversity. Still selectable. No non-preview `gemini-3-flash` was ever published — Google went straight to 3.5/3.6 Flash at ~3× the price, so the preview slug stands until we decide to pay up. |
+| Seed | `bytedance-seed/seed-2.0-lite` | **seated** (default) | `effort:'none'` | mid | Took Haiku's seat. |
+| Kimi | `moonshotai/kimi-k2.5` | **seated** (default) | `effort:'none'` | premium | Burns ~3k reasoning tok/turn without it. |
+| GLM | `z-ai/glm-4.6` | **seated** (default) | `effort:'none'` | premium | glm-*5.2* would need a provider pin; 4.6 does not. |
 | Nemotron | `nvidia/nemotron-3-super-120b-a12b` | **seated** (default) | `effort:'none'` (probed; `'low'`/`'minimal'` do NOT suppress) | cheap | First model onboarded via this playbook (2026-07). New NVIDIA family. `:free` slug is rate-limited (429s) so the **paid** slug is used ($0.085/$0.40 per M). Behavioral playtest (7p, good won): 0 degrades, 0 reasoning leaks, balanced 6/6 approve/reject leans (no compulsive-reject), cheapest seat at ~$0.012/game. The context-free smoke's reject-4/4 did not recur once it had table information. |
 | Qwen (`qwen`) | `qwen/qwen3.7-plus` | **seated** | `effort:'none'` | mid | 2026-07 batch. New Alibaba family, the biggest name the roster was missing. **Loudest default measured**: 1256 rt/call unsuppressed, so the existing `qwen` policy row is doing real work here. Playtest mechanically perfect (369 calls, 0 degrades, 0 leaks) but pricey: **$0.00155/call, ~3.7× the cheap seats**. Pickable, deliberately outside default-seating reach. |
 | Mistral (`mistral`) | `mistralai/mistral-small-2603` | **seated** | send nothing (`null`) | cheap | 2026-07 batch. Mistral Small 4; clean by default. Playtest: 302 calls, $0.146/game, 0 leaks, **1 degrade — `finalize` returned a 3-man team where the rules demand 4, twice.** Watch that shape; a model that miscounts team size will do it again. |
@@ -208,8 +216,8 @@ are not a latency signal** and none are quoted here.
 | Hunyuan (`hunyuan`) | `tencent/hy3` | **seated** | `effort:'none'` | cheap | 2026-07 batch. New Tencent family. **Blanks 5/5 unsuppressed** — without its policy row it reads as a broken model, not a chatty one. Playtest: 122 calls, $0.052/game, 0 degrades, 0 leaks. |
 | MiMo (`mimo`) | `xiaomi/mimo-v2.5` | **seated** | `effort:'none'` | cheap | 2026-07 batch. New Xiaomi family. Also **blanks 5/5 unsuppressed**. Playtest: 171 calls, $0.072/game, 0 leaks, 1 degrade (`discuss` returned unparseable JSON twice). |
 | Solar (`solar`) | `upstage/solar-pro-3` | **seated** | send nothing (`null`) | cheap | 2026-07 batch. New Upstage family; the only candidate clean on *every* probe variant. Playtest: 126 calls, $0.059/game, 0 degrades, 0 leaks — but its Merlin ran past the `discuss` budget and was cut mid-word while arguing about its own seat in the third person. Verbose, not broken. |
-| GPT Nano (`gpt-nano`) | `openai/gpt-5.4-nano` | **seated** | send nothing (`null`) | cheap | 2026-07 batch. Restores an OpenAI seat after GPT-OSS was benched. **The general `openai-gpt5` policy row is wrong for it** — `effort:'minimal'` leaks ~33 rt/call, `'low'` ~41, sending nothing leaks 0 — hence the narrower `openai-gpt5-nano` row ahead of it. Playtest: 120 calls, $0.091/game, 0 degrades, 0 leaks. |
-| DeepSeek Pro (`deepseek-pro`) | `deepseek/deepseek-v4-pro` | **seated** | `effort:'none'` (existing `deepseek` row) | mid | 2026-07 batch. Doubles the DeepSeek family deliberately: the smart sibling of the default seat. Mechanically perfect (357 calls, 0 degrades, 0 leaks) and **the most expensive seat measured: $0.00278/call, 6.6× Hunyuan, $0.99 for one 7p game.** The rate card ($0.435/$0.87) reads mid, but this game feeds long transcripts into a 1M-context model, and prompt tokens dominate — the rate card understates it. Pickable, deliberately outside default-seating reach. |
+| GPT Nano (`gpt-nano`) | `openai/gpt-5.4-nano` | **seated** | send nothing (`null`) | mid | 2026-07 batch. Restores an OpenAI seat after GPT-OSS was benched. **The general `openai-gpt5` policy row is wrong for it** — `effort:'minimal'` leaks ~33 rt/call, `'low'` ~41, sending nothing leaks 0 — hence the narrower `openai-gpt5-nano` row ahead of it. Playtest: 120 calls, $0.091/game, 0 degrades, 0 leaks. |
+| DeepSeek Pro (`deepseek-pro`) | `deepseek/deepseek-v4-pro` | **seated** | `effort:'none'` (existing `deepseek` row) | premium | 2026-07 batch. Doubles the DeepSeek family deliberately: the smart sibling of the default seat. Mechanically perfect (357 calls, 0 degrades, 0 leaks) and **the most expensive seat measured: $0.00278/call, 6.6× Hunyuan, $0.99 for one 7p game.** The rate card ($0.435/$0.87) reads mid, but this game feeds long transcripts into a 1M-context model, and prompt tokens dominate — the rate card understates it. Pickable, deliberately outside default-seating reach. |
 | Haiku | `anthropic/claude-haiku-4.5` | **benched** (cost) | send nothing (`null`) | premium | ~10× the next seat. Commented in `roster.ts`; one-line restore. `455f748`. |
 | GPT-OSS | `openai/gpt-oss-120b` | **benched** (reliability) | `effort:'low'` (leaky) | cheap | Cheapest seat but suppression didn't hold, blanked under json, erratic voting read as a false evil tell. `bbea320`. |
 | Gemini Pro | `google/gemini-3.1-pro-preview` | **rejected** | mandatory (`canSuppress:false`) | premium | Reasoning can't be disabled (400 on disable); blows small budgets. |
