@@ -10,7 +10,8 @@ import { loadAgentLibrary } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame } from './runner.ts'
-import { renderEvent, renderPrivateEvent, revealRoles } from './render.ts'
+import { renderEvent, revealRoles } from './render.ts'
+import { renderTranscript } from '../transcript.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
@@ -233,35 +234,11 @@ async function playGame(i: number): Promise<void> {
     game.players.map((p) => [p.seat, agentFor(p.seat, seed, tierTable)]),
   )
   const verbose = games === 1 && !values.quiet
-  // Collected rather than streamed: with --concurrency > 1 several games emit at
-  // once, so writing one file per game at the end is what keeps a batch readable.
-  const captured: string[] = []
-  if (values.transcripts) {
-    captured.push(`=== seed ${seed} | ${playerCount}p | talk ${values.talk} ===`)
-    // Always record the seating, not just for --tier. A pack transcript names
-    // seats after characters and a homogeneous one numbers them, so without this
-    // line neither says which model actually spoke, which is most of what a
-    // transcript is read for.
-    captured.push(`table: ${game.players.map((p) => `${p.name}=${seatDescriptor(p.seat, tierTable)}`).join(', ')}`)
-    captured.push('')
-  }
   const result = await runGame({
     game, agents,
-    onEvent: verbose || values.transcripts
-      ? (ev) => {
-        const line = renderEvent(ev, game)
-        if (line) {
-          if (verbose) console.log(line)
-          if (values.transcripts) captured.push(line)
-        }
-        // Private reasoning goes to the FILE only, never to stdout: a terminal
-        // game may have a human watching, and the sim prints to their screen.
-        if (values.transcripts && values.reasoning) {
-          const priv = renderPrivateEvent(ev, game)
-          if (priv) captured.push(priv)
-        }
-      }
-      : undefined,
+    // stdout only. The transcript FILE is rendered from the finished log below,
+    // so nothing needs collecting here.
+    onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
   })
   // Tally + artifact writes run synchronously between awaits, so even with games
   // in flight concurrently there is no interleaving here: no shared-state race on
@@ -288,13 +265,50 @@ async function playGame(i: number): Promise<void> {
   ]
   if (verbose) console.log(footer.join('\n'))
   if (values.transcripts) {
+    // Rendered through the SAME renderer as the in-app copy-log button, rather
+    // than a sim-only format. Both artifacts exist to be read after the fact,
+    // usually by an LLM analysing a batch, so one shape means whatever you learn
+    // to skim in one reads identically in the other.
+    //
+    // Always a full reveal: this is a local debug file for the operator who just
+    // paid for the game, not a per-seat feed. `--reasoning` decides only whether
+    // the seat-private thinking and notes ride along, since including them
+    // multiplies the file size and is not always what you want.
+    const text = renderTranscript({
+      id: game.id,
+      seed,
+      playerCount,
+      phase: game.phase,
+      round: game.round,
+      proposalNum: game.proposalNum,
+      leaderSeat: game.leaderSeat,
+      quests: game.quests,
+      seats: game.players.map((p) => ({
+        seat: p.seat,
+        name: p.name,
+        agent: seatDescriptor(p.seat, tierTable),
+        role: p.role,
+        alignment: p.alignment,
+      })),
+      log: values.reasoning
+        ? game.log
+        : game.log.filter((ev) => ev.type !== 'thinking' && ev.type !== 'scratchpad'),
+      degraded: result.degraded.map((d) => ({ seat: d.seat, kind: d.kind, error: d.error })),
+      winner: game.winner,
+      winReason: game.winReason,
+      revealed: true,
+      capturedAt: new Date().toISOString(),
+      // The raw JSONL belongs to --out, which writes a replayable artifact.
+      // Repeating it here would double every transcript for no new information.
+      includeRaw: false,
+    })
     // The seed is arbitrary user text and goes into a FILENAME. An unsanitized
     // "a/b" resolves into a subdirectory that does not exist, so the write threw
     // ENOENT after the game had already been played and paid for.
     const safeSeed = seed.replace(/[^a-zA-Z0-9._-]+/g, '_')
     fs.writeFileSync(
       path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${safeSeed}.txt`),
-      captured.concat(footer).join('\n'),
+      text,
     )
   }
 }

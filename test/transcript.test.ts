@@ -127,38 +127,3 @@ test('/transcript rejects a wrong token mid-game', async () => {
   const r = await fetch(`${base}/api/game/${id}/transcript?token=nope`)
   assert.equal(r.status, 403)
 })
-
-// The sim's --reasoning transcript renders the same private events the copy-log
-// transcript does, in the same shape. Both are debug artifacts read for the same
-// purpose (usually by an LLM analysing a batch), so one format means whatever you
-// learn to skim in one reads identically in the other.
-test('sim private-event rendering matches the copy-log shape', async () => {
-  const { renderPrivateEvent } = await import('../server/sim/render.ts')
-  const game = {
-    players: [
-      { seat: 0, name: 'Qwen', role: 'merlin' },
-      { seat: 1, name: 'Seed', role: 'morgana' },
-    ],
-  } as unknown as Parameters<typeof renderPrivateEvent>[1]
-
-  const thinking = renderPrivateEvent(
-    { type: 'thinking', payload: { seat: 1, kind: 'vote', text: 'I need cover here.' } } as never,
-    game,
-  )
-  assert.equal(thinking, '    [Seed(#1·morgana) · vote thinking] I need cover here.')
-
-  const notes = renderPrivateEvent(
-    { type: 'scratchpad', payload: { seat: 0, round: 2, text: 'Seed is evil.' } } as never,
-    game,
-  )
-  assert.equal(notes, '    [Qwen(#0·merlin) · notes] Seed is evil.')
-
-  // Public events are not this renderer's job; renderEvent already has them, and
-  // rendering them twice would duplicate every line in a --reasoning transcript.
-  assert.equal(renderPrivateEvent({ type: 'voteReveal', payload: {} } as never, game), null)
-  // An empty payload yields no line rather than an empty bracket.
-  assert.equal(
-    renderPrivateEvent({ type: 'thinking', payload: { seat: 0, kind: 'vote', text: '' } } as never, game),
-    null,
-  )
-})

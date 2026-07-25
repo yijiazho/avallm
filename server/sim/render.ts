@@ -49,38 +49,10 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
   }
 }
 
-// The seat-private reasoning behind a decision: the agent's in-character
-// `thinking`, and the refreshed `scratchpad` notes it carries between rounds.
-// renderEvent deliberately drops both, because it renders the PUBLIC feed that
-// a player may see. This renders them for offline analysis only, where the
-// whole point is to read what the bot believed rather than what it said.
-//
-// Strategy analysis over public transcripts alone cannot tell a reasoned
-// assassin guess from a lucky one, or an evil bot that understood the board
-// from one that stumbled into the right card. That reasoning is recorded in the
-// artifact log already; this just makes it legible next to the play it explains.
-//
-// SIM AND EVAL ONLY. Never wire this into the server's per-seat feed: it prints
-// one seat's private state, which the live view layer exists to prevent.
-// Format deliberately mirrors the copy-log transcript (`server/transcript.ts`
-// renderLine): indented under the public line, `[who · kind thinking]`, and
-// role-annotated. Both are debug artifacts read for the same purpose, and one
-// shape means whatever you learn to skim in one reads the same in the other.
-export function renderPrivateEvent(ev: GameEvent, game: Game): string | null {
-  const p = ev.payload as Record<string, any>
-  // Roles are safe to inline here: this renders to a sim FILE that already ends
-  // with the full reveal, never to a live seat's feed.
-  const who = (seat: Seat) => `${game.players[seat].name}(#${seat}·${game.players[seat].role})`
-  switch (ev.type) {
-    case 'thinking':
-      return p.text ? `    [${who(p.seat)} · ${p.kind} thinking] ${p.text}` : null
-    case 'scratchpad':
-      return p.text ? `    [${who(p.seat)} · notes] ${p.text}` : null
-    default:
-      return null
-  }
-}
-
+// Seat-private events (`thinking`, `scratchpad`) are deliberately absent from
+// this renderer: it produces the PUBLIC feed a player may watch. The written
+// transcript renders them through `server/transcript.ts`, the same renderer the
+// in-app copy-log button uses, gated behind the sim's `--reasoning`.
 export function revealRoles(game: Game): string {
   return 'Roles: ' + game.players
     .map((p) => `${name(game, p.seat)}=${p.role}`)
