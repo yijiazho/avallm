@@ -194,25 +194,27 @@ export function dossierEnabled(): boolean {
 }
 
 // What each RESOLVED quest actually proves about the players who played it.
-// Both halves fix a specific failure seen in every model of the 2026-07-25
-// mid-tier benchmark:
 //
-//   - Bots treat "was on a team that succeeded" as CLEARED, and build later
-//     teams from those players as though they were confirmed good. The rules
-//     digest already says evil may play Success, but stated once in a
-//     1200-word prompt it loses to the vivid quest board. Said per quest, at
-//     the row the bot is reasoning over, it lands.
-//   - Bots assert who played a Fail card as settled fact ("you literally
-//     played the Fail card"), which is not public and cannot be derived. In
-//     one benchmark game three players echoed a fabricated claim of this shape
-//     until the table treated it as consensus, which put three evil on one
-//     team. The fail COUNT is public; the identities are not, and the row that
-//     carries the count is the place to say so.
+// Fixes one failure measured across the 2026-07-25 mid-tier benchmark: bots
+// treat "was on a team that succeeded" as CLEARED, and build later teams from
+// those players as though they were confirmed good. That reading appeared in
+// three of four models (gemini-flash-lite 19.9% of utterances, qwen 17.3%,
+// seed 14.8%), so it is a prompt-side gap rather than one model's habit. The
+// rules digest already says evil may play Success, but stated once in a
+// 1200-word prompt it loses to the vivid quest board. Said per quest, at the
+// row the bot is reasoning over, it lands.
 //
 // The arithmetic here is the one deduction that is decisive rather than
 // probabilistic: a quest showing N Fails had at least N evil aboard, because a
 // good player cannot play Fail (the single engine-enforced rule). Any player at
 // the table can derive it, so it stays inside the facts layer's contract.
+//
+// A companion cell once noted that WHICH seats played a Fail is not public,
+// aimed at bots asserting card identities as fact. Removed: measurement put
+// that behaviour at 7.1% of qwen utterances and 0.0% in all three other models,
+// and it did not reproduce at all once qwen sat on a mixed table, which points
+// at a homogeneous-table echo (one bot asserts, six copies agree) and a model
+// limit rather than a missing fact. Re-add only with cross-model evidence.
 //
 // Stated as evidence, never as instruction: "at least 3 of these 4 are evil" is
 // a fact, while "so reject teams containing them" would be policy and belongs
@@ -225,10 +227,7 @@ function questEvidenceSection(view: PlayerView): string {
     const cells = [questResultTag(q.num, q.result === 'fail'), `team: ${team}`]
     if (q.result === 'fail') {
       const n = q.failCount ?? 0
-      cells.push(
-        `${n} Fail card${n === 1 ? '' : 's'}, so at least ${n} of these ${q.team.length} are evil`,
-        `which of them played a Fail is NOT public`,
-      )
+      cells.push(`${n} Fail card${n === 1 ? '' : 's'}, so at least ${n} of these ${q.team.length} are evil`)
     } else {
       cells.push(`proves nothing about these players: evil may play Success to buy trust`)
     }

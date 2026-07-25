@@ -243,12 +243,9 @@ test('dossier leaks no hidden information across a full game, every seat', async
   }
 })
 
-// Quest evidence: the two deductions every model got wrong in the 2026-07-25
-// mid-tier benchmark. A success was read as CLEARING its team, and the identity
-// of who played a Fail was asserted as public fact (in one game a fabricated
-// claim of that shape was echoed until it read as consensus, seating three evil
-// on one team).
-test('quest evidence states the fail-count floor and keeps card identities private', () => {
+// Quest evidence: the deduction three of four models got wrong in the
+// 2026-07-25 mid-tier benchmark, where a success was read as CLEARING its team.
+test('quest evidence states the fail-count floor and refuses to clear a team', () => {
   const d = factsDossier(view({
     round: 5,
     quests: [
@@ -261,8 +258,11 @@ test('quest evidence states the fail-count floor and keeps card identities priva
   assert.match(d, /3 Fail cards, so at least 3 of these 4 are evil/)
   // Singular reads naturally, and the floor holds at one.
   assert.match(d, /1 Fail card, so at least 1 of these 3 are evil/)
-  // Card identity is never derivable, and the row carrying the count says so.
-  assert.match(d, /which of them played a Fail is NOT public/)
+  // Card identity is NOT flagged here: that clause was removed once measurement
+  // showed the behaviour it targeted was one model's habit (7.1% of qwen
+  // utterances, 0.0% elsewhere) rather than a shared gap. Pinned so it does not
+  // drift back in without cross-model evidence.
+  assert.doesNotMatch(d, /NOT public/)
   // A success clears nobody.
   assert.match(d, /proves nothing about these players: evil may play Success/)
 })
