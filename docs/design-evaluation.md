@@ -275,6 +275,15 @@ each targeting a specific judge-incident family, all committed with unit tests:
      consequence, so the same rows serve good (press now) and evil (this is the last round that
      exists) — and one fact covers every decision instead of an evil branch per ASK. Merlin-neutral,
      so it does not touch the conspicuousness guard below.
+   - **Match-point siblings** (added 2026-07-25, after the fact measured well at `propose` but not
+     at `vote`): the `propose` ASK replaces its normal-round advice at good's match point (evil:
+     this is the last team you will ever pick, so be on it; good: pick the likeliest to succeed,
+     since an unknown has no future quest to be vetted on), and the `vote` ASK gains an evil branch
+     for the case that actually lost the game — approving a team you know of no Fail aboard. Both
+     read the same `matchPoint` helper, and the vote branch shares `knownEvilAboard` with the
+     finalize fold note so the Oberon-invisibility rule has one definition. The good `propose`
+     branch is a **regression guard**: with the board visible, bots began arguing "we have a
+     cushion, so test an unknown here" over their own Merlin's objection.
 2. **Vote-lean coherence** — the `vote` ask surfaces the seat's own most-recent public lean.
    Targets vote-speech-incoherence.
 3. **Second-order self-check** — a `TABLE_TALK_NORMS` bullet ("what does this reveal about my

@@ -20,8 +20,15 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
       return `\n[Q${p.round}.${p.proposalNum}] ${name(game, p.leader)} proposes: ${(p.team as Seat[]).map((s) => name(game, s)).join(', ')}`
     case 'proposalLocked':
       return `  ${name(game, p.leader)} locks in the team.`
-    case 'proposalRevised':
-      return `  ${name(game, p.leader)} REVISES the team: ${(p.to as Seat[]).map((s) => name(game, s)).join(', ')}${p.reason ? ` — "${p.reason}"` : ''}`
+    case 'proposalRevised': {
+      // Show the change, not just the new roster — a reader (human or bot) should
+      // not have to diff it against the proposal line scrolled off above.
+      const from = p.from as Seat[], to = p.to as Seat[]
+      const dropped = from.filter((s) => !to.includes(s)).map((s) => name(game, s)).join(', ')
+      const added = to.filter((s) => !from.includes(s)).map((s) => name(game, s)).join(', ')
+      return `  ${name(game, p.leader)} REVISES the team: drops ${dropped}, adds ${added}` +
+        ` -> ${to.map((s) => name(game, s)).join(', ')}${p.reason ? ` — "${p.reason}"` : ''}`
+    }
     case 'voteReveal': {
       if (p.auto) return `  hammer: AUTO-APPROVED (no vote)`
       const votes = (p.votes as { seat: Seat; vote: string }[])

@@ -175,11 +175,16 @@ test('public state surfaces a finalize revision (delta, not just the final team)
     kind: 'finalize', stick: false, team: [leader, swappedIn], reason: 'swapping for a cleaner player',
   })
 
-  // A non-leader mid-post-revision sees WHAT changed and why, on the pending line.
+  // A non-leader mid-post-revision sees WHAT changed and why, on the pending
+  // line — as the computed delta (who left, who joined), not two rosters to
+  // diff. A leader once announced a swap naming a player who was never on the
+  // team, so the delta is stated for everyone rather than derived per reader.
   const nonLeader = (leader + 3) % 5
   const pending = publicStateText(viewFor(g, nonLeader))
   assert.match(pending, /REVISED this team at finalize/)
-  assert.match(pending, /originally/)
+  const dropped = g.players[(leader + 1) % 5].name
+  const added = g.players[swappedIn].name
+  assert.match(pending, new RegExp(`dropped ${dropped}\\(seat ${(leader + 1) % 5}\\), added ${added}\\(seat ${swappedIn}\\)`))
   assert.match(pending, /swapping for a cleaner player/)
 
   // Drive to the vote and confirm the history row carries the revision too.
@@ -191,7 +196,19 @@ test('public state surfaces a finalize revision (delta, not just the final team)
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'reject' })
   const history = publicStateText(viewFor(g, nonLeader))
   assert.match(history, /Vote record:/)
-  assert.match(history, /revised from \[/)
+  assert.match(history, new RegExp(`revised at finalize: dropped ${dropped}, added ${added}`))
+})
+
+test('the finalize contract makes the leader explain WHY, not restate the swap', () => {
+  // The other half of rendering the delta: a Morgana that had revised itself off
+  // the team announced "swapping Kimi for Nemotron", naming a player who was
+  // never on it. The engine states who moved, so the leader states only why —
+  // which removes the chance to get the roster wrong at all.
+  const g = createGame({ seed: 'why', playerCount: 5, talk: { maxRounds: 0, maxRoundsAfterChange: 0 } })
+  const [system] = buildMessages('finalize', viewFor(g, g.leaderSeat), '')
+  assert.match(system.content, /saying WHY you changed it/)
+  assert.match(system.content, /shown exactly who you dropped and who you added/)
+  assert.match(system.content, /must give the reasoning, not restate the swap/)
 })
 
 test('discuss prompts carry table-talk norms and flag direct addresses', () => {
