@@ -119,9 +119,14 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
       : callOpts.allowReasoning ? null
       : policy.value
     const resolvedProvider = callOpts.provider != null ? callOpts.provider : providerPrefsFor(model)
-    let res: Response
+    // The timeout must cover the WHOLE exchange, not just the fetch(). A provider
+    // can return headers promptly and then stall the body; if we cleared the timer
+    // as soon as fetch() resolved, res.json()/res.text() would read the body with
+    // no abort at all and hang unbounded (observed: a sim froze ~25min mid-body).
+    // So keep the timer armed across the body read and only clear it in finally.
+    let data: any
     try {
-      res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           Authorization: 'Bearer ' + key,
@@ -142,17 +147,22 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
         }),
         signal: ctrl.signal,
       })
+      if (!res.ok) {
+        const t = await res.text()
+        throw new Error('OpenRouter ' + res.status + ': ' + t.slice(0, 300))
+      }
+      data = await res.json()
     } catch (e: any) {
-      if (e && e.name === 'AbortError') throw new Error(`OpenRouter timeout after ${TIMEOUT_MS}ms`)
+      // A stalled body aborts here just like a stalled fetch, but undici surfaces
+      // the two differently: a header-phase abort is a DOMException 'AbortError',
+      // while a body-read abort is a TypeError 'terminated' with the AbortError
+      // nested in .cause. Key off the signal itself — it is set iff OUR timer
+      // aborted — so both map to timeout regardless of how the error is wrapped.
+      if (ctrl.signal.aborted) throw new Error(`OpenRouter timeout after ${TIMEOUT_MS}ms`)
       throw e
     } finally {
       clearTimeout(timer)
     }
-    if (!res.ok) {
-      const t = await res.text()
-      throw new Error('OpenRouter ' + res.status + ': ' + t.slice(0, 300))
-    }
-    const data: any = await res.json()
     const tag = callOpts.tag || 'other'
     const rt = Number(data.usage?.completion_tokens_details?.reasoning_tokens) || 0
     const allowedReasoning =
