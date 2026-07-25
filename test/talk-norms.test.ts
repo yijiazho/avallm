@@ -134,3 +134,42 @@ test('curated agent prompt text follows the same house style', () => {
     }
   }
 })
+
+// The render test above proves the invariant end to end, but it can only see
+// the branches its fixture reaches. That is a real hole, not a theoretical one:
+// the board row for "quest phase over" renders only after a side has already
+// won, so a dash sitting there passes the render test completely. Exactly that
+// dash arrived with a rebase and was caught by hand, which is the kind of luck
+// a guard exists to replace.
+//
+// So also scan the SOURCE of every module that builds prompt text. This is
+// branch-independent by construction: it cannot care which arm of a ternary a
+// given board state selects. Comment stripping is heuristic rather than a real
+// parse, which can only ever make this check see LESS than the whole file, so
+// the render test stays as the complement that reads composed output.
+const PROMPT_SOURCES = ['prompts.ts', 'facts.ts']
+
+function stripComments(src: string): string {
+  const noBlocks = src.replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return noBlocks
+    .split('\n')
+    // Cut at the first "//" not preceded by ":", so "https://" survives.
+    .map((line) => {
+      const m = line.match(/(^|[^:])\/\//)
+      return m ? line.slice(0, m.index! + (m[1] ? 1 : 0)) : line
+    })
+    .join('\n')
+}
+
+test('prompt-building source carries no banned construction in any branch', () => {
+  for (const name of PROMPT_SOURCES) {
+    const src = fs.readFileSync(new URL(`../server/agents/${name}`, import.meta.url), 'utf8')
+    const code = stripComments(src)
+    code.split('\n').forEach((line, i) => {
+      assert.doesNotMatch(
+        line, BANNED_DASH,
+        `server/agents/${name}:${i + 1} has an em or en dash in prompt text (comments are exempt, so this is a string the model sees)`,
+      )
+    })
+  }
+})
