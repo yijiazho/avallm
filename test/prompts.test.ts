@@ -42,6 +42,41 @@ test('knowledge lines follow the role matrix', () => {
   }
 })
 
+test('percival knowledge co-locates its two candidates with their quest records once fails resolve', () => {
+  const players = Array.from({ length: 5 }, (_, s) => ({ seat: s, name: `P${s}` }))
+  const base = {
+    seat: 0, name: 'P0', role: 'percival', alignment: 'good',
+    privateInfo: { merlinCandidates: [2, 4] },
+    playerCount: 5, rolesInPlay: [], players,
+    phase: 'vote', round: 2, proposalNum: 1, leaderSeat: 0,
+    proposals: [], transcript: [], events: [],
+  }
+  // Before any quest resolves there is no fail evidence — name the pair and stop.
+  const early = knowledgeText({ ...base, quests: [
+    { num: 1, teamSize: 2, failsRequired: 1 }, { num: 2, teamSize: 3, failsRequired: 1 },
+  ] } as PlayerView)
+  assert.match(early, /One of these two is Merlin, the other is Morgana: P2\(seat 2\) and P4\(seat 4\)\./)
+
+  // After Q1 FAILS with candidate seat 4 aboard (and seat 2 clean on Q2), the line
+  // puts each candidate's record side by side — the discriminator Percival kept
+  // failing to cross-reference. seat 4's fail is now adjacent to its own name.
+  const withFail = knowledgeText({ ...base, quests: [
+    { num: 1, teamSize: 2, failsRequired: 1, team: [3, 4], result: 'fail', failCount: 1 },
+    { num: 2, teamSize: 3, failsRequired: 1, team: [0, 1, 2], result: 'success', failCount: 0 },
+  ] } as PlayerView)
+  assert.match(withFail, /P2\(seat 2\): Q2\(ok\)/)
+  assert.match(withFail, /P4\(seat 4\): Q1\(FAIL\)/)
+
+  // Mixed: candidate seat 2 sat on the failed Q1, seat 4 has never quested — the
+  // never-quested candidate reads "no quests yet" beside the other's record.
+  const mixed = knowledgeText({ ...base, quests: [
+    { num: 1, teamSize: 2, failsRequired: 1, team: [2, 3], result: 'fail', failCount: 1 },
+    { num: 2, teamSize: 3, failsRequired: 1 },
+  ] } as PlayerView)
+  assert.match(mixed, /P2\(seat 2\): Q1\(FAIL\)/)
+  assert.match(mixed, /P4\(seat 4\): no quests yet/)
+})
+
 test('prompts carry the contract, state, and sanitized transcript', () => {
   const g = createGame({ seed: 'pp', playerCount: 5, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })

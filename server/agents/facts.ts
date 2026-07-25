@@ -50,6 +50,13 @@ import type { PlayerView, Seat } from '../engine/types.ts'
 
 const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
 
+// The canonical rendering of a quest result token — `Q3(FAIL)` / `Q1(ok)`. Lives
+// here (the facts layer that owns the dossier vocabulary) and is reused by the
+// Percival candidate records in prompts.ts, so the token has ONE definition and
+// the "one vocabulary across slots" rule can't drift between two copied literals.
+export const questResultTag = (num: number, failed: boolean): string =>
+  `Q${num}(${failed ? 'FAIL' : 'ok'})`
+
 interface PlayerRecord {
   onQuests: { num: number; failed: boolean }[]
   // Per-PLAYED-quest vote: how this seat voted on each proposal that was approved
@@ -163,7 +170,7 @@ export function factsDossier(view: PlayerView): string {
     const fields: string[] = [nameOf(view, p.seat)]
     fields.push(
       r.onQuests.length
-        ? `on-team: ${r.onQuests.map((q) => `Q${q.num}(${q.failed ? 'FAIL' : 'ok'})`).join(', ')}`
+        ? `on-team: ${r.onQuests.map((q) => questResultTag(q.num, q.failed)).join(', ')}`
         : `on-team: none`,
     )
     if (r.playedVotes.length) {

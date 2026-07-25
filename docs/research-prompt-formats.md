@@ -150,6 +150,31 @@ facts-vs-policy boundary is `design-evaluation.md` §1.2.
 
 ---
 
+## 6. Where this applies (dossier vs knowledgeText vs prose)
+
+The conventions in §5 are written around the facts dossier, but they are really about
+*computed, record-like data* — multiple entities each carrying one or more fields —
+**wherever it appears in a prompt**, not just slot S7. Two other slots touch this:
+
+- **`knowledgeText` (private knowledge, system message).** Mostly single prose facts
+  ("you see X, Y as evil"; "no special knowledge") — those are **correctly left as
+  prose**. The research favors structure for *tabular* data, so do not tableify a
+  one-liner. But where a line carries record-like data — the Percival branch listing
+  each Merlin/Morgana candidate with its quest record — the principles **do** apply,
+  and it follows them: co-located (record next to its candidate, a single side-by-side
+  read) and using the **same `Q<n>(FAIL/ok)` vocabulary as the dossier**, so the bot
+  reads one notation across both slots, not two dialects. At two entities it stays
+  inline in a sentence; newline rows only earn their cost at many rows.
+- **`publicStateText` (raw public state).** Pre-dates these conventions and renders the
+  vote matrix *per proposal* (columns = players) — the very axis the dossier transposes
+  in P2. That is deliberate (raw record vs. derived, per-player view), not a bug to
+  reconcile; but if it is ever reworked, keep the shared vocabulary.
+
+**The one rule that crosses every slot: one vocabulary.** `Q3(FAIL)`, `ok`, `name(seat N)`
+must read identically in the dossier, `knowledgeText`, and anywhere else, so the model
+never has to learn the same fact in two spellings. New computed context: match the
+existing tokens before inventing any.
+
 ## Sources
 
 - [Notation Matters: Token-Optimized Formats in Agentic AI Systems (arXiv)](https://arxiv.org/pdf/2605.29676)

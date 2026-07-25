@@ -3,7 +3,7 @@
 // module constants so provider prompt caches can hit.
 
 import { MAX_PROPOSALS, ROLE_ALIGNMENT } from '../engine/rules.ts'
-import { factsDossier } from './facts.ts'
+import { factsDossier, questResultTag } from './facts.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
@@ -86,7 +86,26 @@ export function knowledgeText(view: PlayerView): string {
       : `You are evil, but your fellow evil are unknown to you (and they do not know you).`
   }
   if (info.merlinCandidates?.length) {
-    return `One of these two is Merlin, the other is Morgana: ${info.merlinCandidates.map((s) => nameOf(view, s)).join(' and ')}.`
+    const pair = info.merlinCandidates
+    const onQuestsFor = (s: Seat) => view.quests.filter((q) => q.result !== undefined && q.team?.includes(s))
+    // Nothing has resolved yet, so there is no quest record to compare — just name
+    // the pair. (The guard fires only when NEITHER candidate has been on a resolved
+    // quest; once either has, we show records — successes included, as weak evidence.)
+    if (!pair.some((s) => onQuestsFor(s).length > 0)) {
+      return `One of these two is Merlin, the other is Morgana: ${pair.map((s) => nameOf(view, s)).join(' and ')}.`
+    }
+    // Co-locate each candidate's PUBLIC quest record with the private fact that
+    // these two ARE the Merlin/Morgana pair, so telling them apart is a single
+    // side-by-side read rather than a cross-reference into the dossier — which
+    // Percival keeps getting inverted even with all the data present but scattered
+    // (playtest: trusted the Morgana who sat on every failed quest). The heuristic
+    // itself (a FAIL a candidate sat on marks Morgana; weight it over talk) stays
+    // in ROLE_GUIDANCE.percival; this line is just the paired evidence it needs.
+    const recordFor = (s: Seat) => {
+      const on = onQuestsFor(s)
+      return on.length ? on.map((q) => questResultTag(q.num, q.result === 'fail')).join(', ') : 'no quests yet'
+    }
+    return `One of these two is Merlin, the other is Morgana — their quest records so far, side by side: ${pair.map((s) => `${nameOf(view, s)}: ${recordFor(s)}`).join('; ')}.`
   }
   return `You have no special knowledge. Only your own loyalty is certain to you.`
 }
