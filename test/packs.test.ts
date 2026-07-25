@@ -56,7 +56,11 @@ test('seatPack: every member seated first, leftovers from the default library, n
   const seated = table.slice(0, pack.agents.length).map((s) => s.agent)
   assert.deepEqual([...seated].sort(), [...pack.agents].sort(), 'a full-size table seats the whole pack')
   const leftovers = table.slice(pack.agents.length).map((s) => s.agent)
-  assert.ok(leftovers.every((id) => DEFAULT_TABLE.includes(id)), `unexpected leftovers: ${leftovers}`)
+  // ROSTER, not DEFAULT_TABLE: leftoverPool draws from the built-in agent
+  // library, which is one def per roster entry. Asserting DEFAULT_TABLE
+  // membership would pass only while that list happens to name every seated
+  // model, and would redden for a correctly-seated model left out of it.
+  assert.ok(leftovers.every((id) => ROSTER.some((r) => r.id === id)), `unexpected leftovers: ${leftovers}`)
   assert.ok(leftovers.every((id) => !pack.agents.includes(id)))
 })
 

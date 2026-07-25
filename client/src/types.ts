@@ -122,6 +122,10 @@ export interface Library {
     caps?: { field: number; aggregate: number }
   }
   gated?: boolean
+  // Informational only — the server's seating order for its own no-table
+  // fallback. The setup screen does NOT honor it: auto-filled seats shuffle
+  // flat over every built-in model (see defaultTable in App.tsx). Don't wire a
+  // preference back onto this without changing that deliberately.
   defaultTable?: string[]
   defaultModel?: string
 }

@@ -152,8 +152,12 @@ pin is just a silent routing experiment; leave it off until a run proves it's ne
 Every edit for a new seat, and the test that guards it:
 
 - **`server/llm/roster.ts`** — add a `ROSTER` entry: `id`, `displayName`, `slug`,
-  `badge.color`, `tier`. Add to `DEFAULT_TABLE` only if it should be in the default
-  6-bot game (and keep the seat count / family spread deliberate).
+  `badge.color`, `tier` (tier is the blended number described under the living
+  record, not the raw rate card). **Also add it to `DEFAULT_TABLE`**, which names
+  every seated model: put it where its measured quality earns, since that order
+  decides only the server's no-table fallback. Seating does not depend on this —
+  auto-filled seats draw flat from the whole roster — but keeping the list
+  complete is what makes the retirement rule below safe to follow.
 - **`server/llm/reasoning-policy.ts`** — add or confirm a `POLICIES` family that
   matches the slug, with the `suppress` value from Step 1. **Required:**
   `test/llm-policies.test.ts` asserts every roster slug resolves to a *known* family

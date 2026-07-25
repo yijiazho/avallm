@@ -30,18 +30,24 @@ const modelSlug = (model: string) => (model.includes('/') ? model.split('/')[1] 
 // and at fifteen models a flat alphabetical list buries the one axis the host
 // is actually deciding on, since the seats run from $0.0004 to $0.0028 a call.
 // Grouping makes the price structural instead of a suffix on every line.
+// `label` is used for BOTH the sort and the option text, so a list is never
+// ordered by one string while showing another (the two dropdowns render the
+// slug at different widths).
 const MODEL_TIER_ORDER = ['cheap', 'mid', 'premium'] as const
 const TIER_LABEL: Record<string, string> = {
   cheap: 'Cheap', mid: 'Mid', premium: 'Premium',
 }
-function modelsByTier(models: { id: string; slug: string; tier: string }[]) {
-  return MODEL_TIER_ORDER
-    .map((tier) => ({
-      tier,
-      models: models
-        .filter((m) => m.tier === tier)
-        .sort((a, b) => modelSlug(a.slug).localeCompare(modelSlug(b.slug))),
-    }))
+type ModelOption = { id: string; slug: string; tier: string }
+function modelsByTier(models: ModelOption[], label: (m: ModelOption) => string) {
+  const sorted = (ms: ModelOption[]) => [...ms].sort((a, b) => label(a).localeCompare(label(b)))
+  const known = MODEL_TIER_ORDER
+    .map((tier) => ({ tier, title: TIER_LABEL[tier], models: sorted(models.filter((m) => m.tier === tier)) }))
+  // Anything with an unrecognized tier still gets listed, in a trailing group.
+  // Dropping it would make the model unselectable, and Library types `tier` as
+  // a plain string — so widening the roster's tier union would silently hide a
+  // model here with no type error to catch it.
+  const rest = sorted(models.filter((m) => !MODEL_TIER_ORDER.some((t) => t === m.tier)))
+  return [...known, { tier: 'other', title: 'Other', models: rest }]
     .filter((g) => g.models.length > 0)
 }
 const SourceLink = () => (
@@ -1088,8 +1094,8 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                       option for unavailable agents — their default is the dead
                       model the server would reject. */}
                   {!info?.unavailable && <option value="">default ({modelSlug(info?.model ?? '')})</option>}
-                  {modelsByTier(library.models).map((g) => (
-                    <optgroup key={g.tier} label={TIER_LABEL[g.tier]}>
+                  {modelsByTier(library.models, (m) => modelSlug(m.slug)).map((g) => (
+                    <optgroup key={g.tier} label={g.title}>
                       {g.models.map((m) => (
                         <option key={m.id} value={m.id}>{modelSlug(m.slug)}</option>
                       ))}
@@ -1294,8 +1300,8 @@ function AgentStudio({ library, onChanged }: { library: Library | null; onChange
         <input value={name} maxLength={40} placeholder="Agent name" onChange={(e) => setName(e.target.value)} />
         <select value={model} onChange={(e) => setModel(e.target.value)}>
           <option value="">no fixed model (plays the table default: {library.defaultModel ?? 'server pick'})</option>
-          {modelsByTier(library.models).map((g) => (
-            <optgroup key={g.tier} label={TIER_LABEL[g.tier]}>
+          {modelsByTier(library.models, (m) => m.slug).map((g) => (
+            <optgroup key={g.tier} label={g.title}>
               {g.models.map((m) => <option key={m.id} value={m.id}>{m.slug}</option>)}
             </optgroup>
           ))}
