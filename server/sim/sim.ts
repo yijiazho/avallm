@@ -1,6 +1,7 @@
 // Headless simulation CLI.
 //   node server/sim/sim.ts --players 7 --seed 42            # one game, transcript
 //   node server/sim/sim.ts --players 7 --games 200          # aggregate stats
+//   node server/sim/sim.ts --games 20 --concurrency 5       # 5 games at once (aggregate)
 //   node server/sim/sim.ts --agents random --talk 0
 import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
@@ -21,12 +22,14 @@ const { values } = parseArgs({
     model: { type: 'string' },                        // force EVERY seat onto one roster id (implies --agents llm) — a homogeneous table to isolate prompt quality from model spread
     talk: { type: 'string', default: '0' },           // maxRounds[,maxRoundsAfterChange]
     out: { type: 'string' },                          // append game artifacts (JSONL) for eval tooling
+    concurrency: { type: 'string', default: '1' },    // aggregate mode: play this many independent games at once (shares the spend ceiling)
     quiet: { type: 'boolean', default: false },
   },
 })
 
 const playerCount = Number(values.players)
 const games = Number(values.games)
+const concurrency = Math.max(1, Math.floor(Number(values.concurrency) || 1))
 const [maxRounds, maxRoundsAfterChange = 0] = values.talk!.split(',').map(Number)
 // --model forces a homogeneous LLM table, so it implies --agents llm. Validate the
 // id up front (rosterById throws on an unknown id) for a clear error before any game runs.
@@ -57,7 +60,7 @@ function namesFor(count: number): string[] | undefined {
 
 const tally = { good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0 }
 
-for (let i = 0; i < games; i++) {
+async function playGame(i: number): Promise<void> {
   const seed = games === 1 ? values.seed! : `${values.seed}-${i}`
   const game = createGame({
     seed, playerCount, names: namesFor(playerCount),
@@ -71,6 +74,9 @@ for (let i = 0; i < games; i++) {
     game, agents,
     onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
   })
+  // Tally + artifact writes run synchronously between awaits, so even with games
+  // in flight concurrently there is no interleaving here: no shared-state race on
+  // the tally, and appendFileSync writes each artifact line atomically.
   tally[result.game.winner!]++
   tally.reasons.set(result.game.winReason!, (tally.reasons.get(result.game.winReason!) ?? 0) + 1)
   tally.degraded += result.degraded.length
@@ -93,6 +99,20 @@ for (let i = 0; i < games; i++) {
     }
   }
 }
+
+// Games are independent, so play up to `concurrency` at once via a fixed worker
+// pool that pulls the next index until every game is done (results are recorded
+// as each finishes, order-independent). All games share one LLM client, so they
+// share the spend ceiling — expected for an aggregate run.
+let nextGame = 0
+const worker = async (): Promise<void> => {
+  while (true) {
+    const i = nextGame++
+    if (i >= games) break
+    await playGame(i)
+  }
+}
+await Promise.all(Array.from({ length: Math.min(concurrency, games) }, worker))
 
 if (games > 1) {
   const agentsLabel = forcedModel ? `llm:${forcedModel} (homogeneous)` : values.agents
