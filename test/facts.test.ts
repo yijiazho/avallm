@@ -45,6 +45,93 @@ test('AVALON_NO_DOSSIER=1 suppresses the dossier (the eval A/B lever)', () => {
   }
 })
 
+// Board stakes. The score and what the pending quest would produce are
+// derivable by everyone and derived by nobody: the `quest` ASK's match-point
+// override was the only place a bot counted the board, so leaders proposed
+// clean teams and voters approved them at match point. Stated as consequence
+// only — which outcome a seat wants is policy, so the same rows serve both sides.
+const ROLES = ['merlin', 'percival', 'servant', 'morgana', 'assassin']
+
+// good 2, evil 0, Q3 pending, Q4 needs two fails. `over` shifts the board.
+const board = (over: Partial<PlayerView> = {}, quests?: Quest[]) => factsDossier(view({
+  round: 3,
+  rolesInPlay: ROLES,
+  quests: quests ?? [
+    quest(1, 2, { team: [0, 1], result: 'success', failCount: 0 }),
+    quest(2, 3, { team: [0, 1, 2], result: 'success', failCount: 0 }),
+    quest(3, 3, {}),
+    quest(4, 4, { failsRequired: 2 }),
+    quest(5, 4, {}),
+  ],
+  ...over,
+}))
+
+test('board stakes lead the dossier with the score and the remaining runway', () => {
+  const lines = board().split('\n')
+  assert.match(lines[1], /^Board state/, 'the board frames the player rows that follow')
+  assert.match(lines[2], /Score: good 2 of 3 successes \| evil 0 of 3 fails/)
+  assert.match(lines[2], /quests after this one: Q4, Q5/)
+  assert.match(lines[3], /Q3\(size 3\) is pending/)
+})
+
+test('board stakes spell out what each outcome of the pending quest produces', () => {
+  // Good at match point: a success ends the quest phase and hands the game to
+  // the Assassin's shot; a fail is merely evil's first.
+  assert.match(board(), /if it SUCCEEDS: good's 3rd success, which ends the quest phase/)
+  assert.match(board(), /Assassin's single shot at Merlin becomes the whole game/)
+  assert.match(board(), /if it FAILS: evil 1 of 3, needing 2 more/)
+
+  // Evil at match point: the mirror. Two failed quests behind us, Q3 pending.
+  const evilMatchPoint = board({}, [
+    quest(1, 2, { team: [0, 1], result: 'fail', failCount: 1 }),
+    quest(2, 3, { team: [0, 1, 2], result: 'fail', failCount: 1 }),
+    quest(3, 3, {}),
+    quest(4, 4, { failsRequired: 2 }),
+    quest(5, 4, {}),
+  ])
+  assert.match(evilMatchPoint, /if it FAILS: evil's 3rd failed quest, which ends the game for evil at once/)
+  assert.match(evilMatchPoint, /if it SUCCEEDS: good 1 of 3, needing 2 more/)
+})
+
+test('board stakes carry the two-fail requirement and the last-quest runway', () => {
+  // Q5 pending with both sides at 2: no runway left, and either outcome ends it.
+  const last = board({ round: 5 }, [
+    quest(1, 2, { team: [0, 1], result: 'success', failCount: 0 }),
+    quest(2, 3, { team: [0, 1, 2], result: 'fail', failCount: 1 }),
+    quest(3, 3, { team: [0, 1, 2], result: 'success', failCount: 0 }),
+    quest(4, 4, { team: [0, 1, 2, 3], result: 'fail', failCount: 2, failsRequired: 2 }),
+    quest(5, 4, { failsRequired: 2 }),
+  ])
+  assert.match(last, /none after this one, it is the last quest on the board/)
+  assert.match(last, /Q5\(size 4, needs 2 fails\) is pending/)
+  assert.match(last, /good's 3rd success/)
+  assert.match(last, /evil's 3rd failed quest/)
+})
+
+test('with no assassin-and-Merlin pair, good\'s third success ends the game outright', () => {
+  // Role sets are configurable and validateRoles requires neither role, so the
+  // consequence has to be read off rolesInPlay, not assumed from the default deal.
+  const noShot = board({ rolesInPlay: ['servant', 'servant', 'servant', 'morgana', 'minion'] })
+  assert.match(noShot, /ends the quest phase and the game, with no assassination to follow/)
+  assert.doesNotMatch(noShot, /Assassin/)
+})
+
+test('once the quest phase is over the board drops the pending-quest row', () => {
+  // Three successes: `round` stops advancing, so quests[round-1] is already
+  // resolved. The assassin decides on this board and no quest remains.
+  const done = board({ round: 3 }, [
+    quest(1, 2, { team: [0, 1], result: 'success', failCount: 0 }),
+    quest(2, 3, { team: [0, 1, 2], result: 'success', failCount: 0 }),
+    quest(3, 3, { team: [0, 1, 2], result: 'success', failCount: 0 }),
+    quest(4, 4, { failsRequired: 2 }),
+    quest(5, 4, {}),
+  ])
+  assert.match(done, /Board state — the score, with the quest phase over\./)
+  assert.match(done, /Score: good 3 of 3 successes \| evil 0 of 3 fails \| no quest remains to be played\./)
+  assert.doesNotMatch(done, /is pending/)
+  assert.doesNotMatch(done, /quests after this one/, 'Q4 and Q5 will never be played')
+})
+
 test('dossier reports on-team membership and never-on-quest from resolved quests', () => {
   const d = factsDossier(view({
     quests: [

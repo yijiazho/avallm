@@ -263,9 +263,18 @@ data (20 judged games) and the LLM-Avalon literature (research-strategy.md §4).
 each targeting a specific judge-incident family, all committed with unit tests:
 
 1. **Facts dossier** (`server/agents/facts.ts`) — engine-owned, PlayerView-only, public-derivable
-   neutral facts (fail exposure, vote/lead signals, own contradicted positions, hammer proximity)
-   the heuristic already computed but LLM bots were denied. Targets the deduction-action gap.
-   Has an `AVALON_NO_DOSSIER=1` A/B toggle.
+   neutral facts (board stakes, fail exposure, vote/lead signals, own contradicted positions,
+   hammer proximity) the heuristic already computed but LLM bots were denied. Targets the
+   deduction-action gap. Has an `AVALON_NO_DOSSIER=1` A/B toggle.
+   - **Board stakes** (added 2026-07-24) lead the dossier: the score, the quests left after the
+     pending one, and what each outcome of the pending quest produces ("a success is good's 3rd,
+     ending the quest phase; the Assassin's shot then decides it"). Motivated by a live game where
+     a Morgana leader proposed a zero-evil team at good's match point and argued the table into
+     approving it: the `quest` ASK's match-point override was the only slot where a bot counted the
+     board, so nothing carried that urgency to `propose`, `discuss`, or `vote`. Stated purely as
+     consequence, so the same rows serve good (press now) and evil (this is the last round that
+     exists) — and one fact covers every decision instead of an evil branch per ASK. Merlin-neutral,
+     so it does not touch the conspicuousness guard below.
 2. **Vote-lean coherence** — the `vote` ask surfaces the seat's own most-recent public lean.
    Targets vote-speech-incoherence.
 3. **Second-order self-check** — a `TABLE_TALK_NORMS` bullet ("what does this reveal about my

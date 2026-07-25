@@ -45,7 +45,7 @@
 //      quests, `name(seat N)` for players. Reuse the existing tokens; don't invent
 //      a second spelling for a thing already named.
 
-import { MAX_PROPOSALS } from '../engine/rules.ts'
+import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../engine/rules.ts'
 import type { PlayerView, Seat } from '../engine/types.ts'
 
 const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
@@ -128,6 +128,62 @@ function ownPositions(view: PlayerView): string[] {
   return out
 }
 
+// Board stakes: the score, and what each outcome of the PENDING quest produces.
+// Both are derivable from the quest board every player can already see, and
+// neither gets derived in play. The `quest` ASK's match-point override (evil at
+// good's third quest) is the one place a bot reliably notices the score, and it
+// exists only at the card — so leaders proposed clean teams and evil voters
+// campaigned FOR good's winning quest, having never counted the board at the
+// decision that mattered (seed norms2, 2026-07-24: a Morgana leader proposed a
+// zero-evil team at match point and argued the table into approving it).
+//
+// Stated as consequence, never as a call to act — which side benefits from a
+// given outcome is the agent's policy, so the same rows serve good (press now)
+// and evil (this is the last round that exists). Rule 2 of the format
+// conventions, and the reason this belongs here rather than in three ASK
+// branches: one fact, every decision, both alignments.
+function boardStakesSection(view: PlayerView): string {
+  const successes = view.quests.filter((q) => q.result === 'success').length
+  const fails = view.quests.filter((q) => q.result === 'fail').length
+
+  // A quest sits at quests[round-1] until it resolves, and `round` advances only
+  // when the game continues (engine: applyDecision 'quest'). So "nothing pending
+  // here" means exactly one thing — a side reached QUESTS_TO_WIN and the quest
+  // phase is over, which is the board an assassin decides on.
+  const q = view.quests[view.round - 1]
+  const pending = q && q.result === undefined ? q : undefined
+
+  const score = `Score: good ${successes} of ${QUESTS_TO_WIN} successes | evil ${fails} of ${QUESTS_TO_WIN} fails`
+  if (!pending) {
+    return `Board state — the score, with the quest phase over.\n  ${score} | no quest remains to be played.`
+  }
+
+  const after = view.quests.filter((x) => x.num > pending.num).map((x) => `Q${x.num}`)
+  const runway = after.length
+    ? ` | quests after this one: ${after.join(', ')}`
+    : ` | none after this one, it is the last quest on the board`
+
+  // Good reaching QUESTS_TO_WIN ends the quest phase, but it only ends the GAME
+  // when there is no assassin-and-Merlin pair left to shoot. Role sets are
+  // configurable (validateRoles requires neither), so read both off rolesInPlay
+  // instead of assuming the default deal.
+  const shotRemains = view.rolesInPlay.includes('assassin') && view.rolesInPlay.includes('merlin')
+  const ifSuccess = successes + 1 >= QUESTS_TO_WIN
+    ? `good's ${QUESTS_TO_WIN}rd success, which ends the quest phase` +
+      (shotRemains
+        ? ` — no further quest is played, and the Assassin's single shot at Merlin becomes the whole game`
+        : ` and the game, with no assassination to follow`)
+    : `good ${successes + 1} of ${QUESTS_TO_WIN}, needing ${QUESTS_TO_WIN - successes - 1} more`
+  const ifFail = fails + 1 >= QUESTS_TO_WIN
+    ? `evil's ${QUESTS_TO_WIN}rd failed quest, which ends the game for evil at once`
+    : `evil ${fails + 1} of ${QUESTS_TO_WIN}, needing ${QUESTS_TO_WIN - fails - 1} more`
+  const needs = pending.failsRequired === 2 ? ', needs 2 fails' : ''
+
+  return `Board state — the score, and what each outcome of the pending quest would produce.\n` +
+    `  ${score}${runway}\n` +
+    `  Q${pending.num}(size ${pending.teamSize}${needs}) is pending | if it SUCCEEDS: ${ifSuccess} | if it FAILS: ${ifFail}`
+}
+
 // Eval-only A/B switch: the dossier lives in the engine-owned facts layer, so
 // it can't be toggled per agent-def — AVALON_NO_DOSSIER=1 suppresses it
 // globally so a paired sim can measure default vs. default-plus-dossier on the
@@ -146,6 +202,12 @@ export function factsDossier(view: PlayerView): string {
   if (!anyResolved) return ''
 
   const sections: string[] = []
+
+  // Board stakes lead the dossier: they frame every player row that follows
+  // (what a clean record is worth depends on how many quests are left to spend
+  // it on). Suppressed with the rest of the dossier before the first resolve,
+  // where the score is 0-0 and says nothing.
+  sections.push(boardStakesSection(view))
 
   // Per-player public record — ONE row per player, so every derived fact about a
   // player is a single lookup instead of being scattered across sections (which
