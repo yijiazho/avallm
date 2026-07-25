@@ -164,6 +164,16 @@ if (values.pack) {
 const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable !== undefined
   || tierModels !== undefined
 
+// What actually sat at the table, for the aggregate summary. Derived from the same
+// seating decision as `isLlm` rather than echoing --agents: --model/--tier/--pack all
+// seat LLMs without touching that flag, so printing the raw flag labelled a paid run
+// "heuristic". Saved transcripts and benchmark output get compared long after the run,
+// where a free-looking label on a table that cost money is misleading evidence.
+const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${forcedModel}` : ''}`
+  : forcedModel ? `llm:${forcedModel} (homogeneous)`
+  : tierModels ? `llm (tier=${values.tier})`
+  : values.agents!
+
 // `tierTable` is this game's cast for --tier, threaded through rather than read
 // from module state: with --concurrency > 1 several games are in flight at once,
 // each with its own draw, so a shared "current table" would let one game name its
@@ -336,9 +346,6 @@ const worker = async (): Promise<void> => {
 await Promise.all(Array.from({ length: Math.min(concurrency, games) }, worker))
 
 if (games > 1) {
-  const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${forcedModel}` : ''}`
-    : forcedModel ? `llm:${forcedModel} (homogeneous)`
-    : values.agents
   console.log(`\n${games} games, ${playerCount} players, agents=${agentsLabel}, talk=${values.talk}`)
   console.log(`good wins: ${tally.good} (${((tally.good / games) * 100).toFixed(1)}%)`)
   console.log(`evil wins: ${tally.evil} (${((tally.evil / games) * 100).toFixed(1)}%)`)
