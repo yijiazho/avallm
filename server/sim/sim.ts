@@ -95,7 +95,8 @@ for (let i = 0; i < games; i++) {
 }
 
 if (games > 1) {
-  console.log(`\n${games} games, ${playerCount} players, agents=${values.agents}, talk=${values.talk}`)
+  const agentsLabel = forcedModel ? `llm:${forcedModel} (homogeneous)` : values.agents
+  console.log(`\n${games} games, ${playerCount} players, agents=${agentsLabel}, talk=${values.talk}`)
   console.log(`good wins: ${tally.good} (${((tally.good / games) * 100).toFixed(1)}%)`)
   console.log(`evil wins: ${tally.evil} (${((tally.evil / games) * 100).toFixed(1)}%)`)
   for (const [reason, n] of [...tally.reasons].sort((a, b) => b[1] - a[1])) {
