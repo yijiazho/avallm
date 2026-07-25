@@ -12,8 +12,10 @@
 // analysis needs judgment, so it belongs to the judge.
 
 import { buildLedger } from './ledger.ts'
+import { forcedPlayViolations } from './forced.ts'
 import type { Ledger } from './ledger.ts'
 import type { GameArtifact } from './artifact.ts'
+import type { ForcedPlayViolation } from './forced.ts'
 import type { Alignment, Role, Seat } from '../engine/types.ts'
 
 export interface SeatMetrics {
@@ -30,6 +32,7 @@ export interface SeatMetrics {
   utterances: number       // non-empty says
   passes: number           // empty says
   silentContradictions: number // ledger flags: passed while owing a reaction
+  forcedPlayViolations: number // declined a deterministically-correct move (forced.ts)
 }
 
 export interface GameMetrics {
@@ -40,6 +43,10 @@ export interface GameMetrics {
   winReason: string
   degradedCount: number
   seats: SeatMetrics[]
+  // Every forced play declined this game, with the seat, rule, and the Fail math
+  // that made it forced. Per-seat counts live on SeatMetrics; this is the detail
+  // a report or a prompt post-mortem reads.
+  forcedPlays: ForcedPlayViolation[]
   merlin?: {
     seat: Seat
     agent: string
@@ -178,6 +185,12 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
     silentBySeat.set(f.seat, (silentBySeat.get(f.seat) ?? 0) + 1)
   }
 
+  // Forced plays: deterministically-correct moves the seat declined (forced.ts).
+  // Ground truth like the vote scores, not an opinion like the judge's families.
+  const forcedPlays = forcedPlayViolations(a)
+  const forcedBySeat = new Map<Seat, number>()
+  for (const v of forcedPlays) forcedBySeat.set(v.seat, (forcedBySeat.get(v.seat) ?? 0) + 1)
+
   const score = (e: { n: number; correct: number }) => (e.n ? e.correct / e.n : null)
   const seats: SeatMetrics[] = a.players.map((p) => ({
     seat: p.seat,
@@ -193,6 +206,7 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
     utterances: talk.get(p.seat)!.utterances,
     passes: talk.get(p.seat)!.passes,
     silentContradictions: silentBySeat.get(p.seat) ?? 0,
+    forcedPlayViolations: forcedBySeat.get(p.seat) ?? 0,
   }))
 
   let merlin: GameMetrics['merlin']
@@ -236,6 +250,7 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
     winReason: a.winReason,
     degradedCount: a.degraded.length,
     seats,
+    forcedPlays,
     ...(merlin ? { merlin } : {}),
     ...(assassination ? { assassination } : {}),
     ...(discussion ? { discussion } : {}),

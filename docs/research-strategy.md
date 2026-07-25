@@ -709,6 +709,114 @@ race the fragment's creation.
 
 ---
 
+## 7. Bindingness: forced plays vs. defaults
+
+§1–§5 say what good play looks like. §6 says *where* each line goes. Neither says **how binding a
+line is**, and that gap has cost real games twice:
+
+- An evil leader at good's match point proposed a team with no evil on it and then argued the table
+  into approving it. The `propose` ASK said "you usually want exactly ONE evil on the team". The
+  word *usually* read as permission to sit out the last team that would ever be picked.
+- On the two-Fail quest with both known evil aboard — evil's winning team — both of them voted
+  reject to protect cover. Nothing in the prompt said that vote threw the game away, because the
+  guidance we had was about looking loyal, which is a default, not a rule.
+
+Both are placement successes and force failures: the advice was in the right slot and had the wrong
+strength. This section adds the missing axis.
+
+### 7.1 The tiers
+
+| Tier | Meaning | Wording | Can a good player break it? |
+|---|---|---|---|
+| **T0 Engine rule** | Enforced in code; violation is impossible | Stated in prompts for comprehension only | No |
+| **T1 Forced play** | Deterministically correct given the public board **plus the deciding seat's own knowledge**. No read of the table, no cover judgement, no probability | Bare imperative ("Play fail.", "Put yourself on it.") | No — breaking it is a blunder, full stop |
+| **T2 Default** | Correct most of the time, with a **named** exception | "by default", "usually", "lean" — and the exception in the same breath | Yes, and knowing when is the skill |
+| **T3 Style** | Table-talk behaviour, persona, pacing | Descriptive | Not a correctness question |
+
+T0 has exactly one member: **good cannot play Fail** (`applyDecision` in `server/engine/game.ts`,
+commented "Rule, not honor system"). Everything else that feels absolute is T1 — enforced by
+nothing, which is why it needs both the strongest wording and a measurement (§7.5).
+
+### 7.2 The forced plays (T1 catalogue)
+
+Every trigger below is computable from `PlayerView` plus the seat's own knowledge. **If a rule needs
+omniscience to evaluate, it is not T1** — it is a read, and reads belong to the model.
+
+| Forced play | Trigger (in view terms) | Why it is forced | Lives in |
+|---|---|---|---|
+| Fail the quest that would be good's third | on the team, `successes === 2`, known Fails aboard ≥ `failsRequired` | A success ends the quest phase; cover is worthless in a game you have lost | `quest` ASK, first branch |
+| Fail the quest that would be evil's third | on the team, `fails === 2`, known Fails aboard ≥ `failsRequired` | It wins the game outright | `quest` ASK |
+| Do **not** Fail below the requirement | on the team, known Fails aboard < `failsRequired` | The card cannot sink the quest and only advertises an evil. **Exception: Oberon**, whose extra card is how unseen teammates locate it | `quest` ASK, needs-two branch |
+| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | `vote` ASK |
+| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired` | Approving hands good the quest phase and leaves only the Assassin's guess | `vote` ASK |
+| Be on the team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | `propose` ASK |
+
+"Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `prompts.ts` counts the seat plus
+partners the deal lets it see. Oberon is invisible to the rest of evil, so a count over the whole
+team would both leak the deal into the prompt and let a note claim a team is evil-free while Oberon
+rides along. `matchPoint` (same file) and `failsRequired` (`rules.ts`) are the other shared pieces —
+one definition each, so a rule and its detector can never drift apart.
+
+### 7.3 Defaults, and what breaks them (T2)
+
+| Default | Breaks when | Lives in |
+|---|---|---|
+| Good: reject teams you are not on | Near the hammer (a reject hands the next leader an unvoted team); before any quest has cleared anyone | `GOOD_SHARED` |
+| Evil: exactly one evil per team | Quests needing two Fails; good's match point (a second evil is worth it to hold a Fail) | `propose` ASK |
+| Evil: never be the lone rejector of a clean team | Good's match point — the tell is worth it when the alternative is losing now | `EVIL_SHARED` + `vote` ASK |
+| Evil: slow-play to buy cover | Any decisive board (both match points) | `quest` ASK |
+| Merlin: vote your read | Merlin must deliberately vote "wrong" sometimes. **The only heuristic whose violation IS the correct play** — a Merlin who never breaks it is the most conspicuous good player at the table | `merlin` blob |
+| Percival: claim late or never | When the quest math needs one trusted team assembled now | `percival` blob |
+| Q1 fail timing: pass a 2-person Q1, often fail a 3-person one | Probabilistic (human data: ~6% vs ~67% fail rates), never forced | `quest` ASK |
+
+### 7.4 Implementation rules that follow
+
+1. **T1 goes in a state-keyed ASK branch that is evaluated before any cover logic**, worded as a
+   bare imperative. Precedent: the `quest` ASK computes both match-point checks first and returns
+   immediately, specifically so they outrank the fail-timing table below them.
+2. **T2 goes in alignment/role prose with its exception in the same sentence.** An unqualified
+   default is the bug from the opening of this section.
+3. **When a T2 default's exception is itself a T1 trigger, replace the default rather than stacking
+   it.** The `propose` ASK swaps the whole "usually one evil" sentence out at match point; leaving
+   both in would have preserved the escape hatch that caused the miss.
+4. **Placement still follows §6.2** (widest slot whose scope matches). Tier governs *force* and
+   *evaluation order*, not location.
+5. **T1 beats every T2 it touches.** If a new note contradicts an existing default, that is the
+   system working — say so in the note rather than hedging both.
+
+### 7.5 Measure, never enforce
+
+The forced tier is tempting to enforce in code. **Do not.** Playing the forced move on the bot's
+behalf injects a decision it never reached — the same line the reverted "lowest seat on the team
+fails" convention crossed (§6.5 note; the user called it cheating, correctly) — and it destroys the
+signal we are trying to read. A bot that cannot find a forced play is telling us something about the
+guidance or the model, and we want to hear it.
+
+So T1 is **measured**: `server/eval/forced.ts` detects violations from a game artifact,
+`computeMetrics` exposes them per seat (`forcedPlayViolations`) and in full (`forcedPlays`), and
+`npm run report` prints a per-rule breakdown. This is ground truth like the vote scores, not an
+opinion like the judge's incident families — which is why forced plays get their own detector
+instead of leaning on the judge's `blunder` family, where they used to hide.
+
+Two properties of the detector worth preserving:
+
+- **It judges what the seat could know**, via `computeKnowledge` (the engine's single producer of
+  night knowledge), so an unseen Oberon aboard can never make a teammate's reasonable play look like
+  a blunder. The flip side is that a play can be scored as forced-and-followed and still fail for
+  reasons the seat could not see. That is the correct accounting for decision quality.
+- **It is silent on undecided boards.** Cover plays on Q1 are defaults, not violations.
+
+Observed baseline (40 heuristic games, 7p, no talk): **~2.5 violations per game**, almost all on Q4
+— the heuristic agent has no match-point logic at the vote and no concept of the two-Fail quest, so
+it approves quests that end the game and burns lone Fails that cannot sink one. That is the floor to
+beat, and it matters beyond the baseline: the heuristic is the forever-fallback every degraded LLM
+seat lands on.
+
+**When adding a T1 rule, add the prompt branch and the detector row together.** Guidance without a
+detector is unmeasurable, and a detector without guidance measures nothing we chose.
+
+---
+
 ## Appendix: useful empirical anchors
 
 - Human good-team win rate ≈ **34%** across 61 recorded 6–11 player games (CMU dataset);
