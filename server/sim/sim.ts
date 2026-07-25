@@ -10,7 +10,7 @@ import { loadAgentLibrary } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame } from './runner.ts'
-import { renderEvent, revealRoles } from './render.ts'
+import { renderEvent, renderPrivateEvent, revealRoles } from './render.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
@@ -40,6 +40,11 @@ OUTPUT
   --transcripts <dir>   write one rendered transcript per game into <dir>. A single
                         game prints its transcript anyway; aggregate runs print none,
                         so this is how a batch stays readable.
+  --reasoning           include every seat's PRIVATE thinking and running notes in
+                        the transcripts. Reads what a bot believed, not just what
+                        it said, which is what separates a reasoned assassin guess
+                        from a lucky one. Offline analysis only; it prints hidden
+                        information, so never share a transcript made with it.
   --quiet               suppress per-game chatter
   --help                this text
 
@@ -70,6 +75,7 @@ const { values } = parseArgs({
     talk: { type: 'string', default: '0' },           // maxRounds[,maxRoundsAfterChange]
     out: { type: 'string' },                          // append game artifacts (JSONL) for eval tooling
     transcripts: { type: 'string' },                  // write one rendered transcript per game into this dir (aggregate runs print none)
+    reasoning: { type: 'boolean', default: false },   // include each seat's PRIVATE thinking + notes in those transcripts (offline analysis only)
     concurrency: { type: 'string', default: '1' },    // aggregate mode: play this many independent games at once (shares the spend ceiling)
     quiet: { type: 'boolean', default: false },
   },
@@ -244,9 +250,16 @@ async function playGame(i: number): Promise<void> {
     onEvent: verbose || values.transcripts
       ? (ev) => {
         const line = renderEvent(ev, game)
-        if (!line) return
-        if (verbose) console.log(line)
-        if (values.transcripts) captured.push(line)
+        if (line) {
+          if (verbose) console.log(line)
+          if (values.transcripts) captured.push(line)
+        }
+        // Private reasoning goes to the FILE only, never to stdout: a terminal
+        // game may have a human watching, and the sim prints to their screen.
+        if (values.transcripts && values.reasoning) {
+          const priv = renderPrivateEvent(ev, game)
+          if (priv) captured.push(priv)
+        }
       }
       : undefined,
   })

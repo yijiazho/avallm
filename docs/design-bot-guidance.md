@@ -7,12 +7,15 @@ implements), [design-implementation.md](design-implementation.md) (architecture)
 [research-prompt-formats.md](research-prompt-formats.md) (how the facts layer is formatted).
 
 research-strategy.md answers "how is this game played well" from strong human play and the
-published literature, and stops there. This doc answers the two engineering questions that follow
-from it:
+published literature, and stops there. This doc answers the three engineering questions that follow
+from it, in the order you should ask them:
 
-1. **Where does a heuristic belong** in the prompt the bots actually assemble, so the same advice
+1. **What kind of lever is this even** — computed fact, guidance text, harness structure, or model
+   capability (§8)? Asked first, because §6 and §7 both presuppose the answer is "guidance", and for
+   a large class of failures it is not.
+2. **Where does a heuristic belong** in the prompt the bots actually assemble, so the same advice
    is not maintained separately in five role blobs (§6)?
-2. **How binding is it** — a rule the engine enforces, a play the board forces, or a default a good
+3. **How binding is it** — a rule the engine enforces, a play the board forces, or a default a good
    player breaks on purpose (§7)?
 
 Everything here cites code and will go stale as the code moves; the research brief should not.
@@ -328,3 +331,82 @@ found ~2 per game, almost all on Q4, which is what drove the board conditions in
 
 **When adding a T1 rule, add the prompt branch and the detector row together.** Guidance without a
 detector is unmeasurable, and a detector without guidance measures nothing we chose.
+
+---
+
+## 8. Choosing the lever: computable, policy, structural, model
+
+§6 asks *where* guidance goes and §7 asks *how binding* it is. Both presuppose the fix is guidance.
+For a large class of failures it is not, and reaching for prose by reflex is how a prompt accretes
+text that does not work — text that then competes for attention with the text that does.
+
+This section is the triage step that runs before §6. It came out of the 2026-07-25 mid-tier
+benchmark (8 games, 4 models, `npm run sim -- --tier mid`), where the same four levers kept
+separating the failures cleanly.
+
+### 8.1 The four levers
+
+| Lever | Test: does it fit? | Home | Example from the benchmark |
+|---|---|---|---|
+| **Computable** | Could any player at the table derive it from the public record? Then the model should not be asked to derive it. | S7 `factsDossier` | "3 Fails on a 4-person team means at least 3 of those 4 are evil" — arithmetic every model skipped |
+| **Policy** | Is it a judgement about what to DO, given facts already in hand? | S0–S5 (place by §6.2, tier by §7.1) | When to break the one-evil-per-team default |
+| **Structural** | Is the failure shaped by the harness — turn order, round count, what a decision even offers? | engine / sim config / flow | Stall-loops at proposals 3–5, where the talk budget is a fixed `--talk 3,2` regardless of how many proposals have already been argued |
+| **Model** | Does the rule already exist, in the right slot, at the right force, and the seat still misses it? | model choice; measure, do not re-word | Two-Fail miscoordination in one model while the rule-based fallback executes it correctly |
+
+### 8.2 Ask in this order
+
+1. **Computable?** Then compute it. A fact costs tokens once and is never wrong; guidance to perform
+   the same derivation costs tokens every turn and is wrong whenever the model is lazy. This is the
+   lever teams under-use, because writing a sentence feels cheaper than writing a function.
+2. **Policy?** Then §6.2 for placement and §7.1 for force.
+3. **Structural?** Then change the harness. Some failures are properties of the shape of the turn,
+   and no wording survives contact with them.
+4. **Model?** Then stop editing text. Record it and pick differently.
+
+### 8.3 Telling them apart
+
+Three diagnostics, each cheap:
+
+- **The cross-model test.** Run the same prompt across several models. A failure in *every* model is
+  a prompt or facts gap; a failure in *one* while others comply is a model limit. The benchmark
+  separated these sharply: "a success clears its team" appeared in all four models (prompt), while
+  the two-Fail miscoordination appeared in exactly one (model).
+- **The fallback control.** `heuristic.ts` plays from the same board with no prose at all. If the
+  rule-based agent gets it right, the *rule* is expressible and present — what failed is execution,
+  not instruction. Master measured this directly for the two-Fail quest: the fallback went from
+  sinking 1 of 32 such quests to 14 of 32 once the board condition was added to the code, which is
+  what proved the remaining LLM misses were not a missing rule.
+- **The point-of-use test.** Before writing a *new* line, check whether the guidance already exists
+  somewhere the model is not reading. Both benchmark prompt-failures were already covered: the rules
+  digest says evil may play Success, and `GOOD_SHARED` says a success is weak evidence. Stated once
+  in a 1,200-word preamble, both lost to the vivid quest board. Restating a fact **on the row the bot
+  is reasoning over** is a different intervention from saying it again in the preamble, and usually
+  the right one. Prompt real estate is not uniform.
+
+### 8.4 The facts/policy boundary
+
+The most useful lever is also the easiest to abuse, because a fact that is *nearly* advice feels
+more helpful than one that is not. Hold the line at the sentence:
+
+- **Fact:** "Q4 FAILED with 3 Fails on a 4-person team, so at least 3 of these 4 are evil."
+- **Policy:** "…so do not put them on the next team."
+
+The first is an observation any seat can compute and belongs in S7. The second is a judgement, it
+belongs in a guidance slot, and putting it in S7 would quietly make the facts layer a second prompt
+that custom agents cannot override — defeating the reason S7 carries zero imperatives (§6.1).
+`test/facts.test.ts` guards this boundary directly for the quest-evidence section, which sits one
+short step from crossing it.
+
+### 8.5 What a new fact costs
+
+Facts are not free, and the benchmark is also the evidence for that:
+
+- **Instruction budget is finite and compliance is model-dependent.** Under one identical prompt,
+  two of four models followed the table-talk rules exactly while the other two ignored specific ones
+  (~20 spoken lean announcements in a single Seed game against zero in every Gemini Flash Lite and
+  GPT Nano game). Every added fact competes for the same attention as the rules that currently work.
+- **So measure the delta, not the intention.** Add the fact, then A/B it on fixed seeds with only
+  that section changed — `AVALON_NO_DOSSIER=1` toggles the whole dossier and is therefore the wrong
+  instrument for a single section; use a same-seed run against the previous commit instead.
+- **Prefer one row over one section.** The dossier grows by accretion, and its FORMAT CONVENTIONS
+  (`facts.ts` header) exist because a pile of sections stops being a single-lookup record.
