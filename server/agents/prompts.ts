@@ -299,7 +299,25 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     const hammer = v.proposalNum === MAX_PROPOSALS
       ? ` THIS IS THE HAMMER: there is no vote — the team you lock in goes straight on the quest.`
       : ''
-    return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}.${tally}${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move — revise only if the discussion surfaced a real objection you believe, and tell the table why.`
+    // Evil leaders fold at this step: facing a reject-leaning table they revise
+    // their own team until nobody left on it can play a Fail, which hands the
+    // quest a guaranteed success. The finalize sibling of the vote ASK's
+    // ownTeamNote — consensus-following looks like the safe play here, but for
+    // evil the revision itself has a price the leans never mention.
+    // Counts only evil this seat can SEE (itself plus known partners), so the
+    // note never assumes Oberon visibility: it speaks about what the leader
+    // knows is aboard, not about the team being truly evil-free.
+    const knownEvilAboard = v.alignment === 'evil'
+      ? (v.currentTeam ?? []).filter((s) => s === v.seat || (v.privateInfo.evilPartners ?? []).includes(s))
+      : []
+    const foldNote = v.alignment !== 'evil'
+      ? ''
+      : knownEvilAboard.length
+        ? ` This team seats evil you know of: ${knownEvilAboard.map((s) => nameOf(v, s)).join(', ')}. Revising them off would buy the table's approval at the price of a quest your side can no longer fail, so the leans are not the only cost in front of you.${v.proposalNum === MAX_PROPOSALS
+          ? ` And there is no vote left to lose: nothing the table declared can stop this team, so revising your side off it gives the quest away for free.`
+          : ` Leans are not binding, and a contested team often still passes the vote — while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
+        : ` No evil you know of is on this team, so unless a teammate you cannot see is aboard it is a quest your side cannot fail. That makes revising cheap for you: if the discussion handed you a reason you can say out loud for seating yourself instead, this is the moment to use it.`
+    return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}.${tally}${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move — revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
   },
   vote: (v) => {
     const lean = ownRecentLean(v)
