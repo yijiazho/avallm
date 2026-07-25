@@ -6,10 +6,10 @@
 // the shared floor that personality work layers on top of, so pin them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  RULES_DIGEST, INJECTION_GUARD, TABLE_TALK_NORMS, GOOD_SHARED, EVIL_SHARED,
-  ROLE_GUIDANCE, OUTPUT_CONTRACTS,
-} from '../server/agents/prompts.ts'
+import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
+import { viewFor } from '../server/engine/view.ts'
+import { buildMessages, TABLE_TALK_NORMS } from '../server/agents/prompts.ts'
+import type { LlmCallKind } from '../server/llm/call-params.ts'
 
 test('TABLE_TALK_NORMS carries the anti-house-style rules', () => {
   assert.match(TABLE_TALK_NORMS, /Write the way people SPEAK/)
@@ -30,22 +30,70 @@ test('the norms do not carry the unearned name-opener ban', () => {
   assert.match(TABLE_TALK_NORMS, /Refer to players by NAME/)
 })
 
-// Style bleeds from the prompt into the speech it asks for: bots echoed the
-// norms' own punctuation back at the table, and the bullet banning dashes
-// once contained two of them. Every layer that lands in a speech-turn prompt
-// must therefore be dash-free — not just the norms. (Comments are exempt:
-// they never reach the model.)
-test('no prompt layer shows the model a dash it is told not to use', () => {
-  const layers: [string, string][] = [
-    ['RULES_DIGEST', RULES_DIGEST],
-    ['INJECTION_GUARD', INJECTION_GUARD],
-    ['TABLE_TALK_NORMS', TABLE_TALK_NORMS],
-    ['GOOD_SHARED', GOOD_SHARED],
-    ['EVIL_SHARED', EVIL_SHARED],
-    ...Object.entries(ROLE_GUIDANCE),
-    ...Object.entries(OUTPUT_CONTRACTS),
+// THE MIMICRY GUARD. Prompt style bleeds into the speech the prompt asks for:
+// bots echo back the punctuation and rhetorical shapes they are shown. Measured
+// (matched A/B, same seeds and roster, 4 games): stripping dashes from the
+// prompt dropped dashes in bot speech from 0.46-0.53 to 0.27-0.35 per utterance.
+// The bullet banning dashes had itself contained two of them.
+//
+// This asserts over RENDERED prompts, not over the exported constants, because
+// that is the only place the whole surface is visible at once. An earlier
+// version checked the constants alone and missed ASKS (which is not even
+// exported, and held ~20 of the ~42 dashes), publicStateText, knowledgeText,
+// and the facts dossier — so a dash added to any of those would have regressed
+// the measured fix with the suite still green.
+//
+// If you are adding prompt text and this test fails: rewrite the sentence, do
+// not weaken the test. End the sentence and start another one; a colon, comma,
+// or parentheses covers nearly every case a dash was doing.
+const BANNED_DASH = /[—–]/
+// Only the copula ANTITHESIS reframe ("that's not trust, that's hush money"),
+// which is the actual tell. NOT plain contrast ("my issue is with you, not
+// Flash"), which is ordinary English and would flag half of normal speech.
+const BANNED_SLOGAN = /\b(is|are|was|were|it'?s|that'?s|this is)\s+not\s+[^.!?;:]{2,60}?,\s*(it'?s|that'?s|it is|that is|they'?re)\b/i
+// The norms name the anti-pattern on purpose, and quoting an ANTI-example is
+// safe (bots parrot quoted positive examples, not negative ones — measured).
+const ANTI_EXAMPLE = `"that's not X, that's Y"`
+
+// A live mid-game fixture: two resolved quests so the derived-facts dossier,
+// the Merlin spotless-streak line, and the Percival paired-record line all
+// render rather than being skipped as early-game empties.
+function midGame() {
+  const g = createGame({ seed: 'mimicry', playerCount: 7, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
+  for (let round = 0; round < 2; round++) {
+    const size = g.quests[g.round - 1].teamSize
+    const team = Array.from({ length: size }, (_, i) => (g.leaderSeat + i) % 7)
+    applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'a clean pair to open with' })
+    while (g.phase === 'discussion') {
+      const [d] = expectedDecisions(g)
+      applyDecision(g, d.seat, { kind: 'discuss', say: '' })
+    }
+    if (g.phase === 'finalize') applyDecision(g, g.leaderSeat, { kind: 'finalize', stick: true })
+    for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
+    for (const r of expectedDecisions(g)) applyDecision(g, r.seat, { kind: 'quest', card: 'success' })
+  }
+  return g
+}
+
+test('no rendered prompt shows the model a construction the norms ban', () => {
+  const g = midGame()
+  const kinds: LlmCallKind[] = [
+    'discuss', 'propose', 'pitch', 'finalize', 'vote', 'quest', 'assassinate', 'reflect',
   ]
-  for (const [name, text] of layers) {
-    assert.doesNotMatch(text, /[—–]/, `${name} contains an em or en dash`)
+  // Every seat, so role-specific guidance and every knowledge-line branch
+  // (merlin / percival / evil partners / no knowledge) is covered.
+  for (const p of g.players) {
+    const view = viewFor(g, p.seat)
+    for (const kind of kinds) {
+      const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: view.currentTeam ?? [0, 1] })
+      const rendered = `${sys.content}\n${user.content}`
+      const where = `${kind} prompt for seat ${p.seat} (${p.role})`
+      assert.doesNotMatch(rendered, BANNED_DASH, `${where} contains an em or en dash`)
+      assert.doesNotMatch(
+        rendered.split(ANTI_EXAMPLE).join(''),
+        BANNED_SLOGAN,
+        `${where} contains a "that's not X, that's Y" reframe`,
+      )
+    }
   }
 })
