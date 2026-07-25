@@ -108,34 +108,41 @@ export const ROSTER: RosterEntry[] = [
   },
 ]
 
-// The default seating order: every seated model, most-preferred first. A game
-// takes the first `botCount` (server.ts) — so the leading SIX are the real
-// default 7p table, and the tail only seats in 8-10p games. Ordering is
-// therefore the product decision, not membership.
+// The curated core, one model family per seat — the six we'd actually pick.
+// (Seat churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was
+// benched on reliability — see above — and after a brief Gemini Flash stopgap
+// that doubled the Google family, Nemotron (NVIDIA) took the seat once it
+// cleared docs/model-onboarding.md. Nemotron restores one-family-per-seat and
+// was the cheapest seat measured in its onboarding playtest.)
 //
-// The leading six are unchanged and deliberately one-family-per-seat. (Seat
-// churn: Haiku was benched on cost and Seed took its seat; GPT-OSS was benched
-// on reliability — see above — and after a brief Gemini Flash stopgap that
-// doubled the Google family, Nemotron (NVIDIA) took the seat once it cleared
-// docs/model-onboarding.md. Nemotron restores one-family-per-seat and was the
-// cheapest seat measured in its onboarding playtest.)
+// This is a separate export because the MEMBERSHIP SPLIT is the real lever,
+// not the ordering. Both auto-fill paths — leftoverPool in agents/packs.ts and
+// defaultTable in the client's App.tsx — shuffle within "preferred" and within
+// "the rest", so position inside a group is discarded. What survives the
+// shuffle is only which group a model lands in. Folding these six into
+// DEFAULT_TABLE would put all fifteen in "preferred", empty "the rest", and
+// silently flatten that two-tier draw without any call site changing.
+export const CORE_TABLE = ['deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron']
+
+// Every seated model, core first. Ordering here only bites on ONE path: the
+// server's fallback when a caller posts no table at all (server.ts), which
+// takes the first `botCount` off the front. The client never hits it — its
+// setup screen always posts a table. So treat this order as a tiebreak for
+// API/sim callers, not as the product decision.
 //
-// The tail is the 2026-07 batch plus Gemini Flash. Families repeat down there
-// (two Google, two DeepSeek), which is fine for overflow seats but is why they
-// sit behind the curated six rather than among them — and why the two doubled
-// families are last of all.
+// The tail is the 2026-07 batch plus Gemini Flash, ordered by measured playtest
+// quality so that fallback path stays sane: the three that ran a clean game
+// (0 degrades, 0 reasoning leaks) first, then the two that degraded once, then
+// the expensive and on-probation seats. MiniMax is last of the batch on
+// purpose — 2 degrades and 3 reasoning leaks despite a clean probe — and the
+// two doubled families (Google, DeepSeek) sit at the very back.
 //
-// Because this now names EVERY seated model, benching one means deleting it
-// here as well as commenting out its ROSTER entry: a leftover id would resolve
-// to no agent def and 500 the lobby. test/llm-policies.test.ts walks this list
+// Because this names EVERY seated model, benching one means deleting it here
+// as well as commenting out its ROSTER entry: a leftover id would resolve to
+// no agent def and 500 the lobby. test/llm-policies.test.ts walks this list
 // through rosterById, so that mistake reddens the suite rather than shipping.
-// Tail order is by MEASURED playtest quality, not preference: the three that
-// ran a clean game (0 degrades, 0 reasoning leaks) come first, so a 10p table —
-// which seats the first nine — draws only vetted seats. Then the two that
-// degraded once, then the unranked / on-probation seats. MiniMax is last of the
-// batch on purpose: 2 degrades and 3 reasoning leaks despite a clean probe.
 export const DEFAULT_TABLE = [
-  'deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron',
+  ...CORE_TABLE,
   'hunyuan', 'solar', 'gpt-nano', 'mistral', 'mimo', 'qwen',
   'deepseek-pro', 'minimax', 'gemini-flash',
 ]

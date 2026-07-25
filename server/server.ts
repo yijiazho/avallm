@@ -36,7 +36,7 @@ import { RULES_DIGEST, ROLE_GUIDANCE, ALIGNMENT_SHARED, TABLE_TALK_NORMS, OUTPUT
 import { CALL_PARAMS } from './llm/call-params.ts'
 import type { LlmCallKind } from './llm/call-params.ts'
 import { getClient } from './llm/client.ts'
-import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
+import { ROSTER, CORE_TABLE, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, nameIsReserved, validateRoles } from './engine/rules.ts'
 import type { AvalonAgent } from './agents/types.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
@@ -763,6 +763,9 @@ const server = http.createServer(async (req, res) => {
         problems: libraryProblems,
         models: ROSTER.map((r) => ({ id: r.id, name: r.displayName, slug: r.slug, tier: r.tier })),
         defaultTable: DEFAULT_TABLE,
+        // The curated six, distinct from the full list: the setup screen prefers
+        // these for auto-filled seats (mirrors leftoverPool in agents/packs.ts).
+        coreTable: CORE_TABLE,
         defaultModel: DEFAULT_MODEL,
         // The prompt anatomy the agent editor shows read-only: what surrounds
         // an author's custom layers (design doc §5).

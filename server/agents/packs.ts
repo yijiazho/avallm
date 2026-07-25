@@ -13,7 +13,7 @@
 // leftover seats from the default agent library (deepseek, kimi, ...) so a
 // four-member pack at a 9-player table never has to seat "Sherlock 2".
 
-import { DEFAULT_TABLE, ROSTER } from '../llm/roster.ts'
+import { CORE_TABLE, ROSTER } from '../llm/roster.ts'
 import type { Rng } from '../engine/prng.ts'
 import type { AgentDef, LibraryProblem, TableSeat } from './defs.ts'
 
@@ -87,15 +87,19 @@ export function randomModels(count: number, rng: Rng): string[] {
 }
 
 // The models a leftover seat can draw: built-in agents only, so "the rest of
-// the table is LLMs" never quietly seats another pack's character. DEFAULT_TABLE
+// the table is LLMs" never quietly seats another pack's character. CORE_TABLE
 // is preferred (one model family per seat) with any newer roster model behind
 // it; each group is shuffled so seat order varies, and the pack's own members
 // are excluded so an oversized table can't seat "Sherlock 2" next to Sherlock.
+//
+// CORE_TABLE, not DEFAULT_TABLE: the latter now lists every seated model, so
+// using it here would put all fifteen in the preferred group and empty the
+// second one — collapsing this two-tier preference into a flat draw.
 function leftoverPool(pack: ResolvedPack, agents: AgentDef[], rng: Rng): string[] {
   const models = agents
     .filter((a) => a.tier === 'builtin' && a.engine.type === 'llm' && !pack.agents.includes(a.id))
     .map((a) => a.id)
-  const preferred = DEFAULT_TABLE.filter((id) => models.includes(id))
+  const preferred = CORE_TABLE.filter((id) => models.includes(id))
   return [...rng.shuffle(preferred), ...rng.shuffle(models.filter((id) => !preferred.includes(id)))]
 }
 

@@ -24,6 +24,26 @@ const REPO_URL = 'https://github.com/allenliu/avallm'
 // A model id's short slug for display: the family-qualified form "vendor/model"
 // shows just the model half; a bare id shows whole.
 const modelSlug = (model: string) => (model.includes('/') ? model.split('/')[1] : model)
+
+// Model dropdowns group by cost tier, cheapest first, alphabetical within a
+// tier. The roster's own order is curation history — meaningless to a host —
+// and at fifteen models a flat alphabetical list buries the one axis the host
+// is actually deciding on, since the seats run from $0.0004 to $0.0028 a call.
+// Grouping makes the price structural instead of a suffix on every line.
+const MODEL_TIER_ORDER = ['cheap', 'mid', 'premium'] as const
+const TIER_LABEL: Record<string, string> = {
+  cheap: 'Cheap', mid: 'Mid', premium: 'Premium',
+}
+function modelsByTier(models: { id: string; slug: string; tier: string }[]) {
+  return MODEL_TIER_ORDER
+    .map((tier) => ({
+      tier,
+      models: models
+        .filter((m) => m.tier === tier)
+        .sort((a, b) => modelSlug(a.slug).localeCompare(modelSlug(b.slug))),
+    }))
+    .filter((g) => g.models.length > 0)
+}
 const SourceLink = () => (
   <a className="source-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">Source</a>
 )
@@ -668,10 +688,13 @@ function defaultTable(library: Library | null, count: number, exclude: string[] 
     .filter((a) => a.tier === 'builtin' && agentIsLlm(a) && !exclude.includes(a.id))
     .map((a) => a.id) ?? []
   if (models.length === 0) return Array.from({ length: count }, () => ({ agent: 'autopilot' }))
-  // The server's canonical default table (one model family per seat) still says
-  // WHICH models are preferred when the roster outgrows the table; the shuffle
-  // only decides who sits where, and any newer roster model queues behind them.
-  const preferred = (library?.defaultTable ?? []).filter((id) => models.includes(id))
+  // The server's curated core (one model family per seat) still says WHICH
+  // models are preferred when the roster outgrows the table; the shuffle only
+  // decides who sits where, and any newer roster model queues behind them.
+  // coreTable, NOT defaultTable — the latter lists every seated model, so it
+  // would put all of them in `preferred` and leave the second group empty.
+  // Falls back to defaultTable for a server too old to send coreTable.
+  const preferred = (library?.coreTable ?? library?.defaultTable ?? []).filter((id) => models.includes(id))
   const order = preferred.length
     ? [...shuffled(preferred), ...shuffled(models.filter((id) => !preferred.includes(id)))]
     : shuffled(models)
@@ -1070,8 +1093,12 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                       option for unavailable agents — their default is the dead
                       model the server would reject. */}
                   {!info?.unavailable && <option value="">default ({modelSlug(info?.model ?? '')})</option>}
-                  {library.models.map((m) => (
-                    <option key={m.id} value={m.id}>{modelSlug(m.slug)} ({m.tier})</option>
+                  {modelsByTier(library.models).map((g) => (
+                    <optgroup key={g.tier} label={TIER_LABEL[g.tier]}>
+                      {g.models.map((m) => (
+                        <option key={m.id} value={m.id}>{modelSlug(m.slug)}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               )}
@@ -1272,7 +1299,11 @@ function AgentStudio({ library, onChanged }: { library: Library | null; onChange
         <input value={name} maxLength={40} placeholder="Agent name" onChange={(e) => setName(e.target.value)} />
         <select value={model} onChange={(e) => setModel(e.target.value)}>
           <option value="">no fixed model (plays the table default: {library.defaultModel ?? 'server pick'})</option>
-          {library.models.map((m) => <option key={m.id} value={m.id}>{m.slug} ({m.tier})</option>)}
+          {modelsByTier(library.models).map((g) => (
+            <optgroup key={g.tier} label={TIER_LABEL[g.tier]}>
+              {g.models.map((m) => <option key={m.id} value={m.id}>{m.slug}</option>)}
+            </optgroup>
+          ))}
         </select>
       </div>
       <input value={about} maxLength={300} placeholder="About (shown in the library)" onChange={(e) => setAbout(e.target.value)} />
