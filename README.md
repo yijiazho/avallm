@@ -65,7 +65,7 @@ Because the engine cannot tell a human from a model, any mix of players is fully
 
 Good Avalon bots are harder than they sound, and the published research is blunt about why. Out of the box, LLMs are weak at deduction in free text and even worse at acting on the deductions they do reach (the "deduction-action gap"), they over-disclose and talk themselves into trouble, and they still lose to simple rule-based baselines. AvaLLM is built against those findings: it does the deduction in code and hands the bot structured facts, hard-guards moves that are provably losing, and runs a second-order "what does this reveal about me?" check before a bot speaks.
 
-The prompts are not one generic "play Avalon well" instruction either. Guidance is specialized by role and by decision: how an evil player should time a fail, when Percival should risk revealing, how the assassin should read the vote record to find Merlin. That whole playbook is distilled in [`docs/research-strategy.md`](docs/research-strategy.md), which draws on both strong-human play and the academic literature, and is mapped slot by slot into the prompts.
+The prompts are not one generic "play Avalon well" instruction either. Guidance is specialized by role and by decision: how an evil player should time a fail, when Percival should risk revealing, how the assassin should read the vote record to find Merlin. That whole playbook is distilled in [`docs/research-strategy.md`](docs/research-strategy.md), which draws on both strong-human play and the academic literature; [`docs/design-bot-guidance.md`](docs/design-bot-guidance.md) is where each heuristic gets mapped slot by slot into the prompts.
 
 Key sources:
 
@@ -91,6 +91,7 @@ The `docs/` folder is the full design record:
 
 - [`research-rules-and-visuals.md`](docs/research-rules-and-visuals.md): Avalon rules reference and visual design research
 - [`research-strategy.md`](docs/research-strategy.md): the strategy compendium that feeds the bot prompts
+- [`design-bot-guidance.md`](docs/design-bot-guidance.md): how that research becomes prompt slots, and which plays are forced vs. default
 - [`design-implementation.md`](docs/design-implementation.md): architecture and implementation design
 - [`design-custom-agents.md`](docs/design-custom-agents.md): how custom and curated agents work, and the safety invariants the engine keeps
 - [`design-evaluation.md`](docs/design-evaluation.md): the bot evaluation and self-improvement framework

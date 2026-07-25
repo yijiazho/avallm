@@ -1,5 +1,5 @@
 // Forced-play detection: the deterministic tier of the playbook
-// (docs/research-strategy.md §7), measured from artifacts and never enforced.
+// (docs/design-bot-guidance.md §7), measured from artifacts and never enforced.
 // The two headline cases are real misses read out of a live LLM game by hand
 // (seed norms2) — the whole point of the metric is that nobody should have to
 // read a transcript to find them again.

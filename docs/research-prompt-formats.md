@@ -145,7 +145,7 @@ The rules a new fact must follow live in the header of `server/agents/facts.ts`
 6. **Compact, stable vocabulary** — `ok`/`FAIL`, `Q<n>`, `name(seat N)`; don't invent
    a second spelling for a thing already named.
 
-Design-doc context: this is prompt slot **S7** in `research-strategy.md` §6.1, and the
+Design-doc context: this is prompt slot **S7** in `design-bot-guidance.md` §6.1, and the
 facts-vs-policy boundary is `design-evaluation.md` §1.2.
 
 ---

@@ -1,4 +1,4 @@
-// Board reads that decide forced plays (docs/research-strategy.md §7.2).
+// Board reads that decide forced plays (docs/design-bot-guidance.md §7.2).
 //
 // Every T1 trigger in the catalogue is phrased in terms of these two questions —
 // how many Fails this seat can account for on a team, and whose match point the

@@ -130,7 +130,7 @@ LLM cost:
 - **Forced-play violations** (`server/eval/forced.ts`) — declined a move that was deterministically
   correct given the public board plus the seat's own knowledge: playing Success into good's third
   quest, burning a lone Fail on a quest needing two, rejecting a team your side could sink with the
-  game on the line. The tier is defined in research-strategy.md §7, which also explains why these
+  game on the line. The tier is defined in design-bot-guidance.md §7, which also explains why these
   are measured and never enforced. Ground truth, so they get a detector rather than living in the
   judge's `blunder` family. Judged against `computeKnowledge`, never omniscience, so an unseen
   Oberon cannot make a teammate's reasonable play look wrong, and no card rule fires on a quest that

@@ -102,4 +102,4 @@ git push --force-with-lease origin <old-sha>:deploy   # rollback
 
 ## Docs
 
-`docs/design-implementation.md` is the architecture reference (kept current; cite sections when relevant). `docs/research-strategy.md` feeds the bot prompts. `docs/model-onboarding.md` is the playbook + living record for adding/retiring roster models (reasoning-suppression probe, cost/reliability gates, wiring checklist). `docs/ROADMAP.md` tracks deferred work.
+`docs/design-implementation.md` is the architecture reference (kept current; cite sections when relevant). `docs/research-strategy.md` feeds the bot prompts and is a **locked research brief** — it describes the game and the literature only, so implementation detail (prompt slots, file paths, our own measurements) goes in `docs/design-bot-guidance.md` instead, which maps each heuristic to a prompt slot (§6) and grades how binding it is (§7). `docs/model-onboarding.md` is the playbook + living record for adding/retiring roster models (reasoning-suppression probe, cost/reliability gates, wiring checklist). `docs/ROADMAP.md` tracks deferred work.

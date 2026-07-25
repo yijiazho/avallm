@@ -1,0 +1,330 @@
+# Bot guidance: turning the strategy research into prompts and code — design
+
+**Status:** extracted 2026-07-25 from `research-strategy.md`, where it had grown by accretion.
+Companions: [research-strategy.md](research-strategy.md) (the locked research brief this doc
+implements), [design-implementation.md](design-implementation.md) (architecture),
+[design-evaluation.md](design-evaluation.md) (metrics and the promotion loop),
+[research-prompt-formats.md](research-prompt-formats.md) (how the facts layer is formatted).
+
+research-strategy.md answers "how is this game played well" from strong human play and the
+published literature, and stops there. This doc answers the two engineering questions that follow
+from it:
+
+1. **Where does a heuristic belong** in the prompt the bots actually assemble, so the same advice
+   is not maintained separately in five role blobs (§6)?
+2. **How binding is it** — a rule the engine enforces, a play the board forces, or a default a good
+   player breaks on purpose (§7)?
+
+Everything here cites code and will go stale as the code moves; the research brief should not.
+When guidance changes, this doc changes and research-strategy.md does not.
+
+**Section numbering.** §6 and §7 keep the numbers they carried inside research-strategy.md, because
+citations across the codebase (`board.ts`, `forced.ts`, the prompt builders, their tests) point at
+them. So in this doc **§1–§5 always mean research-strategy.md**, and §6–§7 are the sections below.
+New sections here continue at §8.
+
+---
+
+## 6. Prompt-slot placement map (implementation)
+
+research-strategy.md §1–§5 are the strategy. This section maps it onto the concrete **prompt slots**
+the bots actually assemble in `server/agents/prompts.ts`, so guidance placement becomes a
+rule instead of a per-role blob written from scratch. The organizing question for every
+heuristic is: **which slot's scope exactly matches the set of situations this advice applies
+to?** Put it there, once, and no wider.
+
+This map was written after we found the double-fail warning present in three evil role blobs
+(assassin, oberon, minion) and missing from two others (morgana, mordred) — a scope mismatch:
+the advice is *evil-shared*, but it was being maintained per-role, so holes were inevitable.
+The fix is not to patch the two holes; it is to recognize the correct slot for each heuristic
+and stop duplicating.
+
+### 6.1 The slots (what exists today)
+
+Assembled in `buildMessages` (system message top-to-bottom, then the user message):
+
+| ID | Slot | Scope: who sees it, when | Source |
+|----|------|--------------------------|--------|
+| **S0** | `RULES_DIGEST` | Every bot, every call | `prompts.ts` const |
+| **S1** | *(none yet)* universal strategy | Every bot, every call — **no baseline slot exists** | proposed |
+| **S2** | *(none yet)* alignment-shared good/evil | All good, or all evil, every call | **task #1 is building this** |
+| **S3** | `ROLE_GUIDANCE[role]` | One role, every call | `prompts.ts` map, 8 keys |
+| **S4** | `TABLE_TALK_NORMS` | Every bot, **only `discuss` + `pitch`** | `prompts.ts` const |
+| **S5** | `ASKS[kind]` | Every bot, **only that decision kind** | `prompts.ts` map, 7 kinds |
+| **S6** | `OUTPUT_CONTRACTS[kind]` | Every bot, that kind — format-bound | `prompts.ts` map, 7 kinds |
+| **S7** | `factsDossier` | Every bot, every call — **DATA only** | `facts.ts` |
+| **S8** | agent-config overrides (`strategy`/`personality`/`roleGuidance`/`kindGuidance`) | One custom agent | `defs.ts` |
+
+Two of these are not strategy homes and must stay that way:
+
+- **S7 is a facts layer, not a policy layer** (`facts.ts` header, design doc §1.2). It carries
+  *computed observations* — one labeled row per player ("Kimi(seat 3) | on-team: Q2(FAIL), Q3(ok)
+  | voted: Q2 approve→FAIL, Q3 reject→ok") with zero imperatives, so custom
+  agents compete on strategy rather than on bookkeeping. A heuristic ("treat fail-count as hard
+  evidence") never goes in S7; the *number* it reasons over does. When a heuristic and a fact
+  are two halves of one idea, split them: the datum to S7, the "what to do about it" to a
+  guidance slot. **Before adding a fact, follow the FORMAT CONVENTIONS in `facts.ts`'s header**
+  (one row per entity, `key: value` cells, markdown-in-not-JSON) — the dossier grows by
+  accretion, and the shared shape is what keeps it a single-lookup record instead of a pile.
+- **S6 owns format, and strategy only where it is inseparable from format** (e.g. discuss's
+  `"say" is heard by everyone — never reveal private knowledge in it`). Don't grow S6 into a
+  strategy slot; if advice would survive a format change, it belongs in S3/S2/S1/S5.
+
+### 6.2 The placement rule
+
+For any heuristic, choose the **widest slot whose scope exactly matches its applicability**:
+
+1. Applies to **every role, every decision** → S1 (universal strategy). *S1 does not exist as a
+   baseline slot today; see §6.5.* The one universal strategy line we currently ship rides at
+   the end of S0 ("Watch the vote history — it is the main evidence").
+2. Applies to **one whole alignment** → S2 (task #1's good-shared / evil-shared fragment). This
+   is the home for the largest cluster of currently-duplicated advice.
+3. Specific to **one role's private knowledge or win condition** → S3.
+4. About a **specific decision moment, independent of role** (how to play a quest card, what
+   hammer means for a vote, what the assassination shot requires) → S5 (the ASK for that kind).
+   Kind-gating is a feature: the advice appears exactly when it is actionable and does not bloat
+   the other six calls.
+5. About **how to talk** → S4.
+6. A **computed datum** → S7 (and its policy half to 1–5).
+
+Corollaries:
+- **Never place at a slot wider than the scope** (universal advice that is actually good-only
+  mis-teaches evil bots) **or narrower** (alignment advice copied into N role blobs rots into
+  holes — the bug that motivated this map).
+- **Phase advice prefers S5 over S3.** "Lone evil fails quest 2 by default" is tempting to write
+  into every evil role blob, but it is a property of the `quest` decision, not of being the
+  Assassin. One S5 `quest` ASK branch (evil vs good) serves all evil roles and can't drift.
+- **S8 mirrors S3's shape**, so anything we standardize in S3/S2 automatically gives custom
+  agents a coherent `append`-mode baseline to build on (`roleGuidanceMode`).
+
+### 6.3 Master map: heuristic → slot
+
+Alignment-wide and universal heuristics (the S1/S2 cluster). "→ S2" means task #1's fragment.
+
+| Heuristic (source §) | Correct slot | Rationale |
+|---|---|---|
+| A vote is public, permanent evidence; track the matrix (§1.2, §3.1) | S0 tail / S1 | Universal; already the one strategy line in S0. |
+| Second-order check before any public act ("what does this reveal about me?") (§4.2) | S4 | Speech-scoped; already in `TABLE_TALK_NORMS`. Keep. |
+| Speak with purpose; engage the newest concrete info (§4.1 failure mode) | S4 | Speech-scoped; already present. |
+| Good: reject teams excluding you early unless validated; you are the one certain-good slot (§1.2) | **S2 good** | True for every good role, not just Servant. |
+| Good: a succeeded quest is weak evidence — slow-play exists; never assume "1 fail = 1 evil" (§1.4) | **S2 good** | Deduction hygiene common to all good. |
+| Good: everyone plays Merlin — act confident, make reads, generate cover traffic (§3.2) | **S2 good** | Currently half-stated in Servant and Percival blobs; it is a good-team meta. |
+| Good: on/near hammer, approve rather than burn the last proposal; rejecting on hammer is near-proof evil (§1.2, §3.1) | **S5 `vote`** (good branch) + S2 good | It is a vote-moment rule; the ASK is where it bites. Dossier already surfaces hammer proximity (S7). |
+| Evil: double-fail reveals two of you at once — fear it early (§1.3, §2.6) | **S2 evil** | The motivating bug. Belongs to all evil, not 3 of 5 blobs. |
+| Evil: no private channel on a shared quest — read your partner's style; pre-agree a deterministic failer convention (§2.6) | **S2 evil** | Multi-evil coordination, alignment-wide. |
+| Evil: mix rejections of dirty teams / approvals of clean teams into your vote record; never be the lone rejector of a clean team (§2.6, §3.1) | **S2 evil** | Vote-matrix discipline for every evil role. |
+| Evil: bussing — sacrifice a burned teammate to launder your own credibility (§2.6, §3.4) | **S2 evil** | Team-level tactic, not role-specific. |
+| Evil: allocate one teammate (Mordred if present) to deep cover; don't have both evils slow-play (§3.4) | **S2 evil** (+ S3 mordred) | The allocation is a team decision (S2); Mordred's default posture is role flavor (S3). |
+| Evil: after a fail you were on, don't go quiet — push an alternative theory (§2.6, §4.1) | **S2 evil** | Applies to any evil caught on a failed quest. |
+
+Phase heuristics (S5 ASK, role-independent or alignment-branched).
+
+| Heuristic (source §) | Correct slot | Rationale |
+|---|---|---|
+| Fail decision table: pass 2-person Q1, often fail 3-person Q1; fail Q2/Q3 by default when lone evil; lone evil passes a 2-fail Q4; always fail for evil's 3rd point (§1.3, §1.4, §2.6, §5.4) | **S5 `quest`** (evil branch) | A property of the quest card decision; one branch serves all evil roles. Currently absent from the `quest` ASK entirely. |
+| Good must play success (already enforced) | S5 `quest` + code | Present in ASK; hard rule in engine. |
+| Propose yourself + best objective records; late-game prefer fail-count-validated players over talk-validated (§5.1) | **S5 `propose`** | Property of the proposal decision, shared by any leader. |
+| Reflect: chain observations into standing deductions, revise disproven ones (§4.3, §5.0) | S5 `reflect` + S6 | Already well-developed in the `reflect` ASK/contract. Keep. |
+| Assassin shot: compute per-good vote-accuracy; flat-high-from-round-1 = Merlin, noisy-then-accurate = Percival; weight teammates' input; break ties toward the quieter candidate (§2.3, §5.5) | **S5 `assassinate`** | The assassinate ASK is currently bare ("name Merlin"). This is the single highest-leverage phase (>50% of evil wins). |
+| Vote can't silently contradict your public lean (consistency) | S5 `vote` | Already present as `leanNote`. Keep. |
+| Pitch can't silently contradict table talk; acknowledge flips | S5 `pitch` / S6 | Already present. Keep. |
+
+Role heuristics (S3 — genuinely private-knowledge or win-condition specific).
+
+| Role | Keep in S3 | Move OUT of S3 (to noted slot) |
+|---|---|---|
+| **Merlin** | Knows evil (except Mordred); never state it; vote wrong sometimes; endorse others' reads over originating; Mordred-uncertainty; endgame decoy / take a public wrong position when pegged (§2.1, §5.2) | "act confident so you don't make Merlin stand out" logic is good-shared (S2). |
+| **Percival** | Sees Merlin+Morgana ambiguously; distinguish by tracking each candidate's votes/proposals against realized outcomes (fails are the acid test — who endorsed the failed team is Morgana); never name/defend Merlin directly; be the decoy; claim Percival only late and only when quest math demands (§2.2, §5.3) | "act confident/knowledgeable" overlaps S2 good; keep only the Percival-specific decoy framing. |
+| **Servant** | *(no private knowledge)* — Servant's whole blob is good-shared advice. | Nearly all of it → S2 good. S3 servant can shrink to a one-liner or empty. |
+| **Assassin** | Win-con: the shot is yours; the *how* of the shot → S5 `assassinate`. | Double-fail + no-private-channel → S2 evil (already duplicated here). |
+| **Morgana** | Counterfeit-Merlin: run the Merlin script to capture Percival; identify who mirrors you (§2.4, §5.6) | Double-fail (currently MISSING here) comes free from S2 evil. |
+| **Mordred** | Hidden from Merlin; deep-cover posture; being trusted by suspected-Merlin is endgame evidence (§2.5) | Double-fail (currently MISSING) comes free from S2 evil. |
+| **Oberon** | Unknown to/unaware of other evil; must infer teammates; his fail card signals his identity to teammates (§2.5) | Generic evil coordination → S2 evil; keep the *inversion* (he can't coordinate) as role flavor. |
+| **Minion** | Support partners; role has little unique beyond generic evil. | Double-fail + no-private-channel + fail-timing → S2 evil / S5 `quest`. Minion blob can shrink. |
+
+### 6.4 Gaps and duplication this map exposes
+
+**Duplication (same advice maintained in multiple S3 blobs — collapse into S2/S5):**
+
+- **Double-fail warning** in `assassin`, `oberon`, `minion`; **missing** from `morgana`,
+  `mordred`. → S2 evil. (The bug that started this.)
+- **"No private channel, read your partner's style"** in `assassin` + `minion` only. → S2 evil.
+- **"Act confident / don't make Merlin stand out"** split across `servant` and `percival`. → S2
+  good.
+
+**Gaps (playbook §5 heuristics with no prompt presence):**
+
+- **Evil fail decision table** — the `quest` ASK says only "play success or fail"; none of the
+  Q1-pass/Q3-fail/always-fail-for-the-point logic reaches the bot at the quest moment. Highest-
+  value gap after the assassination.
+- **Assassination method** — the `assassinate` ASK is bare; the vote-accuracy / Merlin-vs-
+  Percival trajectory logic (§5.5) is absent at the exact moment it matters most.
+- **Servant baseline** — "reject teams excluding you unless validated," "succeeded quest is weak
+  evidence," "never assume 1 fail = 1 evil" are in §5.1 but not in the `servant` blob (which is
+  vaguer than the research).
+- **Bussing, deep-cover allocation, post-fail behavior** — §2.6/§3.4 evil tactics with no slot.
+- **Percival acid-test and claim-timing** — §5.3's sharpest tools (fails reveal Morgana; claim
+  late or never) are thinner in the blob than in the research.
+- **Good hammer discipline** — "approve rather than burn the last proposal" exists as a *fact*
+  in S7 (hammer proximity) but never as *policy* in a guidance slot.
+
+**Boundary notes (acceptable, but worth a comment):**
+
+- S0's closing line ("Watch the vote history…") is the lone strategy sentence in the facts
+  digest. Fine as a universal nudge; if S1 is created, move it there so S0 is purely rules.
+- S6 discuss's "never reveal private knowledge" is strategy, but it is format-bound (about the
+  `say` field). Correctly placed; do not generalize the pattern.
+
+### 6.5 Prioritized edit list
+
+Ordered by expected win-rate leverage. **Coordination:** items tagged **[T1]** create or write
+into the alignment-shared fragment that **task #1 owns** — do not implement these here; hand the
+*content* to task #1 and let it own the slot. Items tagged **[safe]** are independent of task #1
+(they touch S5 ASKs, individual S3 blobs, or S7) and can land without collision. Run `npm test`
+after any `prompts.ts` change; keep user-visible text em-dash-free (this doc is dev-facing, so
+em-dashes here are fine).
+
+1. **[safe] Fill the `assassinate` ASK (S5)** with the §5.5 method: rank good players by vote-
+   accuracy against the now-known truth; flat-high-from-round-1 reads as Merlin, noisy-then-
+   accurate as Percival; weight teammates' input; tie-break toward the quieter candidate. Highest
+   leverage (>50% of evil wins run through this shot) and fully independent of task #1.
+2. **[safe] Add an evil branch to the `quest` ASK (S5)** encoding the fail decision table (§5.4):
+   Q1 pass on 2-person / often fail on 3-person, fail Q2–Q3 by default when lone evil, lone evil
+   passes a 2-fail Q4, always fail for evil's third point. Pair with the existing engine hard
+   rule. Removes the need to teach fail-timing in five separate role blobs.
+3. **[T1] Author the evil-shared fragment (S2 evil):** double-fail fear, no-private-channel +
+   deterministic failer convention, vote-matrix discipline, bussing, deep-cover allocation, don't-
+   go-quiet-after-a-fail. Then **delete** those lines from `assassin`/`oberon`/`minion` (and note
+   they were never needed in `morgana`/`mordred`). This closes the motivating bug structurally.
+4. **[T1] Author the good-shared fragment (S2 good):** reject-off-team-unless-validated, succeeded-
+   quest-is-weak-evidence, never-assume-1-fail-1-evil, everyone-plays-Merlin cover, good hammer
+   discipline. Then shrink the `servant` blob to (near) empty, since it was entirely good-shared.
+5. **[safe] Sharpen `percival` (S3):** add the fail acid-test (whoever endorsed the failed team is
+   Morgana) and claim-timing (late or never). Independent of task #1.
+6. **[safe] Sharpen `merlin` (S3):** add explicit Mordred-uncertainty and the endgame-decoy /
+   take-a-public-wrong-position line from §5.2. Independent.
+7. **[safe] Enrich the `propose` ASK (S5)** with §5.1's "yourself + best objective records; late-
+   game trust fail-count over talk."
+8. **[safe, low] Move S0's vote-history line to S1** *if and only if* a universal strategy slot is
+   introduced; otherwise leave it. Cosmetic; do last or skip.
+
+Sequencing with task #1: land 1, 2, 5, 6, 7 (all **[safe]**) independently whenever; do 3 and 4
+*after* task #1's fragment slot exists so there is a place to put them and the S3 deletions don't
+race the fragment's creation.
+
+---
+
+## 7. Bindingness: forced plays vs. defaults
+
+research-strategy.md §1–§5 say what good play looks like, and §6 above says *where* each line goes.
+Neither says **how binding a line is**, and that gap has cost real games twice:
+
+- An evil leader at good's match point proposed a team with no evil on it and then argued the table
+  into approving it. The `propose` ASK said "you usually want exactly ONE evil on the team". The
+  word *usually* read as permission to sit out the last team that would ever be picked.
+- On the two-Fail quest with both known evil aboard — evil's winning team — both of them voted
+  reject to protect cover. Nothing in the prompt said that vote threw the game away, because the
+  guidance we had was about looking loyal, which is a default, not a rule.
+
+Both are placement successes and force failures: the advice was in the right slot and had the wrong
+strength. This section adds the missing axis.
+
+### 7.1 The tiers
+
+| Tier | Meaning | Wording | Can a good player break it? |
+|---|---|---|---|
+| **T0 Engine rule** | Enforced in code; violation is impossible | Stated in prompts for comprehension only | No |
+| **T1 Forced play** | Deterministically correct given the public board **plus the deciding seat's own knowledge**. No read of the table, no cover judgement, no probability | Bare imperative ("Play fail.", "Put yourself on it.") | No — breaking it is a blunder, full stop |
+| **T2 Default** | Correct most of the time, with a **named** exception | "by default", "usually", "lean" — and the exception in the same breath | Yes, and knowing when is the skill |
+| **T3 Style** | Table-talk behaviour, persona, pacing | Descriptive | Not a correctness question |
+
+T0 has exactly one member: **good cannot play Fail** (`applyDecision` in `server/engine/game.ts`,
+commented "Rule, not honor system"). Everything else that feels absolute is T1 — enforced by
+nothing, which is why it needs both the strongest wording and a measurement (§7.5).
+
+### 7.2 The forced plays (T1 catalogue)
+
+Every trigger below is computable from `PlayerView` plus the seat's own knowledge. **If a rule needs
+omniscience to evaluate, it is not T1** — it is a read, and reads belong to the model.
+
+| Forced play | Trigger (in view terms) | Why it is forced | Lives in |
+|---|---|---|---|
+| Fail the quest that would be good's third | on the team, `successes === 2`, known Fails aboard ≥ `failsRequired` | A success ends the quest phase; cover is worthless in a game you have lost | `quest` ASK, first branch |
+| Fail the quest that would be evil's third | on the team, `fails === 2`, known Fails aboard ≥ `failsRequired` | It wins the game outright | `quest` ASK |
+| Do **not** Fail below the requirement | on the team, known Fails aboard < `failsRequired` | The card cannot sink the quest and only advertises an evil. **Exception: Oberon**, whose extra card is how unseen teammates locate it | `quest` ASK, needs-two branch |
+| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | `vote` ASK |
+| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired` | Approving hands good the quest phase and leaves only the Assassin's guess | `vote` ASK |
+| Be on the team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | `propose` ASK |
+
+"Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `server/agents/board.ts` counts
+the seat plus partners the deal lets it see. Oberon is invisible to the rest of evil, so a count
+over the whole team would both leak the deal into the prompt and let a note claim a team is
+evil-free while Oberon rides along. `matchPoint` (same file) and `failsRequired` (`rules.ts`) are
+the other shared pieces — one definition each, so a rule and its detector can never drift apart.
+`board.ts` exists because these triggers have three consumers, not one: `prompts.ts` writes them
+into ASK branches for LLM seats, `heuristic.ts` branches on them directly, and `forced.ts`
+re-derives them from the artifact to grade the result.
+
+### 7.3 Defaults, and what breaks them (T2)
+
+| Default | Breaks when | Lives in |
+|---|---|---|
+| Good: reject teams you are not on | Near the hammer (a reject hands the next leader an unvoted team); before any quest has cleared anyone | `GOOD_SHARED` |
+| Evil: exactly one evil per team | Quests needing two Fails; good's match point (a second evil is worth it to hold a Fail) | `propose` ASK |
+| Evil: never be the lone rejector of a clean team | Good's match point — the tell is worth it when the alternative is losing now | `EVIL_SHARED` + `vote` ASK |
+| Evil: slow-play to buy cover | Any decisive board (both match points) | `quest` ASK |
+| Merlin: vote your read | Merlin must deliberately vote "wrong" sometimes. **The only heuristic whose violation IS the correct play** — a Merlin who never breaks it is the most conspicuous good player at the table | `merlin` blob |
+| Percival: claim late or never | When the quest math needs one trusted team assembled now | `percival` blob |
+| Q1 fail timing: pass a 2-person Q1, often fail a 3-person one | Probabilistic (human data: ~6% vs ~67% fail rates), never forced | `quest` ASK |
+
+### 7.4 Implementation rules that follow
+
+1. **T1 goes in a state-keyed ASK branch that is evaluated before any cover logic**, worded as a
+   bare imperative. Precedent: the `quest` ASK computes both match-point checks first and returns
+   immediately, specifically so they outrank the fail-timing table below them.
+2. **T2 goes in alignment/role prose with its exception in the same sentence.** An unqualified
+   default is the bug from the opening of this section.
+3. **When a T2 default's exception is itself a T1 trigger, replace the default rather than stacking
+   it.** The `propose` ASK swaps the whole "usually one evil" sentence out at match point; leaving
+   both in would have preserved the escape hatch that caused the miss.
+4. **Placement still follows §6.2** (widest slot whose scope matches). Tier governs *force* and
+   *evaluation order*, not location.
+5. **T1 beats every T2 it touches.** If a new note contradicts an existing default, that is the
+   system working — say so in the note rather than hedging both.
+
+### 7.5 Measure, never enforce
+
+The forced tier is tempting to enforce in code. **Do not.** Playing the forced move on the bot's
+behalf injects a decision it never reached — the same line the reverted "lowest seat on the team
+fails" convention crossed (§6.5 note; the user called it cheating, correctly) — and it destroys the
+signal we are trying to read. A bot that cannot find a forced play is telling us something about the
+guidance or the model, and we want to hear it.
+
+So T1 is **measured**: `server/eval/forced.ts` detects violations from a game artifact,
+`computeMetrics` exposes them per seat (`forcedPlayViolations`) and in full (`forcedPlays`), and
+`npm run report` prints a per-rule breakdown. This is ground truth like the vote scores, not an
+opinion like the judge's incident families — which is why forced plays get their own detector
+instead of leaning on the judge's `blunder` family, where they used to hide.
+
+Two properties of the detector worth preserving:
+
+- **It judges what the seat could know**, via `computeKnowledge` (the engine's single producer of
+  night knowledge), so an unseen Oberon aboard can never make a teammate's reasonable play look like
+  a blunder. The flip side is that a play can be scored as forced-and-followed and still fail for
+  reasons the seat could not see. That is the correct accounting for decision quality.
+- **It is silent on undecided boards.** Cover plays on Q1 are defaults, not violations.
+- **No card rule fires on a quest that sank.** A Fail was not "wasted" if the quest failed, and no
+  forced Fail was materially declined if the quest failed without this seat's card. Judging cards
+  outcome-blind contradicted both the artifact and our own doctrine: it flagged the coverer in the
+  two-evil split that `EVIL_SHARED` explicitly asks for (one Fails, one covers, because a double
+  Fail sinks nothing extra and exposes both), and it flagged the partner whose Fail an unseen Oberon
+  completed. Re-grading the original 40-game corpus with this guard dropped 101 violations to 83, so
+  roughly a fifth of the first measurement was the detector being wrong.
+
+The heuristic table runs clean (0 violations over 100 games each at 5p, 7p and 10p), so a non-zero
+count points at the LLM seats rather than at the fallback. It did not start that way: the first run
+found ~2 per game, almost all on Q4, which is what drove the board conditions into `heuristic.ts`
+— the forever-fallback every degraded LLM seat lands on.
+
+**When adding a T1 rule, add the prompt branch and the detector row together.** Guidance without a
+detector is unmeasurable, and a detector without guidance measures nothing we chose.

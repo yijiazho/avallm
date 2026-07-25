@@ -1,5 +1,5 @@
 // Forced-play violations: the ground-truth half of "is our guidance actually
-// being followed?" (docs/research-strategy.md §7, docs/design-evaluation.md §3).
+// being followed?" (docs/design-bot-guidance.md §7, docs/design-evaluation.md §3).
 //
 // A FORCED play is one that is correct deterministically, given the public board
 // plus the deciding seat's own knowledge — no read of the table, no cover
