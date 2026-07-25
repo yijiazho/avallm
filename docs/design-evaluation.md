@@ -133,10 +133,10 @@ LLM cost:
   game on the line. The tier is defined in research-strategy.md §7, which also explains why these
   are measured and never enforced. Ground truth, so they get a detector rather than living in the
   judge's `blunder` family. Judged against `computeKnowledge`, never omniscience, so an unseen
-  Oberon cannot make a teammate's reasonable play look wrong. First measured at ~2.5/game on a
-  heuristic 7p table, nearly all on the two-Fail quest; teaching the heuristic those board
-  conditions took it to **0/game**, so a non-zero count on a mixed table now points at the LLM
-  seats rather than at the fallback.
+  Oberon cannot make a teammate's reasonable play look wrong, and no card rule fires on a quest that
+  actually sank. First measured at ~2/game on a heuristic 7p table, nearly all on the two-Fail quest;
+  teaching the heuristic those board conditions took it to **0/game**, so a non-zero count on a mixed
+  table now points at the LLM seats rather than at the fallback.
 - **Assassination outcomes** — real hit rate against this Merlin; unfakeable.
 - **Guards** — good win rate, degraded-decision count, cost/game, utterances/game.
 

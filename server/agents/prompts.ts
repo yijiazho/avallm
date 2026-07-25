@@ -151,7 +151,7 @@ export function knowledgeText(view: PlayerView): string {
 // vocabulary; the leader's own reason no longer needs to restate it (see
 // OUTPUT_CONTRACTS.finalize).
 export function revisionDelta(
-  view: PlayerView, from: Seat[], to: Seat[], render: (s: Seat) => string,
+  from: Seat[], to: Seat[], render: (s: Seat) => string,
 ): string {
   const removed = from.filter((s) => !to.includes(s)).map(render)
   const added = to.filter((s) => !from.includes(s)).map(render)
@@ -179,7 +179,7 @@ export function publicStateText(view: PlayerView): string {
     // the transcript (proposalRevised emits no utterance), so this is its only
     // channel to non-leaders.
     const revision = pending?.revisedFrom
-      ? ` The leader REVISED this team at finalize: ${revisionDelta(view, pending.revisedFrom, view.currentTeam, (s) => nameOf(view, s))}${pending.revisedReason ? `, reason: "${sanitizeSpeech(pending.revisedReason)}"` : ''}.`
+      ? ` The leader REVISED this team at finalize: ${revisionDelta(pending.revisedFrom, view.currentTeam, (s) => nameOf(view, s))}${pending.revisedReason ? `, reason: "${sanitizeSpeech(pending.revisedReason)}"` : ''}.`
       : ''
     lines.push(`Proposed team on the table: ${view.currentTeam.map((s) => nameOf(view, s)).join(', ')}.${revision}${pitch}`)
   }
@@ -191,7 +191,7 @@ export function publicStateText(view: PlayerView): string {
         ? 'AUTO-APPROVED (hammer, no vote)'
         : `${p.approved ? 'APPROVED' : 'rejected'} (${p.votes!.map((v) => `${view.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')})`
       const revised = p.revisedFrom
-        ? ` (revised at finalize: ${revisionDelta(view, p.revisedFrom, p.team, (s) => view.players[s].name)})`
+        ? ` (revised at finalize: ${revisionDelta(p.revisedFrom, p.team, (s) => view.players[s].name)})`
         : ''
       return `Q${p.round}.${p.proposalNum} leader ${view.players[p.leader].name}, team [${p.team.map((s) => view.players[s].name).join('/')}]${revised} -> ${outcome}${pitch}`
     })
@@ -343,7 +343,15 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
       ? ` This quest needs TWO Fails to fail, so one of you on it sinks nothing: put yourself AND a partner you can see on this team. A team carrying only one of you is a quest your side cannot fail no matter how clean it looks.${unseenNote} A visible pair on one team is a real risk if it fails: take it, because the alternative is a round you cannot win.${twoStakes}`
       : mp.good
         ? ` A success here ends the quest phase, so this is the last team you will ever pick: a quest without you or a partner on it cannot be failed, and no later round exists to recover in. Put yourself on it. Cover you keep by staying off is cover for a game you have already lost — and a second evil is worth it here if that is what it takes to hold a Fail on this team.`
-        : ` You usually want exactly ONE evil on the team — you — surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair.`
+        // The mirror board, and the arm the one-Fail quests were missing: with two
+        // failed quests banked, a Fail here ends the game for evil at once. The
+        // default below does say "ONE evil — you", but it says it as routine
+        // team-building, and a leader under table pressure needs the stakes named
+        // — that gap is exactly what the good-match-point arm exists to close.
+        // Not reachable when needsTwo already handled the board (checked first).
+        : mp.evil
+          ? ` A Fail here is your third failed quest and wins the game outright, so the only thing that matters about this team is that it can carry a Fail: put yourself on it. A clean-looking team you are not on cannot end the game, and it hands the next leader a chance you had this round.`
+          : ` You usually want exactly ONE evil on the team — you — surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair.`
     // Good's mirror, and a regression guard: once bots can see the board they
     // start reasoning "we have a cushion, so let us test an unknown here" —
     // three of them argued exactly that at match point, over their Merlin's

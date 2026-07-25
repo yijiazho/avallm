@@ -102,7 +102,13 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
         for (const v of (p.votes as { seat: Seat; vote: string }[]) ?? []) {
           if (!isEvil(v.seat)) continue
           const n = knownAboard(v.seat, team)
-          const math = `needed ${need} Fail${need === 1 ? '' : 's'}, knew of ${n} aboard`
+          // The proposal's fate is part of the record: a reject that helped kill
+          // your own winning team cost you the quest, while one the table
+          // approved anyway cost nothing but the tell. Same count either way —
+          // the decision was equally wrong — but a reader comparing agents needs
+          // to see which it was.
+          const math = `needed ${need} Fail${need === 1 ? '' : 's'}, knew of ${n} aboard;` +
+            ` the proposal was ${p.approved ? 'approved anyway' : 'rejected'}`
           if (v.vote === 'reject' && n >= need && decisive) {
             record(v.seat, 'vote-reject-sinkable', round, ev.seq,
               `rejected Q${round} with the game on the line (${math})`)
@@ -119,23 +125,34 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
       case 'questResult': {
         const round = p.round as number
         const need = p.failsRequired as number
-        for (const seat of team) {
-          if (!isEvil(seat)) continue
-          const card = cards.get(seat)
-          if (!card) continue // a redacted or partial log: nothing to judge
-          const n = knownAboard(seat, team)
-          const math = `needed ${need} Fail${need === 1 ? '' : 's'}, knew of ${n} aboard`
-          if (card === 'success' && n >= need) {
-            if (successes === QUESTS_TO_WIN - 1) {
-              record(seat, 'match-point-success', round, ev.seq,
-                `Success on Q${round} handed good its third quest (${math})`)
-            } else if (fails === QUESTS_TO_WIN - 1) {
-              record(seat, 'win-point-success', round, ev.seq,
-                `Success on Q${round} passed up evil's winning third fail (${math})`)
+        // A card is only judged against the outcome it was supposed to produce.
+        // If the quest sank, no forced Fail was materially declined and no Fail
+        // was wasted, so every card rule stands down — otherwise the detector
+        // contradicts the artifact it is reading, and worse, punishes the play
+        // EVIL_SHARED asks for: on a decisive one-Fail quest with two evil
+        // aboard, exactly one should Fail and the other should cover, and the
+        // coverer would be recorded as declining a forced play on a quest that
+        // failed. Same shape when an unseen Oberon supplies the second Fail on
+        // the two-Fail quest: the partner's card was needed, not wasted.
+        if ((p.result as string) === 'success') {
+          for (const seat of team) {
+            if (!isEvil(seat)) continue
+            const card = cards.get(seat)
+            if (!card) continue // a redacted or partial log: nothing to judge
+            const n = knownAboard(seat, team)
+            const math = `needed ${need} Fail${need === 1 ? '' : 's'}, knew of ${n} aboard`
+            if (card === 'success' && n >= need) {
+              if (successes === QUESTS_TO_WIN - 1) {
+                record(seat, 'match-point-success', round, ev.seq,
+                  `Success on Q${round} handed good its third quest (${math})`)
+              } else if (fails === QUESTS_TO_WIN - 1) {
+                record(seat, 'win-point-success', round, ev.seq,
+                  `Success on Q${round} passed up evil's winning third fail (${math})`)
+              }
+            } else if (card === 'fail' && n < need && players[seat].role !== 'oberon') {
+              record(seat, 'wasted-lone-fail', round, ev.seq,
+                `Fail on Q${round} could not sink it (${math})`)
             }
-          } else if (card === 'fail' && n < need && players[seat].role !== 'oberon') {
-            record(seat, 'wasted-lone-fail', round, ev.seq,
-              `Fail on Q${round} could not sink it (${math})`)
           }
         }
         cards.clear()

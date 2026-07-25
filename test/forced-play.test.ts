@@ -175,6 +175,51 @@ test('approving a team it cannot fail at good\'s match point is flagged', () => 
   assert.ok(!v.some((x) => x.rule === 'match-point-success'))
 })
 
+test('a quest that sank is never a declined Fail, so coordinated cover is clean', () => {
+  // Two evil on a decisive one-Fail quest: one Fails, the other covers with
+  // Success — exactly what EVIL_SHARED asks for, since a double Fail exposes
+  // both and sinks nothing extra. The quest FAILED, so good's third never
+  // happened and nothing was declined. An outcome-blind rule flagged the
+  // coverer here and its own detail line contradicted the artifact.
+  const v = forcedPlayViolations(artifact(mkLog([
+    ...twoCleanQuests,
+    proposal(4, [0, 4, 5], 3),
+    voteReveal([0, 4, 5], { 0: 'approve', 4: 'approve', 5: 'approve' }, 3),
+    card(0, 'success'), card(5, 'fail'), card(4, 'success'),
+    questResult(3, 1),
+  ])))
+  assert.deepEqual(v, [])
+})
+
+test('an unseen Oberon\'s second Fail makes the partner\'s card needed, not wasted', () => {
+  // Q4 needs two Fails. Morgana knows of only itself aboard and Fails anyway;
+  // the Oberon it cannot see also Fails, so the quest sinks and evil banks the
+  // point. The card was one of the two required.
+  const v = forcedPlayViolations(artifact(mkLog([
+    proposal(4, [0, 1, 4, 6], 4),
+    voteReveal([0, 1, 4, 6], { 0: 'approve', 4: 'approve', 6: 'approve' }, 4),
+    card(0, 'success'), card(1, 'success'), card(4, 'fail'), card(6, 'fail'),
+    questResult(4, 2, 2),
+  ])))
+  assert.deepEqual(v, [])
+})
+
+test('the vote detail records whether the proposal survived the vote', () => {
+  // Rejecting your own winning team costs the quest when the table rejects it
+  // too, and costs only the tell when the team passes anyway. Same violation,
+  // different consequence, and a reader comparing agents needs to tell them apart.
+  const killed = forcedPlayViolations(artifact(mkLog([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 4, 5], 4),
+    { type: 'voteReveal', payload: {
+      round: 4, proposalNum: 1, team: [0, 1, 4, 5], approved: false,
+      votes: [{ seat: 0, vote: 'approve' }, { seat: 4, vote: 'reject' }, { seat: 5, vote: 'reject' }],
+    } },
+  ])))
+  assert.equal(killed.length, 2)
+  assert.match(killed[0].detail, /the proposal was rejected/)
+})
+
 test('nothing is flagged on an undecided board, and good is never flagged', () => {
   // Q1: evil aboard plays Success for cover, and evil voters approve a clean
   // team. Both are legitimate defaults, not forced plays.

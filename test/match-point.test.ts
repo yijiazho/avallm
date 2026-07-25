@@ -78,6 +78,29 @@ test('an evil leader at good match point is told this is the last team it will p
   assert.ok(!ask.includes('usually want exactly ONE evil'), 'normal-round framing is gone at match point')
 })
 
+test('an evil leader at EVIL\'s match point is told a Fail here wins it', () => {
+  // The mirror board the one-Fail quests were missing. Two failed quests banked,
+  // Q3 pending and needing a single Fail: the plain "usually ONE evil — you"
+  // default does seat the leader, but it says so as routine team-building, and a
+  // leader under table pressure was the whole reason the good-match-point arm
+  // exists. At 5p and 6p no two-Fail quest exists at all, so without this arm
+  // evil's match point never got its stakes named.
+  const g = findGame(7, 'mp-evilmp', (game) => {
+    const l = game.players[leaderAfter(game, 2)]
+    return l.alignment === 'evil'
+  })
+  playQuest(g, 'fail')
+  playQuest(g, 'fail')
+  assert.equal(g.round, 3)
+  assert.equal(g.quests[2].failsRequired, 1, 'Q3 at 7p sinks on one Fail')
+
+  const ask = askFor(g, 'propose', g.leaderSeat)
+  assert.match(ask, /third failed quest and wins the game outright/)
+  assert.match(ask, /put yourself on it/)
+  assert.ok(!ask.includes('usually want exactly ONE evil'), 'the routine default is replaced')
+  assert.ok(!ask.includes('last team you will ever pick'), "that is good's match point, not this one")
+})
+
 test('a good leader at good match point is steered off testing unknowns', () => {
   const g = findGame(7, 'mp-good', (game) => game.players[leaderAfter(game, 2)].alignment === 'good')
   playCleanQuests(g, 2)

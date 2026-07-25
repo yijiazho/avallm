@@ -2,8 +2,10 @@
 // It is the forever-fallback every degraded LLM seat lands on, so a board
 // condition it cannot see is one the prompts can no longer compensate for.
 //
-// The baseline these pin: 40 heuristic games at 7p produced 101 violations
-// (~2.5/game), almost all on Q4 — the quest that needs two Fails at 7+. The
+// The baseline these pin: 40 heuristic games at 7p produced 83 violations
+// (~2/game), almost all on Q4 — the quest that needs two Fails at 7+. (The
+// first measurement read 101; 18 of those were the detector flagging cards on
+// quests that actually sank, fixed in forced.ts.) The
 // three conditions below are the whole of it: what the pending quest requires,
 // whose match point the board is on, and how many Fails this seat can actually
 // account for aboard.

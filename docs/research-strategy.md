@@ -808,10 +808,17 @@ Two properties of the detector worth preserving:
   a blunder. The flip side is that a play can be scored as forced-and-followed and still fail for
   reasons the seat could not see. That is the correct accounting for decision quality.
 - **It is silent on undecided boards.** Cover plays on Q1 are defaults, not violations.
+- **No card rule fires on a quest that sank.** A Fail was not "wasted" if the quest failed, and no
+  forced Fail was materially declined if the quest failed without this seat's card. Judging cards
+  outcome-blind contradicted both the artifact and our own doctrine: it flagged the coverer in the
+  two-evil split that `EVIL_SHARED` explicitly asks for (one Fails, one covers, because a double
+  Fail sinks nothing extra and exposes both), and it flagged the partner whose Fail an unseen Oberon
+  completed. Re-grading the original 40-game corpus with this guard dropped 101 violations to 83, so
+  roughly a fifth of the first measurement was the detector being wrong.
 
 The heuristic table runs clean (0 violations over 100 games each at 5p, 7p and 10p), so a non-zero
 count points at the LLM seats rather than at the fallback. It did not start that way: the first run
-found ~2.5 per game, almost all on Q4, which is what drove the board conditions into `heuristic.ts`
+found ~2 per game, almost all on Q4, which is what drove the board conditions into `heuristic.ts`
 — the forever-fallback every degraded LLM seat lands on.
 
 **When adding a T1 rule, add the prompt branch and the detector row together.** Guidance without a
