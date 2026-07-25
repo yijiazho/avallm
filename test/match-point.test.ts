@@ -33,16 +33,28 @@ function findGame(playerCount: number, prefix: string, pred: (g: Game) => boolea
 const leaderAfter = (g: Game, n: number): Seat =>
   ((g.leaderSeat + n) % g.config.playerCount) as Seat
 
-// Run `n` quests to unanimous approval with every card a Success, leaving the
-// game at the next proposal. Evil may play Success, so no role forcing needed.
-function playCleanQuests(g: Game, n: number): void {
-  for (let i = 0; i < n; i++) {
-    const size = g.quests[g.round - 1].teamSize
-    applyDecision(g, g.leaderSeat, { kind: 'propose', team: g.players.slice(0, size).map((p) => p.seat) })
-    for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
-    for (const d of expectedDecisions(g)) applyDecision(g, d.seat, { kind: 'quest', card: 'success' })
-    assert.equal(g.quests[i].result, 'success')
+// Run one quest to unanimous approval, leaving the game at the next proposal.
+// A 'fail' outcome seats enough evil to meet failsRequired and has them fail;
+// a 'success' needs no role forcing, since evil may play Success too.
+function playQuest(g: Game, outcome: 'success' | 'fail'): void {
+  const q = g.quests[g.round - 1]
+  const evil = g.players.filter((p) => p.alignment === 'evil').map((p) => p.seat)
+  const rest = g.players.map((p) => p.seat).filter((s) => !evil.includes(s))
+  const team = outcome === 'fail'
+    ? [...evil.slice(0, q.failsRequired), ...rest].slice(0, q.teamSize)
+    : g.players.slice(0, q.teamSize).map((p) => p.seat)
+  const round = g.round
+  applyDecision(g, g.leaderSeat, { kind: 'propose', team })
+  for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
+  for (const d of expectedDecisions(g)) {
+    const fails = outcome === 'fail' && evil.includes(d.seat)
+    applyDecision(g, d.seat, { kind: 'quest', card: fails ? 'fail' : 'success' })
   }
+  assert.equal(g.quests[round - 1].result, outcome)
+}
+
+const playCleanQuests = (g: Game, n: number): void => {
+  for (let i = 0; i < n; i++) playQuest(g, 'success')
 }
 
 const askFor = (g: Game, kind: 'propose' | 'vote', seat: Seat): string =>
@@ -99,14 +111,14 @@ test('at good match point an evil voter is told approving a team it cannot fail 
   const evilOffTeam = seatsBy(g, 'evil')[0]
   const ask = askFor(g, 'vote', evilOffTeam)
   assert.match(ask, /A success here is good's third quest/)
-  assert.match(ask, /a reject is the last lever your side has/)
+  assert.match(ask, /reject is the last lever your side has/)
   assert.match(ask, /have a reason you can say out loud/)
 
   // Good players never see it, at any board.
   assert.ok(!askFor(g, 'vote', good[0]).includes('last lever your side has'))
 })
 
-test('the vote note stands down when the evil voter knows of a Fail aboard', () => {
+test('an evil voter on a team its side can sink is told to approve it', () => {
   const g = findGame(7, 'mp-aboard', (game) => {
     const l = game.players[leaderAfter(game, 2)]
     // A leader with a visible partner, so it can seat one and still be evil itself.
@@ -115,16 +127,47 @@ test('the vote note stands down when the evil voter knows of a Fail aboard', () 
   playCleanQuests(g, 2)
   const leader = g.leaderSeat
   const size = g.quests[g.round - 1].teamSize
+  assert.equal(g.quests[g.round - 1].failsRequired, 1, 'Q3 at 7p sinks on one Fail')
   applyDecision(g, leader, { kind: 'propose', team: [leader, ...seatsBy(g, 'good')].slice(0, size) })
 
-  // The leader is aboard its own team: approving is the better line (approve,
-  // then Fail the quest), so the reject note must not fire.
-  assert.ok(!askFor(g, 'vote', leader).includes('last lever your side has'))
-  // Its partner sees the same team as carrying a Fail and also stands down.
+  // The motivating miss: both evil rejected the team that carried their own
+  // Fails. Approving keeps the option; the card is a later, secret decision.
+  const ask = askFor(g, 'vote', leader)
+  assert.match(ask, /Your side already holds this quest/)
+  assert.match(ask, /an opportunity, not a threat, so approve it/)
+  assert.ok(!ask.includes('last lever your side has'), 'the reject branch is mutually exclusive')
+  // Its partner reads the same team the same way.
   const partner = viewFor(g, leader).privateInfo.evilPartners?.[0]
   if (partner !== undefined) {
-    assert.ok(!askFor(g, 'vote', partner).includes('last lever your side has'))
+    assert.match(askFor(g, 'vote', partner), /Your side already holds this quest/)
   }
+})
+
+test('one Fail aboard a two-Fail quest cannot sink it, so match point still says reject', () => {
+  // The distinction the first cut of this branch missed: it stood down on "any
+  // evil aboard", but a lone teammate on the big quest sinks nothing, so from
+  // this voter's view that team is as unstoppable as a clean one.
+  const g = findGame(7, 'mp-twofail', (game) => {
+    const l = game.players[leaderAfter(game, 3)]
+    return l.alignment === 'evil' && l.role !== 'oberon'
+  })
+  // Board: good 2, evil 1, Q4 pending and needing two Fails. Good is at match
+  // point, so the reject lever is live.
+  playQuest(g, 'success')
+  playQuest(g, 'success')
+  playQuest(g, 'fail')
+  assert.equal(g.round, 4)
+  const q4 = g.quests[3]
+  assert.equal(q4.failsRequired, 2, 'Q4 at 7p needs two Fails')
+
+  const leader = g.leaderSeat
+  assert.equal(g.players[leader].alignment, 'evil')
+  applyDecision(g, leader, { kind: 'propose', team: [leader, ...seatsBy(g, 'good')].slice(0, q4.teamSize) })
+
+  const ask = askFor(g, 'vote', leader)
+  assert.match(ask, /needs 2 Fails to fail and you know of only 1 aboard/)
+  assert.match(ask, /reject is the last lever your side has/)
+  assert.ok(!ask.includes('already holds this quest'), 'one Fail does not hold a two-Fail quest')
 })
 
 test('an unseen Oberon aboard does not suppress the note, and is never named by it', () => {
@@ -141,7 +184,7 @@ test('an unseen Oberon aboard does not suppress the note, and is never named by 
   // the note still fires for them — anything else would leak the deal.
   const otherEvil = seatsBy(g, 'evil').find((s) => s !== oberon.seat)!
   const ask = askFor(g, 'vote', otherEvil)
-  assert.match(ask, /a reject is the last lever your side has/)
+  assert.match(ask, /reject is the last lever your side has/)
   assert.match(ask, /unless a teammate you cannot see is aboard/, 'it admits the possibility')
   const clause = ask.slice(ask.indexOf("A success here is good's third quest"))
   assert.ok(!clause.includes(oberon.name), 'the note never names the Oberon it cannot see')

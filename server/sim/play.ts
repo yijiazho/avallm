@@ -96,7 +96,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
     }
     case 'finalize': {
       const team = (view.currentTeam ?? []).map((s) => view.players[s].name).join(', ')
-      const raw = (await ask(`Your team [${team}] — enter to lock it in, or type a new comma-separated team: `)).trim()
+      const raw = (await ask(`Your team [${team}]. Enter to lock it in, or type a new comma-separated team: `)).trim()
       if (!raw) return { kind: 'finalize', stick: true }
       const size = view.quests[view.round - 1].teamSize
       let input = raw
@@ -124,7 +124,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
     }
     case 'quest': {
       if (view.alignment === 'good') {
-        console.log('You are on the quest. Good must play Success — played.')
+        console.log('You are on the quest. Good must play Success, so Success is played for you.')
         return { kind: 'quest', card: 'success' }
       }
       while (true) {
@@ -137,7 +137,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
       const roster = view.players.filter((p) => p.seat !== view.seat)
         .map((p) => `${p.seat}=${p.name}`).join(' ')
       while (true) {
-        const raw = await ask(`ASSASSINATE — who is Merlin? (${roster}): `)
+        const raw = await ask(`ASSASSINATE. Who is Merlin? (${roster}): `)
         const target = Number(raw.trim())
         if (Number.isInteger(target) && target >= 0 && target < playerCount && target !== view.seat) {
           return { kind: 'assassinate', target }

@@ -395,21 +395,36 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     const ownTeamNote = v.seat === v.leaderSeat
       ? ` This is YOUR team: you proposed it, defended it, and locked it in, and your vote is public and attributed. Rejecting your own proposal is one of the loudest tells at the table — do it only when you genuinely want this team off the quest and can defend the reversal out loud, never to blend with the way the table is leaning.`
       : ''
-    // The last decision that can stop good's third quest. Three evil players
-    // approved exactly that team in a live game (seed norms2) while the board
-    // stakes sat in their prompts: the vote is where "look loyal" costs the game,
-    // because approval is final. Gated on knowing of no evil aboard — with a
-    // teammate on the team, approving and failing it is the better line, and the
-    // count is Oberon-safe, so this never claims a team is truly clean.
+    // The evil side of the vote, keyed to the only question that decides it: can
+    // the seats this voter KNOWS about actually sink this quest? "Someone of ours
+    // is aboard" is not the same as "we can sink it" — the big quest needs two
+    // Fails, so one teammate on it sinks nothing. Both branches read the
+    // Oberon-safe count, so neither ever claims to know the whole team.
+    //
+    // Live evidence for each (seed norms2). Reject side: three evil players
+    // approved the clean team that ended the game, board stakes sitting in their
+    // prompts unread. Approve side: on the two-Fail quest with BOTH known evil
+    // aboard — evil's winning team — both of them voted reject on cover grounds
+    // ("GLM is an unknown, too risky"), and GLM rejecting its own seat was odd
+    // enough that the table called it out twice.
+    //
     // Not gated on the hammer: proposal 5 is auto-approved with no vote at all,
-    // so this ASK never runs there. It can co-occur with ownTeamNote (an evil
-    // leader voting on its own clean team); they compose in that order rather
-    // than contradict, since ownTeamNote's exception is exactly "you genuinely
-    // want this team off the quest" and this note supplies that reason.
-    const evilMatchPoint = matchPoint(v).good && v.alignment === 'evil' && !knownEvilAboard(v, v.currentTeam).length
-      ? ` A success here is good's third quest: it ends the quest phase, and your side never gets another team. You know of nobody on this team who can play a Fail, so approving it hands the game to the Assassin's single guess at Merlin — a reject is the last lever your side has, and it is worth the tell if the alternative is losing outright. Reject unless a teammate you cannot see is aboard, and have a reason you can say out loud for it.`
-      : ''
-    return `Vote on the proposed team: approve or reject.${leanNote}${hammerNote}${ownTeamNote}${evilMatchPoint}`
+    // so this ASK never runs there. The approve branch can co-occur with
+    // ownTeamNote (an evil leader voting on its own team) and agrees with it; the
+    // reject branch can too, and composes rather than contradicts, since
+    // ownTeamNote's stated exception is exactly "you genuinely want this team off
+    // the quest" and this branch supplies that reason.
+    const failsNeeded = v.quests[v.round - 1]?.failsRequired ?? 1
+    const aboard = knownEvilAboard(v, v.currentTeam).length
+    const canSink = aboard >= failsNeeded
+    const evilNote = v.alignment !== 'evil' || !v.currentTeam?.length
+      ? ''
+      : canSink
+        ? ` Your side already holds this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. That makes this team an opportunity, not a threat, so approve it — whether the Fail actually gets played is a decision you make later, in secret, and rejecting now throws the option away and hands the next leader a team your side may not be on at all. Talking down a team that carries your own Fail is also the kind of move the table remembers once the record catches up with you.`
+        : matchPoint(v).good
+          ? ` A success here is good's third quest: it ends the quest phase, and your side never gets another team. This quest needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} to fail and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who can play one, so approving it hands the game to the Assassin's single guess at Merlin. A reject is the last lever your side has, and it is worth the tell if the alternative is losing outright. Reject unless a teammate you cannot see is aboard, and have a reason you can say out loud for it.`
+          : ''
+    return `Vote on the proposed team: approve or reject.${leanNote}${hammerNote}${ownTeamNote}${evilNote}`
   },
   quest: (v) => {
     if (v.alignment !== 'evil') {

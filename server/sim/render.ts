@@ -26,8 +26,11 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
       const from = p.from as Seat[], to = p.to as Seat[]
       const dropped = from.filter((s) => !to.includes(s)).map((s) => name(game, s)).join(', ')
       const added = to.filter((s) => !from.includes(s)).map((s) => name(game, s)).join(', ')
-      return `  ${name(game, p.leader)} REVISES the team: drops ${dropped}, adds ${added}` +
-        ` -> ${to.map((s) => name(game, s)).join(', ')}${p.reason ? ` — "${p.reason}"` : ''}`
+      // Lower-case verb like "proposes" / "locks in the team": in this renderer
+      // capitals mark outcomes (APPROVED, SUCCESS, MERLIN!), not actions. The
+      // client feed says "revises the team" for the same event.
+      return `  ${name(game, p.leader)} revises the team: drops ${dropped}, adds ${added}.` +
+        ` Now: ${to.map((s) => name(game, s)).join(', ')}.${p.reason ? ` Reason: "${p.reason}"` : ''}`
     }
     case 'voteReveal': {
       if (p.auto) return `  hammer: AUTO-APPROVED (no vote)`
@@ -38,7 +41,7 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
     case 'questResult':
       return `  Quest ${p.round}: ${String(p.result).toUpperCase()} (${p.failCount} fail${p.failCount === 1 ? '' : 's'}, needed ${p.failsRequired})`
     case 'assassination':
-      return `\nAssassin ${name(game, p.assassin)} targets ${name(game, p.target)} — ${p.wasMerlin ? 'MERLIN! Evil wins.' : 'not Merlin.'}`
+      return `\nAssassin ${name(game, p.assassin)} targets ${name(game, p.target)}: ${p.wasMerlin ? 'MERLIN! Evil wins.' : 'not Merlin.'}`
     case 'gameOver':
       return `\n*** ${String(p.winner).toUpperCase()} wins (${p.reason}) ***`
     default:
