@@ -23,6 +23,8 @@ import { DEFAULT_MODEL, ROSTER, rosterById } from '../llm/roster.ts'
 import { CALL_PARAMS } from '../llm/call-params.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 import { ROLE_ALIGNMENT, nameIsReserved } from '../engine/rules.ts'
+import { resolvePacks } from './packs.ts'
+import type { ResolvedPack } from './packs.ts'
 import type { Role } from '../engine/types.ts'
 
 export interface LlmEngine {
@@ -322,6 +324,7 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
 
 export interface AgentLibrary {
   agents: AgentDef[]
+  packs: ResolvedPack[]
   problems: LibraryProblem[]
 }
 
@@ -369,7 +372,12 @@ export function loadAgentLibrary(): AgentLibrary {
   const seen = new Set(agents.map((d) => d.id))
   loadTier(CURATED_AGENTS_DIR, 'curated', seen, agents, problems)
   loadTier(userAgentsDir(), 'user', seen, agents, problems)
-  return { agents, problems }
+  // Packs are resolved AFTER every tier loads: a pack member can be shadowed
+  // or made unavailable by the same load, and that must surface as a problem
+  // rather than a silently shorter pack.
+  const resolved = resolvePacks(agents)
+  problems.push(...resolved.problems)
+  return { agents, packs: resolved.packs, problems }
 }
 
 // Atomic write (temp + rename): a Railway redeploy mid-write must not leave

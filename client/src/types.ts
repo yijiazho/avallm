@@ -94,8 +94,19 @@ export interface TableSeat {
   model?: string
 }
 
+// A curated set of library agents the setup screen can seat in one click.
+// `agents` are library ids in fill order; a pack shorter than the table fills
+// the rest from the default library (server/agents/packs.ts).
+export interface AgentPack {
+  id: string
+  name: string
+  blurb: string
+  agents: string[]
+}
+
 export interface Library {
   agents: AgentInfo[]
+  packs?: AgentPack[]
   problems?: { file: string; reason: string }[]
   models: { id: string; name: string; slug: string; tier: string }[]
   baseline?: {

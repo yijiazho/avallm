@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AgentInfo, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ServerPayload, TableSeat } from './types.ts'
+import type { AgentInfo, AgentPack, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ServerPayload, TableSeat } from './types.ts'
 import { tokenEstimate as tokenEst } from './agentConfig.ts'
 import { EVIL_COUNT, PRESETS, ROLE_INFO, RULES_SUMMARY, buildRoles } from './setup.ts'
 import type { PresetId, Role, SpecialSelection } from './setup.ts'
@@ -647,21 +647,65 @@ function LobbyScreen({ lobby, missing, lobbyId, token, onBack }: {
   )
 }
 
-function defaultTable(library: Library | null, count: number): TableSeat[] {
-  // The server's canonical default order (DEFAULT_TABLE) — the same one used
-  // when no table is sent — so every path seats the same roster.
-  const pool = (library?.defaultTable ?? [])
-    .filter((id) => library?.agents.some((a) => a.id === id))
-  if (pool.length === 0) {
-    const llmAgents = library?.agents.filter((a) => a.model !== 'rule-based' && a.model !== 'external' && !a.custom) ?? []
-    return Array.from({ length: count }, (_, i) =>
-      ({ agent: llmAgents.length ? llmAgents[i % llmAgents.length].id : 'autopilot' }))
+const shuffled = <T,>(items: readonly T[]): T[] => {
+  const out = items.slice()
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
   }
-  const extras = library!.agents
-    .filter((a) => !pool.includes(a.id) && a.model !== 'rule-based' && a.model !== 'external' && !a.custom)
-    .map((a) => a.id)
-  const full = [...pool, ...extras]
-  return Array.from({ length: count }, (_, i) => ({ agent: full[i % full.length] }))
+  return out
+}
+
+const agentIsLlm = (a: AgentInfo | undefined): boolean =>
+  !!a && a.model !== 'rule-based' && a.model !== 'external'
+
+// "Fill with LLMs": the built-in model agents, SHUFFLED, so a table smaller
+// than the roster is a different subset each time rather than always the first
+// N. `exclude` keeps a pack's own members out when this tops up a pack fill.
+// Built-ins only: curated characters belong to packs, not to the model fill.
+function defaultTable(library: Library | null, count: number, exclude: string[] = []): TableSeat[] {
+  const models = library?.agents
+    .filter((a) => a.tier === 'builtin' && agentIsLlm(a) && !exclude.includes(a.id))
+    .map((a) => a.id) ?? []
+  if (models.length === 0) return Array.from({ length: count }, () => ({ agent: 'autopilot' }))
+  // The server's canonical default table (one model family per seat) still says
+  // WHICH models are preferred when the roster outgrows the table; the shuffle
+  // only decides who sits where, and any newer roster model queues behind them.
+  const preferred = (library?.defaultTable ?? []).filter((id) => models.includes(id))
+  const order = preferred.length
+    ? [...shuffled(preferred), ...shuffled(models.filter((id) => !preferred.includes(id)))]
+    : shuffled(models)
+  return Array.from({ length: count }, (_, i) => ({ agent: order[i % order.length] }))
+}
+
+// A personality-only agent (a character card with no model suggestion) falls
+// back to the server's DEFAULT_MODEL, so a themed table would be one model
+// wearing six hats. Deal it a random roster model instead — written onto the
+// seat, so the badge is honest and the host can still override it by hand.
+function dealModels(library: Library, ids: string[]): TableSeat[] {
+  const pool = library.models.map((m) => m.id)
+  let bag: string[] = []
+  // Reshuffle only once the bag empties: distinct models until the roster runs out.
+  const draw = (): string | undefined => {
+    if (!pool.length) return undefined
+    if (!bag.length) bag = shuffled(pool)
+    return bag.pop()
+  }
+  return ids.map((id) => {
+    const info = library.agents.find((a) => a.id === id)
+    return agentIsLlm(info) && !info?.suggestedModel ? { agent: id, model: draw() } : { agent: id }
+  })
+}
+
+// Seat a pack: a RANDOM subset of its members, then the default library for
+// whatever is left over — so a 4-bot table rotates through a 6-member pack
+// across plays instead of always seating the same four. Mirrors seatPack in
+// server/agents/packs.ts (the sim's path) — keep the two in step.
+function fillFromPack(library: Library, pack: AgentPack, count: number): TableSeat[] {
+  const members = shuffled(pack.agents.filter((id) => library.agents.some((a) => a.id === id)))
+  const chosen = members.slice(0, count)
+  const leftovers = defaultTable(library, count - chosen.length, pack.agents).map((s) => s.agent)
+  return dealModels(library, [...chosen, ...leftovers])
 }
 
 // The five quests dealt as a tarot spread: each card wears a fixed celestial
@@ -694,6 +738,9 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
   const [preset, setPreset] = useState<PresetId | 'custom'>('standard')
   const [sel, setSel] = useState<SpecialSelection>(PRESETS.standard.pick(5))
   const [showRules, setShowRules] = useState(false)
+  // The active fill mode ('models' | 'autopilot' | `pack:<id>`), owned here
+  // rather than in TablePicker because resizing the table has to re-apply it.
+  const [fill, setFill] = useState('')
 
   const botCount = players - humanSeats
   // On a gated (public) deploy the invite code is mandatory. Block the start
@@ -702,6 +749,9 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
   const gated = !!library?.gated
   const needsCode = gated && !invite.trim()
 
+  const packFor = (mode: string): AgentPack | undefined =>
+    library?.packs?.find((p) => `pack:${p.id}` === mode)
+
   // Fill the table once the library arrives; resize when players/humans change.
   useEffect(() => {
     if (!library) return
@@ -709,9 +759,17 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
       const valid = t.filter((s) => library.agents.some((a) => a.id === s.agent))
       if (valid.length === botCount && t.length === botCount) return t
       if (valid.length === 0) return defaultTable(library, botCount)
-      return Array.from({ length: botCount }, (_, i) => valid[i % Math.max(valid.length, 1)])
+      // A pack fill is re-applied rather than topped up: its members are the
+      // point, and a pack knows how to fill any size. Any other table keeps the
+      // host's existing picks and tops up the new seats with agents not already
+      // seated — repeating a seat would double a name at the table ("DeepSeek 2")
+      // while roster models sat unused.
+      const pack = packFor(fill)
+      if (pack) return fillFromPack(library, pack, botCount)
+      if (valid.length >= botCount) return valid.slice(0, botCount)
+      return [...valid, ...defaultTable(library, botCount - valid.length, valid.map((s) => s.agent))]
     })
-  }, [botCount, library])
+  }, [botCount, library, fill])
 
   const setPlayersAndRoles = (n: number) => {
     setPlayers(n)
@@ -815,9 +873,14 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
               library={library}
               table={table}
               onChange={setTable}
-              onFill={(mode) => setTable(mode === 'models'
-                ? defaultTable(library, botCount)
-                : Array.from({ length: botCount }, () => ({ agent: 'autopilot' })))}
+              fill={fill}
+              onFill={(mode) => {
+                setFill(mode)
+                if (mode === 'models') return setTable(defaultTable(library, botCount))
+                if (mode === 'autopilot') return setTable(Array.from({ length: botCount }, () => ({ agent: 'autopilot' })))
+                const pack = packFor(mode)
+                if (pack && library) setTable(fillFromPack(library, pack, botCount))
+              }}
             />
           )}
           <AgentStudio library={library} onChanged={onLibraryChange} />
@@ -898,24 +961,26 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
   )
 }
 
-function TablePicker({ library, table, onChange, onFill }: {
+function TablePicker({ library, table, onChange, fill, onFill }: {
   library: Library | null
   table: TableSeat[]
   onChange: (t: TableSeat[]) => void
-  onFill: (mode: 'models' | 'autopilot') => void
+  // 'models' | 'autopilot' | `pack:<id>` — owned by Launcher, which re-applies
+  // a pack fill when the table is resized.
+  fill: string
+  onFill: (mode: string) => void
 }) {
   const [showModels, setShowModels] = useState(false)
   if (!library) return <p className="roles-preview">Loading agent library…</p>
+  const packs = library.packs ?? []
+  const shownPack = packs.find((p) => `pack:${p.id}` === fill)
   const agentById = (id: string) => library.agents.find((a) => a.id === id)
   const setSeat = (i: number, seat: TableSeat) => {
     const next = table.slice()
     next[i] = seat
     onChange(next)
   }
-  const seatIsLlm = (s: TableSeat) => {
-    const a = agentById(s.agent)
-    return !!a && a.model !== 'rule-based' && a.model !== 'external'
-  }
+  const seatIsLlm = (s: TableSeat) => agentIsLlm(agentById(s.agent))
   // Per-seat model overrides are power-user plumbing — for a built-in model agent
   // the agent already names its model, so the second dropdown is noise. Hide it by
   // default; reveal on request, or force it open when a seat already carries an
@@ -931,36 +996,66 @@ function TablePicker({ library, table, onChange, onFill }: {
         <span className="n">II</span>The Seats
         <span className="fill-buttons">
           fill with{' '}
-          <button className="fill-btn" onClick={() => onFill('models')}>LLMs</button>
-          <button className="fill-btn" onClick={() => onFill('autopilot')}>Autopilot (free)</button>
+          {/* A pack shorter than the table seats its members first and fills the
+              rest from the default library, so packs come in any size. */}
+          <select
+            className="fill-select"
+            value={fill}
+            aria-label="Fill every seat"
+            onChange={(e) => { if (e.target.value) onFill(e.target.value) }}
+          >
+            <option value="">choose…</option>
+            <option value="models">LLMs</option>
+            <option value="autopilot">Autopilot (free)</option>
+            {packs.length > 0 && (
+              <optgroup label="Packs">
+                {packs.map((p) => <option key={p.id} value={`pack:${p.id}`}>{p.name}</option>)}
+              </optgroup>
+            )}
+          </select>
         </span>
       </h2>
       <div className="body">
+        {shownPack && <p className="pack-blurb">{shownPack.blurb}</p>}
         {table.map((seat, i) => {
           const info = agentById(seat.agent)
           const isLlm = seatIsLlm(seat)
+          const seatSlug = seat.model ? library.models.find((m) => m.id === seat.model)?.slug : undefined
           return (
             <div key={i} className="seatrow" style={{ ['--mc' as string]: info?.color ?? 'var(--line)' }}>
               <span className="mini">{celestialFor(info?.id, info?.name ?? '').glyph}</span>
               {/* Switching agents drops any model override — the new agent's own
                   default applies. An UNAVAILABLE agent (stale model suggestion)
                   stays selectable: the server's cure is a seat model override,
-                  so selecting one auto-picks a model instead of blocking it. */}
+                  so selecting one auto-picks a model instead of blocking it. An
+                  agent that prescribes NO model gets a random one (dealModels),
+                  same as a pack fill does. */}
               <select
                 value={seat.agent}
-                title={info?.model}
+                title={seatSlug ?? info?.model}
                 onChange={(e) => {
                   const next = library.agents.find((a) => a.id === e.target.value)
                   setSeat(i, next?.unavailable
                     ? { agent: e.target.value, model: library.defaultModel ?? library.models[0]?.id }
-                    : { agent: e.target.value })
+                    : dealModels(library, [e.target.value])[0])
                 }}
               >
-                {library.agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} · {modelSlug(a.model)}{a.custom ? ' (custom)' : ''}{a.unavailable ? ' · pick a model' : ''}
-                  </option>
-                ))}
+                {library.agents.map((a) => {
+                  // A model agent IS its model, so it wears the slug. A
+                  // character card's model is a seat decision (rolled at fill,
+                  // re-pickable in the dropdown beside this one), so the name
+                  // stands alone and the model dropdown owns the slug — no two
+                  // controls claiming the same fact. Whenever a seat carries an
+                  // override that dropdown is on screen (see `forced`).
+                  const wearsModel = !(a.id === seat.agent && seatSlug)
+                    && (!agentIsLlm(a) || !!a.suggestedModel)
+                  return (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{wearsModel ? ` · ${modelSlug(a.model)}` : ''}
+                      {a.custom ? ' (custom)' : ''}{a.unavailable ? ' · pick a model' : ''}
+                    </option>
+                  )
+                })}
               </select>
               {showOverrides && isLlm && (
                 <select
@@ -969,11 +1064,14 @@ function TablePicker({ library, table, onChange, onFill }: {
                   onChange={(e) => setSeat(i, { agent: seat.agent, model: e.target.value || undefined })}
                   title="Model this seat runs on"
                 >
-                  {/* No "default" option for unavailable agents — their default
-                      is the dead model the server would reject. */}
-                  {!info?.unavailable && <option value="">default ({info?.model})</option>}
+                  {/* Slugs, not marketing names: this dropdown is the one place
+                      that says which model actually answers, and the slug names
+                      it exactly. Tier stays as the price signal. No "default"
+                      option for unavailable agents — their default is the dead
+                      model the server would reject. */}
+                  {!info?.unavailable && <option value="">default ({modelSlug(info?.model ?? '')})</option>}
                   {library.models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.tier})</option>
+                    <option key={m.id} value={m.id}>{modelSlug(m.slug)} ({m.tier})</option>
                   ))}
                 </select>
               )}

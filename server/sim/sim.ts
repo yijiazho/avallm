@@ -4,13 +4,18 @@
 //   node server/sim/sim.ts --model kimi --games 5           # homogeneous LLM table (one model, every seat)
 //   node server/sim/sim.ts --games 20 --concurrency 5       # 5 games at once (aggregate)
 //   node server/sim/sim.ts --agents random --talk 0
+//   node server/sim/sim.ts --pack detectives --players 7    # seat a curated pack
 import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
-import { createAgent } from '../agents/registry.ts'
+import { makeRng } from '../engine/prng.ts'
+import { createAgent, createAgentFromDef } from '../agents/registry.ts'
+import { loadAgentLibrary } from '../agents/defs.ts'
+import { seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
+import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
 import type { Seat } from '../engine/types.ts'
 
@@ -21,6 +26,7 @@ const { values } = parseArgs({
     games: { type: 'string', default: '1' },
     agents: { type: 'string', default: 'heuristic' }, // heuristic | random | mixed | llm
     model: { type: 'string' },                        // force EVERY seat onto one roster id (implies --agents llm) — a homogeneous table to isolate prompt quality from model spread
+    pack: { type: 'string' },                         // seat a curated pack (server/agents/packs.ts), leftovers from the default library (implies --agents llm)
     talk: { type: 'string', default: '0' },           // maxRounds[,maxRoundsAfterChange]
     out: { type: 'string' },                          // append game artifacts (JSONL) for eval tooling
     concurrency: { type: 'string', default: '1' },    // aggregate mode: play this many independent games at once (shares the spend ceiling)
@@ -35,7 +41,34 @@ const [maxRounds, maxRoundsAfterChange = 0] = values.talk!.split(',').map(Number
 // --model forces a homogeneous LLM table, so it implies --agents llm. Validate the
 // id up front (rosterById throws on an unknown id) for a clear error before any game runs.
 const forcedModel = values.model ? rosterById(values.model).id : undefined
-const isLlm = values.agents === 'llm' || forcedModel !== undefined
+
+// --pack seats library defs instead of bare model specs. The table is resolved
+// ONCE (from --seed, not per game) so an aggregate run compares the same cast
+// across every seed; the random models handed to personality-only agents are
+// part of that table, not a per-game reroll.
+let packTable: TableSeat[] | undefined
+let packDefs: AgentDef[] | undefined
+if (values.pack) {
+  const lib = loadAgentLibrary()
+  const pack = lib.packs.find((p) => p.id === values.pack)
+  if (!pack) {
+    const known = lib.packs.map((p) => p.id).join(', ') || '(none)'
+    throw new Error(`unknown pack: ${values.pack} — known packs: ${known}`)
+  }
+  for (const p of lib.problems) console.warn(`[agents] ${p.file}: ${p.reason}`)
+  packTable = seatPack(pack, playerCount, lib.agents, makeRng(`${values.seed}:pack`))
+  // --model means "force EVERY seat onto one roster id", so it outranks both
+  // the roll seatPack deals a personality-only agent and any model a member's
+  // def suggests: a pack on one model isolates persona from model spread.
+  if (forcedModel) packTable = packTable.map((t) => ({ agent: t.agent, model: forcedModel }))
+  packDefs = packTable.map((t) => lib.agents.find((a) => a.id === t.agent)!)
+  if (!values.quiet) {
+    const seats = packTable.map((t, i) => `${packDefs![i].name}${t.model ? ` (${t.model})` : ''}`)
+    console.log(`pack "${pack.name}": ${seats.join(', ')}`)
+  }
+}
+
+const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable !== undefined
 
 function specFor(seat: Seat): AgentSpec {
   if (isLlm) return { type: 'llm', model: forcedModel ?? ROSTER[seat % ROSTER.length].id }
@@ -44,10 +77,25 @@ function specFor(seat: Seat): AgentSpec {
   return { type: 'heuristic' }
 }
 
+function agentFor(seat: Seat, seed: string): AvalonAgent {
+  if (packTable && packDefs) return createAgentFromDef(packDefs[seat], { seed, seat }, packTable[seat].model)
+  return createAgent(specFor(seat), { seed, seat })
+}
+
 // LLM tables are named after their models — the premise of the game. A homogeneous
 // table numbers every seat (Kimi 1..Kimi 7) so the transcript can still tell them apart.
+// A pack table is named after its characters (the models still show in the spend
+// breakdown), with the same dedupe if a name repeats.
 function namesFor(count: number): string[] | undefined {
   if (!isLlm) return undefined
+  if (packDefs) {
+    const used = new Map<string, number>()
+    return packDefs.slice(0, count).map((def) => {
+      const n = (used.get(def.name) ?? 0) + 1
+      used.set(def.name, n)
+      return n === 1 ? def.name : `${def.name} ${n}`
+    })
+  }
   if (forcedModel) {
     const entry = rosterById(forcedModel)
     return Array.from({ length: count }, (_, seat) => `${entry.displayName} ${seat + 1}`)
@@ -68,7 +116,7 @@ async function playGame(i: number): Promise<void> {
     talk: { maxRounds, maxRoundsAfterChange },
   })
   const agents = new Map<Seat, AvalonAgent>(
-    game.players.map((p) => [p.seat, createAgent(specFor(p.seat), { seed, seat: p.seat })]),
+    game.players.map((p) => [p.seat, agentFor(p.seat, seed)]),
   )
   const verbose = games === 1 && !values.quiet
   const result = await runGame({
@@ -83,6 +131,11 @@ async function playGame(i: number): Promise<void> {
   tally.degraded += result.degraded.length
   if (values.out) {
     const descriptor = (seat: Seat) => {
+      if (packTable && packDefs) {
+        const engine = packDefs[seat].engine
+        const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
+        return `${packDefs[seat].id}${model ? `:${model}` : ''}`
+      }
       const spec = specFor(seat)
       return spec.type === 'llm' ? `llm:${spec.model}` : spec.type
     }
@@ -116,7 +169,9 @@ const worker = async (): Promise<void> => {
 await Promise.all(Array.from({ length: Math.min(concurrency, games) }, worker))
 
 if (games > 1) {
-  const agentsLabel = forcedModel ? `llm:${forcedModel} (homogeneous)` : values.agents
+  const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${forcedModel}` : ''}`
+    : forcedModel ? `llm:${forcedModel} (homogeneous)`
+    : values.agents
   console.log(`\n${games} games, ${playerCount} players, agents=${agentsLabel}, talk=${values.talk}`)
   console.log(`good wins: ${tally.good} (${((tally.good / games) * 100).toFixed(1)}%)`)
   console.log(`evil wins: ${tally.evil} (${((tally.evil / games) * 100).toFixed(1)}%)`)

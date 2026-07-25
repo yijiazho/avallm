@@ -16,6 +16,7 @@ npm run sim -- --games 200 --talk 0,0      # aggregate win-rate stats
 npm run sim -- --agents llm --players 5    # headless game with real LLM calls + cost breakdown
 npm run sim -- --model kimi --games 5      # homogeneous table: every seat one model (isolates prompt vs. model quality)
 npm run sim -- --games 20 --concurrency 5  # play aggregate games in parallel (faster wall-clock; shares the spend ceiling)
+npm run sim -- --pack detectives           # seat a curated agent pack (implies LLM; costs money)
 npm run play                               # terminal play vs heuristic bots
 
 npm --prefix client install                # client deps (one-time)

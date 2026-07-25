@@ -226,6 +226,40 @@ id. On collision the user def is listed as `unavailable` with a `shadowed` reaso
 disk, rename-able), and the server logs loudly. POST already avoids collisions by suffixing
 against the whole merged library.
 
+### 6.1 Packs — curated *sets* you can seat in one click
+
+A pack ("The Detectives", "The Philosophers") is pure metadata over defs that already exist: an
+id, a name, a blurb, and a list of member ids. No engine surface, no new prompt layer —
+the agent framework already does the work, so a pack is a curation decision, not a feature.
+Packs therefore live in code (`server/agents/packs.ts`) next to `DEFAULT_TABLE`, not in a JSON
+manifest.
+
+- **Variable-sized.** A pack shorter than the table seats its members first and fills the
+  leftovers from the default agent library (deepseek, kimi, …), minus the pack's own members. Two
+  detectives at a 7-player table means Sherlock, Poirot and four models — never "Sherlock 2".
+- **Randomly drawn, not first-N.** A table smaller than the pack seats a random *subset*, and
+  every fill (packs and the plain "LLMs" fill alike) shuffles seat order. A 5-player table played
+  twice gets a different four of the six detectives, so the whole cast rotates in over a few
+  games instead of the tail of the list never being seen. The sim's draw comes from the run's
+  seed, so `--seed a` and `--seed b` field different casts while either stays reproducible.
+- **The model fill is models.** Leftover seats and the "fill with LLMs" button draw from
+  **built-in** agents only. Curated characters belong to their pack; letting them into the model
+  fill would seat Sherlock at a table nobody asked for a detective at.
+- **Members that don't prescribe a model get a random one.** A character card is
+  personality-only by design (§2 note), so a whole pack would otherwise land on `DEFAULT_MODEL`:
+  one model wearing six hats. Roster models are dealt without repeats until the roster runs out.
+  The roll is written onto the **seat** (`TableSeat.model`), not into the def — so the badge, the
+  reveal snapshot, and the setup screen's per-seat override all show the model that actually
+  answers, and the host can re-roll by hand. The server's own resolution order is untouched.
+- **Dangling members are surfaced, not dropped.** `resolvePacks` runs after every tier loads and
+  reports a missing/unavailable/shadowed member through the existing `LibraryProblem` channel; a
+  pack with no seatable members is reported rather than served empty. `test/packs.test.ts` pins
+  that the shipped library produces no pack problems at all.
+- **Two fill paths, one behavior.** `seatPack` (server, used by `npm run sim -- --pack <id>`) and
+  `fillFromPack` (client setup screen) implement the same rule; the client's copy exists because
+  the host must see and edit the table before starting. They are commented as a pair — keep them
+  in step.
+
 ## 7. The iteration loop: prompt preview
 
 Writing prompts blind is the main reason custom agents stay shallow. One editor affordance,

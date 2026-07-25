@@ -31,6 +31,7 @@ import { createAgentFromDef } from './agents/registry.ts'
 import { AGGREGATE_CAP, FIELD_CAP, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
 import { loadEnv } from './llm/env.ts'
 import type { AgentDef, AgentPublicInfo, LibraryProblem, LlmEngine, TableSeat } from './agents/defs.ts'
+import type { ResolvedPack } from './agents/packs.ts'
 import { RULES_DIGEST, ROLE_GUIDANCE, ALIGNMENT_SHARED, TABLE_TALK_NORMS, OUTPUT_CONTRACTS, buildMessages } from './agents/prompts.ts'
 import { CALL_PARAMS } from './llm/call-params.ts'
 import type { LlmCallKind } from './llm/call-params.ts'
@@ -94,10 +95,12 @@ if (dataDirBase && !fs.existsSync(dataDirBase)) {
 useDataDir(dataDirBase)
 
 let library: AgentDef[] = []
+let libraryPacks: ResolvedPack[] = []
 let libraryProblems: LibraryProblem[] = []
 function reloadLibrary(): void {
   const lib = loadAgentLibrary()
   library = lib.agents
+  libraryPacks = lib.packs
   libraryProblems = lib.problems
 }
 reloadLibrary()
@@ -754,6 +757,9 @@ const server = http.createServer(async (req, res) => {
         // Wrap, don't pass publicInfo to .map directly: .map supplies the
         // index as the 2nd arg, which publicInfo now reads as a model override.
         agents: library.map((d) => publicInfo(d)),
+        // Curated sets the setup screen can seat in one click; members are
+        // library ids in fill order (server/agents/packs.ts).
+        packs: libraryPacks,
         problems: libraryProblems,
         models: ROSTER.map((r) => ({ id: r.id, name: r.displayName, slug: r.slug, tier: r.tier })),
         defaultTable: DEFAULT_TABLE,

@@ -1548,6 +1548,15 @@ footer .error::before {
   padding: 0.55em 0.8em;
 }
 .fill-btn:hover { color: var(--gold); border-color: var(--gold-deep); filter: none; }
+.fill-select {
+  font: 600 0.6rem var(--mono); letter-spacing: 0.08em;
+  color: var(--dim); background: var(--night-2); border: 1px solid var(--line); border-radius: 3px;
+  padding: 0.5em 0.6em;
+}
+.fill-select:hover { color: var(--gold); border-color: var(--gold-deep); }
+.pack-blurb {
+  margin: 0 0 10px; font: italic 400 0.82rem/1.45 var(--serif); color: var(--dim);
+}
 .frow { display: flex; gap: 12px; flex-wrap: wrap; }
 .frow > label { flex: 1 1 9rem; }
 .frow > label.wide { flex: 1.3 1 11rem; }
