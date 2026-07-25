@@ -2,7 +2,8 @@
 // hidden-information chokepoint) — never raw Game. Stable fragments are
 // module constants so provider prompt caches can hit.
 
-import { MAX_PROPOSALS, QUESTS_TO_WIN, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
+import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
+import { knownEvilAboard, matchPoint } from './board.ts'
 import { factsDossier, questResultTag } from './facts.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -277,30 +278,6 @@ export function declaredLeans(view: PlayerView): { name: string; lean: Lean }[] 
   return [...latest.entries()].map(([seat, lean]) => ({ name: view.players[seat].name, lean }))
 }
 
-// Evil on a team that THIS SEAT can see: itself plus known partners, never more.
-// Oberon is invisible to the rest of evil (and they to it), so a count that
-// walked the whole team would hand an evil bot knowledge the deal denies it, and
-// a note built on it would assert a team is evil-free when Oberon is riding
-// along. One definition, because both the finalize and the vote ASK need exactly
-// this rule and the Oberon caveat has to travel with it.
-function knownEvilAboard(view: PlayerView, team: readonly Seat[] | undefined): Seat[] {
-  if (view.alignment !== 'evil' || !team) return []
-  const partners = view.privateInfo.evilPartners ?? []
-  return team.filter((s) => s === view.seat || partners.includes(s))
-}
-
-// Whose match point it is: one more quest of that result ends the quest phase.
-// The board-stakes rows in the facts dossier (facts.ts) state this to every seat
-// as neutral data; these flags are how the two decisions that can still act on
-// it — who goes on the team, and whether the team runs — get keyed to it. The
-// `quest` ASK computes the same thing inline for the fail decision, where it has
-// carried its own do-or-die wording since the Kimi-played-Success bug.
-function matchPoint(view: PlayerView): { good: boolean; evil: boolean } {
-  const successes = view.quests.filter((q) => q.result === 'success').length
-  const fails = view.quests.filter((q) => q.result === 'fail').length
-  return { good: successes === QUESTS_TO_WIN - 1, evil: fails === QUESTS_TO_WIN - 1 }
-}
-
 export interface AskExtra {
   chosenTeam?: Seat[]
 }
@@ -330,9 +307,43 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     // proposed a team with no evil on it and then argued the table into
     // approving it (seed norms2), because "usually one evil" reads as advice for
     // a normal round and nothing said this round is the last one that exists.
-    const evilStrat = mp.good
-      ? ` A success here ends the quest phase, so this is the last team you will ever pick: a quest without you or a partner on it cannot be failed, and no later round exists to recover in. Put yourself on it. Cover you keep by staying off is cover for a game you have already lost — and a second evil is worth it here if that is what it takes to hold a Fail on this team.`
-      : ` You usually want exactly ONE evil on the team — you — surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair. Put a second evil on only when the quest needs two Fails to fail.`
+    // The quest that needs TWO Fails is the other half of the same miss, and the
+    // one the heuristic proved decides the round: with only one of you aboard
+    // there is no card you can play that sinks it, so the team is lost at
+    // proposal time and nothing later in the round can recover it. This REPLACES
+    // the one-evil default rather than qualifying it — as a trailing clause on
+    // that sentence ("put a second evil on only when...") it was advice about
+    // some other round. The evidence is the fallback agent, which had no
+    // two-Fail rule at any decision: it sank 1 of 32 of these quests until the
+    // propose branch was added, and 14 of 32 with it. That agent never reads
+    // this text — it is a measurement of the rule, not of the wording.
+    // Gated on actually having a partner to seat: an Oberon leader cannot see
+    // one, so for it this is the normal round it plays like.
+    const partners = v.privateInfo.evilPartners ?? []
+    const needsTwo = v.quests[v.round - 1].failsRequired === 2 && partners.length > 0
+    // At 7+ players quest 4 is the only two-Fail quest, and reaching it always
+    // means one side sits on two — so today this always resolves to a real match
+    // point. Each arm still tests its own flag rather than assuming the other:
+    // stating a match point the board is not on would be exactly the kind of
+    // board-misstatement these branches exist to remove, and the invariant that
+    // makes the two exhaustive lives in the quest table, not here.
+    const twoStakes = mp.evil
+      ? ` And failing it wins the game outright, which is exactly why it takes two of you.`
+      : mp.good
+        ? ` And a success here ends the quest phase, so this is the last team you will ever pick.`
+        : ''
+    // The "maybe a teammate I cannot see is aboard" hope only exists where an
+    // Oberon does — everywhere else a seat's partner list is complete, and
+    // raising the possibility would just invent doubt. Gated like the
+    // assassinate ASK's Percival note.
+    const unseenNote = v.rolesInPlay.includes('oberon')
+      ? ` Do not count on an unseen teammate riding along — an Oberon is invisible to you, so a Fail you cannot back up is a coin flip, not a plan.`
+      : ''
+    const evilStrat = needsTwo
+      ? ` This quest needs TWO Fails to fail, so one of you on it sinks nothing: put yourself AND a partner you can see on this team. A team carrying only one of you is a quest your side cannot fail no matter how clean it looks.${unseenNote} A visible pair on one team is a real risk if it fails: take it, because the alternative is a round you cannot win.${twoStakes}`
+      : mp.good
+        ? ` A success here ends the quest phase, so this is the last team you will ever pick: a quest without you or a partner on it cannot be failed, and no later round exists to recover in. Put yourself on it. Cover you keep by staying off is cover for a game you have already lost — and a second evil is worth it here if that is what it takes to hold a Fail on this team.`
+        : ` You usually want exactly ONE evil on the team — you — surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair.`
     // Good's mirror, and a regression guard: once bots can see the board they
     // start reasoning "we have a cushion, so let us test an unknown here" —
     // three of them argued exactly that at match point, over their Merlin's
@@ -437,16 +448,15 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     // Multi-evil splitting stays as soft partner-reading (no injected convention
     // — that would be an out-of-band private channel evil is not supposed to have).
     const q = v.quests[v.round - 1]
-    const successesSoFar = v.quests.filter((x) => x.result === 'success').length
-    const failsSoFar = v.quests.filter((x) => x.result === 'fail').length
+    const mp = matchPoint(v)
     const needsTwo = q.failsRequired === 2
     const twoNote = needsTwo
       ? ' This quest needs TWO Fails to fail, so a lone Fail will not do it — you need a teammate on this team to fail as well.'
       : ''
     let call: string
-    if (successesSoFar === 2) {
+    if (mp.good) {
       call = `If this quest SUCCEEDS, good completes its THIRD quest and wins the game outright — there is no later round left to fight in, and cover is worthless once you have lost. Play "fail".${twoNote}`
-    } else if (failsSoFar === 2) {
+    } else if (mp.evil) {
       call = needsTwo
         ? `Failing this quest is evil's winning THIRD failed quest — but it needs TWO Fails, so you and a teammate on this team must BOTH play "fail" to take the game now.`
         : `A Fail here is evil's THIRD failed quest and wins the game outright. Play "fail".`

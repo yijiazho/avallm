@@ -7,7 +7,7 @@
 
 import { makeRng, fnv1a } from '../engine/prng.ts'
 import type { Rng } from '../engine/prng.ts'
-import { QUESTS_TO_WIN } from '../engine/rules.ts'
+import { knownEvilAboard, matchPoint } from './board.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
 
@@ -62,13 +62,6 @@ function rankBySuspicion(view: PlayerView): Seat[] {
     .sort((a, b) => s[a] - s[b])
 }
 
-function successesSoFar(view: PlayerView): number {
-  return view.quests.filter((q) => q.result === 'success').length
-}
-function failsSoFar(view: PlayerView): number {
-  return view.quests.filter((q) => q.result === 'fail').length
-}
-
 // ---- per-kind decisions ----
 
 function decidePropose(view: PlayerView, rng: Rng): Decision {
@@ -76,10 +69,18 @@ function decidePropose(view: PlayerView, rng: Rng): Decision {
   const ranked = rankBySuspicion(view).filter((s) => s !== view.seat)
   const team: Seat[] = [view.seat]
   if (view.alignment === 'evil') {
-    // Look clean: self + the most trusted-looking non-partners.
     const partners = new Set(view.privateInfo.evilPartners ?? [])
+    // A quest that needs TWO Fails needs two of US: one card sinks nothing
+    // there, and a partner we can see is the only second Fail we can count on
+    // (an Oberon is invisible to us, as we are to it, so a team that happens to
+    // seat one is luck we cannot plan around). This replaces the look-clean
+    // default for that quest rather than stacking with it (§7.3/§7.4 rule 3) —
+    // the least suspicious partners, so the pair still reads as a normal team.
+    const need = view.quests[view.round - 1].failsRequired
+    team.push(...ranked.filter((s) => partners.has(s)).slice(0, Math.max(0, need - 1)))
+    // The rest: the most trusted-looking non-partners.
     const clean = ranked.filter((s) => !partners.has(s))
-    team.push(...clean.slice(0, size - 1))
+    team.push(...clean.slice(0, Math.max(0, size - team.length)))
     // Backfill from partners if the table is small.
     for (const s of ranked) {
       if (team.length >= size) break
@@ -100,8 +101,25 @@ function decideVote(view: PlayerView, rng: Rng): Decision {
   const selfOnTeam = team.includes(view.seat)
 
   if (view.alignment === 'evil') {
-    const teamHasAnyEvil = team.some((s) => evil.has(s))
-    if (teamHasAnyEvil) return { kind: 'vote', vote: 'approve' }
+    // Forced plays first, before any cover reasoning (§7.4 rule 1). Both hinge
+    // on the same question the cover instinct never asks: can the seats this
+    // voter KNOWS about actually sink this quest? "One of ours is aboard" is not
+    // "we can sink it" — Q4 at 7+ needs two Fails, so a lone teammate sinks
+    // nothing and approving it just runs the quest.
+    const failsNeeded = view.quests[view.round - 1].failsRequired
+    const aboard = knownEvilAboard(view, team).length
+    // Approve a team our side can sink: approval keeps the option, and the card
+    // is a later, secret decision. Off a decisive board this is also the old
+    // "any evil aboard => approve" default, since failsRequired is 1 there.
+    if (aboard >= failsNeeded) return { kind: 'vote', vote: 'approve' }
+    // Nothing aboard can sink it. At good's match point a success ends the quest
+    // phase, so approving loses outright and the reject is the last lever —
+    // worth the tell, which is why this REPLACES the blend-in default rather
+    // than stacking with it (§7.4 rule 3).
+    if (matchPoint(view).good) return { kind: 'vote', vote: 'reject' }
+    // Undecided board: an unsinkable team still costs nothing to wave through
+    // if a teammate is on it, and there are later rounds to recover in.
+    if (aboard > 0) return { kind: 'vote', vote: 'approve' }
     return { kind: 'vote', vote: rng.chance(0.2) ? 'approve' : 'reject' }
   }
 
@@ -128,33 +146,52 @@ function decideVote(view: PlayerView, rng: Rng): Decision {
   return { kind: 'vote', vote: rng.chance(p) ? 'approve' : 'reject' }
 }
 
-function decideQuest(view: PlayerView, rng: Rng): Decision {
+function decideQuest(view: PlayerView, seed: string): Decision {
   if (view.alignment === 'good') return { kind: 'quest', card: 'success' }
 
   const quest = view.quests[view.round - 1]
   const team = view.currentTeam ?? quest.team ?? []
-  const partners = new Set(view.privateInfo.evilPartners ?? [])
-  const evilOnTeam = team.filter((s) => s === view.seat || partners.has(s))
-  const mustFail =
-    failsSoFar(view) === QUESTS_TO_WIN - 1 ||       // failing now wins for evil
-    successesSoFar(view) === QUESTS_TO_WIN - 1      // success now wins for good
+  const need = quest.failsRequired
+  const evilOnTeam = knownEvilAboard(view, team)
 
-  // Deterministic anti-double-fail convention: when one fail suffices and
-  // several known evil are on the team, only the lowest seat plays fail.
-  // (Oberon can't coordinate and just uses the probabilities.)
-  const designated = evilOnTeam.length > 0 ? Math.min(...evilOnTeam) : view.seat
-  const iAmDesignated =
-    quest.failsRequired >= 2 || evilOnTeam.length <= 1 || designated === view.seat
+  // Forced play (§7.2): a Fail below the quest's requirement cannot sink it and
+  // only advertises an evil aboard for free. Oberon is the named exception — it
+  // cannot see a partner to coordinate with, so its own card is never the whole
+  // story, and the extra Fail is how its unseen teammates locate it.
+  if (evilOnTeam.length < need) {
+    return { kind: 'quest', card: view.role === 'oberon' ? 'fail' : 'success' }
+  }
 
-  if (mustFail) return { kind: 'quest', card: iAmDesignated ? 'fail' : 'success' }
-  if (!iAmDesignated) return { kind: 'quest', card: 'success' }
+  // Enough known Fails are aboard to sink it, so all that is left is who spends
+  // a card, and when.
+
+  // On a decisive board, everyone aboard spends one: the quest ends the game
+  // either way, so a redundant Fail costs nothing — no later round exists for
+  // the extra card to have leaked into — while holding one back bets the game on
+  // a partner whose card you cannot see. The card-count leak is the only thing
+  // the convention below is protecting, and here there is nothing left to leak.
+  const mp = matchPoint(view)
+  if (mp.good || mp.evil) return { kind: 'quest', card: 'fail' }
+
+  // Undecided board: spend exactly the Fails the quest requires, taken from the
+  // lowest known-evil seats aboard. At need = 1 that is the old "only the lowest
+  // seat fails"; at need = 2 it is the pair that has to act together. (Oberon
+  // only ever counts itself, so it is always designated.)
+  const designated = new Set(evilOnTeam.slice().sort((a, b) => a - b).slice(0, need))
+  if (!designated.has(view.seat)) return { kind: 'quest', card: 'success' }
 
   // Empirical fail rates (strategy doc appendix): tiny teams rarely fail early.
   let p: number
   if (team.length === 2) p = 0.15
   else if (view.round === 1) p = 0.4
   else p = 0.55
-  return { kind: 'quest', card: rng.chance(p) ? 'fail' : 'success' }
+  // Keyed to the quest and team rather than the seat, so every designated seat
+  // rolls the same number: on a two-Fail quest the pair either both play Fail or
+  // both hold. A split roll would burn one card, sink nothing, and leak — the
+  // wasted-lone-fail shape again, arrived at by two seats each playing a
+  // defensible card. No out-of-band channel: the key is public board state.
+  const roll = makeRng(fnv1a(`${seed}:quest:${view.round}:${[...team].sort().join(',')}`))
+  return { kind: 'quest', card: roll.chance(p) ? 'fail' : 'success' }
 }
 
 function decideAssassinate(view: PlayerView, rng: Rng): Decision {
@@ -237,7 +274,7 @@ export function heuristicDecide(
     // discussion, which the heuristic doesn't model.
     case 'finalize': return { kind: 'finalize', stick: true }
     case 'vote': return decideVote(view, rng)
-    case 'quest': return decideQuest(view, rng)
+    case 'quest': return decideQuest(view, seed)
     case 'assassinate': return decideAssassinate(view, rng)
   }
 }

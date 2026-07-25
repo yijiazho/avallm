@@ -11,7 +11,8 @@ import { viewFor } from '../server/engine/view.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
 import type { Game, Seat } from '../server/engine/types.ts'
 
-const NAMES = ['Ann', 'Bob', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus']
+// Eight, because the two-Fail quest exists at 8p too (and there without an Oberon).
+const NAMES = ['Ann', 'Bob', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus', 'Hal']
 
 // No table talk: a proposal goes straight to the vote, which is all these tests
 // need and keeps the board-driving loop short.
@@ -201,4 +202,89 @@ test('evil match point (two failed quests) leaves the vote note off', () => {
   v.quests[1] = { ...v.quests[1], result: 'fail', failCount: 1 }
   const [, user] = buildMessages('vote', v, '')
   assert.ok(!user.content.includes('last lever your side has'))
+})
+
+// ---- the two-Fail quest (quest 4 at 7+ players) ----
+//
+// The propose-side sibling of the same miss: with only one evil aboard, a quest
+// that needs two Fails is lost at proposal time and no card played later can
+// recover it. The old text carried this as a trailing clause on the one-evil
+// default ("put a second evil on only when the quest needs two Fails"), which is
+// advice about some other round. What is measured is the rule, not this wording:
+// the heuristic agent (which reads no prompt at all) had no two-Fail rule at any
+// decision and sank 1 of 32 of these quests, against 14 of 32 once it got one.
+
+// Three resolved quests put the board on quest 4, which at 7p needs two Fails.
+// Reaching it always means one side sits on two, so a match point is implied.
+function boardAtQ4(prefix: string, pred: (g: Game) => boolean): Game {
+  const g = findGame(7, prefix, pred)
+  playCleanQuests(g, 2)
+  playQuest(g, 'fail')
+  assert.equal(g.round, 4)
+  assert.equal(g.quests[3].failsRequired, 2)
+  return g
+}
+
+test('the two-Fail quest orders the leader to seat a partner, not one evil', () => {
+  const g = boardAtQ4('q4-pair', (game) => {
+    const l = game.players[leaderAfter(game, 3)]
+    return l.alignment === 'evil' && l.role !== 'oberon'
+  })
+  const ask = askFor(g, 'propose', g.leaderSeat)
+
+  assert.match(ask, /needs TWO Fails to fail, so one of you on it sinks nothing/)
+  assert.match(ask, /put yourself AND a partner you can see on this team/)
+  // The Oberon reasoning a bot reaches for on its own ("maybe one is aboard, so
+  // my lone Fail is fine") is answered rather than left open — it is exactly the
+  // coin flip the fallback agent was accidentally living on.
+  assert.match(ask, /a Fail you cannot back up is a coin flip, not a plan/)
+  // Replaced, not qualified: the soft version is the escape hatch.
+  assert.ok(!ask.includes('usually want exactly ONE evil'), 'the one-evil default is gone here')
+})
+
+test('the two-Fail quest states whichever match point the board is on', () => {
+  const evilLeads = (game: Game) => {
+    const l = game.players[leaderAfter(game, 3)]
+    return l.alignment === 'evil' && l.role !== 'oberon'
+  }
+  // 2 successes + 1 fail: good is one quest from ending the phase.
+  const atGood = boardAtQ4('q4-stakes-good', evilLeads)
+  assert.match(askFor(atGood, 'propose', atGood.leaderSeat),
+    /this is the last team you will ever pick/)
+
+  // 1 success + 2 fails: a fail here wins outright, which takes both of them.
+  const atEvil = findGame(7, 'q4-stakes-evil', evilLeads)
+  playCleanQuests(atEvil, 1)
+  playQuest(atEvil, 'fail')
+  playQuest(atEvil, 'fail')
+  assert.equal(atEvil.round, 4)
+  assert.match(askFor(atEvil, 'propose', atEvil.leaderSeat),
+    /failing it wins the game outright, which is exactly why it takes two of you/)
+})
+
+test('an Oberon leader is not told to seat a partner it cannot see', () => {
+  const g = boardAtQ4('q4-oberon', (game) => game.players[leaderAfter(game, 3)].role === 'oberon')
+  const ask = askFor(g, 'propose', g.leaderSeat)
+
+  // It has no partner in its view, so the order would be unfollowable. For
+  // Oberon this is the normal round it always plays.
+  assert.ok(!ask.includes('put yourself AND a partner'), 'no impossible instruction')
+  assert.match(ask, /usually want exactly ONE evil|last team you will ever pick/)
+})
+
+test('the unseen-teammate warning only fires at tables that deal an Oberon', () => {
+  // 8p has a two-Fail quest 4 as well, but Morgana/Assassin/Minion all see each
+  // other: there is no invisible partner to hope for, so raising one is noise.
+  const g = findGame(8, 'q4-no-oberon', (game) => {
+    const l = game.players[leaderAfter(game, 3)]
+    return l.alignment === 'evil'
+  })
+  playCleanQuests(g, 2)
+  playQuest(g, 'fail')
+  assert.equal(g.quests[3].failsRequired, 2)
+  assert.ok(!g.players.some((p) => p.role === 'oberon'))
+
+  const ask = askFor(g, 'propose', g.leaderSeat)
+  assert.match(ask, /put yourself AND a partner you can see on this team/)
+  assert.ok(!ask.includes('Oberon'), 'no Oberon caveat at a table without one')
 })

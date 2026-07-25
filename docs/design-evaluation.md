@@ -133,8 +133,10 @@ LLM cost:
   game on the line. The tier is defined in research-strategy.md §7, which also explains why these
   are measured and never enforced. Ground truth, so they get a detector rather than living in the
   judge's `blunder` family. Judged against `computeKnowledge`, never omniscience, so an unseen
-  Oberon cannot make a teammate's reasonable play look wrong. Baseline: ~2.5/game on a heuristic
-  7p table, nearly all on the two-Fail quest.
+  Oberon cannot make a teammate's reasonable play look wrong. First measured at ~2.5/game on a
+  heuristic 7p table, nearly all on the two-Fail quest; teaching the heuristic those board
+  conditions took it to **0/game**, so a non-zero count on a mixed table now points at the LLM
+  seats rather than at the fallback.
 - **Assassination outcomes** — real hit rate against this Merlin; unfakeable.
 - **Guards** — good win rate, degraded-decision count, cost/game, utterances/game.
 
@@ -289,7 +291,10 @@ each targeting a specific judge-incident family, all committed with unit tests:
      since an unknown has no future quest to be vetted on), and the `vote` ASK gains an evil branch
      for the case that actually lost the game — approving a team you know of no Fail aboard. Both
      read the same `matchPoint` helper, and the vote branch shares `knownEvilAboard` with the
-     finalize fold note so the Oberon-invisibility rule has one definition. The good `propose`
+     finalize fold note so the Oberon-invisibility rule has one definition. Both helpers now live in
+     `server/agents/board.ts`, since the heuristic fallback branches on the same triggers. The
+     `propose` ASK gained a third branch for the two-Fail quest (seat a visible partner or the round
+     is unwinnable), which the heuristic run showed decides quest 4 outright. The good `propose`
      branch is a **regression guard**: with the board visible, bots began arguing "we have a
      cushion, so test an unknown here" over their own Merlin's objection.
 2. **Vote-lean coherence** — the `vote` ask surfaces the seat's own most-recent public lean.

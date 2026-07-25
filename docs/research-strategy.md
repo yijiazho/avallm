@@ -751,11 +751,14 @@ omniscience to evaluate, it is not T1** — it is a read, and reads belong to th
 | Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired` | Approving hands good the quest phase and leaves only the Assassin's guess | `vote` ASK |
 | Be on the team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | `propose` ASK |
 
-"Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `prompts.ts` counts the seat plus
-partners the deal lets it see. Oberon is invisible to the rest of evil, so a count over the whole
-team would both leak the deal into the prompt and let a note claim a team is evil-free while Oberon
-rides along. `matchPoint` (same file) and `failsRequired` (`rules.ts`) are the other shared pieces —
-one definition each, so a rule and its detector can never drift apart.
+"Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `server/agents/board.ts` counts
+the seat plus partners the deal lets it see. Oberon is invisible to the rest of evil, so a count
+over the whole team would both leak the deal into the prompt and let a note claim a team is
+evil-free while Oberon rides along. `matchPoint` (same file) and `failsRequired` (`rules.ts`) are
+the other shared pieces — one definition each, so a rule and its detector can never drift apart.
+`board.ts` exists because these triggers have three consumers, not one: `prompts.ts` writes them
+into ASK branches for LLM seats, `heuristic.ts` branches on them directly, and `forced.ts`
+re-derives them from the artifact to grade the result.
 
 ### 7.3 Defaults, and what breaks them (T2)
 
@@ -806,11 +809,10 @@ Two properties of the detector worth preserving:
   reasons the seat could not see. That is the correct accounting for decision quality.
 - **It is silent on undecided boards.** Cover plays on Q1 are defaults, not violations.
 
-Observed baseline (40 heuristic games, 7p, no talk): **~2.5 violations per game**, almost all on Q4
-— the heuristic agent has no match-point logic at the vote and no concept of the two-Fail quest, so
-it approves quests that end the game and burns lone Fails that cannot sink one. That is the floor to
-beat, and it matters beyond the baseline: the heuristic is the forever-fallback every degraded LLM
-seat lands on.
+The heuristic table runs clean (0 violations over 100 games each at 5p, 7p and 10p), so a non-zero
+count points at the LLM seats rather than at the fallback. It did not start that way: the first run
+found ~2.5 per game, almost all on Q4, which is what drove the board conditions into `heuristic.ts`
+— the forever-fallback every degraded LLM seat lands on.
 
 **When adding a T1 rule, add the prompt branch and the detector row together.** Guidance without a
 detector is unmeasurable, and a detector without guidance measures nothing we chose.
