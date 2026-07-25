@@ -5,7 +5,7 @@
 import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { createAgent } from '../agents/registry.ts'
-import { ROSTER } from '../llm/roster.ts'
+import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
@@ -18,6 +18,7 @@ const { values } = parseArgs({
     seed: { type: 'string', default: 'sim' },
     games: { type: 'string', default: '1' },
     agents: { type: 'string', default: 'heuristic' }, // heuristic | random | mixed | llm
+    model: { type: 'string' },                        // force EVERY seat onto one roster id (implies --agents llm) — a homogeneous table to isolate prompt quality from model spread
     talk: { type: 'string', default: '0' },           // maxRounds[,maxRoundsAfterChange]
     out: { type: 'string' },                          // append game artifacts (JSONL) for eval tooling
     quiet: { type: 'boolean', default: false },
@@ -27,18 +28,26 @@ const { values } = parseArgs({
 const playerCount = Number(values.players)
 const games = Number(values.games)
 const [maxRounds, maxRoundsAfterChange = 0] = values.talk!.split(',').map(Number)
-const isLlm = values.agents === 'llm'
+// --model forces a homogeneous LLM table, so it implies --agents llm. Validate the
+// id up front (rosterById throws on an unknown id) for a clear error before any game runs.
+const forcedModel = values.model ? rosterById(values.model).id : undefined
+const isLlm = values.agents === 'llm' || forcedModel !== undefined
 
 function specFor(seat: Seat): AgentSpec {
-  if (isLlm) return { type: 'llm', model: ROSTER[seat % ROSTER.length].id }
+  if (isLlm) return { type: 'llm', model: forcedModel ?? ROSTER[seat % ROSTER.length].id }
   if (values.agents === 'random') return { type: 'random' }
   if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
   return { type: 'heuristic' }
 }
 
-// LLM tables are named after their models — the premise of the game.
+// LLM tables are named after their models — the premise of the game. A homogeneous
+// table numbers every seat (Kimi 1..Kimi 7) so the transcript can still tell them apart.
 function namesFor(count: number): string[] | undefined {
   if (!isLlm) return undefined
+  if (forcedModel) {
+    const entry = rosterById(forcedModel)
+    return Array.from({ length: count }, (_, seat) => `${entry.displayName} ${seat + 1}`)
+  }
   return Array.from({ length: count }, (_, seat) => {
     const entry = ROSTER[seat % ROSTER.length]
     const dup = Math.floor(seat / ROSTER.length)
