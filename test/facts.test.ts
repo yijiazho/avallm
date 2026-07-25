@@ -45,16 +45,47 @@ test('AVALON_NO_DOSSIER=1 suppresses the dossier (the eval A/B lever)', () => {
   }
 })
 
-test('dossier reports fail exposure and never-on-quest from resolved quests', () => {
+test('dossier reports on-team membership and never-on-quest from resolved quests', () => {
   const d = factsDossier(view({
     quests: [
       quest(1, 2, { team: [0, 3], result: 'fail', failCount: 1 }),
       quest(2, 2, { team: [3, 4], result: 'success', failCount: 0 }),
     ],
   }))
-  assert.match(d, /P0\(seat 0\): on Q1\(FAIL\)/)
-  assert.match(d, /P3\(seat 3\): on Q1\(FAIL\), Q2\(ok\)/)
-  assert.match(d, /Never on a quest: P1\(seat 1\), P2\(seat 2\)\./)
+  assert.match(d, /P0\(seat 0\) \| on-team: Q1\(FAIL\)/)
+  assert.match(d, /P3\(seat 3\) \| on-team: Q1\(FAIL\), Q2\(ok\)/)
+  // never-on-quest players now render "on-team: none" in their own row.
+  assert.match(d, /P1\(seat 1\) \| on-team: none/)
+  assert.match(d, /P2\(seat 2\) \| on-team: none/)
+})
+
+test('per-player row transposes votes on played teams (the anti-confabulation lookup)', () => {
+  const d = factsDossier(view({
+    quests: [
+      quest(1, 2, { team: [1, 2], result: 'fail', failCount: 1 }),
+      quest(2, 2, { team: [3, 4], result: 'success', failCount: 0 }),
+    ],
+    proposals: [
+      // Q1 team [1,2] is approved 3–2 and fails; seat 2 is ON the team yet votes REJECT.
+      proposal({ round: 1, leader: 1, team: [1, 2], approved: true,
+        votes: [
+          { seat: 0, vote: 'reject' }, { seat: 1, vote: 'approve' }, { seat: 2, vote: 'reject' },
+          { seat: 3, vote: 'approve' }, { seat: 4, vote: 'approve' },
+        ] }),
+      // Q2 team [3,4] is approved unanimously and succeeds.
+      proposal({ round: 2, leader: 3, team: [3, 4], approved: true,
+        votes: [
+          { seat: 0, vote: 'approve' }, { seat: 1, vote: 'approve' }, { seat: 2, vote: 'approve' },
+          { seat: 3, vote: 'approve' }, { seat: 4, vote: 'approve' },
+        ] }),
+    ],
+  }))
+  // seat 0 (never on a team): rejected the team that FAILED, approved the one that
+  // SUCCEEDED — both votes readable as one per-player row, keyed to each quest.
+  assert.match(d, /P0\(seat 0\) \| on-team: none \| voted: Q1 reject→FAIL, Q2 approve→ok/)
+  // seat 2 was PLACED ON the failed Q1 team but voted REJECT against it — exactly
+  // the case the table confabulated. Membership and vote sit as distinct facts.
+  assert.match(d, /P2\(seat 2\) \| on-team: Q1\(FAIL\) \| voted: Q1 reject→FAIL, Q2 approve→ok/)
 })
 
 test('dossier computes vote/lead signals only for approved resolved proposals', () => {
@@ -69,10 +100,10 @@ test('dossier computes vote/lead signals only for approved resolved proposals', 
         ] }),
     ],
   }))
-  assert.match(d, /P3\(seat 3\): led 1 failed quest/)
-  assert.match(d, /P4\(seat 4\): approved 1 failed team it was not on/)
-  // seat 1/2 were ON the team, so they get exposure, not an off-team-approval signal.
-  assert.doesNotMatch(d, /P1\(seat 1\): approved/)
+  assert.match(d, /P3\(seat 3\)[^\n]*signals: led 1 failed quest/)
+  assert.match(d, /P4\(seat 4\)[^\n]*signals: approved 1 failed team it was not on/)
+  // seat 1/2 were ON the team, so they get membership, not an off-team-approval signal.
+  assert.doesNotMatch(d, /P1\(seat 1\)[^\n]*approved \d+ failed team/)
 })
 
 test('dossier surfaces the deciding seat\'s own contradicted positions', () => {

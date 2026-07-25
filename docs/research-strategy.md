@@ -553,11 +553,14 @@ Assembled in `buildMessages` (system message top-to-bottom, then the user messag
 Two of these are not strategy homes and must stay that way:
 
 - **S7 is a facts layer, not a policy layer** (`facts.ts` header, design doc §1.2). It carries
-  *computed observations* ("Kimi: on Q2(FAIL), Q3(ok)") with zero imperatives, so custom
+  *computed observations* — one labeled row per player ("Kimi(seat 3) | on-team: Q2(FAIL), Q3(ok)
+  | voted: Q2 approve→FAIL, Q3 reject→ok") with zero imperatives, so custom
   agents compete on strategy rather than on bookkeeping. A heuristic ("treat fail-count as hard
   evidence") never goes in S7; the *number* it reasons over does. When a heuristic and a fact
   are two halves of one idea, split them: the datum to S7, the "what to do about it" to a
-  guidance slot.
+  guidance slot. **Before adding a fact, follow the FORMAT CONVENTIONS in `facts.ts`'s header**
+  (one row per entity, `key: value` cells, markdown-in-not-JSON) — the dossier grows by
+  accretion, and the shared shape is what keeps it a single-lookup record instead of a pile.
 - **S6 owns format, and strategy only where it is inseparable from format** (e.g. discuss's
   `"say" is heard by everyone — never reveal private knowledge in it`). Don't grow S6 into a
   strategy slot; if advice would survive a format change, it belongs in S3/S2/S1/S5.
