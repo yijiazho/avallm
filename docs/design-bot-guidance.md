@@ -50,11 +50,11 @@ Assembled in `buildMessages` (system message top-to-bottom, then the user messag
 |----|------|--------------------------|--------|
 | **S0** | `RULES_DIGEST` | Every bot, every call | `prompts.ts` const |
 | **S1** | *(none yet)* universal strategy | Every bot, every call — **no baseline slot exists** | proposed |
-| **S2** | *(none yet)* alignment-shared good/evil | All good, or all evil, every call | **task #1 is building this** |
+| **S2** | `ALIGNMENT_SHARED[alignment]` (`GOOD_SHARED` / `EVIL_SHARED`) | All good, or all evil, every call | `prompts.ts` consts |
 | **S3** | `ROLE_GUIDANCE[role]` | One role, every call | `prompts.ts` map, 8 keys |
 | **S4** | `TABLE_TALK_NORMS` | Every bot, **only `discuss` + `pitch`** | `prompts.ts` const |
-| **S5** | `ASKS[kind]` | Every bot, **only that decision kind** | `prompts.ts` map, 7 kinds |
-| **S6** | `OUTPUT_CONTRACTS[kind]` | Every bot, that kind — format-bound | `prompts.ts` map, 7 kinds |
+| **S5** | `ASKS[kind]` | Every bot, **only that decision kind** | `prompts.ts` map, 8 kinds |
+| **S6** | `OUTPUT_CONTRACTS[kind]` | Every bot, that kind — format-bound | `prompts.ts` map, 8 kinds |
 | **S7** | `factsDossier` | Every bot, every call — **DATA only** | `facts.ts` |
 | **S8** | agent-config overrides (`strategy`/`personality`/`roleGuidance`/`kindGuidance`) | One custom agent | `defs.ts` |
 
@@ -80,8 +80,8 @@ For any heuristic, choose the **widest slot whose scope exactly matches its appl
 1. Applies to **every role, every decision** → S1 (universal strategy). *S1 does not exist as a
    baseline slot today; see §6.5.* The one universal strategy line we currently ship rides at
    the end of S0 ("Watch the vote history — it is the main evidence").
-2. Applies to **one whole alignment** → S2 (task #1's good-shared / evil-shared fragment). This
-   is the home for the largest cluster of currently-duplicated advice.
+2. Applies to **one whole alignment** → S2 (`GOOD_SHARED` / `EVIL_SHARED`). This is the home for the
+   largest cluster of advice that was previously duplicated across role blobs.
 3. Specific to **one role's private knowledge or win condition** → S3.
 4. About a **specific decision moment, independent of role** (how to play a quest card, what
    hammer means for a vote, what the assassination shot requires) → S5 (the ASK for that kind).
@@ -102,7 +102,7 @@ Corollaries:
 
 ### 6.3 Master map: heuristic → slot
 
-Alignment-wide and universal heuristics (the S1/S2 cluster). "→ S2" means task #1's fragment.
+Alignment-wide and universal heuristics (the S1/S2 cluster). "→ S2" means `ALIGNMENT_SHARED`.
 
 | Heuristic (source §) | Correct slot | Rationale |
 |---|---|---|
@@ -180,12 +180,17 @@ Role heuristics (S3 — genuinely private-knowledge or win-condition specific).
 
 ### 6.5 Prioritized edit list
 
-Ordered by expected win-rate leverage. **Coordination:** items tagged **[T1]** create or write
-into the alignment-shared fragment that **task #1 owns** — do not implement these here; hand the
-*content* to task #1 and let it own the slot. Items tagged **[safe]** are independent of task #1
-(they touch S5 ASKs, individual S3 blobs, or S7) and can land without collision. Run `npm test`
-after any `prompts.ts` change; keep user-visible text em-dash-free (this doc is dev-facing, so
-em-dashes here are fine).
+> **Status: items 1–7 have all landed**, and the S2 fragment the **[T1]** items were waiting on now
+> exists (`ALIGNMENT_SHARED`, §6.1). Item 8 remains open and is still conditional on an S1 slot,
+> which does not exist. Kept as a record rather than a queue: it explains *why* each line sits where
+> it does, which is the thing a reader needs when deciding where the next one goes.
+
+Ordered by expected win-rate leverage. **Coordination (historical):** items tagged **[T1]** wrote
+into the alignment-shared fragment that task #1 owned, so they had to wait for that slot to exist;
+items tagged **[safe]** touched S5 ASKs, individual S3 blobs, or S7 and could land without
+collision. Run `npm test` after any `prompts.ts` change, and note that prompt text has since
+acquired a house style enforced by `test/talk-norms.test.ts` (no dashes, no antithesis slogans, in
+any string the model sees — this doc is dev-facing, so dashes here are fine).
 
 1. **[safe] Fill the `assassinate` ASK (S5)** with the §5.5 method: rank good players by vote-
    accuracy against the now-known truth; flat-high-from-round-1 reads as Merlin, noisy-then-
