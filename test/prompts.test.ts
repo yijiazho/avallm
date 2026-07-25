@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import {
-  buildMessages, knowledgeText, publicStateText, sanitizeSpeech, transcriptText,
+  buildMessages, directAddresses, knowledgeText, publicStateText, sanitizeSpeech, transcriptText,
 } from '../server/agents/prompts.ts'
 import type { Game, Player, PlayerView } from '../server/engine/types.ts'
 
@@ -221,6 +221,58 @@ test('discuss prompts carry table-talk norms and flag direct addresses', () => {
   }
   const [voteSys] = buildMessages('vote', targetView, '')
   assert.ok(!voteSys.content.includes('live conversation'))
+})
+
+// directAddresses feeds the strongest deterministic nudge in the discuss ask,
+// so a substring match would tell a short-named seat that the whole table
+// addressed it every single turn — and it would never pass. Names are user
+// input (humans at join, agent defs), so the match must be whole-word,
+// metacharacter-safe, and Unicode-aware.
+test('directAddresses matches whole names, not substrings', () => {
+  // seat 0 is the deciding seat; seats 1/2 speak after its last turn.
+  const viewWith = (name: string, ...texts: string[]) => ({
+    seat: 0,
+    name,
+    players: [{ seat: 0, name }, { seat: 1, name: 'B' }, { seat: 2, name: 'C' }],
+    transcript: [
+      { seat: 0, name, text: 'my last turn' },
+      ...texts.map((text, i) => ({ seat: i + 1, name: ['B', 'C'][i], text })),
+    ],
+  } as unknown as PlayerView)
+
+  // Short names are the failure case: "l" sits inside "always", "al" inside
+  // "always", "ed" inside "asked". None of these are an address.
+  assert.deepEqual(directAddresses(viewWith('L', 'I always approve clean teams')), [])
+  assert.deepEqual(directAddresses(viewWith('Al', 'she always talks like that')), [])
+  assert.deepEqual(directAddresses(viewWith('Ed', 'nobody asked about the edge case')), [])
+
+  // A genuine mention still lands, including from more than one speaker.
+  assert.deepEqual(directAddresses(viewWith('L', 'L, what team do you want?')), ['B'])
+  assert.deepEqual(
+    directAddresses(viewWith('L', 'L is quiet', 'agreed, L has said nothing')),
+    ['B', 'C'],
+  )
+
+  // Punctuation-adjacent mentions are the common case in real table talk.
+  for (const text of ['Marple, explain that vote', 'Marple?', 'why "Marple" though', '(Marple)']) {
+    assert.deepEqual(directAddresses(viewWith('Marple', text)), ['B'], text)
+  }
+  assert.deepEqual(directAddresses(viewWith('Marple', 'Marples voted early')), [])
+
+  // Names carrying regex metacharacters must not throw and must not be read as
+  // a pattern: validateDef strips <>{}[]|\ but leaves . ( + ? $ ^ through.
+  assert.deepEqual(directAddresses(viewWith('A.C', 'ABC has a clean record')), [])
+  assert.deepEqual(directAddresses(viewWith('A.C', 'A.C has a clean record')), ['B'])
+  for (const name of ['Q+', 'R?', '$am', '^v', '(Nine)']) {
+    assert.deepEqual(directAddresses(viewWith(name, 'nothing aimed at anyone')), [], name)
+    assert.deepEqual(directAddresses(viewWith(name, `${name} what is your read?`)), ['B'], name)
+  }
+
+  // ASCII \b would refuse to match a non-ASCII name; the Unicode boundaries do.
+  assert.deepEqual(directAddresses(viewWith('Élodie', 'Élodie, your read?')), ['B'])
+  assert.deepEqual(directAddresses(viewWith('Élodie', 'élodie is stalling')), ['B'])
+  assert.deepEqual(directAddresses(viewWith('Élodie', 'Élodies everywhere')), [])
+  assert.deepEqual(directAddresses(viewWith('铃木', '铃木, why that team?')), ['B'])
 })
 
 test('proposal pitches reach bot prompts, live and in the vote record', () => {

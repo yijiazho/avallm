@@ -2,7 +2,7 @@
 // hidden-information chokepoint) — never raw Game. Stable fragments are
 // module constants so provider prompt caches can hit.
 
-import { MAX_PROPOSALS, ROLE_ALIGNMENT } from '../engine/rules.ts'
+import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
 import { factsDossier, questResultTag } from './facts.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -222,11 +222,12 @@ export function transcriptText(view: PlayerView, maxUtterances = 14): string {
 export function directAddresses(view: PlayerView): string[] {
   const lastSelf = view.transcript.map((u) => u.seat).lastIndexOf(view.seat)
   const since = view.transcript.slice(lastSelf + 1)
-  const needle = view.name.toLowerCase()
   const mentioners = new Set<string>()
   for (const u of since) {
     if (u.seat === view.seat) continue
-    if (u.text && u.text.toLowerCase().includes(needle)) mentioners.add(u.name)
+    // Whole-word match: this feeds the strongest nudge in the discuss prompt,
+    // and a substring test would fire on every utterance for a short name.
+    if (u.text && mentionsName(u.text, view.name)) mentioners.add(u.name)
   }
   return [...mentioners]
 }

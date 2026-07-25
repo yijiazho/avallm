@@ -2,7 +2,7 @@
 // salvage first, explicit parseFailed distinct from empty. Legality beyond
 // shape (team size, seat ranges) is checked by the agent/engine, not here.
 
-import { teamsEqual } from '../engine/rules.ts'
+import { lastMentionIndex, teamsEqual } from '../engine/rules.ts'
 import type { Decision, PlayerView, Seat } from '../engine/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 
@@ -167,11 +167,19 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
       if (Number.isInteger(t)) {
         return { decision: { kind: 'assassinate', target: t as Seat, thinking }, thinking, parseFailed: false }
       }
-      // Salvage: a named player, else the first in-range seat number that isn't self.
+      // Salvage: a named player, else the first in-range seat number that isn't
+      // self. Of several names, take the LAST one mentioned — same rule as the
+      // quest branch above, and for the same reason: the names a model rules out
+      // ("not P1, and P2 was clean, so P4") come before the one it settles on.
+      let named = -1
+      let namedAt = -1
       for (const p of view.players) {
-        if (p.seat !== view.seat && content.includes(p.name)) {
-          return { decision: { kind: 'assassinate', target: p.seat, thinking }, thinking, parseFailed: false }
-        }
+        if (p.seat === view.seat) continue
+        const at = lastMentionIndex(content, p.name)
+        if (at > namedAt) { namedAt = at; named = p.seat }
+      }
+      if (named >= 0) {
+        return { decision: { kind: 'assassinate', target: named as Seat, thinking }, thinking, parseFailed: false }
       }
       const num = [...content.matchAll(/\b\d+\b/g)]
         .map((m) => Number(m[0]))

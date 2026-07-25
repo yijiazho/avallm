@@ -56,6 +56,26 @@ test('quest and assassinate salvage', () => {
   assert.equal(legalityError({ kind: 'assassinate', target: view.seat }, view) !== null, true)
 })
 
+// The name salvage picks an assassination target off free text, so it needs the
+// same whole-word rule as the discuss nudge: a seat named "L" must not win on
+// the "l" in "will".
+test('assassinate name salvage is whole-word, so a short name loses to a real mention', () => {
+  const shortName = {
+    ...view,
+    players: view.players.map((p) => (p.seat === 3 ? { ...p, name: 'L' } : p)),
+  }
+  const spurious = parseDecision('assassinate', 'I will clearly name P4.', shortName)
+  assert.equal((spurious.decision as any).target, 4)
+
+  const real = parseDecision('assassinate', 'it has to be L, nobody else fits', shortName)
+  assert.equal((real.decision as any).target, 3)
+
+  // Several names in one reply: the model rules seats out before it settles, so
+  // the LAST name mentioned is the target — not the lowest seat that appears.
+  const ruledOut = parseDecision('assassinate', 'P1 is clean and P2 sat on the fail, so it must be P4', view)
+  assert.equal((ruledOut.decision as any).target, 4)
+})
+
 test('discuss: prose is speech, JSON debris is not', () => {
   const clean = parseDecision('discuss', '{"thinking":"t","say":"I trust Gemini."}', view)
   assert.equal((clean.decision as any).say, 'I trust Gemini.')

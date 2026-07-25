@@ -83,6 +83,36 @@ export function nameIsReserved(name: string): boolean {
   return RESERVED_NAMES.has(normalizeName(name))
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Does `text` refer to `name`? Whole-word, case-insensitive — NOT a substring
+// test. Names are user-supplied and may be one or two characters ("L", "Al",
+// "Ed"), so `text.includes(name)` fires on the "l" in "always" and the "ed" in
+// "asked": a seat named "L" would be told every turn that the whole table just
+// addressed it. Any code deciding "was this player named?" must come through
+// here. Two details the naive version gets wrong: the name can carry regex
+// metacharacters (agent-def validation strips <>{}[]|\ but not . ( + ? $ ^), so
+// it is escaped; and ASCII \b would refuse to match "Élodie", so the boundaries
+// are Unicode letter/number lookarounds under the u flag.
+export function mentionsName(text: string, name: string): boolean {
+  return lastMentionIndex(text, name) >= 0
+}
+
+// Where `name` was LAST named in `text`, or -1 if never. Callers that must pick
+// exactly one player out of a free-text reply want the last mention, not the
+// first: a model reasons its way to the answer, so the names it rules out come
+// first ("P1 is clean, P2 sat on the fail, so it must be P4").
+export function lastMentionIndex(text: string, name: string): number {
+  const n = name.trim()
+  if (!n || !text) return -1
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(n)}(?![\\p{L}\\p{N}])`, 'giu')
+  let at = -1
+  for (const m of text.matchAll(re)) at = m.index
+  return at
+}
+
 // Seat numbers are handed to models ONLY so they can fill the team/vote/target
 // JSON fields; the table UI shows names, not seats. Models nonetheless leak
 // "seat 3" / "player 3" into their spoken text, where it is noise to humans and
