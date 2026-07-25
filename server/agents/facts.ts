@@ -226,8 +226,15 @@ function questEvidenceSection(view: PlayerView): string {
     const team = q.team.map((s) => nameOf(view, s)).join(', ')
     const cells = [questResultTag(q.num, q.result === 'fail'), `team: ${team}`]
     if (q.result === 'fail') {
+      // failCount is optional on Quest, and a failed quest always had at least
+      // one Fail, so a missing count means absent data rather than a real zero.
+      // Defaulting it to 0 would print "at least 0 of these 4 are evil" as
+      // derived arithmetic, which is vacuous in the one section whose whole
+      // value is being decisive.
       const n = q.failCount ?? 0
-      cells.push(`${n} Fail card${n === 1 ? '' : 's'}, so at least ${n} of these ${q.team.length} are evil`)
+      cells.push(n > 0
+        ? `${n} Fail card${n === 1 ? '' : 's'}, so at least ${n} of these ${q.team.length} are evil`
+        : `at least one of these ${q.team.length} is evil`)
     } else {
       cells.push(`proves nothing about these players: evil may play Success to buy trust`)
     }

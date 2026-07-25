@@ -278,3 +278,15 @@ test('quest evidence is data, not instruction', () => {
     assert.doesNotMatch(d, imperative)
   }
 })
+
+// failCount is optional on Quest and a failed quest always had at least one
+// Fail, so a missing count is absent data, not a real zero. Printing "at least
+// 0 of these 4 are evil" would be vacuous in the one section that exists to be
+// decisive.
+test('a failed quest with no recorded fail count still asserts a floor of one', () => {
+  const d = factsDossier(view({
+    quests: [quest(1, 4, { team: [0, 1, 2, 3], result: 'fail' })], // no failCount
+  }))
+  assert.match(d, /at least one of these 4 is evil/)
+  assert.doesNotMatch(d, /at least 0/)
+})

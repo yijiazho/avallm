@@ -113,6 +113,14 @@ if (values.tier !== undefined) {
   if (!tierModels.length) throw new Error(`no models in tier "${values.tier}"`)
 }
 
+// --reasoning only decides what goes INTO a written transcript, so on its own it
+// does nothing at all. Silently doing nothing is the expensive failure here: the
+// flag exists for LLM batches, so the way you would find out is by paying for
+// one and then discovering the reasoning you asked for was never captured.
+if (values.reasoning && !values.transcripts) {
+  throw new Error('--reasoning writes into the transcript files; pass --transcripts <dir> as well')
+}
+
 // Create the transcript directory BEFORE any game runs. Created lazily at the
 // first write it would surface an unwritable path only after a full LLM batch
 // had been played and paid for, which is the most expensive possible moment to
