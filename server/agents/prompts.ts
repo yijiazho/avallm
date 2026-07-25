@@ -50,7 +50,7 @@ export const ALIGNMENT_SHARED: Record<Alignment, string> = {
 // Role-specific guidance ONLY. Advice common to an alignment belongs in
 // ALIGNMENT_SHARED above, not duplicated here. roleGuidanceFor composes the two.
 export const ROLE_GUIDANCE: Record<string, string> = {
-  merlin: `You know who is evil (except Mordred, hidden from you), and the Assassin is hunting for exactly that tell. Never state or act directly on your knowledge. Steer teams and votes toward the truth without becoming the player who is always right: prefer endorsing another good player's correct read to originating it yourself, seed doubt with questions rather than flat assertions, and deliberately vote the "wrong" way now and then to blur your certainty. If Mordred is in play you cannot see one of the evil, so never claim total confidence in anyone's goodness — calibrated uncertainty is both correct and safer. Late in the game, if good is close to a third success and you sense you have been pegged, take a visible wrong position or back a winning plan you are not on and let someone else carry it home: winning the quests is only half your job, surviving the shot is the other half.`,
+  merlin: `You know who is evil (except Mordred, hidden from you), and the Assassin is hunting for exactly that tell. Never state or act directly on your knowledge. Steer teams and votes toward the truth without becoming the player who is always right: prefer endorsing another good player's correct read to originating it yourself, seed doubt with questions rather than flat assertions, and deliberately vote the "wrong" way now and then to blur your certainty — if the game state flags your public voting record as matching every quest outcome so far, that spotless streak IS the tell, so break it with a deliberate off vote before the endgame rather than riding a perfect record into the Assassin's sights. If Mordred is in play you cannot see one of the evil, so never claim total confidence in anyone's goodness — calibrated uncertainty is both correct and safer. Late in the game, if good is close to a third success and you sense you have been pegged, take a visible wrong position or back a winning plan you are not on and let someone else carry it home: winning the quests is only half your job, surviving the shot is the other half.`,
   percival: `One of the two players you see is Merlin, the other is Morgana (evil) — your job is to tell them apart. Your sharpest tool is quest FAILURES: every time a quest fails, check which of your two candidates was ON that team, proposed it, or voted to approve it — that one is Morgana, so trust the OTHER. Weight this above anything either candidate SAYS: a smooth talker who backed a failed team is Morgana, not Merlin. Until a fail gives you that evidence, keep both open. Back the one who reads as Merlin through your own votes and arguments, but never name them or single-handedly leap to their defense — publicly protecting one player just paints the Assassin's target on them. Lean into being the decoy: the more you look like Merlin, the safer the real one is, and drawing the shot onto yourself is a win. Claim to be Percival only late, and only when the quest math truly needs it to assemble one trusted team — never while you are still unsure which candidate is Merlin.`,
   servant: `You have no private knowledge — your own loyalty is the one thing you know for certain. Everything else you must deduce from the public record.`,
   assassin: `If good reaches three successful quests you still get one shot: name Merlin. All game, track WHO always voted correctly and who quietly steered good teams toward success, and hold that read for the final guess.`,
@@ -75,10 +75,40 @@ export const OUTPUT_CONTRACTS: Record<LlmCallKind, string> = {
 
 const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
 
+// The deciding seat's own public vote-vs-outcome record over resolved quests: a
+// vote "matches" when approve rode a success or reject rode a fail. Merlin, who
+// votes on truth it alone can see, tends toward a SPOTLESS record — the Assassin's
+// single clearest tell — yet is blind to how perfect it looks and keeps
+// broadcasting it (playtest: assassinated after reading every evil correctly).
+// Surfacing the count as a private fact lets the "throw a deliberate wrong vote"
+// guidance in ROLE_GUIDANCE.merlin actually fire. The raw votes are already public
+// (dossier), but the "this is YOUR tell" framing is Merlin-only, never handed to
+// the table.
+function ownVoteMatchRecord(view: PlayerView): { matches: number; total: number } {
+  let matches = 0
+  let total = 0
+  for (const prop of view.proposals) {
+    if (!prop.approved || !prop.votes) continue
+    const quest = view.quests[prop.round - 1]
+    if (quest?.result === undefined) continue
+    const mine = prop.votes.find((v) => v.seat === view.seat)
+    if (!mine) continue
+    total++
+    if ((mine.vote === 'approve') === (quest.result === 'success')) matches++
+  }
+  return { matches, total }
+}
+
 export function knowledgeText(view: PlayerView): string {
   const info = view.privateInfo
   if (info.knownEvil?.length) {
-    return `You see these players as EVIL: ${info.knownEvil.map((s) => nameOf(view, s)).join(', ')}. (Mordred, if in play, is hidden from you.)`
+    const base = `You see these players as EVIL: ${info.knownEvil.map((s) => nameOf(view, s)).join(', ')}. (Mordred, if in play, is hidden from you.)`
+    // Flag a spotless streak (>=2 resolved, every vote matched) — the point where
+    // the record becomes a live tell. A single off vote gives cover, so don't nag.
+    const { matches, total } = ownVoteMatchRecord(view)
+    return total >= 2 && matches === total
+      ? `${base} So far every public vote you have cast on a resolved quest has matched its outcome (${total} of ${total}) — a spotless record the whole table can see.`
+      : base
   }
   if (view.alignment === 'evil') {
     return info.evilPartners?.length

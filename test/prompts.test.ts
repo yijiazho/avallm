@@ -77,6 +77,44 @@ test('percival knowledge co-locates its two candidates with their quest records 
   assert.match(mixed, /P4\(seat 4\): no quests yet/)
 })
 
+test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tell) once it exists', () => {
+  const players = Array.from({ length: 5 }, (_, s) => ({ seat: s, name: `P${s}` }))
+  const base = {
+    seat: 0, name: 'P0', role: 'merlin', alignment: 'good',
+    privateInfo: { knownEvil: [3, 4] },
+    playerCount: 5, rolesInPlay: [], players,
+    phase: 'vote', round: 3, proposalNum: 1, leaderSeat: 0,
+    transcript: [], events: [],
+  }
+  // seat 0 approved Q1 (succeeded) and rejected Q2 (which passed anyway and failed):
+  // both votes matched the outcome -> 2/2 spotless -> the tell is flagged.
+  const quests = [
+    { num: 1, teamSize: 2, failsRequired: 1, team: [0, 1], result: 'success', failCount: 0 },
+    { num: 2, teamSize: 3, failsRequired: 1, team: [1, 3, 4], result: 'fail', failCount: 1 },
+  ]
+  const approvedVotes = (r: number, mine: 'approve' | 'reject') => ({
+    round: r, proposalNum: 1, leader: 1, team: quests[r - 1].team, approved: true,
+    votes: [{ seat: 0, vote: mine }, { seat: 1, vote: 'approve' }, { seat: 2, vote: 'approve' },
+      { seat: 3, vote: 'approve' }, { seat: 4, vote: 'approve' }],
+  })
+  const spotless = knowledgeText({ ...base, quests,
+    proposals: [approvedVotes(1, 'approve'), approvedVotes(2, 'reject')] } as unknown as PlayerView)
+  assert.match(spotless, /every public vote you have cast on a resolved quest has matched its outcome \(2 of 2\)/)
+
+  // One deliberate off vote (approved Q2 which failed) breaks the streak -> no flag,
+  // Merlin now has cover and should not be nagged.
+  const broken = knowledgeText({ ...base, quests,
+    proposals: [approvedVotes(1, 'approve'), approvedVotes(2, 'approve')] } as unknown as PlayerView)
+  assert.doesNotMatch(broken, /spotless|matched its outcome/)
+  assert.match(broken, /You see these players as EVIL/)
+
+  // Only one quest resolved (1/1) is too early — everyone looks perfect — so no flag.
+  const early = knowledgeText({ ...base, round: 2,
+    quests: [quests[0], { num: 2, teamSize: 3, failsRequired: 1 }],
+    proposals: [approvedVotes(1, 'approve')] } as unknown as PlayerView)
+  assert.doesNotMatch(early, /matched its outcome/)
+})
+
 test('prompts carry the contract, state, and sanitized transcript', () => {
   const g = createGame({ seed: 'pp', playerCount: 5, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })
