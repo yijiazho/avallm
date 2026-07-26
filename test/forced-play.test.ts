@@ -259,3 +259,109 @@ test('a partial log with no quest cards yields nothing to judge', () => {
   ])))
   assert.ok(!v.some((x) => x.rule === 'match-point-success'))
 })
+
+// The propose rule (§7.2 "Be on the team you lead at good's match point"). An
+// evil leader picks the roster outright, so a team with no Fail it knows of ends
+// the quest phase by construction, and there is no cover left worth buying.
+const proposeViolations = (events: Ev[]) =>
+  forcedPlayViolations(artifact(mkLog(events))).filter((x) => x.rule === 'propose-unsinkable')
+
+test('an evil leader who seats no Fail at good\'s match point is a violation', () => {
+  const events: Ev[] = [
+    ...twoCleanQuests,
+    // Morgana leads the quest that decides the game and picks three good players.
+    proposal(4, [0, 1, 2], 3),
+    voteReveal([0, 1, 2], { 0: 'approve', 1: 'approve', 4: 'reject', 5: 'reject' }, 3),
+    card(0, 'success'), card(1, 'success'), card(2, 'success'),
+    questResult(3, 0),
+  ]
+  const v = proposeViolations(events)
+  assert.equal(v.length, 1)
+  assert.equal(v[0].seat, 4)
+  // Points at the PROPOSAL, not at the quest result where it is detected, since
+  // the proposal is the decision being graded.
+  assert.equal(v[0].seq, events.findIndex((e) => e.type === 'proposal' && e.payload.round === 3))
+})
+
+test('an evil leader who seats itself at match point is clean on the propose rule', () => {
+  assert.deepEqual(proposeViolations([
+    ...twoCleanQuests,
+    proposal(4, [0, 1, 4], 3),
+    voteReveal([0, 1, 4], { 0: 'approve', 1: 'approve', 4: 'approve' }, 3),
+    card(0, 'success'), card(1, 'success'), card(4, 'success'),
+    questResult(3, 0),
+  ]), [])
+})
+
+test('seating a PARTNER counts: the leader need not be aboard itself', () => {
+  // The catalogue phrases this as "be on the team you lead", but what is forced
+  // is a Fail the leader can count on, and a visible partner is one. Grading the
+  // literal phrasing would flag a perfectly good pick.
+  assert.deepEqual(proposeViolations([
+    ...twoCleanQuests,
+    proposal(4, [0, 1, 5], 3),
+    voteReveal([0, 1, 5], { 0: 'approve', 1: 'approve', 4: 'approve' }, 3),
+    card(0, 'success'), card(1, 'success'), card(5, 'success'),
+    questResult(3, 0),
+  ]), [])
+})
+
+test('a good leader at match point is never a propose violation', () => {
+  assert.deepEqual(proposeViolations([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 2], 3),
+    voteReveal([0, 1, 2], { 0: 'approve', 1: 'approve', 2: 'approve' }, 3),
+    card(0, 'success'), card(1, 'success'), card(2, 'success'),
+    questResult(3, 0),
+  ]), [])
+})
+
+test('an evil leader away from match point is not forced to seat a Fail', () => {
+  // Only quest 1 has resolved, so good is not one success from ending it and
+  // slow-playing for cover is a legitimate T2 default.
+  assert.deepEqual(proposeViolations([
+    proposal(0, [0, 1], 1),
+    voteReveal([0, 1], { 0: 'approve', 1: 'approve' }, 1),
+    card(0, 'success'), card(1, 'success'),
+    questResult(1, 0),
+    proposal(4, [0, 1, 2], 2),
+    voteReveal([0, 1, 2], { 0: 'approve', 1: 'approve', 4: 'approve' }, 2),
+    card(0, 'success'), card(1, 'success'), card(2, 'success'),
+    questResult(2, 0),
+  ]), [])
+})
+
+test('no violation when no sinkable team could have been built', () => {
+  // Quest 4 at 7 players needs TWO Fails, and Oberon sees no partner, so the
+  // most he could ever seat is himself. There is no forced play to miss, and
+  // recording one would grade him against knowledge the deal denies him.
+  assert.deepEqual(proposeViolations([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 2], 3),
+    voteReveal([0, 1, 2], { 0: 'approve', 1: 'approve', 2: 'approve' }, 3),
+    card(0, 'success'), card(1, 'success'), card(2, 'fail'),
+    questResult(3, 1),
+    proposal(6, [0, 1, 2, 6], 4),
+    voteReveal([0, 1, 2, 6], { 0: 'approve', 1: 'approve', 6: 'approve' }, 4),
+    card(0, 'success'), card(1, 'success'), card(2, 'success'), card(6, 'success'),
+    questResult(4, 0, 2),
+  ]), [])
+})
+
+test('but a leader who COULD have seated two Fails on a two-Fail quest is flagged', () => {
+  // Same board, Morgana leading: she can see the assassin, so a sinkable roster
+  // was available to her and she named neither seat.
+  const v = proposeViolations([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 2], 3),
+    voteReveal([0, 1, 2], { 0: 'approve', 1: 'approve', 2: 'approve' }, 3),
+    card(0, 'success'), card(1, 'success'), card(2, 'fail'),
+    questResult(3, 1),
+    proposal(4, [0, 1, 2, 4], 4),
+    voteReveal([0, 1, 2, 4], { 0: 'approve', 1: 'approve', 4: 'approve' }, 4),
+    card(0, 'success'), card(1, 'success'), card(2, 'success'), card(4, 'success'),
+    questResult(4, 0, 2),
+  ])
+  assert.equal(v.length, 1)
+  assert.equal(v[0].seat, 4)
+})

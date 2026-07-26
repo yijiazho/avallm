@@ -41,6 +41,10 @@ export const FORCED_PLAY_RULES = {
   // the other choice genuinely does not exist.
   'vote-reject-sinkable': 'voted to reject a team its own side could sink, on a board where that quest decided the game',
   'vote-approve-unsinkable': "voted to approve a team it knew of no way to fail, at good's match point",
+  // Propose rule. An evil leader picks the roster outright, so at good's match
+  // point it hands over the last team that will ever be picked, and a team with
+  // no Fail it knows of ends the quest phase by construction.
+  'propose-unsinkable': "led the team at good's match point and seated no Fail it knew of, when it had one to seat",
 } as const
 
 export type ForcedPlayRule = keyof typeof FORCED_PLAY_RULES
@@ -82,6 +86,11 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
   let successes = 0
   let fails = 0
   let team: Seat[] = []
+  // Who owns the team that is currently on the table, and the event that put it
+  // there, so a propose violation points at the proposal rather than at the
+  // quest result where it is detected.
+  let leader: Seat | undefined
+  let leaderSeq = 0
   const cards = new Map<Seat, 'success' | 'fail'>()
 
   for (const ev of a.log) {
@@ -89,9 +98,15 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
     switch (ev.type) {
       case 'proposal':
         team = (p.team as Seat[]).slice()
+        leader = p.leader as Seat
+        leaderSeq = ev.seq
         break
       case 'proposalRevised':
         team = (p.to as Seat[]).slice()
+        leaderSeq = ev.seq
+        break
+      case 'proposalLocked':
+        team = ((p.team as Seat[]) ?? team).slice()
         break
       case 'voteReveal': {
         team = ((p.team as Seat[]) ?? team).slice()
@@ -153,6 +168,28 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
               record(seat, 'wasted-lone-fail', round, ev.seq,
                 `Fail on Q${round} could not sink it (${math})`)
             }
+          }
+        }
+        // The propose rule, judged here because this is where the team is final.
+        // proposalLocked fires only when the leader sticks, a revise emits its
+        // own event instead, and a table with no discussion phase produces
+        // neither — but every played quest has a result. The violation is still
+        // recorded against the proposal's seq, so it points at the decision.
+        //
+        // Judged on the DECISION rather than the outcome (see the module header):
+        // an unseen Oberon that happens to sink the quest does not retroactively
+        // make an unsinkable roster the right pick, because the leader could not
+        // have been counting on a teammate the deal hides from it.
+        if (leader !== undefined && isEvil(leader) && successes === QUESTS_TO_WIN - 1) {
+          const pool = visible.get(leader)?.size ?? 0
+          const n = knownAboard(leader, team)
+          // Only forced when a sinkable team was buildable at all. On a two-Fail
+          // quest with one visible partner, no roster the leader could name would
+          // have met the requirement, so there was no forced play to miss.
+          if (pool >= need && n < need) {
+            record(leader, 'propose-unsinkable', round, leaderSeq,
+              `led Q${round} at good's match point seating ${n} known Fail${n === 1 ? '' : 's'},` +
+              ` needing ${need} to sink it, with ${pool} evil it could see`)
           }
         }
         cards.clear()

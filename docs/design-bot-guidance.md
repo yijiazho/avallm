@@ -330,6 +330,15 @@ the other shared pieces — one definition each, so a rule and its detector can 
 into ASK branches for LLM seats, `heuristic.ts` branches on them directly, and `forced.ts`
 re-derives them from the artifact to grade the result.
 
+**All six are graded**, as `FORCED_PLAY_RULES` in `eval/forced.ts`, and `npm run sim` reports them
+on every run without needing `--out`. Keep that mapping total: a forced play in this table with no
+rule beside it reports clean forever, which is worse than not claiming it is forced. The propose
+row was exactly that gap until it was closed, and closing it showed why the grader cannot follow
+the table's wording literally — "be on the team you lead" would flag a leader who seated a
+*visible partner* instead, which is a fine pick. What is forced is a Fail the leader can count on,
+so the rule tests `knownEvilAboard >= failsRequired` like its siblings, and stands down entirely
+when the leader's visible pool was too small to build a sinkable team at all.
+
 ### 7.3 Defaults, and what breaks them (T2)
 
 | Default | Breaks when | Lives in |
