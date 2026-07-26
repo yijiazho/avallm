@@ -6,7 +6,7 @@
 import {
   DEFAULT_ROLES, EVIL_COUNT, MAX_PLAYERS, MAX_PROPOSALS, MIN_PLAYERS,
   QUESTS_PER_GAME, QUESTS_TO_WIN, ROLE_ALIGNMENT, TEAM_SIZES,
-  computeKnowledge, failsRequired, nameIsReserved, stripSeatRefs, teamsEqual, validateRoles,
+  capSpeech, computeKnowledge, failsRequired, nameIsReserved, stripSeatRefs, teamsEqual, validateRoles,
 } from './rules.ts'
 import { makeRng } from './prng.ts'
 import type {
@@ -286,7 +286,7 @@ export function applyDecision(game: Game, seat: Seat, decision: Decision): Game 
       if (lean !== undefined && lean !== 'approve' && lean !== 'reject' && lean !== 'unsure') {
         throw new EngineError(`invalid lean: ${String(lean)}`)
       }
-      const say = stripSeatRefs(decision.say, game.players).slice(0, 600)
+      const say = capSpeech(stripSeatRefs(decision.say, game.players), 600)
       const d = game.discussion!
       const isLeader = seat === game.leaderSeat
       // The leader's lean is dropped, not rejected: their signal channels are
@@ -326,7 +326,7 @@ export function applyDecision(game: Game, seat: Seat, decision: Decision): Game 
         round: game.round, proposalNum: game.proposalNum,
         leader: seat, team: game.currentTeam,
         ...(typeof decision.pitch === 'string' && decision.pitch.trim()
-          ? { pitch: stripSeatRefs(decision.pitch.trim(), game.players).slice(0, 400) }
+          ? { pitch: capSpeech(stripSeatRefs(decision.pitch.trim(), game.players), 400) }
           : {}),
       }, 'public')
       afterProposal(game)
@@ -353,7 +353,7 @@ export function applyDecision(game: Game, seat: Seat, decision: Decision): Game 
         round: game.round, proposalNum: game.proposalNum,
         leader: seat, from: from.slice(), to: to.slice(),
         ...(typeof decision.reason === 'string' && decision.reason.trim()
-          ? { reason: stripSeatRefs(decision.reason.trim(), game.players).slice(0, 400) }
+          ? { reason: capSpeech(stripSeatRefs(decision.reason.trim(), game.players), 400) }
           : {}),
       }, 'public')
       if (!startDiscussion(game, true)) goToVoteOrQuest(game)
