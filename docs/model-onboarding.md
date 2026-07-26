@@ -185,6 +185,31 @@ uncomment and the wiring stays intact:
 Two worked examples in git history: Haiku (`455f748`, benched on cost) and GPT-OSS
 (`bbea320`, benched on reliability).
 
+## Known per-model tendencies
+
+Things a seated model does that guidance has not fixed, and that are worth knowing
+before you blame a prompt for them. This is a **record, not a gate**: none of these
+is bad enough to bench a model, and chasing them with global prompt edits would cost
+every other seat instruction budget for one model's habit.
+
+Measured by the speech-norm counter (`eval/norms.ts`), which `npm run sim` reports
+every run, per agent. Two arms of 8 games each on independent seeds, 940 spoken turns.
+
+| Model | Tendency | Evidence |
+|---|---|---|
+| `seed` | **Em dashes in speech.** By far the dominant source | 29 of the 32 dashes across both arms, against a table-wide rate of 4.8% / 4.7% of turns |
+| `qwen` | **"That is not X, that is Y" antithesis slogans**, which `TABLE_TALK_NORMS` bans by name | 9 of the 13 instances |
+| `glm-4.6` | **Non-English fragments mid-sentence** in private reasoning (observed: a Chinese clause inside an English `propose` thinking) | Seed `web-086364ddc4`, seq 43. Private today, but the same model writes utterances |
+
+Two things follow. First, a table-wide norm violation rate is close to meaningless on
+its own: check the per-agent split before concluding the prompt is at fault, because
+one model can carry almost all of it. Second, if a tendency ever does need fixing,
+the cheap lever is that model's own `agents/*.json` guidance or a roster decision,
+not `TABLE_TALK_NORMS`, which every seat pays for.
+
+The counter is deliberately measurement-only. Rewriting a bot's sentence would
+destroy the signal and hide which model is responsible.
+
 ## Living record
 
 Update this whenever a model is seated, benched, or rejected. Reasoning control is the
