@@ -103,8 +103,11 @@ export const PRESETS: Record<PresetId, { label: string; blurb: string; pick: (n:
     pick: (n) => ({
       merlinPair: true,
       percival: true,
-      // Only 2 evil slots below 7 players: Assassin + Mordred (Percival still
-      // has a pair target? No Morgana -> rulebook wants Mordred present, ok).
+      // Below 7 players there are only 2 evil seats, and this preset spends them
+      // on Assassin + Mordred, so there is no room for Morgana. Percival stays
+      // in, but with no Morgana his candidate pair collapses to Merlin alone:
+      // he simply sees Merlin. Lattice-safe either way, since Percival is always
+      // true here, so the morgana -> percival edge holds at every player count.
       morgana: n >= 7,
       mordred: true,
       oberon: false,
@@ -118,17 +121,41 @@ export interface BuiltRoles {
   warning: string | null
 }
 
+// The role dependency lattice: a special role is only meaningful when the role
+// it acts ON is also in play, so each entry names its ONE direct requirement and
+// transitivity carries the rest (Morgana needs Percival, who needs Merlin, so
+// Morgana never states a Merlin edge of its own). Declared as a table rather
+// than a stack of ifs because the set grows: every role added here is one the
+// prompt layer then does NOT have to write a "role is missing" branch for.
+//
+// Merlin/Assassin are one toggle (merlinPair) since each is meaningless without
+// the other, so they are the root and require nothing.
+//
+// Oberon's edge is a product choice, not a rules necessity: an Oberon works fine
+// in a Merlin-less game (he is just an evil who cannot coordinate). It is kept
+// as-is to preserve the setups the picker offers today.
+const REQUIRES: Partial<Record<keyof SpecialSelection, { needs: keyof SpecialSelection; error: string }>> = {
+  percival: { needs: 'merlinPair', error: 'Percival needs Merlin in play. There is nobody for him to find.' },
+  morgana: { needs: 'percival', error: 'Morgana needs Percival in play. With no Percival to mislead, she is just a Minion.' },
+  mordred: { needs: 'merlinPair', error: 'Mordred needs Merlin in play. Hiding from Merlin is his whole power.' },
+  oberon: { needs: 'merlinPair', error: 'Special evil roles need Merlin & Assassin in play.' },
+}
+
 export function buildRoles(playerCount: number, sel: SpecialSelection): BuiltRoles {
   const evil = EVIL_COUNT[playerCount]
   const good = playerCount - evil
   const goodSpecials = (sel.merlinPair ? 1 : 0) + (sel.percival ? 1 : 0)
   const evilSpecials = (sel.merlinPair ? 1 : 0) + (sel.morgana ? 1 : 0) + (sel.mordred ? 1 : 0) + (sel.oberon ? 1 : 0)
 
-  if (sel.percival && !sel.merlinPair) {
-    return { roles: null, error: 'Percival needs Merlin in play.', warning: null }
-  }
-  if ((sel.morgana || sel.mordred || sel.oberon) && !sel.merlinPair) {
-    return { roles: null, error: 'Special evil roles need Merlin & Assassin in play.', warning: null }
+  // Declaration order is deliberate: requirements are checked root-first, so a
+  // selection that breaks several edges at once reports the upstream cause
+  // (Percival needs Merlin) rather than the symptom below it (Morgana needs
+  // Percival), which is the one the user has to fix anyway.
+  for (const role of Object.keys(REQUIRES) as (keyof SpecialSelection)[]) {
+    const req = REQUIRES[role]
+    if (req && sel[role] && !sel[req.needs]) {
+      return { roles: null, error: req.error, warning: null }
+    }
   }
   if (goodSpecials > good) {
     return { roles: null, error: `Too many good roles for ${playerCount} players (${good} good seats).`, warning: null }

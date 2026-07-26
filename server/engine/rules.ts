@@ -44,6 +44,41 @@ export const DEFAULT_ROLES: Record<number, Role[]> = {
   10: ['merlin', 'percival', 'servant', 'servant', 'servant', 'servant', 'morgana', 'assassin', 'mordred', 'oberon'],
 }
 
+// Roles that can appear AT MOST ONCE in a cast. Servant and Minion are the only
+// roles dealt in quantity. Named rather than inlined so the duplicate check below
+// reads as a rule instead of a literal.
+//
+// agents/board.ts deliberately does NOT consult this: it counts copies off
+// rolesInPlay instead, because "unique in the rulebook" and "unique in THIS cast"
+// differ. At 5 players exactly one Servant is dealt, so the Servant seat can rule
+// Servant out everywhere else, which a fixed list of unique roles would miss.
+const UNIQUE_ROLES: Role[] = ['merlin', 'percival', 'assassin', 'morgana', 'mordred', 'oberon']
+
+// The role dependency lattice. A special role is only meaningful when the role
+// it acts ON is also in play, so each entry names its ONE direct requirement and
+// transitivity carries the rest: Morgana needs Percival, who needs Merlin, so
+// Morgana never states a Merlin edge of its own. Merlin/Assassin are the root
+// and are checked as a biconditional below (each is meaningless without the
+// other, so neither can be the other's dependent).
+//
+// This is here rather than only in the setup picker because the picker is UI
+// convenience: POST /api/lobby takes a caller-supplied role list, so without
+// this an incoherent cast reaches the PROMPT layer, where each of these roles'
+// guidance text names the role it depends on ("Percival sees you and Merlin...",
+// "Hidden from Merlin") and would describe somebody nobody is holding.
+//
+// Scope is deliberate: only edges that prompt correctness depends on. Oberon is
+// absent because his guidance is self-contained (an evil who cannot coordinate
+// works fine with no Merlin at the table). The picker is stricter and requires
+// Merlin for him, which is a product choice and is safe: a picker STRICTER than
+// the engine only narrows what it offers, while a picker LOOSER than the engine
+// would offer setups that can only ever 400.
+const ROLE_REQUIRES: Partial<Record<Role, Role>> = {
+  percival: 'merlin',
+  morgana: 'percival',
+  mordred: 'merlin',
+}
+
 export function validateRoles(playerCount: number, roles: Role[]): void {
   if (roles.length !== playerCount) {
     throw new Error(`roles length ${roles.length} !== playerCount ${playerCount}`)
@@ -56,8 +91,14 @@ export function validateRoles(playerCount: number, roles: Role[]): void {
   if (has('merlin') !== has('assassin')) {
     throw new Error('merlin and assassin must be added together')
   }
-  const unique: Role[] = ['merlin', 'percival', 'assassin', 'morgana', 'mordred', 'oberon']
-  for (const r of unique) {
+  // Checked root-first (declaration order), so a cast that breaks several edges
+  // at once reports the upstream cause rather than the symptom below it.
+  for (const [role, needs] of Object.entries(ROLE_REQUIRES) as [Role, Role][]) {
+    if (has(role) && !has(needs)) {
+      throw new Error(`${role} requires ${needs} in play`)
+    }
+  }
+  for (const r of UNIQUE_ROLES) {
     if (roles.filter((x) => x === r).length > 1) throw new Error(`duplicate unique role: ${r}`)
   }
 }

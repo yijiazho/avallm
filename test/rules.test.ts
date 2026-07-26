@@ -42,3 +42,44 @@ test('validateRoles rejects bad sets', () => {
   assert.throws(() => validateRoles(5, ['servant', 'servant', 'servant', 'morgana', 'assassin'])) // assassin w/o merlin
   assert.throws(() => validateRoles(6, DEFAULT_ROLES[5]))
 })
+
+// The dependency lattice (ROLE_REQUIRES). These casts are legal by seat count and
+// alignment split, so nothing else in validateRoles catches them: each seats a
+// role whose whole function is to act on a role that is not at the table, which
+// then reaches the prompt layer as guidance describing somebody who is absent.
+test('validateRoles rejects roles whose dependency is absent', () => {
+  // Morgana with no Percival to mislead: mechanically just a Minion.
+  assert.throws(
+    () => validateRoles(5, ['merlin', 'servant', 'servant', 'morgana', 'assassin']),
+    /morgana requires percival/,
+  )
+  // Percival with no Merlin to find.
+  assert.throws(
+    () => validateRoles(5, ['percival', 'servant', 'servant', 'mordred', 'minion']),
+    /percival requires merlin/,
+  )
+  // Mordred with nobody to hide from.
+  assert.throws(
+    () => validateRoles(5, ['servant', 'servant', 'servant', 'mordred', 'minion']),
+    /mordred requires merlin/,
+  )
+})
+
+test('a broken dependency chain names the root cause', () => {
+  // Percival AND Morgana with no Merlin breaks two edges at once. The reported
+  // one must be the upstream fix, not the nearest.
+  assert.throws(
+    () => validateRoles(5, ['percival', 'servant', 'servant', 'morgana', 'minion']),
+    /percival requires merlin/,
+  )
+})
+
+test('validateRoles still accepts casts the lattice permits', () => {
+  // Vanilla: no specials at all, so no edge fires.
+  assert.doesNotThrow(() => validateRoles(5, ['servant', 'servant', 'servant', 'minion', 'minion']))
+  // Merlin & Assassin only, the beginner preset.
+  assert.doesNotThrow(() => validateRoles(5, ['merlin', 'servant', 'servant', 'assassin', 'minion']))
+  // Oberon has no engine edge: his guidance never names another role, so an
+  // Oberon at a Merlin-less table is coherent even though the picker won't offer it.
+  assert.doesNotThrow(() => validateRoles(5, ['servant', 'servant', 'servant', 'oberon', 'minion']))
+})
