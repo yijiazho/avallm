@@ -2019,21 +2019,3 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
    (The table zone no longer clips its tooltips — see .fartable — so no overflow
    override is needed here.) */
 .gallery-stage[data-variant^="tip-"] { min-height: 0; justify-content: center; padding: 78px 20px; }
-
-/* Viewport diagnostics (?diag=1) — a field instrument, not part of the game. It
-   floats over everything and never takes a tap, so it can sit on the live screen
-   while the reader drags the page around to reproduce a chrome-animation bug. */
-.diag {
-  position: fixed; top: 0; left: 0; z-index: 100;
-  pointer-events: none;
-  background: rgba(8, 6, 20, 0.86);
-  border: 1px solid var(--gold-deep); border-radius: 0 0 6px 0;
-  padding: 4px 6px;
-  font: 500 9px/1.35 var(--mono); color: var(--text);
-  max-width: 62vw;
-}
-.diag-head { color: var(--gold); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
-.diag-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
-.diag-k { color: var(--dim); }
-.diag-v { color: var(--gold-lt); text-align: right; }
-.diag-w { color: var(--evil); text-align: right; min-width: 3.5em; }
