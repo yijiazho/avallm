@@ -525,7 +525,31 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     const addressNote = addressed.length
       ? ` NOTE: ${addressed.join(' and ')} mentioned or addressed you since your last turn. If you were asked something, respond to it now.`
       : ''
-    return `It is your turn in table-talk round ${round}.${teamNote}${addressNote} Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
+    // Evil's board stakes belong on the LEAN, not only on the vote. A lean is a
+    // public commitment about the same team, computed from the same board.ts
+    // triggers the vote ASK already reads, and splitting them let one seat lean
+    // reject TWICE on a team carrying its own partner at 2-2 (a team that wins
+    // the game outright) and then vote approve once the vote ASK finally stated
+    // the stakes. Two costs, not one: the table read the wrong signal, and the
+    // lean-versus-vote flip is itself the kind of tell the vote ASK's own
+    // leanNote asks the seat to explain away (seed web-086364ddc4, Q5.3).
+    //
+    // The leader branch differs on purpose. Telling a leader to argue against its
+    // own team would contradict teamNote directly above, and the leader has a
+    // better lever anyway: the finalize ASK's foldNote already handles revising.
+    const failsNeeded = v.quests[v.round - 1]?.failsRequired ?? 1
+    const aboard = knownEvilAboard(v, v.currentTeam).length
+    const isLeader = v.leaderSeat === v.seat
+    const stakesNote = v.alignment !== 'evil' || !v.currentTeam?.length
+      ? ''
+      : aboard >= failsNeeded
+        ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down or lean against it. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
+        : matchPoint(v).good
+          ? isLeader
+            ? ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it. Do not argue against your own team in front of the table. Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`
+            : ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it, so this team passing is your side losing outright. If you are going to argue a team down all game, this is the turn that actually matters.`
+          : ''
+    return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote} Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
   },
   propose: (v) => {
     const teamSize = v.quests[v.round - 1].teamSize
