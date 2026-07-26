@@ -22,27 +22,57 @@ import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
-import { DEFAULT_ROLES, ROLE_ALIGNMENT } from '../server/engine/rules.ts'
+import { DEFAULT_ROLES, EVIL_COUNT, ROLE_ALIGNMENT, validateRoles } from '../server/engine/rules.ts'
 import type { Role } from '../server/engine/types.ts'
 import type { LlmCallKind } from '../server/llm/call-params.ts'
 
 const ALL_ROLES = Object.keys(ROLE_ALIGNMENT) as Role[]
 
-// Casts spanning the lattice, from no specials to every special. Each must be
-// one validateRoles accepts (createGame validates), so this matrix also pins
-// that the legal space is what we think it is.
-const CASTS: { label: string; playerCount: number; roles: Role[] }[] = [
-  { label: 'vanilla', playerCount: 5, roles: ['servant', 'servant', 'servant', 'minion', 'minion'] },
-  { label: 'beginner', playerCount: 5, roles: ['merlin', 'servant', 'servant', 'assassin', 'minion'] },
-  { label: 'standard 5p', playerCount: 5, roles: DEFAULT_ROLES[5] },
-  // Percival with no Morgana to hide behind. Legal, and the picker's Advanced
-  // preset builds exactly this at 5 and 6 players. It caught a live phantom that
-  // the other casts could not: ROLE_GUIDANCE.percival opened with "the other is
-  // Morgana" in a game holding no Morgana.
-  { label: 'percival, no decoy', playerCount: 5, roles: ['merlin', 'percival', 'servant', 'assassin', 'mordred'] },
-  { label: 'oberon 7p', playerCount: 7, roles: DEFAULT_ROLES[7] },
-  { label: 'mordred 9p', playerCount: 9, roles: DEFAULT_ROLES[9] },
-]
+// EVERY cast validateRoles accepts, generated rather than hand-listed.
+//
+// This started as six casts I happened to think of, and that is exactly how a
+// live phantom survived: ROLE_GUIDANCE.percival opened with "the other is
+// Morgana" and no hand-picked cast paired a Percival with no Morgana, even
+// though the picker's Advanced preset builds one at 5 and 6 players. A matrix
+// assembled from imagination tests the casts you remembered. Enumerating from
+// the validator tests the casts that can actually be dealt.
+//
+// The space is small: unique specials are a subset of {merlin, percival} on the
+// good side and {assassin, morgana, mordred, oberon} on the evil side, with
+// Servants and Minions filling the remaining seats, which is 71 legal casts
+// across 5 to 10 players.
+const GOOD_SPECIALS: Role[] = ['merlin', 'percival']
+const EVIL_SPECIALS: Role[] = ['assassin', 'morgana', 'mordred', 'oberon']
+
+const subsets = <T,>(xs: T[]): T[][] =>
+  xs.reduce<T[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]])
+
+function legalCasts(): { label: string; playerCount: number; roles: Role[] }[] {
+  const out: { label: string; playerCount: number; roles: Role[] }[] = []
+  for (const playerCount of Object.keys(EVIL_COUNT).map(Number).sort((a, b) => a - b)) {
+    const evil = EVIL_COUNT[playerCount]
+    const good = playerCount - evil
+    for (const gs of subsets(GOOD_SPECIALS)) {
+      for (const es of subsets(EVIL_SPECIALS)) {
+        const servants = good - gs.length
+        const minions = evil - es.length
+        if (servants < 0 || minions < 0) continue
+        const roles: Role[] = [
+          ...gs, ...Array<Role>(servants).fill('servant'),
+          ...es, ...Array<Role>(minions).fill('minion'),
+        ]
+        // The validator is the authority on what is dealable, so ask it rather
+        // than re-deriving the lattice here and risking the two drifting apart.
+        try { validateRoles(playerCount, roles) } catch { continue }
+        out.push({
+          label: `${playerCount}p [${[...gs, ...es].join('+') || 'vanilla'}]`,
+          playerCount, roles,
+        })
+      }
+    }
+  }
+  return out
+}
 
 // Two resolved quests, so the branches that only render once a quest has
 // resolved (the Merlin streak line, the Percival paired-record line, the derived
@@ -71,7 +101,25 @@ function midGame(playerCount: number, roles: Role[], seed: string) {
 const mentions = (text: string, role: Role) =>
   new RegExp(`\\b${role}s?\\b`, 'i').test(text)
 
-for (const cast of CASTS) {
+test('the enumeration actually covers the legal space', () => {
+  // Without this, a generator bug that yields nothing makes the audit below pass
+  // vacuously, which is the most dangerous way for a test like this to fail.
+  const casts = legalCasts()
+  assert.ok(casts.length >= 60, `expected the full legal space, got ${casts.length} casts`)
+  const counts = new Map<number, number>()
+  for (const c of casts) counts.set(c.playerCount, (counts.get(c.playerCount) ?? 0) + 1)
+  for (const [n, seen] of counts) assert.ok(seen > 1, `only ${seen} cast(s) enumerated at ${n} players`)
+  // The deals the app ships must be in there, or the generator is missing a shape.
+  for (const n of Object.keys(DEFAULT_ROLES).map(Number)) {
+    const want = [...DEFAULT_ROLES[n]].sort().join(',')
+    assert.ok(
+      casts.some((c) => c.playerCount === n && [...c.roles].sort().join(',') === want),
+      `default ${n}p deal missing from the enumeration`,
+    )
+  }
+})
+
+for (const cast of legalCasts()) {
   test(`no prompt names an absent role: ${cast.label}`, () => {
     const g = midGame(cast.playerCount, cast.roles, `phantom-${cast.label}`)
     const present = new Set(cast.roles)
