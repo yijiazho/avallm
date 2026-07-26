@@ -130,6 +130,40 @@ legal casts, so the knowledge lines, ASKs and view renderers are covered rather 
 exported constants (same approach as `talk-norms.test.ts`). `test/certainties.test.ts` pins the
 deductions themselves.
 
+### 6.1b The second gating dimension: board state
+
+Cast gating (§6.1a) is free, because a cast is fixed for a whole game. **Board gating is not**:
+text keyed to the score or the quest record changes mid-game, so it breaks the shared prefix from
+that point on. Use it only where the advice is genuinely wrong on the other side of the switch,
+which is a much higher bar than "would be nice to mention".
+
+Two places currently clear that bar:
+
+| gate | where | why the un-gated text was wrong |
+|------|-------|--------------------------------|
+| `matchPoint(view).good` | `goodSharedFor`'s endgame clause (S2) | "Make confident reads so Merlin does not stand out" is right while quests are contested and inverts at 2 successes, where the quests are effectively decided and the only remaining loss is the shot. Observed: at 2-0 a seat publicly certified another's vote record as perfect, and the Assassin shot that seat |
+| resolved failed quests | `recordLine` in `knowledgeText` | The deal-only closure left seats open that the record had already closed |
+
+The second one is also the answer to a standing §8.4 problem. S7 has printed the quest arithmetic
+("2 Fails, so at least 2 of these 4 are evil") since the start and it stayed inert: across every
+observed game no bot used it to *eliminate* anything, and one closing model had all three players
+on a quest it had watched fail reading good. So the elimination moved into `board.ts`
+(`roleCertainties` now propagates each failed quest as a cardinality constraint, plus the cast's
+fixed evil budget, to a fixpoint) and `knowledgeText` states the conclusion.
+
+That does **not** relocate policy into the facts layer. What crossed is a *derivation*, not a
+judgement: "Kimi is evil" is as checkable as the row it comes from, while "so keep him off the
+team" is still policy and still lives in a guidance slot. The split it does force is a disclosure
+one, which the line carries with it: a deduction resting on a quest the seat sat on is one the
+table can follow, and a deduction resting on who the seat was shown at the deal is the leak the
+rest of `knowledgeText` is gagged for.
+
+`RoleCertainties.fromRecord` exists so the two stay distinguishable — it holds exactly the seats
+the deal alone leaves open and the record closes, computed by running the same closure twice.
+`test/certainties.test.ts` re-runs the never-wrong sweep over **played-out** boards for all 71
+casts, with a floor on how often the new rules fire so the propagation cannot regress to a no-op
+and still pass.
+
 ### 6.2 The placement rule
 
 For any heuristic, choose the **widest slot whose scope exactly matches its applicability**:

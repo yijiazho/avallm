@@ -5,7 +5,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createGame } from '../server/engine/game.ts'
+import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { roleCertainties } from '../server/agents/board.ts'
 import { DEFAULT_ROLES } from '../server/engine/rules.ts'
@@ -188,4 +188,144 @@ test('roleCertainties is never wrong, for any seat in any legal cast', () => {
   }
   assert.ok(checked > 400, `expected the whole space, only checked ${checked} seats`)
   assert.deepEqual(bad.slice(0, 20), [], `unsound deductions:\n  ${bad.slice(0, 20).join('\n  ')}\n(${bad.length} total)`)
+})
+
+// ---- the record, folded in ----
+//
+// A failed quest is a cardinality constraint: N Fails means at least N of that
+// team were evil. The dossier has printed that arithmetic since the start and no
+// observed bot ever used it to ELIMINATE anything; one seat's closing model had
+// every player on an observed failed quest reading good, which the quest itself
+// refutes. These pin that the constraint now propagates, and that folding it in
+// did not cost soundness, which is the risk: a deal-only deduction is checked by
+// construction, while this one depends on the board.
+
+test('a failed quest with one open seat left proves that seat evil', () => {
+  // Merlin sees both evil, so on a team of three carrying one of them Merlin
+  // already knows who failed. Percival is the interesting seat: he can place
+  // nobody at the deal, and the record can still close a seat for him.
+  const g = createGame({ seed: 'record', playerCount: 5, roles: DEFAULT_ROLES[5] })
+  const percival = seatOf(g, 'percival'), servant = seatOf(g, 'servant')
+  const morgana = seatOf(g, 'morgana')
+  const before = roleCertainties(viewFor(g, percival))
+  assert.deepEqual(before.knownEvil, [], 'the deal alone places nobody for Percival')
+
+  // A failed 2-person quest carrying Percival himself: he knows he is good, so
+  // the only seat aboard that can hold the Fail is the other one.
+  applyDecision(g, g.leaderSeat, { kind: 'propose', team: [percival, morgana] })
+  runTalk(g)
+  for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
+  applyDecision(g, percival, { kind: 'quest', card: 'success' })
+  applyDecision(g, morgana, { kind: 'quest', card: 'fail' })
+
+  const after = roleCertainties(viewFor(g, percival))
+  assert.deepEqual(after.knownEvil, [morgana], 'the quest closes the seat the deal left open')
+  const forced = after.fromRecord.find((f) => f.seat === morgana)
+  assert.ok(forced, 'the Morgana must be reported as closed BY THE RECORD, not by the deal')
+  assert.equal(forced.alignment, 'evil')
+  assert.equal(forced.questNum, 1, 'must name the quest that forced it')
+  // It cascades through the pair: knowing which candidate is Morgana settles the
+  // other as Merlin, which is the whole game for Percival.
+  assert.deepEqual(after.knownGood, [seatOf(g, 'merlin')])
+  assert.deepEqual(after.seats[seatOf(g, 'merlin')].possibleRoles, ['merlin'])
+  // And it stops where the evidence stops. The Assassin and the Servant sit
+  // outside the pair and nothing has separated them, so neither is closed. An
+  // over-eager budget rule would "prove" one of them here and be wrong half the
+  // time, which costs more than the deduction is worth.
+  for (const s of [seatOf(g, 'assassin'), servant]) {
+    assert.equal(after.seats[s].alignment, null, `seat ${s} is not settled by this failure`)
+  }
+})
+
+test('a failed quest with more candidates than Fails proves nothing', () => {
+  // The unsound version of the same rule. Two seats could have played the one
+  // Fail, so neither is settled, and a bot told otherwise would be told a lie.
+  const g = createGame({ seed: 'record', playerCount: 5, roles: DEFAULT_ROLES[5] })
+  const servant = seatOf(g, 'servant'), morgana = seatOf(g, 'morgana')
+  const assassin = seatOf(g, 'assassin')
+  applyDecision(g, g.leaderSeat, { kind: 'propose', team: [morgana, assassin] })
+  runTalk(g)
+  for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
+  applyDecision(g, morgana, { kind: 'quest', card: 'fail' })
+  applyDecision(g, assassin, { kind: 'quest', card: 'success' })
+
+  const c = roleCertainties(viewFor(g, servant))
+  assert.deepEqual(c.knownEvil, [], 'one Fail among two unplaced seats names neither')
+  assert.deepEqual(c.fromRecord, [])
+})
+
+function runTalk(g: Game): void {
+  for (const d of expectedDecisions(g)) if (d.kind === 'pitch') applyDecision(g, g.leaderSeat, { kind: 'pitch', pitch: 'go' })
+  while (g.phase === 'discussion') { const [d] = expectedDecisions(g); applyDecision(g, d.seat, { kind: 'discuss', say: '' }) }
+  if (g.phase === 'finalize') applyDecision(g, g.leaderSeat, { kind: 'finalize', stick: true })
+}
+
+test('folding the record in never makes a deduction wrong, in any legal cast', () => {
+  // Same contract as the deal-only sweep above, over played-out boards: the
+  // record can only ever ADD certainty, and every added certainty must be true.
+  // Evil fails on a fixed schedule rather than at random, so a failure here
+  // names one reproducible board instead of a seed nobody can rerun.
+  const bad: string[] = []
+  let boards = 0, forced = 0
+  for (const cast of legalCasts()) {
+    for (const bias of [1, 2, 3]) {
+      const g = createGame({ seed: `rec-${cast.label}-${bias}`, playerCount: cast.playerCount, roles: [...cast.roles] })
+      let step = 0, resolved = 0
+      while (g.phase !== 'gameOver') {
+        const [d] = expectedDecisions(g)
+        if (!d) break
+        step++
+        if (d.kind === 'propose') {
+          const size = g.quests[g.round - 1].teamSize
+          const team = Array.from({ length: size }, (_, k) => (d.seat + k * bias) % cast.playerCount)
+          applyDecision(g, d.seat, { kind: 'propose', team: [...new Set(team)].length === size ? team
+            : Array.from({ length: size }, (_, k) => (d.seat + k) % cast.playerCount) })
+        } else if (d.kind === 'pitch') applyDecision(g, d.seat, { kind: 'pitch', pitch: 'go' })
+        else if (d.kind === 'discuss') applyDecision(g, d.seat, { kind: 'discuss', say: '' })
+        else if (d.kind === 'finalize') applyDecision(g, d.seat, { kind: 'finalize', stick: true })
+        else if (d.kind === 'vote') applyDecision(g, d.seat, { kind: 'vote', vote: 'approve' })
+        else if (d.kind === 'quest') {
+          const evil = g.players[d.seat].alignment === 'evil'
+          applyDecision(g, d.seat, { kind: 'quest', card: evil && (step + bias) % 2 === 0 ? 'fail' : 'success' })
+        } else if (d.kind === 'assassinate') {
+          applyDecision(g, d.seat, { kind: 'assassinate', target: g.players.find((p) => p.alignment === 'good')!.seat })
+        } else break
+
+        const now = g.quests.filter((q) => q.result !== undefined).length
+        if (now === resolved) continue
+        resolved = now
+        boards++
+        for (const me of g.players) {
+          const c = roleCertainties(viewFor(g, me.seat))
+          const where = `${cast.label}/${bias} seat ${me.seat} (${me.role}) after ${resolved} quests`
+          for (const p of g.players) {
+            if (!c.seats[p.seat].possibleRoles.includes(p.role)) {
+              bad.push(`${where}: seat ${p.seat} is ${p.role}, ruled out`)
+            }
+          }
+          for (const s of c.knownGood) {
+            if (g.players[s].alignment !== 'good') bad.push(`${where}: claims seat ${s} good, it is evil`)
+          }
+          for (const s of c.knownEvil) {
+            if (g.players[s].alignment !== 'evil') bad.push(`${where}: claims seat ${s} evil, it is good`)
+          }
+          if (cast.roles.includes('merlin')) {
+            const merlin = g.players.find((p) => p.role === 'merlin')!.seat
+            if (!c.merlinCandidates.includes(merlin)) bad.push(`${where}: merlinCandidates omits the real Merlin`)
+          }
+          for (const f of c.fromRecord) {
+            forced++
+            if (g.players[f.seat].alignment !== f.alignment) {
+              bad.push(`${where}: record claims seat ${f.seat} ${f.alignment}, it is ${g.players[f.seat].alignment}`)
+            }
+          }
+        }
+      }
+    }
+  }
+  assert.ok(boards > 200, `expected a real sweep of resolved boards, got ${boards}`)
+  // Without this the test passes trivially if the new rules never fire at all,
+  // which is exactly how a propagation regresses to a no-op unnoticed.
+  assert.ok(forced > 50, `the record closed only ${forced} seats; the rules are not firing`)
+  assert.deepEqual(bad.slice(0, 20), [], `unsound after folding in the record:\n  ${bad.slice(0, 20).join('\n  ')}\n(${bad.length} total)`)
 })

@@ -64,11 +64,29 @@ export interface RoleCertainties {
   unresolved: Seat[]               // side still genuinely open
   merlinCandidates: Seat[]         // seats that could still hold Merlin (empty if no Merlin dealt)
   alignmentComplete: boolean       // true when no seat's side is open
+  // Seats the DEAL alone leaves open and the resolved quests close. Separated so
+  // a caller can state the new deduction and the evidence for it, instead of
+  // folding it into the deal lines where it would read as private sight.
+  fromRecord: Array<{ seat: Seat; alignment: Alignment; questNum?: number }>
 }
 
 const isEvil = (r: Role) => ROLE_ALIGNMENT[r] === 'evil'
 
-export function roleCertainties(view: PlayerView): RoleCertainties {
+const sideOf = (roles: Set<Role>): Alignment | null => {
+  if (roles.size === 0) return null
+  let evil = 0
+  for (const r of roles) if (isEvil(r)) evil++
+  return evil === roles.size ? 'evil' : evil === 0 ? 'good' : null
+}
+
+// The deal fixes who KNOWS what; the resolved quests then fix some of what is
+// left, and the two are computed by the same closure so a deduction that needs
+// both still lands. `useRecord` false reruns it deal-only, which is how the
+// caller tells a fact the seat has held all game from one the record just made.
+function closure(view: PlayerView, useRecord: boolean): {
+  possible: Map<Seat, Set<Role>>
+  forcedBy: Map<Seat, number>
+} {
   const inPlay = new Set(view.rolesInPlay)
   const distinct = [...inPlay]
   const possible = new Map<Seat, Set<Role>>(
@@ -123,8 +141,35 @@ export function roleCertainties(view: PlayerView): RoleCertainties {
   // Assassin and a Servant between them".
   const dealt = new Map<Role, number>()
   for (const r of view.rolesInPlay) dealt.set(r, (dealt.get(r) ?? 0) + 1)
-  for (let pass = 0; pass < view.players.length; pass++) {
+
+  // Failed quests, as the cardinality constraints they are. A good player cannot
+  // play Fail, so N Fails means at least N of that team were evil. The dossier
+  // has stated that arithmetic since the start and no bot ever applied it as an
+  // ELIMINATION: one final model had every seat on an observed failed quest
+  // reading good, which the quest itself refutes. `?? 1` is the sound floor,
+  // since a quest only resolves as a failure when at least one Fail was played.
+  const failed = useRecord
+    ? view.quests
+      .filter((q) => q.result === 'fail' && q.team?.length)
+      .map((q) => ({ num: q.num, team: q.team!, need: Math.max(1, q.failCount ?? 1) }))
+    : []
+  const evilSeats = [...dealt].filter(([r]) => isEvil(r)).reduce((n, [, c]) => n + c, 0)
+  const forcedBy = new Map<Seat, number>()
+
+  for (let pass = 0; pass < view.players.length + failed.length; pass++) {
     let changed = false
+    const drop = (seat: Seat, pred: (r: Role) => boolean): boolean => {
+      const set = possible.get(seat)
+      if (!set) return false
+      let hit = false
+      for (const r of [...set]) if (!pred(r)) { set.delete(r); hit = true }
+      return hit
+    }
+    const couldBe = (seat: Seat, side: Alignment) => {
+      const set = possible.get(seat)
+      return !!set && [...set].some((r) => (isEvil(r) ? 'evil' : 'good') === side)
+    }
+
     for (const [role, copies] of dealt) {
       const pinned = [...possible].filter(([, set]) => set.size === 1 && set.has(role))
       if (pinned.length < copies) continue
@@ -133,23 +178,57 @@ export function roleCertainties(view: PlayerView): RoleCertainties {
         if (!holders.has(seat) && set.delete(role)) changed = true
       }
     }
+
+    // A failed team with exactly as many still-could-be-evil seats as it had
+    // Fails leaves those seats no way out. Anything looser proves nothing: with
+    // more candidates than Fails the constraint is satisfiable several ways.
+    for (const q of failed) {
+      const open = q.team.filter((s) => couldBe(s, 'evil'))
+      if (open.length !== q.need) continue
+      for (const s of open) {
+        if (drop(s, isEvil)) { changed = true; if (!forcedBy.has(s)) forcedBy.set(s, q.num) }
+      }
+    }
+
+    // The evil budget is fixed by the cast, so both ends of it close. Once as
+    // many seats are PROVEN evil as the cast deals, everyone else is good; once
+    // only that many seats can still BE evil, all of them are.
+    const proven = view.players.map((p) => p.seat).filter((s) => !couldBe(s, 'good') && couldBe(s, 'evil'))
+    const open = view.players.map((p) => p.seat).filter((s) => couldBe(s, 'evil'))
+    if (proven.length === evilSeats) {
+      for (const s of view.players.map((p) => p.seat)) {
+        if (!proven.includes(s) && drop(s, (r) => !isEvil(r))) changed = true
+      }
+    }
+    if (open.length === evilSeats && open.length > proven.length) {
+      for (const s of open) if (drop(s, isEvil)) changed = true
+    }
+
     if (!changed) break
   }
+  return { possible, forcedBy }
+}
+
+export function roleCertainties(view: PlayerView): RoleCertainties {
+  const { possible, forcedBy } = closure(view, true)
+  const dealOnly = closure(view, false).possible
 
   const seats: SeatCertainty[] = view.players.map((p) => {
-    const roles = [...(possible.get(p.seat) ?? new Set<Role>())]
-    const evilCount = roles.filter(isEvil).length
-    return {
-      seat: p.seat,
-      possibleRoles: roles,
-      alignment: roles.length === 0 ? null
-        : evilCount === roles.length ? 'evil'
-          : evilCount === 0 ? 'good' : null,
-    }
+    const set = possible.get(p.seat) ?? new Set<Role>()
+    return { seat: p.seat, possibleRoles: [...set], alignment: sideOf(set) }
   })
 
   const pick = (want: Alignment | null) =>
     seats.filter((s) => s.seat !== view.seat && s.alignment === want).map((s) => s.seat)
+
+  const fromRecord = seats
+    .filter((s) => s.seat !== view.seat && s.alignment !== null
+      && sideOf(dealOnly.get(s.seat) ?? new Set<Role>()) === null)
+    .map((s) => ({
+      seat: s.seat,
+      alignment: s.alignment as Alignment,
+      ...(forcedBy.has(s.seat) ? { questNum: forcedBy.get(s.seat) } : {}),
+    }))
 
   return {
     seats,
@@ -158,5 +237,6 @@ export function roleCertainties(view: PlayerView): RoleCertainties {
     unresolved: pick(null),
     merlinCandidates: seats.filter((s) => s.possibleRoles.includes('merlin')).map((s) => s.seat),
     alignmentComplete: seats.every((s) => s.alignment !== null),
+    fromRecord,
   }
 }

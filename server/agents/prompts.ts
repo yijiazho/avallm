@@ -21,6 +21,7 @@
 
 import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
 import { knownEvilAboard, matchPoint, roleCertainties } from './board.ts'
+import type { RoleCertainties } from './board.ts'
 import { factsDossier, questResultTag } from './facts.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -132,9 +133,25 @@ export const TABLE_TALK_NORMS = normsFor(ASSASSIN_ASIDE)
 // it was not merely irrelevant, it pointed the wrong way: with no shot at the end
 // there is nobody to protect and no reason to blur anything, so good's best play
 // inverts from managing appearances to full disclosure.
-function goodSharedFor(shot: boolean): string {
+// The opener's advice is phase-dependent and used not to be. "Make confident
+// reads so Merlin does not stand out" is right while quests are still being won
+// and wrong at the very end: once good is one quest away, the Assassin's only
+// remaining job is to read the transcript for whoever has been right about
+// everyone, and the table keeps handing it over. Observed twice: with good at
+// 2-0 a seat publicly certified another's record as flawless, and the shot went
+// to exactly that seat. Nobody at that table was playing around the assassination
+// at all, because nothing told them the incentive had flipped.
+//
+// Keyed on good's match point rather than on a talk round, so it fires exactly
+// when the endgame arrives however the board got there. Evil needs no such clause
+// (EVIL_SHARED is phase-free) and neither does a cast with no shot, where the
+// no-shot opener already says the opposite and is right to.
+const GOOD_ENDGAME = ` One more success ends this, so the assassination is now the only way you lose, and talk is the only thing still feeding it. Stop certifying people. Do not rank the table, do not call anyone's record clean or flawless, and do not credit a player for having been right earlier, because that praise is the shortlist. Keep building teams around the players the quests have cleared, and argue for them from the quest and vote record itself rather than from how well someone has read the game.`
+
+function goodSharedFor(shot: boolean, endgame: boolean): string {
   const opener = shot
     ? `Good's last vulnerability is the Assassin: even after three quests succeed, one correct guess at Merlin steals the win, so protecting Merlin is a team job. Every good player should make confident reads and vote with conviction, so that no single player looks like the only one at the table who always knows (a timid, read-less good player is exactly how the real Merlin stands out by contrast).`
+      + (endgame ? GOOD_ENDGAME : '')
     : `Three successful quests end it outright: no shot at the end, and nobody whose identity you have to cover. So there is nothing to be gained by holding a read back or softening one. Say what you think and exactly why, and make your reasoning easy for the table to check.`
   return `${opener} ${GOOD_SHARED_REST}`
 }
@@ -145,7 +162,7 @@ const GOOD_SHARED_REST = `Reason out loud from the shared public evidence: the v
 
 // The UNPRUNED good doctrine, for the /api/agents anatomy display. Live calls go
 // through alignmentShared(view).
-export const GOOD_SHARED = goodSharedFor(true)
+export const GOOD_SHARED = goodSharedFor(true, true)
 
 // EVIL_SHARED needs no gating: it never names a role, so it degrades gracefully
 // into any cast. The asymmetry is worth knowing about, because it means the good
@@ -164,7 +181,7 @@ const shotExists = (view: PlayerView): boolean =>
   view.rolesInPlay.includes('assassin') && view.rolesInPlay.includes('merlin')
 
 export const alignmentShared = (view: PlayerView): string =>
-  view.alignment === 'evil' ? EVIL_SHARED : goodSharedFor(shotExists(view))
+  view.alignment === 'evil' ? EVIL_SHARED : goodSharedFor(shotExists(view), matchPoint(view).good)
 
 export const tableTalkNorms = (view: PlayerView): string =>
   normsFor(shotExists(view) ? ASSASSIN_ASIDE : '')
@@ -276,7 +293,36 @@ function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
 // Certainty is more dangerous to say out loud than doubt was, so every branch
 // that closes a deduction also carries the gag. Merlin's may name the Assassin
 // because knownEvil is Merlin-only and the lattice makes Assassin implied.
+// What the RESOLVED QUESTS added on top of the deal, and only that. The dossier
+// has printed the arithmetic ("2 Fails, so at least 2 of these 4 are evil") since
+// the start, and across every observed game no bot ever spent it as an
+// elimination: one closing model had all three players on a quest it had watched
+// fail reading good. So the elimination is computed in board.ts and stated here
+// as a conclusion, since stating the premise plainly has already been tried.
+//
+// Kept separate from the deal lines above rather than merged into them. They are
+// different KINDS of fact, and the difference decides whether the seat can say it
+// out loud, which is the next sentence's whole job.
+function recordLine(view: PlayerView, certain: RoleCertainties): string {
+  const added = certain.fromRecord
+  if (!added.length) return ''
+  const each = added.map((f) => {
+    const who = `${nameOf(view, f.seat)} is ${f.alignment === 'evil' ? 'EVIL' : 'GOOD'}`
+    return f.questNum
+      ? `${who} (Quest ${f.questNum} failed, and of the players on it he is the only one left you cannot already account for)`
+      : `${who} (it follows once the seats above are placed)`
+  })
+  return ` The quest record has since settled ${added.length === 1 ? 'one more seat' : `${added.length} more seats`}`
+    + ` that the deal alone left open: ${listOf(each)}.`
+    + ` Whether you can say that out loud depends on the premise it rests on: if it rests on a quest you sat on yourself,`
+    + ` the table can follow the same steps, and if it rests on who you were shown at the deal, showing the working shows what you are.`
+}
+
 export function knowledgeText(view: PlayerView): string {
+  return dealKnowledgeText(view) + recordLine(view, roleCertainties(view))
+}
+
+function dealKnowledgeText(view: PlayerView): string {
   const info = view.privateInfo
   const certain = roleCertainties(view)
   const named = (seats: readonly Seat[]) => seats.map((s) => nameOf(view, s)).join(', ')
