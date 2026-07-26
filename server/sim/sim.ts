@@ -13,6 +13,7 @@ import { runGame } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import { renderTranscript } from '../transcript.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
+import { FORCED_PLAY_RULES, forcedPlayViolations, type ForcedPlayRule } from '../eval/forced.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
 import type { Seat } from '../engine/types.ts'
@@ -226,7 +227,10 @@ function namesFor(count: number, tierTable?: string[]): string[] | undefined {
   })
 }
 
-const tally = { good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0 }
+const tally = {
+  good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0,
+  blunders: new Map<ForcedPlayRule, number>(),
+}
 
 // What actually sat in a seat, for the artifact AND the transcript header. One
 // definition so a transcript can never disagree with the artifact beside it
@@ -264,13 +268,23 @@ async function playGame(i: number): Promise<void> {
   tally[result.game.winner!]++
   tally.reasons.set(result.game.winReason!, (tally.reasons.get(result.game.winReason!) ?? 0) + 1)
   tally.degraded += result.degraded.length
-  if (values.out) {
-    appendArtifact(values.out, toArtifact(game, {
-      agents: game.players.map((p) => seatDescriptor(p.seat, tierTable)),
-      degraded: result.degraded,
-      steps: result.steps,
-    }))
-  }
+  // Grade forced plays in-process. toArtifact is pure and in-memory, so this runs
+  // whether or not --out was passed.
+  //
+  // It is unconditional on purpose. Blunders are the measure that survives a
+  // small sample: each violation is a specific play you can read and confirm as
+  // wrong, whereas a win rate over 8 games is noise (and is evil-favoured anyway,
+  // per research-strategy.md, so it does not answer "did the bots play better").
+  // A metric that decides whether a paid run was worth anything should not be
+  // gated behind remembering a flag.
+  const artifact = toArtifact(game, {
+    agents: game.players.map((p) => seatDescriptor(p.seat, tierTable)),
+    degraded: result.degraded,
+    steps: result.steps,
+  })
+  const violations = forcedPlayViolations(artifact)
+  for (const v of violations) tally.blunders.set(v.rule, (tally.blunders.get(v.rule) ?? 0) + 1)
+  if (values.out) appendArtifact(values.out, artifact)
   // Roles, outcome, and degradations close both the printed transcript and the
   // written one: a transcript without the reveal cannot be read for play quality,
   // since who was evil is exactly what the table talk has to be judged against.
@@ -280,6 +294,11 @@ async function playGame(i: number): Promise<void> {
     '',
     `Winner: ${game.winner} (${game.winReason})  [seed ${seed}]`,
     ...result.degraded.map((d) => `degraded: seat ${d.seat} ${d.kind} — ${d.error.slice(0, 120)}`),
+    // Alongside the reveal, because a blunder is only legible once you know who
+    // was evil, and "which decisions were deterministically wrong" is the first
+    // thing you want when reading a transcript for play quality.
+    ...violations.map((v) =>
+      `BLUNDER [${v.rule}] Q${v.round}: ${v.name}(seat ${v.seat}·${v.role}) ${FORCED_PLAY_RULES[v.rule]}`),
   ]
   if (verbose) console.log(footer.join('\n'))
   if (values.transcripts) {
@@ -353,6 +372,23 @@ if (games > 1) {
     console.log(`  ${reason}: ${n}`)
   }
   if (tally.degraded) console.log(`degraded decisions total: ${tally.degraded}`)
+
+  // Always printed, including the zero. "0 forced-play violations" is the result,
+  // not the absence of one, and a line that appears only on failure trains you to
+  // read its absence as "not measured".
+  const blunders = [...tally.blunders.values()].reduce((a, b) => a + b, 0)
+  console.log(`forced-play violations: ${blunders}${blunders ? '' : '  (no deterministically wrong decisions)'}`)
+  for (const [rule, n] of [...tally.blunders].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${rule}: ${n} — ${FORCED_PLAY_RULES[rule]}`)
+  }
+
+  // The one thing in-process grading cannot replace. Flagged only for paid runs,
+  // where re-running to recover the artifacts costs money rather than seconds.
+  if (isLlm && !values.out) {
+    console.log(`\nnote: no --out, so these games were not saved as artifacts. The forced-play`)
+    console.log(`      numbers above are complete, but the LLM judge (softer blunders, table`)
+    console.log(`      talk quality) can only run over saved artifacts, and re-running costs money.`)
+  }
 }
 
 if (isLlm) {
