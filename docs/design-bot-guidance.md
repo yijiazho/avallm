@@ -48,11 +48,11 @@ Assembled in `buildMessages` (system message top-to-bottom, then the user messag
 
 | ID | Slot | Scope: who sees it, when | Source |
 |----|------|--------------------------|--------|
-| **S0** | `RULES_DIGEST` | Every bot, every call | `prompts.ts` const |
+| **S0** | `rulesDigest(view)` | Every bot, every call | `prompts.ts`, pruned to the cast (§6.1a) |
 | **S1** | *(none yet)* universal strategy | Every bot, every call — **no baseline slot exists** | proposed |
-| **S2** | `ALIGNMENT_SHARED[alignment]` (`GOOD_SHARED` / `EVIL_SHARED`) | All good, or all evil, every call | `prompts.ts` consts |
+| **S2** | `alignmentShared(view)` (`GOOD_SHARED` / `EVIL_SHARED`) | All good, or all evil, every call | `prompts.ts`, pruned to the cast (§6.1a) |
 | **S3** | `ROLE_GUIDANCE[role]` | One role, every call | `prompts.ts` map, 8 keys |
-| **S4** | `TABLE_TALK_NORMS` | Every bot, **only `discuss` + `pitch`** | `prompts.ts` const |
+| **S4** | `tableTalkNorms(view)` | Every bot, **only `discuss` + `pitch`** | `prompts.ts`, pruned to the cast (§6.1a) |
 | **S5** | `ASKS[kind]` | Every bot, **only that decision kind** | `prompts.ts` map, 8 kinds |
 | **S6** | `OUTPUT_CONTRACTS[kind]` | Every bot, that kind — format-bound | `prompts.ts` map, 8 kinds |
 | **S7** | `factsDossier` | Every bot, every call — **DATA only** | `facts.ts` |
@@ -72,6 +72,63 @@ Two of these are not strategy homes and must stay that way:
 - **S6 owns format, and strategy only where it is inseparable from format** (e.g. discuss's
   `"say" is heard by everyone — never reveal private knowledge in it`). Don't grow S6 into a
   strategy slot; if advice would survive a format change, it belongs in S3/S2/S1/S5.
+
+### 6.1a The cast invariant: role-set claims are computed, never constant
+
+**No prompt text may assert anything about which roles are in play except as a function of
+the view.** A module-level `const` cannot see `view.rolesInPlay`, so any role-set claim baked
+into one describes a *default* deal rather than the one being played.
+
+Sort the slots by how their text is produced and the old bug separates perfectly. Everything
+computed from a `PlayerView` was already correct (`factsDossier`'s `shotRemains`, the `ASKS`
+gates on Oberon and Percival); every hoisted constant was wrong — S0, S2, S3's `merlin` entry,
+S4, and the two hedges in `knowledgeText`. The hoisting was for prompt-cache friendliness, and
+that is exactly why the bug lived there and only there.
+
+It was not cosmetic. `RULES_DIGEST` named Mordred, Oberon and Minions in every game, and bots
+believed it: in a no-Oberon deal a Morgana twice wrote a seat off as *"likely evil or Oberon"*
+at 75% and 80% confidence, a proposition its own partner list refutes. `ROLE_GUIDANCE.merlin`
+carried *"If Mordred is in play ... never claim total confidence in anyone's goodness"* — a
+conditional first clause with an unconditional imperative, so it fired in every game and talked
+Merlin out of certainty it actually held (observed: two provably-good seats carried at 65-70%
+for a whole game). Meanwhile `publicStateText` was already rendering the true role list, so the
+prompt contradicted itself.
+
+Each constant is now the **unpruned superset**, kept for the `/api/agents` anatomy display where
+there is no game to key off and an author needs to see the whole space their text may run in.
+Live calls go through the paired function:
+
+| unpruned constant (S8 display) | pruned for the cast (live calls) |
+|--------------------------------|-----------------------------------|
+| `RULES_DIGEST` | `rulesDigest(view)` |
+| `ALIGNMENT_SHARED` / `GOOD_SHARED` | `alignmentShared(view)` |
+| `TABLE_TALK_NORMS` | `tableTalkNorms(view)` |
+| `ROLE_GUIDANCE[role]` | `roleGuidanceFor(role, overrides, view)`, which appends `roleAddendumFor` |
+
+Caching survives because all of these vary by **cast**, not by seat or turn, so the shared
+prefix is byte-identical across a game.
+
+**The lattice is what keeps this from combinatorial.** `ROLE_REQUIRES` in `engine/rules.ts` is
+the authority: a special role is only dealt when the role it acts on is dealt, each entry names
+one direct requirement, and transitivity carries the rest (Morgana needs Percival, who needs
+Merlin). So `ROLE_GUIDANCE.morgana` may say *"Percival sees you and Merlin"* with no gate at
+all. `client/src/setup.ts` mirrors it and is deliberately **stricter** (it also ties Oberon to
+Merlin): a picker stricter than the engine only narrows what it offers, while a picker looser
+than the engine would offer setups that can only ever 400.
+
+Gating predicates in use, all read off `rolesInPlay`:
+
+| predicate | where | gates |
+|-----------|-------|-------|
+| `shotRemains` / `shotExists` | `facts.ts`, `prompts.ts` | the assassination endgame, and all of `GOOD_SHARED`'s Merlin-protection doctrine |
+| `rolesInPlay.includes('mordred')` | `knowledgeText`, `roleAddendumFor` | whether Merlin's sight is complete |
+| `rolesInPlay.includes('oberon')` | `knowledgeText` | whether an evil partner list is complete |
+| `alignmentComplete` | `board.ts` `roleCertainties` | whether a seat can *prove* its Merlin-candidate pool rather than guess it |
+
+`test/phantom-roles.test.ts` pins the invariant over **rendered** prompts across a matrix of
+legal casts, so the knowledge lines, ASKs and view renderers are covered rather than just the
+exported constants (same approach as `talk-norms.test.ts`). `test/certainties.test.ts` pins the
+deductions themselves.
 
 ### 6.2 The placement rule
 
