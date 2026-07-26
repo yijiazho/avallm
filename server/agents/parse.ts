@@ -204,7 +204,14 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
                 // and a Merlin that wrote "70%" about evil it can SEE was hedging
                 // the one fact it did not have to hedge.
                 const side = ['good', 'evil', 'unsure'].includes(s.side) ? s.side : undefined
-                const n = Number(s.confidence)
+                // Only a real number counts as "given". Number(null) and
+                // Number('') are both 0, so coercing blindly turns a model that
+                // wrote `"confidence": null` into "(good 0%)" — the same false
+                // certainty the missing-field case was fixed to avoid.
+                const c = s.confidence
+                const n = typeof c === 'number' ? c
+                  : typeof c === 'string' && c.trim() !== '' ? Number(c)
+                  : NaN
                 const conf = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : undefined
                 const read = String(s.read ?? '').slice(0, READ_MAX_CHARS)
                 let head: string

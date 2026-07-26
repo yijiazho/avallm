@@ -518,7 +518,9 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
       : ''
     const teamNote = v.currentTeam
       ? (v.leaderSeat === v.seat
-        ? ` The team on the table is YOUR proposal, so defend it, answer questions about it, and do not argue against your own team. After this discussion you will decide whether to keep or revise it.`
+        ? ` The team on the table is YOUR proposal, so defend it, answer questions about it, and do not argue against your own team.${v.discussionPostRevision
+          ? ` You have already used your one revision, so this team is the team that goes to the vote.`
+          : ` After this discussion you will decide whether to keep or revise it.`}`
         : ` A team is on the table. React to it and include your lean.`) + revisedNote
       : ''
     const addressed = directAddresses(v)
@@ -546,7 +548,9 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
         ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down or lean against it. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
         : matchPoint(v).good
           ? isLeader
-            ? ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it. Do not argue against your own team in front of the table. Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`
+            ? ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it. Do not argue against your own team in front of the table.${v.discussionPostRevision
+              ? ` Your revision is spent and this team goes to the vote as it stands, so your remaining lever is the ballot, which is secret.`
+              : ` Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`}`
             : ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it, so this team passing is your side losing outright. If you are going to argue a team down all game, this is the turn that actually matters.`
           : ''
     return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote} Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`

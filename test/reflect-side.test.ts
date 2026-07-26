@@ -75,6 +75,22 @@ test('a garbage side is ignored rather than echoed into the notes', () => {
   assert.match(pad, /seat 6 \(80%\): x/)
 })
 
+test('a null or blank confidence is treated as missing, not as 0%', () => {
+  // Number(null) and Number('') are both 0, so a blind coercion reintroduces the
+  // bug above through a different door: a model that emits the key with no value
+  // gets read back next round as certainty the seat is NOT what the read says.
+  const pad = (reflect([
+    { seat: 1, side: 'good', confidence: null, read: 'cleared by my partner list' },
+    { seat: 2, side: 'evil', confidence: '', read: 'blank' },
+    { seat: 3, side: 'good', confidence: '80', read: 'a numeric string still counts' },
+  ]) as { scratchpad: string }).scratchpad
+  assert.match(pad, /seat 1 \(good\): cleared/)
+  assert.match(pad, /seat 2 \(evil\): blank/)
+  // Digit-anchored: a bare /0%/ also matches the 80% two seats down.
+  assert.doesNotMatch(pad, /\D0%/)
+  assert.match(pad, /seat 3 \(good 80%\)/)
+})
+
 test('out-of-range confidence is clamped', () => {
   const pad = (reflect([
     { seat: 7, side: 'evil', confidence: 140, read: 'a' },

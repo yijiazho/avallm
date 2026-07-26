@@ -89,6 +89,29 @@ test('an evil LEADER is pointed at the revision, not told to argue against its o
   assert.doesNotMatch(text, /this is the turn that actually matters/)
 })
 
+test('after the revision is spent, the leader is not pointed at a lever it no longer has', () => {
+  // endDiscussion sends the POST-REVISION segment straight to the vote (one
+  // revision only), so "the revision you still get after this discussion" is
+  // false there, and false in the direction that costs the game: it tells the
+  // seat to bank its argument for a turn that never comes.
+  const g = tableWith([0, 1], 2)
+  const leader = g.leaderSeat
+  assert.equal(g.players[leader].alignment, 'evil')
+  while (g.phase === 'discussion') { const [d] = expectedDecisions(g); applyDecision(g, d.seat, { kind: 'discuss', say: '' }) }
+  assert.equal(g.phase, 'finalize')
+  // Revise onto a different pair of seats this leader still reads as harmless.
+  const good = g.players.filter((p) => p.alignment === 'good').map((p) => p.seat)
+  const revised = [good[0], good[2] ?? good[1]].filter((s, i, a) => a.indexOf(s) === i)
+  assert.equal(revised.length, 2, 'need two distinct good seats to revise onto')
+  applyDecision(g, leader, { kind: 'finalize', stick: false, team: revised })
+  assert.equal(g.phase, 'discussion', 'the post-revision segment must actually run')
+  const text = discussFor(g, leader)
+  assert.match(text, /good's third quest and ends the game/, 'the stakes still apply')
+  assert.doesNotMatch(text, /revision you still get/)
+  assert.doesNotMatch(text, /you will decide whether to keep or revise/)
+  assert.match(text, /revision is spent/)
+})
+
 test('the stakes note is absent before the board is decisive', () => {
   // Nothing resolved yet, and the seat cannot sink the team: no stakes to state.
   const g = createGame({ seed: 'stakes', playerCount: 5, roles: [...CAST], talk: { maxRounds: 2, maxRoundsAfterChange: 1 } })
