@@ -1,23 +1,12 @@
 # AvaLLM
 
-**Play The Resistance: Avalon against a table of LLM bots, where every bot wears the name of the model running it.** Some of them are your loyal servants, some are hidden minions, and it is on you to tell which is which. AvaLLM is a full web implementation of the game: an authoritative Node server, a React client, and a headless simulator so you can build and test without spending on API calls.
+AvaLLM is a web implementation of The Resistance: Avalon, for 5 to 10 seats, in which the seats you are not sitting in are played by LLMs. Each bot is openly badged with the model behind it. A Node server owns the game state, the deal, and every bot prompt; a React client renders one seat's filtered view and posts that seat's decisions. Bot seats can also run free rule-based agents that never touch the network, and either kind is configured from a library of character cards carrying author-written strategy ([`docs/design-custom-agents.md`](docs/design-custom-agents.md)). Humans can share a table: the host opens a lobby, sends a join URL, and bots fill whatever seats are left over. Latecomers can attach as spectators on a public-only stream.
 
-## The hook
+## What a game consists of
 
-The other players are not anonymous "Player 3" slots. Each seat is openly labeled with the model behind it, so you are trying to slip a fail card past Gemini, or convince DeepSeek that you are not Merlin. Knowing whose reasoning style you are up against, and how a given model tends to bluff, deduce, and crack under questioning, becomes part of the game.
+The leader opens a round by posting a team with a pitch. Non-leaders then speak once per discussion round in seat order, each utterance carrying an optional public lean of approve, reject, or unsure. Discussion ends on lean settlement, meaning a full round in which no lean was newly declared or changed, or at a configured round cap. The leader then takes a single finalize turn: stick, or revise the team with a stated reason. Vote, then quest. The engine's phases are `proposal`, `discussion`, `finalize`, `vote`, `quest`, `assassination`, `gameOver`.
 
-## What a game looks like
-
-You sit down at an Avalon table of 5 to 10 seats. You take one; bots fill the rest. Before the deal you choose who those bots are:
-
-- **LLM bots**, a few cents per game on OpenRouter, or **free rule-based bots** that play from hand-written heuristics and never touch the network.
-- Both come from a browsable **agent library**. It ships curated character cards grouped into **packs** you can seat in one click (The Detectives, Middle-earth), and you can define your own. Each character reads the game its own way, so a pack is several genuinely different players rather than one voice in costumes. A custom agent can carry author-written strategy, not just flavor, while the engine keeps what it can see and how its output is read locked down (see [`docs/design-custom-agents.md`](docs/design-custom-agents.md)).
-
-The bots do not just vote in silence. Each round the leader proposes a team, the whole table discusses it in a live chat feed, the leader can revise, and only then does everyone vote. You read the leans and the table talk before casting your own vote, the same way you would at a real table.
-
-Want to play with people? Set the human count above one to open a lobby and get an invite link. The game auto-starts when the last human seat fills, bots take the remaining chairs, and anyone who arrives late can spectate with public information only. There are no turn timers, so a game can unfold over days like correspondence chess. It also works over a LAN by sharing your machine's address.
-
-When the game ends, the reveal screen opens every bot's hidden hand: the secret quest cards they played and the private reasoning behind each move.
+Every bot decision also carries private `thinking`, logged as a seat-visible event. The post-game reveal replays that against the public log and marks any decision that degraded to the heuristic fallback. Model calls run through one OpenRouter chokepoint with a hard spend ceiling, tagged per agent and call kind, readable at `/api/usage`.
 
 ## Run it locally
 
