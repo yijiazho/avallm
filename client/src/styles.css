@@ -52,7 +52,7 @@ body {
      body stands ~60-100px taller than anything you can see. That surplus is root
      scroll slack — drag it and a viewport-tall app slides up, leaving a strip of
      page background under the footer. dvh is the viewport as it actually is. */
-  min-height: 100dvh;
+  min-height: var(--app-h, 100dvh);
   background-image:
     radial-gradient(2px 2px at 9% 8%, rgba(234, 226, 208, 0.30), transparent 100%),
     radial-gradient(1.5px 1.5px at 81% 5%, rgba(234, 226, 208, 0.26), transparent 100%),
@@ -250,6 +250,7 @@ input::placeholder { color: var(--faint); }
   width: min(680px, 92vw);
   max-height: 80dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 0.8rem;
 }
 .ref-tabs { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
@@ -496,14 +497,22 @@ input::placeholder { color: var(--faint); }
    fall back to the old scrollable document instead of a cropped one. */
 @supports (height: 100dvh) {
   html:has(.game:not(.gallery-stage)), body:has(.game:not(.gallery-stage)) {
-    height: 100dvh; overflow: clip;
+    /* var() first, 100dvh as its fallback: --app-h is visualViewport.height in px
+       (viewport.ts), the height actually on screen rather than the browser's
+       stepwise account of it. 100dvh alone was not enough on a real phone. */
+    height: var(--app-h, 100dvh); overflow: clip;
+    /* The feed is a scroller inside a clipped root, so its overscroll chains
+       outward — and on Chrome Android that chain is what drives the URL bar
+       hide/show, which translates the page, takes the header off screen and opens
+       the gap under the footer. Ending the chain here ends that. */
+    overscroll-behavior: none;
   }
   html:has(.game:not(.gallery-stage)) { background: var(--lacquer); }
 }
 .game {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: var(--app-h, 100dvh);
   gap: 0;
   /* full-bleed: the sky and table span the viewport; content rows center themselves */
 }
@@ -763,7 +772,7 @@ input::placeholder { color: var(--faint); }
 
 /* ---- main: feed + aside ---- */
 main { display: flex; gap: 0.9rem; flex: 1; min-height: 0; padding: 0.7rem max(1.1rem, env(safe-area-inset-right)) 0.7rem max(1.1rem, env(safe-area-inset-left)); width: 100%; max-width: 1400px; margin: 0 auto; }
-main aside { width: 232px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; min-height: 0; overflow-y: auto; }
+main aside { width: 232px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* The rail is a fixed-height flex column (main fills 100dvh minus the table). Its
    panels must keep their natural height rather than being squeezed — a compressed
    .qparty would clip team members past its rounded overflow — so the column scrolls
@@ -784,6 +793,9 @@ main aside > * { flex-shrink: 0; }
 .feed {
   flex: 1;
   min-width: 0;
+  /* keep the bounce inside the transcript: chaining it to the root is what let the
+     browser's chrome animate mid-read (see the root lock) */
+  overscroll-behavior: contain;
   background: linear-gradient(180deg, rgba(32, 28, 66, 0.5), rgba(20, 17, 42, 0.25));
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1781,7 +1793,7 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
      hidden would let the browser's own scroll-into-view (focusing the say field
      as the keyboard opens) push the header out of frame. Modals are
      position:fixed, so they escape this clip. */
-  .game:not(.gallery-stage) { height: 100dvh; overflow: clip; }
+  .game:not(.gallery-stage) { height: var(--app-h, 100dvh); overflow: clip; }
   .chrome { padding: 0.35rem max(0.7rem, env(safe-area-inset-right)) 0.3rem max(0.7rem, env(safe-area-inset-left)); gap: 0.5rem; }
   .chrome h1.small { font-size: 1rem; }
   .chrome button.ghost { padding: 0.28em 0.6em; font-size: 0.62rem; }
@@ -2007,3 +2019,21 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
    (The table zone no longer clips its tooltips — see .fartable — so no overflow
    override is needed here.) */
 .gallery-stage[data-variant^="tip-"] { min-height: 0; justify-content: center; padding: 78px 20px; }
+
+/* Viewport diagnostics (?diag=1) — a field instrument, not part of the game. It
+   floats over everything and never takes a tap, so it can sit on the live screen
+   while the reader drags the page around to reproduce a chrome-animation bug. */
+.diag {
+  position: fixed; top: 0; left: 0; z-index: 100;
+  pointer-events: none;
+  background: rgba(8, 6, 20, 0.86);
+  border: 1px solid var(--gold-deep); border-radius: 0 0 6px 0;
+  padding: 4px 6px;
+  font: 500 9px/1.35 var(--mono); color: var(--text);
+  max-width: 62vw;
+}
+.diag-head { color: var(--gold); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
+.diag-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
+.diag-k { color: var(--dim); }
+.diag-v { color: var(--gold-lt); text-align: right; }
+.diag-w { color: var(--evil); text-align: right; min-width: 3.5em; }

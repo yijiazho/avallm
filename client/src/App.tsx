@@ -15,6 +15,7 @@ import { Reveal } from './components/Reveal.tsx'
 import { QuestParty } from './components/QuestParty.tsx'
 import { RoleCard } from './components/RoleCard.tsx'
 import { SpectatorCard } from './components/SpectatorCard.tsx'
+import { Diag, diagRequested } from './components/Diag.tsx'
 import { TableSeats } from './components/TableSeats.tsx'
 
 const Brand = () => <>Ava<span className="llm">LLM</span></>
@@ -346,6 +347,7 @@ export function App() {
           <SourceLink />
         </span>
       </header>
+      {diagRequested() && <Diag />}
       {showRef && <Reference view={view} bots={bots} library={library} onClose={() => setShowRef(false)} />}
       {showHistory && <HistoryGrid view={view} onClose={() => setShowHistory(false)} />}
       <div className="fartable">
