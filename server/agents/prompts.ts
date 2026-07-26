@@ -173,7 +173,7 @@ export const tableTalkNorms = (view: PlayerView): string =>
 // ALIGNMENT_SHARED above, not duplicated here. roleGuidanceFor composes the two.
 export const ROLE_GUIDANCE: Record<string, string> = {
   merlin: `You know who is evil, and the Assassin is hunting for exactly that tell. Never state or act directly on your knowledge. Steer teams and votes toward the truth without becoming the player who is always right: prefer endorsing another good player's correct read to originating it yourself, seed doubt with questions rather than flat assertions, and deliberately vote the "wrong" way now and then to blur your certainty. If the game state flags your public voting record as matching every quest outcome so far, that spotless streak IS the tell, so break it with a deliberate off vote before the endgame rather than riding a perfect record into the Assassin's sights. Late in the game, if good is close to a third success and you sense you have been pegged, take a visible wrong position or back a winning plan you are not on and let someone else carry it home: winning the quests is only half your job, surviving the shot is the other half.`,
-  percival: `One of the two players you see is Merlin, the other is Morgana (evil), and your job is to tell them apart. Your sharpest tool is quest FAILURES: every time a quest fails, check which of your two candidates was ON that team, proposed it, or voted to approve it. That one is Morgana, so trust the OTHER. Weight this above anything either candidate SAYS: a smooth talker who backed a failed team is your Morgana, however convincing they sound. Until a fail gives you that evidence, keep both open. Back the one who reads as Merlin through your own votes and arguments, but never name them or single-handedly leap to their defense, because publicly protecting one player just paints the Assassin's target on them. Lean into being the decoy: the more you look like Merlin, the safer the real one is, and drawing the shot onto yourself is a win. Claim to be Percival only late, and only when the quest math truly needs it to assemble one trusted team, never while you are still unsure which candidate is Merlin.`,
+  percival: `One of the two players you see is Merlin, the other is Morgana (evil), and your job is to tell them apart. Quest FAILURES are your sharpest tool, but ONLY when the Fail can actually be pinned on a candidate. Before you update, ask who on that team could have played it: any seat OUTSIDE your pair, or one of your two candidates. Evil holds seats outside your pair as well, so a Fail on a team carrying one of them is already explained without either candidate, and your pair stays exactly as open as it was. Only when exactly one candidate was aboard and NO outside seat was does that Fail name them as Morgana, and then you should act on it hard. On a quest needing two Fails, count the same way: when the Fails outnumber the outside seats who could have played them, one came from a candidate. A quest that fails with neither candidate aboard tells you where evil sits outside your pair and nothing whatever about Merlin and Morgana. A quest your candidate SUCCEEDS on clears nothing either, since Morgana plays Success to buy exactly that trust, and merely voting to approve a team that later failed is weaker still. Until a Fail you can pin gives you the answer, hold both candidates open instead of forcing a read. A confident wrong answer here is the worst outcome available to you, because the table will follow you onto it and you will spend the rest of the game defending the Morgana. Back the one who reads as Merlin through your own votes and arguments, but never name them or single-handedly leap to their defense, because publicly protecting one player just paints the Assassin's target on them. Lean into being the decoy: the more you look like Merlin, the safer the real one is, and drawing the shot onto yourself is a win. Claim to be Percival only late, and only when the quest math truly needs it to assemble one trusted team, never while you are still unsure which candidate is Merlin.`,
   servant: `You have no private knowledge. Your own loyalty is the one thing you know for certain, and everything else you must deduce from the public record.`,
   assassin: `If good reaches three successful quests you still get one shot: name Merlin. All game, track WHO always voted correctly and who quietly steered good teams toward success, and hold that read for the final guess.`,
   morgana: `Percival sees you and Merlin without knowing which is which. Act like Merlin: confident reads, decisive votes, protective of "good" players. Draw Percival's trust away from the real Merlin.`,
@@ -255,8 +255,12 @@ function roleMultisetPhrase(roles: readonly Role[]): string {
 // rather than left for the model to perform. A Servant that never works this out
 // does not know a Merlin exists to protect, which is exactly how a loyal seat
 // ends up publicly certifying the one player it should be blurring.
-function compositionLine(view: PlayerView): string {
-  const rest = without(view.rolesInPlay, view.role)
+// `alsoPlaced` drops roles the seat has ALREADY located, so the line never
+// re-offers a role as unknown one sentence after naming who holds it (a Percival
+// with no Morgana is told which seat is Merlin, then must not be told Merlin is
+// somewhere among the rest).
+function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
+  const rest = without(view.rolesInPlay, view.role, ...alsoPlaced)
   if (!rest.length) return ''
   return ` The other ${rest.length} seats hold ${roleMultisetPhrase(rest)}, in some order.`
 }
@@ -317,7 +321,7 @@ export function knowledgeText(view: PlayerView): string {
     if (pair.length === 1) {
       return `${nameOf(view, pair[0])} is Merlin, and you know it outright: there is no second candidate to confuse you.` +
         ` Guard that hard. Naming them, or defending them more than anyone else would, paints the Assassin's target on the one player good cannot afford to lose.` +
-        compositionLine(view)
+        compositionLine(view, ['merlin'])
     }
     const onQuestsFor = (s: Seat) => view.quests.filter((q) => q.result !== undefined && q.team?.includes(s))
     // Naming the pair also settles the seats OUTSIDE it: Merlin and Morgana are
@@ -762,6 +766,23 @@ export interface PromptOverrides {
 // unconditional imperative, so it fired in every game and talked Merlin out of
 // certainty it actually had (observed: two provably-good seats carried at 65-70%
 // for a whole game with no Mordred dealt).
+// Percival with no Morgana dealt. Legal, and the picker's Advanced preset builds
+// it at 5 and 6 players, where the two evil seats go to Assassin and Mordred.
+// His candidate list collapses to Merlin alone, so the whole tell-them-apart
+// baseline is not merely useless, it describes a player who is not at the table.
+const PERCIVAL_NO_DECOY = `You see Merlin outright, with no second candidate to confuse you, so your job is protection rather than identification. That certainty is the dangerous part: any hint of it tells the Assassin exactly where to shoot. Never name them, never defend them harder than you would defend anyone else, and do not let your votes line up perfectly with theirs. Steer teams toward the players the public record gives you reason to trust, and prefer letting another good player originate a read you already know is right. Lean into being mistaken for Merlin yourself: the more you look like the one who knows, the safer the real one is, and drawing the shot onto yourself is a win. Claim to be Percival only late, and only when the quest math truly needs it to assemble one trusted team.`
+
+// Baselines with a cast-dependent variant. ROLE_GUIDANCE holds the common case
+// and is what /api/agents displays; this swaps in a different one when the cast
+// makes that text false. Same rule as everywhere else in this file: a claim
+// about the role set is a function of the view, never a constant.
+function roleBaselineFor(role: string, view?: PlayerView): string {
+  if (role === 'percival' && view && !view.rolesInPlay.includes('morgana')) {
+    return PERCIVAL_NO_DECOY
+  }
+  return ROLE_GUIDANCE[role] ?? ''
+}
+
 function roleAddendumFor(role: string, view: PlayerView): string {
   if (role === 'merlin' && view.rolesInPlay.includes('mordred')) {
     return `Mordred is dealt, and they are invisible to you, so exactly one evil is missing from the list you see. Never claim total confidence in anyone's goodness: calibrated uncertainty is both correct and safer.`
@@ -775,7 +796,7 @@ export function roleGuidanceFor(role: string, overrides: PromptOverrides, view?:
   const shared = view
     ? alignmentShared(view)
     : ALIGNMENT_SHARED[ROLE_ALIGNMENT[role as Role]] ?? ''
-  const base = ROLE_GUIDANCE[role] ?? ''
+  const base = roleBaselineFor(role, view)
   const custom = overrides.roleGuidance?.[role]
   const roleLayer =
     custom === undefined

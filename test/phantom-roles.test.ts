@@ -35,6 +35,11 @@ const CASTS: { label: string; playerCount: number; roles: Role[] }[] = [
   { label: 'vanilla', playerCount: 5, roles: ['servant', 'servant', 'servant', 'minion', 'minion'] },
   { label: 'beginner', playerCount: 5, roles: ['merlin', 'servant', 'servant', 'assassin', 'minion'] },
   { label: 'standard 5p', playerCount: 5, roles: DEFAULT_ROLES[5] },
+  // Percival with no Morgana to hide behind. Legal, and the picker's Advanced
+  // preset builds exactly this at 5 and 6 players. It caught a live phantom that
+  // the other casts could not: ROLE_GUIDANCE.percival opened with "the other is
+  // Morgana" in a game holding no Morgana.
+  { label: 'percival, no decoy', playerCount: 5, roles: ['merlin', 'percival', 'servant', 'assassin', 'mordred'] },
   { label: 'oberon 7p', playerCount: 7, roles: DEFAULT_ROLES[7] },
   { label: 'mordred 9p', playerCount: 9, roles: DEFAULT_ROLES[9] },
 ]
