@@ -268,8 +268,9 @@ async function playGame(i: number): Promise<void> {
   tally[result.game.winner!]++
   tally.reasons.set(result.game.winReason!, (tally.reasons.get(result.game.winReason!) ?? 0) + 1)
   tally.degraded += result.degraded.length
-  // Grade forced plays in-process. toArtifact is pure and in-memory, so this runs
-  // whether or not --out was passed.
+  // Grade forced plays in-process. toArtifact allocates in memory and writes
+  // nothing (its only impurity is a createdAt timestamp), so this runs whether or
+  // not --out was passed.
   //
   // It is unconditional on purpose. Blunders are the measure that survives a
   // small sample: each violation is a specific play you can read and confirm as
@@ -331,6 +332,11 @@ async function playGame(i: number): Promise<void> {
         ? game.log
         : game.log.filter((ev) => ev.type !== 'thinking' && ev.type !== 'scratchpad'),
       degraded: result.degraded.map((d) => ({ seat: d.seat, kind: d.kind, error: d.error })),
+      // Into the FILE, not just the verbose footer. Aggregate runs are the whole
+      // measurement path and they set verbose=false, so without this a batch
+      // reports violation totals with nothing saying which game or seat, which is
+      // the hand-parsing this reporting exists to remove.
+      violations: violations.map((v) => ({ seat: v.seat, rule: v.rule, round: v.round, detail: v.detail })),
       winner: game.winner,
       winReason: game.winReason,
       revealed: true,

@@ -35,6 +35,12 @@ export interface TranscriptInput {
   seats: TranscriptSeat[]
   log: GameEvent[]                 // already redacted to what the caller may see
   degraded?: { seat: Seat; kind: string; error: string }[]
+  // Deterministically wrong decisions (eval/forced.ts). Optional because only a
+  // finished, fully revealed transcript can carry them: a blunder is unreadable
+  // without knowing who was evil, which is the same reason they sit beside the
+  // reveal rather than in the play-by-play. The caller grades and passes them in,
+  // so this module keeps rendering and does no analysis of its own.
+  violations?: { seat: Seat; rule: string; round: number; detail: string }[]
   winner?: Alignment
   winReason?: string
   // True when roles + hidden events are present (full reveal). False when the
@@ -80,6 +86,12 @@ export function renderTranscript(input: TranscriptInput): string {
     out.push(`- degraded decisions: ${input.degraded.length}`)
     for (const d of input.degraded) {
       out.push(`  - ${who(d.seat)} ${d.kind}: ${d.error}`)
+    }
+  }
+  if (input.violations && input.violations.length) {
+    out.push(`- forced-play violations: ${input.violations.length}`)
+    for (const v of input.violations) {
+      out.push(`  - ${who(v.seat)} Q${v.round} [${v.rule}]: ${v.detail}`)
     }
   }
   out.push('')

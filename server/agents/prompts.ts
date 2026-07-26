@@ -220,19 +220,37 @@ const ROLE_LABEL: Record<Role, string> = {
   oberon: 'Oberon', minion: 'a Minion',
 }
 
-// What the OTHER seats hold, as a set. Pure restatement of two things the seat
-// already has (the public role multiset and its own role), but stated as the
-// deduction rather than left for the model to perform. A Servant that never
-// works this out does not know a Merlin exists to protect, which is exactly how
-// a loyal seat ends up publicly certifying the one player it should be blurring.
-function compositionLine(view: PlayerView): string {
-  const rest = [...view.rolesInPlay]
-  rest.splice(rest.indexOf(view.role), 1)
-  if (!rest.length) return ''
+// Remove one copy of each named role, so a cast with two Servants keeps the
+// second after the seat's own is taken out.
+function without(roles: readonly Role[], ...remove: Role[]): Role[] {
+  const out = [...roles]
+  for (const r of remove) {
+    const i = out.indexOf(r)
+    if (i >= 0) out.splice(i, 1)
+  }
+  return out
+}
+
+// A role MULTISET as prose. Counts are kept rather than deduped: "a Loyal
+// Servant, the Assassin and Oberon" for four seats silently loses a Servant, and
+// a line that presents itself as a settled deduction cannot afford to be short
+// one role.
+function roleMultisetPhrase(roles: readonly Role[]): string {
   const counted = new Map<Role, number>()
-  for (const r of rest) counted.set(r, (counted.get(r) ?? 0) + 1)
-  const parts = [...counted].map(([r, n]) => (n > 1 ? `${n} ${ROLE_LABEL[r].replace(/^an? /, '')}s` : ROLE_LABEL[r]))
-  return ` The other ${rest.length} seats hold ${listOf(parts)}, in some order.`
+  for (const r of roles) counted.set(r, (counted.get(r) ?? 0) + 1)
+  return listOf([...counted].map(([r, n]) =>
+    n > 1 ? `${n} ${ROLE_LABEL[r].replace(/^(an? |the )/, '')}s` : ROLE_LABEL[r]))
+}
+
+// What the OTHER seats hold. Pure restatement of two things the seat already has
+// (the public role multiset and its own role), but stated as the deduction
+// rather than left for the model to perform. A Servant that never works this out
+// does not know a Merlin exists to protect, which is exactly how a loyal seat
+// ends up publicly certifying the one player it should be blurring.
+function compositionLine(view: PlayerView): string {
+  const rest = without(view.rolesInPlay, view.role)
+  if (!rest.length) return ''
+  return ` The other ${rest.length} seats hold ${roleMultisetPhrase(rest)}, in some order.`
 }
 
 // Both private lists below are COMPLETE unless one specific role is dealt, and
@@ -300,9 +318,15 @@ export function knowledgeText(view: PlayerView): string {
     // which reduces Percival's whole game to two binary questions. Nothing told
     // him this before, and no observed Percival worked it out.
     const outside = certain.seats.filter((s) => s.seat !== view.seat && !pair.includes(s.seat))
-    const outsideRoles = [...new Set(outside.flatMap((s) => s.possibleRoles))].map((r) => ROLE_LABEL[r])
-    const restLine = outside.length && outsideRoles.length
-      ? ` That also settles the rest: ${listOf(outside.map((s) => nameOf(view, s.seat)))} hold ${listOf(outsideRoles)} between them.`
+    // The residual comes off the CAST, not off a union of the outside seats'
+    // possible roles: a union collapses duplicates, so at 7 players the four
+    // remaining seats would be credited with "a Loyal Servant, the Assassin and
+    // Oberon" and one Servant would vanish. The pair holds Merlin and Morgana
+    // between them (this branch only runs when both are dealt), so removing them
+    // and this seat's own role leaves exactly what the others hold.
+    const residual = without(view.rolesInPlay, view.role, 'merlin', 'morgana')
+    const restLine = outside.length && residual.length === outside.length
+      ? ` That also settles the rest: ${listOf(outside.map((s) => nameOf(view, s.seat)))} hold ${roleMultisetPhrase(residual)} between them.`
       : ''
     // Nothing has resolved yet, so there is no quest record to compare — just name
     // the pair. (The guard fires only when NEITHER candidate has been on a resolved
