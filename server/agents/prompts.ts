@@ -428,6 +428,13 @@ export function transcriptText(view: PlayerView, maxUtterances = 14): string {
   // crosses proposal boundaries, and an unfenced "(passes) [leans approve]"
   // from a prior proposal is exactly how a bot confabulates a silent approval.
   // The team in the header includes any finalize-time revision.
+  //
+  // The header names the LEADER for the same reason. Whoever held the chair is
+  // the difference between "I'll propose the clean trio" as a leader's stated
+  // intent and the same words as an outsider's empty claim; without it, a bot
+  // reading back across the fence attacks the wrong thing. It also explains the
+  // leader's missing lean, since the discuss ask tells the leader to omit one:
+  // unattributed, that renders as a player who passed without signaling.
   const lines: string[] = []
   let prevKey: string | undefined
   for (const u of recent) {
@@ -435,7 +442,7 @@ export function transcriptText(view: PlayerView, maxUtterances = 14): string {
     if (key !== prevKey) {
       if (u.prop) {
         const team = u.prop.team.map((s) => nameOf(view, s)).join(', ')
-        lines.push(`--- on Q${u.prop.round} proposal ${u.prop.proposalNum} (team: ${team}) ---`)
+        lines.push(`--- on Q${u.prop.round} proposal ${u.prop.proposalNum} (leader: ${nameOf(view, u.prop.leader)}, team: ${team}) ---`)
       }
       prevKey = key
     }

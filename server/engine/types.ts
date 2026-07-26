@@ -168,10 +168,18 @@ export interface PlayerView {
   // (post-revision team if the leader revised), so a renderer can group table
   // talk by proposal and a stale lean can never be read as a lean on the team
   // currently on the table. Absent only for utterances before the first
-  // proposal (e.g. a lobby rename). team is public (proposals are public).
+  // proposal (e.g. a lobby rename). team/leader are public (proposals are).
+  //
+  // `leader` is here for the same reason `team` is: the speaker's AUTHORITY is
+  // as perishable across a proposal boundary as their lean. A leader saying
+  // "I'll propose the clean trio" is stating an intent they can act on; read one
+  // proposal later, when someone else holds the chair, the same words look like
+  // an idle claim. That exact misread happened at a table: a bot opened the next
+  // proposal attacking the previous leader for taking credit for a team, before
+  // that player had said anything at all in the new segment.
   transcript: {
     seat: Seat; name: string; text: string; lean?: Lean
-    prop?: { round: number; proposalNum: number; team: Seat[] }
+    prop?: { round: number; proposalNum: number; leader: Seat; team: Seat[] }
   }[]
   events: GameEvent[]           // only events visible to this seat
   winner?: Alignment

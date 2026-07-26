@@ -82,16 +82,17 @@ export function viewFor(game: Game, seat: Seat): PlayerView {
   // the transcript) learn name changes exactly like everyone else. Each entry
   // is tagged with the proposal segment it was spoken under (`prop`), tracked
   // by replaying proposal/proposalRevised in log order — so a renderer can
-  // fence one proposal's discussion off from the next and a lean from an
-  // earlier team can't masquerade as a lean on the current one.
+  // fence one proposal's discussion off from the next, and neither a lean from
+  // an earlier team nor an earlier leader's authority can masquerade as the
+  // current one's. Both events carry `leader`, so it rides along with `team`.
   const transcript: PlayerView['transcript'] = []
-  let curProp: { round: number; proposalNum: number; team: Seat[] } | undefined
+  let curProp: { round: number; proposalNum: number; leader: Seat; team: Seat[] } | undefined
   for (const ev of game.log) {
     if (ev.type === 'proposal') {
-      curProp = { round: ev.payload.round as number, proposalNum: ev.payload.proposalNum as number, team: (ev.payload.team as Seat[]).slice() }
+      curProp = { round: ev.payload.round as number, proposalNum: ev.payload.proposalNum as number, leader: ev.payload.leader as Seat, team: (ev.payload.team as Seat[]).slice() }
     } else if (ev.type === 'proposalRevised') {
       // Same proposalNum, new team — the leans before it were about `from`.
-      curProp = { round: ev.payload.round as number, proposalNum: ev.payload.proposalNum as number, team: (ev.payload.to as Seat[]).slice() }
+      curProp = { round: ev.payload.round as number, proposalNum: ev.payload.proposalNum as number, leader: ev.payload.leader as Seat, team: (ev.payload.to as Seat[]).slice() }
     } else if (ev.type === 'rename') {
       transcript.push({
         seat: ev.payload.seat as Seat,

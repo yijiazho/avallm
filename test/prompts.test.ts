@@ -318,8 +318,8 @@ test('transcriptText fences leans by proposal so a stale lean is not read as cur
     seat: 0,
     players: [0, 1, 2].map((s) => ({ seat: s, name: ['A', 'B', 'C'][s] })),
     transcript: [
-      { seat: 1, name: 'B', text: '', lean: 'approve', prop: { round: 3, proposalNum: 1, team: [1, 2] } },
-      { seat: 0, name: 'A', text: 'no', lean: 'reject', prop: { round: 4, proposalNum: 1, team: [0, 1] } },
+      { seat: 1, name: 'B', text: '', lean: 'approve', prop: { round: 3, proposalNum: 1, leader: 2, team: [1, 2] } },
+      { seat: 0, name: 'A', text: 'no', lean: 'reject', prop: { round: 4, proposalNum: 1, leader: 0, team: [0, 1] } },
     ],
   } as unknown as PlayerView
   const out = transcriptText(view)
@@ -330,6 +330,22 @@ test('transcriptText fences leans by proposal so a stale lean is not read as cur
   // The stale approve-pass sits under its own Q3 header, ahead of the Q4 header —
   // so it cannot be read as a lean on the team currently on the table.
   assert.ok(h3 < passes && passes < h4, 'stale lean grouped under its own proposal')
+})
+
+test('transcriptText names the leader of each fenced proposal, not the current one', () => {
+  const view = {
+    seat: 0,
+    players: [0, 1, 2].map((s) => ({ seat: s, name: ['A', 'B', 'C'][s] })),
+    transcript: [
+      // C held the chair on Q5.2 and said what it would put up next; A holds it
+      // on Q5.3. Unattributed, C's line reads as an outsider claiming credit.
+      { seat: 2, name: 'C', text: "I'll propose A/B/C", prop: { round: 5, proposalNum: 2, leader: 2, team: [0, 1, 2] } },
+      { seat: 1, name: 'B', text: 'you did not propose this', lean: 'approve', prop: { round: 5, proposalNum: 3, leader: 0, team: [0, 1, 2] } },
+    ],
+  } as unknown as PlayerView
+  const out = transcriptText(view)
+  assert.match(out, /on Q5 proposal 2 \(leader: C\(seat 2\)/, 'past segment keeps its own leader')
+  assert.match(out, /on Q5 proposal 3 \(leader: A\(seat 0\)/, 'current segment names the current leader')
 })
 
 test('assassinate prompt lists eligible Merlin candidates and rules out known evil', () => {
