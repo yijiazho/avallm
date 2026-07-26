@@ -25,6 +25,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createGame, applyDecision, expectedDecisions, renamePlayer } from './engine/game.ts'
+import { appendArtifact, toArtifact } from './eval/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
 import { createAgentFromDef } from './agents/registry.ts'
@@ -362,7 +363,7 @@ function startLobby(l: Lobby): void {
   const session: Session = {
     game, agents, humans, botInfo, agentDefs,
     spectators: new Set(l.spectators.map((s) => s.token)),
-    waiting: [], acting: [], degraded: [], degradedSeqs: [],
+    waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0, artifactWritten: false,
     listeners: new Set(), pumping: false,
   }
   sessions.set(id, session)
@@ -387,9 +388,55 @@ interface Session {
   degradedSeqs: number[]
   listeners: Set<{ res: http.ServerResponse; token: string }>
   pumping: boolean
+  steps: number            // decisions applied, for the artifact's steps field
+  artifactWritten: boolean // one artifact per game, however often pump re-enters
 }
 
 const sessions = new Map<string, Session>()
+
+// What actually sat in a seat. ONE definition, shared by the post-game artifact
+// and the debug transcript, so the two can never disagree about who played (the
+// same reason the sim has seatDescriptor).
+function seatAgentLabel(s: Session, seat: Seat): string {
+  return s.humans.has(seat) ? 'human' : (s.botInfo[seat]?.model ?? 'bot')
+}
+
+// ---------- post-game artifacts ----------
+//
+// Games played in the app were invisible to the eval tooling. The sim writes
+// GameArtifacts and both graders read them (eval/forced.ts for forced plays,
+// eval/norms.ts for house style), but a web game only ever produced a rendered
+// transcript, which is built for humans. Two web games were hand-graded this
+// session because there was nothing else to grade.
+//
+// OPT-IN and off by default. An artifact is a FULL reveal: every role, and every
+// private thinking and scratchpad event. Writing one is a data-retention choice
+// the operator should make deliberately, not something a server quietly starts
+// doing because it was upgraded. Set AVALON_ARTIFACTS to a file path.
+const artifactFile = process.env.AVALON_ARTIFACTS?.trim() || ''
+if (artifactFile) {
+  // Fail loudly at boot rather than at the end of the first finished game, which
+  // is the worst moment to learn the output path is unwritable.
+  fs.mkdirSync(path.dirname(path.resolve(artifactFile)), { recursive: true })
+  console.log(`[artifacts] finished games will be appended to ${artifactFile}`)
+}
+
+function saveArtifact(s: Session): void {
+  if (!artifactFile || s.artifactWritten) return
+  // Set BEFORE the write, so a failing disk cannot make every later pump retry.
+  s.artifactWritten = true
+  try {
+    appendArtifact(artifactFile, toArtifact(s.game, {
+      agents: s.game.players.map((p) => seatAgentLabel(s, p.seat)),
+      degraded: s.degraded,
+      steps: s.steps,
+    }))
+  } catch (err) {
+    // Never let bookkeeping take down a finished game. The result is already in
+    // memory and on every client; losing the artifact is much the cheaper loss.
+    console.warn(`[artifacts] could not write ${artifactFile}: ${(err as Error).message}`)
+  }
+}
 
 // token -> seat number, 'spectator', or null (unknown).
 function seatOf(s: Session, token: string): Seat | 'spectator' | null {
@@ -456,13 +503,13 @@ async function pump(s: Session): Promise<void> {
         const seqStart = s.game.log.length
         let wasFallback = fallback
         try {
-          applyDecision(s.game, req.seat, decision)
+          applyDecision(s.game, req.seat, decision); s.steps++
         } catch (err) {
           s.degraded.push({
             seat: req.seat, kind: req.kind,
             error: err instanceof Error ? err.message : String(err),
           })
-          applyDecision(s.game, req.seat, heuristicDecide(req, viewFor(s.game, req.seat), s.game.seed))
+          applyDecision(s.game, req.seat, heuristicDecide(req, viewFor(s.game, req.seat), s.game.seed)); s.steps++
           wasFallback = true
         }
         if (wasFallback) {
@@ -473,6 +520,7 @@ async function pump(s: Session): Promise<void> {
     }
     s.waiting = []
     s.acting = []
+    if (s.game.phase === 'gameOver') saveArtifact(s)
     broadcast(s)
   } finally {
     s.pumping = false
@@ -661,7 +709,7 @@ const server = http.createServer(async (req, res) => {
         const match = s.waiting.find((w) => w.seat === who && w.kind === decision?.kind)
         if (!match) return json(res, 400, { error: `not waiting for a ${decision?.kind} from you` })
         try {
-          applyDecision(s.game, who, decision)
+          applyDecision(s.game, who, decision); s.steps++
         } catch (err) {
           return json(res, 400, { error: err instanceof Error ? err.message : String(err) })
         }
@@ -727,7 +775,7 @@ const server = http.createServer(async (req, res) => {
         const seats: TranscriptSeat[] = s.game.players.map((p) => ({
           seat: p.seat,
           name: p.name,
-          agent: s.humans.has(p.seat) ? 'human' : (s.botInfo[p.seat]?.model ?? 'bot'),
+          agent: seatAgentLabel(s, p.seat),
           ...(full ? { role: p.role, alignment: p.alignment } : {}),
         }))
         const text = renderTranscript({
