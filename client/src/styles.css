@@ -47,7 +47,12 @@ body {
   background: var(--night);
   color: var(--text);
   font-family: var(--serif);
-  min-height: 100vh;
+  /* dvh, not vh: vh is the LARGE viewport (the size the page would have if the
+     browser chrome were hidden), so on a phone with the URL bar showing a 100vh
+     body stands ~60-100px taller than anything you can see. That surplus is root
+     scroll slack — drag it and a viewport-tall app slides up, leaving a strip of
+     page background under the footer. dvh is the viewport as it actually is. */
+  min-height: 100dvh;
   background-image:
     radial-gradient(2px 2px at 9% 8%, rgba(234, 226, 208, 0.30), transparent 100%),
     radial-gradient(1.5px 1.5px at 81% 5%, rgba(234, 226, 208, 0.26), transparent 100%),
@@ -243,7 +248,7 @@ input::placeholder { color: var(--faint); }
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   padding: 1rem 1.2rem;
   width: min(680px, 92vw);
-  max-height: 80vh;
+  max-height: 80dvh;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 0.8rem;
 }
@@ -472,6 +477,22 @@ input::placeholder { color: var(--faint); }
 }
 
 /* ---- game layout ---- */
+/* The game screen is a fixed one-viewport app rather than a document, so lock the
+   root while it is mounted: no root scroll means no slack for a stale dvh to be
+   dragged into, which is what let the footer drift off the bottom edge on a phone.
+   Painting the root the colour of the table edge is the second half — dvh updates
+   in steps while the browser animates its chrome, and a sliver in that colour
+   reads as the footer continuing rather than a hole under it.
+   Scoped with :has (and past the gallery, which borrows .game as a stage) so the
+   landing, lobby and setup screens stay ordinary scrollable documents.
+   clip, not hidden: `hidden` still leaves a scroll container that script (and a
+   browser's own focus handling) can scroll, so 90px of surplus body height was
+   still reachable in testing — `clip` is not scrollable at all, by anyone, which
+   is the same reason the x-axis rule near the top of this file uses it. */
+html:has(.game:not(.gallery-stage)), body:has(.game:not(.gallery-stage)) {
+  height: 100dvh; overflow: clip;
+}
+html:has(.game:not(.gallery-stage)) { background: var(--lacquer); }
 .game {
   display: flex;
   flex-direction: column;
@@ -489,7 +510,7 @@ input::placeholder { color: var(--faint); }
 /* ---- the far side of the table ---- */
 .fartable {
   position: relative;
-  height: clamp(198px, 30vh, 264px);
+  height: clamp(198px, 30dvh, 264px);
   flex: 0 0 auto;
   /* NOT overflow:hidden — a seat's hover tooltip is a descendant and, on the low
      edge seats, extends below the zone; clipping here would slice it off where the
@@ -1227,7 +1248,7 @@ footer.endstage {
   padding: 0.7rem 1.1rem 0.9rem;
   border-top: 1px solid var(--gold-deep);
   background: linear-gradient(180deg, rgba(201, 168, 76, 0.07), transparent), var(--night-2);
-  max-height: 62vh; overflow-y: auto;
+  max-height: 62dvh; overflow-y: auto;
 }
 footer .error {
   /* Centered transform-free: the lay-in animation runs `both`, so its `transform:
@@ -1437,7 +1458,7 @@ footer .error::before {
 .reveal-role.good { color: var(--good); }
 .reveal-role.evil { color: var(--evil); }
 .thinking-timeline {
-  max-height: 40vh; overflow-y: auto;
+  max-height: 40dvh; overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1740,11 +1761,14 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
 /* ---- mobile ---- */
 @media (max-width: 760px) {
   /* The game screen is exactly one viewport tall and the feed is its only
-     scroller (see .feed-wrap). overflow:hidden is the backstop: if some future
-     row forgets to shrink, it gets clipped here rather than growing the document,
+     scroller (see .feed-wrap). overflow:clip is the backstop: if some future row
+     forgets to shrink, it gets clipped here rather than growing the document,
      which is what tore the footer off the bottom edge and scrolled the header
-     away. Modals are position:fixed, so they escape this clip. */
-  .game { height: 100dvh; overflow: hidden; }
+     away. clip rather than hidden so the box is not a scroll container at all —
+     hidden would let the browser's own scroll-into-view (focusing the say field
+     as the keyboard opens) push the header out of frame. Modals are
+     position:fixed, so they escape this clip. */
+  .game { height: 100dvh; overflow: clip; }
   .chrome { padding: 0.35rem 0.7rem 0.3rem; gap: 0.5rem; }
   .chrome h1.small { font-size: 1rem; }
   .chrome button.ghost { padding: 0.28em 0.6em; font-size: 0.62rem; }

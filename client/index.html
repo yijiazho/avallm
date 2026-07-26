@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: without it env(safe-area-inset-*) is always 0, so the
+         footer's notch padding would be dead code on a phone with a home indicator.
+         interactive-widget=resizes-content: the game screen is exactly one viewport
+         tall and does not scroll, so the default (keyboard overlays the page) would
+         bury the say field with no way to reach it; this reflows the layout instead. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>AvaLLM — Avalon vs. the LLMs</title>
   </head>
   <body>
