@@ -508,10 +508,11 @@ input::placeholder { color: var(--faint); }
   /* full-bleed: the sky and table span the viewport; content rows center themselves */
 }
 /* viewport-fit=cover (index.html) lays the page out over display cutouts too, so
-   the full-bleed rows have to keep their content out of them. It only bites in
-   landscape on a cutout phone — and a landscape phone is wider than the mobile
-   breakpoint, so these base rules are the ones that carry the inset. max() means
-   the padding is unchanged everywhere the inset is 0, which is everywhere else. */
+   the full-bleed rows have to keep their content out of them. It bites in landscape
+   on a cut-out phone, which is usually wider than the mobile breakpoint but not
+   always (a 700x340 landscape lands in the mobile block), so the same max() rides
+   on both these base rules and their mobile overrides. max() means the padding is
+   unchanged everywhere the inset is 0, which is everywhere else. */
 .chrome {
   display: flex; align-items: center; gap: 0.8rem;
   padding: 0.55rem max(1.1rem, env(safe-area-inset-right)) 0.4rem max(1.1rem, env(safe-area-inset-left));
@@ -1781,7 +1782,7 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
      as the keyboard opens) push the header out of frame. Modals are
      position:fixed, so they escape this clip. */
   .game:not(.gallery-stage) { height: 100dvh; overflow: clip; }
-  .chrome { padding: 0.35rem 0.7rem 0.3rem; gap: 0.5rem; }
+  .chrome { padding: 0.35rem max(0.7rem, env(safe-area-inset-right)) 0.3rem max(0.7rem, env(safe-area-inset-left)); gap: 0.5rem; }
   .chrome h1.small { font-size: 1rem; }
   .chrome button.ghost { padding: 0.28em 0.6em; font-size: 0.62rem; }
   .header-buttons { gap: 0.35rem; }
@@ -1829,7 +1830,7 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
   .qcard .word-sub { font-size: 0.38rem; }
   .qcard.back .sz { width: 24px; height: 24px; font-size: 0.8rem; }
   .prop-lbl { font-size: 0.48rem; }
-  main { flex-direction: column; padding: 0.4rem 0.55rem 0.45rem; gap: 0.4rem; }
+  main { flex-direction: column; padding: 0.4rem max(0.55rem, env(safe-area-inset-right)) 0.45rem max(0.55rem, env(safe-area-inset-left)); gap: 0.4rem; }
   main aside { width: 100%; flex-direction: row; flex-wrap: wrap; order: -1; }
   main aside .role-card { flex: 1; }
   /* narrow column: give the transcript its width back from the panel padding */
@@ -1880,7 +1881,7 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
      — and stopped working the moment the transcript outgrew one screen.) */
   footer.youredge {
     z-index: 5;
-    padding: 0.5rem 0.7rem calc(0.6rem + env(safe-area-inset-bottom));
+    padding: 0.5rem max(0.7rem, env(safe-area-inset-right)) calc(0.6rem + env(safe-area-inset-bottom)) max(0.7rem, env(safe-area-inset-left));
   }
   .edge-inner { flex-wrap: wrap; gap: 0.45rem 0.7rem; }
   .youchip .you-role { display: none; }
@@ -1967,23 +1968,22 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
 }
 
 /* ---- phone with the keyboard up ----
-   interactive-widget=resizes-content (index.html) makes the software keyboard
-   shrink the viewport instead of overlaying it, which is what keeps the say field
-   reachable — but every other row here is a fixed height, so without this block
-   the transcript absorbs the whole loss and disappears: 18px of feed, measured at
-   390x520, while the table sat on its full 216px. You are typing a reply to talk
-   you can no longer see.
-   So for the duration, the reference material yields to the conversation: the
-   aside (role card, quest party) steps out, the felt spread goes with it, and the
-   table keeps just its seats at the card size crowded tables already use — which
-   is also what stops the low seats from spilling out of the shorter zone. */
-/* Height, not width, is the trigger: a phone turned landscape is 844x390, which is
-   the same squeeze from a different direction (and its 198px floor of table left
-   33px of transcript). The table gives back what it can and its seats drop to the
-   card size crowded tables already use — which is also what keeps the low seats
-   from spilling out of the shorter zone. */
+   Two ways to end up here, and height is what they have in common: the software
+   keyboard (interactive-widget=resizes-content in index.html shrinks the viewport
+   rather than overlaying it, which is what keeps the say field reachable), and a
+   phone turned landscape at 844x390. Either way every other row here is a fixed
+   height, so left alone the transcript absorbs the whole loss: 18px of feed
+   measured at 390x520 with the keyboard up, 33px at 844x390, while the table sat
+   on its full height. You would be typing a reply to talk you can no longer see.
+   So the table gives back what it can and its seats drop to the card size crowded
+   tables already use — which is also what keeps the low seats from spilling out of
+   the shorter zone — and the felt spread stands down.
+   The 24dvh coefficient is picked so the keyboard case lands near 125px (520px of
+   viewport) rather than above the 128px flat value this replaced; a taller
+   coefficient reads as "scales nicely" but quietly hands the table back the
+   transcript's pixels. */
 @media (max-height: 620px) {
-  .fartable { height: clamp(112px, 32dvh, 198px); }
+  .fartable { height: clamp(112px, 24dvh, 198px); }
   .fartable .spread { display: none; }
   .seat-card { width: 36px; height: 50px; }
   .seat .sigil { width: 18px; height: 18px; font-size: 11px; }
