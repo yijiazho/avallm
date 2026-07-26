@@ -22,57 +22,19 @@ import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
-import { DEFAULT_ROLES, EVIL_COUNT, ROLE_ALIGNMENT, validateRoles } from '../server/engine/rules.ts'
+import { DEFAULT_ROLES, ROLE_ALIGNMENT } from '../server/engine/rules.ts'
+import { legalCasts } from './casts.ts'
 import type { Role } from '../server/engine/types.ts'
 import type { LlmCallKind } from '../server/llm/call-params.ts'
 
 const ALL_ROLES = Object.keys(ROLE_ALIGNMENT) as Role[]
 
-// EVERY cast validateRoles accepts, generated rather than hand-listed.
-//
-// This started as six casts I happened to think of, and that is exactly how a
-// live phantom survived: ROLE_GUIDANCE.percival opened with "the other is
-// Morgana" and no hand-picked cast paired a Percival with no Morgana, even
-// though the picker's Advanced preset builds one at 5 and 6 players. A matrix
-// assembled from imagination tests the casts you remembered. Enumerating from
-// the validator tests the casts that can actually be dealt.
-//
-// The space is small: unique specials are a subset of {merlin, percival} on the
-// good side and {assassin, morgana, mordred, oberon} on the evil side, with
-// Servants and Minions filling the remaining seats, which is 71 legal casts
-// across 5 to 10 players.
-const GOOD_SPECIALS: Role[] = ['merlin', 'percival']
-const EVIL_SPECIALS: Role[] = ['assassin', 'morgana', 'mordred', 'oberon']
-
-const subsets = <T,>(xs: T[]): T[][] =>
-  xs.reduce<T[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]])
-
-function legalCasts(): { label: string; playerCount: number; roles: Role[] }[] {
-  const out: { label: string; playerCount: number; roles: Role[] }[] = []
-  for (const playerCount of Object.keys(EVIL_COUNT).map(Number).sort((a, b) => a - b)) {
-    const evil = EVIL_COUNT[playerCount]
-    const good = playerCount - evil
-    for (const gs of subsets(GOOD_SPECIALS)) {
-      for (const es of subsets(EVIL_SPECIALS)) {
-        const servants = good - gs.length
-        const minions = evil - es.length
-        if (servants < 0 || minions < 0) continue
-        const roles: Role[] = [
-          ...gs, ...Array<Role>(servants).fill('servant'),
-          ...es, ...Array<Role>(minions).fill('minion'),
-        ]
-        // The validator is the authority on what is dealable, so ask it rather
-        // than re-deriving the lattice here and risking the two drifting apart.
-        try { validateRoles(playerCount, roles) } catch { continue }
-        out.push({
-          label: `${playerCount}p [${[...gs, ...es].join('+') || 'vanilla'}]`,
-          playerCount, roles,
-        })
-      }
-    }
-  }
-  return out
-}
+// Casts come from test/casts.ts, which enumerates everything validateRoles
+// accepts (71 across 5 to 10 players). This audit used to carry a hand-written
+// list of six, and that is exactly how a live phantom survived it:
+// ROLE_GUIDANCE.percival opened with "the other is Morgana" and no hand-picked
+// cast paired a Percival with no Morgana, though the picker's Advanced preset
+// builds one at 5 and 6 players.
 
 // Two resolved quests, so the branches that only render once a quest has
 // resolved (the Merlin streak line, the Percival paired-record line, the derived

@@ -9,6 +9,7 @@ import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { roleCertainties } from '../server/agents/board.ts'
 import { DEFAULT_ROLES } from '../server/engine/rules.ts'
+import { legalCasts } from './casts.ts'
 import type { Game, Role, Seat } from '../server/engine/types.ts'
 
 const seatOf = (g: Game, role: Role): Seat => {
@@ -117,4 +118,74 @@ test('Oberon leaves an evil seat one gap, and names it', () => {
       `unresolved seat ${s} should be good-or-Oberon, got ${c.seats[s].possibleRoles.join(', ')}`,
     )
   }
+})
+
+// ---- soundness over every legal cast ----
+//
+// The tests above pin SHARPNESS at hand-picked deals: that Percival works out
+// the composition of the seats outside his pair, that a Servant learns a Merlin
+// exists. Those are the deductions we care about being strong.
+//
+// This pins the opposite and more important property, over all 71 casts and
+// every seat in each: the deduction may be INCOMPLETE, but it must never be
+// WRONG. An elimination that removes a seat's actual role, or a knownGood entry
+// that is really evil, would feed a false certainty straight into knowledgeText
+// and out to the model as settled fact. Incompleteness costs play strength; a
+// false certainty costs correctness, and only one of the two is recoverable.
+//
+// Hand-picked deals cannot establish this. That is the same gap the phantom-role
+// audit had before it started enumerating.
+
+test('roleCertainties is never wrong, for any seat in any legal cast', () => {
+  const bad: string[] = []
+  let checked = 0
+  for (const cast of legalCasts()) {
+    const g = createGame({ seed: `sound-${cast.label}`, playerCount: cast.playerCount, roles: [...cast.roles] })
+    for (const me of g.players) {
+      checked++
+      const c = roleCertainties(viewFor(g, me.seat))
+      const where = `${cast.label} seat ${me.seat} (${me.role})`
+
+      // The array is documented as indexed by seat number, and prompts.ts and
+      // these tests both rely on it. Pin it rather than trusting player order.
+      for (const [i, s] of c.seats.entries()) {
+        if (s.seat !== i) bad.push(`${where}: seats[${i}] carries seat ${s.seat}`)
+      }
+      // Never eliminate the truth: every seat's ACTUAL role must survive.
+      for (const p of g.players) {
+        const s = c.seats[p.seat]
+        if (!s.possibleRoles.length) bad.push(`${where}: seat ${p.seat} has no possible role left`)
+        else if (!s.possibleRoles.includes(p.role)) {
+          bad.push(`${where}: seat ${p.seat} is ${p.role}, ruled out (left ${s.possibleRoles.join('/')})`)
+        }
+      }
+      // Own seat is the one thing every role knows exactly.
+      if (c.seats[me.seat].possibleRoles.join() !== me.role) {
+        bad.push(`${where}: own seat not pinned (${c.seats[me.seat].possibleRoles.join('/')})`)
+      }
+      // A proven alignment must match the deal. This is the claim that reaches
+      // the model as "every other seat is good: X, Y".
+      for (const seat of c.knownGood) {
+        if (g.players[seat].alignment !== 'good') bad.push(`${where}: claims seat ${seat} good, it is evil`)
+      }
+      for (const seat of c.knownEvil) {
+        if (g.players[seat].alignment !== 'evil') bad.push(`${where}: claims seat ${seat} evil, it is good`)
+      }
+      // The real Merlin can never be excluded from the candidate pool, or the
+      // Assassin is handed a shortlist that cannot contain the target.
+      if (cast.roles.includes('merlin')) {
+        const merlin = g.players.find((p) => p.role === 'merlin')!.seat
+        if (!c.merlinCandidates.includes(merlin)) {
+          bad.push(`${where}: merlinCandidates omits the real Merlin (seat ${merlin})`)
+        }
+      }
+      // alignmentComplete has to agree with the per-seat verdicts it summarises.
+      const anyOpen = c.seats.some((s) => s.alignment === null)
+      if (c.alignmentComplete === anyOpen) {
+        bad.push(`${where}: alignmentComplete=${c.alignmentComplete} but anyOpen=${anyOpen}`)
+      }
+    }
+  }
+  assert.ok(checked > 400, `expected the whole space, only checked ${checked} seats`)
+  assert.deepEqual(bad.slice(0, 20), [], `unsound deductions:\n  ${bad.slice(0, 20).join('\n  ')}\n(${bad.length} total)`)
 })
