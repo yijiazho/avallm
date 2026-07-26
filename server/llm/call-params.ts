@@ -47,5 +47,8 @@ export const CALL_PARAMS: Record<LlmCallKind, CallParams> = {
   // reflect writes the scratchpad (up to 9 reads + a plan); the budget must fit
   // the richer reads the reflect contract now asks for, or the OUTPUT truncates
   // before the parser's generous caps ever apply.
-  reflect: { temperature: 0.5, max_tokens: 800, json: true },
+  // Bumped with the side field: 9 seats x ~6 tokens of "side"/"confidence" keys
+  // is ~55 tokens, and the note above says this budget was already the binding
+  // constraint at a full table.
+  reflect: { temperature: 0.5, max_tokens: 900, json: true },
 }

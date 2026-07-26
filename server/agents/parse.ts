@@ -197,7 +197,24 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
         const susp = Array.isArray(o.suspicions)
           ? o.suspicions
               .filter((s: any) => s && Number.isInteger(s.seat))
-              .map((s: any) => `seat ${s.seat}: ${String(s.read ?? '').slice(0, READ_MAX_CHARS)} (${Number(s.confidence) || 0}%)`)
+              .map((s: any) => {
+                // side and confidence describe the seat's TEAM; the read carries
+                // everything else. Rendered so a settled call is visually distinct
+                // from an estimate, because the model reads this back next round
+                // and a Merlin that wrote "70%" about evil it can SEE was hedging
+                // the one fact it did not have to hedge.
+                const side = ['good', 'evil', 'unsure'].includes(s.side) ? s.side : undefined
+                const n = Number(s.confidence)
+                const conf = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : undefined
+                const read = String(s.read ?? '').slice(0, READ_MAX_CHARS)
+                let head: string
+                if (side === 'unsure') head = 'side open'
+                else if (side) head = conf === undefined ? side : conf >= 100 ? `${side}, settled` : `${side} ${conf}%`
+                // No side field: a model that ignored it still gets usable notes
+                // in the old shape rather than losing the entry altogether.
+                else head = conf === undefined ? '' : `${conf}%`
+                return head ? `seat ${s.seat} (${head}): ${read}` : `seat ${s.seat}: ${read}`
+              })
               .join('; ')
           : ''
         // Deductions are the bot's running logical model — chains of inference

@@ -126,10 +126,13 @@ test('pitch: clean JSON, prose salvage, empty fails', () => {
 })
 
 test('reflect: structured and raw scratchpads, empty fails', () => {
+  // The current schema: side and confidence describe the TEAM, the read carries
+  // the rest. reflect-side.test.ts covers the settled/open renderings and the
+  // fallback for a model that omits side.
   const clean = parseDecision('reflect',
-    '{"suspicions":[{"seat":2,"read":"votes with evil","confidence":70}],"plan":"watch seat 2"}', view)
+    '{"suspicions":[{"seat":2,"side":"evil","confidence":70,"read":"votes with evil"}],"plan":"watch seat 2"}', view)
   assert.equal(clean.parseFailed, false)
-  assert.match(clean.scratchpad!, /seat 2: votes with evil \(70%\)/)
+  assert.match(clean.scratchpad!, /seat 2 \(evil 70%\): votes with evil/)
   assert.match(clean.scratchpad!, /Plan: watch seat 2/)
 
   const raw = parseDecision('reflect', 'Seat 2 seems evil. Stay close to seat 4.', view)

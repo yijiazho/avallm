@@ -132,9 +132,9 @@ test('reflect fires after a quest resolves and feeds the next prompt', async () 
   let sawScratchpadInPrompt = false
   const client = fakeClient((opts, messages) => {
     if (opts.tag?.endsWith('/reflect')) {
-      return '{"suspicions":[{"seat":3,"read":"failed the quest","confidence":80}],"plan":"reject seat 3"}'
+      return '{"suspicions":[{"seat":3,"side":"evil","confidence":80,"read":"failed the quest"}],"plan":"reject seat 3"}'
     }
-    if (messages.some((m) => m.content.includes('failed the quest (80%)'))) {
+    if (messages.some((m) => m.content.includes('(evil 80%): failed the quest'))) {
       sawScratchpadInPrompt = true
     }
     if (opts.tag?.endsWith('/vote')) return '{"vote":"approve"}'
@@ -159,7 +159,7 @@ test('reflect fires after a quest resolves and feeds the next prompt', async () 
 
   // The refreshed pad rides the post-reflect decision so the engine can log
   // it; a second decision without a new reflect carries no notes.
-  assert.match((d as any).notes, /failed the quest \(80%\)/)
+  assert.match((d as any).notes, /seat 3 \(evil 80%\): failed the quest/)
   const d2 = await agent.decide({ kind: 'vote', seat: 0, round: 2, proposalNum: 1 }, viewFor(g, 0))
   assert.equal((d2 as any).notes, undefined)
 
