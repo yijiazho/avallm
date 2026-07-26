@@ -61,7 +61,10 @@ test('with no Morgana dealt, Percival gets the protection baseline instead', () 
   assert.match(text, /protection rather than identification/)
   // The tell-them-apart framing describes a player who is not at this table.
   assert.doesNotMatch(text, /\bMorgana\b/)
-  assert.doesNotMatch(text, /tell them apart/)
+  // The discriminator has to be a phrase the WITH-decoy baseline actually
+  // carries, or it stops testing anything the moment that wording changes.
+  assert.doesNotMatch(text, /two candidates apart/)
+  assert.match(guidanceFor(WITH_DECOY), /two candidates apart/, 'the discriminator must exist to discriminate')
 })
 
 test('the no-decoy knowledge line does not re-offer Merlin as unplaced', () => {
