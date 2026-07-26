@@ -431,12 +431,17 @@ if (games > 1) {
     }
   }
 
-  // The one thing in-process grading cannot replace. Flagged only for paid runs,
-  // where re-running to recover the artifacts costs money rather than seconds.
-  if (isLlm && !values.out) {
-    console.log(`\nnote: no --out, so these games were not saved as artifacts. The forced-play`)
-    console.log(`      numbers above are complete, but the LLM judge (softer blunders, table`)
-    console.log(`      talk quality) can only run over saved artifacts, and re-running costs money.`)
+  // The one thing in-process grading cannot replace. Gated on artifactOut, NOT on
+  // values.out: with the --transcripts default in place, checking the raw flag
+  // told a run that had just written eight artifacts that it had written none,
+  // contradicting the line this same run printed at startup. Anyone reading that
+  // log would re-run a paid batch to recover artifacts they already had, which is
+  // the exact waste the default exists to prevent.
+  if (isLlm && !artifactOut) {
+    console.log(`\nnote: no --out and no --transcripts, so these games were not saved as`)
+    console.log(`      artifacts. The forced-play and speech-norm numbers above are complete,`)
+    console.log(`      but the LLM judge (softer blunders, table talk quality) can only run over`)
+    console.log(`      saved artifacts, and re-running a paid batch to recover them costs money.`)
   }
 }
 
