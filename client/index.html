@@ -6,7 +6,10 @@
          footer's notch padding would be dead code on a phone with a home indicator.
          interactive-widget=resizes-content: the game screen is exactly one viewport
          tall and does not scroll, so the default (keyboard overlays the page) would
-         bury the say field with no way to reach it; this reflows the layout instead. -->
+         bury the say field with no way to reach it; this reflows the layout instead,
+         and styles.css has a short-viewport block so the reflow does not squeeze the
+         transcript to nothing. Chromium only — iOS Safari ignores it and still
+         overlays, where reaching the field falls to Safari's own scroll-into-view. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>AvaLLM — Avalon vs. the LLMs</title>
   </head>
