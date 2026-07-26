@@ -15,7 +15,7 @@ npm run sim -- --help                      # EVERY sim flag, with examples and l
 npm run sim -- --players 7 --seed 42       # one headless heuristic game, full transcript
 npm run sim -- --games 200 --talk 0,0      # aggregate win-rate stats
 npm run sim -- --agents llm --players 5    # headless game with real LLM calls + cost breakdown
-npm run sim -- --tier mid --games 8 --concurrency 4 --talk 3,2 --transcripts runs/
+npm run sim -- --tier mid --games 8 --concurrency 4 --talk 2,1 --transcripts runs/
                                            # benchmark a cost tier: random cast per game, readable after
 npm run play                               # terminal play vs heuristic bots
 

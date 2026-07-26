@@ -38,8 +38,15 @@ export function createGame(opts: CreateGameOpts): Game {
   validateRoles(playerCount, roles)
   const names = opts.names ?? Array.from({ length: playerCount }, (_, i) => `P${i}`)
   if (names.length !== playerCount) throw new EngineError('names length mismatch')
+  // THE game default, for every caller that does not pass one: web games go
+  // through here without a talk override on purpose, so this line is the single
+  // place the shipped pacing is set. Was 3,2 and cut to 2,1 on playback feedback
+  // that rounds drag: at 3 rounds the table was reliably out of new arguments by
+  // the third and spent it restating the second (a 5p game ran 18 of 70 bot
+  // utterances re-litigating one quest). The sim, the bench, terminal play and
+  // the /api/agents fixture all pass their own talk config and are unaffected.
   const talk: TalkConfig = {
-    maxRounds: 3, maxRoundsAfterChange: 2, leaderInDiscussion: 'last', ...opts.talk,
+    maxRounds: 2, maxRoundsAfterChange: 1, leaderInDiscussion: 'last', ...opts.talk,
   }
 
   const rng = makeRng(`deal:${opts.seed}`)

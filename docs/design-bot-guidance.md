@@ -493,7 +493,7 @@ separating the failures cleanly.
 |---|---|---|---|
 | **Computable** | Could any player at the table derive it from the public record? Then the model should not be asked to derive it. | S7 `factsDossier` | "3 Fails on a 4-person team means at least 3 of those 4 are evil" — arithmetic every model skipped |
 | **Policy** | Is it a judgement about what to DO, given facts already in hand? | S0–S5 (place by §6.2, tier by §7.1) | When to break the one-evil-per-team default |
-| **Structural** | Is the failure shaped by the harness — turn order, round count, what a decision even offers? | engine / sim config / flow | Stall-loops at proposals 3–5, where the talk budget is a fixed `--talk 3,2` regardless of how many proposals have already been argued |
+| **Structural** | Is the failure shaped by the harness — turn order, round count, what a decision even offers? | engine / sim config / flow | Stall-loops at proposals 3–5, where the talk budget is a fixed `--talk 2,1` regardless of how many proposals have already been argued |
 | **Model** | Does the rule already exist, in the right slot, at the right force, and the seat still misses it? | model choice; measure, do not re-word | Two-Fail miscoordination in one model while the rule-based fallback executes it correctly |
 
 ### 8.2 Ask in this order

@@ -351,9 +351,11 @@ function startLobby(l: Lobby): void {
     humans.set(seat, { token: m.token, name: names[seat] })
   })
 
+  // No talk override: this restated the engine default verbatim, so the shipped
+  // pacing lived in two files that had to be edited together and nothing checked
+  // that they matched. createGame owns it now (engine/game.ts).
   const game = createGame({
     seed, playerCount, names, roles: l.config.roles,
-    talk: { maxRounds: 3, maxRoundsAfterChange: 2, leaderInDiscussion: 'last' },
   })
   botSeatList.forEach((seat, i) => {
     agents.set(seat, createAgentFromDef(defs[i], { seed, seat }, table[i].model))
