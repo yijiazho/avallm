@@ -14,6 +14,9 @@ import { renderEvent, revealRoles } from './render.ts'
 import { renderTranscript } from '../transcript.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
 import { FORCED_PLAY_RULES, forcedPlayViolations, type ForcedPlayRule } from '../eval/forced.ts'
+import {
+  SPEECH_NORMS, SPEECH_NORM_IDS, mergeSpeechNorms, newSpeechNormReport, speechNorms,
+} from '../eval/norms.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
 import type { Seat } from '../engine/types.ts'
@@ -230,6 +233,7 @@ function namesFor(count: number, tierTable?: string[]): string[] | undefined {
 const tally = {
   good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0,
   blunders: new Map<ForcedPlayRule, number>(),
+  norms: newSpeechNormReport(),
 }
 
 // What actually sat in a seat, for the artifact AND the transcript header. One
@@ -284,6 +288,9 @@ async function playGame(i: number): Promise<void> {
     steps: result.steps,
   })
   const violations = forcedPlayViolations(artifact)
+  // Same deal as the forced plays: computed from the artifact we already built,
+  // so the number is free and never depends on remembering a flag.
+  mergeSpeechNorms(tally.norms, speechNorms(artifact))
   for (const v of violations) tally.blunders.set(v.rule, (tally.blunders.get(v.rule) ?? 0) + 1)
   if (values.out) appendArtifact(values.out, artifact)
   // Roles, outcome, and degradations close both the printed transcript and the
@@ -386,6 +393,25 @@ if (games > 1) {
   console.log(`forced-play violations: ${blunders}${blunders ? '' : '  (no deterministically wrong decisions)'}`)
   for (const [rule, n] of [...tally.blunders].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${rule}: ${n} — ${FORCED_PLAY_RULES[rule]}`)
+  }
+
+  // House-style compliance in the speech the bots actually produced. The prompt
+  // side of this rule is guarded by talk-norms.test.ts; this is the other half,
+  // and it is reported per AGENT because compliance is model-dependent and the
+  // actionable question is which models need the guidance tightened.
+  const n = tally.norms
+  if (n.turns) {
+    const pct = ((n.violations / n.turns) * 100).toFixed(1)
+    console.log(`speech-norm violations: ${n.violations} of ${n.turns} spoken turns (${pct}%)`)
+    for (const rule of SPEECH_NORM_IDS) {
+      if (!n.byRule[rule]) continue
+      const who = Object.entries(n.byAgent[rule])
+        .sort((a, b) => b[1] - a[1])
+        .map(([agent, c]) => `${agent} ${c}`)
+        .join(', ')
+      console.log(`  ${rule}: ${n.byRule[rule]} — ${SPEECH_NORMS[rule].norm}`)
+      console.log(`      ${who}`)
+    }
   }
 
   // The one thing in-process grading cannot replace. Flagged only for paid runs,
