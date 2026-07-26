@@ -282,17 +282,6 @@ function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
   return ` The other ${rest.length} seats hold ${roleMultisetPhrase(rest)}, in some order.`
 }
 
-// Both private lists below are COMPLETE unless one specific role is dealt, and
-// that role is named in the rules. So when it is absent, the list closes and the
-// complement is certain; when it is present, the gap is exactly one known role
-// rather than general doubt. Stating the counterfactual unconditionally, which
-// is what these lines used to do, put a role at the table in every game: a
-// Morgana in a no-Oberon deal twice wrote a seat off as "likely evil or Oberon"
-// at 75% and 80%, a proposition its own partner list refutes.
-//
-// Certainty is more dangerous to say out loud than doubt was, so every branch
-// that closes a deduction also carries the gag. Merlin's may name the Assassin
-// because knownEvil is Merlin-only and the lattice makes Assassin implied.
 // What the RESOLVED QUESTS added on top of the deal, and only that. The dossier
 // has printed the arithmetic ("2 Fails, so at least 2 of these 4 are evil") since
 // the start, and across every observed game no bot ever spent it as an
@@ -306,14 +295,39 @@ function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
 function recordLine(view: PlayerView, certain: RoleCertainties): string {
   const added = certain.fromRecord
   if (!added.length) return ''
-  const each = added.map((f) => {
-    const who = `${nameOf(view, f.seat)} is ${f.alignment === 'evil' ? 'EVIL' : 'GOOD'}`
-    return f.questNum
-      ? `${who} (Quest ${f.questNum} failed, and of the players on it he is the only one left you cannot already account for)`
-      : `${who} (it follows once the seats above are placed)`
-  })
+  const label = (f: typeof added[number]) =>
+    `${nameOf(view, f.seat)} is ${f.alignment === 'evil' ? 'EVIL' : 'GOOD'}`
+
+  // One quest can force SEVERAL seats at once, whenever it took more Fails than
+  // the rest of its team can account for. Rendering those seats one at a time
+  // said "he is the only one left" about each of two players in the same
+  // sentence, which is a flat contradiction and hit 929 of 2713 renders. So
+  // group by the quest that forced them and let the count pick the wording.
+  const byQuest = new Map<number, typeof added>()
+  const derived: typeof added = []
+  for (const f of added) {
+    if (f.questNum === undefined) derived.push(f)
+    else byQuest.set(f.questNum, [...(byQuest.get(f.questNum) ?? []), f])
+  }
+
+  const each: string[] = []
+  for (const [num, group] of [...byQuest].sort((a, b) => a[0] - b[0])) {
+    each.push(group.length === 1
+      ? `${label(group[0])}, because Quest ${num} failed and of the players on it that is the only seat you cannot already account for`
+      : `${listOf(group.map(label))}, because Quest ${num} took more Fails than the rest of its team can account for and those are the only seats on it left open to you`)
+  }
+  // Budget deductions are consequences of the quest ones, so they follow them.
+  // The old wording pointed at "the seats above" and seat order could put it
+  // first, where there was nothing above it to follow from.
+  if (derived.length) {
+    each.push(`${listOf(derived.map(label))}, which ${each.length ? 'follows once those seats are placed' : 'the resolved quests now force'}`)
+  }
+
   return ` The quest record has since settled ${added.length === 1 ? 'one more seat' : `${added.length} more seats`}`
-    + ` that the deal alone left open: ${listOf(each)}.`
+    // Semicolons, not listOf: each entry already carries its own "because"
+    // clause, and joining those with "and" runs two deductions into one sentence
+    // the model has to re-split.
+    + ` that the deal alone left open: ${each.join('; ')}.`
     + ` Whether you can say that out loud depends on the premise it rests on: if it rests on a quest you sat on yourself,`
     + ` the table can follow the same steps, and if it rests on who you were shown at the deal, showing the working shows what you are.`
 }
@@ -322,6 +336,17 @@ export function knowledgeText(view: PlayerView): string {
   return dealKnowledgeText(view) + recordLine(view, roleCertainties(view))
 }
 
+// Both private lists below are COMPLETE unless one specific role is dealt, and
+// that role is named in the rules. So when it is absent, the list closes and the
+// complement is certain; when it is present, the gap is exactly one known role
+// rather than general doubt. Stating the counterfactual unconditionally, which
+// is what these lines used to do, put a role at the table in every game: a
+// Morgana in a no-Oberon deal twice wrote a seat off as "likely evil or Oberon"
+// at 75% and 80%, a proposition its own partner list refutes.
+//
+// Certainty is more dangerous to say out loud than doubt was, so every branch
+// that closes a deduction also carries the gag. Merlin's may name the Assassin
+// because knownEvil is Merlin-only and the lattice makes Assassin implied.
 function dealKnowledgeText(view: PlayerView): string {
   const info = view.privateInfo
   const certain = roleCertainties(view)

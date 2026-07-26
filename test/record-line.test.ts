@@ -69,6 +69,40 @@ test('the deduction carries its own disclosure rule', () => {
   assert.match(text, /showing the working shows what you are/)
 })
 
+test('one quest that forces two seats says so once, not twice in the singular', () => {
+  // A quest can take more Fails than the rest of its team can account for, and
+  // then it closes several seats at the same stroke. Rendering them separately
+  // claimed "the only seat you cannot account for" about each of two players in
+  // one sentence (929 of 2713 renders across the played-out sweep).
+  const g = createGame({ seed: 'record', playerCount: 5, roles: DEFAULT_ROLES[5] })
+  const servant = seatOf(g, 'servant'), morgana = seatOf(g, 'morgana'), assassin = seatOf(g, 'assassin')
+  // Both evil aboard a 2-person quest, both play Fail: 2 Fails, 2 seats, and the
+  // Servant knows he is neither of them.
+  questWith(g, [morgana, assassin], [morgana, assassin])
+
+  const text = knowledgeText(viewFor(g, servant))
+  assert.match(text, /took more Fails than the rest of its team can account for/)
+  assert.match(text, shows(g, morgana, 'is EVIL'))
+  assert.doesNotMatch(text, /the only seat you cannot already account for/,
+    'a singular claim about two players is a contradiction the model will read literally')
+  // Said once for the pair, not once per seat.
+  assert.equal(text.match(/because Quest 1/g)?.length, 1)
+})
+
+test('a consequence is never printed before the deduction it follows from', () => {
+  // Budget deductions are downstream of the quest ones, and fromRecord is in
+  // seat order, so a low-numbered seat closed by the budget used to be rendered
+  // first while pointing at "the seats above" that had not been stated yet.
+  const g = std5()
+  const percival = seatOf(g, 'percival'), morgana = seatOf(g, 'morgana')
+  questWith(g, [percival, morgana], [morgana])
+  const text = knowledgeText(viewFor(g, percival))
+  const merlin = seatOf(g, 'merlin')
+  assert.ok(merlin < morgana, 'this seed must put the derived seat FIRST, or the case is not exercised')
+  assert.ok(text.indexOf('because Quest 1') < text.indexOf('follows once those seats are placed'),
+    'the quest deduction has to be stated before the thing that follows from it')
+})
+
 test('a failure that proves nothing says nothing', () => {
   // Two unplaced seats and one Fail: the constraint is satisfiable either way,
   // so there is no elimination and the line must stay off. A prompt that named
