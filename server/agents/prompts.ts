@@ -295,8 +295,23 @@ function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
 function recordLine(view: PlayerView, certain: RoleCertainties): string {
   const added = certain.fromRecord
   if (!added.length) return ''
-  const label = (f: typeof added[number]) =>
-    `${nameOf(view, f.seat)} is ${f.alignment === 'evil' ? 'EVIL' : 'GOOD'}`
+  const side = (a: Alignment) => (a === 'evil' ? 'EVIL' : 'GOOD')
+  // Two grammatical positions, so two renderers. `names X as EVIL` reads as a
+  // verb taking an object; `X is EVIL` is a standalone claim. Using one string
+  // for both produced "Quest 1 names P4 is EVIL".
+  const named = (f: typeof added[number]) => nameOf(view, f.seat)
+  const asSide = (group: typeof added) => {
+    const one = group[0].alignment
+    return group.every((f) => f.alignment === one)
+      ? `${listOf(group.map(named))} as ${side(one)}`
+      : listOf(group.map((f) => `${named(f)} as ${side(f.alignment)}`))
+  }
+  const isSide = (group: typeof added) => {
+    const one = group[0].alignment
+    return group.every((f) => f.alignment === one)
+      ? `${listOf(group.map(named))} ${group.length === 1 ? 'is' : 'are'} ${side(one)}`
+      : listOf(group.map((f) => `${named(f)} is ${side(f.alignment)}`))
+  }
 
   // One quest can force SEVERAL seats at once, whenever it took more Fails than
   // the rest of its team can account for. Rendering those seats one at a time
@@ -310,24 +325,34 @@ function recordLine(view: PlayerView, certain: RoleCertainties): string {
     else byQuest.set(f.questNum, [...(byQuest.get(f.questNum) ?? []), f])
   }
 
-  const each: string[] = []
-  for (const [num, group] of [...byQuest].sort((a, b) => a[0] - b[0])) {
-    each.push(group.length === 1
-      ? `${label(group[0])}, because Quest ${num} failed and of the players on it that is the only seat you cannot already account for`
-      : `${listOf(group.map(label))}, because Quest ${num} took more Fails than the rest of its team can account for and those are the only seats on it left open to you`)
+  // The REASON is stated once and then applied, rather than repeated per seat.
+  // Repeating it put the same clause in the sentence as many times as the record
+  // had closed seats (an Oberon, who has no partner list to work from, reached
+  // six), which is both bloat in a budget that is already contested and two
+  // absolute-sounding claims a model has to notice are separately scoped.
+  const groups = [...byQuest].sort((a, b) => a[0] - b[0])
+  const singles = groups.filter(([, g]) => g.length === 1)
+  const multis = groups.filter(([, g]) => g.length > 1)
+
+  const parts: string[] = []
+  if (singles.length) {
+    parts.push(`A quest that failed while every other player on it is one you can already place names the player you cannot:`
+      + ` ${singles.map(([num, g]) => `Quest ${num} names ${asSide(g)}`).join('; ')}.`)
+  }
+  for (const [num, g] of multis) {
+    parts.push(`Quest ${num} took more Fails than the rest of its team can account for, which names ${asSide(g)}.`)
   }
   // Budget deductions are consequences of the quest ones, so they follow them.
-  // The old wording pointed at "the seats above" and seat order could put it
-  // first, where there was nothing above it to follow from.
+  // The old wording pointed at "the seats above" while fromRecord is in seat
+  // order, which could put it first with nothing above it to follow from.
   if (derived.length) {
-    each.push(`${listOf(derived.map(label))}, which ${each.length ? 'follows once those seats are placed' : 'the resolved quests now force'}`)
+    parts.push(parts.length
+      ? `${isSide(derived)}, which follows once those seats are placed.`
+      : `${isSide(derived)}, which the resolved quests now force.`)
   }
 
   return ` The quest record has since settled ${added.length === 1 ? 'one more seat' : `${added.length} more seats`}`
-    // Semicolons, not listOf: each entry already carries its own "because"
-    // clause, and joining those with "and" runs two deductions into one sentence
-    // the model has to re-split.
-    + ` that the deal alone left open: ${each.join('; ')}.`
+    + ` that the deal alone left open. ${parts.join(' ')}`
     + ` Whether you can say that out loud depends on the premise it rests on: if it rests on a quest you sat on yourself,`
     + ` the table can follow the same steps, and if it rests on who you were shown at the deal, showing the working shows what you are.`
 }

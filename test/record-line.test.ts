@@ -51,8 +51,8 @@ test('a failure the seat sat on names the player it proves evil', () => {
 
   const text = knowledgeText(viewFor(g, percival))
   assert.match(text, /quest record has since settled/)
-  assert.match(text, shows(g, morgana, 'is EVIL'))
-  assert.match(text, /Quest 1 failed/, 'the seat must be able to check the claim against the board')
+  assert.match(text, shows(g, morgana, 'as EVIL'))
+  assert.match(text, /Quest 1 names/, 'the seat must be able to check the claim against the board')
   // The cascade: closing the Morgana half of his pair settles the other as Merlin.
   assert.match(text, shows(g, seatOf(g, 'merlin'), 'is GOOD'))
 })
@@ -81,12 +81,16 @@ test('one quest that forces two seats says so once, not twice in the singular', 
   questWith(g, [morgana, assassin], [morgana, assassin])
 
   const text = knowledgeText(viewFor(g, servant))
-  assert.match(text, /took more Fails than the rest of its team can account for/)
-  assert.match(text, shows(g, morgana, 'is EVIL'))
-  assert.doesNotMatch(text, /the only seat you cannot already account for/,
+  assert.match(text, /Quest 1 took more Fails than the rest of its team can account for/)
+  // Joined into one claim: the first name runs into the second, and the side
+  // label is carried once at the end rather than repeated per seat.
+  const pair = [morgana, assassin].sort((a, b) => a - b)
+  assert.ok(text.includes(`${g.players[pair[0]].name}(seat ${pair[0]}) and`), 'the pair must be joined')
+  assert.match(text, shows(g, pair[1], 'as EVIL'))
+  assert.doesNotMatch(text, /the only seat/,
     'a singular claim about two players is a contradiction the model will read literally')
-  // Said once for the pair, not once per seat.
-  assert.equal(text.match(/because Quest 1/g)?.length, 1)
+  // The reason is stated once for the pair, not once per seat.
+  assert.equal(text.match(/took more Fails/g)?.length, 1)
 })
 
 test('a consequence is never printed before the deduction it follows from', () => {
@@ -99,7 +103,7 @@ test('a consequence is never printed before the deduction it follows from', () =
   const text = knowledgeText(viewFor(g, percival))
   const merlin = seatOf(g, 'merlin')
   assert.ok(merlin < morgana, 'this seed must put the derived seat FIRST, or the case is not exercised')
-  assert.ok(text.indexOf('because Quest 1') < text.indexOf('follows once those seats are placed'),
+  assert.ok(text.indexOf('Quest 1 names') < text.indexOf('follows once those seats are placed'),
     'the quest deduction has to be stated before the thing that follows from it')
 })
 

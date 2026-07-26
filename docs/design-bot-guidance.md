@@ -130,6 +130,44 @@ legal casts, so the knowledge lines, ASKs and view renderers are covered rather 
 exported constants (same approach as `talk-norms.test.ts`). `test/certainties.test.ts` pins the
 deductions themselves.
 
+### 6.1a-bis Audits over rendered prompts, and what each one catches
+
+Three audits now run over **rendered** prompts rather than the exported constants, for the same
+reason each time: a constant does not tell you what the model actually receives.
+
+| audit | catches | how it is scoped |
+|-------|---------|------------------|
+| `test/phantom-roles.test.ts` | a prompt naming a role nobody holds | all 71 legal casts, every seat, every call kind |
+| `test/talk-norms.test.ts` | house-style violations (dashes, "not X, that's Y") | rendered prompts, so `ASKS` and view renderers are covered |
+| `test/prompt-coherence.test.ts` | a sentence that contradicts **itself** | 71 casts on boards with a FAILED quest, so failure-gated text renders |
+
+The third one is newer and worth explaining, because it catches a failure the other two cannot see:
+no individual word is wrong. Text assembled by joining a variable-length list can be true for one
+item and self-refuting for two. `recordLine` captioned each deduction "of the players on it he is
+the only one left you cannot already account for" — correct for one seat, and printed about each of
+two players in the same sentence whenever a quest took more Fails than its team could account for.
+**929 of 2713 renders.** The diff read clean and the test written alongside it passed, because it
+only built the single-item case.
+
+Two detectors, both deliberately shallow (they judge whether a sentence contradicts itself on its
+face, never whether a claim is true):
+
+- **repeated uniqueness** — "the only one/seat/player", "is the one who", "nobody else" appearing
+  twice in one sentence. Runs everywhere: a data row never makes a singular claim.
+- **repeated run** — the same eight words twice in one sentence. Runs on prose only. The dossier and
+  vote record are data renderers whose format conventions (`facts.ts` header) make every row share
+  its column labels, so repetition there is the format working.
+
+Two properties keep it honest. It asserts it reached the text it audits (a floor on how often
+`recordLine` renders, since a sweep of all-successful boards would pass while covering nothing —
+the coverage gap `phantom-roles` still has). And a self-test pins both detectors against the
+verbatim shipped bug plus three corpus sentences that use the same phrases once, so widening a
+pattern until it stops biting has to break that test first.
+
+**Known gap:** contradiction ACROSS sentences is not covered. The same review turned up a
+consequence rendered before its premise ("it follows once the seats above are placed", printed
+first), which no sentence-scoped check can see.
+
 ### 6.1b The second gating dimension: board state
 
 Cast gating (§6.1a) is free, because a cast is fixed for a whole game. **Board gating is not**:
