@@ -160,19 +160,31 @@ test('the audit reaches the text it is meant to audit', () => {
   // Without this the sweep passes trivially on boards where no quest ever failed
   // and the list-rendered sections are all empty, which is the exact shape of
   // coverage the phantom audit was missing.
-  let withFailure = 0, sawRecordLine = 0, checked = 0
+  //
+  // Counted at the point the detectors see it, NOT at "the prompt contains the
+  // string". Those differ: a sentence is skipped by the run detector if it looks
+  // tabular, so adding a `|` to the record line (say, to match the dossier's
+  // cell conventions) would silently drop it out of the audit while a
+  // string-presence check stayed green. The guard would then cover nothing and
+  // look fine, which is the failure mode this whole test exists to prevent.
+  let withFailure = 0, audited = 0, checked = 0
   for (const cast of legalCasts()) {
     const g = boardWithFailure(cast.playerCount, cast.roles, `coh-${cast.label}`)
     if (!g.quests.some((q) => q.result === 'fail')) continue
     withFailure++
     for (const { text } of renderAll(g, cast.roles.includes('assassin'))) {
       checked++
-      if (text.includes('quest record has since settled')) sawRecordLine++
+      for (const s of sentences(text)) {
+        if (!s.includes('quest record has since settled')) continue
+        if (ALLOWED.includes(s) || TABULAR.test(s)) continue
+        audited++
+      }
     }
   }
   assert.ok(withFailure > 50, `only ${withFailure} casts reached a failed quest`)
   assert.ok(checked > 2000, `only ${checked} prompts rendered`)
-  assert.ok(sawRecordLine > 20, `the record line rendered only ${sawRecordLine} times; the audit would not have caught its bug`)
+  assert.ok(audited > 20,
+    `the record line reached both detectors only ${audited} times; the audit would not have caught its own bug`)
 })
 
 for (const cast of legalCasts()) {
