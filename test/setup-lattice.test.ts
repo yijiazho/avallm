@@ -36,6 +36,32 @@ test('every preset builds a cast the engine accepts', () => {
   }
 })
 
+// The presets are three points in a space the user can move around freely, so
+// checking only them leaves most of the picker untested. This is the actual
+// contract, over EVERY toggle combination: the picker may be stricter than the
+// engine (it forbids a Merlin-less Oberon, a product call), but it must never be
+// looser, because a looser picker offers setups that can only ever 400.
+test('no toggle combination offers a cast the engine would reject', () => {
+  const flags: (keyof SpecialSelection)[] = ['merlinPair', 'percival', 'morgana', 'mordred', 'oberon']
+  let built = 0
+  for (const n of COUNTS) {
+    for (let mask = 0; mask < (1 << flags.length); mask++) {
+      const sel = { ...NONE }
+      flags.forEach((f, i) => { sel[f] = Boolean(mask & (1 << i)) })
+      const b = buildRoles(n, sel)
+      if (!b.roles) continue // refused by the picker, which is its right
+      built++
+      assert.doesNotThrow(
+        () => validateRoles(n, b.roles as Role[]),
+        `${n}p ${flags.filter((f) => sel[f]).join('+') || 'vanilla'} builds a cast validateRoles rejects: ${b.roles.join(', ')}`,
+      )
+    }
+  }
+  // Guard against a refactor that makes buildRoles refuse everything, which
+  // would leave the assertion above vacuously true.
+  assert.ok(built > 40, `expected the picker to build a real range of casts, got ${built}`)
+})
+
 test('a vanilla cast (no specials) is legal at every count', () => {
   for (const n of COUNTS) {
     const built = buildRoles(n, NONE)
