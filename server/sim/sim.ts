@@ -41,7 +41,9 @@ GAME
   --concurrency <n>     aggregate mode: play n games at once (shares the spend ceiling)
 
 OUTPUT
-  --out <file.jsonl>    append replayable game artifacts for eval tooling
+  --out <file.jsonl>    append replayable game artifacts for eval tooling. LLM runs
+                        that pass --transcripts default this to <dir>/artifacts.jsonl,
+                        since re-running a paid batch to recover them costs money.
   --transcripts <dir>   write one rendered transcript per game into <dir>. A single
                         game prints its transcript anyway; aggregate runs print none,
                         so this is how a batch stays readable.
@@ -168,6 +170,21 @@ if (values.pack) {
 const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable !== undefined
   || tierModels !== undefined
 
+// A PAID run that already names an output directory gets artifacts beside its
+// transcripts, unless --out says otherwise. The asymmetry is the point: losing
+// the artifacts of a free run costs seconds to recreate, losing the artifacts of
+// an LLM batch costs money, and this session lost exactly that (two paid arms
+// captured --transcripts and no --out, so neither could be graded afterwards).
+//
+// Still nothing written for a run that asked for no files: no --transcripts, no
+// default. The user has already said where output goes, so this puts more of it
+// there rather than inventing a location.
+const artifactOut = values.out
+  ?? (isLlm && values.transcripts ? path.join(values.transcripts, 'artifacts.jsonl') : undefined)
+if (artifactOut && !values.out) {
+  console.log(`[artifacts] paid run: appending game artifacts to ${artifactOut} (override with --out)`)
+}
+
 // What actually sat at the table, for the aggregate summary. Derived from the same
 // seating decision as `isLlm` rather than echoing --agents: --model/--tier/--pack all
 // seat LLMs without touching that flag, so printing the raw flag labelled a paid run
@@ -292,7 +309,7 @@ async function playGame(i: number): Promise<void> {
   // so the number is free and never depends on remembering a flag.
   mergeSpeechNorms(tally.norms, speechNorms(artifact))
   for (const v of violations) tally.blunders.set(v.rule, (tally.blunders.get(v.rule) ?? 0) + 1)
-  if (values.out) appendArtifact(values.out, artifact)
+  if (artifactOut) appendArtifact(artifactOut, artifact)
   // Roles, outcome, and degradations close both the printed transcript and the
   // written one: a transcript without the reveal cannot be read for play quality,
   // since who was evil is exactly what the table talk has to be judged against.
