@@ -415,10 +415,18 @@ function seatAgentLabel(s: Session, seat: Seat): string {
 // doing because it was upgraded. Set AVALON_ARTIFACTS to a file path.
 const artifactFile = process.env.AVALON_ARTIFACTS?.trim() || ''
 if (artifactFile) {
-  // Fail loudly at boot rather than at the end of the first finished game, which
-  // is the worst moment to learn the output path is unwritable.
-  fs.mkdirSync(path.dirname(path.resolve(artifactFile)), { recursive: true })
-  console.log(`[artifacts] finished games will be appended to ${artifactFile}`)
+  // Surface a bad path at boot rather than at the end of the first finished
+  // game, but WARN rather than throw. This runs at module scope, so a throw
+  // exits the process: an unmounted volume in AVALON_ARTIFACTS would take the
+  // whole game server down for a bookkeeping feature. Same call the data dir
+  // above makes, and for the same reason. saveArtifact already survives a
+  // failing write, so the degraded mode is "no artifacts", not "no server".
+  try {
+    fs.mkdirSync(path.dirname(path.resolve(artifactFile)), { recursive: true })
+    console.log(`[artifacts] finished games will be appended to ${artifactFile}`)
+  } catch (err) {
+    console.warn(`[artifacts] cannot prepare "${artifactFile}" (${(err as Error).message}) — is the volume mounted? Games will play normally and write no artifacts.`)
+  }
 }
 
 function saveArtifact(s: Session): void {

@@ -56,6 +56,15 @@ function overlap(a: string, b: string): number {
 // thematic link rather than a restated fact), so 0.6 has headroom on both sides.
 const THRESHOLD = 0.6
 
+// KNOWN LIMIT, found by this audit failing to catch a regression the reviewer
+// caught by reading: comparison is sentence-level, so a restating CLAUSE buried
+// in a long sentence is diluted below the threshold. "You know which seat holds
+// Merlin, so your job is protection rather than identification, and that
+// certainty is..." scores 0.30 against the knowledge line purely because the
+// sentence is long. This audit catches whole-sentence restatement, which is the
+// shape all three historical duplicates took. It is not a substitute for reading
+// the prose.
+
 // The detector is tuned, so it needs its own test. These are the REAL pairs from
 // before the fix (positives) and the roles that were always clean (negatives). If
 // a later tweak stops separating them, the audit below is worthless and this says
