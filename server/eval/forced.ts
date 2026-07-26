@@ -92,6 +92,11 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
   let leader: Seat | undefined
   let leaderSeq = 0
   const cards = new Map<Seat, 'success' | 'fail'>()
+  // Leans declared about the team CURRENTLY on the table, latest per seat. A
+  // lean is about one specific roster, so this resets whenever the roster
+  // changes, which keeps a pre-revision lean from being read as a statement
+  // about the team that replaced it.
+  const leans = new Map<Seat, string>()
 
   for (const ev of a.log) {
     const p = ev.payload as Record<string, any>
@@ -100,10 +105,15 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
         team = (p.team as Seat[]).slice()
         leader = p.leader as Seat
         leaderSeq = ev.seq
+        leans.clear()
         break
       case 'proposalRevised':
         team = (p.to as Seat[]).slice()
         leaderSeq = ev.seq
+        leans.clear()
+        break
+      case 'utterance':
+        if (typeof p.lean === 'string') leans.set(p.seat as Seat, p.lean as string)
         break
       case 'proposalLocked':
         team = ((p.team as Seat[]) ?? team).slice()
@@ -114,24 +124,56 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
         const need = failsRequired(a.playerCount, round)
         const goodMatchPoint = successes === QUESTS_TO_WIN - 1
         const decisive = goodMatchPoint || fails === QUESTS_TO_WIN - 1
+        // Engine rule (game.ts): strict majority approves, a tie rejects.
+        const passes = (yes: number) => yes * 2 > a.playerCount
+        const declared = (want: string, except: Seat) =>
+          [...leans].filter(([s, l]) => s !== except && l === want).length
+
+        // Both rules below rest on one rationale: approval preserves the option
+        // to sink the quest, and rejecting destroys it. That needs the vote to be
+        // ABLE to preserve or destroy something. Judged against what the seat
+        // could see at the time (the declared leans), never against the tally,
+        // which is hindsight: a reject that happened not to matter was still
+        // wrong when it was cast, because the seat could not know that yet.
+        //
+        // When enough OTHER seats have already declared reject that no
+        // combination of the rest reaches a majority, an evil approve sinks
+        // nothing and only pairs the seat with the proposer in a permanent public
+        // record. Choosing to eat that anyway is a judgement about whether the
+        // declared rejects will hold, and by this module's admission test (no
+        // read of the table, no cover judgement, no probability) a decision that
+        // needs a read is not forced at all.
+        //
+        // Observed: a Morgana rejected a team her side could sink at 2-2, with
+        // three rejects already declared on a five-player table, so approving
+        // would have made it 2-3 and the team still dies. Her reject was correct
+        // and the detector called it a blunder.
+        const approveCouldMatter = (seat: Seat) =>
+          passes(a.playerCount - declared('reject', seat))
+        // Mirror for the approve rule, where the alternative was rejecting: if
+        // the declared approves already carry it without this seat, a reject
+        // saves nothing.
+        const rejectCouldMatter = (seat: Seat) => !passes(declared('approve', seat))
+
         for (const v of (p.votes as { seat: Seat; vote: string }[]) ?? []) {
           if (!isEvil(v.seat)) continue
           const n = knownAboard(v.seat, team)
-          // The proposal's fate is part of the record: a reject that helped kill
-          // your own winning team cost you the quest, while one the table
-          // approved anyway cost nothing but the tell. Same count either way —
-          // the decision was equally wrong — but a reader comparing agents needs
-          // to see which it was.
+          // The proposal's fate is still part of the record: a reject that helped
+          // kill your own winning team cost you the quest, while one the table
+          // approved anyway cost only the tell. Both are the same wrong decision
+          // at the moment it was made, which is why both are counted, but a reader
+          // comparing agents needs to see which it turned out to be.
           const math = `needed ${need} Fail${need === 1 ? '' : 's'}, knew of ${n} aboard;` +
             ` the proposal was ${p.approved ? 'approved anyway' : 'rejected'}`
-          if (v.vote === 'reject' && n >= need && decisive) {
+          if (v.vote === 'reject' && n >= need && decisive && approveCouldMatter(v.seat)) {
             record(v.seat, 'vote-reject-sinkable', round, ev.seq,
               `rejected Q${round} with the game on the line (${math})`)
-          } else if (v.vote === 'approve' && n < need && goodMatchPoint) {
+          } else if (v.vote === 'approve' && n < need && goodMatchPoint && rejectCouldMatter(v.seat)) {
             record(v.seat, 'vote-approve-unsinkable', round, ev.seq,
               `approved Q${round}, good's third quest (${math})`)
           }
         }
+        leans.clear()
         break
       }
       case 'questCard':

@@ -260,6 +260,82 @@ test('a partial log with no quest cards yields nothing to judge', () => {
   assert.ok(!v.some((x) => x.rule === 'match-point-success'))
 })
 
+// A vote is only forced when it could still have swung the proposal, judged on
+// the leans the seat could see rather than on the final tally, which is
+// hindsight. These pin the guard that a live game exposed: a Morgana was flagged
+// for rejecting a team her side could sink, on a board where the approve she
+// "should" have cast could not have saved it.
+const lean = (seat: Seat, l: 'approve' | 'reject' | 'unsure'): Ev =>
+  ({ type: 'utterance', payload: { seat, text: '', round: 1, lean: l } })
+
+// Seven players, so a majority is four: with four rejects already declared, the
+// most approves that can still appear is three and the team is dead.
+const doomedTeam: Ev[] = [
+  ...twoCleanQuests,
+  proposal(0, [0, 1, 4, 5], 3),
+  lean(0, 'reject'), lean(1, 'reject'), lean(2, 'reject'), lean(3, 'reject'),
+]
+
+test('an evil reject is not forced when declared rejects already doom the team', () => {
+  // Morgana (4) rejects a team she and the assassin (5) could sink at good's
+  // match point. Approving could not have passed it, and would have paired her
+  // with the proposer in a permanent public record.
+  const v = forcedPlayViolations(artifact(mkLog([
+    ...doomedTeam,
+    voteReveal([0, 1, 4, 5], {
+      0: 'reject', 1: 'reject', 2: 'reject', 3: 'reject',
+      4: 'reject', 5: 'approve', 6: 'reject',
+    }, 3),
+  ])))
+  assert.ok(!v.some((x) => x.rule === 'vote-reject-sinkable' && x.seat === 4))
+})
+
+test('the same reject IS forced while the team could still have passed', () => {
+  // One fewer declared reject, so four approves remain reachable and the vote
+  // still decides something.
+  const v = forcedPlayViolations(artifact(mkLog([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 4, 5], 3),
+    lean(0, 'reject'), lean(1, 'reject'), lean(2, 'reject'),
+    voteReveal([0, 1, 4, 5], {
+      0: 'reject', 1: 'reject', 2: 'reject', 3: 'approve',
+      4: 'reject', 5: 'approve', 6: 'reject',
+    }, 3),
+  ])))
+  assert.ok(v.some((x) => x.rule === 'vote-reject-sinkable' && x.seat === 4))
+})
+
+test('a reject that happened not to matter is still counted', () => {
+  // The team passed anyway, so the vote changed nothing. It was still wrong when
+  // cast, because nobody had declared enough rejects to make it safe. Grading on
+  // the final tally instead of the leans would excuse it with hindsight.
+  const v = forcedPlayViolations(artifact(mkLog([
+    ...twoCleanQuests,
+    proposal(0, [0, 1, 4, 5], 3),
+    voteReveal([0, 1, 4, 5], {
+      0: 'approve', 1: 'approve', 2: 'approve', 3: 'approve',
+      4: 'reject', 5: 'reject', 6: 'reject',
+    }, 3),
+  ])))
+  const hit = v.find((x) => x.rule === 'vote-reject-sinkable' && x.seat === 4)
+  assert.ok(hit)
+  assert.match(hit.detail, /approved anyway/)
+})
+
+test('leans do not carry across a revision', () => {
+  // Those four rejects were about the roster that got replaced. The new team has
+  // to earn its own leans, so the guard must not stand down on stale ones.
+  const v = forcedPlayViolations(artifact(mkLog([
+    ...doomedTeam,
+    { type: 'proposalRevised', payload: { round: 3, proposalNum: 1, leader: 0, from: [0, 1, 4, 5], to: [0, 2, 4, 5], reason: 'swap' } },
+    voteReveal([0, 2, 4, 5], {
+      0: 'reject', 1: 'reject', 2: 'reject', 3: 'reject',
+      4: 'reject', 5: 'approve', 6: 'reject',
+    }, 3),
+  ])))
+  assert.ok(v.some((x) => x.rule === 'vote-reject-sinkable' && x.seat === 4))
+})
+
 // The propose rule (§7.2 "Be on the team you lead at good's match point"). An
 // evil leader picks the roster outright, so a team with no Fail it knows of ends
 // the quest phase by construction, and there is no cover left worth buying.
