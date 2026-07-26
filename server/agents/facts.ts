@@ -64,6 +64,19 @@ interface PlayerRecord {
   // (row = player) transpose of the per-proposal vote matrix — the lookup that
   // stops "how did Flash vote on Q3?" from being answered by confabulation.
   playedVotes: { questNum: number; vote: 'approve' | 'reject'; failed: boolean }[]
+  // Votes on proposals the table REJECTED. No quest resulted, so there is no
+  // outcome to key them to, which is why they were originally left out. But the
+  // SPLIT on a rejected proposal is often the sharpest read available: a team
+  // whose only two approvals came from the same two seats partitions the table
+  // in a way nothing else in the record does.
+  //
+  // Observed (seed web-086364ddc4, Q4.1): the only approvals were Morgana and
+  // the Assassin, every good player rejected. That partition existed solely in
+  // the prose vote history, and a Percival transcribing it from there wrote the
+  // opposite into its notes, then carried the invention forward for four rounds
+  // as the spine of its endgame. Exactly the confabulation this per-player row
+  // was built to prevent, on the one proposal shape it did not cover.
+  unplayedVotes: { round: number; num: number; vote: 'approve' | 'reject' }[]
   ledFailed: number         // led a quest (approved) that failed
   approvedFailedOff: number // approved a team it was NOT on, which then failed
   rejectedSucceeded: number // voted reject on a team that was approved anyway and succeeded
@@ -72,7 +85,7 @@ interface PlayerRecord {
 function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
   const rec = new Map<Seat, PlayerRecord>()
   for (const p of view.players) {
-    rec.set(p.seat, { onQuests: [], playedVotes: [], ledFailed: 0, approvedFailedOff: 0, rejectedSucceeded: 0 })
+    rec.set(p.seat, { onQuests: [], playedVotes: [], unplayedVotes: [], ledFailed: 0, approvedFailedOff: 0, rejectedSucceeded: 0 })
   }
 
   // Quest membership from the ACTUAL played team (quest.team is the approved
@@ -99,6 +112,17 @@ function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
       } else if (v.vote === 'reject' && !failed) {
         rec.get(v.seat)!.rejectedSucceeded += 1
       }
+    }
+  }
+
+  // Rejected proposals. Kept in their own field rather than folded into
+  // playedVotes, because those two carry different evidence: a played vote is
+  // scored against the quest it produced, while a rejected one has no outcome
+  // and is read purely as a partition of the table.
+  for (const prop of view.proposals) {
+    if (prop.approved || !prop.votes) continue
+    for (const v of prop.votes) {
+      rec.get(v.seat)!.unplayedVotes.push({ round: prop.round, num: prop.proposalNum, vote: v.vote })
     }
   }
   return rec
@@ -297,6 +321,9 @@ export function factsDossier(view: PlayerView): string {
     if (r.playedVotes.length) {
       fields.push(`voted: ${r.playedVotes.map((v) => `Q${v.questNum} ${v.vote}→${v.failed ? 'FAIL' : 'ok'}`).join(', ')}`)
     }
+    if (r.unplayedVotes.length) {
+      fields.push(`voted on rejected proposals: ${r.unplayedVotes.map((v) => `Q${v.round}.${v.num} ${v.vote}`).join(', ')}`)
+    }
     const sig: string[] = []
     if (r.ledFailed) sig.push(`led ${r.ledFailed} failed quest${r.ledFailed > 1 ? 's' : ''}`)
     if (r.approvedFailedOff) sig.push(`approved ${r.approvedFailedOff} failed team${r.approvedFailedOff > 1 ? 's' : ''} it was not on`)
@@ -309,6 +336,8 @@ export function factsDossier(view: PlayerView): string {
     `on-team = quests this seat PLAYED on, with result. ` +
     `voted = how this seat voted on each approved-and-played team (Q<n> vote→result); ` +
     `being placed ON a team is NOT the same as voting to approve it. ` +
+    `voted on rejected proposals = teams that never played, so there is no result to score them against, ` +
+    `but WHO approved together on a rejected team is itself evidence. ` +
     `signals = notable vote/lead patterns.\n${rows.join('\n')}`,
   )
 
