@@ -729,7 +729,7 @@ input::placeholder { color: var(--faint); }
 
 /* ---- main: feed + aside ---- */
 main { display: flex; gap: 0.9rem; flex: 1; min-height: 0; padding: 0.7rem 1.1rem; width: 100%; max-width: 1400px; margin: 0 auto; }
-main aside { width: 232px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; overflow-y: auto; }
+main aside { width: 232px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; min-height: 0; overflow-y: auto; }
 /* The rail is a fixed-height flex column (main fills 100dvh minus the table). Its
    panels must keep their natural height rather than being squeezed — a compressed
    .qparty would clip team members past its rounded overflow — so the column scrolls
@@ -739,8 +739,14 @@ main aside > * { flex-shrink: 0; }
 
 /* Wrapper is the flex child of main; the feed fills it, and the jump-to-latest
    button floats over it (anchored to the wrapper, so it stays put while the feed
-   scrolls beneath). */
-.feed-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+   scrolls beneath).
+   BOTH min-* zeroes matter: a flex item's automatic minimum is its content size,
+   so without them a long transcript pushes the wrapper past its share of main and
+   the whole .game column overflows the viewport — which on mobile (main is a
+   COLUMN there, so min-height is the axis that binds) detached the footer from the
+   bottom and scrolled the header away. The feed is the only scroller in the game
+   screen; anything between it and .game must be allowed to shrink. */
+.feed-wrap { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
 .feed {
   flex: 1;
   min-width: 0;
@@ -1733,18 +1739,37 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
 
 /* ---- mobile ---- */
 @media (max-width: 760px) {
-  .game { height: 100dvh; }
-  .chrome { padding: 0.5rem 0.8rem 0.35rem; }
-  .fartable { height: 262px; }
+  /* The game screen is exactly one viewport tall and the feed is its only
+     scroller (see .feed-wrap). overflow:hidden is the backstop: if some future
+     row forgets to shrink, it gets clipped here rather than growing the document,
+     which is what tore the footer off the bottom edge and scrolled the header
+     away. Modals are position:fixed, so they escape this clip. */
+  .game { height: 100dvh; overflow: hidden; }
+  .chrome { padding: 0.35rem 0.7rem 0.3rem; gap: 0.5rem; }
+  .chrome h1.small { font-size: 1rem; }
+  .chrome button.ghost { padding: 0.28em 0.6em; font-size: 0.62rem; }
+  .header-buttons { gap: 0.35rem; }
+  /* the table zone is the biggest fixed block on a phone; every pixel it gives
+     back goes straight to the transcript, which is what people are here to read */
+  .fartable { height: 216px; }
   /* narrow screens want a rounder, tighter arc (a wide-aspect ellipse would be
      nearly flat across 390px) */
   .fartable .orbit { top: 17%; width: 150%; aspect-ratio: 1.25 / 1; }
   .fartable .orbit.o2 { top: 26%; }
-  .fartable .mote { offset-path: ellipse(58% 190px at 50% 234px); }
+  /* mote path is in px, so it tracks the zone height above */
+  .fartable .mote { offset-path: ellipse(58% 157px at 50% 193px); }
+  /* Seat positions are percentages of this box, so narrowing it walks the end
+     seats in off the screen edge — at 390px the far pair otherwise hangs half
+     out of frame with its name clipped. */
+  .farseats { width: 92%; }
   .seat { width: 74px; }
   .seat-card { width: 50px; height: 68px; }
   .seat .sigil { width: 24px; height: 24px; font-size: 15px; }
-  .seat .seat-nm { font-size: 0.62rem; max-width: 72px; }
+  /* Desktop lets a long name run off the card on one line, with the hover tooltip
+     as the fallback for whatever spills. Touch has no tooltip and no room to
+     spill into at the end seats, so here the name wraps instead of running off
+     the screen edge. */
+  .seat .seat-nm { font-size: 0.62rem; max-width: 84px; white-space: normal; overflow-wrap: break-word; }
   .seat .seat-md { display: none; }
   .seat .crown { top: -17px; font-size: 0.75rem; }
   .farseats.crowded .seat { width: 46px; }
@@ -1759,16 +1784,20 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
   }
   .spread .qcards { flex-basis: 100%; justify-content: center; }
   .spread .prop { align-items: center; padding-bottom: 0; }
-  .qcard { width: 44px; height: 62px; }
+  /* a hair narrower than the seats' own cards: the end seats sit low on the arc
+     at this width, and the felt spread has to slide clear of them */
+  .qcard { width: 40px; height: 58px; }
   .qcard .qn { display: none; }
   .qcard .qem { width: 22px; height: 22px; }
   .qcard .word { font-size: 0.42rem; }
   .qcard .word-sub { font-size: 0.38rem; }
   .qcard.back .sz { width: 24px; height: 24px; font-size: 0.8rem; }
   .prop-lbl { font-size: 0.48rem; }
-  main { flex-direction: column; padding: 0.5rem 0.7rem; gap: 0.5rem; }
+  main { flex-direction: column; padding: 0.4rem 0.55rem 0.45rem; gap: 0.4rem; }
   main aside { width: 100%; flex-direction: row; flex-wrap: wrap; order: -1; }
   main aside .role-card { flex: 1; }
+  /* narrow column: give the transcript its width back from the panel padding */
+  .feed { padding: 0.55rem 0.65rem; }
   /* quest party: full-width first row (stacks above the role card, right under
      the table), and its list collapses to compact wrapping pills to stay short */
   main aside .qparty { flex-basis: 100%; }
@@ -1782,10 +1811,25 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
   .party-chip .pc-tag { margin-left: 0; }
   .party-chip.you .pc-tag { font-size: 0.46rem; padding: 0.05rem 0.26rem; }
   .qp-empty { padding: 0.05rem 0.1rem 0.2rem; }
+  /* Open, the role card is a single strip: the "your secret" header row folds
+     away and only its hide toggle stays, tucked into the corner. Shut, the header
+     is all there is, so it goes back in flow (otherwise the card has no height).
+     Gated on the toggle actually existing — the spectator's card (SpectatorCard)
+     wears the same .role-card/.rc-head markup but its header is a label alone,
+     with nothing to leave behind once the label is hidden. The anchor and the
+     absolute header are scoped identically so the two can never come apart. */
+  .role-card.folds { position: relative; }
+  .role-card.folds .rc-head {
+    position: absolute; top: 0; right: 0; z-index: 1;
+    padding: 0.25rem 0.5rem; border-bottom: none;
+  }
+  .role-card.folds .rc-head > span { display: none; }
+  .role-card.folds .role-body { padding-right: 2.4rem; }
+  .role-card.shut .rc-head { padding: 0.4rem 0.7rem 0.35rem; }
   .role-body {
-    padding: 0.45rem 0.7rem 0.55rem;
+    padding: 0.4rem 0.7rem 0.45rem;
     flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center;
-    gap: 0.25rem 0.6rem;
+    gap: 0.2rem 0.6rem;
   }
   .rc-num { display: none; }
   .rc-em { width: 26px; height: 26px; margin: 0; }
@@ -1794,13 +1838,45 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
   /* game footer already carries the near-edge you-chip, so the aside rename is
      redundant there; the lobby still needs its rename control on mobile. */
   .game .name-editor, .game .name-edit-toggle { display: none; }
+  /* No sticky/fixed trickery: the footer is the last row of a viewport-tall
+     column, so it sits on the bottom edge because the column ends there. It only
+     needs the notch inset. (It was sticky, which papered over the overflow above
+     — and stopped working the moment the transcript outgrew one screen.) */
   footer.youredge {
-    position: sticky; bottom: 0; z-index: 5;
-    padding: 0.55rem 0.7rem calc(0.65rem + env(safe-area-inset-bottom));
+    z-index: 5;
+    padding: 0.5rem 0.7rem calc(0.6rem + env(safe-area-inset-bottom));
   }
-  .edge-inner { flex-wrap: wrap; gap: 0.5rem 0.8rem; }
+  .edge-inner { flex-wrap: wrap; gap: 0.45rem 0.7rem; }
   .youchip .you-role { display: none; }
   .you-sigil { width: 30px; height: 30px; }
+  /* Speaking turn: left to wrap, the four controls take three rows at this width
+     (lean / field+say / pass) and eat a third of the transcript. An explicit 2x2
+     grid pairs them — lean beside Pass, the field beside Say — and, unlike flex
+     ordering, it can't be undone by the lean segment shrinking to fit. */
+  .discuss-bottom {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.4rem;
+    align-items: center;
+  }
+  /* same trick for the propose / revise bars: the text field and the button that
+     commits it share a row rather than stacking (the seat picker above them is
+     already several rows tall on a phone). Buttons are pinned to column 2 rather
+     than left to auto-place: the revise row carries two of them ("Change team"
+     and "Back"), and the second would otherwise land under the field and stretch
+     to its width. */
+  .action-bar.column .row:has(input) {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; align-items: center;
+  }
+  .action-bar.column .row:has(input) > input { grid-column: 1; min-width: 0; }
+  .action-bar.column .row:has(input) > button { grid-column: 2; }
+  .seat-picker { gap: 0.35rem; }
+  .discuss-bottom .lean-seg { grid-area: 1 / 1; justify-self: start; }
+  .discuss-bottom .pass-btn { grid-area: 1 / 2; min-width: 0; }
+  .discuss-bottom input { grid-area: 2 / 1; min-width: 0; }
+  .discuss-bottom .say-btn { grid-area: 2 / 2; }
+  /* The leader (and anyone speaking before a team exists) has no lean segment, so
+     the top-left cell is simply empty and Pass sits alone on the right. Squeezing
+     all three onto one row instead would save no height and cost the say field
+     most of its width. */
   .playcards { width: 100%; gap: 0.6rem; }
   .play, .play.approve, .play.reject {
     width: auto; flex: 1; min-height: 0; flex-direction: row; gap: 8px;

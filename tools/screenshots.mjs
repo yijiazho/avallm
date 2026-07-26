@@ -59,6 +59,13 @@ async function clickByText(page, text) {
   }, text)
   if (!ok) throw new Error(`no button "${text}"`)
 }
+// Seat every chair from the setup screen's "fill with" picker. It used to be a
+// button ("Autopilot (free)"), so this was a clickByText call; agent packs turned
+// it into a <select>, which needs page.select to fire React's onChange.
+async function fillSeats(page, value) {
+  await page.waitForSelector('select.fill-select', { timeout: 5000 })
+  await page.select('select.fill-select', value)
+}
 // Click an action-bar control by its stable `data-t` hook (see ActionBar.tsx). The
 // in-game action rail is redesigned often, so it exposes data-* automation anchors;
 // prefer these over button copy/classes there. clickByText stays for the setup,
@@ -121,7 +128,7 @@ async function soloRun(browser, viewportName, viewport) {
   await shot('setup-agent-form', true)
   await clickByText(page, 'Cancel')
   await typeInto(page, 'input[placeholder="You"]', 'Allen')
-  await clickByText(page, 'Autopilot (free)')
+  await fillSeats(page, 'autopilot')
   await sleep(200)
   await clickByText(page, 'Sit down at the table')
   await page.waitForSelector('.game', { timeout: 15000 })
@@ -267,7 +274,7 @@ async function lobbyRun(browser) {
     humans.dispatchEvent(new Event('change', { bubbles: true }))
   })
   await sleep(200)
-  await clickByText(host, 'Autopilot (free)')
+  await fillSeats(host, 'autopilot')
   await sleep(200)
   await clickByText(host, 'Create lobby & get invite link')
   await host.waitForSelector('.join-url', { timeout: 10000 })
@@ -317,7 +324,7 @@ async function disconnectRun(browser, viewportName, viewport) {
   await page.waitForSelector('input[placeholder="You"]', { timeout: 15000 })
   await sleep(300)
   await typeInto(page, 'input[placeholder="You"]', 'Allen')
-  await clickByText(page, 'Autopilot (free)')
+  await fillSeats(page, 'autopilot')
   await sleep(200)
   await clickByText(page, 'Sit down at the table')
   await page.waitForSelector('.game', { timeout: 15000 })

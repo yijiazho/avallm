@@ -9,8 +9,11 @@ export function RoleCard({ view }: { view: PlayerView }) {
   const name = (s: number) => view.players[s]?.name ?? `seat ${s}`
   const info = view.privateInfo
   const arcana = ARCANA[view.role as Role]
+  // `folds` marks the card whose header row collapses into a corner toggle on
+  // mobile (see styles.css); `shut` is the collapsed state. SpectatorCard wears
+  // the same markup but neither class — its header is a label with no toggle.
   return (
-    <div className={`role-card ${view.alignment}`}>
+    <div className={`role-card ${view.alignment}${open ? ' folds' : ' shut'}`}>
       <div className="rc-head">
         <span>Your secret</span>
         <button className="rc-toggle" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>
