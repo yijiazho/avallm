@@ -1,7 +1,7 @@
 // Agent definitions — the agent library. An agent is a CONFIG: identity
 // (name/version/author/about/badge) + an engine. For llm engines the config
-// owns the prompt LAYERS (strategy, personality, per-role and
-// per-decision-kind guidance, temperature) and may SUGGEST a model; which
+// owns a typed brain plus the prompt LAYERS (strategy, personality, per-role
+// and per-decision-kind guidance, temperature) and may SUGGEST a model; which
 // model actually plays is a seat-time decision (resolveModel: lobby override
 // > def suggestion > DEFAULT_MODEL — the host pays the bill, so the host gets
 // the final say). The output contracts, rules digest, injection guard, and
@@ -30,6 +30,11 @@ import {
   EXPERIMENTAL_BELIEF_MODE,
   type ExperimentalBeliefMode,
 } from './experimental.ts'
+import {
+  resolveBrain,
+  type BrainSpec,
+  type LlmBrainConfig,
+} from './brain.ts'
 
 export interface LlmEngine {
   type: 'llm'
@@ -43,6 +48,8 @@ export interface LlmEngine {
   roleGuidanceMode?: 'replace' | 'append'
   kindGuidance?: Partial<Record<LlmCallKind, string>>
   temperature?: number // global sampling override, must be in [0, 1]
+  /** Strategic components, independent of model and prompt/persona layers. */
+  brain?: LlmBrainConfig
   /** Explicit, nondefault Phase 2 cognition visibility experiment. */
   beliefMode?: ExperimentalBeliefMode
 }
@@ -97,6 +104,7 @@ export interface AgentPublicInfo {
   tier: AgentTier
   unavailable?: string
   beliefMode?: ExperimentalBeliefMode
+  brain?: BrainSpec
 }
 
 // One seat at a lobby table: which agent plays it, and (optionally) which
@@ -319,6 +327,9 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
     if (e.beliefMode !== undefined && e.beliefMode !== EXPERIMENTAL_BELIEF_MODE) {
       throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
     }
+    // The resolver is the one validation authority for component values,
+    // cross-component compatibility, and the Phase 2 beliefMode adapter.
+    resolveBrain(e)
     if (customChars(e) > AGGREGATE_CAP) {
       throw new Error(`custom prompt text exceeds ${AGGREGATE_CAP} chars total`)
     }
@@ -447,5 +458,6 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     tier: def.tier ?? 'user',
     unavailable: def.unavailable,
     beliefMode: e.type === 'llm' ? e.beliefMode : undefined,
+    brain: resolveBrain(e),
   }
 }

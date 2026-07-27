@@ -12,7 +12,7 @@ import { createGame } from '../engine/game.ts'
 import { viewFor } from '../engine/view.ts'
 import { exactBelief } from '../agents/belief/exact.ts'
 import { buildMessages } from '../agents/prompts.ts'
-import { EXPERIMENTAL_BELIEF_MODE } from '../agents/experimental.ts'
+import { BELIEF_RENDERER_VERSION } from '../agents/communication/belief-summary.ts'
 
 interface Timing {
   coldMs: number
@@ -103,7 +103,7 @@ function benchmarkCase(playerCount: 5 | 10, warmIterations: number): CaseResult 
       '',
       {},
       undefined,
-      { beliefMode: EXPERIMENTAL_BELIEF_MODE },
+      { beliefVisibility: BELIEF_RENDERER_VERSION },
     ).reduce((sum, message) => sum + message.content.length, 0)
   }, warmIterations)
 

@@ -24,10 +24,10 @@ import { knownEvilAboard, matchPoint, roleCertainties } from './board.ts'
 import type { RoleCertainties } from './board.ts'
 import { factsDossier, questResultTag } from './facts.ts'
 import {
-  EXPERIMENTAL_BELIEF_MODE,
   experimentalBeliefContext,
-  type ExperimentalBeliefMode,
 } from './experimental.ts'
+import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
+import type { BeliefVisibility } from './brain.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
 import type { BeliefSnapshot } from './belief/types.ts'
@@ -891,7 +891,7 @@ export interface PromptOverrides {
 }
 
 export interface PromptFeatures {
-  beliefMode?: ExperimentalBeliefMode
+  beliefVisibility?: BeliefVisibility
   /**
    * Live agents may supply their incrementally computed block. Preview and
    * offline callers omit it and use deterministic full reconstruction.
@@ -966,7 +966,7 @@ export function buildMessages(
   overrides: PromptOverrides = {}, extra?: AskExtra,
   features: PromptFeatures = {},
 ): Msg[] {
-  const computedBelief = features.beliefMode === EXPERIMENTAL_BELIEF_MODE
+  const computedBelief = features.beliefVisibility === BELIEF_RENDERER_VERSION
     && (!features.beliefBlock || !features.belief)
     ? experimentalBeliefContext(
         view,
@@ -1004,7 +1004,7 @@ export function buildMessages(
   // neutral data — what to do about them is the agent's policy. The dossier is
   // omitted early-game when nothing has resolved yet (returns '').
   const dossier = factsDossier(view)
-  const beliefBlock = features.beliefMode === EXPERIMENTAL_BELIEF_MODE
+  const beliefBlock = features.beliefVisibility === BELIEF_RENDERER_VERSION
     ? features.beliefBlock
       ?? computedBelief?.rendered
       ?? ''

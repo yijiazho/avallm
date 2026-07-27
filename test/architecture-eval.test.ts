@@ -28,12 +28,12 @@ test('architecture bench compares variants on an identical fixed deal and table'
       {
         id: 'baseline',
         agent: heuristic('baseline-agent'),
-        components: { belief: 'none', policy: 'heuristic-a' },
+        components: { experiment: 'baseline' },
       },
       {
         id: 'candidate',
         agent: heuristic('candidate-agent'),
-        components: { belief: 'none', policy: 'heuristic-b' },
+        components: { experiment: 'candidate' },
       },
     ],
     cases: [{
@@ -66,7 +66,9 @@ test('architecture bench compares variants on an identical fixed deal and table'
   assert.equal(report.comparisons[0].wins, 0)
   assert.equal(report.comparisons[0].degraded, 0)
   assert.match(renderArchitectureReport(report), /1 matched/)
-  assert.match(renderArchitectureReport(report), /components belief=none policy=heuristic-a/)
+  assert.match(renderArchitectureReport(report), /belief=none/)
+  assert.match(renderArchitectureReport(report), /policy=heuristic-v1/)
+  assert.match(renderArchitectureReport(report), /experiment=baseline/)
 
   assert.throws(
     () => architectureReport([...artifacts, baseline]),
@@ -92,11 +94,25 @@ test('architecture bench refuses an LLM variant without explicit paid approval',
       variants: [{
         id: 'paid',
         agent: llm,
-        components: { belief: 'none', policy: 'prompt-guided-current' },
+        components: {},
       }],
       cases: [],
     }),
     /allowPaid: true/,
+  )
+})
+
+test('architecture bench rejects component labels that disagree with runtime resolution', async () => {
+  await assert.rejects(
+    runArchitectureBench({
+      variants: [{
+        id: 'mislabelled',
+        agent: heuristic('mislabelled'),
+        components: { belief: 'exact-constraints-v1' },
+      }],
+      cases: [],
+    }),
+    /labels belief=exact-constraints-v1.*runtime uses belief=none/,
   )
 })
 

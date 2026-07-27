@@ -2,7 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 2 complete; Phase 3 preflight is next.
+**Current target phase:** Phase 3A component identity complete; Phase 3B shared candidates and
+forced policy is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -56,7 +57,7 @@ compose and difficult to measure independently.
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
 | Decision trace | Optional private trace records belief version, cursor, posterior context, reasons, action, and degradation | Add analysis, policy, renderer, prompt, and factor versions plus candidate scores |
-| Brain/model/persona separation | Agent definition mostly configures an LLM and prompt layers | Strategic competence is coupled to prompt/model choice |
+| Brain/model/persona separation | A resolved `brain-spec-v1` is distinct from model, persona, and prompt layers | Policy and voice still share the raw LLM call path |
 
 ---
 
@@ -89,7 +90,7 @@ compose and difficult to measure independently.
 | 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
 | 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
-| 3. Composed agent and policy boundary | Next | Brain, model, persona, policy, and voice become separate |
+| 3. Composed agent and policy boundary | In progress (3A complete) | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
@@ -393,12 +394,12 @@ benchmarks are used for causal claims.
 
 Required Phase 3 preflight:
 
-- [ ] Separate the inference component from its visibility mode in agent configuration and
+- [x] Separate the inference component from its visibility mode in agent configuration and
       architecture artifact metadata.
-- [ ] Record normal LLM inference as `exact-constraints-v1` while it consumes
+- [x] Record normal LLM inference as `exact-constraints-v1` while it consumes
       `roleCertainties()`; reserve `none` for paths that perform no belief inference.
-- [ ] Give compatibility certainty text and `compact-belief-v1` distinct visibility identifiers.
-- [ ] Add a regression test proving that component labels match the inference and rendering paths
+- [x] Give compatibility certainty text and `compact-belief-v1` distinct visibility identifiers.
+- [x] Add a regression test proving that component labels match the inference and rendering paths
       actually exercised.
 
 Non-blocking consolidation work during Phase 3:
@@ -416,25 +417,74 @@ Non-blocking consolidation work during Phase 3:
 
 ### Agent composition
 
-- [ ] Complete the component-identity preflight above before comparative evaluation.
-- [ ] Introduce a brain configuration distinct from model and persona configuration.
+- [x] Complete the component-identity preflight above before comparative evaluation.
+- [x] Introduce a brain configuration distinct from model and persona configuration.
 - [ ] Add a composed `hybrid` engine or equivalent agent constructor.
-- [ ] Preserve `raw-llm`, heuristic, random, and stdio modes as baselines.
+- [x] Preserve `raw-llm`, heuristic, random, and stdio modes as baselines.
 - [ ] Adapt legacy agents to any new `AgentDecision { decision, trace }` result boundary.
-- [ ] Extend custom-agent validation and public metadata without exposing private cognition.
+- [x] Extend custom-agent validation and public metadata without exposing private cognition.
 
 Suggested configuration shape:
 
 ```ts
 interface BrainSpec {
   belief: 'none' | 'exact-constraints-v1' | 'weighted-v1'
-  beliefVisibility: 'none' | 'compat-certainties' | 'compact-belief-v1'
+  beliefVisibility: 'none' | 'compat-certainties-v1' | 'compact-belief-v1'
   policy: 'raw-llm' | 'structured-v1' | 'hybrid-v1'
   languageEvidence?: 'off' | 'bounded-v1'
   observerModel?: 'off' | 'observer-v1'
   searchBudget?: number
 }
 ```
+
+### Phase 3A implementation record
+
+`server/agents/brain.ts` owns the resolved strategic identity. `resolveBrain()` is the single
+adapter used by runtime LLM construction, validation, public metadata, prompt preview/replay, and
+new architecture artifacts. Model choice, personality, strategy, and prompt guidance remain in
+their existing configuration and are not members of `BrainSpec`.
+
+The identifiers for the current executable paths are:
+
+| Component | Identifier |
+|---|---|
+| Brain schema | `brain-spec-v1` |
+| Normal and experimental LLM inference | `exact-constraints-v1` |
+| Normal LLM belief visibility | `compat-certainties-v1` |
+| Experimental belief visibility | `compact-belief-v1` |
+| Current raw prompt-guided LLM policy | `prompt-guided-v1` |
+| Current LLM communication | `prompt-voice-v1` |
+| Heuristic policy | `heuristic-v1` |
+| Random policy | `random-v1` |
+| Language evidence and observer model | `off` |
+| Stdio-owned components | `external` |
+
+The Phase 2 `beliefMode: "exact-summary-v1"` field remains a compatibility input. It has one
+adapter in `resolveBrain()` and maps to `beliefVisibility: "compact-belief-v1"` with
+`belief: "exact-constraints-v1"`. New definitions may express that visibility directly through
+`engine.brain`. Conflicting legacy and typed values fail validation. Remove `beliefMode` after the
+curated experimental definition and all API callers use the typed brain field; until then it must
+not be interpreted anywhere else.
+
+New architecture artifacts derive their brain component bundle from the same resolver used to
+construct the runtime agent. A variant may add experiment-specific metadata but cannot override a
+resolved runtime component with a contradictory label. The committed Phase 0 baseline files and
+their recorder retain the historical `belief: "none"` schema and values; they are evidence from
+before this correction and are not relabeled.
+
+Phase 3A changes no decision behavior or prompt bytes. Regression coverage proves default and
+compact legacy/typed prompt equivalence, truthful LLM/heuristic/random/stdio identities, invalid
+configuration rejection, runtime-to-artifact agreement, frozen Phase 2 prompt hashes across every
+decision-fixture kind and private-knowledge shape, typed HTTP preview equivalence, and frozen Phase
+0 metadata. The focused agent, prompt, architecture, baseline, and HTTP suite passed 38 tests; the
+complete API-free suite passed 545 tests, all eight frozen architecture fixtures were current, and
+the screenshot manifest remained current without regeneration.
+
+Phase 3B is the next bounded target: create one legal candidate owner and one executable
+forced-policy owner, then make the heuristic fallback consume those owners through
+`SituationAnalysis`. It must preserve heuristic decisions while removing duplicated forced-rule
+triggers from decision code; prompt rendering of those results can follow once equivalence is
+pinned.
 
 ### Central policy
 
@@ -698,3 +748,9 @@ here.
   exact-world-derived compatibility certainties. Phase 3 begins by separating inference identity
   from belief visibility, then consolidates compatibility prompt paths and expands per-decision
   component versioning.
+- Phase 3A component identity: added the centrally resolved `brain-spec-v1`, separated
+  `exact-constraints-v1` inference from `compat-certainties-v1` and `compact-belief-v1`
+  visibility, and derived runtime, public, preview/replay, and new artifact identities from that
+  resolver. Legacy `beliefMode` remains a single validated adapter. Raw LLM, heuristic, random,
+  and stdio behavior is unchanged, prompt bytes are pinned, and historical Phase 0 records retain
+  their original semantics.

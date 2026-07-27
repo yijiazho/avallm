@@ -310,10 +310,14 @@ prompt caches can hit, testable in isolation):
 
 Phase 2 adds one explicit, nondefault context experiment: an LLM definition with
 `beliefMode: "exact-summary-v1"` receives a compact exact-belief block between the derived facts
-and private notes. The block is reconstructed only from that seat's `PlayerView`, labels its values
-as uniform shares of feasible hypotheses, and uses the same renderer in live play, the fixed
-preview fixture, and offline replay. Baseline LLM definitions omit the mode and retain the existing
-prompt and policy behavior.
+and private notes. Phase 3A retains that field as a compatibility input and resolves it once into
+the typed `brain-spec-v1` configuration. Baseline LLMs and the experiment both use
+`exact-constraints-v1`; their belief visibility differs:
+`compat-certainties-v1` versus `compact-belief-v1`. The block is reconstructed only from that
+seat's `PlayerView`, labels its values as uniform shares of feasible hypotheses, and uses the same
+renderer in live play, the fixed preview fixture, and offline replay. Brain identity is independent
+of model choice, personality, strategy, and other prompt layers. Baseline LLM definitions retain
+their existing prompt and policy behavior.
 
 ### Malformed-output ladder
 

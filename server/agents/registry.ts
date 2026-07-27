@@ -18,6 +18,7 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
       return createLlmAgent({
         modelId: spec.model,
         client: getClient(),
+        brain: spec.brain,
         beliefMode: spec.beliefMode,
         onDecisionTrace: ctx.onDecisionTrace,
       })
@@ -39,6 +40,7 @@ export function createAgentFromDef(def: AgentDef, ctx: AgentContext, modelOverri
         label: `${def.name}${def.version ? ` v${def.version}` : ''}`,
         prompts: promptOverridesOf(def.engine),
         temperature: def.engine.temperature,
+        brain: def.engine.brain,
         beliefMode: def.engine.beliefMode,
         onDecisionTrace: ctx.onDecisionTrace,
       })

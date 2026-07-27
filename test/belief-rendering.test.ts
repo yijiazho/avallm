@@ -11,6 +11,7 @@ import {
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { OpenRouterClient } from '../server/llm/openrouter.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
+import { BELIEF_RENDERER_VERSION } from '../server/agents/communication/belief-summary.ts'
 
 function captureClient(
   output: string,
@@ -138,7 +139,7 @@ test('live incremental block and fixed-view preview block use identical renderin
     '',
     {},
     undefined,
-    { beliefMode: EXPERIMENTAL_BELIEF_MODE },
+    { beliefVisibility: BELIEF_RENDERER_VERSION },
   )
   assert.ok(messages[1].content.includes(expected))
 })

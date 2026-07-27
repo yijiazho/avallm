@@ -12,7 +12,10 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { builtinDefs } from '../agents/defs.ts'
-import { runArchitectureBench, defaultComponents } from './architecture-bench.ts'
+import {
+  PHASE0_COMPONENT_VERSIONS,
+  runArchitectureBench,
+} from './architecture-bench.ts'
 import { architectureReport } from './architecture-report.ts'
 import { readArtifacts } from './artifact.ts'
 import type { ArchitectureBenchmarkReport } from './architecture-report.ts'
@@ -25,13 +28,25 @@ export const OBSERVED_LLM_BASELINE_SCHEMA = 1
 
 export async function buildHeuristicBaseline(): Promise<ArchitectureBenchmarkReport> {
   const agent = builtinDefs().find((def) => def.id === 'autopilot')!
+  const historicalComponents = {
+    agent: 'autopilot@v1',
+    model: 'none',
+    belief: 'none',
+    policy: PHASE0_COMPONENT_VERSIONS.heuristicPolicy,
+    communication: 'none',
+  }
   const artifacts = await runArchitectureBench({
     variants: [{
       id: 'heuristic-v1',
       agent,
-      components: defaultComponents(agent),
+      // Historical Phase 0 identity is intentionally frozen. New architecture
+      // artifacts use the richer resolved BrainSpec component bundle.
+      components: historicalComponents,
     }],
   })
+  for (const artifact of artifacts) {
+    artifact.architecture!.components = { ...historicalComponents }
+  }
   return architectureReport(artifacts)
 }
 

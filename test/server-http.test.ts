@@ -64,19 +64,39 @@ test('/valid returns 404 for a game the server does not have', async () => {
 })
 
 test('/api/agents/preview renders the exact belief block only when explicitly selected', async () => {
-  const preview = async (beliefMode?: string) => {
+  const preview = async (config: Record<string, unknown> = {}) => {
     const response = await fetch(`${base}/api/agents/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'servant', kind: 'discuss', beliefMode }),
+      body: JSON.stringify({ role: 'servant', kind: 'discuss', ...config }),
     })
     assert.equal(response.status, 200)
     return response.json() as Promise<{ messages: { content: string }[] }>
   }
   const normal = await preview()
-  const experimental = await preview('exact-summary-v1')
+  const experimental = await preview({ beliefMode: 'exact-summary-v1' })
+  const typed = await preview({
+    brain: { beliefVisibility: 'compact-belief-v1' },
+  })
   assert.ok(normal.messages.every((message) =>
     !message.content.includes('EXACT BELIEF SUMMARY')))
   assert.ok(experimental.messages.some((message) =>
     message.content.includes('EXACT BELIEF SUMMARY')))
+  assert.deepEqual(typed.messages, experimental.messages)
+
+  const conflicting = await fetch(`${base}/api/agents/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      role: 'servant',
+      kind: 'discuss',
+      beliefMode: 'exact-summary-v1',
+      brain: { beliefVisibility: 'compat-certainties-v1' },
+    }),
+  })
+  assert.equal(conflicting.status, 400)
+  assert.match(
+    String((await conflicting.json() as { error?: string }).error),
+    /beliefMode conflicts/,
+  )
 })

@@ -33,6 +33,7 @@ import type { DecisionSnapshot } from './replay.ts'
 import type { AgentDef } from '../agents/defs.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 import type { Decision, PlayerView } from '../engine/types.ts'
+import { resolveBrain } from '../agents/brain.ts'
 
 export interface BankItem {
   bankId: string      // `${artifactId}:${seq}` — the dedupe key
@@ -135,7 +136,7 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
     snapshot.scratchpad,
     overrides,
     undefined,
-    { beliefMode: def.engine.beliefMode },
+    { beliefVisibility: resolveBrain(def.engine).beliefVisibility },
   )
   const first = await call(messages)
   let parsed = parseDecision(kind, first, snapshot.view)

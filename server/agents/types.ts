@@ -3,6 +3,7 @@
 
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { ExperimentalBeliefMode } from './experimental.ts'
+import type { LlmBrainConfig } from './brain.ts'
 import type { DecisionTrace } from './trace.ts'
 
 export interface AvalonAgent {
@@ -24,7 +25,12 @@ export type AgentSpec =
   | { type: 'heuristic' }
   | { type: 'random' }
   | { type: 'stdio'; cmd: string; args: string[]; label?: string }
-  | { type: 'llm'; model: string; beliefMode?: ExperimentalBeliefMode }
+  | {
+      type: 'llm'
+      model: string
+      brain?: LlmBrainConfig
+      beliefMode?: ExperimentalBeliefMode
+    }
   // Milestone 3: { type: 'human' } is constructed directly by the server/CLIs
 
 export interface AgentContext {

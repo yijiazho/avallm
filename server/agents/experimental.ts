@@ -7,9 +7,10 @@ import {
 } from './cognition/state.ts'
 import type { CognitionState } from './cognition/types.ts'
 import { renderBeliefSummary } from './communication/belief-summary.ts'
-
-export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
-export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
+export {
+  EXPERIMENTAL_BELIEF_MODE,
+  type ExperimentalBeliefMode,
+} from './brain.ts'
 
 export interface ExperimentalBeliefContext {
   cognition: CognitionState

@@ -29,6 +29,10 @@ import {
   upsertDecisionTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
+import {
+  brainComponents,
+  resolveBrain,
+} from '../agents/brain.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -113,27 +117,35 @@ export function defaultComponents(def: AgentDef, modelOverride?: string): Record
     return {
       agent: `${def.id}@${version}`,
       model: 'none',
-      belief: 'none',
-      policy: PHASE0_COMPONENT_VERSIONS.heuristicPolicy,
-      communication: 'none',
+      ...brainComponents(resolveBrain(def.engine)),
     }
   }
   if (def.engine.type === 'stdio') {
     return {
       agent: `${def.id}@${version}`,
       model: 'external',
-      belief: 'external',
-      policy: 'external',
-      communication: 'external',
+      ...brainComponents(resolveBrain(def.engine)),
     }
   }
   return {
     agent: `${def.id}@${version}`,
     model: resolveModel(def, modelOverride),
-    belief: def.engine.beliefMode ?? 'none',
-    policy: PHASE0_COMPONENT_VERSIONS.promptGuidedPolicy,
-    communication: PHASE0_COMPONENT_VERSIONS.promptGuidedCommunication,
+    ...brainComponents(resolveBrain(def.engine)),
   }
+}
+
+function resolvedVariantComponents(variant: ArchitectureVariant): Record<string, string> {
+  const resolved = defaultComponents(variant.agent, variant.modelOverride)
+  for (const [key, value] of Object.entries(resolved)) {
+    const supplied = variant.components[key]
+    if (supplied !== undefined && supplied !== value) {
+      throw new Error(
+        `architecture variant ${variant.id} labels ${key}=${supplied}, `
+        + `but its resolved runtime uses ${key}=${value}`,
+      )
+    }
+  }
+  return { ...variant.components, ...resolved }
 }
 
 export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise<GameArtifact[]> {
@@ -146,6 +158,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
   for (const variant of opts.variants) {
     if (variantIds.has(variant.id)) throw new Error(`duplicate architecture variant id: ${variant.id}`)
     variantIds.add(variant.id)
+    resolvedVariantComponents(variant)
   }
   if (opts.variants.some(isPaid) && !opts.allowPaid) {
     throw new Error('LLM architecture variants spend money; pass allowPaid: true (CLI: --allow-paid)')
@@ -211,11 +224,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           targetRole: c.targetRole,
           targetSeat: target.seat,
           variant: variant.id,
-          components: {
-            ...variant.components,
-            belief: variant.components.belief
-              ?? defaultComponents(variant.agent, variant.modelOverride).belief,
-          },
+          components: resolvedVariantComponents(variant),
         },
         ...(llmTags ? { telemetry: { llm: { tags: llmTags } } } : {}),
         decisionTraces,

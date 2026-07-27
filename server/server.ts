@@ -44,6 +44,11 @@ import {
   upsertDecisionTrace,
   type DecisionTrace,
 } from './agents/trace.ts'
+import {
+  EXPERIMENTAL_BELIEF_MODE,
+  resolveBrain,
+  type LlmBrainConfig,
+} from './agents/brain.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
 import { renderTranscript, type TranscriptSeat } from './transcript.ts'
 
@@ -159,10 +164,17 @@ function engineFrom(body: any, base?: LlmEngine): LlmEngine {
       if (typeof v !== 'number') throw new Error('temperature must be a number (or null to clear)')
       return v
     }, base?.temperature),
+    brain: pick('brain', (v) => {
+      if (v === null || v === undefined) return undefined
+      if (typeof v !== 'object' || Array.isArray(v)) {
+        throw new Error('brain must be an object (or null to clear)')
+      }
+      return structuredClone(v) as LlmBrainConfig
+    }, base?.brain),
     beliefMode: pick('beliefMode', (v) => {
       if (v === null || v === undefined || v === '') return undefined
-      if (v === 'exact-summary-v1') return v
-      throw new Error('beliefMode must be "exact-summary-v1"')
+      if (v === EXPERIMENTAL_BELIEF_MODE) return v
+      throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
     }, base?.beliefMode),
   }
 }
@@ -957,7 +969,7 @@ const server = http.createServer(async (req, res) => {
         FIXTURE_SCRATCHPAD,
         promptOverridesOf(engine),
         undefined,
-        { beliefMode: engine.beliefMode },
+        { beliefVisibility: resolveBrain(engine).beliefVisibility },
       )
       const chars = messages.reduce((n, m) => n + m.content.length, 0)
       json(res, 200, { messages, rolesInPlay, kinds: Object.keys(CALL_PARAMS), tokenEstimate: Math.round(chars / 4) })
