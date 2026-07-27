@@ -2,11 +2,11 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** human checkpoint after Phase 5B. The first capped, opt-in analytical
-quest-card factor passed its held-out calibration and causal-policy gates, but the resulting
-structured policy still trails compatibility on absolute win rate. Decide whether to fund a small
-paid/human predictability study or continue mechanical policy work before Phase 6. No production
-default has changed.
+**Current target phase:** complete the API-free Phase 5 vote-conversion diagnosis and Phase 6
+language-evidence foundation, then stop before factor-strength tuning, paid interpretation,
+human studies, or production-default promotion. The quest factor remains opt-in because the
+structured policy still trails compatibility on absolute win rate. No production default has
+changed.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -188,7 +188,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
-| 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
+| 6. Bounded language evidence and commitments | In progress; public contract complete | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
@@ -1007,6 +1007,24 @@ human choice between another mechanical iteration and a deliberately small paid/
 
 ## 11. Phase 6: bounded language evidence and commitments
 
+### Phase 6A public-language contract record
+
+`public-language-input-v1` projects only public attributed pitches, discussion statements and
+leans, and proposal-revision reasons from `PlayerView`. The nested projection is an explicit
+allow-list rather than an object spread, so later private or unreviewed view fields do not cross the
+boundary automatically. Every interpreting seat receives the same projection. Player-authored text
+is labeled untrusted data and remains data, never instructions.
+
+The contract also defines finite evidence classes, directions, confidence buckets, subjects,
+source sequences, a public rationale, an interpreter version, and a monotonic cursor. Admission
+validates the complete input and output at runtime, canonicalizes provider-controlled ordering,
+rejects duplicate or stale sources, and advances across public events that contain no speech.
+
+This is a schema and safety foundation, not operational language inference. It makes no provider
+call, maps no evidence to likelihood ratios, changes no posterior or policy, and adds no persistent
+language state to cognition. Those behaviors remain Phase 6B and Phase 6C work, and the Phase 6
+interpreter checklist remains open until the bounded path executes end to end.
+
 ### Interpreter
 
 - [ ] Process only new attributed utterances.
@@ -1227,3 +1245,8 @@ here.
   alignment deductions now inspect positive feasible-world support instead of rounded marginals,
   so arbitrarily small supported alternatives cannot become false certainties. Independent public
   dossier consolidation remains NB-001B and is deferred to the Phase 6 public-record boundary.
+- Phase 6A public-language contract: added a public-only, versioned interpreter input, finite
+  evidence output, and monotonic admission cursor without changing belief or policy behavior.
+  Explicit nested allow-lists, cross-seat equality, complete runtime validation, canonical output
+  ordering, lean-only attribution, and adversarial private-field canaries establish the boundary
+  for later bounded language likelihoods.
