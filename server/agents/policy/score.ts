@@ -7,6 +7,8 @@ import {
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
 
 export const CANDIDATE_SCORER_VERSION = 'compatibility-scorer-v1'
+export const CALIBRATION_COMPATIBILITY_SCORER_VERSION =
+  'calibration-compatibility-scorer-v1'
 export const GOOD_PROPOSAL_SCORER_VERSION = 'good-proposal-scorer-v1'
 export const GOOD_PROPOSAL_FEATURE_VERSION = 'good-proposal-features-v1'
 export const GOOD_PROPOSAL_VOTE_SCORER_VERSION =
@@ -805,6 +807,21 @@ export const goodProposalScorer = Object.freeze({
   version: GOOD_PROPOSAL_SCORER_VERSION,
   analysisRequirement: 'joint-proposal-team-assessments' as const,
   score: scoreGoodProposalCandidates,
+})
+
+/**
+ * Preserve the compatibility choice while asking analysis to materialize the
+ * exhaustive joint team surface for paired calibration traces.
+ */
+export const calibrationCompatibilityScorer: CandidateScorer = Object.freeze({
+  version: CALIBRATION_COMPATIBILITY_SCORER_VERSION,
+  analysisRequirement: 'joint-proposal-vote-team-assessments',
+  score(context) {
+    return scoreCandidates(context).map((score) => ({
+      ...score,
+      version: CALIBRATION_COMPATIBILITY_SCORER_VERSION,
+    }))
+  },
 })
 
 function stableBucket(value: string): 0 | 1 {

@@ -394,6 +394,15 @@ Weighted snapshots retain factor-level evidence provenance and typed degradation
 cognition and trace paths. New evaluation artifacts summarize the strategy component identifiers
 needed to interpret later calibration corpora.
 
+The opt-in `analytical-quest-card-v1` model is the first weighted implementation. It reads only
+resolved public quest results and board context, assigns contextual card-choice likelihoods to
+each feasible world, mixes in a small uniform likelihood so legal play never receives zero
+probability, and caps the combined factor contribution at `ln(2)`. Exact feasibility remains
+authoritative. A factor error records `quest-card-factor-failed` and returns a normalized
+constraints-only fallback. Traces expose the belief version, factor evidence provenance, player
+marginals, and relevant joint team assessments; stdio admission validates the weighted semantics
+and component identities.
+
 ### Consistency across a game
 
 - Fixed per-bot system identity (name/seat/role text byte-identical across calls → cache hits).

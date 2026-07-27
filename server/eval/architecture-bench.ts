@@ -21,7 +21,11 @@ import {
   validateArchitectureBank,
 } from './architecture-bank.ts'
 import type { AgentDef } from '../agents/defs.ts'
-import type { AgentContext, AvalonAgent } from '../agents/types.ts'
+import type {
+  AgentContext,
+  AgentSpec,
+  AvalonAgent,
+} from '../agents/types.ts'
 import type { OpenRouterClient, SpendEntry } from '../llm/openrouter.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
@@ -55,6 +59,8 @@ export interface ArchitectureBenchOpts {
   variants: readonly ArchitectureVariant[]
   cases?: readonly ArchitectureBankCase[]
   bankId?: string
+  /** Free, deterministic population used for every non-target seat. */
+  opponentKind?: Extract<AgentSpec['type'], 'heuristic' | 'random'>
   out?: string
   allowPaid?: boolean
   onProgress?: (line: string) => void
@@ -207,7 +213,14 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} must declare paid true or false`,
       )
     }
-    for (const key of ['mode', 'brain', 'policy', 'scorer', 'planner', 'voice']) {
+    for (const key of [
+      'mode',
+      'brain',
+      'policy',
+      'scorer',
+      'planner',
+      'voice',
+    ]) {
       if (!variant.components[key]?.trim()) {
         throw new Error(
           `custom architecture variant ${variant.id} requires component ${key}`,
@@ -228,7 +241,11 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
       )
     }
-    return { ...variant.components }
+    return {
+      belief: 'exact-constraints-v1',
+      factors: 'off',
+      ...variant.components,
+    }
   }
   const def = variant.agent!
   const resolved = defaultComponents(def, variant.modelOverride)
@@ -248,6 +265,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
   if (!opts.variants.length) throw new Error('architecture benchmark requires at least one variant')
   const cases = opts.cases ?? ARCHITECTURE_BANK
   const bankId = opts.bankId ?? ARCHITECTURE_BANK_ID
+  const opponentKind = opts.opponentKind ?? 'heuristic'
   validateArchitectureBank(cases, { requireCoverage: opts.cases === undefined })
 
   const variantIds = new Set<string>()
@@ -264,7 +282,9 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
   for (const c of cases) {
     for (const variant of opts.variants) {
       const game = createGame({
-        id: `architecture-${bankId}-${c.id}-${variant.id}`,
+        id: `architecture-${bankId}${
+          opponentKind === 'heuristic' ? '' : `-${opponentKind}`
+        }-${c.id}-${variant.id}`,
         seed: c.seed,
         playerCount: c.playerCount,
         roles: [...c.roles],
@@ -281,7 +301,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const agents = new Map<Seat, AvalonAgent>()
       const decisionTraces: DecisionTrace[] = []
       const targetLatencySamples: DecisionLatencySample[] = []
-      const descriptors = game.players.map(() => 'heuristic')
+      const descriptors = game.players.map(() => opponentKind)
       for (const player of game.players) {
         const ctx = {
           seed: c.seed,
@@ -305,7 +325,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             ? (variant.descriptor ?? `experiment:${variant.id}`)
             : `def:${variant.agent!.id}`
         } else {
-          agents.set(player.seat, createAgent({ type: 'heuristic' }, ctx))
+          agents.set(player.seat, createAgent({ type: opponentKind }, ctx))
         }
       }
 
@@ -321,23 +341,31 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const expectedComponents = resolvedVariantComponents(variant)
         const tracedComponents = [
           'brain',
+          'belief',
+          'factors',
           'policy',
           'scorer',
           'planner',
           'voice',
         ] as const
-        if (
-          !decisionTraces.length
-          || decisionTraces.some((trace) =>
-            trace.agentMode !== expectedComponents.mode
-            || !trace.componentVersions
-            || tracedComponents.some(
-              (key) =>
-                trace.componentVersions![key] !== expectedComponents[key],
-            ))
-        ) {
+        const mismatch = decisionTraces.find((trace) =>
+          trace.agentMode !== expectedComponents.mode
+          || !trace.componentVersions
+          || tracedComponents.some(
+            (key) =>
+              trace.componentVersions![key] !== expectedComponents[key],
+          ))
+        if (!decisionTraces.length || mismatch) {
+          const actual = mismatch
+            ? {
+                mode: mismatch.agentMode,
+                ...mismatch.componentVersions,
+              }
+            : undefined
           throw new Error(
-            `custom architecture variant ${variant.id} trace components do not match declared components`,
+            `custom architecture variant ${variant.id} trace components do not match declared components`
+            + `: expected ${JSON.stringify(expectedComponents)}, `
+            + `actual ${JSON.stringify(actual)}`,
           )
         }
       }
@@ -356,6 +384,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           architectureBank: bankId,
           architectureCase: c.id,
           architectureVariant: variant.id,
+          opponentPopulation: `${opponentKind}-opponents`,
         },
         architecture: {
           bank: bankId,

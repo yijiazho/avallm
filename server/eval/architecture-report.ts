@@ -189,7 +189,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent/.test(
+    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments/.test(
       publicLog,
     )
   ) {
@@ -202,7 +202,15 @@ function architectureSafety(
       trace.viewerSeat !== meta.targetSeat
       || trace.agentMode !== meta.components.mode
       || !versions
-      || ['brain', 'policy', 'scorer', 'planner', 'voice'].some(
+      || [
+        'brain',
+        'belief',
+        'factors',
+        'policy',
+        'scorer',
+        'planner',
+        'voice',
+      ].some(
         (key) =>
           versions[key as keyof typeof versions]
           !== meta.components[key],
@@ -214,16 +222,25 @@ function architectureSafety(
     if (!speech) continue
     hiddenInformationChecks++
     const intent = trace.communicationIntent
-    const numericSecrets = intent?.uncertainty
-      ? Object.values(intent.uncertainty)
-          .filter(
-            (value): value is number =>
-              typeof value === 'number'
-              && Number.isFinite(value)
-              && !Number.isInteger(value),
-          )
-          .map(String)
-      : []
+    const numericSecrets = [
+      ...(intent?.uncertainty
+        ? Object.values(intent.uncertainty)
+            .filter(
+              (value): value is number =>
+                typeof value === 'number'
+                && Number.isFinite(value)
+                && !Number.isInteger(value),
+            )
+            .map(String)
+        : []),
+      ...((trace.beliefPlayerMarginals ?? [])
+        .flatMap((marginal) => [
+          marginal.goodProbability,
+          marginal.evilProbability,
+        ])
+        .filter((value) => !Number.isInteger(value))
+        .map(String)),
+    ]
     const forbidden = [
       trace.beliefModelVersion,
       ...trace.topHypotheses.map((hypothesis) => hypothesis.worldKey),

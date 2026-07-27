@@ -5,7 +5,12 @@ import type {
   Seat,
 } from '../engine/types.ts'
 import type { SituationAnalysis, SituationTeamAssessment } from './analysis/types.ts'
-import type { BeliefSnapshot } from './belief/types.ts'
+import type {
+  BeliefSnapshot,
+  EvidenceContribution,
+  PlayerMarginal,
+} from './belief/types.ts'
+import type { PolicyCandidateTeamAssessment } from './analysis/types.ts'
 import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
 import type { AgentExecutionMode } from './brain.ts'
@@ -28,6 +33,9 @@ export interface DecisionTrace {
   beliefThroughSeq: number
   quality: BeliefSnapshot['quality']
   degradation: readonly string[]
+  beliefProvenance?: readonly EvidenceContribution[]
+  beliefPlayerMarginals?: readonly PlayerMarginal[]
+  beliefTeamAssessments?: readonly PolicyCandidateTeamAssessment[]
   topHypotheses: readonly TraceHypothesis[]
   relevantTeam?: SituationTeamAssessment
   factCodes: SituationAnalysis['factCodes']
@@ -126,7 +134,18 @@ export function createDecisionTrace(
     beliefModelVersion: belief.modelVersion,
     beliefThroughSeq: belief.throughSeq,
     quality: belief.quality,
-    degradation: [...degradation],
+    degradation: [...belief.degradation, ...degradation],
+    ...(belief.provenance.length
+      ? { beliefProvenance: structuredClone(belief.provenance) }
+      : {}),
+    beliefPlayerMarginals: structuredClone(belief.playerMarginals),
+    ...(analysis.policyCandidateAssessments.length
+      ? {
+          beliefTeamAssessments: structuredClone(
+            analysis.policyCandidateAssessments,
+          ),
+        }
+      : {}),
     topHypotheses: belief.topWorlds.slice(0, 3).map((weighted) => ({
       worldKey: weighted.world.key,
       probability: weighted.probability,

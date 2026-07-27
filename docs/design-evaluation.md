@@ -267,6 +267,19 @@ loop is only as good as the reward signal under it.
 > Brier score, log loss, player-alignment and team-clean reliability curves, population slices, and
 > paired deltas on identical validation or test rows. Hidden truth remains an offline label, never
 > a factor input.
+>
+> **Phase 5B quest-factor gate, 2026-07-27:** `npm run phase5-quest-bench` replays the frozen
+> 180-deal good-side bank through uniform/weighted policy lanes and identical-mechanics
+> uniform/weighted calibration lanes. Its persisted predictions make the likelihood update
+> independently auditable. The initial 720-game run improved overall Brier score by `0.001189`,
+> log loss by `0.003827`, and structured-policy wins by `6.1` paired points (`2.2` to `10.0` at
+> 95%), with zero calls, cost, degradation, privacy-canary findings, or attribution mismatches.
+> Absolute weighted-policy wins were still `32/180`, below compatibility's prior `42/180`, so the
+> result admits the factor as an opt-in component but does not promote the composed agent.
+> Repeating all 720 games with seeded-random opponents retained smaller calibration gains
+> (`-0.000471` Brier and `-0.001208` log loss) and improved vote truth by `4.3` points, while its
+> `1.1`-point win gain was not significant. This covers one large free population shift, not human
+> or per-model calibration.
 
 1. **Game artifacts** — persist full event log + agent configs + seed as JSONL per sim game
    (plumbing; the data already exists in `game.log`).

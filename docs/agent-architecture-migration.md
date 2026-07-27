@@ -2,10 +2,11 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 5B first capped, opt-in analytical quest-card factor and held-out
-ablation. Phase 4 remains opt-in: its reproducible 180-deal good-side evaluation found a decisive
-vote-accuracy gain but a significant win-rate regression, so paid raw-LLM comparison and human
-testing remain inappropriate until the mechanical policy improves.
+**Current target phase:** human checkpoint after Phase 5B. The first capped, opt-in analytical
+quest-card factor passed its held-out calibration and causal-policy gates, but the resulting
+structured policy still trails compatibility on absolute win rate. Decide whether to fund a small
+paid/human predictability study or continue mechanical policy work before Phase 6. No production
+default has changed.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -58,7 +59,7 @@ compose and difficult to measure independently.
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
-| Decision trace | Composed traces include brain, belief/factors, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend factor provenance when soft factors land |
+| Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend only when another evidence class lands |
 | Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity; explicit mode labels distinguish compatibility, structured-only, hybrid, and raw LLM | Production still defaults to the deliberately separate raw-LLM baseline |
 
 ---
@@ -94,7 +95,7 @@ compose and difficult to measure independently.
 | 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
 | 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
-| 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
+| 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
@@ -828,20 +829,21 @@ the current candidate.
 
 ### Factors
 
-- [ ] Implement an analytical quest-card factor using score, quest number, Fails required, known
+- [x] Implement an analytical quest-card factor using score, quest number, Fails required, known
       coordination, and slow-play assumptions.
 - [ ] Add conservative proposal and vote lookup factors.
 - [ ] Add per-agent or per-population tendencies only when sample sizes support them.
-- [ ] Cap every factor's log-likelihood contribution.
-- [ ] Add factor-level provenance to belief traces.
+- [x] Cap every implemented factor's log-likelihood contribution.
+- [x] Add factor-level provenance to belief traces.
 
 ### Calibration
 
 - [x] Log loss and Brier score.
 - [x] Player-alignment and team-clean calibration curves.
-- [ ] Held-out comparison against uniform feasible worlds.
-- [ ] Sensitivity to opponent-population shift.
-- [ ] Ablations for quest, proposal, and vote factors separately.
+- [x] Held-out comparison against uniform feasible worlds.
+- [x] Sensitivity to a seeded-random opponent-population shift.
+- [x] Quest-factor ablation.
+- [ ] Proposal- and vote-factor ablations when those factors exist.
 
 ### Exit gate
 
@@ -865,6 +867,45 @@ changing hidden roles and private events cannot change these rows. `belief-calib
 Brier score, log loss, player-alignment and team-clean reliability curves, population slices, and
 paired held-out deltas. This is measurement infrastructure, not evidence that a factor is
 calibrated; the first real uniform-versus-weighted comparison remains a Phase 5B gate.
+
+### Phase 5B quest-card factor record
+
+`analytical-quest-card-v1` weights only worlds already admitted by the exact model. It consumes
+public resolved-quest card counts and contextualizes evil card choice by quest number, board score,
+Fails required, evil count aboard, non-Oberon coordination, Oberon independence, and whether the
+board makes slow play plausible. A five-percent uniform mixture keeps every legal public outcome
+nonzero. The complete quest-history contribution is capped at `ln(2)`, so this factor alone can
+move posterior odds by at most `2:1`. Factor failure omits the update, records typed degradation,
+and preserves a complete constraints-only agent; impossible worlds are never revived.
+
+The frozen `phase4-good-v1` deal bank was replayed through four API-free lanes: uniform and
+quest-weighted structured policies for causal decision measurement, plus uniform and
+quest-weighted compatibility mechanics for an identical-outcome calibration comparison. Across
+`122,796` matched predictions, weighting improved Brier score by `0.001189` and log loss by
+`0.003827`. Player-evil predictions improved by `0.008522` Brier and `0.017847` log loss; team-clean
+predictions improved by `0.000599` and `0.002699`.
+
+On the 180 matched structured-policy games, weighting raised wins from `21/180` (`11.7%`) to
+`32/180` (`17.8%`), a paired gain of `6.1` points with a 95% interval of `2.2` to `10.0`. Clean
+initial proposals improved by `7.6` points (`2.5` to `12.8`) and truth-aligned votes by `2.0`
+points (`0.2` to `3.8`). Median target-decision latency fell from `0.98 ms` to `0.89 ms`; weighted
+p95 was `121.52 ms`. All 720 games completed with zero provider calls, cost, degradation,
+hidden-information canary findings, or trace-attribution mismatches.
+
+The same four lanes and frozen deals were then replayed with every non-target seat changed from
+heuristic to seeded random. The shifted population retained smaller calibration gains: Brier
+improved by `0.000471` and log loss by `0.001208` across `145,444` matched predictions.
+Player-evil and team-clean Brier improved separately by `0.003639` and `0.000225`. Weighted policy
+wins moved from `100/180` to `102/180`, a nonsignificant `1.1` points (`-3.9` to `6.1`), while clean
+initial proposals improved by `4.4` points (`-1.0` to `9.7`) and truth-aligned votes by `4.3`
+points (`2.6` to `6.1`). The two-population gate therefore covers 1,440 games with no calls, cost,
+degradation, hidden-information findings, or attribution mismatches. It establishes robustness to
+one substantial free shift, not calibration for arbitrary humans or named models.
+
+This passes the Phase 5 exit gate for the quest factor, not the production-promotion gate. The
+weighted structured policy remains below Phase 4D compatibility's `42/180` (`23.3%`) win rate.
+The factor stays opt-in, proposal/vote factors remain unimplemented, and the next step requires a
+human choice between another mechanical iteration and a deliberately small paid/human study.
 
 ---
 
@@ -1079,3 +1120,9 @@ here.
   degradation, versioned artifact strategy components, and added public-only mechanical rows,
   leakage-safe population/game splits, calibration scores, reliability curves, and paired
   comparison primitives. Default behavior and frozen prompt bytes remain unchanged.
+- Phase 5B quest-card factor: added a public-mechanical, context-sensitive analytical likelihood
+  with nonzero smoothing, a whole-factor `ln(2)` log-odds cap, impossible-world preservation,
+  typed fallback, and factor-level trace attribution. Two 720-game four-lane held-out runs against
+  heuristic and seeded-random populations improved both calibration targets with zero calls, cost,
+  degradation, or safety findings. It remains opt-in because absolute wins against the primary
+  heuristic population still trail compatibility.

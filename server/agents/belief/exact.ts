@@ -109,6 +109,9 @@ function playerMarginals(
       }
     }
     if (uniform) evilProbability = evilWorlds / worlds.length
+    else if (evilWorlds === 0) evilProbability = 0
+    else if (evilWorlds === worlds.length) evilProbability = 1
+    else evilProbability = Math.max(0, Math.min(1, evilProbability))
     return {
       seat,
       goodProbability: 1 - evilProbability,
@@ -139,6 +142,9 @@ function roleMarginals(
         }
       }
       if (uniform) probability = matchingWorlds / worlds.length
+      else if (matchingWorlds === 0) probability = 0
+      else if (matchingWorlds === worlds.length) probability = 1
+      else probability = Math.max(0, Math.min(1, probability))
       out.push({ seat, role, probability })
     }
   }
@@ -320,9 +326,13 @@ export function assessTeams(
     for (const [evilMask, weight] of maskWeights) {
       evilWorldCounts[countBits(teamMask & evilMask)] += weight
     }
+    const totalWeight = evilWorldCounts.reduce(
+      (sum, weight) => sum + weight,
+      0,
+    )
     const evilCountDistribution = uniform
       ? evilWorldCounts.map((count) => count / snapshot.worlds.length)
-      : evilWorldCounts
+      : evilWorldCounts.map((weight) => weight / totalWeight)
     return {
       team,
       cleanProbability: evilCountDistribution[0],

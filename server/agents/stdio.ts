@@ -113,6 +113,91 @@ function validComponentVersions(value: unknown): boolean {
   )
 }
 
+function validBeliefProvenance(value: unknown): boolean {
+  if (value === undefined) return true
+  return Array.isArray(value) && value.every((entry) => {
+    const contribution = entry as Record<string, unknown>
+    return !!contribution
+      && typeof contribution === 'object'
+      && typeof contribution.factorId === 'string'
+      && contribution.factorId.length > 0
+      && typeof contribution.factorVersion === 'string'
+      && contribution.factorVersion.length > 0
+      && stringArray(contribution.evidenceIds)
+      && new Set(contribution.evidenceIds).size
+        === contribution.evidenceIds.length
+      && typeof contribution.logLikelihoodCap === 'number'
+      && Number.isFinite(contribution.logLikelihoodCap)
+      && contribution.logLikelihoodCap > 0
+      && typeof contribution.minLogLikelihood === 'number'
+      && Number.isFinite(contribution.minLogLikelihood)
+      && typeof contribution.maxLogLikelihood === 'number'
+      && Number.isFinite(contribution.maxLogLikelihood)
+      && contribution.minLogLikelihood <= contribution.maxLogLikelihood
+      && contribution.minLogLikelihood >= -contribution.logLikelihoodCap
+      && contribution.maxLogLikelihood <= contribution.logLikelihoodCap
+  })
+}
+
+function validBeliefPlayerMarginals(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!Array.isArray(value)) return false
+  return value.every((entry, index) => {
+    const marginal = entry as Record<string, unknown>
+    return !!marginal
+      && typeof marginal === 'object'
+      && marginal.seat === index
+      && finiteProbability(marginal.goodProbability)
+      && finiteProbability(marginal.evilProbability)
+      && Math.abs(
+        marginal.goodProbability + marginal.evilProbability - 1,
+      ) <= 1e-9
+  })
+}
+
+function validBeliefTeamAssessments(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!Array.isArray(value)) return false
+  const ids = new Set<string>()
+  return value.every((entry) => {
+    const assessment = entry as Record<string, unknown>
+    const team = assessment.team
+    const distribution = assessment.evilCountDistribution
+    const candidateId = assessment.candidateId
+    const duplicate =
+      typeof candidateId === 'string' && ids.has(candidateId)
+    if (typeof candidateId === 'string') ids.add(candidateId)
+    return !!assessment
+      && typeof assessment === 'object'
+      && typeof candidateId === 'string'
+      && candidateId.length > 0
+      && !duplicate
+      && typeof assessment.beliefModelVersion === 'string'
+      && assessment.beliefModelVersion.length > 0
+      && Number.isInteger(assessment.beliefThroughSeq)
+      && ['uniform-feasible-joint', 'weighted-joint'].includes(
+        assessment.probabilitySemantics as string,
+      )
+      && seatArray(team)
+      && new Set(team).size === team.length
+      && team.every(
+        (seat, index) => index === 0 || team[index - 1] < seat,
+      )
+      && finiteProbability(assessment.cleanProbability)
+      && Array.isArray(distribution)
+      && distribution.length === team.length + 1
+      && distribution.every(finiteProbability)
+      && Math.abs(
+        distribution.reduce(
+          (sum, probability) => sum + probability,
+          0,
+        ) - 1,
+      ) <= 1e-9
+      && Math.abs(distribution[0] - assessment.cleanProbability) <= 1e-12
+      && seatArray(assessment.knownFailsAboard)
+  })
+}
+
 function validCandidateScores(value: unknown): boolean {
   if (value === undefined) return true
   return Array.isArray(value) && value.every((entry) => {
@@ -125,7 +210,9 @@ function validCandidateScores(value: unknown): boolean {
       && typeof features === 'object'
       && !Array.isArray(features)
       && features.version === GOOD_PROPOSAL_FEATURE_VERSION
-      && features.semantics === 'uniform-feasible-joint'
+      && ['uniform-feasible-joint', 'weighted-joint'].includes(
+        features.semantics as string,
+      )
       && typeof features.beliefModelVersion === 'string'
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
@@ -183,7 +270,9 @@ function validCandidateScores(value: unknown): boolean {
       && features.version === GOOD_VOTE_FEATURE_VERSION
       && features.utilityVersion === GOOD_VOTE_UTILITY_VERSION
       && features.situationVersion === GOOD_VOTE_SITUATION_VERSION
-      && features.semantics === 'uniform-feasible-joint'
+      && ['uniform-feasible-joint', 'weighted-joint'].includes(
+        features.semantics as string,
+      )
       && typeof features.beliefModelVersion === 'string'
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
@@ -350,6 +439,43 @@ function validForcedPolicyResult(value: unknown): boolean {
             && forced.selectedCandidateId === undefined
           )
     )
+  )
+}
+
+function validBeliefTraceRelations(trace: Record<string, unknown>): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  if (
+    components
+    && components.belief !== trace.beliefModelVersion
+  ) {
+    return false
+  }
+  const provenance = trace.beliefProvenance as
+    | Array<Record<string, unknown>>
+    | undefined
+  if (
+    trace.quality === 'weighted'
+    && (
+      !provenance?.length
+      || components?.factors === 'off'
+    )
+  ) {
+    return false
+  }
+  const assessments = trace.beliefTeamAssessments as
+    | Array<Record<string, unknown>>
+    | undefined
+  return !assessments?.some(
+    (assessment) =>
+      assessment.beliefModelVersion !== trace.beliefModelVersion
+      || assessment.beliefThroughSeq !== trace.beliefThroughSeq
+      || assessment.probabilitySemantics !== (
+        trace.quality === 'weighted'
+          ? 'weighted-joint'
+          : 'uniform-feasible-joint'
+      ),
   )
 }
 
@@ -949,6 +1075,10 @@ function validDecisionTrace(
       trace.quality as string,
     )
     && stringArray(trace.degradation)
+    && validBeliefProvenance(trace.beliefProvenance)
+    && validBeliefPlayerMarginals(trace.beliefPlayerMarginals)
+    && validBeliefTeamAssessments(trace.beliefTeamAssessments)
+    && validBeliefTraceRelations(trace)
     && Array.isArray(hypotheses)
     && hypotheses.every((entry) => {
       const hypothesis = entry as Record<string, unknown>

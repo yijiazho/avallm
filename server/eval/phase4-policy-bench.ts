@@ -84,6 +84,8 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
   })
   const baseComponents = {
     brain: 'brain-spec-v1',
+    belief: 'exact-constraints-v1',
+    factors: 'off',
     policy: 'composed-policy-v1',
     voice: 'voice-off',
     evaluation: PHASE4_POLICY_EVAL_VERSION,

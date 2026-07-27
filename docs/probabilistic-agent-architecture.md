@@ -254,6 +254,17 @@ The first three can be implemented without training. The behavioral factors shou
 versioned, conservative tables or small regressions and must expose calibration metrics before
 their influence is increased.
 
+The first such implementation is `analytical-quest-card-v1`. It uses only public resolved-quest
+card counts and mechanical context, applies a nonzero smoothing mixture, and caps the entire
+quest-history contribution at `ln(2)`. It never changes the feasible-world set: exact constraints
+remain authoritative and the factor only redistributes probability within that set. Its private
+snapshot and decision trace identify the factor version, source event sequences, capped
+contribution, and any typed degradation. It remains opt-in after its initial held-out success
+because the composed policy has not yet beaten the compatibility agent on absolute win rate.
+Its calibration improvement survived a deliberately different seeded-random opponent population,
+but that is a sensitivity check rather than evidence that its hand-authored likelihoods describe
+humans or particular language models.
+
 ### 5.4 Situation analysis
 
 ```ts
