@@ -403,8 +403,8 @@ the other shared pieces — one definition each, so a rule and its detector can 
 `SituationAnalysis` now owns these board quantities. `policy/forced.ts` consumes them for the
 heuristic and forever fallback, while `eval/forced.ts` independently re-derives what the seat could
 know from the completed artifact to grade the result. The prompt ASKs still carry compatibility
-trigger branches for raw LLM seats; Phase 3C will render the central policy result for the composed
-path without changing the raw baseline.
+trigger branches for raw LLM seats. The composed path instead renders the central policy result
+without changing the raw baseline.
 
 **All six are graded**, as `FORCED_PLAY_RULES` in `eval/forced.ts`, and `npm run sim` reports them
 on every run without needing `--out`. Keep that mapping total: a forced play in this table with no
@@ -453,6 +453,15 @@ and `forced-policy-v1` narrows that set before any discretionary scorer or plann
 is therefore the agent's declared policy result, not a hidden correction applied after the model
 decides. The heuristic and forever fallback use this executable path. The raw-LLM baseline remains
 measured, and the hybrid path must expose the forced reason in its decision trace.
+
+The opt-in composed renderer receives the actual `ForcedPolicyResult`, allowed candidate IDs,
+typed scores, and committed `DecisionPlan`; it never reconstructs a trigger from `ASKS` prose.
+Raw-LLM ASKS retain the historical trigger sentences byte-for-byte because raw prompt-guided play
+is the comparison experiment. Those sentences have explanatory authority in that mode, but no
+executable authority in the composed path. Proposal pitches, revision reasons, and discussion
+speech are generated only after the mechanical action and any public lean are committed. Analysis
+facts are private planning inputs by default; only an explicit public-safe projection may be cited
+by voice, and private deductions are carried in the communication intent's concealment set.
 
 So T1 is **measured**: `server/eval/forced.ts` detects violations from a game artifact,
 `computeMetrics` exposes them per seat (`forcedPlayViolations`) and in full (`forcedPlays`), and

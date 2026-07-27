@@ -6,7 +6,9 @@ export const COMPAT_CERTAINTIES_VISIBILITY = 'compat-certainties-v1'
 export const RAW_LLM_POLICY_VERSION = 'prompt-guided-v1'
 export const HEURISTIC_POLICY_VERSION = 'heuristic-policy-v2'
 export const RANDOM_POLICY_VERSION = 'random-v1'
+export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
 export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
+export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v1'
 export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
 export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
 
@@ -23,10 +25,12 @@ export type PolicyComponent =
   | typeof RAW_LLM_POLICY_VERSION
   | typeof HEURISTIC_POLICY_VERSION
   | typeof RANDOM_POLICY_VERSION
+  | typeof COMPOSED_POLICY_VERSION
   | 'external'
 export type CommunicationComponent =
   | 'none'
   | typeof PROMPT_COMMUNICATION_VERSION
+  | typeof PLAN_COMMUNICATION_VERSION
   | 'external'
 export type LanguageEvidenceComponent = 'off' | 'external'
 export type ObserverModelComponent = 'off' | 'external'
@@ -68,6 +72,7 @@ type BrainSource =
   | LlmBrainSource
   | { type: 'heuristic' }
   | { type: 'random' }
+  | { type: 'composed' }
   | { type: 'stdio' }
 
 const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
@@ -183,6 +188,16 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         beliefVisibility: 'none',
         policy: RANDOM_POLICY_VERSION,
         communication: 'none',
+        languageEvidence: 'off',
+        observerModel: 'off',
+      }
+    case 'composed':
+      return {
+        version: BRAIN_SPEC_VERSION,
+        belief: EXACT_BELIEF_MODEL_VERSION,
+        beliefVisibility: 'none',
+        policy: COMPOSED_POLICY_VERSION,
+        communication: PLAN_COMMUNICATION_VERSION,
         languageEvidence: 'off',
         observerModel: 'off',
       }

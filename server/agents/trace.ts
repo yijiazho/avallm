@@ -6,6 +6,8 @@ import type {
 } from '../engine/types.ts'
 import type { SituationAnalysis, SituationTeamAssessment } from './analysis/types.ts'
 import type { BeliefSnapshot } from './belief/types.ts'
+import type { CandidateScore } from './policy/score.ts'
+import type { ForcedPolicyResult } from './policy/types.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 
@@ -30,11 +32,42 @@ export interface DecisionTrace {
   reasonCodes: SituationAnalysis['forcedPlayReasonCodes']
   action: Decision
   statedReasoning?: string
+  /** Complete ownership/version attribution for composed decisions. */
+  componentVersions?: Readonly<{
+    brain: string
+    belief: string
+    beliefVisibility: string
+    factors: string
+    languageEvidence: string
+    observerModel: string
+    analysis: string
+    candidates: string
+    forcedPolicy: string
+    policy: string
+    scorer: string
+    planner: string
+    prompt: string
+    renderer: string
+    communication: string
+    voice: string
+  }>
+  candidateScores?: readonly CandidateScore[]
+  chosenCandidateId?: string
+  plannerCandidateId?: string
+  decisionPlanVersion?: string
+  forcedPolicyResult?: ForcedPolicyResult
 }
 
 export function decisionTraceId(
   req: DecisionRequest,
   view: PlayerView,
+  beliefThroughSeq: number,
+): string {
+  return decisionTraceIdForRequest(req, beliefThroughSeq)
+}
+
+export function decisionTraceIdForRequest(
+  req: DecisionRequest,
   beliefThroughSeq: number,
 ): string {
   return `decision:${req.seat}:${req.kind}:q${req.round}:p${req.proposalNum}:v${beliefThroughSeq}`

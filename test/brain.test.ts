@@ -104,6 +104,18 @@ test('heuristic, random, and stdio component identities remain truthful', () => 
   )
   assert.equal(resolveBrain({ type: 'random' }).policy, RANDOM_POLICY_VERSION)
   assert.equal(resolveBrain({ type: 'random' }).belief, 'none')
+  assert.deepEqual(
+    brainComponents(resolveBrain({ type: 'composed' })),
+    {
+      brain: 'brain-spec-v1',
+      belief: EXACT_BELIEF_MODEL_VERSION,
+      beliefVisibility: 'none',
+      policy: 'composed-policy-v1',
+      communication: 'plan-voice-v1',
+      languageEvidence: 'off',
+      observerModel: 'off',
+    },
+  )
   assert.deepEqual(resolveBrain({ type: 'stdio' }), {
     version: 'brain-spec-v1',
     belief: 'external',

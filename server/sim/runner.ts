@@ -7,7 +7,8 @@
 import { applyDecision, expectedDecisions } from '../engine/game.ts'
 import { viewFor } from '../engine/view.ts'
 import { heuristicDecide } from '../agents/heuristic.ts'
-import type { AvalonAgent } from '../agents/types.ts'
+import { normalizeAgentOutput, type AvalonAgent } from '../agents/types.ts'
+import type { DecisionTrace } from '../agents/trace.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Seat } from '../engine/types.ts'
 
 export interface DegradedDecision {
@@ -27,6 +28,8 @@ export interface RunOpts {
   game: Game
   agents: Map<Seat, AvalonAgent>
   onEvent?: (ev: GameEvent) => void | Promise<void>
+  /** Private trace sink; traces never enter Game or PlayerView. */
+  onDecisionTrace?: (trace: DecisionTrace) => void
   maxSteps?: number
 }
 
@@ -40,6 +43,20 @@ function recordFallbackTrace(
     agent.recordFallbackTrace?.(req, view, decision)
   } catch {
     // Optional telemetry must never turn a legal fallback into a stalled game.
+  }
+}
+
+function recordAppliedTrace(
+  agent: AvalonAgent,
+  trace: DecisionTrace | undefined,
+  sink: RunOpts['onDecisionTrace'],
+): void {
+  if (!trace) return
+  try {
+    if (sink) sink(trace)
+    else agent.recordDecisionTrace?.(trace)
+  } catch {
+    // Optional telemetry must never turn a legal action into a stalled game.
   }
 }
 
@@ -65,13 +82,15 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     view: ReturnType<typeof viewFor>
     agent: AvalonAgent
     decision: Decision
+    trace?: DecisionTrace
   }> => {
     const view = viewFor(game, req.seat)
     const agent = agents.get(req.seat)
     if (!agent) throw new Error(`no agent for seat ${req.seat}`)
     try {
-      const decision = await agent.decide(req, view)
-      return { req, view, agent, decision }
+      const output = normalizeAgentOutput(await agent.decide(req, view))
+      const decision = output.decision
+      return { req, view, agent, decision, trace: output.trace }
     } catch (err) {
       degraded.push({
         seat: req.seat, kind: req.kind, atEvent: game.log.length,
@@ -95,9 +114,10 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
       ? [await decideOne(reqs[0])]
       : await Promise.all(reqs.map(decideOne))
 
-    for (const { req, view, agent, decision } of results) {
+    for (const { req, view, agent, decision, trace } of results) {
       try {
         applyDecision(game, req.seat, decision)
+        recordAppliedTrace(agent, trace, opts.onDecisionTrace)
       } catch (err) {
         // Illegal decision (bad team, bad target...): substitute the heuristic.
         degraded.push({

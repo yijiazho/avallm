@@ -10,19 +10,268 @@
 import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { isDeepStrictEqual } from 'node:util'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
-import type { AvalonAgent } from './types.ts'
+import {
+  ANALYSIS_FACT_CODES,
+  FORCED_PLAY_REASON_CODES,
+} from './analysis/types.ts'
+import { FORCED_POLICY_VERSION } from './policy/types.ts'
+import {
+  DECISION_TRACE_VERSION,
+  decisionTraceIdForRequest,
+  type DecisionTrace,
+} from './trace.ts'
+import type { AgentOutput, AvalonAgent } from './types.ts'
 
 export interface StdioAgentOpts {
   cmd: string
   args: string[]
   label?: string
   timeoutMs?: number
+  onDecisionTrace?: (trace: DecisionTrace) => void
 }
 
 interface Hello {
   type: 'hello'
   capabilities?: { discuss?: boolean }
+}
+
+function stringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+}
+
+function seatArray(value: unknown): value is readonly number[] {
+  return Array.isArray(value)
+    && value.every((entry) => Number.isInteger(entry) && entry >= 0)
+}
+
+function finiteProbability(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= 0
+    && value <= 1
+}
+
+function validRelevantTeam(value: unknown): boolean {
+  if (value === undefined) return true
+  const team = value as Record<string, unknown>
+  return !!team
+    && typeof team === 'object'
+    && seatArray(team.team)
+    && finiteProbability(team.cleanProbability)
+    && Array.isArray(team.evilCountDistribution)
+    && team.evilCountDistribution.length === team.team.length + 1
+    && team.evilCountDistribution.every(finiteProbability)
+    && seatArray(team.knownFailsAboard)
+}
+
+function validComponentVersions(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const versions = value as Record<string, unknown>
+  const required = [
+    'brain', 'belief', 'beliefVisibility', 'factors', 'languageEvidence',
+    'observerModel', 'analysis', 'candidates', 'forcedPolicy', 'policy',
+    'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
+  ]
+  return required.every(
+    (key) => typeof versions[key] === 'string' && versions[key].length > 0,
+  )
+}
+
+function validCandidateScores(value: unknown): boolean {
+  if (value === undefined) return true
+  return Array.isArray(value) && value.every((entry) => {
+    const score = entry as Record<string, unknown>
+    return !!score
+      && typeof score === 'object'
+      && typeof score.version === 'string'
+      && score.version.length > 0
+      && typeof score.candidateId === 'string'
+      && score.candidateId.length > 0
+      && typeof score.value === 'number'
+      && Number.isFinite(score.value)
+      && typeof score.viable === 'boolean'
+      && stringArray(score.reasonCodes)
+  })
+}
+
+function enumStringArray(
+  value: unknown,
+  allowed: readonly string[],
+): value is readonly string[] {
+  const choices = new Set(allowed)
+  return stringArray(value) && value.every((entry) => choices.has(entry))
+}
+
+function validForcedPolicyResult(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const forced = value as Record<string, unknown>
+  const allowed = stringArray(forced.allowedCandidateIds)
+    ? forced.allowedCandidateIds
+    : undefined
+  return (
+    forced.version === FORCED_POLICY_VERSION
+    && typeof forced.applied === 'boolean'
+    && enumStringArray(forced.reasonCodes, FORCED_PLAY_REASON_CODES)
+    && allowed !== undefined
+    && allowed.length > 0
+    && new Set(allowed).size === allowed.length
+    && (
+      forced.selectedCandidateId === undefined
+      || (
+        typeof forced.selectedCandidateId === 'string'
+        && allowed.includes(forced.selectedCandidateId)
+      )
+    )
+    && (
+      forced.applied
+        ? (forced.reasonCodes as readonly string[]).length > 0
+        : (
+            (forced.reasonCodes as readonly string[]).length === 0
+            && forced.selectedCandidateId === undefined
+          )
+    )
+  )
+}
+
+function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
+  if (trace.candidateScores === undefined) {
+    return trace.chosenCandidateId === undefined
+      && trace.plannerCandidateId === undefined
+  }
+  const scores = trace.candidateScores as Array<Record<string, unknown>>
+  const ids = scores.map((score) => score.candidateId)
+  if (new Set(ids).size !== ids.length) return false
+  const components = trace.componentVersions as Record<string, unknown> | undefined
+  if (
+    components
+    && scores.some((score) => score.version !== components.scorer)
+  ) {
+    return false
+  }
+  const chosen = trace.chosenCandidateId
+  if (
+    typeof chosen !== 'string'
+    || !scores.some(
+      (score) => score.candidateId === chosen && score.viable === true,
+    )
+  ) {
+    return false
+  }
+  const forced = trace.forcedPolicyResult as Record<string, unknown> | undefined
+  if (forced) {
+    const allowed = new Set(forced.allowedCandidateIds as string[])
+    if ([...allowed].some((candidateId) => !ids.includes(candidateId))) {
+      return false
+    }
+    if (scores.some((score) => score.viable === true && !allowed.has(
+      score.candidateId as string,
+    ))) {
+      return false
+    }
+    if (
+      forced.selectedCandidateId !== undefined
+      && forced.selectedCandidateId !== chosen
+    ) {
+      return false
+    }
+    if (
+      forced.applied === false
+      && (
+        allowed.size !== ids.length
+        || ids.some((candidateId) => !allowed.has(candidateId))
+      )
+    ) {
+      return false
+    }
+    const traceReasons = new Set(trace.reasonCodes as string[])
+    if (
+      (forced.reasonCodes as string[]).some(
+        (reason) => !traceReasons.has(reason),
+      )
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function validDecisionTrace(
+  req: DecisionRequest,
+  decision: Decision,
+  value: unknown,
+): value is DecisionTrace {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const trace = value as Record<string, unknown>
+  const throughSeq = trace.beliefThroughSeq
+  const hypotheses = trace.topHypotheses
+  return (
+    trace.version === DECISION_TRACE_VERSION
+    && typeof throughSeq === 'number'
+    && Number.isInteger(throughSeq)
+    && throughSeq >= 0
+    && trace.decisionId === decisionTraceIdForRequest(req, throughSeq)
+    && trace.viewerSeat === req.seat
+    && isDeepStrictEqual(trace.request, req)
+    && typeof trace.beliefModelVersion === 'string'
+    && trace.beliefModelVersion.length > 0
+    && trace.quality === 'constraints-only'
+    && stringArray(trace.degradation)
+    && Array.isArray(hypotheses)
+    && hypotheses.every((entry) => {
+      const hypothesis = entry as Record<string, unknown>
+      return !!hypothesis
+        && typeof hypothesis === 'object'
+        && typeof hypothesis.worldKey === 'string'
+        && finiteProbability(hypothesis.probability)
+        && seatArray(hypothesis.evilSeats)
+    })
+    && validRelevantTeam(trace.relevantTeam)
+    && enumStringArray(trace.factCodes, ANALYSIS_FACT_CODES)
+    && enumStringArray(trace.reasonCodes, FORCED_PLAY_REASON_CODES)
+    && isDeepStrictEqual(trace.action, decision)
+    && (
+      trace.statedReasoning === undefined
+      || typeof trace.statedReasoning === 'string'
+    )
+    && validComponentVersions(trace.componentVersions)
+    && validCandidateScores(trace.candidateScores)
+    && (
+      trace.chosenCandidateId === undefined
+      || typeof trace.chosenCandidateId === 'string'
+    )
+    && (
+      trace.plannerCandidateId === undefined
+      || typeof trace.plannerCandidateId === 'string'
+    )
+    && (
+      trace.decisionPlanVersion === undefined
+      || typeof trace.decisionPlanVersion === 'string'
+    )
+    && validForcedPolicyResult(trace.forcedPolicyResult)
+    && validComposedTraceRelations(trace)
+  )
+}
+
+/** Optional protocol extension: external agents may return a private trace. */
+export function parseStdioDecisionReply(
+  req: DecisionRequest,
+  reply: unknown,
+  label = 'external agent',
+): AgentOutput {
+  const record = reply as Record<string, unknown>
+  const decision = record?.decision as Decision | undefined
+  if (!decision || decision.kind !== req.kind) {
+    throw new Error(`${label} returned invalid decision for ${req.kind}`)
+  }
+  if (record.trace === undefined) return decision
+  if (!validDecisionTrace(req, decision, record.trace)) {
+    throw new Error(`${label} returned invalid decision trace for ${req.kind}`)
+  }
+  return { decision, trace: record.trace }
 }
 
 export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
@@ -76,7 +325,10 @@ export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
   }
 
   return {
-    async decide(req: DecisionRequest, view: PlayerView): Promise<Decision> {
+    recordDecisionTrace(trace) {
+      opts.onDecisionTrace?.(trace)
+    },
+    async decide(req: DecisionRequest, view: PlayerView): Promise<AgentOutput> {
       const hello = await start()
       if (req.kind === 'discuss' && hello.capabilities?.discuss === false) {
         return { kind: 'discuss', say: '' }
@@ -92,11 +344,7 @@ export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
         child!.stdin.write(JSON.stringify({ id, type: 'decide', request: req, view }) + '\n')
       })
       if (reply instanceof Error) throw reply
-      const decision = (reply as Record<string, unknown>).decision as Decision | undefined
-      if (!decision || decision.kind !== req.kind) {
-        throw new Error(`agent "${label}" returned invalid decision for ${req.kind}`)
-      }
-      return decision
+      return parseStdioDecisionReply(req, reply, `agent "${label}"`)
     },
     dispose() {
       child?.kill()

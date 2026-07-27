@@ -62,8 +62,9 @@ Inside `server/agents/`, cognition and `SituationAnalysis` own seat-scoped mecha
 `policy/candidates.ts` owns the finite legal action surface and `policy/forced.ts` owns executable
 forced constraints; neither reads raw `Game`. The heuristic and runtime fallback consume those
 owners before applying ordinary seeded scoring. The engine's `applyDecision` remains the final
-legality authority. Prompt-guided LLM policy remains a compatibility baseline until the composed
-planner and plan-driven voice path replace it.
+legality authority. Prompt-guided LLM policy remains the production compatibility baseline. The
+opt-in composed path sequences typed cognition, analysis, candidates, forced policy, scoring, a
+bounded planner, committed plan, and plan-driven voice; Phase 4 must earn any default switch.
 
 ### Pluggable agents (the decision interface is a plugin API)
 
@@ -77,14 +78,20 @@ option.
 
 ```ts
 interface AvalonAgent {
-  decide(req: DecisionRequest, view: PlayerView): Promise<Decision>
+  decide(req: DecisionRequest, view: PlayerView): Promise<Decision | AgentDecision>
   // view = viewFor(game, seat) — the ONLY game data an agent ever receives.
+}
+interface AgentDecision {
+  decision: Decision
+  trace?: DecisionTrace // private telemetry, never PlayerView
 }
 ```
 
 Notification of game events needs no separate callback: `view` carries the seat-filtered event
 log, so agents are stateless-by-default and any memory (scratchpads, believed-sides tables) is
-their own business.
+their own business. Server and simulator runners normalize the transitional raw/enveloped union
+before engine legality checks. The composed agent owns persistent typed cognition in its closure;
+changing its injected planner/model or voice does not reset that strategic state.
 
 **Agent specs and registry.** Table setup maps each seat to an `AgentSpec`; a registry constructs
 the agent (an alias-map-as-allowlist pattern):
@@ -100,7 +107,7 @@ type AgentSpec =
 
 **External agent protocol (the cross-language door).** `stdio` agents are child processes speaking
 newline-delimited JSON: we send `{ id, type: 'decide', request, view }`, they answer
-`{ id, decision }` (plus a `{ type: 'hello', capabilities }` handshake — agents that can't
+`{ id, decision, trace? }` (plus a `{ type: 'hello', capabilities }` handshake — agents that can't
 discuss declare it and are auto-passed in table-talk rounds). Same envelope could ride HTTP later;
 stdio first because it's zero-infra and testable in CI with a 20-line dummy agent. External
 decisions go through exactly the same legality validation + fallback ladder as LLM output (§3) —
@@ -346,13 +353,17 @@ vote on quest 3 was a fallback") — honesty about which decisions were actually
 matters for a game whose premise is model identity.
 
 Completed-game artifacts may also contain optional private `DecisionTrace` rows for experimental
-agents. A trace records the seat, request identity, exact-belief version and visible-event cursor,
-quality/degradation state, compact hypotheses, relevant team assessment, reason codes, and chosen
-action. Traces live only in the opt-in full-reveal artifact path. They never enter the engine event
-log, `PlayerView`, SSE, or any client response. Auxiliary parse failures are recorded even when the
-provider call itself succeeded. When the runner substitutes a heuristic, an optional telemetry hook
-upserts that stable decision identity with the fallback action actually applied; telemetry failures
-remain best-effort and cannot stall the game.
+agents. A composed trace records the seat and request identity; belief cursor and quality; compact
+hypotheses; relevant team assessment; the complete brain, belief/factor, analysis, candidate,
+forced-policy, policy, scorer, planner, typed-context/renderer, and communication versions; the
+central forced result; candidate scores; chosen ID; action; and degradation. Traces live only in
+the opt-in full-reveal artifact path. They never enter the engine event log, `PlayerView`, SSE, or
+any client response. Auxiliary parse failures are recorded even when the provider call itself
+succeeded. A trace-bearing envelope remains pending until `applyDecision` accepts its action; an
+illegal attempt is discarded before the heuristic fallback runs. When the runner substitutes a
+heuristic, an optional telemetry hook upserts that stable decision identity with the fallback
+action actually applied. External stdio traces must satisfy the complete required base schema and
+stable request-derived identity. Telemetry failures remain best-effort and cannot stall the game.
 
 ### Consistency across a game
 

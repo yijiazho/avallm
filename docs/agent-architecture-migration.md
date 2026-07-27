@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 3B shared candidates and forced policy complete; Phase 3C composed
-planning, decision traces, and voice separation is next.
+**Current target phase:** Phase 3 architecture separation is complete. Phase 4's first
+belief-driven production policy slice is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -24,8 +24,8 @@ The current system already has strong foundations that should be retained.
 |---|---|---|
 | Game logic | Pure event-sourced engine under `server/engine/` | Keep |
 | Hidden information | `viewFor(game, seat)` produces the only `PlayerView` agents receive | Keep and extend tests |
-| Agent boundary | `AvalonAgent.decide(req, view): Promise<Decision>` | Keep the concept; evolve the result contract |
-| Agent construction | Registry maps heuristic, random, stdio, and LLM specs to agents | Extend with composed brains |
+| Agent boundary | Legacy agents return `Decision`; composed agents return `AgentDecision { decision, trace? }` through one compatibility-safe `AgentOutput` contract | Migrate remaining agents to the envelope only when compatibility permits |
+| Agent construction | Registry maps heuristic, random, stdio, and LLM specs; the composed constructor is opt-in | Add an explicit composed registry/definition mode only with Phase 4 rollout evidence |
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
 | Hard role deductions | Exact complete worlds feed the temporary `roleCertainties()` projection used by normal LLM prompts | Keep exact worlds authoritative; consolidate the compatibility renderer during Phase 3 |
@@ -50,14 +50,14 @@ compose and difficult to measure independently.
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
 | Team-clean probability | Exact joint assessment is available through `SituationAnalysis` | Not yet wired into production policy |
-| Candidate evaluation | `legal-candidates-v1` owns the finite legal surface | No shared candidate value/scoring layer yet |
-| Forced plays | `forced-policy-v1` executes for heuristic/fallback; prompts and grading still have compatibility triggers | Render central results in Phase 3C and keep grading independent |
+| Candidate evaluation | `compatibility-scorer-v1` owns typed, finite Phase 3 scores over `legal-candidates-v1` | Replace compatibility preference with belief-driven role utility in Phase 4 |
+| Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
-| Decision trace | Optional private trace records belief version, cursor, posterior context, reasons, action, and degradation | Add analysis, policy, renderer, prompt, and factor versions plus candidate scores |
-| Brain/model/persona separation | A resolved `brain-spec-v1` is distinct from model, persona, and prompt layers | Policy and voice still share the raw LLM call path |
+| Decision trace | Composed traces include brain, belief/factors, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend factor provenance when soft factors land |
+| Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity | Production still defaults to the deliberately separate raw-LLM baseline |
 
 ---
 
@@ -408,7 +408,7 @@ Non-blocking consolidation work during Phase 3:
       direct `PlayerView` arithmetic or prompt-only authority.
 - [ ] Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts after
       equivalent typed renderers pass tests.
-- [ ] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
+- [x] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
       versions needed to attribute behavior to a complete brain configuration.
 
 ---
@@ -419,9 +419,10 @@ Non-blocking consolidation work during Phase 3:
 
 - [x] Complete the component-identity preflight above before comparative evaluation.
 - [x] Introduce a brain configuration distinct from model and persona configuration.
-- [ ] Add a composed `hybrid` engine or equivalent agent constructor.
+- [x] Add a composed `hybrid` engine or equivalent agent constructor.
 - [x] Preserve `raw-llm`, heuristic, random, and stdio modes as baselines.
-- [ ] Adapt legacy agents to any new `AgentDecision { decision, trace }` result boundary.
+- [x] Adapt legacy agents to the new result boundary through one transitional `AgentOutput`
+      normalizer, without changing their returned decision bytes.
 - [x] Extend custom-agent validation and public metadata without exposing private cognition.
 
 Suggested configuration shape:
@@ -545,21 +546,83 @@ Non-blocking Phase 3B follow-ups:
       engine acceptance across the architecture bank currently proves legality, but an independent
       cardinality oracle would strengthen completeness coverage.
 
-Phase 3C is next. It should add the composed hybrid constructor, structured candidate scoring,
-`AgentDecision`/`DecisionPlan`, complete component versions in traces, and plan-driven voice.
-Prompt ASKs still duplicate forced triggers during this compatibility window; Phase 3C should
-render the central rule result and then remove those trigger branches without changing the raw-LLM
-baseline experiment.
+### Phase 3C implementation record
+
+`server/agents/composed.ts` adds the opt-in `composed-policy-v1` engine. One decision advances
+seat-owned `CognitionState`, derives `SituationAnalysis`, generates the finite legal surface,
+applies `forced-policy-v1`, obtains typed scores, optionally accepts one supplied viable candidate
+ID from an injected planner, commits `decision-plan-v1`, and only then invokes an injected voice.
+It is deliberately not registered as the production default. Phase 4 must replace the compatibility
+score with measured role utility before any default switch.
+
+`compatibility-scorer-v1` emits deterministic, finite, JSON-round-trippable `CandidateScore`
+records. It preserves the current heuristic choice when that candidate survives the forced policy
+and otherwise uses canonical legal-candidate order. This is an architectural seam, not new
+intelligence: belief-driven team value, dominance bands, and role objectives remain Phase 4 work.
+The optional planner receives the seat-filtered `PlayerView` plus the typed
+`composed-typed-context-v1` rendering and viable candidates. It may return only one candidate ID
+and a bounded communication intent. An absent, unknown, removed, duplicate, non-finite, or
+otherwise malformed scorer/planner result degrades to the compatibility scorer and structured
+choice; neither plugin can reopen a forced-policy removal or construct an arbitrary engine action.
+
+`AgentOutput` is a compatibility union during migration. Existing raw-LLM, heuristic, random, and
+stdio callers keep their exact raw `Decision` behavior, while composed agents return
+`AgentDecision { decision, trace? }`; server and simulator runners normalize both. The stdio
+protocol accepts the same trace envelope as an optional extension. Composed traces carry every
+component version from the centrally resolved brain, belief visibility, and inactive factor slots
+through policy, prompt renderer, communication plan, and concrete voice, plus the central forced
+result, candidate scores, chosen ID, planner attempt, and degradation. The stdio boundary validates
+the complete required base trace and stable decision identity. Runners hold envelope traces pending
+until engine legality succeeds, so an illegal attempted action cannot be persisted as the ultimate
+decision. Traces use only private sinks; neither `Game` nor `PlayerView` gained a trace field.
+
+`CommunicationIntent` owns the discussion, proposal-pitch, or revision-reason task. The committed
+mechanical decision is cloned before voice runs, planner intent must match its channel and public
+lean, and voice can return only text plus private thinking. Analysis fact codes are private by
+default: only a small public-safe allowlist may enter `safeFactCodes`, while private deductions are
+placed in the intent's concealment set. A voice failure leaves the proposal, revision, or discussion
+lean intact and makes its public communication silent. Replacing the planner/model or voice on a
+composed agent does not replace or reset that seat's cognition.
+
+The composed renderer consumes the executable forced-policy result, reason codes, allowed IDs,
+candidate scores, and committed plan. It does not re-derive board triggers from prose. The raw LLM
+`ASKS` text is intentionally unchanged because raw prompt-guided play is a frozen comparison mode;
+its prompt hashes remain
+`f931cc39468717af07c0188065669d26822441b17bad18153827ff5f364e1fdb` (default) and
+`fc97263aa064c080b7004e853d7b0c0cdafe56b620d3cb877780b6257d62f102` (compact).
+In the composed path those sentences are explanatory compatibility text with no executable
+authority.
+
+Independent review found and corrected scorer-boundary totality, private-fact speech projection,
+ultimate-action trace ordering, stdio trace-schema validation, central brain attribution, and
+committed-team trace assessment. Follow-up review also tightened boolean viability, optional stdio
+extension relations, preservation of central reason codes in chosen-team traces, and attribution
+to the exact planner and voice instances used across awaits. The parent correction suite passed
+39 focused composition, brain, trace, and stdio tests, followed by all 577 API-free tests. All eight
+architecture fixtures and the screenshot manifest were current, and a fresh ten-game free
+architecture bank completed with zero degradation, zero calls, and no paid LLM use.
+
+Non-blocking Phase 3C follow-ups:
+
+- [ ] Replace `compatibility-scorer-v1` with Phase 4 role-aware belief features and a measured
+      viable band before exposing composed agents in the normal table registry.
+- [ ] Add the real bounded planner and voice adapters only with an explicit free fake-client test
+      path and the existing paid-call gate; Phase 3 defines the injection contracts only.
+- [ ] Collapse the transitional `AgentOutput` union after external and direct callers have had a
+      compatibility window; until then runners remain the single normalization boundary.
+- [ ] Cache the compatibility policy's repeated cognition work if the opt-in constructor is used
+      in larger benchmarks before Phase 4 replaces that scorer.
 
 ### Central policy
 
 - [x] Generate legal candidate actions in one module.
 - [x] Move forced-play triggers into executable policy rules with stable reason codes.
 - [x] Make the heuristic fallback consume the same analysis and forced-rule modules.
-- [ ] Render forced-rule results into prompts rather than reimplementing triggers in `ASKS`.
-- [ ] Add a structured candidate scorer.
-- [ ] Add an LLM planner that may choose only from the supplied viable candidate IDs.
-- [ ] Generalize commit-then-explain from proposals to revisions, discussion leans, and strategic
+- [x] Render forced-rule results into composed planner/voice context; retain unchanged raw-LLM
+      compatibility ASKS as the baseline experiment.
+- [x] Add a structured candidate scorer.
+- [x] Add a bounded planner seam that may choose only from supplied viable candidate IDs.
+- [x] Generalize commit-then-explain from proposals to revisions, discussion leans, and strategic
       claims.
 
 ### Exit gate
@@ -567,6 +630,9 @@ baseline experiment.
 Facts, forced rules, candidate generation, policy, and voice have distinct owners. Deleting a
 forced-play sentence from a prompt cannot remove the executable behavior, and changing a persona
 cannot reset strategic state.
+
+**Status:** met for the opt-in composed path. The raw-LLM mode remains intentionally prompt-guided
+and behavior-frozen as an evaluation baseline; it is not mislabeled as the composed policy.
 
 ---
 
@@ -824,3 +890,9 @@ here.
   and situation analysis, and preserved every frozen decision plus the complete Phase 3A
   architecture-bank event-log hash. Exhaustive team candidates use a cheap known-Fails projection;
   prompt rule rendering, structured scoring, plan traces, and voice separation remain for Phase 3C.
+- Phase 3C composed boundary: added the opt-in composed decision pipeline,
+  `compatibility-scorer-v1`, ID-bounded planner contract, committed plans and communication intents,
+  plan-driven discussion/proposal/revision voice, compatibility-safe trace-bearing agent outputs,
+  complete component attribution, central forced-result rendering, and the optional stdio trace
+  envelope. Raw prompt bytes and every production baseline remain unchanged; Phase 4 owns the
+  first belief-driven policy and any production rollout.

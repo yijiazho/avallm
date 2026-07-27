@@ -39,7 +39,10 @@ import type { LlmCallKind } from './llm/call-params.ts'
 import { getClient } from './llm/client.ts'
 import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, nameIsReserved, validateRoles } from './engine/rules.ts'
-import type { AvalonAgent } from './agents/types.ts'
+import {
+  normalizeAgentOutput,
+  type AvalonAgent,
+} from './agents/types.ts'
 import {
   upsertDecisionTrace,
   type DecisionTrace,
@@ -532,11 +535,13 @@ async function pump(s: Session): Promise<void> {
         const view = viewFor(s.game, req.seat)
         const agent = s.agents.get(req.seat)!
         try {
+          const output = normalizeAgentOutput(await agent.decide(req, view))
           return {
             req,
             view,
             agent,
-            decision: await agent.decide(req, view),
+            decision: output.decision,
+            trace: output.trace,
             fallback: false,
           }
         } catch (err) {
@@ -550,14 +555,21 @@ async function pump(s: Session): Promise<void> {
           } catch {
             // Optional private telemetry never blocks the live game.
           }
-          return { req, view, agent, decision, fallback: true }
+          return { req, view, agent, decision, trace: undefined, fallback: true }
         }
       }))
-      for (const { req, view, agent, decision, fallback } of decisions) {
+      for (const { req, view, agent, decision, trace, fallback } of decisions) {
         const seqStart = s.game.log.length
         let wasFallback = fallback
         try {
           applyDecision(s.game, req.seat, decision); s.steps++
+          if (trace) {
+            try {
+              upsertDecisionTrace(s.decisionTraces, trace)
+            } catch {
+              // Optional private telemetry never blocks the live game.
+            }
+          }
         } catch (err) {
           s.degraded.push({
             seat: req.seat, kind: req.kind,
