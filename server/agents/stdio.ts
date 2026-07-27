@@ -123,6 +123,20 @@ function validComponentVersions(value: unknown): boolean {
   return required.every(
     (key) => typeof versions[key] === 'string' && versions[key].length > 0,
   )
+    && (
+      versions.mechanicalBelief === undefined
+      || (
+        typeof versions.mechanicalBelief === 'string'
+        && versions.mechanicalBelief.length > 0
+      )
+    )
+    && (
+      versions.beliefPipeline === undefined
+      || (
+        typeof versions.beliefPipeline === 'string'
+        && versions.beliefPipeline.length > 0
+      )
+    )
 }
 
 function validLanguageTrace(
@@ -143,6 +157,21 @@ function validLanguageTrace(
         .includes(LANGUAGE_FACTOR_BUNDLE_VERSION)
     )
   if (componentDeclaresLanguage !== factorsDeclareLanguage) return false
+  if (
+    componentDeclaresLanguage
+      ? (
+          typeof components?.mechanicalBelief !== 'string'
+          || components.mechanicalBelief.length === 0
+          || typeof components.beliefPipeline !== 'string'
+          || components.beliefPipeline.length === 0
+        )
+      : (
+          components?.mechanicalBelief !== undefined
+          || components?.beliefPipeline !== undefined
+        )
+  ) {
+    return false
+  }
   if (value === undefined) return !componentDeclaresLanguage
   if (!componentDeclaresLanguage) return false
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false

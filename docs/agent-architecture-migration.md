@@ -2,11 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 6D architecture closure before Phase 7. NB-001B now consolidates
-the prompt dossier and language context onto one typed public-record projection; NB-004 next adds
-an active-dialogue language evaluation bank and stable belief-pipeline matcher. Phase 7 then begins
-with an opt-in public observer and role-identity substrate. The Phase 5C population sign flip
-remains recorded, and win-rate tuning is still intentionally deferred.
+**Current target phase:** Phase 7 role-specific observer and identity models. Phase 6D closed
+NB-001B and NB-004 with one shared public-record projection plus an active-dialogue, zero-cost
+language evaluation cell. Phase 7 begins with an opt-in exact public observer, then adds the
+identity/coherence substrate before bounded role-policy slices. The Phase 5C population sign flip
+remains recorded, and win-rate tuning is still intentionally deferred until the architecture is
+complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -171,7 +172,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | The Phase 6 public-language boundary owns the shared public record. Dossier and language-input bytes remain frozen and the viewer seat affects only the existing own-position callout. | `landed` |
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
-| NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `ready` |
+| NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `landed` |
 
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
@@ -1117,9 +1118,8 @@ arbitrary runtime values.
 The implementation remains a fake-tested injection seam. It adds no OpenRouter adapter, prompt,
 registry entry, production default, paid call, language-strength tuning, special-role objective,
 search, or factor graph. The standard architecture bank has discussion disabled and therefore
-proves zero-cost configured attribution but cannot exercise active interpretation. NB-004 tracks
-the required stable-pipeline matcher and public-dialogue bank before language evaluation or paid
-provider work.
+proves zero-cost configured attribution without active interpretation. Phase 6D's separate
+public-dialogue bank closes the former NB-004 evaluation gap without changing this baseline.
 
 ### Phase 6D public-record consolidation
 
@@ -1135,6 +1135,22 @@ passes the viewer seat separately only for the existing “Your resolved public 
 Frozen dossier, complete language-input, and raw-prompt bytes are unchanged. Cross-seat equality,
 5–10-player coverage, private canaries, detached-copy tests, and the full API-free suite close
 NB-001B without changing policy, prompts, providers, or defaults.
+
+### Phase 6D active-language evaluation
+
+The frozen `standard-v1` architecture bank remains a no-discussion mechanical baseline. A separate
+`public-dialogue-language-v1` bank and explicit versioned profile exercise the complete opt-in
+bounded-language path with a deterministic, evaluation-only interpreter. Stable configured
+mechanical-belief and belief-pipeline identities are recorded separately from the actual snapshot
+version used by each decision; benchmark, report, stdio, and artifact validation enforce that the
+stable fields appear only on the bounded-language path.
+
+The pinned case made 9 fake-interpreter calls, admitted 19 active reads, and produced 16 target
+traces containing both exact and exact-plus-bounded snapshot versions in one game. Replay was
+identical, every actual snapshot matched its trace attribution, and the run recorded zero
+degradation, LLM calls, cost, telemetry, hidden-information violations, or attribution violations.
+The case is an architecture and safety test, not a statistical gameplay evaluation. NB-004 is
+closed without provider wiring, prompt changes, production defaults, or strength tuning.
 
 ### Interpreter
 
@@ -1172,6 +1188,30 @@ real provider remain separate follow-ups; neither is required for the mechanical
 ---
 
 ## 12. Phase 7: role-specific observer and identity models
+
+Phase 7 is implemented as bounded, sequential slices so each new authority is independently
+reviewable and ablatable:
+
+1. **Phase 7A, exact public observer:** infer complete public role worlds from `PublicRecord` only,
+   keep exact role marginals separate from non-probabilistic behavioral indices, and prove the
+   result is identical across viewing seats.
+2. **Phase 7B, identity and coherence substrate:** aggregate role and hidden-team identity
+   posteriors from complete joint worlds, persist the current plan privately, and distinguish
+   consistent conduct, accidental conflict, intentional concealment, and strategic deception.
+3. **Phase 7C, Merlin and Percival:** add influence-versus-exposure and Merlin/Morgana-pair
+   objectives without weakening forced policy or legality.
+4. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
+   coordination, and Oberon's joint posterior over unseen evil seats.
+5. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
+   generic goodness.
+6. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+   role-specific, and full configurations on a frozen API-free role bank, including virtual
+   Assassin guesses derived only from seat-filtered views.
+
+Every slice remains opt-in, records its component versions, preserves raw and compatibility
+baselines, and lands only after independent review plus focused and complete API-free validation.
+Phase 7 does not own paid calls, provider wiring, win-rate tuning, search, learned factors, a factor
+graph, or production-default promotion.
 
 ### Public observer
 
@@ -1376,11 +1416,18 @@ here.
   posterior consumption by scoring, skip-once failure, stable brain/factor identity, and private
   stdio/artifact attribution. Independent review closed non-string version, missing attribution,
   cursor/provenance coupling, and full-world cloning defects. The standard no-discussion bank
-  remains zero-cost and fully attributed; NB-004 tracks an active-language comparison bank.
+  remains zero-cost and fully attributed; Phase 6D closes the former active-language comparison
+  gap with a separate public-dialogue bank.
 - Phase 6D public record: replaced independent language-context and prompt-dossier board
   derivations with one typed, public-only projection. Frozen dossier, full language-input, and raw
   prompt bytes remain identical; cross-seat, 5–10-player, private-canary, and detached-copy tests
   establish the shared boundary. NB-001B is closed without policy or default changes.
+- Phase 6D active-language evaluation: separated stable configured belief-pipeline identity from
+  each decision's actual belief snapshot and added a versioned public-dialogue bank driven by a
+  deterministic evaluation-only interpreter. The pinned run made 9 interpreter calls, admitted 19
+  active reads, and exercised both exact and bounded snapshots with zero degradation, calls, cost,
+  telemetry, hidden-information findings, or attribution findings. The standard no-discussion
+  bank and language-off trace shape remain frozen; NB-004 is closed.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

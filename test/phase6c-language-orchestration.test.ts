@@ -598,7 +598,9 @@ test('free architecture bank runs the attributed language pipeline', async () =>
       components: {
         mode: 'compatibility',
         brain: 'brain-spec-v1',
-        belief: 'exact-constraints-v1',
+        mechanicalBelief: 'exact-constraints-v1',
+        beliefPipeline:
+          'exact-constraints-v1+bounded-language-only-v1',
         factors: 'bounded-language-only-v1',
         languageEvidence: 'bounded-language-only-v1',
         policy: 'composed-policy-v1',
@@ -653,6 +655,8 @@ test('language-off source and trace contracts remain unchanged', async () => {
   assert.ok(!stages.includes('language'))
   assert.equal(output.trace!.componentVersions?.languageEvidence, 'off')
   assert.equal(output.trace!.componentVersions?.factors, 'off')
+  assert.equal(output.trace!.componentVersions?.mechanicalBelief, undefined)
+  assert.equal(output.trace!.componentVersions?.beliefPipeline, undefined)
   assert.equal(output.trace!.languageEvidence, undefined)
 
   const source = [

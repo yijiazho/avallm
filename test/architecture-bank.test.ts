@@ -2,6 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import {
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK,
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
   ARCHITECTURE_BANK,
   ARCHITECTURE_BANK_ID,
   STANDARD_ROLES,
@@ -59,5 +62,32 @@ test('architecture bank rejects incomplete or discussion-enabled copies', () => 
       talk: { ...ARCHITECTURE_BANK[0].talk, maxRounds: 1 },
     }, ...ARCHITECTURE_BANK.slice(1)]),
     /must keep discussion disabled/,
+  )
+})
+
+test('active-language bank uses a separate explicit public-dialogue profile', () => {
+  assert.equal(
+    ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
+    'public-dialogue-language-v1',
+  )
+  assert.doesNotThrow(() => validateArchitectureBank(
+    ACTIVE_LANGUAGE_ARCHITECTURE_BANK,
+    {
+      requireCoverage: false,
+      profile: ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
+    },
+  ))
+  assert.throws(
+    () => validateArchitectureBank(ACTIVE_LANGUAGE_ARCHITECTURE_BANK, {
+      requireCoverage: false,
+    }),
+    /must keep discussion disabled/,
+  )
+  assert.throws(
+    () => validateArchitectureBank(ARCHITECTURE_BANK, {
+      requireCoverage: false,
+      profile: ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
+    }),
+    /must use its versioned public-dialogue profile/,
   )
 })

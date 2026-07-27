@@ -16,8 +16,12 @@ import { loadAgentLibrary, resolveModel } from '../agents/defs.ts'
 import { runGame } from '../sim/runner.ts'
 import { appendArtifact, toArtifact } from './artifact.ts'
 import {
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK,
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
+  ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
   ARCHITECTURE_BANK,
   ARCHITECTURE_BANK_ID,
+  STANDARD_ARCHITECTURE_BANK_PROFILE,
   validateArchitectureBank,
 } from './architecture-bank.ts'
 import type { AgentDef } from '../agents/defs.ts'
@@ -28,7 +32,10 @@ import type {
 } from '../agents/types.ts'
 import type { OpenRouterClient, SpendEntry } from '../llm/openrouter.ts'
 import type { GameArtifact } from './artifact.ts'
-import type { ArchitectureBankCase } from './architecture-bank.ts'
+import type {
+  ArchitectureBankCase,
+  ArchitectureBankProfile,
+} from './architecture-bank.ts'
 import type { Seat } from '../engine/types.ts'
 import {
   upsertDecisionTrace,
@@ -39,6 +46,7 @@ import {
   resolveBrain,
   type AgentExecutionMode,
 } from '../agents/brain.ts'
+import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -59,6 +67,11 @@ export interface ArchitectureBenchOpts {
   variants: readonly ArchitectureVariant[]
   cases?: readonly ArchitectureBankCase[]
   bankId?: string
+  /**
+   * Discussion-enabled banks require an explicit, versioned profile. Omitting
+   * this field retains the frozen Phase 0 no-discussion contract.
+   */
+  bankProfile?: ArchitectureBankProfile
   /** Free, deterministic population used for every non-target seat. */
   opponentKind?: Extract<AgentSpec['type'], 'heuristic' | 'random'>
   out?: string
@@ -241,6 +254,28 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
       )
     }
+    const languageEnabled =
+      variant.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
+    if (languageEnabled) {
+      if (variant.components.belief !== undefined) {
+        throw new Error(
+          `custom architecture variant ${variant.id} must declare actual belief versions `
+          + 'in decision traces, not architecture metadata',
+        )
+      }
+      for (const key of ['mechanicalBelief', 'beliefPipeline']) {
+        if (!variant.components[key]?.trim()) {
+          throw new Error(
+            `custom architecture variant ${variant.id} requires component ${key} `
+            + 'when language evidence is enabled',
+          )
+        }
+      }
+      return {
+        factors: 'off',
+        ...variant.components,
+      }
+    }
     return {
       belief: 'exact-constraints-v1',
       factors: 'off',
@@ -264,10 +299,34 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
 
 export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise<GameArtifact[]> {
   if (!opts.variants.length) throw new Error('architecture benchmark requires at least one variant')
-  const cases = opts.cases ?? ARCHITECTURE_BANK
-  const bankId = opts.bankId ?? ARCHITECTURE_BANK_ID
+  const bankProfile =
+    opts.bankProfile ?? STANDARD_ARCHITECTURE_BANK_PROFILE
+  const activeLanguageBank =
+    bankProfile === ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE
+  const cases = opts.cases ?? (
+    activeLanguageBank
+      ? ACTIVE_LANGUAGE_ARCHITECTURE_BANK
+      : ARCHITECTURE_BANK
+  )
+  const bankId = opts.bankId ?? (
+    activeLanguageBank
+      ? ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID
+      : ARCHITECTURE_BANK_ID
+  )
+  if (
+    (bankId === ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID)
+    !== activeLanguageBank
+  ) {
+    throw new Error(
+      `${ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID} requires the matching `
+      + `${ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE} bank profile`,
+    )
+  }
   const opponentKind = opts.opponentKind ?? 'heuristic'
-  validateArchitectureBank(cases, { requireCoverage: opts.cases === undefined })
+  validateArchitectureBank(cases, {
+    requireCoverage: opts.cases === undefined && !activeLanguageBank,
+    profile: bankProfile,
+  })
 
   const variantIds = new Set<string>()
   for (const variant of opts.variants) {
@@ -340,23 +399,47 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const result = await runGame({ game, agents })
       if (variant.createTargetAgent) {
         const expectedComponents = resolvedVariantComponents(variant)
-        const tracedComponents = [
+        const tracedComponents: string[] = [
           'brain',
-          'belief',
           'factors',
           'languageEvidence',
           'policy',
           'scorer',
           'planner',
           'voice',
-        ] as const
-        const mismatch = decisionTraces.find((trace) =>
-          trace.agentMode !== expectedComponents.mode
-          || !trace.componentVersions
-          || tracedComponents.some(
-            (key) =>
-              trace.componentVersions![key] !== expectedComponents[key],
-          ))
+        ]
+        if (
+          expectedComponents.languageEvidence
+          === LANGUAGE_FACTOR_BUNDLE_VERSION
+        ) {
+          tracedComponents.push('mechanicalBelief', 'beliefPipeline')
+        } else {
+          tracedComponents.push('belief')
+        }
+        const mismatch = decisionTraces.find((trace) => {
+          const traceVersions = trace.componentVersions
+          const boundedLanguage =
+            expectedComponents.languageEvidence
+            === LANGUAGE_FACTOR_BUNDLE_VERSION
+          return (
+            trace.agentMode !== expectedComponents.mode
+            || !traceVersions
+            || traceVersions.belief !== trace.beliefModelVersion
+            || (
+              !boundedLanguage
+              && (
+                traceVersions.mechanicalBelief !== undefined
+                || traceVersions.beliefPipeline !== undefined
+              )
+            )
+            || tracedComponents.some(
+              (key) =>
+                (
+                  traceVersions as unknown as Record<string, string>
+                )[key] !== expectedComponents[key],
+            )
+          )
+        })
         if (!decisionTraces.length || mismatch) {
           const actual = mismatch
             ? {

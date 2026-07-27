@@ -10,6 +10,16 @@ import { MAX_PLAYERS, MIN_PLAYERS, validateRoles } from '../engine/rules.ts'
 import type { Role, TalkConfig } from '../engine/types.ts'
 
 export const ARCHITECTURE_BANK_ID = 'standard-v1'
+export const STANDARD_ARCHITECTURE_BANK_PROFILE =
+  'phase0-no-discussion-v1'
+export const ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID =
+  'public-dialogue-language-v1'
+export const ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE =
+  'public-dialogue-one-round-v1'
+
+export type ArchitectureBankProfile =
+  | typeof STANDARD_ARCHITECTURE_BANK_PROFILE
+  | typeof ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE
 
 export interface ArchitectureBankCase {
   id: string
@@ -55,14 +65,38 @@ export const ARCHITECTURE_BANK: readonly ArchitectureBankCase[] = [
   bankCase(10, 'oberon', 0, ['merlin', 'percival', 'servant', 'servant', 'servant', 'servant', 'morgana', 'assassin', 'mordred', 'oberon']),
 ]
 
+/**
+ * Small API-free bank for exercising the complete bounded-language pipeline.
+ * It is deliberately separate from the frozen Phase 0 bank and pins a public
+ * discussion configuration rather than relaxing that bank's validator.
+ */
+export const ACTIVE_LANGUAGE_ARCHITECTURE_BANK:
+  readonly ArchitectureBankCase[] = [{
+  id: '5p-servant-public-dialogue',
+  seed: 'architecture-v1-5-servant',
+  playerCount: 5,
+  roles: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
+  talk: {
+    maxRounds: 1,
+    maxRoundsAfterChange: 0,
+    leaderInDiscussion: 'last',
+  },
+  targetRole: 'servant',
+  expectedTargetSeat: 2,
+}]
+
 export const STANDARD_ROLES: readonly Role[] = [
   'merlin', 'percival', 'servant', 'assassin', 'morgana', 'mordred', 'oberon', 'minion',
 ]
 
 export function validateArchitectureBank(
   cases: readonly ArchitectureBankCase[] = ARCHITECTURE_BANK,
-  opts: { requireCoverage?: boolean } = {},
+  opts: {
+    requireCoverage?: boolean
+    profile?: ArchitectureBankProfile
+  } = {},
 ): void {
+  const profile = opts.profile ?? STANDARD_ARCHITECTURE_BANK_PROFILE
   const ids = new Set<string>()
   const seeds = new Set<string>()
   for (const c of cases) {
@@ -77,12 +111,22 @@ export function validateArchitectureBank(
     if (!c.roles.includes(c.targetRole)) {
       throw new Error(`${c.id}: target role ${c.targetRole} is not in the cast`)
     }
-    if (
-      c.talk.maxRounds !== 0
+    if (profile === STANDARD_ARCHITECTURE_BANK_PROFILE) {
+      if (
+        c.talk.maxRounds !== 0
+        || c.talk.maxRoundsAfterChange !== 0
+        || c.talk.leaderInDiscussion !== 'none'
+      ) {
+        throw new Error(`${c.id}: Phase 0 bank must keep discussion disabled`)
+      }
+    } else if (
+      c.talk.maxRounds !== 1
       || c.talk.maxRoundsAfterChange !== 0
-      || c.talk.leaderInDiscussion !== 'none'
+      || c.talk.leaderInDiscussion !== 'last'
     ) {
-      throw new Error(`${c.id}: Phase 0 bank must keep discussion disabled`)
+      throw new Error(
+        `${c.id}: active-language bank must use its versioned public-dialogue profile`,
+      )
     }
   }
 

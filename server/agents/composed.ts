@@ -357,6 +357,12 @@ function composedTrace(
     componentVersions: {
       brain: brain.brain,
       belief: cognition.belief.modelVersion,
+      ...(languageEnabled
+        ? {
+            mechanicalBelief: cognition.versions.mechanicalBelief,
+            beliefPipeline: cognition.versions.beliefPipeline,
+          }
+        : {}),
       beliefVisibility: brain.beliefVisibility,
       factors: factorsVersion,
       languageEvidence: brain.languageEvidence,

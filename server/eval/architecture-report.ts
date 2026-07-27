@@ -11,6 +11,7 @@ import { readArtifacts } from './artifact.ts'
 import { computeMetrics } from './metrics.ts'
 import type { ArchitectureRunMetadata, GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role } from '../engine/types.ts'
+import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -195,22 +196,56 @@ function architectureSafety(
   ) {
     hiddenInformationViolations++
   }
-  for (const trace of artifact.decisionTraces ?? []) {
+  const traces = artifact.decisionTraces ?? []
+  const declaresBoundedLanguage =
+    meta.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
+  if (declaresBoundedLanguage && traces.length === 0) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  for (const trace of traces) {
     traceAttributionChecks++
     const versions = trace.componentVersions
+    const languageEnabled = declaresBoundedLanguage
+    const stableKeys = [
+      'brain',
+      'factors',
+      'languageEvidence',
+      'policy',
+      'scorer',
+      'planner',
+      'voice',
+      ...(languageEnabled
+        ? ['mechanicalBelief', 'beliefPipeline']
+        : ['belief']),
+    ]
+    const invalidDeclaration = languageEnabled
+      ? (
+          meta.components.belief !== undefined
+          || !meta.components.mechanicalBelief
+          || !meta.components.beliefPipeline
+        )
+      : (
+          meta.components.mechanicalBelief !== undefined
+          || meta.components.beliefPipeline !== undefined
+        )
+    const invalidTraceShape = languageEnabled
+      ? (
+          !versions?.mechanicalBelief
+          || !versions.beliefPipeline
+        )
+      : (
+          versions?.mechanicalBelief !== undefined
+          || versions?.beliefPipeline !== undefined
+        )
     if (
       trace.viewerSeat !== meta.targetSeat
       || trace.agentMode !== meta.components.mode
       || !versions
-      || [
-        'brain',
-        'belief',
-        'factors',
-        'policy',
-        'scorer',
-        'planner',
-        'voice',
-      ].some(
+      || versions.belief !== trace.beliefModelVersion
+      || invalidDeclaration
+      || invalidTraceShape
+      || stableKeys.some(
         (key) =>
           versions[key as keyof typeof versions]
           !== meta.components[key],

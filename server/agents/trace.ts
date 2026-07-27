@@ -48,7 +48,14 @@ export interface DecisionTrace {
   /** Complete ownership/version attribution for composed decisions. */
   componentVersions?: Readonly<{
     brain: string
+    /**
+     * Actual version of the resolved snapshot used for this decision. This can
+     * vary between decisions when an opt-in factor has no applicable evidence.
+     */
     belief: string
+    /** Stable configured identities, present only for opt-in belief pipelines. */
+    mechanicalBelief?: string
+    beliefPipeline?: string
     beliefVisibility: string
     factors: string
     languageEvidence: string
