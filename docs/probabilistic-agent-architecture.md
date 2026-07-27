@@ -94,7 +94,50 @@ These constraints apply to every implementation of this architecture.
 - Team quantities are derived from the joint distribution, not by multiplying independent player
   suspicion scores.
 
-### 3.3 Decisions
+### 3.3 Data dependence and priors
+
+The north-star agent is **data-enhanced, not data-dependent**. Its correctness, legality, hard
+deductions, and complete structured policy do not require historical Avalon games or an
+AvaLLM-trained model. Three probability layers remain distinct:
+
+1. **Rule-derived prior and feasible worlds.** Role counts, the viewer's role and private
+   visibility, and hard public constraints come from the current seat-filtered `PlayerView`.
+   Canonical assignments may be cached by game configuration for performance, but they are not
+   learned behavioral probabilities and contain no game-specific hidden state.
+2. **Optional pre-game likelihood bundle.** Versioned factor parameters may be hand-authored or
+   calibrated from prior game artifacts and loaded before a game. They describe behavior for a
+   named opponent population, such as contextual proposal, vote, or quest-card tendencies. They
+   may only reweight feasible worlds, and their data source, factor version, calibration
+   population, and caps remain attributable.
+3. **Current-game posterior.** During play, the agent combines the rule-derived feasible set,
+   optional likelihood parameters, and evidence visible to that seat in the current game. A
+   pre-game bundle must not contain a suspicion state, inferred deal, or truth-derived profile for
+   the game being played.
+
+Provider LLM pretraining is separate from AvaLLM-specific behavioral calibration. A pretrained LLM
+may interpret bounded language, plan among strategically acceptable candidates, and provide voice,
+but mechanical belief, forced policy, and engine legality remain complete without it.
+
+Historical data may improve the strongest production configuration, but it must satisfy these
+requirements:
+
+- Constraints-only inference plus structured policy remains a complete, independently testable
+  agent when every optional factor is absent.
+- Training, calibration, and evaluation split by whole game and opponent population. Evaluation
+  banks and human-study games never become training rows for the component they evaluate.
+- A population mismatch weakens or disables the relevant factor rather than silently treating its
+  likelihoods as universal. Unknown players receive a broad population prior. Per-player
+  tendencies require adequate samples, shrink toward that population prior, and never infer traits
+  from a name or other untrusted identity text.
+- Every learned or hand-authored contribution is versioned, capped, attributable, and unable to
+  revive an impossible world.
+- Missing, stale, or failed factor data degrades to the exact feasible-world posterior and is
+  visible in private trace data; it never prevents a legal decision.
+
+The production agent may therefore depend on a calibrated bundle for its measured peak strength,
+but not for sound inference, safe operation, or a coherent playable fallback.
+
+### 3.4 Decisions
 
 - Engine legality is final and remains independent of the agent.
 - Forced plays are executable policy rules with tests. Prompt prose may explain them but is not
@@ -105,7 +148,7 @@ These constraints apply to every implementation of this architecture.
 - An agent's own prior actions are not evidence for its private hidden-world posterior. They are
   evidence in the separate model of what public observers may believe.
 
-### 3.4 Reproducibility
+### 3.5 Reproducibility
 
 - Deterministic components use the game seed and stable event sequence numbers.
 - Every soft factor, policy, language interpreter, and prompt has a version.
