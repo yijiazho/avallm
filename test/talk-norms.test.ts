@@ -73,14 +73,6 @@ test('the norms do not carry the unearned name-opener ban', () => {
 // If you are adding prompt text and this test fails: rewrite the sentence, do
 // not weaken the test. End the sentence and start another one; a colon, comma,
 // or parentheses covers nearly every case a dash was doing.
-<<<<<<< HEAD
-const BANNED_DASH = /[—–]/
-// Only the copula ANTITHESIS reframe ("that's not trust, that's hush money"),
-// which is the actual tell. NOT plain contrast ("my issue is with you, not
-// Flash"), which is ordinary English and would flag half of normal speech.
-const BANNED_SLOGAN = /\b(is|are|was|were|it'?s|that'?s|this is)\s+not\s+[^.!?;:]{2,60}?,\s*(it'?s|that'?s|it is|that is|they'?re)\b/i
-const BANNED_GENDERED_PRONOUN = /\b(?:he|him|his|himself|she|her|hers|herself)\b/i
-=======
 // Imported rather than declared here, so this guard and the runtime counter over
 // bot SPEECH (eval/norms.ts, reported by `npm run sim`) test the same rule. They
 // are two halves of one loop: this side proves we never show the model the
@@ -93,7 +85,7 @@ const BANNED_GENDERED_PRONOUN = /\b(?:he|him|his|himself|she|her|hers|herself)\b
 // of normal speech.
 const BANNED_DASH = SPEECH_NORMS['em-or-en-dash'].pattern
 const BANNED_SLOGAN = SPEECH_NORMS['not-x-that-y'].pattern
->>>>>>> 05f9a5e (eval: count house-style violations in the speech bots actually produce)
+const BANNED_GENDERED_PRONOUN = /\b(?:he|him|his|himself|she|her|hers|herself)\b/i
 // The norms name the anti-pattern on purpose, and quoting an ANTI-example is
 // safe (bots parrot quoted positive examples, not negative ones — measured).
 const ANTI_EXAMPLE = `"that's not X, that's Y"`
