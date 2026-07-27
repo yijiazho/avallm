@@ -909,7 +909,13 @@ function roleBaselineFor(role: string, view?: PlayerView): string {
 
 function roleAddendumFor(role: string, view: PlayerView): string {
   if (role === 'merlin' && view.rolesInPlay.includes('mordred')) {
-    return `Mordred is dealt, and they are invisible to you, so exactly one evil is missing from the list you see. Never claim total confidence in anyone's goodness: calibrated uncertainty is both correct and safer.`
+    // States only the IMPERATIVE. The premise (Mordred is dealt, so one evil is
+    // missing from the sight list) is already computed and stated by
+    // knowledgeText, and restating it here put the same sentence in two slots of
+    // every Merlin prompt in a Mordred cast, which is the duplication e95c9d5 set
+    // out to remove. Kept self-contained rather than referring back to that line,
+    // since nothing pins the slot order the two are assembled in.
+    return `Never claim total confidence in anyone's goodness: the one evil you cannot see could be any seat you have not placed, so calibrated uncertainty is both correct and safer.`
   }
   return ''
 }

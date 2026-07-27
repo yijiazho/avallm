@@ -154,11 +154,6 @@ export function lastMentionIndex(text: string, name: string): number {
   return at
 }
 
-// Seat numbers are handed to models ONLY so they can fill the team/vote/target
-// JSON fields; the table UI shows names, not seats. Models nonetheless leak
-// "seat 3" / "player 3" into their spoken text, where it is noise to humans and
-// other bots alike. Rewrite any such reference to the name at that seat as the
-// utterance/pitch enters the log (the single source both UI and prompts read).
 // Hard cap on model-authored SPEECH, cut at a word boundary and marked.
 //
 // A raw slice ends a turn mid-word ("...testing Gemini or s" reached a live
@@ -178,6 +173,11 @@ export function capSpeech(text: string, max: number): string {
   return `${body.trimEnd()}…`
 }
 
+// Seat numbers are handed to models ONLY so they can fill the team/vote/target
+// JSON fields; the table UI shows names, not seats. Models nonetheless leak
+// "seat 3" / "player 3" into their spoken text, where it is noise to humans and
+// other bots alike. Rewrite any such reference to the name at that seat as the
+// utterance/pitch enters the log (the single source both UI and prompts read).
 export function stripSeatRefs(text: string, players: Player[]): string {
   return text.replace(/\b(?:seats?|players?)\s*#?\s*(\d+)\b/gi, (m, d) => {
     const n = Number(d)

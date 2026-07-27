@@ -64,6 +64,20 @@ const THRESHOLD = 0.6
 // sentence is long. This audit catches whole-sentence restatement, which is the
 // shape all three historical duplicates took. It is not a substitute for reading
 // the prose.
+//
+// SECOND KNOWN LIMIT, same lesson, measured. A real duplicate slipped under the
+// threshold by 0.044: roleAddendumFor's Mordred line said "Mordred is dealt, and
+// he is invisible to you, so exactly one evil is missing from the list you see"
+// while knowledgeText said "Mordred is dealt, and he is the one evil hidden from
+// you, so exactly one more evil sits among the others". Same fact, both slots,
+// every Merlin prompt in a Mordred cast, and it scores **0.556** because the two
+// paraphrase around a shared core rather than repeating it.
+//
+// The threshold is NOT lowered to catch it. The worst legitimate pair sits at
+// 0.50, so 0.55 would leave 0.05 of headroom instead of 0.10, and a detector
+// that starts flagging argument-built-on-a-fact is worse than one that misses a
+// near-paraphrase. The number is recorded here so the next person tuning this
+// knows where the real ceiling is rather than rediscovering it.
 
 // The detector is tuned, so it needs its own test. These are the REAL pairs from
 // before the fix (positives) and the roles that were always clean (negatives). If

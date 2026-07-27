@@ -13,8 +13,8 @@
 // good side and {assassin, morgana, mordred, oberon} on the evil side, with
 // Servants and Minions filling the rest. 71 casts across 5 to 10 players.
 
-import { EVIL_COUNT, validateRoles } from '../server/engine/rules.ts'
-import type { Role } from '../server/engine/types.ts'
+import { EVIL_COUNT, ROLE_ALIGNMENT, validateRoles } from '../server/engine/rules.ts'
+import type { Alignment, Role } from '../server/engine/types.ts'
 
 export interface Cast {
   label: string
@@ -22,8 +22,18 @@ export interface Cast {
   roles: Role[]
 }
 
-const GOOD_SPECIALS: Role[] = ['merlin', 'percival']
-const EVIL_SPECIALS: Role[] = ['assassin', 'morgana', 'mordred', 'oberon']
+// Derived from ROLE_ALIGNMENT rather than written out, because the header above
+// promises that a role added later widens every enumerating test at once and a
+// hardcoded pair would not deliver that: a new special would leave the audits
+// green while silently never testing a single cast containing it. Servants and
+// Minions are the filler the counts are made up with, so they are the only
+// roles excluded.
+const FILLER: Role[] = ['servant', 'minion']
+const specialsOf = (side: Alignment): Role[] =>
+  (Object.keys(ROLE_ALIGNMENT) as Role[]).filter((r) => ROLE_ALIGNMENT[r] === side && !FILLER.includes(r))
+
+const GOOD_SPECIALS = specialsOf('good')
+const EVIL_SPECIALS = specialsOf('evil')
 
 const subsets = <T,>(xs: T[]): T[][] =>
   xs.reduce<T[][]>((acc, x) => acc.concat(acc.map((s) => [...s, x])), [[]])
