@@ -89,6 +89,22 @@ Layering (details in `docs/design-implementation.md` §1; rules reference in `do
 - **Bots mimic the prose they are shown, so prompt text follows a house style**: no em/en dashes and no "that's not X, that's Y" reframes in any string that reaches the model (`server/agents/prompts.ts`, `server/agents/facts.ts`, and the curated `agents/*.json` personality/strategy/guidance fields). Stripping dashes from the prompts measurably cut dashes in bot *speech* by roughly a third (matched A/B, 4 games). `test/talk-norms.test.ts` enforces it over **rendered** prompts, so `ASKS` and the view renderers are covered too, not just the exported constants. The rule binds **our** text only: runtime user agents (`data/agents/*.json`) are deliberately never checked, because that text belongs to the user and mimicking their voice back is the point. Code comments are exempt. When adding prompt text, rewrite the sentence rather than weakening the test.
 - Games live in memory; a restart ends running games (snapshot persistence is on the roadmap — `docs/ROADMAP.md`).
 
+## Git
+
+### Commit messages
+
+Before committing, inspect recent commit messages and match the repository's established style.
+
+Every commit must include:
+
+- A descriptive subject.
+- A non-empty, detailed body explaining the motivation, behavior changed, important implementation
+  choices, and verification performed.
+
+A subject-only commit is incomplete. Use separate `git commit -m` arguments for the subject and
+each body paragraph. After committing, inspect `git log -1 --format=fuller` and amend immediately
+if the body is missing or insufficient.
+
 ## Pushing vs. deploying
 
 Railway tracks the `deploy` branch, not `master` — pushing `master` never triggers a deploy. Deploying means advancing `deploy` (only on explicit instruction, like any push):
