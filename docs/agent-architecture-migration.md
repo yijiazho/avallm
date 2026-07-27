@@ -84,6 +84,97 @@ compose and difficult to measure independently.
 8. **Delete superseded paths.** Once a replacement passes its exit gate, remove duplicate policy
    and memory logic rather than leaving both active indefinitely.
 
+### 3.1 Parent-orchestrated execution
+
+Architecture phases should run as a sequence of bounded chunks under one parent orchestrator. The
+parent owns scope, integration, validation, tracker updates, and the decision to advance. A normal
+chunk has these distinct gates:
+
+1. **Frame:** the parent records the chunk's objective, non-goals, invariants, allowed file surface,
+   exit evidence, and human-stop conditions.
+2. **Implement:** a fresh implementation agent works on only that bounded chunk and returns a
+   commit plus focused validation. The implementer does not land, push, promote a default, spend
+   money, or broaden scope.
+3. **Review:** a different fresh agent audits the completed diff against the probabilistic
+   architecture, hidden-information boundary, deterministic replay, attribution contracts,
+   compatibility baselines, and the chunk's exit gate. Review is not replaced by the implementer's
+   tests.
+4. **Verify:** the parent independently reviews and corrects the diff, runs focused and complete
+   API-free validation, checks fixtures, prompt hashes, replay, leaks, traces, screenshots,
+   performance, and the applicable free evaluation bank, then updates this tracker.
+5. **Integrate:** the parent makes a house-format commit whose subject is descriptive and whose
+   non-empty body covers motivation, changed behavior, important choices, and verification. It
+   rebases and lands the verified commit linearly before dispatching a dependent chunk.
+
+The parent may continue automatically when the exit gate is objective and all work remains
+API-free, reversible, and within the approved architecture. It stops for genuine architectural
+ambiguity, a merge conflict that changes semantics, destructive action, paid calls, external
+permission, production-default promotion, or a checkpoint whose purpose is human play or
+qualitative judgment.
+
+### 3.2 Parallel worktree protocol
+
+Parallel code writers are allowed, including within the same broad architectural area, when each
+writer has a separate Git worktree and branch. A shared checkout is suitable only for one writer;
+parallel writers must not edit the same working tree.
+
+- The parent creates every worktree from a recorded common base and assigns a unique
+  `codex/<phase>-<chunk>` branch, owned files or interfaces, and acceptance criteria.
+- Partition by contract where possible. If two chunks touch the same files or semantics, describe
+  the expected integration order before dispatch and treat the later chunk as dependent even
+  though implementation can begin in parallel.
+- Writers use unique artifact paths, ports, and temporary outputs. They do not alter another
+  worktree, advance `master`, push, deploy, or rewrite another agent's branch.
+- Each writer commits independently in house format. The parent reviews and integrates one branch
+  at a time. Before the next branch lands, it is rebased onto the newly advanced `master`, conflicts
+  are resolved in its own worktree, and its focused validation is repeated.
+- Passing tests in two isolated branches are not integration evidence. The parent reruns the full
+  API-free suite and applicable evaluation after each landing and after the final composition.
+- Review agents should ordinarily be read-only. If a reviewer supplies corrections, those changes
+  happen in the reviewed branch or a dedicated repair worktree and still pass through the parent
+  gate.
+
+Useful parallel lanes include research for the next phase, read-only architecture or security
+audits, evaluation and fixture design, documentation review, and implementation of a registered
+non-blocking follow-up. Work that changes the same baseline, fixture corpus, schema version, or
+promotion decision is integrated sequentially even when separate worktrees make concurrent coding
+safe.
+
+### 3.3 Chunk handoff contract
+
+Every dispatched chunk should answer this template:
+
+| Field | Required content |
+|---|---|
+| Objective | One observable architectural or behavioral outcome |
+| Base and workspace | Exact base commit, branch, and separate worktree path |
+| Owned surface | Files, interfaces, or evaluation cells the agent may change |
+| Invariants | Hidden information, forced-policy, legality, determinism, attribution, and baseline guarantees that apply |
+| Non-goals | Later factors, policy changes, paid work, rollout, or cleanup explicitly excluded |
+| Exit evidence | Focused tests, full tests expected of the parent, fixtures, evaluation, latency, and safety checks |
+| Deliverable | House-format commit, diff summary, validation results, and unresolved risks |
+| Stop conditions | Ambiguity, conflict, destructive action, paid call, permission, or default-promotion decision |
+
+The parent records the base and resulting commit in the progress log. A review handoff cites that
+commit rather than a moving branch so the reviewed bytes are unambiguous.
+
+### 3.4 Parallel non-blocking follow-ups
+
+Phase-local follow-up lists remain the source of architectural context. An open item enters this
+cross-phase register when it has explicit acceptance criteria and can proceed without changing the
+active phase's comparison baseline. The parent may dispatch `ready` items in separate worktrees
+while the primary lane runs, then integrate them one at a time.
+
+| ID | Source | Follow-up | Independence boundary and acceptance | Status |
+|---|---|---|---|---|
+| NB-001 | Phase 3 | Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts | May run beside mechanical belief/policy work only when that work does not touch prompt visibility. Typed renderers must be equivalent, raw prompt changes must be deliberately versioned, and the full prompt/leak suite must pass. | `ready` |
+| NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
+| NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
+
+New entries should use stable IDs, name their source phase, and state whether they are `ready`,
+`active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
+follow-up updates both this register and its phase-local checkbox in the same commit.
+
 ---
 
 ## 4. Phase overview
@@ -409,8 +500,8 @@ Non-blocking consolidation work during Phase 3:
 
 - [x] Route new policy code through `CognitionState` and `SituationAnalysis`; do not add another
       direct `PlayerView` arithmetic or prompt-only authority.
-- [ ] Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts after
-      equivalent typed renderers pass tests.
+- [ ] **NB-001:** Reduce direct prompt use of `roleCertainties()` and independently derived dossier
+      facts after equivalent typed renderers pass tests.
 - [x] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
       versions needed to attribute behavior to a complete brain configuration.
 
@@ -785,7 +876,7 @@ Non-blocking Phase 4 follow-ups:
 
 - [x] Persist the admitted planner-reason subset separately for non-speech vote overrides.
 - [x] Expand matched outcome evaluation before interpreting win-rate or clean-proposal movement.
-- [ ] Run the paid raw-LLM comparison and human playtests only with explicit permission.
+- [ ] **NB-002:** Run the paid raw-LLM comparison and human playtests only with explicit permission.
 
 ### Phase 4D evaluation-hardening record
 
@@ -842,6 +933,8 @@ the current candidate.
 - [x] Player-alignment and team-clean calibration curves.
 - [x] Held-out comparison against uniform feasible worlds.
 - [x] Sensitivity to a seeded-random opponent-population shift.
+- [ ] **NB-003:** Repeat calibration against a versioned target-model or human population when
+      suitable artifacts exist.
 - [x] Quest-factor ablation.
 - [ ] Proposal- and vote-factor ablations when those factors exist.
 
