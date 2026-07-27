@@ -24,7 +24,13 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { createGame, applyDecision, expectedDecisions, renamePlayer } from './engine/game.ts'
+import {
+  createGame,
+  applyDecision,
+  applyDecisionWithOutcome,
+  expectedDecisions,
+  renamePlayer,
+} from './engine/game.ts'
 import { appendArtifact, toArtifact } from './eval/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
@@ -44,7 +50,9 @@ import {
   type AvalonAgent,
 } from './agents/types.ts'
 import {
+  degradedAppliedOutcomeTrace,
   upsertDecisionTrace,
+  validateFinalizedAppliedTraceHostJoin,
   type DecisionTrace,
 } from './agents/trace.ts'
 import {
@@ -561,15 +569,23 @@ async function pump(s: Session): Promise<void> {
       for (const { req, view, agent, decision, trace, fallback } of decisions) {
         const seqStart = s.game.log.length
         let wasFallback = fallback
+        let appliedDecision: Decision
+        let resolution:
+          | 'selected-applied'
+          | 'fallback-after-agent-error'
+          | 'fallback-after-illegal-decision'
+        let selectedDecision: Decision | undefined
         try {
-          applyDecision(s.game, req.seat, decision); s.steps++
-          if (trace) {
-            try {
-              upsertDecisionTrace(s.decisionTraces, trace)
-            } catch {
-              // Optional private telemetry never blocks the live game.
-            }
-          }
+          appliedDecision = applyDecisionWithOutcome(
+            s.game,
+            req.seat,
+            decision,
+          ).appliedDecision
+          s.steps++
+          selectedDecision = fallback ? undefined : decision
+          resolution = fallback
+            ? 'fallback-after-agent-error'
+            : 'selected-applied'
         } catch (err) {
           s.degraded.push({
             seat: req.seat, kind: req.kind,
@@ -585,8 +601,60 @@ async function pump(s: Session): Promise<void> {
           } catch {
             // Optional private telemetry never blocks the live game.
           }
-          applyDecision(s.game, req.seat, fallbackDecision); s.steps++
+          appliedDecision = applyDecisionWithOutcome(
+            s.game,
+            req.seat,
+            fallbackDecision,
+          ).appliedDecision
+          s.steps++
+          selectedDecision = decision
+          resolution = 'fallback-after-illegal-decision'
           wasFallback = true
+        }
+        // Optional post-apply cognition is isolated from engine legality.
+        let finalizedTrace = resolution === 'selected-applied'
+          ? trace
+          : undefined
+        if (agent.recordAppliedDecisionOutcome) {
+          try {
+            const hostOutcome = {
+              request: { ...req },
+              view: structuredClone(view),
+              ...(selectedDecision
+                ? { selectedDecision: structuredClone(selectedDecision) }
+                : {}),
+              appliedDecision: structuredClone(appliedDecision),
+              resolution,
+              ...(trace
+                ? { provisionalTrace: structuredClone(trace) }
+                : {}),
+            }
+            const supplied = agent.recordAppliedDecisionOutcome(
+              structuredClone(hostOutcome),
+            )
+            const detached = supplied ? structuredClone(supplied) : undefined
+            finalizedTrace = detached
+              && validateFinalizedAppliedTraceHostJoin(detached, hostOutcome)
+              ? detached
+              : degradedAppliedOutcomeTrace(
+                  trace,
+                  appliedDecision,
+                  resolution,
+                )
+          } catch {
+            finalizedTrace = degradedAppliedOutcomeTrace(
+              trace,
+              appliedDecision,
+              resolution,
+            )
+          }
+        }
+        if (finalizedTrace) {
+          try {
+            upsertDecisionTrace(s.decisionTraces, finalizedTrace)
+          } catch {
+            // Optional private telemetry never blocks the live game.
+          }
         }
         if (wasFallback) {
           for (let seq = seqStart; seq < s.game.log.length; seq++) s.degradedSeqs.push(seq)

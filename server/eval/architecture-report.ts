@@ -6,6 +6,7 @@
 
 import fs from 'node:fs'
 import { parseArgs } from 'node:util'
+import { isDeepStrictEqual } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { readArtifacts } from './artifact.ts'
 import { computeMetrics } from './metrics.ts'
@@ -15,6 +16,7 @@ import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor
 import {
   validatePublicObserverSnapshot,
 } from '../agents/analysis/observer.ts'
+import { APPLIED_OUTCOME_DEGRADATION } from '../agents/trace.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../agents/analysis/observer-types.ts'
@@ -22,6 +24,18 @@ import {
   JOINT_IDENTITY_MODEL_VERSION,
   validatePrivateIdentityHostJoin,
 } from '../agents/belief/identity.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  validateAppliedPlanOutcomeHostJoin,
+} from '../agents/cognition/plan-memory.ts'
+import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
+import type { DecisionSnapshot } from './replay.ts'
+import {
+  authoritativeDecisionSnapshots,
+  decisionTraceReplayJoin,
+  exactTargetTraceCoverage,
+  selectedDecisionReplayJoin,
+} from './trace-replay.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -188,6 +202,53 @@ function publicSpeech(trace: NonNullable<GameArtifact['decisionTraces']>[number]
   return ''
 }
 
+function planOutcomeHostJoin(
+  artifact: GameArtifact,
+  snapshots: ReadonlyMap<string, DecisionSnapshot>,
+  trace: NonNullable<GameArtifact['decisionTraces']>[number],
+): boolean {
+  const snapshot = snapshots.get(trace.decisionId)
+  if (!snapshot || !trace.privatePlanOutcome) return false
+  const outcome = trace.privatePlanOutcome
+  const degraded = artifact.degraded.some(
+    (entry) =>
+      entry.seat === snapshot.seat
+      && entry.kind === snapshot.kind
+      && entry.atEvent >= snapshot.firstSeq
+      && entry.atEvent <= snapshot.seq,
+  )
+  const plan = outcome.selected?.plan
+  const selectedPlanMatches = outcome.selected === undefined
+    ? plan === undefined
+    : (
+        !!plan
+        && plan.version === trace.decisionPlanVersion
+        && plan.candidateId === trace.chosenCandidateId
+        && plan.policyId === trace.componentVersions?.policy
+        && plan.beliefThroughSeq === trace.beliefThroughSeq
+      )
+  const resolutionMatches = outcome.resolution === 'selected-applied'
+    ? !degraded && outcome.selected !== undefined
+    : degraded && (
+        outcome.resolution === 'fallback-after-agent-error'
+          ? outcome.selected === undefined
+          : outcome.selected !== undefined
+      )
+  return (
+    isDeepStrictEqual(outcome.appliedDecision, snapshot.original)
+    && outcome.coherence.intent === trace.coherenceIntent
+    && selectedPlanMatches
+    && resolutionMatches
+    && selectedDecisionReplayJoin(artifact, snapshot, outcome)
+    && validateAppliedPlanOutcomeHostJoin(
+      outcome,
+      snapshot.req,
+      snapshot.original,
+      snapshot.view,
+    )
+  )
+}
+
 function architectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
@@ -200,7 +261,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel/.test(
+    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -213,9 +274,51 @@ function architectureSafety(
     meta.components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   const declaresJointIdentity =
     meta.components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+  const declaredCoherenceIntent = meta.components.coherenceIntent
+  const declaresPlanMemory =
+    meta.components.planMemory === PLAN_MEMORY_VERSION
+    && meta.components.coherence === COHERENCE_MODEL_VERSION
+    && ['maintain', 'conceal', 'deceive'].includes(
+      String(declaredCoherenceIntent),
+    )
+  const invalidPlanDeclaration =
+    (
+      meta.components.planMemory !== undefined
+      || meta.components.coherence !== undefined
+      || meta.components.coherenceIntent !== undefined
+    )
+    && !declaresPlanMemory
   const invalidIdentityDeclaration =
     meta.components.identityModel !== undefined
     && !declaresJointIdentity
+  const coverageRequired =
+    traces.length > 0
+    || declaresBoundedLanguage
+    || declaresPublicObserver
+    || declaresJointIdentity
+    || declaresPlanMemory
+    || invalidIdentityDeclaration
+    || invalidPlanDeclaration
+  let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
+  let invalidTraceCoverage = false
+  if (coverageRequired) {
+    try {
+      targetSnapshots = authoritativeDecisionSnapshots(
+        artifact,
+        meta.targetSeat,
+      )
+      invalidTraceCoverage = !exactTargetTraceCoverage(
+        targetSnapshots,
+        traces,
+        meta.targetSeat,
+      )
+    } catch {
+      invalidTraceCoverage = true
+    }
+  }
+  const planSnapshots = declaresPlanMemory
+    ? targetSnapshots
+    : new Map<string, DecisionSnapshot>()
   const artifactIdentities = artifact.strategyVersions?.identities
   const invalidIdentityManifest = declaresJointIdentity
     ? (
@@ -224,19 +327,28 @@ function architectureSafety(
         || artifactIdentities[0] !== JOINT_IDENTITY_MODEL_VERSION
       )
     : artifactIdentities !== undefined && artifactIdentities.length > 0
+  const artifactPlanMemories = artifact.strategyVersions?.planMemories
+  const artifactCoherences = artifact.strategyVersions?.coherences
+  const invalidPlanManifest = declaresPlanMemory
+    ? (
+        artifactPlanMemories?.length !== 1
+        || artifactPlanMemories[0] !== PLAN_MEMORY_VERSION
+        || artifactCoherences?.length !== 1
+        || artifactCoherences[0] !== COHERENCE_MODEL_VERSION
+      )
+    : (
+        (artifactPlanMemories?.length ?? 0) > 0
+        || (artifactCoherences?.length ?? 0) > 0
+      )
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
-  if (
-    (
-      declaresBoundedLanguage
-      || declaresPublicObserver
-      || declaresJointIdentity
-      || invalidIdentityDeclaration
-    )
-    && traces.length === 0
-  ) {
+  if (invalidPlanManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidTraceCoverage) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -252,6 +364,7 @@ function architectureSafety(
         ? []
         : ['observerModel']),
       ...(declaresJointIdentity ? ['identityModel'] : []),
+      ...(declaresPlanMemory ? ['planMemory', 'coherence'] : []),
       'policy',
       'scorer',
       'planner',
@@ -286,11 +399,49 @@ function architectureSafety(
       || versions.belief !== trace.beliefModelVersion
       || invalidDeclaration
       || invalidIdentityDeclaration
+      || invalidPlanDeclaration
       || invalidTraceShape
       || (
         declaresPublicObserver
           ? !validatePublicObserverSnapshot(trace.publicObserver)
           : trace.publicObserver !== undefined
+      )
+      || (
+        declaresPlanMemory
+          ? (
+              !['maintain', 'conceal', 'deceive'].includes(
+                String(trace.coherenceIntent),
+              )
+          || trace.coherenceIntent !== declaredCoherenceIntent
+          || !decisionTraceReplayJoin(
+                planSnapshots.get(trace.decisionId),
+                trace,
+              )
+              || (
+                trace.privatePlanOutcome === undefined
+                  ? !trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+                  : !planOutcomeHostJoin(artifact, planSnapshots, trace)
+              )
+              || JSON.stringify(trace.privatePlanOutcome?.request)
+                !== (
+                  trace.privatePlanOutcome === undefined
+                    ? undefined
+                    : JSON.stringify(trace.request)
+                )
+              || JSON.stringify(trace.privatePlanOutcome?.appliedDecision)
+                !== (
+                  trace.privatePlanOutcome === undefined
+                    ? undefined
+                    : JSON.stringify(trace.action)
+                )
+            )
+          : (
+              trace.privatePlanOutcome !== undefined
+              || versions.planMemory !== undefined
+              || versions.coherence !== undefined
+              || trace.coherenceIntent !== undefined
+              || trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+            )
       )
       || (
         declaresJointIdentity

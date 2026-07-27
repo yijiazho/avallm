@@ -3,6 +3,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../engine/types.ts'
+import { isDeepStrictEqual } from 'node:util'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
 import { observePublicRecord } from './analysis/observer.ts'
@@ -35,6 +36,17 @@ import {
   advanceCognitionFromBelief,
 } from './cognition/state.ts'
 import type { CognitionState } from './cognition/types.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  recordAppliedPlan,
+  type PrivatePlanMemory,
+} from './cognition/plan-memory.ts'
+import {
+  COHERENCE_MODEL_VERSION,
+  type CoherenceIntent,
+} from './cognition/coherence.ts'
+import { buildCommitments } from './cognition/commitments.ts'
+import { extractEvidence } from './cognition/evidence.ts'
 import {
   orchestrateLanguageEvidence,
   type LanguageTraceAttribution,
@@ -88,7 +100,11 @@ import {
   type PolicyCandidate,
 } from './policy/types.ts'
 import { createDecisionTrace, type DecisionTrace } from './trace.ts'
-import type { AgentDecision, AvalonAgent } from './types.ts'
+import type {
+  AgentDecision,
+  AppliedDecisionOutcome,
+  AvalonAgent,
+} from './types.ts'
 
 export const NO_PLANNER_VERSION = 'planner-off'
 export const NO_VOICE_VERSION = 'voice-off'
@@ -160,6 +176,10 @@ export interface ComposedAgentOptions {
    * and remains mechanically inert in Phase 7B1.
    */
   privateIdentity?: IdentityProjectionScope
+  /** Opt-in Phase 7B2 private selected/applied plan memory. */
+  planMemory?: boolean
+  /** Literal conflict classification intent. Defaults to maintain when enabled. */
+  coherenceIntent?: CoherenceIntent
   /** Compatibility policy used by the intentionally basic Phase 3 scorer. */
   compatibilityDecision?: (
     req: DecisionRequest,
@@ -172,6 +192,8 @@ export interface ComposedAvalonAgent extends AvalonAgent {
   setPlanner(planner: CandidatePlanner | undefined): void
   setVoice(voice: PlanVoice | undefined): void
   cognitionCursor(): number | undefined
+  /** Detached private snapshot for tests and offline diagnostics. */
+  planMemorySnapshot(): PrivatePlanMemory | undefined
 }
 
 function byId(
@@ -361,6 +383,8 @@ function composedTrace(
   publicObserver?: PublicObserverSnapshot,
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
+  planMemoryEnabled = false,
+  coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({
     type: 'composed',
@@ -397,6 +421,12 @@ function composedTrace(
       ...(identityEnabled
         ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
         : {}),
+      ...(planMemoryEnabled
+        ? {
+            planMemory: PLAN_MEMORY_VERSION,
+            coherence: COHERENCE_MODEL_VERSION,
+          }
+        : {}),
       analysis: SITUATION_ANALYSIS_VERSION,
       candidates: LEGAL_CANDIDATE_VERSION,
       forcedPolicy: FORCED_POLICY_VERSION,
@@ -408,6 +438,7 @@ function composedTrace(
       communication: brain.communication,
       voice: voiceVersion,
     },
+    ...(planMemoryEnabled ? { coherenceIntent } : {}),
     candidateScores: scores,
     structuredCandidateId,
     chosenCandidateId,
@@ -462,6 +493,20 @@ export function createComposedAgent(
   const configuredIdentityScope = options.privateIdentity
     ? structuredClone(options.privateIdentity)
     : undefined
+  const planMemoryEnabled = options.planMemory === true
+  const coherenceIntent = options.coherenceIntent ?? 'maintain'
+  if (!['maintain', 'conceal', 'deceive'].includes(coherenceIntent)) {
+    throw new Error('coherenceIntent must be maintain, conceal, or deceive')
+  }
+  if (!planMemoryEnabled && options.coherenceIntent !== undefined) {
+    throw new Error('coherenceIntent requires planMemory')
+  }
+  let pendingPlan: {
+    request: DecisionRequest
+    selectedDecision: Decision
+    plan: DecisionPlan
+  } | undefined
+  let appliedPlanMemory: PrivatePlanMemory | undefined
 
   return {
     setPlanner(next) {
@@ -473,8 +518,97 @@ export function createComposedAgent(
     cognitionCursor() {
       return cognition?.throughSeq
     },
+    planMemorySnapshot() {
+      return appliedPlanMemory
+        ? structuredClone(appliedPlanMemory)
+        : undefined
+    },
     recordDecisionTrace(trace) {
       options.onDecisionTrace?.(trace)
+    },
+    recordAppliedDecisionOutcome(
+      outcome: AppliedDecisionOutcome,
+    ): DecisionTrace | undefined {
+      if (!planMemoryEnabled) {
+        if (!outcome.provisionalTrace) return undefined
+        const finalized = structuredClone(outcome.provisionalTrace)
+        finalized.action = structuredClone(outcome.appliedDecision)
+        if (
+          outcome.resolution !== 'selected-applied'
+          && !finalized.degradation.includes('decision-fallback')
+        ) {
+          finalized.degradation = [
+            ...finalized.degradation,
+            'decision-fallback',
+          ]
+        }
+        return finalized
+      }
+      if (outcome.request.seat !== outcome.view.seat) {
+        throw new Error('applied outcome view seat does not match request')
+      }
+      const matchingPending = pendingPlan
+        && isDeepStrictEqual(pendingPlan.request, outcome.request)
+        && outcome.selectedDecision !== undefined
+        && isDeepStrictEqual(
+          pendingPlan.selectedDecision,
+          outcome.selectedDecision,
+        )
+        ? pendingPlan
+        : undefined
+      if (
+        outcome.resolution !== 'fallback-after-agent-error'
+        && !matchingPending
+      ) {
+        pendingPlan = undefined
+        throw new Error('applied outcome does not match the pending selected plan')
+      }
+      let memory: PrivatePlanMemory
+      try {
+        memory = recordAppliedPlan({
+          memory: appliedPlanMemory,
+          req: outcome.request,
+          view: outcome.view,
+          commitments: buildCommitments(extractEvidence(outcome.view)),
+          selectedDecision: outcome.selectedDecision,
+          selectedPlan: matchingPending?.plan,
+          appliedDecision: outcome.appliedDecision,
+          resolution: outcome.resolution,
+          intent: coherenceIntent,
+        })
+      } finally {
+        pendingPlan = undefined
+      }
+      appliedPlanMemory = memory
+      if (cognition) {
+        cognition = {
+          ...cognition,
+          planMemory: memory,
+          versions: {
+            ...cognition.versions,
+            planMemory: PLAN_MEMORY_VERSION,
+            coherence: COHERENCE_MODEL_VERSION,
+          },
+        }
+      }
+      if (!outcome.provisionalTrace) return undefined
+      const finalized = structuredClone(outcome.provisionalTrace)
+      finalized.privatePlanOutcome = structuredClone(memory.history.at(-1)!)
+      finalized.componentVersions = {
+        ...finalized.componentVersions!,
+        planMemory: PLAN_MEMORY_VERSION,
+        coherence: COHERENCE_MODEL_VERSION,
+      }
+      finalized.action = structuredClone(outcome.appliedDecision)
+      if (outcome.resolution !== 'selected-applied') {
+        if (!finalized.degradation.includes('decision-fallback')) {
+          finalized.degradation = [
+            ...finalized.degradation,
+            'decision-fallback',
+          ]
+        }
+      }
+      return finalized
     },
     async decide(
       req: DecisionRequest,
@@ -550,6 +684,17 @@ export function createComposedAgent(
         cognition = advanceCognition(cognition, view, beliefModel)
       }
       stage('cognition')
+      if (planMemoryEnabled && appliedPlanMemory) {
+        cognition = {
+          ...cognition,
+          planMemory: appliedPlanMemory,
+          versions: {
+            ...cognition.versions,
+            planMemory: PLAN_MEMORY_VERSION,
+            coherence: COHERENCE_MODEL_VERSION,
+          },
+        }
+      }
       let privateIdentity: PrivateIdentitySnapshot | undefined
       if (configuredIdentityScope) {
         try {
@@ -823,7 +968,19 @@ export function createComposedAgent(
         publicObserver,
         privateIdentity,
         !!configuredIdentityScope,
+        planMemoryEnabled,
+        coherenceIntent,
       )
+      if (planMemoryEnabled) {
+        pendingPlan = {
+          request: { ...req },
+          selectedDecision: structuredClone(action),
+          plan: structuredClone({
+            ...plan,
+            decision: action,
+          }),
+        }
+      }
       return { decision: action, trace }
     },
   }

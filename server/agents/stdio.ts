@@ -34,6 +34,7 @@ import {
 } from './policy/score.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from './analysis/types.ts'
 import {
+  APPLIED_OUTCOME_DEGRADATION,
   DECISION_TRACE_VERSION,
   decisionTraceIdForRequest,
   type DecisionTrace,
@@ -69,6 +70,10 @@ import {
   JOINT_IDENTITY_MODEL_VERSION,
   validatePrivateIdentityHostJoin,
 } from './belief/identity.ts'
+import {
+  PLAN_MEMORY_VERSION,
+} from './cognition/plan-memory.ts'
+import { COHERENCE_MODEL_VERSION } from './cognition/coherence.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -152,6 +157,36 @@ function validComponentVersions(value: unknown): boolean {
         && versions.identityModel.length > 0
       )
     )
+    && (
+      versions.planMemory === undefined
+      || versions.planMemory === PLAN_MEMORY_VERSION
+    )
+    && (
+      versions.coherence === undefined
+      || versions.coherence === COHERENCE_MODEL_VERSION
+    )
+    && (
+      (versions.planMemory === undefined)
+      === (versions.coherence === undefined)
+    )
+}
+
+function validPlanOutcomeTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  decision: Decision,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  // Stdio replies arrive before engine legality. A child cannot truthfully
+  // serialize a post-apply outcome in this protocol version.
+  return value === undefined
+    && components?.planMemory === undefined
+    && components?.coherence === undefined
+    && trace.coherenceIntent === undefined
 }
 
 function validLanguageTrace(
@@ -1295,7 +1330,7 @@ function validDecisionTrace(
   req: DecisionRequest,
   decision: Decision,
   value: unknown,
-  hostRolesInPlay?: readonly unknown[],
+  hostView?: PlayerView,
 ): value is DecisionTrace {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const trace = value as Record<string, unknown>
@@ -1324,6 +1359,9 @@ function validDecisionTrace(
       trace.quality as string,
     )
     && stringArray(trace.degradation)
+    && !(trace.degradation as string[]).includes(
+      APPLIED_OUTCOME_DEGRADATION,
+    )
     && validBeliefProvenance(trace.beliefProvenance)
     && validBeliefPlayerMarginals(trace.beliefPlayerMarginals)
     && validBeliefTeamAssessments(trace.beliefTeamAssessments)
@@ -1355,7 +1393,14 @@ function validDecisionTrace(
     && validPrivateIdentityTrace(
       trace.privateIdentity,
       trace,
-      hostRolesInPlay,
+      hostView?.rolesInPlay,
+    )
+    && validPlanOutcomeTrace(
+      trace.privatePlanOutcome,
+      trace,
+      req,
+      decision,
+      hostView,
     )
     && validCandidateScores(trace.candidateScores)
     && (
@@ -1401,7 +1446,7 @@ export function parseStdioDecisionReply(
       req,
       decision,
       record.trace,
-      hostView?.rolesInPlay,
+      hostView,
     )
   ) {
     throw new Error(`${label} returned invalid decision trace for ${req.kind}`)

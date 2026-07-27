@@ -4,11 +4,19 @@
 // Any agent failure or illegal decision degrades to the heuristic, loudly
 // recorded — the game never stalls on a bad agent.
 
-import { applyDecision, expectedDecisions } from '../engine/game.ts'
+import { applyDecisionWithOutcome, expectedDecisions } from '../engine/game.ts'
 import { viewFor } from '../engine/view.ts'
 import { heuristicDecide } from '../agents/heuristic.ts'
-import { normalizeAgentOutput, type AvalonAgent } from '../agents/types.ts'
-import type { DecisionTrace } from '../agents/trace.ts'
+import {
+  normalizeAgentOutput,
+  type AppliedDecisionResolution,
+  type AvalonAgent,
+} from '../agents/types.ts'
+import {
+  degradedAppliedOutcomeTrace,
+  validateFinalizedAppliedTraceHostJoin,
+  type DecisionTrace,
+} from '../agents/trace.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Seat } from '../engine/types.ts'
 
 export interface DegradedDecision {
@@ -60,6 +68,57 @@ function recordAppliedTrace(
   }
 }
 
+function finalizeAppliedTrace(
+  agent: AvalonAgent,
+  input: {
+    req: DecisionRequest
+    view: ReturnType<typeof viewFor>
+    selectedDecision?: Decision
+    appliedDecision: Decision
+    resolution: AppliedDecisionResolution
+    trace?: DecisionTrace
+  },
+): DecisionTrace | undefined {
+  if (!agent.recordAppliedDecisionOutcome) {
+    return input.resolution === 'selected-applied' ? input.trace : undefined
+  }
+  try {
+    const hostOutcome = {
+      request: { ...input.req },
+      view: structuredClone(input.view),
+      ...(input.selectedDecision
+        ? { selectedDecision: structuredClone(input.selectedDecision) }
+        : {}),
+      appliedDecision: structuredClone(input.appliedDecision),
+      resolution: input.resolution,
+      ...(input.trace
+        ? { provisionalTrace: structuredClone(input.trace) }
+        : {}),
+    }
+    const finalized = agent.recordAppliedDecisionOutcome(
+      structuredClone(hostOutcome),
+    )
+    const detached = finalized ? structuredClone(finalized) : undefined
+    return detached
+      && validateFinalizedAppliedTraceHostJoin(
+        detached,
+        hostOutcome,
+      )
+      ? detached
+      : degradedAppliedOutcomeTrace(
+          input.trace,
+          input.appliedDecision,
+          input.resolution,
+        )
+  } catch {
+    return degradedAppliedOutcomeTrace(
+      input.trace,
+      input.appliedDecision,
+      input.resolution,
+    )
+  }
+}
+
 export async function runGame(opts: RunOpts): Promise<RunResult> {
   const { game, agents } = opts
   const maxSteps = opts.maxSteps ?? 5000
@@ -83,6 +142,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     agent: AvalonAgent
     decision: Decision
     trace?: DecisionTrace
+    selected: boolean
   }> => {
     const view = viewFor(game, req.seat)
     const agent = agents.get(req.seat)
@@ -90,7 +150,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     try {
       const output = normalizeAgentOutput(await agent.decide(req, view))
       const decision = output.decision
-      return { req, view, agent, decision, trace: output.trace }
+      return { req, view, agent, decision, trace: output.trace, selected: true }
     } catch (err) {
       degraded.push({
         seat: req.seat, kind: req.kind, atEvent: game.log.length,
@@ -98,7 +158,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
       })
       const decision = heuristicDecide(req, view, game.seed)
       recordFallbackTrace(agent, req, view, decision)
-      return { req, view, agent, decision }
+      return { req, view, agent, decision, selected: false }
     }
   }
 
@@ -114,10 +174,20 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
       ? [await decideOne(reqs[0])]
       : await Promise.all(reqs.map(decideOne))
 
-    for (const { req, view, agent, decision, trace } of results) {
+    for (const { req, view, agent, decision, trace, selected } of results) {
+      let appliedDecision: Decision
+      let resolution: AppliedDecisionResolution
+      let selectedDecision: Decision | undefined
       try {
-        applyDecision(game, req.seat, decision)
-        recordAppliedTrace(agent, trace, opts.onDecisionTrace)
+        appliedDecision = applyDecisionWithOutcome(
+          game,
+          req.seat,
+          decision,
+        ).appliedDecision
+        selectedDecision = selected ? decision : undefined
+        resolution = selected
+          ? 'selected-applied'
+          : 'fallback-after-agent-error'
       } catch (err) {
         // Illegal decision (bad team, bad target...): substitute the heuristic.
         degraded.push({
@@ -126,8 +196,24 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
         })
         const fallback = heuristicDecide(req, viewFor(game, req.seat), game.seed)
         recordFallbackTrace(agent, req, view, fallback)
-        applyDecision(game, req.seat, fallback)
+        appliedDecision = applyDecisionWithOutcome(
+          game,
+          req.seat,
+          fallback,
+        ).appliedDecision
+        selectedDecision = decision
+        resolution = 'fallback-after-illegal-decision'
       }
+      // Optional cognition and telemetry are outside the legality transaction.
+      const finalized = finalizeAppliedTrace(agent, {
+        req,
+        view,
+        ...(selectedDecision ? { selectedDecision } : {}),
+        appliedDecision,
+        resolution,
+        trace,
+      })
+      recordAppliedTrace(agent, finalized, opts.onDecisionTrace)
       await flushEvents()
     }
   }

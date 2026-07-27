@@ -6,6 +6,7 @@ import type {
 } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
+import type { PrivatePlanMemory } from './plan-memory.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -195,6 +196,10 @@ export interface CognitionVersions {
   languageEvidence: string
   /** Present only while the private joint-identity projection is enabled. */
   identityModel?: string
+  /** Present only while private post-legality plan memory is enabled. */
+  planMemory?: string
+  /** Present only with plan memory; literal structured coherence only. */
+  coherence?: string
 }
 
 export interface CognitionState {
@@ -210,6 +215,8 @@ export interface CognitionState {
   languageCursor: LanguageEvidenceCursor
   /** Private role/team identity projection. Never included in publicCognition. */
   identity?: PrivateIdentitySnapshot
+  /** Private selected/applied history. Never included in publicCognition. */
+  planMemory?: PrivatePlanMemory
   versions: CognitionVersions
 }
 

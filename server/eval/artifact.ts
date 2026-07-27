@@ -53,6 +53,10 @@ export interface ArtifactStrategyVersions {
   observers: readonly string[]
   /** Added in Phase 7B1; absent on historical and identity-off artifacts. */
   identities?: readonly string[]
+  /** Added in Phase 7B2; absent on historical and plan-memory-off artifacts. */
+  planMemories?: readonly string[]
+  /** Literal coherence component paired with planMemories. */
+  coherences?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -172,6 +176,14 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.identityModel,
     ...traces.map((trace) => trace.componentVersions?.identityModel),
   ])
+  const planMemories = sortedUnique([
+    architecture.planMemory,
+    ...traces.map((trace) => trace.componentVersions?.planMemory),
+  ])
+  const coherences = sortedUnique([
+    architecture.coherence,
+    ...traces.map((trace) => trace.componentVersions?.coherence),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -201,6 +213,8 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       ...traces.map((trace) => trace.componentVersions?.observerModel),
     ]),
     ...(identities.length ? { identities } : {}),
+    ...(planMemories.length ? { planMemories } : {}),
+    ...(coherences.length ? { coherences } : {}),
   }
 }
 

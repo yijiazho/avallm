@@ -1,0 +1,677 @@
+import { isDeepStrictEqual } from 'node:util'
+import type {
+  Decision,
+  DecisionRequest,
+  PlayerView,
+  Seat,
+} from '../../engine/types.ts'
+import type { DecisionPlan } from '../policy/plan.ts'
+import type { AppliedDecisionResolution } from '../types.ts'
+import { buildCommitments } from './commitments.ts'
+import {
+  assessLiteralCoherence,
+  COHERENCE_MODEL_VERSION,
+  coherenceBasisFromView,
+  literalCommitmentBasis,
+  type CoherenceAssessment,
+  type CoherenceIntent,
+} from './coherence.ts'
+import { extractEvidence } from './evidence.ts'
+import type { PublicCommitment } from './types.ts'
+
+export const PLAN_MEMORY_VERSION = 'private-plan-memory-v1'
+/** Finite private memory; older superseded entries are discarded FIFO. */
+export const PLAN_MEMORY_HISTORY_LIMIT = 128
+export const PLAN_MEMORY_SERIALIZED_LIMIT = 4_000_000
+
+export type PlanMemoryStatus = 'current' | 'superseded'
+
+export interface SelectedPlanSummary {
+  decision: Decision
+  plan?: Readonly<{
+    version: string
+    candidateId: string
+    policyId: string
+    beliefThroughSeq: number
+  }>
+}
+
+export interface AppliedPlanHistoryEntry {
+  id: string
+  request: DecisionRequest
+  viewThroughSeq: number
+  selected?: SelectedPlanSummary
+  appliedDecision: Decision
+  resolution: AppliedDecisionResolution
+  coherence: CoherenceAssessment
+  status: PlanMemoryStatus
+  supersededBy?: string
+}
+
+export interface PrivatePlanMemory {
+  version: typeof PLAN_MEMORY_VERSION
+  coherenceVersion: typeof COHERENCE_MODEL_VERSION
+  viewerSeat: Seat
+  nextOrdinal: number
+  history: readonly AppliedPlanHistoryEntry[]
+}
+
+function viewCursor(view: Pick<PlayerView, 'events'>): number {
+  return view.events.reduce((cursor, event) => Math.max(cursor, event.seq), -1)
+}
+
+function entryId(
+  req: DecisionRequest,
+  throughSeq: number,
+  ordinal: number,
+): string {
+  return `applied-plan:${req.seat}:${req.kind}:q${req.round}:p${req.proposalNum}:v${throughSeq}:n${ordinal}`
+}
+
+function planSummary(
+  selectedDecision: Decision | undefined,
+  plan: DecisionPlan | undefined,
+): SelectedPlanSummary | undefined {
+  if (!selectedDecision) return undefined
+  return {
+    decision: structuredClone(selectedDecision),
+    ...(plan
+      ? {
+          plan: {
+            version: plan.version,
+            candidateId: plan.candidateId,
+            policyId: plan.policyId,
+            beliefThroughSeq: plan.beliefThroughSeq,
+          },
+        }
+      : {}),
+  }
+}
+
+export interface RecordAppliedPlanInput {
+  memory?: PrivatePlanMemory
+  req: DecisionRequest
+  view: PlayerView
+  commitments: readonly PublicCommitment[]
+  selectedDecision?: Decision
+  selectedPlan?: DecisionPlan
+  appliedDecision: Decision
+  resolution: AppliedDecisionResolution
+  intent: CoherenceIntent
+}
+
+export function recordAppliedPlan(
+  input: RecordAppliedPlanInput,
+): PrivatePlanMemory {
+  if (input.view.seat !== input.req.seat) {
+    throw new Error('cannot record a plan from another seat view')
+  }
+  if (
+    input.resolution === 'selected-applied'
+      ? input.selectedDecision === undefined
+      : input.resolution === 'fallback-after-agent-error'
+        ? input.selectedDecision !== undefined
+        : input.selectedDecision === undefined
+  ) {
+    throw new Error('selected decision does not match applied resolution')
+  }
+  if (
+    input.selectedPlan
+    && (
+      !input.selectedDecision
+      || !isDeepStrictEqual(input.selectedPlan.request, input.req)
+      || !isDeepStrictEqual(input.selectedPlan.decision, input.selectedDecision)
+    )
+  ) {
+    throw new Error('selected plan does not match request and selected decision')
+  }
+  if (input.selectedDecision && !input.selectedPlan) {
+    throw new Error('selected decisions require their selected structured plan')
+  }
+  if (
+    input.memory
+    && (
+      input.memory.version !== PLAN_MEMORY_VERSION
+      || input.memory.coherenceVersion !== COHERENCE_MODEL_VERSION
+      || input.memory.viewerSeat !== input.req.seat
+    )
+  ) {
+    throw new Error('cannot advance incompatible private plan memory')
+  }
+  const throughSeq = viewCursor(input.view)
+  const ordinal = input.memory?.nextOrdinal ?? 0
+  const id = entryId(input.req, throughSeq, ordinal)
+  const basis = literalCommitmentBasis(input.commitments, input.req)
+  const coherence = assessLiteralCoherence(
+    input.req,
+    input.appliedDecision,
+    input.intent,
+    basis,
+    input.view.currentTeam,
+  )
+  const history = (input.memory?.history ?? []).map((entry) =>
+    entry.status === 'current'
+      ? { ...structuredClone(entry), status: 'superseded' as const, supersededBy: id }
+      : structuredClone(entry))
+  history.push({
+    id,
+    request: { ...input.req },
+    viewThroughSeq: throughSeq,
+    ...(planSummary(input.selectedDecision, input.selectedPlan)
+      ? { selected: planSummary(input.selectedDecision, input.selectedPlan) }
+      : {}),
+    appliedDecision: structuredClone(input.appliedDecision),
+    resolution: input.resolution,
+    coherence,
+    status: 'current',
+  })
+  while (history.length > PLAN_MEMORY_HISTORY_LIMIT) history.shift()
+  const recorded: PrivatePlanMemory = {
+    version: PLAN_MEMORY_VERSION,
+    coherenceVersion: COHERENCE_MODEL_VERSION,
+    viewerSeat: input.req.seat,
+    nextOrdinal: ordinal + 1,
+    history,
+  }
+  if (!validatePrivatePlanMemory(recorded)) {
+    throw new Error('recorded private plan memory exceeds its bounded schema')
+  }
+  return recorded
+}
+
+function strictCanonicalArray(value: unknown): value is unknown[] {
+  if (
+    !Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return false
+  }
+  const keys = Reflect.ownKeys(value)
+  if (keys.length !== value.length + 1) return false
+  for (let index = 0; index < value.length; index++) {
+    if (keys[index] !== String(index)) return false
+  }
+  return keys[value.length] === 'length'
+}
+
+function validDecision(value: unknown): value is Decision {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const decision = value as Record<string, unknown>
+  const keys = Object.keys(decision)
+  const exact = (allowed: readonly string[]) =>
+    keys.every((key) => allowed.includes(key))
+  const strings = ['thinking', 'notes']
+  if (strings.some((key) =>
+    decision[key] !== undefined
+    && (
+      typeof decision[key] !== 'string'
+      || (decision[key] as string).length > 8_000
+    ))) return false
+  switch (decision.kind) {
+    case 'discuss':
+      return exact(['kind', 'say', 'lean', 'thinking', 'notes'])
+        && typeof decision.say === 'string'
+        && decision.say.length <= 600
+        && (
+          decision.lean === undefined
+          || ['approve', 'reject', 'unsure'].includes(String(decision.lean))
+        )
+    case 'propose':
+      return exact(['kind', 'team', 'pitch', 'thinking', 'notes'])
+        && strictCanonicalArray(decision.team)
+        && decision.team.length >= 1
+        && decision.team.length <= 5
+        && decision.team.every(
+          (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+        )
+        && new Set(decision.team).size === decision.team.length
+        && (
+          decision.pitch === undefined
+          || (typeof decision.pitch === 'string' && decision.pitch.length <= 400)
+        )
+    case 'finalize':
+      return exact(
+        decision.stick === true
+          ? ['kind', 'stick', 'thinking', 'notes']
+          : ['kind', 'stick', 'team', 'reason', 'thinking', 'notes'],
+      )
+        && (decision.stick === true
+        || (
+          decision.stick === false
+          && strictCanonicalArray(decision.team)
+          && decision.team.length >= 1
+          && decision.team.length <= 5
+          && decision.team.every(
+            (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+          )
+          && new Set(decision.team).size === decision.team.length
+          && (
+            decision.reason === undefined
+            || (typeof decision.reason === 'string' && decision.reason.length <= 400)
+          )
+        ))
+    case 'vote':
+      return exact(['kind', 'vote', 'thinking', 'notes'])
+        && (decision.vote === 'approve' || decision.vote === 'reject')
+    case 'quest':
+      return exact(['kind', 'card', 'thinking', 'notes'])
+        && (decision.card === 'success' || decision.card === 'fail')
+    case 'assassinate':
+      return exact(['kind', 'target', 'thinking', 'notes'])
+        && Number.isInteger(decision.target)
+        && Number(decision.target) >= 0
+        && Number(decision.target) <= 9
+    default:
+      return false
+  }
+}
+
+function validSelectedDecision(value: unknown): value is Decision {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  let encoded: string
+  try {
+    encoded = JSON.stringify(value)
+  } catch {
+    return false
+  }
+  if (encoded.length > 16_384) return false
+  const decision = value as Record<string, unknown>
+  if (![
+    'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
+  ].includes(String(decision.kind))) {
+    return false
+  }
+  const allowed = decision.kind === 'discuss'
+    ? ['kind', 'say', 'lean', 'thinking', 'notes']
+    : decision.kind === 'propose'
+      ? ['kind', 'team', 'pitch', 'thinking', 'notes']
+      : decision.kind === 'finalize'
+        ? ['kind', 'stick', 'team', 'reason', 'thinking', 'notes']
+        : decision.kind === 'vote'
+          ? ['kind', 'vote', 'thinking', 'notes']
+          : decision.kind === 'quest'
+            ? ['kind', 'card', 'thinking', 'notes']
+            : ['kind', 'target', 'thinking', 'notes']
+  if (!Object.keys(decision).every((key) => allowed.includes(key))) return false
+  const fieldsValid = Object.values(decision).every((field) => {
+    if (
+      field === undefined
+      || typeof field === 'boolean'
+    ) {
+      return true
+    }
+    if (typeof field === 'number') return Number.isSafeInteger(field)
+    if (typeof field === 'string') return field.length <= 10_000
+    return strictCanonicalArray(field)
+      && field.length <= 10
+      && field.every((entry) => Number.isSafeInteger(entry))
+  })
+  if (!fieldsValid) return false
+  try {
+    return isDeepStrictEqual(JSON.parse(encoded), value)
+  } catch {
+    return false
+  }
+}
+
+function validRequest(value: unknown, viewerSeat: Seat): value is DecisionRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const req = value as Record<string, unknown>
+  return Object.keys(req).every(
+    (key) => ['kind', 'seat', 'round', 'proposalNum'].includes(key),
+  )
+    && Object.keys(req).length === 4
+    && [
+      'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
+    ].includes(String(req.kind))
+    && Number.isSafeInteger(req.seat)
+    && Number(req.seat) >= 0
+    && Number(req.seat) <= 9
+    && req.seat === viewerSeat
+    && Number.isSafeInteger(req.round)
+    && Number(req.round) >= 1
+    && Number(req.round) <= 5
+    && Number.isSafeInteger(req.proposalNum)
+    && Number(req.proposalNum) >= 1
+    && Number(req.proposalNum) <= 5
+}
+
+function validCommitmentBasis(
+  value: unknown,
+  req: DecisionRequest,
+): boolean {
+  if (
+    !strictCanonicalArray(value)
+    || value.length > 2
+  ) return false
+  let previousSeq = -1
+  const ids = new Set<string>()
+  return value.every((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
+    const basis = entry as Record<string, unknown>
+    const payload = basis.payload as Record<string, unknown> | undefined
+    if (
+      !Object.keys(basis).every((key) =>
+        ['id', 'sourceSeq', 'actor', 'kind', 'round', 'proposalNum', 'payload']
+          .includes(key))
+      || Object.keys(basis).length !== 7
+      || typeof basis.id !== 'string'
+      || !basis.id.length
+      || ids.has(basis.id)
+      || !Number.isSafeInteger(basis.sourceSeq)
+      || Number(basis.sourceSeq) < previousSeq
+      || basis.actor !== req.seat
+      || basis.round !== req.round
+      || basis.proposalNum !== req.proposalNum
+      || !payload
+      || typeof payload !== 'object'
+      || Array.isArray(payload)
+    ) {
+      return false
+    }
+    ids.add(basis.id)
+    previousSeq = Number(basis.sourceSeq)
+    if (basis.kind === 'lean') {
+      return Object.keys(payload).length === 2
+        && payload.type === 'lean'
+        && ['approve', 'reject', 'unsure'].includes(String(payload.lean))
+    }
+    return basis.kind === 'team'
+      && Object.keys(payload).length === 3
+      && payload.type === 'team'
+      && ['proposed', 'revised'].includes(String(payload.action))
+      && strictCanonicalArray(payload.team)
+      && payload.team.length >= 1
+      && payload.team.length <= 5
+      && payload.team.every(
+        (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+      )
+      && new Set(payload.team).size === payload.team.length
+  })
+}
+
+function validSelectedPlan(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const plan = value as Record<string, unknown>
+  return Object.keys(plan).length === 4
+    && Object.keys(plan).every((key) => [
+      'version', 'candidateId', 'policyId', 'beliefThroughSeq',
+    ].includes(key))
+    && typeof plan.version === 'string'
+    && plan.version.length > 0
+    && plan.version.length <= 128
+    && typeof plan.candidateId === 'string'
+    && plan.candidateId.length > 0
+    && plan.candidateId.length <= 512
+    && typeof plan.policyId === 'string'
+    && plan.policyId.length > 0
+    && plan.policyId.length <= 128
+    && Number.isSafeInteger(plan.beliefThroughSeq)
+    && Number(plan.beliefThroughSeq) >= -1
+}
+
+function plainDetachedData(value: unknown, seen = new Set<object>()): boolean {
+  if (
+    value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+  ) {
+    return true
+  }
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object' || seen.has(value)) return false
+  seen.add(value)
+  const array = Array.isArray(value)
+  if (
+    array
+      ? !strictCanonicalArray(value)
+      : Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    return false
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const ownKeys = Reflect.ownKeys(value)
+  for (const key of ownKeys) {
+    if (array && key === 'length') continue
+    if (typeof key !== 'string') return false
+    const descriptor = descriptors[key]
+    if (
+      !descriptor
+      || !descriptor.enumerable
+      || !('value' in descriptor)
+      || !plainDetachedData(descriptor.value, seen)
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function validatePrivatePlanMemoryInner(
+  value: unknown,
+): value is PrivatePlanMemory {
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || !plainDetachedData(value)
+  ) {
+    return false
+  }
+  let memory: PrivatePlanMemory
+  let encoded: string
+  try {
+    memory = structuredClone(value) as PrivatePlanMemory
+    encoded = JSON.stringify(memory)
+  } catch {
+    return false
+  }
+  if (
+    Object.keys(memory).length !== 5
+    || !Object.keys(memory).every((key) => [
+      'version', 'coherenceVersion', 'viewerSeat', 'nextOrdinal', 'history',
+    ].includes(key))
+    ||
+    memory.version !== PLAN_MEMORY_VERSION
+    || memory.coherenceVersion !== COHERENCE_MODEL_VERSION
+    || !Number.isSafeInteger(memory.viewerSeat)
+    || memory.viewerSeat < 0
+    || memory.viewerSeat > 9
+    || !Number.isSafeInteger(memory.nextOrdinal)
+    || memory.nextOrdinal < 1
+    || !strictCanonicalArray(memory.history)
+    || memory.history.length === 0
+    || memory.history.length > PLAN_MEMORY_HISTORY_LIMIT
+    || Buffer.byteLength(encoded, 'utf8') > PLAN_MEMORY_SERIALIZED_LIMIT
+  ) {
+    return false
+  }
+  let current = 0
+  let previousCursor = -1
+  let previousOrdinal = -1
+  for (let index = 0; index < memory.history.length; index++) {
+    const entry = memory.history[index]
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
+    const match = /:n(\d+)$/.exec(entry.id)
+    const ordinal = match ? Number(match[1]) : -1
+    const expectedId = entryId(entry.request, entry.viewThroughSeq, ordinal)
+    if (
+      !validRequest(entry.request, memory.viewerSeat)
+      ||
+      entry.id !== expectedId
+      || ordinal <= previousOrdinal
+      || ordinal >= memory.nextOrdinal
+      || entry.request.seat !== memory.viewerSeat
+      || !Number.isSafeInteger(entry.viewThroughSeq)
+      || entry.viewThroughSeq < -1
+      || !validDecision(entry.appliedDecision)
+      || ![
+        'selected-applied',
+        'fallback-after-agent-error',
+        'fallback-after-illegal-decision',
+      ].includes(entry.resolution)
+      || (
+        entry.resolution === 'selected-applied'
+          ? !entry.selected
+          : entry.resolution === 'fallback-after-agent-error'
+            ? entry.selected !== undefined
+            : !entry.selected
+      )
+      || (
+        entry.selected !== undefined
+        && !validSelectedDecision(entry.selected.decision)
+      )
+      || (entry.selected !== undefined && entry.selected.plan === undefined)
+      || (
+        entry.selected !== undefined
+        && (
+          !Object.keys(entry.selected).every((key) =>
+            ['decision', 'plan'].includes(key))
+          || !validSelectedPlan(entry.selected.plan)
+        )
+      )
+      || entry.coherence.version !== COHERENCE_MODEL_VERSION
+      || !['maintain', 'conceal', 'deceive'].includes(entry.coherence.intent)
+      || !validCommitmentBasis(
+        entry.coherence.commitmentBasis,
+        entry.request,
+      )
+      || (
+        entry.coherence.currentTeam !== undefined
+        && (
+          !strictCanonicalArray(entry.coherence.currentTeam)
+          || entry.coherence.currentTeam.length < 1
+          || entry.coherence.currentTeam.length > 5
+          || !entry.coherence.currentTeam.every(
+            (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+          )
+          || new Set(entry.coherence.currentTeam).size
+            !== entry.coherence.currentTeam.length
+        )
+      )
+      || !isDeepStrictEqual(
+        entry.coherence,
+        assessLiteralCoherence(
+          entry.request,
+          entry.appliedDecision,
+          entry.coherence.intent,
+          entry.coherence.commitmentBasis,
+          entry.coherence.currentTeam,
+        ),
+      )
+    ) {
+      return false
+    }
+    if (
+      !Object.keys(entry).every((key) => [
+        'id', 'request', 'viewThroughSeq', 'selected', 'appliedDecision',
+        'resolution', 'coherence', 'status', 'supersededBy',
+      ].includes(key))
+      || !Object.keys(entry.coherence).every((key) => [
+        'version', 'intent', 'classification', 'conflictCodes',
+        'commitmentBasis', 'currentTeam',
+      ].includes(key))
+      || entry.coherence.commitmentBasis.some(
+        (basis) => basis.sourceSeq > entry.viewThroughSeq,
+      )
+    ) {
+      return false
+    }
+    if (entry.viewThroughSeq < previousCursor) return false
+    previousCursor = entry.viewThroughSeq
+    previousOrdinal = ordinal
+    if (entry.status === 'current') {
+      current++
+      if (index !== memory.history.length - 1 || entry.supersededBy !== undefined) {
+        return false
+      }
+    } else if (
+      entry.status !== 'superseded'
+      || entry.supersededBy !== memory.history[index + 1]?.id
+    ) {
+      return false
+    }
+  }
+  return current === 1 && memory.nextOrdinal === previousOrdinal + 1
+}
+
+export function validatePrivatePlanMemory(
+  value: unknown,
+): value is PrivatePlanMemory {
+  try {
+    return validatePrivatePlanMemoryInner(value)
+  } catch {
+    return false
+  }
+}
+
+export function validatePrivatePlanMemoryHostJoin(
+  value: unknown,
+  req: DecisionRequest,
+  appliedDecision: Decision,
+  view: PlayerView,
+): value is PrivatePlanMemory {
+  try {
+    if (!validatePrivatePlanMemory(value)) return false
+    const current = value.history.at(-1)!
+    const commitments = buildCommitments(extractEvidence(view))
+    const expectedBasis = coherenceBasisFromView(view, req, commitments)
+    return (
+      value.viewerSeat === view.seat
+      && isDeepStrictEqual(current.request, req)
+      && current.viewThroughSeq === viewCursor(view)
+      && isDeepStrictEqual(current.appliedDecision, appliedDecision)
+      && isDeepStrictEqual(current.coherence.commitmentBasis, expectedBasis)
+      && isDeepStrictEqual(current.coherence.currentTeam, view.currentTeam)
+    )
+  } catch {
+    return false
+  }
+}
+
+export function validateAppliedPlanOutcome(
+  value: unknown,
+  viewerSeat: Seat,
+): value is AppliedPlanHistoryEntry {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const entry = value as AppliedPlanHistoryEntry
+  const match = typeof entry.id === 'string'
+    ? /:n(\d+)$/.exec(entry.id)
+    : null
+  if (!match || entry.status !== 'current' || entry.supersededBy !== undefined) {
+    return false
+  }
+  const ordinal = Number(match[1])
+  return validatePrivatePlanMemory({
+    version: PLAN_MEMORY_VERSION,
+    coherenceVersion: COHERENCE_MODEL_VERSION,
+    viewerSeat,
+    nextOrdinal: ordinal + 1,
+    history: [entry],
+  })
+}
+
+export function validateAppliedPlanOutcomeHostJoin(
+  value: unknown,
+  req: DecisionRequest,
+  appliedDecision: Decision,
+  view: PlayerView,
+): value is AppliedPlanHistoryEntry {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    if (!validateAppliedPlanOutcome(value, view.seat)) return false
+    const outcome = value as AppliedPlanHistoryEntry
+    const commitments = buildCommitments(extractEvidence(view))
+    const expectedBasis = coherenceBasisFromView(view, req, commitments)
+    return (
+      isDeepStrictEqual(outcome.request, req)
+      && outcome.viewThroughSeq === viewCursor(view)
+      && isDeepStrictEqual(outcome.appliedDecision, appliedDecision)
+      && isDeepStrictEqual(outcome.coherence.commitmentBasis, expectedBasis)
+      && isDeepStrictEqual(outcome.coherence.currentTeam, view.currentTeam)
+    )
+  } catch {
+    return false
+  }
+}

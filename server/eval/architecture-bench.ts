@@ -38,7 +38,7 @@ import type {
 } from './architecture-bank.ts'
 import type { Seat } from '../engine/types.ts'
 import {
-  upsertDecisionTrace,
+  APPLIED_OUTCOME_DEGRADATION,
   type DecisionTrace,
 } from '../agents/trace.ts'
 import {
@@ -57,6 +57,17 @@ import {
   JOINT_IDENTITY_MODEL_VERSION,
   validatePrivateIdentityHostJoin,
 } from '../agents/belief/identity.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  validateAppliedPlanOutcomeHostJoin,
+} from '../agents/cognition/plan-memory.ts'
+import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
+import {
+  authoritativeDecisionSnapshots,
+  decisionTraceReplayJoin,
+  exactTargetTraceCoverage,
+  selectedDecisionReplayJoin,
+} from './trace-replay.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -191,6 +202,15 @@ function withDecisionTiming(
           ),
         }
       : {}),
+    ...(agent.recordAppliedDecisionOutcome
+      ? {
+          recordAppliedDecisionOutcome: (
+            outcome: Parameters<NonNullable<
+              AvalonAgent['recordAppliedDecisionOutcome']
+            >>[0],
+          ) => agent.recordAppliedDecisionOutcome!.call(agent, outcome),
+        }
+      : {}),
     ...(agent.dispose
       ? { dispose: () => agent.dispose!.call(agent) }
       : {}),
@@ -272,6 +292,29 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     ) {
       throw new Error(
         `custom architecture variant ${variant.id} has invalid identityModel`,
+      )
+    }
+    const planMemoryEnabled =
+      variant.components.planMemory === PLAN_MEMORY_VERSION
+      && variant.components.coherence === COHERENCE_MODEL_VERSION
+    const coherenceIntentValid = ['maintain', 'conceal', 'deceive'].includes(
+      String(variant.components.coherenceIntent),
+    )
+    if (
+      (variant.components.planMemory !== undefined
+        || variant.components.coherence !== undefined
+        || variant.components.coherenceIntent !== undefined)
+      && (!planMemoryEnabled || !coherenceIntentValid)
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid plan-memory/coherence/intent components`,
+      )
+    }
+    if (
+      planMemoryEnabled !== coherenceIntentValid
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} must declare coherenceIntent iff plan memory is enabled`,
       )
     }
     if (languageEnabled) {
@@ -387,7 +430,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           seed: c.seed,
           seat: player.seat,
           onDecisionTrace: (trace: DecisionTrace) =>
-            upsertDecisionTrace(decisionTraces, trace),
+            decisionTraces.push(structuredClone(trace)),
         }
         if (player.seat === target.seat) {
           const targetAgent = variant.createTargetAgent
@@ -418,6 +461,25 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       }
       const result = await runGame({ game, agents })
       if (variant.createTargetAgent) {
+        const replayArtifact = toArtifact(game, {
+          agents: descriptors,
+          degraded: result.degraded,
+          steps: result.steps,
+          decisionTraces,
+        })
+        const targetSnapshots = authoritativeDecisionSnapshots(
+          replayArtifact,
+          target.seat,
+        )
+        if (!exactTargetTraceCoverage(
+          targetSnapshots,
+          decisionTraces,
+          target.seat,
+        )) {
+          throw new Error(
+            `custom architecture variant ${variant.id} did not emit exactly one trace per target decision`,
+          )
+        }
         const expectedComponents = resolvedVariantComponents(variant)
         const tracedComponents: string[] = [
           'brain',
@@ -432,6 +494,13 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const jointIdentity =
           expectedComponents.identityModel === JOINT_IDENTITY_MODEL_VERSION
         if (jointIdentity) tracedComponents.push('identityModel')
+        const planMemory =
+          expectedComponents.planMemory === PLAN_MEMORY_VERSION
+          && expectedComponents.coherence === COHERENCE_MODEL_VERSION
+          && ['maintain', 'conceal', 'deceive'].includes(
+            String(expectedComponents.coherenceIntent),
+          )
+        if (planMemory) tracedComponents.push('planMemory', 'coherence')
         if (
           expectedComponents.languageEvidence
           === LANGUAGE_FACTOR_BUNDLE_VERSION
@@ -442,6 +511,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         }
         const mismatch = decisionTraces.find((trace) => {
           const traceVersions = trace.componentVersions
+          const snapshot = targetSnapshots.get(trace.decisionId)
           const boundedLanguage =
             expectedComponents.languageEvidence
             === LANGUAGE_FACTOR_BUNDLE_VERSION
@@ -458,6 +528,48 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 traceVersions.mechanicalBelief !== undefined
                 || traceVersions.beliefPipeline !== undefined
               )
+            )
+            || (
+              planMemory
+                ? (
+                    !['maintain', 'conceal', 'deceive'].includes(
+                      String(trace.coherenceIntent),
+                    )
+                    || trace.coherenceIntent
+                      !== expectedComponents.coherenceIntent
+                    || !decisionTraceReplayJoin(snapshot, trace)
+                    || (
+                      trace.privatePlanOutcome === undefined
+                        ? !trace.degradation.includes(
+                            APPLIED_OUTCOME_DEGRADATION,
+                          )
+                      : (
+                          !snapshot
+                          || !validateAppliedPlanOutcomeHostJoin(
+                            trace.privatePlanOutcome,
+                            snapshot.req,
+                            snapshot.original,
+                            snapshot.view,
+                          )
+                          || !selectedDecisionReplayJoin(
+                            replayArtifact,
+                            snapshot,
+                            trace.privatePlanOutcome,
+                          )
+                          || trace.privatePlanOutcome.coherence.intent
+                            !== trace.coherenceIntent
+                        )
+                    )
+                  )
+                : (
+                    trace.privatePlanOutcome !== undefined
+                    || traceVersions.planMemory !== undefined
+                    || traceVersions.coherence !== undefined
+                    || trace.coherenceIntent !== undefined
+                    || trace.degradation.includes(
+                      APPLIED_OUTCOME_DEGRADATION,
+                    )
+                  )
             )
             || (
               exactPublicObserver

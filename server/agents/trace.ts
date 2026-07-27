@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import type {
   Decision,
   DecisionRequest,
@@ -18,8 +19,20 @@ import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
+import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  validateAppliedPlanOutcomeHostJoin,
+} from './cognition/plan-memory.ts'
+import {
+  COHERENCE_MODEL_VERSION,
+  type CoherenceIntent,
+} from './cognition/coherence.ts'
+import type { AppliedDecisionOutcome } from './types.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
+export const APPLIED_OUTCOME_DEGRADATION =
+  'applied-outcome-acknowledgment-failed'
 
 export interface TraceHypothesis {
   worldKey: string
@@ -64,6 +77,10 @@ export interface DecisionTrace {
     observerModel: string
     /** Absent means the private identity model is off. */
     identityModel?: string
+    /** Absent means post-legality private plan memory is off. */
+    planMemory?: string
+    /** Absent means literal commitment coherence is off. */
+    coherence?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -95,6 +112,10 @@ export interface DecisionTrace {
   publicObserver?: PublicObserverSnapshot
   /** Bounded private identity output, absent unless explicitly enabled. */
   privateIdentity?: PrivateIdentitySnapshot
+  /** Private finalized outcome for this decision, absent unless enabled. */
+  privatePlanOutcome?: AppliedPlanHistoryEntry
+  /** Pre-apply finite intent committed with an enabled plan trace. */
+  coherenceIntent?: CoherenceIntent
 }
 
 export function decisionTraceId(
@@ -195,4 +216,162 @@ export function upsertDecisionTrace(
   )
   if (existing === -1) traces.push(trace)
   else traces[existing] = trace
+}
+
+/**
+ * Bind a hook-finalized plan outcome to the independent host request, view,
+ * and legal action while those values are still available.
+ */
+export function validateFinalizedAppliedTraceHostJoin(
+  trace: DecisionTrace,
+  outcome: AppliedDecisionOutcome,
+): boolean {
+  try {
+    const provisional = outcome.provisionalTrace
+    if (!provisional) return false
+    const hostSelected = outcome.selectedDecision
+    const resolutionShapeMatches = outcome.resolution === 'selected-applied'
+      ? hostSelected !== undefined
+      : outcome.resolution === 'fallback-after-agent-error'
+        ? hostSelected === undefined
+        : hostSelected !== undefined
+    if (!resolutionShapeMatches) return false
+
+    const provisionalVersions = provisional.componentVersions
+    const planEnabled =
+      provisionalVersions?.planMemory === PLAN_MEMORY_VERSION
+      && provisionalVersions?.coherence === COHERENCE_MODEL_VERSION
+    const planOff =
+      provisionalVersions?.planMemory === undefined
+      && provisionalVersions?.coherence === undefined
+    if (!planEnabled && !planOff) return false
+    const returnedPlanEnabled =
+      trace.componentVersions?.planMemory === PLAN_MEMORY_VERSION
+      && trace.componentVersions?.coherence === COHERENCE_MODEL_VERSION
+    const returnedPlanOff =
+      trace.componentVersions?.planMemory === undefined
+      && trace.componentVersions?.coherence === undefined
+    if (
+      planEnabled !== returnedPlanEnabled
+      || planOff !== returnedPlanOff
+      || provisional.privatePlanOutcome !== undefined
+      || provisional.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+      || (
+        planEnabled
+          ? (
+              !['maintain', 'conceal', 'deceive'].includes(
+                String(provisional.coherenceIntent),
+              )
+              || trace.coherenceIntent !== provisional.coherenceIntent
+            )
+          : (
+              provisional.coherenceIntent !== undefined
+              || trace.coherenceIntent !== undefined
+              || trace.privatePlanOutcome !== undefined
+              || provisional.degradation.includes(
+                APPLIED_OUTCOME_DEGRADATION,
+              )
+              || trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+            )
+      )
+    ) {
+      return false
+    }
+
+    // Derive the only admissible finalized shape from the untouched host copy.
+    // Everything except the canonical action, post-apply payload/component
+    // declarations, and resolution markers remains byte-for-byte structural
+    // telemetry from the provisional trace.
+    const expected = structuredClone(provisional)
+    expected.action = structuredClone(outcome.appliedDecision)
+    if (
+      outcome.resolution !== 'selected-applied'
+      && !expected.degradation.includes('decision-fallback')
+    ) {
+      expected.degradation = [...expected.degradation, 'decision-fallback']
+    }
+
+    const recorded = trace.privatePlanOutcome
+    if (recorded === undefined) {
+      delete expected.privatePlanOutcome
+      if (!planEnabled) {
+        return isDeepStrictEqual(trace, expected)
+      }
+      if (
+        !trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+      ) {
+        return false
+      }
+      if (!expected.degradation.includes(APPLIED_OUTCOME_DEGRADATION)) {
+        expected.degradation = [
+          ...expected.degradation,
+          APPLIED_OUTCOME_DEGRADATION,
+        ]
+      }
+      return isDeepStrictEqual(trace, expected)
+    }
+    if (!planEnabled) return false
+    expected.privatePlanOutcome = structuredClone(recorded)
+    if (!isDeepStrictEqual(trace, expected)) return false
+
+    const selectedMatches = hostSelected === undefined
+      ? recorded.selected === undefined
+      : (
+          recorded.selected !== undefined
+          && isDeepStrictEqual(recorded.selected.decision, hostSelected)
+        )
+    const plan = recorded.selected?.plan
+    const planMatches = hostSelected === undefined
+      ? plan === undefined
+      : (
+          !!plan
+          && plan.version === provisional.decisionPlanVersion
+          && plan.candidateId === provisional.chosenCandidateId
+          && plan.policyId === provisional.componentVersions?.policy
+          && plan.beliefThroughSeq === provisional.beliefThroughSeq
+        )
+    return (
+      recorded.resolution === outcome.resolution
+      && recorded.coherence.intent === provisional.coherenceIntent
+      && selectedMatches
+      && planMatches
+      && validateAppliedPlanOutcomeHostJoin(
+        recorded,
+        outcome.request,
+        outcome.appliedDecision,
+        outcome.view,
+      )
+    )
+  } catch {
+    return false
+  }
+}
+
+/** A detached, applied-action trace for a failed optional acknowledgment. */
+export function degradedAppliedOutcomeTrace(
+  provisional: DecisionTrace | undefined,
+  appliedDecision: Decision,
+  resolution: AppliedDecisionOutcome['resolution'] = 'selected-applied',
+): DecisionTrace | undefined {
+  if (!provisional) return undefined
+  try {
+    const finalized = structuredClone(provisional)
+    finalized.action = structuredClone(appliedDecision)
+    delete finalized.privatePlanOutcome
+    if (!finalized.degradation.includes(APPLIED_OUTCOME_DEGRADATION)) {
+      finalized.degradation = [
+        ...finalized.degradation,
+        APPLIED_OUTCOME_DEGRADATION,
+      ]
+    }
+    if (
+      resolution !== 'selected-applied'
+      && !finalized.degradation.includes('decision-fallback')
+    ) {
+      finalized.degradation = [...finalized.degradation, 'decision-fallback']
+    }
+    return finalized
+  } catch {
+    return undefined
+  }
 }

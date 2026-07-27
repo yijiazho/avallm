@@ -22,6 +22,11 @@ import {
   type Evidence,
   type PublicCognitionProjection,
 } from './types.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  validatePrivatePlanMemory,
+} from './plan-memory.ts'
+import { COHERENCE_MODEL_VERSION } from './coherence.ts'
 
 function validateEarlier(
   earlier: CognitionState,
@@ -43,6 +48,21 @@ function validateEarlier(
     || earlier.belief.throughSeq !== earlier.throughSeq
   ) {
     throw new Error('cannot advance cognition produced by incompatible component versions')
+  }
+  const hasPlanMemory = earlier.planMemory !== undefined
+  if (
+    hasPlanMemory !== (earlier.versions.planMemory !== undefined)
+    || hasPlanMemory !== (earlier.versions.coherence !== undefined)
+    || (
+      hasPlanMemory
+      && (
+        earlier.versions.planMemory !== PLAN_MEMORY_VERSION
+        || earlier.versions.coherence !== COHERENCE_MODEL_VERSION
+        || !validatePrivatePlanMemory(earlier.planMemory)
+      )
+    )
+  ) {
+    throw new Error('cannot advance malformed private plan memory')
   }
   validateLanguageEvidenceCursor(earlier.languageCursor)
   const readSeqs = earlier.languageReads.map((read) => read.sourceSeq)
@@ -163,6 +183,9 @@ export function advanceCognitionFromBelief(
     commitments: buildCommitments(evidence),
     languageReads,
     languageCursor,
+    ...(earlier?.planMemory
+      ? { planMemory: structuredClone(earlier.planMemory) }
+      : {}),
     versions: {
       schema: COGNITION_SCHEMA_VERSION,
       evidence: EVIDENCE_MODEL_VERSION,
@@ -171,6 +194,12 @@ export function advanceCognitionFromBelief(
       mechanicalBelief: resolved.mechanicalBelief,
       beliefPipeline: resolved.beliefPipeline,
       languageEvidence: resolved.languageEvidence,
+      ...(earlier?.versions.planMemory
+        ? { planMemory: earlier.versions.planMemory }
+        : {}),
+      ...(earlier?.versions.coherence
+        ? { coherence: earlier.versions.coherence }
+        : {}),
     },
   }
 }

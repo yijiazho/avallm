@@ -262,7 +262,83 @@ export function expectedDecisions(game: Game): DecisionRequest[] {
   }
 }
 
-export function applyDecision(game: Game, seat: Seat, decision: Decision): Game {
+/**
+ * Complete every decision-shape legality check before emitting its private
+ * preamble. A rejected action must leave the event log unchanged so a later
+ * fallback cannot inherit rejected thinking or scratchpad text during replay.
+ */
+function validateDecisionBeforePreamble(
+  game: Game,
+  seat: Seat,
+  decision: Decision,
+): void {
+  switch (decision.kind) {
+    case 'discuss':
+      if (typeof decision.say !== 'string') {
+        throw new EngineError('say must be a string')
+      }
+      if (
+        decision.lean !== undefined
+        && decision.lean !== 'approve'
+        && decision.lean !== 'reject'
+        && decision.lean !== 'unsure'
+      ) {
+        throw new EngineError(`invalid lean: ${String(decision.lean)}`)
+      }
+      return
+    case 'propose':
+      validateTeam(game, decision.team)
+      return
+    case 'finalize':
+      if (decision.stick === true) return
+      if (decision.stick !== false) {
+        throw new EngineError('stick must be true or false')
+      }
+      {
+        const revised = validateTeam(game, decision.team)
+        if (teamsEqual(revised, game.currentTeam!)) {
+          throw new EngineError(
+            'revised team is identical to the proposal — use stick: true',
+          )
+        }
+      }
+      return
+    case 'vote':
+      if (decision.vote !== 'approve' && decision.vote !== 'reject') {
+        throw new EngineError(`invalid vote: ${String(decision.vote)}`)
+      }
+      return
+    case 'quest':
+      if (decision.card !== 'success' && decision.card !== 'fail') {
+        throw new EngineError(`invalid quest card: ${String(decision.card)}`)
+      }
+      return
+    case 'assassinate':
+      if (
+        !Number.isInteger(decision.target)
+        || decision.target < 0
+        || decision.target >= game.config.playerCount
+      ) {
+        throw new EngineError(
+          `invalid assassination target: ${String(decision.target)}`,
+        )
+      }
+      if (decision.target === seat) {
+        throw new EngineError('assassin cannot target self')
+      }
+      return
+  }
+}
+
+export function applyDecision(
+  game: Game,
+  seat: Seat,
+  suppliedDecision: Decision,
+): Game {
+  // Snapshot the complete untrusted value before reading even its kind. This
+  // prevents accessors or retained mutable references from changing a field
+  // between validation, private preamble emission, and authoritative apply.
+  const decision = structuredClone(suppliedDecision)
   const expected = expectedDecisions(game)
   const match = expected.find((r) => r.seat === seat && r.kind === decision.kind)
   if (!match) {
@@ -270,6 +346,7 @@ export function applyDecision(game: Game, seat: Seat, decision: Decision): Game 
       `unexpected decision ${decision.kind} from seat ${seat} in phase ${game.phase}`,
     )
   }
+  validateDecisionBeforePreamble(game, seat, decision)
 
   // Backstops against any decision source (LLM, heuristic, untrusted stdio
   // agent) emitting an unbounded blob. Kept independent from the agent-side
@@ -447,4 +524,102 @@ export function applyDecision(game: Game, seat: Seat, decision: Decision): Game 
       return game
     }
   }
+}
+
+export interface AppliedDecisionResult {
+  game: Game
+  /** Canonical action reconstructed from the authoritative emitted events. */
+  appliedDecision: Decision
+}
+
+/**
+ * Compatibility-preserving post-apply API. The existing applyDecision remains
+ * the legality authority; this wrapper returns the exact normalized action
+ * that its event transaction recorded.
+ */
+export function applyDecisionWithOutcome(
+  game: Game,
+  seat: Seat,
+  suppliedDecision: Decision,
+): AppliedDecisionResult {
+  const decision = structuredClone(suppliedDecision)
+  const start = game.log.length
+  applyDecision(game, seat, decision)
+  const events = game.log.slice(start)
+  const thinking = events.find((event) => event.type === 'thinking')
+    ?.payload.text as string | undefined
+  const notes = events.find((event) => event.type === 'scratchpad')
+    ?.payload.text as string | undefined
+  const privateFields = {
+    ...(thinking !== undefined ? { thinking } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+  }
+  const action = events.find((event) => {
+    if (decision.kind === 'discuss') return event.type === 'utterance'
+    if (decision.kind === 'propose') return event.type === 'proposal'
+    if (decision.kind === 'finalize') {
+      return event.type === 'proposalLocked' || event.type === 'proposalRevised'
+    }
+    if (decision.kind === 'vote') return event.type === 'voteCast'
+    if (decision.kind === 'quest') return event.type === 'questCard'
+    return event.type === 'assassination'
+  })
+  if (!action) throw new Error('applied decision emitted no authoritative action event')
+  const payload = action.payload
+  let appliedDecision: Decision
+  switch (decision.kind) {
+    case 'discuss':
+      appliedDecision = {
+        kind: 'discuss',
+        say: payload.text as string,
+        ...(payload.lean !== undefined
+          ? { lean: payload.lean as 'approve' | 'reject' | 'unsure' }
+          : {}),
+        ...privateFields,
+      }
+      break
+    case 'propose':
+      appliedDecision = {
+        kind: 'propose',
+        team: (payload.team as Seat[]).slice(),
+        ...(payload.pitch !== undefined ? { pitch: payload.pitch as string } : {}),
+        ...privateFields,
+      }
+      break
+    case 'finalize':
+      appliedDecision = action.type === 'proposalLocked'
+        ? { kind: 'finalize', stick: true, ...privateFields }
+        : {
+            kind: 'finalize',
+            stick: false,
+            team: (payload.to as Seat[]).slice(),
+            ...(payload.reason !== undefined
+              ? { reason: payload.reason as string }
+              : {}),
+            ...privateFields,
+          }
+      break
+    case 'vote':
+      appliedDecision = {
+        kind: 'vote',
+        vote: payload.vote as 'approve' | 'reject',
+        ...privateFields,
+      }
+      break
+    case 'quest':
+      appliedDecision = {
+        kind: 'quest',
+        card: payload.card as 'success' | 'fail',
+        ...privateFields,
+      }
+      break
+    case 'assassinate':
+      appliedDecision = {
+        kind: 'assassinate',
+        target: payload.target as Seat,
+        ...privateFields,
+      }
+      break
+  }
+  return { game, appliedDecision }
 }

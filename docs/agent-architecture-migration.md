@@ -2,12 +2,13 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7B2 private plan memory and coherence. Phase 7B1 landed an opt-in
-joint identity projection over the resolved complete-world posterior without changing policy.
-Phase 7B2 will persist selected and applied plans only after legality is known, then classify
-literal commitment conflicts without asking speech generation to own memory. The Phase 5C
-population sign flip remains recorded, and win-rate tuning is still intentionally deferred until
-the architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7C Merlin and Percival objectives. Phase 7B2 landed opt-in private
+plan memory, engine-canonical post-legality outcomes, precommitted coherence intent, and literal
+commitment classification without changing policy. Phase 7C can now consume the exact private
+identity posterior, exact public observer, and committed-plan substrate for influence-versus-
+exposure and Merlin/Morgana-pair objectives. The Phase 5C population sign flip remains recorded,
+and win-rate tuning is still intentionally deferred until the architecture is complete enough to
+evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -192,7 +193,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7A complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
+| 7. Role-specific observer and identity models | In progress; Phase 7B2 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1166,17 +1167,17 @@ closed without provider wiring, prompt changes, production defaults, or strength
 
 - [x] Make `CognitionState` authoritative for composed mechanical and language inference.
 - [x] Store beliefs, commitments, language reads, and the public language cursor separately.
-- [ ] Add social models and persistent current-plan state when their owning phases begin.
+- [x] Persist selected and engine-applied current-plan state after engine legality succeeds.
+- [ ] Add role-specific social models when their owning phases begin.
 - [ ] Retain natural-language private notes only as a lossy voice aid and reveal feature.
 - [x] Keep composed actionable beliefs and literal public promises out of scratchpad prose.
 - [ ] Retire scratchpad-only authority from remaining raw-LLM compatibility paths.
 
 ### Coherence
 
-- [ ] Detect contradictions between the current plan and prior public commitments.
-- [ ] Let evil and Merlin intentionally violate a commitment when the policy marks it as deception
-      or concealment.
-- [ ] Distinguish strategic deception from accidental inconsistency in evaluation.
+- [x] Detect finite literal conflicts between the applied plan and prior public commitments.
+- [x] Commit maintain, conceal, or deceive intent before engine application.
+- [x] Distinguish strategic concealment or deception from accidental inconsistency in evaluation.
 
 ### Exit gate
 
@@ -1201,7 +1202,7 @@ reviewable and ablatable:
    **Complete.**
 3. **Phase 7B2, plan memory and coherence:** persist selected and applied plans privately, add a
    post-legality outcome acknowledgment, and distinguish consistent conduct, accidental conflict,
-   intentional concealment, and strategic deception.
+   intentional concealment, and strategic deception. **Complete.**
 4. **Phase 7C, Merlin and Percival:** add influence-versus-exposure and Merlin/Morgana-pair
    objectives without weakening forced policy or legality.
 5. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
@@ -1253,8 +1254,8 @@ lattice probability semantics, and stay within that cast's multinomial world-cou
 - [x] Project hidden evil-team hypotheses without multiplying independent seat suspicions.
 - [x] Bind private identity snapshots to a legal canonical cast, source belief, and trace marginals.
 - [x] Keep identity opt-in, private, attributable, and mechanically inert before role objectives.
-- [ ] Persist selected and engine-applied plans through a post-legality acknowledgment.
-- [ ] Classify literal commitment consistency, accidental conflict, intentional concealment, and
+- [x] Persist selected and engine-applied plans through a post-legality acknowledgment.
+- [x] Classify literal commitment consistency, accidental conflict, intentional concealment, and
       strategic deception without parsing generated prose.
 
 ### Phase 7B1 implementation record
@@ -1279,6 +1280,42 @@ replay, partial scopes, weighted provenance, malformed external snapshots, stale
 degradation, and observer/identity orthogonality are covered. A 10-player Servant projection over
 60,480 seat-filtered worlds completed in about 176 ms and produced a roughly 10.4 KB validated
 snapshot. Phase 7B2, rather than this projector, owns private plan memory and coherence.
+
+### Phase 7B2 implementation record
+
+`private-plan-memory-v1` records a bounded private history only after an action has passed engine
+legality. The engine snapshots untrusted decisions once, validates the complete action before
+emitting thinking or scratchpad events, and returns the canonical action reconstructed from its
+authoritative event transaction. Selected-applied, agent-error fallback, and illegal-decision
+fallback are explicit. Optional cognition and trace acknowledgment run after that transaction and
+cannot re-enter legality or stall either simulator or live-server play.
+
+Each provisional plan trace commits `maintain`, `conceal`, or `deceive` intent before application.
+`literal-coherence-v1` then compares the engine-applied action with finite typed lean and team
+commitments, producing consistent, accidental-conflict, intentional-concealment, or
+strategic-deception classification without interpreting generated prose. Ordinary explained
+revisions remain consistent; the model detects only its six narrow conflict codes. The component
+is mechanically inert, and plan-memory-off decisions remain behaviorally identical.
+
+The runtime host owns request, seat-filtered view, selected decision, provisional trace, resolution,
+and canonical applied action. Finalization may add only the validated current outcome and expected
+resolution markers; it cannot promote plan mode, relabel intent, rewrite stable telemetry, or
+persist an action different from the engine transaction. Offline evaluation independently replays
+the complete target-seat decision set, requires exactly one trace per authoritative decision,
+reapplies selected decisions to distinguish legal normalization from illegal fallback, and applies
+the same joins in benchmark admission and reporting.
+
+External plan data requires exact keys, plain detached data, canonical dense arrays without
+expandos, safe bounded coordinates, JSON-stable values, a 128-entry history limit, and a 4 MB UTF-8
+serialized ceiling. Stdio cannot claim post-legality outcomes or their degradation before the host
+applies an action. Plan state remains absent from `PlayerView`, public cognition, public logs,
+prompts, the public observer, and policy.
+
+Focused validation passed 23 Phase 7B2 tests, a 78-test engine/replay/stdio/architecture matrix, an
+8-test adjacent identity audit, and all 732 API-free repository tests. Independent adversarial
+review covered mutation, normalization, fallback, replay, trace-cardinality, intent, sparse-array,
+serialization-hook, and boundary-attribution forgeries. No client, prompt, provider, paid-call,
+default-policy, search, learned-factor, or factor-graph change was included.
 
 ### Merlin and Percival
 
@@ -1508,6 +1545,15 @@ here.
   valid but falsely attributed identity payloads. The opt-in substrate is private, attributable,
   deterministic, observer-orthogonal, and mechanically inert; Phase 7B2 owns plan memory and
   coherence.
+- Phase 7B2 plan memory and coherence: added engine-canonical post-legality outcomes, bounded
+  private selected/applied plan history, precommitted maintain/conceal/deceive intent, and finite
+  literal commitment classification. Engine application now snapshots untrusted decisions and
+  validates them before private preamble emission; optional acknowledgment cannot re-enter
+  legality. Runtime host joins and independently replay-derived benchmark/report joins bind the
+  exact target decision set, selected resolution, canonical action, view cursor, stable trace, and
+  coherence intent. Strict plain-data, dense-array, safe-coordinate, JSON-stability, and UTF-8 byte
+  limits close external admission bypasses. The opt-in component remains private, mechanically
+  inert, API-free, and absent from production defaults; Phase 7C owns Merlin and Percival policy.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

@@ -24,7 +24,29 @@ export interface AvalonAgent {
     view: PlayerView,
     decision: Decision,
   ): void
+  /**
+   * Private post-legality acknowledgment. Runners invoke it only after the
+   * applied decision has passed engine legality. A returned detached trace is
+   * the finalized trace that runners persist in place of the provisional one.
+   */
+  recordAppliedDecisionOutcome?(
+    outcome: AppliedDecisionOutcome,
+  ): DecisionTrace | undefined
   dispose?(): void
+}
+
+export type AppliedDecisionResolution =
+  | 'selected-applied'
+  | 'fallback-after-agent-error'
+  | 'fallback-after-illegal-decision'
+
+export interface AppliedDecisionOutcome {
+  request: DecisionRequest
+  view: PlayerView
+  selectedDecision?: Decision
+  appliedDecision: Decision
+  resolution: AppliedDecisionResolution
+  provisionalTrace?: DecisionTrace
 }
 
 export interface AgentDecision {
