@@ -1,6 +1,7 @@
 import { EXACT_BELIEF_MODEL_VERSION } from './belief/types.ts'
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from './belief/language-factor.ts'
 import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
+import { PUBLIC_OBSERVER_MODEL_VERSION } from './analysis/observer-types.ts'
 
 export const BRAIN_SPEC_VERSION = 'brain-spec-v1'
 export const COMPAT_CERTAINTIES_VISIBILITY = 'compat-certainties-v1'
@@ -45,7 +46,10 @@ export type LanguageEvidenceComponent =
   | 'off'
   | typeof LANGUAGE_FACTOR_BUNDLE_VERSION
   | 'external'
-export type ObserverModelComponent = 'off' | 'external'
+export type ObserverModelComponent =
+  | 'off'
+  | typeof PUBLIC_OBSERVER_MODEL_VERSION
+  | 'external'
 
 /**
  * A fully resolved strategic configuration. Model choice, persona, and prompt
@@ -88,6 +92,7 @@ type BrainSource =
   | {
       type: 'composed'
       languageEvidence?: typeof LANGUAGE_FACTOR_BUNDLE_VERSION
+      observerModel?: typeof PUBLIC_OBSERVER_MODEL_VERSION
     }
   | { type: 'stdio' }
 
@@ -220,7 +225,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         policy: COMPOSED_POLICY_VERSION,
         communication: PLAN_COMMUNICATION_VERSION,
         languageEvidence: source.languageEvidence ?? 'off',
-        observerModel: 'off',
+        observerModel: source.observerModel ?? 'off',
       }
     case 'stdio':
       return {

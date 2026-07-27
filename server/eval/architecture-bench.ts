@@ -47,6 +47,12 @@ import {
   type AgentExecutionMode,
 } from '../agents/brain.ts'
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
+import {
+  validatePublicObserverSnapshot,
+} from '../agents/analysis/observer.ts'
+import {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+} from '../agents/analysis/observer-types.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -273,6 +279,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       }
       return {
         factors: 'off',
+        observerModel: 'off',
         ...variant.components,
       }
     }
@@ -280,6 +287,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       belief: 'exact-constraints-v1',
       factors: 'off',
       languageEvidence: 'off',
+      observerModel: 'off',
       ...variant.components,
     }
   }
@@ -403,6 +411,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           'brain',
           'factors',
           'languageEvidence',
+          'observerModel',
           'policy',
           'scorer',
           'planner',
@@ -421,6 +430,9 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           const boundedLanguage =
             expectedComponents.languageEvidence
             === LANGUAGE_FACTOR_BUNDLE_VERSION
+          const exactPublicObserver =
+            expectedComponents.observerModel
+            === PUBLIC_OBSERVER_MODEL_VERSION
           return (
             trace.agentMode !== expectedComponents.mode
             || !traceVersions
@@ -431,6 +443,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 traceVersions.mechanicalBelief !== undefined
                 || traceVersions.beliefPipeline !== undefined
               )
+            )
+            || (
+              exactPublicObserver
+                ? !validatePublicObserverSnapshot(trace.publicObserver)
+                : trace.publicObserver !== undefined
             )
             || tracedComponents.some(
               (key) =>

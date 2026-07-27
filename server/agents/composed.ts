@@ -5,6 +5,11 @@ import type {
 } from '../engine/types.ts'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
+import { observePublicRecord } from './analysis/observer.ts'
+import {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+  type PublicObserverSnapshot,
+} from './analysis/observer-types.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
@@ -32,6 +37,7 @@ import type {
   LanguageInterpreter,
   LanguageInterpreterInput,
 } from './communication/language-types.ts'
+import { projectPublicRecord } from './communication/public-record.ts'
 import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
@@ -119,6 +125,7 @@ export interface PlanVoice {
 export type ComposedStage =
   | 'language'
   | 'cognition'
+  | 'observer'
   | 'analysis'
   | 'candidates'
   | 'forced-policy'
@@ -139,6 +146,8 @@ export interface ComposedAgentOptions {
   onDecisionTrace?: (trace: DecisionTrace) => void
   onStage?: (stage: ComposedStage) => void
   scorer?: CandidateScorer
+  /** Opt-in exact public observer. It cannot influence Phase 7A policy. */
+  publicObserver?: boolean
   /** Compatibility policy used by the intentionally basic Phase 3 scorer. */
   compatibilityDecision?: (
     req: DecisionRequest,
@@ -337,11 +346,15 @@ function composedTrace(
   factorsVersion = 'off',
   languageTrace?: LanguageTraceAttribution,
   languageEnabled = false,
+  publicObserver?: PublicObserverSnapshot,
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({
     type: 'composed',
     ...(languageEnabled
       ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
+      : {}),
+    ...(publicObserver
+      ? { observerModel: PUBLIC_OBSERVER_MODEL_VERSION }
       : {}),
   }))
   return {
@@ -392,6 +405,9 @@ function composedTrace(
       : {}),
     ...(languageTrace
       ? { languageEvidence: structuredClone(languageTrace) }
+      : {}),
+    ...(publicObserver
+      ? { publicObserver: structuredClone(publicObserver) }
       : {}),
   }
 }
@@ -511,6 +527,10 @@ export function createComposedAgent(
         cognition = advanceCognition(cognition, view, beliefModel)
       }
       stage('cognition')
+      const publicObserver = options.publicObserver
+        ? observePublicRecord(projectPublicRecord(view))
+        : undefined
+      if (publicObserver) stage('observer')
       let analysis = analyzeSituation(view, {
         belief: cognition.belief,
         evidence: cognition.evidence,
@@ -757,6 +777,7 @@ export function createComposedAgent(
           : beliefModel.factorsVersion,
         languageTrace,
         !!interpreter,
+        publicObserver,
       )
       return { decision: action, trace }
     },

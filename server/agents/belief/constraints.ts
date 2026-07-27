@@ -1,19 +1,24 @@
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
-import type { PlayerView, Quest, Seat } from '../../engine/types.ts'
+import type { PlayerView, Seat } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
+import {
+  questFailEvidenceFromQuests,
+  worldSatisfiesQuestEvidence,
+  type QuestFailEvidence,
+  type QuestRecordOptions,
+} from './quest-constraints.ts'
 
-export interface ConstraintOptions {
+export {
+  questFailEvidenceFromQuests,
+  worldSatisfiesQuestEvidence,
+  type QuestFailEvidence,
+} from './quest-constraints.ts'
+
+export interface ConstraintOptions extends QuestRecordOptions {
   /**
    * `none` isolates deal knowledge. A number includes resolved quests through
    * that quest number, and `all` includes every resolved quest in the view.
    */
-  questRecord?: 'none' | 'all' | number
-}
-
-export interface QuestFailEvidence {
-  questNum: number
-  team: readonly Seat[]
-  minimumEvil: number
 }
 
 const sameSeats = (a: readonly Seat[], b: readonly Seat[]): boolean => {
@@ -23,33 +28,11 @@ const sameSeats = (a: readonly Seat[], b: readonly Seat[]): boolean => {
   return left.every((seat, index) => seat === right[index])
 }
 
-function questIncluded(quest: Quest, option: ConstraintOptions['questRecord']): boolean {
-  if (option === 'none') return false
-  if (option === undefined || option === 'all') return true
-  return quest.num <= option
-}
-
-function failCardsShown(quest: Quest): number {
-  if (quest.failCount !== undefined) return quest.failCount
-  return quest.result === 'fail' ? 1 : 0
-}
-
 export function questFailEvidence(
   view: PlayerView,
   options: ConstraintOptions = {},
 ): readonly QuestFailEvidence[] {
-  return view.quests
-    .filter((quest) =>
-      questIncluded(quest, options.questRecord)
-      && quest.result !== undefined
-      && quest.team !== undefined
-      && failCardsShown(quest) > 0)
-    .map((quest) => ({
-      questNum: quest.num,
-      team: quest.team!,
-      minimumEvil: failCardsShown(quest),
-    }))
-    .sort((a, b) => a.questNum - b.questNum)
+  return questFailEvidenceFromQuests(view.quests, options)
 }
 
 /**
@@ -100,12 +83,8 @@ export function worldSatisfiesQuestRecord(
   world: HiddenWorld,
   options: ConstraintOptions = {},
 ): boolean {
-  for (const evidence of questFailEvidence(view, options)) {
-    const evilAboard = evidence.team.filter(
-      (seat) => world.alignmentBySeat[seat] === 'evil',
-    ).length
-    if (evilAboard < evidence.minimumEvil) return false
-  }
-
-  return true
+  return worldSatisfiesQuestEvidence(
+    world,
+    questFailEvidence(view, options),
+  )
 }

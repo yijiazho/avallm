@@ -12,6 +12,12 @@ import { computeMetrics } from './metrics.ts'
 import type { ArchitectureRunMetadata, GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role } from '../engine/types.ts'
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
+import {
+  validatePublicObserverSnapshot,
+} from '../agents/analysis/observer.ts'
+import {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+} from '../agents/analysis/observer-types.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -190,7 +196,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments/.test(
+    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver/.test(
       publicLog,
     )
   ) {
@@ -199,7 +205,12 @@ function architectureSafety(
   const traces = artifact.decisionTraces ?? []
   const declaresBoundedLanguage =
     meta.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
-  if (declaresBoundedLanguage && traces.length === 0) {
+  const declaresPublicObserver =
+    meta.components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
+  if (
+    (declaresBoundedLanguage || declaresPublicObserver)
+    && traces.length === 0
+  ) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -211,6 +222,9 @@ function architectureSafety(
       'brain',
       'factors',
       'languageEvidence',
+      ...(meta.components.observerModel === undefined
+        ? []
+        : ['observerModel']),
       'policy',
       'scorer',
       'planner',
@@ -245,6 +259,11 @@ function architectureSafety(
       || versions.belief !== trace.beliefModelVersion
       || invalidDeclaration
       || invalidTraceShape
+      || (
+        declaresPublicObserver
+          ? !validatePublicObserverSnapshot(trace.publicObserver)
+          : trace.publicObserver !== undefined
+      )
       || stableKeys.some(
         (key) =>
           versions[key as keyof typeof versions]

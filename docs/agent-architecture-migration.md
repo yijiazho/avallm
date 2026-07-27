@@ -2,12 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7 role-specific observer and identity models. Phase 6D closed
-NB-001B and NB-004 with one shared public-record projection plus an active-dialogue, zero-cost
-language evaluation cell. Phase 7 begins with an opt-in exact public observer, then adds the
-identity/coherence substrate before bounded role-policy slices. The Phase 5C population sign flip
-remains recorded, and win-rate tuning is still intentionally deferred until the architecture is
-complete enough to evaluate as a whole.
+**Current target phase:** Phase 7B identity and coherence substrate. Phase 7A landed an opt-in exact
+public observer without changing policy. Phase 7B is split into a joint identity projector followed
+by private plan memory and post-legality coherence tracking. NB-005 may harden the external observer
+snapshot validator in parallel, but must close before observer data can influence policy. The
+Phase 5C population sign flip remains recorded, and win-rate tuning is still intentionally deferred
+until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -173,6 +173,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
 | NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `landed` |
+| NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `ready` |
 
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
@@ -191,7 +192,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
+| 7. Role-specific observer and identity models | In progress; Phase 7A complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1194,17 +1195,19 @@ reviewable and ablatable:
 
 1. **Phase 7A, exact public observer:** infer complete public role worlds from `PublicRecord` only,
    keep exact role marginals separate from non-probabilistic behavioral indices, and prove the
-   result is identical across viewing seats.
-2. **Phase 7B, identity and coherence substrate:** aggregate role and hidden-team identity
-   posteriors from complete joint worlds, persist the current plan privately, and distinguish
-   consistent conduct, accidental conflict, intentional concealment, and strategic deception.
-3. **Phase 7C, Merlin and Percival:** add influence-versus-exposure and Merlin/Morgana-pair
+   result is identical across viewing seats. **Complete.**
+2. **Phase 7B1, joint identity projection:** aggregate role and hidden-team identity posteriors
+   directly from complete weighted worlds without reconstructing correlations from marginals.
+3. **Phase 7B2, plan memory and coherence:** persist selected and applied plans privately, add a
+   post-legality outcome acknowledgment, and distinguish consistent conduct, accidental conflict,
+   intentional concealment, and strategic deception.
+4. **Phase 7C, Merlin and Percival:** add influence-versus-exposure and Merlin/Morgana-pair
    objectives without weakening forced policy or legality.
-4. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
+5. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
    coordination, and Oberon's joint posterior over unseen evil seats.
-5. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
+6. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
    generic goodness.
-6. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+7. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1215,10 +1218,32 @@ graph, or production-default promotion.
 
 ### Public observer
 
-- [ ] Build a public-only evidence projection.
-- [ ] Estimate how a generic table observer reads each seat.
-- [ ] Exclude private knowledge and the agent's private posterior.
-- [ ] Treat the agent's own actions as evidence only in this observer model.
+- [x] Build a public-only evidence projection.
+- [x] Estimate how a generic table observer reads each seat.
+- [x] Exclude private knowledge and the agent's private posterior.
+- [x] Treat the agent's own actions as evidence only in this observer model.
+
+### Phase 7A implementation record
+
+`exact-public-observer-v1` consumes only the canonical `PublicRecord`. It streams every complete
+assignment of the public role multiset through public Fail-count constraints and a shared uniform
+joint projection kernel, returning exact alignment and role marginals without retaining the worlds
+in traces. Separately labeled deterministic indices summarize public proposal leadership,
+selection, approval, and failed-quest exposure; they are not probabilities and never reweight the
+exact posterior. The same public action has the same effect regardless of which seat owns it.
+
+The observer is opt-in, policy-inert, and absent from default prompts and traces. Enabled runs carry
+a bounded private snapshot and explicit component identity through composed traces, stdio,
+artifacts, architecture benchmarks, and safety reports. Cross-seat and private-canary tests cover
+5–10 players. Names and role input order do not affect arithmetic, cached projections return
+detached data, deterministic replay is exact, and forged observer-on/off attribution is rejected
+while historical observer-absent artifacts remain valid.
+
+The maximum-special 10-player stress cast contains 907,200 complete worlds. Independent validation
+measured about 427 ms cold, effectively immediate cached replay, and a 6,089-byte snapshot; parent
+full-suite load measured about one second cold. This is acceptable for an opt-in first observation,
+but remains a performance datum for later rollout. NB-005 tracks stronger semantic validation of
+externally supplied observer snapshots before such data can influence policy.
 
 ### Merlin and Percival
 
@@ -1428,6 +1453,13 @@ here.
   active reads, and exercised both exact and bounded snapshots with zero degradation, calls, cost,
   telemetry, hidden-information findings, or attribution findings. The standard no-discussion
   bank and language-off trace shape remain frozen; NB-004 is closed.
+- Phase 7A exact public observer: added a `PublicRecord`-only uniform posterior over complete public
+  role worlds plus separately labeled non-probabilistic behavior indices. Shared streaming
+  projection arithmetic keeps private and public exact marginals consistent without storing the
+  907,200-world maximum cast in traces. Cross-seat, private-canary, symmetry, cache-isolation,
+  replay, attribution, historical-artifact, and performance checks passed; the observer remains
+  opt-in and mechanically inert. NB-005 records stronger external semantic validation before any
+  observer payload becomes policy-authoritative.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

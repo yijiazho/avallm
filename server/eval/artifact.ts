@@ -50,6 +50,7 @@ export interface ArtifactStrategyVersions {
   policies: readonly string[]
   factors: readonly string[]
   beliefs: readonly string[]
+  observers: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -188,6 +189,10 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     beliefs: sortedUnique([
       architecture.belief,
       ...traces.map((trace) => trace.beliefModelVersion),
+    ]),
+    observers: sortedUnique([
+      architecture.observerModel,
+      ...traces.map((trace) => trace.componentVersions?.observerModel),
     ]),
   }
 }

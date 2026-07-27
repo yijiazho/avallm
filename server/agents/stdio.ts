@@ -61,6 +61,10 @@ import {
   plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
 } from './policy/plan.ts'
+import {
+  validatePublicObserverSnapshot,
+} from './analysis/observer.ts'
+import { PUBLIC_OBSERVER_MODEL_VERSION } from './analysis/observer-types.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -296,6 +300,19 @@ function validLanguageTrace(
     )
     && provenanceMatches
   )
+}
+
+function validPublicObserverTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const enabled =
+    components?.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
+  if (!enabled) return value === undefined
+  return validatePublicObserverSnapshot(value)
 }
 
 function validBeliefProvenance(value: unknown): boolean {
@@ -1287,6 +1304,7 @@ function validDecisionTrace(
     )
     && validComponentVersions(trace.componentVersions)
     && validLanguageTrace(trace.languageEvidence, trace)
+    && validPublicObserverTrace(trace.publicObserver, trace)
     && validCandidateScores(trace.candidateScores)
     && (
       trace.structuredCandidateId === undefined

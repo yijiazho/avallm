@@ -16,6 +16,7 @@ import type { ForcedPolicyResult } from './policy/types.ts'
 import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
+import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 
@@ -87,6 +88,8 @@ export interface DecisionTrace {
    * names, rationales, and provider payloads.
    */
   languageEvidence?: LanguageTraceAttribution
+  /** Public-only observer output, absent unless the observer is enabled. */
+  publicObserver?: PublicObserverSnapshot
 }
 
 export function decisionTraceId(

@@ -129,3 +129,51 @@ export function enumerateCanonicalWorlds(
   worlds.sort((a, b) => compareWorldKeys(a.key, b.key))
   return worlds
 }
+
+/**
+ * Visit every unique complete assignment of the public role multiset without
+ * pinning a seat or retaining the assignments. This is the public-observer
+ * counterpart to enumerateCanonicalWorlds: it preserves the same canonical
+ * role and seat order while keeping the 10-player worst case bounded in
+ * memory.
+ */
+export function visitCanonicalWorlds(
+  evidence: RoleMultisetEvidence,
+  visitor: (world: HiddenWorld) => void,
+): number {
+  if (evidence.rolesInPlay.length !== evidence.playerCount) {
+    throw new Error(
+      `cannot enumerate ${evidence.rolesInPlay.length} roles for ${evidence.playerCount} seats`,
+    )
+  }
+  const counts = new Map<Role, number>()
+  for (const role of evidence.rolesInPlay) {
+    counts.set(role, (counts.get(role) ?? 0) + 1)
+  }
+  const roles = [...counts.keys()].sort(compareRoles)
+  const roleBySeat: Role[] = []
+  let visited = 0
+  const visit = (): void => {
+    if (roleBySeat.length === evidence.playerCount) {
+      const rolesForWorld = roleBySeat.slice()
+      visitor({
+        roleBySeat: rolesForWorld,
+        alignmentBySeat: rolesForWorld.map((role) => ROLE_ALIGNMENT[role]),
+        key: canonicalWorldKey(rolesForWorld),
+      })
+      visited++
+      return
+    }
+    for (const role of roles) {
+      const remaining = counts.get(role) ?? 0
+      if (remaining === 0) continue
+      counts.set(role, remaining - 1)
+      roleBySeat.push(role)
+      visit()
+      roleBySeat.pop()
+      counts.set(role, remaining)
+    }
+  }
+  visit()
+  return visited
+}

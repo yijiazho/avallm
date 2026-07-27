@@ -21,6 +21,7 @@ import {
   compareWorldKeys,
   enumerateCanonicalWorlds,
 } from './worlds.ts'
+import { projectUniformJointWorlds } from './projection.ts'
 
 const DEAL_CACHE_LIMIT = 32
 const dealWorldCache = new Map<string, readonly HiddenWorld[]>()
@@ -217,8 +218,15 @@ export function beliefFromWeightedWorlds(
     (weightedWorld) =>
       weightedWorld.probability === worlds[0]?.probability,
   )
-  const entropy = uniform
-    ? Math.log2(worlds.length)
+  const uniformProjection = uniform
+    ? projectUniformJointWorlds(
+        view.playerCount,
+        view.rolesInPlay,
+        (visit) => worlds.forEach(({ world }) => visit(world)),
+      )
+    : undefined
+  const entropy = uniformProjection
+    ? uniformProjection.entropy
     : -worlds.reduce(
         (sum, weightedWorld) =>
           sum
@@ -230,8 +238,10 @@ export function beliefFromWeightedWorlds(
     modelVersion: options.modelVersion,
     quality: options.quality,
     worlds,
-    playerMarginals: playerMarginals(worlds, view.playerCount),
-    roleMarginals: roleMarginals(worlds, view.rolesInPlay, view.playerCount),
+    playerMarginals: uniformProjection?.playerMarginals
+      ?? playerMarginals(worlds, view.playerCount),
+    roleMarginals: uniformProjection?.roleMarginals
+      ?? roleMarginals(worlds, view.rolesInPlay, view.playerCount),
     entropy,
     topWorlds: topWorlds(worlds),
     provenance: structuredClone(options.provenance ?? []),
