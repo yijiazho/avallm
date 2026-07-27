@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { AgentInfo, GameEvent, PlayerView, Seat } from '../types.ts'
 import { Emblem } from './Arcana.tsx'
 import { winReasonText } from '../setup.ts'
@@ -29,14 +29,24 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
   const atBottomRef = useRef(true)
   const prevLen = useRef(view.events.length)
   const lastTop = useRef(0)
-  const scrollToBottom = () => ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' })
+  // Auto-follow is an anchor, not an animation. Smoothly retargeting the scroll
+  // for every line in a bot burst can leave the glide chasing an obsolete
+  // scrollHeight. Set it synchronously instead; the explicit jump control below
+  // remains smooth because it is a single reader-initiated movement.
+  const pinToBottom = () => {
+    const el = ref.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    lastTop.current = el.scrollTop
+  }
   // Clicking the pill re-pins to the live edge immediately — clearing the count
   // and resuming auto-follow — rather than waiting for the glide to settle.
   const jumpToLatest = () => {
     atBottomRef.current = true
     setAtBottom(true)
     setUnread(0)
-    scrollToBottom()
+    const el = ref.current
+    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }
   const onScroll = () => {
     const el = ref.current
@@ -60,12 +70,24 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
       setAtBottom(false)
     }
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const added = view.events.length - prevLen.current
     prevLen.current = view.events.length
-    if (atBottomRef.current) scrollToBottom()
+    if (atBottomRef.current) pinToBottom()
     else if (added > 0) setUnread((n) => n + added)
   }, [view.events.length, view.phase, pendingKey])
+  // The transcript can lose height without receiving an event when the action
+  // footer wraps or changes phase. Keep a reader who was already at the live edge
+  // pinned through that reflow. This also covers viewport and side-panel changes.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      if (atBottomRef.current) pinToBottom()
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   // The viewer sees "You" for their own seat; the canonical name (what bots
   // see) is never a pronoun, so this label lives only in the client.
   const name = (s: number) => (s === view.seat ? 'You' : view.players[s]?.name ?? `seat ${s}`)
