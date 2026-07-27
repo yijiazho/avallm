@@ -293,6 +293,49 @@ test('joint quest intersections can settle a seat no single quest names', () => 
   )
 })
 
+test('a later redundant quest does not steal attribution for an earlier joint deduction', () => {
+  const g = std5()
+  const percival = seatOf(g, 'percival')
+  const morgana = seatOf(g, 'morgana')
+  const merlin = seatOf(g, 'merlin')
+  const assassin = seatOf(g, 'assassin')
+  const servant = seatOf(g, 'servant')
+  const base = viewFor(g, percival)
+  const quest = (
+    num: number,
+    team: Seat[],
+  ) => ({ ...base.quests[num - 1], team, result: 'fail' as const, failCount: 1 })
+  const afterTwo = {
+    ...base,
+    quests: [
+      quest(1, [morgana, assassin]),
+      quest(2, [percival, morgana, servant]),
+      ...base.quests.slice(2),
+    ],
+  }
+  const afterThree = {
+    ...afterTwo,
+    quests: [
+      ...afterTwo.quests.slice(0, 2),
+      quest(3, [morgana, merlin]),
+      ...afterTwo.quests.slice(3),
+    ],
+  }
+
+  const before = roleCertainties(afterTwo).fromRecord
+  const after = roleCertainties(afterThree).fromRecord
+  assert.deepEqual(
+    before.find(({ seat }) => seat === morgana),
+    { seat: morgana, alignment: 'evil' },
+    'the first two quests settle Morgana jointly without crediting either one',
+  )
+  assert.deepEqual(
+    after.find(({ seat }) => seat === morgana),
+    { seat: morgana, alignment: 'evil' },
+    'quest 3 merely confirms the existing conclusion and must not receive credit',
+  )
+})
+
 function runTalk(g: Game): void {
   for (const d of expectedDecisions(g)) if (d.kind === 'pitch') applyDecision(g, g.leaderSeat, { kind: 'pitch', pitch: 'go' })
   while (g.phase === 'discussion') { const [d] = expectedDecisions(g); applyDecision(g, d.seat, { kind: 'discuss', say: '' }) }

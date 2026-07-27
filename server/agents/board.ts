@@ -112,12 +112,21 @@ export function roleCertainties(view: PlayerView): RoleCertainties {
   for (const evidence of recordEvidence) {
     const couldBeEvil = evidence.team.filter((seat) =>
       beforeQuest.some((world) => world.alignmentBySeat[seat] === 'evil'))
+    const afterQuest = feasibleWorlds(view, { questRecord: evidence.questNum })
     if (couldBeEvil.length === evidence.minimumEvil) {
       for (const seat of couldBeEvil) {
-        if (!forcedBy.has(seat)) forcedBy.set(seat, evidence.questNum)
+        const wasProvenEvil = beforeQuest.every(
+          (world) => world.alignmentBySeat[seat] === 'evil',
+        )
+        const isProvenEvil = afterQuest.every(
+          (world) => world.alignmentBySeat[seat] === 'evil',
+        )
+        if (!wasProvenEvil && isProvenEvil && !forcedBy.has(seat)) {
+          forcedBy.set(seat, evidence.questNum)
+        }
       }
     }
-    beforeQuest = feasibleWorlds(view, { questRecord: evidence.questNum })
+    beforeQuest = afterQuest
   }
 
   const fromRecord = seats
