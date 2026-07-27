@@ -254,6 +254,45 @@ test('a failed quest with more candidates than Fails proves nothing', () => {
   assert.deepEqual(c.fromRecord, [])
 })
 
+test('joint quest intersections can settle a seat no single quest names', () => {
+  const roles: Role[] = [
+    'servant', 'servant', 'servant', 'minion', 'minion',
+  ]
+  const g = createGame({ seed: 'record-joint', playerCount: 5, roles })
+  const viewer = g.players.find((player) => player.role === 'servant')!.seat
+  const [evilA, evilB] = g.players
+    .filter((player) => player.alignment === 'evil')
+    .map((player) => player.seat)
+  const [goodC, settledGood] = g.players
+    .filter((player) => player.alignment === 'good' && player.seat !== viewer)
+    .map((player) => player.seat)
+  const base = viewFor(g, viewer)
+  const view = {
+    ...base,
+    quests: base.quests.map((quest) => {
+      if (quest.num === 1) {
+        return { ...quest, team: [evilA, evilB], result: 'fail' as const, failCount: 1 }
+      }
+      if (quest.num === 2) {
+        return { ...quest, team: [evilA, goodC, viewer], result: 'fail' as const, failCount: 1 }
+      }
+      if (quest.num === 3) {
+        return { ...quest, team: [evilB, goodC], result: 'fail' as const, failCount: 1 }
+      }
+      return quest
+    }),
+  }
+  const certainty = roleCertainties(view)
+  assert.ok(certainty.knownGood.includes(settledGood))
+  assert.deepEqual(certainty.seats[settledGood].possibleRoles, ['servant'])
+  const record = certainty.fromRecord.find(({ seat }) => seat === settledGood)
+  assert.deepEqual(
+    record,
+    { seat: settledGood, alignment: 'good' },
+    'the deduction uses the joint record, so no single quest is credited',
+  )
+})
+
 function runTalk(g: Game): void {
   for (const d of expectedDecisions(g)) if (d.kind === 'pitch') applyDecision(g, g.leaderSeat, { kind: 'pitch', pitch: 'go' })
   while (g.phase === 'discussion') { const [d] = expectedDecisions(g); applyDecision(g, d.seat, { kind: 'discuss', say: '' }) }

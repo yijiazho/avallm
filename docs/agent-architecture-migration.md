@@ -2,7 +2,7 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 0 complete; Phase 1 has not started.
+**Current target phase:** Phase 1 complete; Phase 2 is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -27,7 +27,7 @@ The current system already has strong foundations that should be retained.
 | Agent construction | Registry maps heuristic, random, stdio, and LLM specs to agents | Extend with composed brains |
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
-| Hard role deductions | `roleCertainties()` computes per-seat possible-role sets and cardinality closure | Preserve tests; replace independent sets with joint worlds as authority |
+| Hard role deductions | Exact complete worlds feed the temporary `roleCertainties()` projection | Keep exact worlds authoritative; replace the compatibility renderer in Phase 2 |
 | Heuristic policy | `heuristic.ts` scores suspicion and directly chooses actions | Split into analysis, forced rules, and policy |
 | Prompt policy | `prompts.ts` contains role guidance, forced-play asks, facts, transcript, and output contracts | Reduce to rendering and communication contracts |
 | Proposal coherence | LLM proposal is committed before a separate pitch call | Generalize to every plan-driven utterance |
@@ -45,10 +45,10 @@ compose and difficult to measure independently.
 
 | Target capability | Current state | Gap |
 |---|---|---|
-| Complete feasible worlds | Per-seat possible-role sets | Cross-seat correlations are lost |
-| Normalized posterior | Scalar heuristic suspicion and free-form LLM judgment | No common probabilistic semantics |
+| Complete feasible worlds | Exact `PlayerView`-only enumeration | Add typed evidence updates and soft factors in later phases |
+| Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Public view plus prompt text plus scratchpad | No typed, deduplicated update history |
-| Team-clean probability | Re-derived heuristically or by the LLM | No authoritative joint team assessment |
+| Team-clean probability | Exact joint team assessment is available | Not yet wired into decision-ready analysis or policy |
 | Candidate evaluation | Direct branch logic or free-form generation | No shared legal candidate and value layer |
 | Forced plays | Executed in heuristic, described in prompts, graded separately | Definitions can drift |
 | Persistent commitments | Partial derived dossier plus natural-language notes | No typed public-position history |
@@ -87,8 +87,8 @@ compose and difficult to measure independently.
 | Phase | Status | Outcome |
 |---|---|---|
 | 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
-| 1. Exact joint-world foundation | Next, not started | Uniform posterior over every feasible hidden world |
-| 2. Evidence, analysis, and belief visibility | Not started | Typed incremental cognition and decision-ready summaries |
+| 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
+| 2. Evidence, analysis, and belief visibility | Next | Typed incremental cognition and decision-ready summaries |
 | 3. Composed agent and policy boundary | Not started | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
@@ -147,42 +147,81 @@ training data or additional LLM calls.
 
 ### Domain and solver
 
-- [ ] Add `HiddenWorld`, `WeightedWorld`, and `BeliefSnapshot` types.
-- [ ] Implement canonical role-world enumeration from `rolesInPlay`.
-- [ ] Add an alignment projection optimized for team decisions.
-- [ ] Apply the viewing seat's own role and private knowledge as hard constraints.
-- [ ] Apply resolved Fail counts as minimum-evil cardinality constraints.
-- [ ] Normalize a uniform posterior over feasible worlds.
-- [ ] Derive player alignment marginals and role marginals.
-- [ ] Derive team-clean probability and evil-count distribution.
-- [ ] Derive posterior entropy and top worlds.
+- [x] Add `HiddenWorld`, `WeightedWorld`, and `BeliefSnapshot` types.
+- [x] Implement canonical role-world enumeration from `rolesInPlay`.
+- [x] Add an alignment projection optimized for team decisions.
+- [x] Apply the viewing seat's own role and private knowledge as hard constraints.
+- [x] Apply resolved Fail counts as minimum-evil cardinality constraints.
+- [x] Normalize a uniform posterior over feasible worlds.
+- [x] Derive player alignment marginals and role marginals.
+- [x] Derive team-clean probability and evil-count distribution.
+- [x] Derive posterior entropy and top worlds.
 
 ### Reuse and cleanup
 
-- [ ] Move the constraint rules embodied in `roleCertainties()` behind the world-model boundary, or
+- [x] Move the constraint rules embodied in `roleCertainties()` behind the world-model boundary, or
       make both consumers use one shared constraint module.
-- [ ] Preserve the exhaustive tests proving no true role is eliminated in any legal cast.
-- [ ] Keep the current `RoleCertainties` renderer temporarily as a projection of joint worlds.
-- [ ] Remove any duplicated closure implementation once projections are equivalent.
+- [x] Preserve the exhaustive tests proving no true role is eliminated in any legal cast.
+- [x] Keep the current `RoleCertainties` renderer temporarily as a projection of joint worlds.
+- [x] Remove any duplicated closure implementation once projections are equivalent.
 
 ### Tests
 
-- [ ] Exact world counts for simple casts.
-- [ ] Duplicate Servant and Minion roles do not create duplicate worlds.
-- [ ] Own role is pinned in every world.
-- [ ] Merlin, Mordred, evil partner, Oberon, and Percival visibility constraints are correct.
-- [ ] A quest with `k` Fail cards removes every world with fewer than `k` evil members aboard.
-- [ ] A zero-Fail success does not eliminate worlds merely because evil was aboard.
-- [ ] Posterior probabilities sum to one.
-- [ ] Team-clean and evil-count projections match hand-worked fixtures.
-- [ ] Seat rotation rotates the posterior without changing probabilities.
-- [ ] Solver APIs accept only `PlayerView` or typed evidence, never `Game`.
+- [x] Exact world counts for simple casts.
+- [x] Duplicate Servant and Minion roles do not create duplicate worlds.
+- [x] Own role is pinned in every world.
+- [x] Merlin, Mordred, evil partner, Oberon, and Percival visibility constraints are correct.
+- [x] A quest with `k` Fail cards removes every world with fewer than `k` evil members aboard.
+- [x] A zero-Fail success does not eliminate worlds merely because evil was aboard.
+- [x] Posterior probabilities sum to one.
+- [x] Player and role marginals match hand-worked cases.
+- [x] Team-clean and evil-count projections match hand-worked fixtures.
+- [x] Top worlds and complete solver output are deterministic.
+- [x] Seat rotation rotates the posterior without changing probabilities.
+- [x] Solver APIs accept only `PlayerView` or typed evidence, never `Game`.
+- [x] Every frozen Phase 0 decision fixture has explicit posterior and team expectations.
+- [x] Legal views retain the true world in truth-joined offline tests.
 
 ### Exit gate
 
 For every frozen decision fixture, AvaLLM can produce a deterministic, exact, joint posterior and
 correct team assessments using only the viewing seat's information. No production behavior has to
 change yet.
+
+**Satisfied.** All eight frozen Phase 0 decision fixtures have explicit expected event cursors,
+world counts, entropy, assessment teams, clean probabilities, and full evil-count distributions.
+The exact solver consumes their stored `PlayerView` values directly. It is not wired into proposal,
+vote, quest-card, discussion, or assassination policy, and it makes no LLM calls.
+
+### Phase 1 implementation record
+
+- `exact-constraints-v1` assigns equal probability to every feasible complete role assignment.
+  This is a uniform hypothesis share under hard information, not a calibrated behavioral
+  probability. Impossible worlds are absent. A legal view that yields none throws a diagnostic
+  error rather than returning a degraded or empty posterior.
+- Duplicate Servant and Minion cards are multiset counts, not identities. A world key is the role
+  name at each ascending seat joined by `|`. Worlds sort by that key; top worlds sort by descending
+  probability and then the same key. Player projections sort by seat, and role projections sort
+  by seat then the fixed canonical role order.
+- Entropy is Shannon entropy in bits. Probability assertions use an absolute tolerance of
+  `1e-12`. `throughSeq` is the maximum sequence number in the seat-visible event list, or `-1`
+  when that list is empty.
+- Private lists are treated as complete knowledge: named seats and omitted seats both constrain a
+  world. Quest evidence uses every visible Fail card as a minimum-evil constraint, including one
+  Fail on the two-Fail quest when that quest succeeds. A zero-Fail success adds no constraint.
+- `roleCertainties()` now projects possible roles and proven alignments from exact worlds. Its
+  former independent closure is removed. `fromRecord` still separates deal-only conclusions from
+  record conclusions, and a `questNum` is attached only when that quest directly exhausts the
+  seats that could account for its Fails. Consequences of several joint constraints remain
+  record-attributed without falsely crediting one quest. This is intentionally sharper than the
+  old independent closure: intersecting failed-team constraints can prove a seat good even when
+  no single quest names it; a focused regression test pins that behavior.
+- Canonical pinned assignment sets and deal-only feasible sets use small LRU caches. On the
+  standard casts with a Servant viewer, the representative 5-player posterior has 24 worlds and
+  took 1.360 ms cold / 0.036 ms warm median; the 10-player posterior has 60,480 worlds and took
+  100.879 ms cold / 17.872 ms warm median. Measurements used Node's `performance.now()` on the
+  development Windows host over 20 warm runs; the observed warm p95 values were 0.299 ms and
+  49.877 ms respectively.
 
 ---
 
@@ -456,7 +495,7 @@ Migration is not complete while superseded authority remains active.
 
 | Current path | Remove or reduce when | Replacement |
 |---|---|---|
-| Independent `roleCertainties` as final inference | Phase 1 projections match its tests | Joint world posterior |
+| `RoleCertainties` compatibility renderer | Phase 2 belief rendering replaces its prompt contract | `BeliefSnapshot` plus typed analysis |
 | Scalar `suspicion()` as primary good-side belief | Phase 4 structured policy passes | Team and player posterior projections |
 | Forced-play triggers duplicated in prompt asks | Phase 3 central rules land | Executable forced policy plus rendered result |
 | Free-form scratchpad as authoritative memory | Phase 6 typed cognition lands | `CognitionState` |
@@ -492,4 +531,10 @@ here.
   wins, zero forced-play violations, zero degradation) and summarized three already-paid
   prompt-guided playtests (21 seat-games, 576 decisions, 700 calls, $0.7852 transcript-rounded
   spend, one degraded finalize). No LLM call was made for Phase 0. Paired configuration checks and
-  `PlayerView`-only frozen inputs satisfy the exit gate; Phase 1 remains untouched.
+  `PlayerView`-only frozen inputs satisfy the Phase 0 exit gate.
+- Phase 1 exact worlds and exit gate: added deterministic multiset enumeration, complete private
+  and quest constraints, the uniform `exact-constraints-v1` posterior, alignment/role/team/entropy
+  projections, and cached deal-world reuse. `roleCertainties()` is now a joint-world projection
+  with its old output and attribution contract. Hand-worked, rotation, exhaustive soundness, raw
+  `Game` boundary, true-world retention, and all eight frozen-fixture expectations pass. Phase 2
+  is now the current target.

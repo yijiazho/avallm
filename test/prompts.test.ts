@@ -47,7 +47,9 @@ test('percival knowledge co-locates its two candidates with their quest records 
   const base = {
     seat: 0, name: 'P0', role: 'percival', alignment: 'good',
     privateInfo: { merlinCandidates: [2, 4] },
-    playerCount: 5, rolesInPlay: [], players,
+    playerCount: 5,
+    rolesInPlay: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
+    players,
     phase: 'vote', round: 2, proposalNum: 1, leaderSeat: 0,
     proposals: [], transcript: [], events: [],
   }
@@ -82,7 +84,9 @@ test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tel
   const base = {
     seat: 0, name: 'P0', role: 'merlin', alignment: 'good',
     privateInfo: { knownEvil: [3, 4] },
-    playerCount: 5, rolesInPlay: [], players,
+    playerCount: 5,
+    rolesInPlay: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
+    players,
     phase: 'vote', round: 3, proposalNum: 1, leaderSeat: 0,
     transcript: [], events: [],
   }
