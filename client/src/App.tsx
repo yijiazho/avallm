@@ -1016,6 +1016,21 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
   const packs = library.packs ?? []
   const shownPack = packs.find((p) => `pack:${p.id}` === fill)
   const agentById = (id: string) => library.agents.find((a) => a.id === id)
+  const builtinAgents = library.agents
+    .filter((a) => a.tier === 'builtin')
+    .sort((a, b) => {
+      // Keep Autopilot after the default model roster; alphabetize the LLMs by
+      // the same display name the host sees in the menu.
+      const llmOrder = Number(agentIsLlm(b)) - Number(agentIsLlm(a))
+      return llmOrder || a.name.localeCompare(b.name)
+    })
+  const customAgents = library.agents.filter((a) => a.custom || a.tier === 'user')
+  const packedAgentIds = new Set(packs.flatMap((p) => p.agents))
+  // Preserve any curated agent that is not in a pack. This should normally be
+  // empty, but a missing pack entry must not make an otherwise seatable agent
+  // disappear from the control.
+  const otherAgents = library.agents.filter((a) =>
+    a.tier !== 'builtin' && !a.custom && a.tier !== 'user' && !packedAgentIds.has(a.id))
   const setSeat = (i: number, seat: TableSeat) => {
     const next = table.slice()
     next[i] = seat
@@ -1062,6 +1077,25 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
           const info = agentById(seat.agent)
           const isLlm = seatIsLlm(seat)
           const seatSlug = seat.model ? library.models.find((m) => m.id === seat.model)?.slug : undefined
+          const agentOption = (a: AgentInfo) => {
+            // Built-in LLMs are the default model roster, so their base model
+            // and price tier remain visible even when this seat has an override.
+            const isDefaultLlm = a.tier === 'builtin' && agentIsLlm(a)
+            const wearsModel = isDefaultLlm || (
+              !(a.id === seat.agent && seatSlug)
+              && (!agentIsLlm(a) || !!a.suggestedModel)
+            )
+            const modelTier = isDefaultLlm
+              ? library.models.find((m) => m.id === a.suggestedModel)?.tier
+              : undefined
+            const tierLabel = modelTier ? (TIER_LABEL[modelTier] ?? modelTier) : undefined
+            return (
+              <option key={a.id} value={a.id}>
+                {a.name}{wearsModel ? ` · ${modelSlug(a.model)}${tierLabel ? ` (${tierLabel})` : ''}` : ''}
+                {a.custom ? ' (custom)' : ''}{a.unavailable ? ' · pick a model' : ''}
+              </option>
+            )
+          }
           return (
             <div key={i} className="seatrow" style={{ ['--mc' as string]: info?.color ?? 'var(--line)' }}>
               <span className="mini">{celestialFor(info?.id, info?.name ?? '').glyph}</span>
@@ -1081,22 +1115,24 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                     : dealModels(library, [e.target.value])[0])
                 }}
               >
-                {library.agents.map((a) => {
-                  // A model agent IS its model, so it wears the slug. A
-                  // character card's model is a seat decision (rolled at fill,
-                  // re-pickable in the dropdown beside this one), so the name
-                  // stands alone and the model dropdown owns the slug — no two
-                  // controls claiming the same fact. Whenever a seat carries an
-                  // override that dropdown is on screen (see `forced`).
-                  const wearsModel = !(a.id === seat.agent && seatSlug)
-                    && (!agentIsLlm(a) || !!a.suggestedModel)
-                  return (
-                    <option key={a.id} value={a.id}>
-                      {a.name}{wearsModel ? ` · ${modelSlug(a.model)}` : ''}
-                      {a.custom ? ' (custom)' : ''}{a.unavailable ? ' · pick a model' : ''}
-                    </option>
-                  )
-                })}
+                {/* The default roster stays first without a heading. Every
+                    library pack becomes its own section automatically. */}
+                {builtinAgents.map(agentOption)}
+                {packs.map((pack) => (
+                  <optgroup key={pack.id} label={pack.name}>
+                    {pack.agents.map(agentById).filter((a): a is AgentInfo => !!a).map(agentOption)}
+                  </optgroup>
+                ))}
+                {otherAgents.length > 0 && (
+                  <optgroup label="Other Agents">
+                    {otherAgents.map(agentOption)}
+                  </optgroup>
+                )}
+                {customAgents.length > 0 && (
+                  <optgroup label="Custom Agents">
+                    {customAgents.map(agentOption)}
+                  </optgroup>
+                )}
               </select>
               {showOverrides && isLlm && (
                 <select
