@@ -229,6 +229,11 @@ export function readDecisionFixtures(
   return JSON.parse(fs.readFileSync(file, 'utf8')) as FrozenDecisionFixture[]
 }
 
+export function fixtureTextMatches(current: string, expected: string): boolean {
+  const normalizeLineEndings = (text: string) => text.replaceAll('\r\n', '\n')
+  return normalizeLineEndings(current) === normalizeLineEndings(expected)
+}
+
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -240,7 +245,9 @@ async function main(): Promise<void> {
   const text = `${JSON.stringify(generated, null, 2)}\n`
   if (values.check) {
     const current = fs.readFileSync(values.write, 'utf8')
-    if (current !== text) throw new Error(`${values.write} is stale; regenerate without --check`)
+    if (!fixtureTextMatches(current, text)) {
+      throw new Error(`${values.write} is stale; regenerate without --check`)
+    }
     console.log(`${values.write}: ${generated.length} fixtures current`)
     return
   }

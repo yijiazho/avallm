@@ -3,12 +3,21 @@ import assert from 'node:assert/strict'
 import {
   buildDecisionFixtures,
   DECISION_FIXTURE_SCHEMA,
+  fixtureTextMatches,
   readDecisionFixtures,
 } from '../server/eval/decision-fixtures.ts'
 import type { Visibility } from '../server/engine/types.ts'
 
 const visibleTo = (visibility: Visibility, seat: number): boolean =>
   visibility === 'public' || visibility.only.includes(seat)
+
+test('fixture freshness accepts CRLF checkouts but still detects content drift', () => {
+  const expected = '[\n  {\n    "schema": 1\n  }\n]\n'
+  const crlfCheckout = expected.replaceAll('\n', '\r\n')
+
+  assert.equal(fixtureTextMatches(crlfCheckout, expected), true)
+  assert.equal(fixtureTextMatches(crlfCheckout.replace('"schema": 1', '"schema": 2'), expected), false)
+})
 
 test('frozen decision fixtures match deterministic verified replay', async () => {
   const frozen = readDecisionFixtures()
