@@ -2,7 +2,7 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 2 complete; Phase 3 is next.
+**Current target phase:** Phase 2 complete; Phase 3 preflight is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -27,7 +27,7 @@ The current system already has strong foundations that should be retained.
 | Agent construction | Registry maps heuristic, random, stdio, and LLM specs to agents | Extend with composed brains |
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
-| Hard role deductions | Exact complete worlds feed the temporary `roleCertainties()` projection | Keep exact worlds authoritative; replace the compatibility renderer in Phase 2 |
+| Hard role deductions | Exact complete worlds feed the temporary `roleCertainties()` projection used by normal LLM prompts | Keep exact worlds authoritative; consolidate the compatibility renderer during Phase 3 |
 | Heuristic policy | `heuristic.ts` scores suspicion and directly chooses actions | Split into analysis, forced rules, and policy |
 | Prompt policy | `prompts.ts` contains role guidance, forced-play asks, facts, transcript, and output contracts | Reduce to rendering and communication contracts |
 | Proposal coherence | LLM proposal is committed before a separate pitch call | Generalize to every plan-driven utterance |
@@ -47,15 +47,15 @@ compose and difficult to measure independently.
 |---|---|---|
 | Complete feasible worlds | Exact `PlayerView`-only enumeration | Add typed evidence updates and soft factors in later phases |
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
-| Evidence ledger | Public view plus prompt text plus scratchpad | No typed, deduplicated update history |
-| Team-clean probability | Exact joint team assessment is available | Not yet wired into decision-ready analysis or policy |
+| Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
+| Team-clean probability | Exact joint assessment is available through `SituationAnalysis` | Not yet wired into production policy |
 | Candidate evaluation | Direct branch logic or free-form generation | No shared legal candidate and value layer |
 | Forced plays | Executed in heuristic, described in prompts, graded separately | Definitions can drift |
-| Persistent commitments | Partial derived dossier plus natural-language notes | No typed public-position history |
+| Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
-| Decision trace | `thinking`, `notes`, degrade records, and eval artifacts | No component versions or candidate scores |
+| Decision trace | Optional private trace records belief version, cursor, posterior context, reasons, action, and degradation | Add analysis, policy, renderer, prompt, and factor versions plus candidate scores |
 | Brain/model/persona separation | Agent definition mostly configures an LLM and prompt layers | Strategic competence is coupled to prompt/model choice |
 
 ---
@@ -376,12 +376,47 @@ test. Warm medians average the two middle samples for even runs; p95 uses the ne
 definition, so the documented 20-sample p95 is the nineteenth ordered sample rather than the
 maximum.
 
+### Architecture checkpoint before Phase 3
+
+Phase 2 satisfies its exit gate, but its experiment metadata currently conflates inference with
+prompt visibility. Normal LLM prompts already call `roleCertainties()`, which projects certainties
+from `exact-constraints-v1`. Therefore a normal agent recorded as `belief: "none"` does not have no
+belief inference. It has exact hard-constraint inference rendered through the compatibility
+certainty text, but it does not receive the compact belief summary. The Phase 2 experiment compares:
+
+- exact hard certainties plus the existing dossier; against
+- the same information plus `compact-belief-v1`.
+
+It is not a no-belief versus exact-belief comparison. Historical Phase 0 artifacts retain their
+recorded metadata, but new artifacts must describe this distinction accurately before Phase 3
+benchmarks are used for causal claims.
+
+Required Phase 3 preflight:
+
+- [ ] Separate the inference component from its visibility mode in agent configuration and
+      architecture artifact metadata.
+- [ ] Record normal LLM inference as `exact-constraints-v1` while it consumes
+      `roleCertainties()`; reserve `none` for paths that perform no belief inference.
+- [ ] Give compatibility certainty text and `compact-belief-v1` distinct visibility identifiers.
+- [ ] Add a regression test proving that component labels match the inference and rendering paths
+      actually exercised.
+
+Non-blocking consolidation work during Phase 3:
+
+- [ ] Route new policy code through `CognitionState` and `SituationAnalysis`; do not add another
+      direct `PlayerView` arithmetic or prompt-only authority.
+- [ ] Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts after
+      equivalent typed renderers pass tests.
+- [ ] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
+      versions needed to attribute behavior to a complete brain configuration.
+
 ---
 
 ## 8. Phase 3: composed agent and policy boundary
 
 ### Agent composition
 
+- [ ] Complete the component-identity preflight above before comparative evaluation.
 - [ ] Introduce a brain configuration distinct from model and persona configuration.
 - [ ] Add a composed `hybrid` engine or equivalent agent constructor.
 - [ ] Preserve `raw-llm`, heuristic, random, and stdio modes as baselines.
@@ -392,7 +427,8 @@ Suggested configuration shape:
 
 ```ts
 interface BrainSpec {
-  belief: 'none' | 'exact-v1' | 'weighted-v1'
+  belief: 'none' | 'exact-constraints-v1' | 'weighted-v1'
+  beliefVisibility: 'none' | 'compat-certainties' | 'compact-belief-v1'
   policy: 'raw-llm' | 'structured-v1' | 'hybrid-v1'
   languageEvidence?: 'off' | 'bounded-v1'
   observerModel?: 'off' | 'observer-v1'
@@ -609,12 +645,12 @@ Migration is not complete while superseded authority remains active.
 
 | Current path | Remove or reduce when | Replacement |
 |---|---|---|
-| `RoleCertainties` compatibility renderer | Phase 2 belief rendering replaces its prompt contract | `BeliefSnapshot` plus typed analysis |
+| `RoleCertainties` compatibility renderer | Phase 3 typed rendering covers its prompt contract and equivalence tests pass | `BeliefSnapshot` plus typed analysis |
 | Scalar `suspicion()` as primary good-side belief | Phase 4 structured policy passes | Team and player posterior projections |
 | Forced-play triggers duplicated in prompt asks | Phase 3 central rules land | Executable forced policy plus rendered result |
 | Free-form scratchpad as authoritative memory | Phase 6 typed cognition lands | `CognitionState` |
 | LLM-generated arbitrary proposal as production default | Phase 4 hybrid candidate planner passes | Candidate IDs and committed plan |
-| Prompt dossier as the only belief visibility | Phase 2 belief renderer lands | Typed analysis rendered for the prompt |
+| Prompt dossier and compatibility certainties as the default belief visibility | Phase 3 typed rendering covers their contracts; Phase 4 policy consumes the same analysis | Typed analysis rendered for policy and prompt |
 | Generic "most good" assassination reasoning | Phase 7 target model passes | Merlin posterior |
 
 Removal means deleting or demoting the old authority, not merely adding a new path beside it.
@@ -657,3 +693,8 @@ here.
   artifact traces associated through replay. Default agents and policy remain unchanged. The
   repeatable 5/10-player belief and prompt benchmark closes the performance follow-up; uniform-only
   projections remain tracked for a weight-aware conversion before Phase 5.
+- Phase 2 architecture checkpoint: confirmed the exit gate and full API-free suite, then identified
+  that artifact metadata called normal LLM belief `none` even though normal prompts consume
+  exact-world-derived compatibility certainties. Phase 3 begins by separating inference identity
+  from belief visibility, then consolidates compatibility prompt paths and expands per-decision
+  component versioning.
