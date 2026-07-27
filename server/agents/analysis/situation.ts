@@ -361,12 +361,9 @@ export function analyzeSituation(
   const provenGood: Seat[] = []
   const provenEvil: Seat[] = []
   const unresolved: Seat[] = []
+  const supportedWorlds = belief.worlds.map((weighted) => weighted.world)
   for (const player of view.players) {
-    const marginal = belief.playerMarginals[player.seat]
-    const alignment: Alignment | undefined =
-      marginal.evilProbability === 1 ? 'evil'
-        : marginal.goodProbability === 1 ? 'good'
-          : undefined
+    const alignment = alignmentOf(supportedWorlds, player.seat)
     if (!alignment) {
       unresolved.push(player.seat)
       continue

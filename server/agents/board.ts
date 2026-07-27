@@ -7,15 +7,22 @@
 //
 // Consume ONLY PlayerView, like the prompt builders: no raw Game, no omniscience.
 
-import { ROLE_ALIGNMENT } from '../engine/rules.ts'
-import type { Alignment, PlayerView, Role, Seat } from '../engine/types.ts'
-import { exactBelief, rolePossibilities } from './belief/exact.ts'
+import type { PlayerView, Seat } from '../engine/types.ts'
+import { exactBelief } from './belief/exact.ts'
 import type { BeliefSnapshot } from './belief/types.ts'
 import {
   analyzeSituation,
   boardSituation,
   knownFailsAboard,
 } from './analysis/situation.ts'
+import {
+  compatibilityCertainties,
+  type RoleCertainties,
+} from './communication/compat-certainties.ts'
+export type {
+  RoleCertainties,
+  SeatCertainty,
+} from './communication/compat-certainties.ts'
 
 // Evil on a team that THIS SEAT can see: itself plus known partners, never more.
 // Oberon is invisible to the rest of evil (and they to it), so a count that
@@ -50,84 +57,11 @@ export function matchPoint(view: PlayerView): { good: boolean; evil: boolean } {
 // Deliberately NOT in facts.ts: that layer's contract is facts any player at the
 // table could derive, and every one of these is private to the viewing seat.
 
-export interface SeatCertainty {
-  seat: Seat
-  possibleRoles: Role[]
-  // Non-null when every remaining possibility falls on the same side, i.e. the
-  // viewer can PROVE this seat's alignment rather than estimate it.
-  alignment: Alignment | null
-}
-
-export interface RoleCertainties {
-  seats: SeatCertainty[]           // one per seat, indexed by seat number
-  knownGood: Seat[]                // provably good, excluding the viewer
-  knownEvil: Seat[]                // provably evil, excluding the viewer
-  unresolved: Seat[]               // side still genuinely open
-  merlinCandidates: Seat[]         // seats that could still hold Merlin (empty if no Merlin dealt)
-  alignmentComplete: boolean       // true when no seat's side is open
-  // Seats the DEAL alone leaves open and the resolved quests close. Separated so
-  // a caller can state the new deduction and the evidence for it, instead of
-  // folding it into the deal lines where it would read as private sight.
-  fromRecord: Array<{ seat: Seat; alignment: Alignment; questNum?: number }>
-}
-
-const isEvil = (r: Role) => ROLE_ALIGNMENT[r] === 'evil'
-
-const sideOf = (roles: Set<Role>): Alignment | null => {
-  if (roles.size === 0) return null
-  let evil = 0
-  for (const r of roles) if (isEvil(r)) evil++
-  return evil === roles.size ? 'evil' : evil === 0 ? 'good' : null
-}
-
 export function roleCertainties(
   view: PlayerView,
   suppliedBelief?: BeliefSnapshot,
 ): RoleCertainties {
   const belief = suppliedBelief ?? exactBelief(view)
-  const worlds = belief.worlds.map((weighted) => weighted.world)
-  const possible = new Map<Seat, Set<Role>>(
-    view.players.map((player) => [
-      player.seat,
-      new Set(rolePossibilities(worlds, player.seat)),
-    ]),
-  )
-  const seats: SeatCertainty[] = view.players.map((p) => {
-    const set = possible.get(p.seat) ?? new Set<Role>()
-    return { seat: p.seat, possibleRoles: [...set], alignment: sideOf(set) }
-  })
-
-  const pick = (want: Alignment | null) =>
-    seats.filter((s) => s.seat !== view.seat && s.alignment === want).map((s) => s.seat)
-
   const analysis = analyzeSituation(view, { belief })
-  const fromRecord = analysis.deductions
-    .filter((deduction) =>
-      deduction.seat !== view.seat
-      && (
-        deduction.provenance.kind === 'quest-record'
-        || deduction.provenance.kind === 'joint-constraints'
-      ))
-    .map((deduction) => ({
-      seat: deduction.seat,
-      alignment: deduction.alignment,
-      ...((deduction.provenance.kind === 'quest-record'
-        || (
-          deduction.provenance.kind === 'joint-constraints'
-          && deduction.alignment === 'evil'
-        ))
-        && deduction.provenance.questNums.length === 1
-        ? { questNum: deduction.provenance.questNums[0] }
-        : {}),
-    }))
-
-  return {
-    seats,
-    knownGood: pick('good'),
-    knownEvil: pick('evil'),
-    unresolved: pick(null),
-    merlinCandidates: seats.filter((s) => s.possibleRoles.includes('merlin')).map((s) => s.seat),
-    alignmentComplete: seats.every((s) => s.alignment !== null),
-    fromRecord,
-  }
+  return compatibilityCertainties(view, belief, analysis)
 }

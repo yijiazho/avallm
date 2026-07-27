@@ -20,8 +20,13 @@
 // instance, is free to use dashes.
 
 import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
-import { knownEvilAboard, matchPoint, roleCertainties } from './board.ts'
-import type { RoleCertainties } from './board.ts'
+import { knownEvilAboard, matchPoint } from './board.ts'
+import { analyzeSituation } from './analysis/situation.ts'
+import { exactBelief } from './belief/exact.ts'
+import {
+  compatibilityCertainties,
+  type RoleCertainties,
+} from './communication/compat-certainties.ts'
 import { factsDossier, questResultTag } from './facts.ts'
 import {
   experimentalBeliefContext,
@@ -365,9 +370,11 @@ function recordLine(view: PlayerView, certain: RoleCertainties): string {
 
 export function knowledgeText(
   view: PlayerView,
-  belief?: BeliefSnapshot,
+  suppliedBelief?: BeliefSnapshot,
 ): string {
-  const certainty = roleCertainties(view, belief)
+  const belief = suppliedBelief ?? exactBelief(view)
+  const analysis = analyzeSituation(view, { belief })
+  const certainty = compatibilityCertainties(view, belief, analysis)
   return dealKnowledgeText(view, certainty) + recordLine(view, certainty)
 }
 
@@ -384,10 +391,9 @@ export function knowledgeText(
 // because knownEvil is Merlin-only and the lattice makes Assassin implied.
 function dealKnowledgeText(
   view: PlayerView,
-  suppliedCertainty?: RoleCertainties,
+  certain: RoleCertainties,
 ): string {
   const info = view.privateInfo
-  const certain = suppliedCertainty ?? roleCertainties(view)
   const named = (seats: readonly Seat[]) => seats.map((s) => nameOf(view, s)).join(', ')
 
   if (info.knownEvil?.length) {

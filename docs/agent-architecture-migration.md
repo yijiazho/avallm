@@ -167,7 +167,8 @@ while the primary lane runs, then integrate them one at a time.
 
 | ID | Source | Follow-up | Independence boundary and acceptance | Status |
 |---|---|---|---|---|
-| NB-001 | Phase 3 | Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts | May run beside mechanical belief/policy work only when that work does not touch prompt visibility. Typed renderers must be equivalent, raw prompt changes must be deliberately versioned, and the full prompt/leak suite must pass. | `ready` |
+| NB-001A | Phase 3 | Route compatibility certainty prose through typed belief and situation analysis | Preserve exact feasible-world support, record provenance, prompt bytes, and compatibility behavior; false certainty from rounded weighted marginals is forbidden. | `landed` |
+| NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | Defer until the Phase 6 public-language boundary owns the shared public record. The replacement must remain byte-equivalent unless its renderer is deliberately versioned. | `deferred` |
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
 
@@ -500,8 +501,10 @@ Non-blocking consolidation work during Phase 3:
 
 - [x] Route new policy code through `CognitionState` and `SituationAnalysis`; do not add another
       direct `PlayerView` arithmetic or prompt-only authority.
-- [ ] **NB-001:** Reduce direct prompt use of `roleCertainties()` and independently derived dossier
-      facts after equivalent typed renderers pass tests.
+- [x] **NB-001A:** Route compatibility certainty prose through typed belief and situation analysis
+      after equivalent typed renderers pass tests.
+- [ ] **NB-001B:** Replace independently derived dossier facts with the Phase 6 typed public-record
+      projection after that boundary lands.
 - [x] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
       versions needed to attribute behavior to a complete brain configuration.
 
@@ -1219,3 +1222,8 @@ here.
   heuristic and seeded-random populations improved both calibration targets with zero calls, cost,
   degradation, or safety findings. It remains opt-in because absolute wins against the primary
   heuristic population still trail compatibility.
+- NB-001A typed compatibility certainties: routed normal compatibility knowledge prose through the
+  explicit belief and situation-analysis boundary while preserving its prompt contract. Hard
+  alignment deductions now inspect positive feasible-world support instead of rounded marginals,
+  so arbitrarily small supported alternatives cannot become false certainties. Independent public
+  dossier consolidation remains NB-001B and is deferred to the Phase 6 public-record boundary.
