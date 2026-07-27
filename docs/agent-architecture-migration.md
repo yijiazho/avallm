@@ -223,6 +223,22 @@ vote, quest-card, discussion, or assassination policy, and it makes no LLM calls
   development Windows host over 20 warm runs; the observed warm p95 values were 0.299 ms and
   49.877 ms respectively.
 
+### Non-blocking Phase 1 follow-ups
+
+These items do not reopen the Phase 1 exit gate, but later phases must not silently build on the
+current limitations.
+
+- [ ] Make every posterior projection weight-aware before Phase 5 introduces non-uniform worlds.
+  The Phase 1 posterior is uniform, so counting feasible worlds gives correct player marginals,
+  role marginals, team-clean probability, evil-count distributions, and entropy today. Once
+  `WeightedWorld.probability` can vary, those quantities must sum world weights and entropy must
+  use the weighted distribution. Add a deliberately non-uniform projection test with that change.
+- [ ] Add a repeatable exact-belief and prompt-rendering performance benchmark, then monitor it as
+  coverage grows. On the development Windows host, the full suite increased from roughly 3 seconds
+  before Phase 1 to roughly 42 seconds after it; exhaustive legal-cast certainty and rendered-prompt
+  audits account for most of the increase. Preserve those exhaustive tests, and improve snapshot
+  reuse or caching before inference or coverage expands enough to make the feedback loop onerous.
+
 ---
 
 ## 7. Phase 2: evidence, analysis, and belief visibility
