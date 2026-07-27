@@ -1,0 +1,218 @@
+{
+  "schema": 1,
+  "architecture": {
+    "belief": "none",
+    "policy": "prompt-guided-observed-2026-07-24"
+  },
+  "source": {
+    "kind": "archived-playtests",
+    "directory": "2026-07-24",
+    "costPrecision": "transcript-rounded-4dp",
+    "files": [
+      {
+        "file": "game1-artifact.jsonl",
+        "sha256": "48b8af207fcbed12c2ef50b23931a4de2db8c74b1a800a23915d16f1cd3c1e79"
+      },
+      {
+        "file": "game1-transcript.txt",
+        "sha256": "74a02c566adbb86a18123fdb3250fd9e7e9a2e6b1da57883825ad273d9d5070b"
+      },
+      {
+        "file": "game2-artifact.jsonl",
+        "sha256": "f1d4f97810fd9ba2bf6db5abd491bf1f90831d35e4a37dc1f4d0104521a09376"
+      },
+      {
+        "file": "game2-transcript.txt",
+        "sha256": "26ddbd49e2d85c82e528821a0fa0e501875db13d6b5763c29225ccf825b22c83"
+      },
+      {
+        "file": "game3-artifact.jsonl",
+        "sha256": "d0605ca1c2c2453c09ab500aec42d1cc4785c7c3f9dc715ffc631d68952e714b"
+      },
+      {
+        "file": "game3-transcript.txt",
+        "sha256": "1d00f270e3ec1bce5c5c0c93815adc292391f19b6ed3aa13cf9c921b69814846"
+      }
+    ],
+    "seeds": [
+      "game1",
+      "game2",
+      "game3"
+    ]
+  },
+  "games": 3,
+  "seatGames": 21,
+  "winners": {
+    "good": 1,
+    "evil": 2
+  },
+  "decisions": 576,
+  "calls": 700,
+  "cost": 0.7852,
+  "degraded": 1,
+  "byRole": [
+    {
+      "id": "assassin",
+      "seatGames": 3,
+      "wins": 2,
+      "decisions": 81,
+      "calls": 103,
+      "cost": 0.0761,
+      "degraded": 1
+    },
+    {
+      "id": "merlin",
+      "seatGames": 3,
+      "wins": 1,
+      "decisions": 85,
+      "calls": 95,
+      "cost": 0.1914,
+      "degraded": 0
+    },
+    {
+      "id": "morgana",
+      "seatGames": 3,
+      "wins": 2,
+      "decisions": 81,
+      "calls": 105,
+      "cost": 0.0916,
+      "degraded": 0
+    },
+    {
+      "id": "oberon",
+      "seatGames": 3,
+      "wins": 2,
+      "decisions": 79,
+      "calls": 99,
+      "cost": 0.1142,
+      "degraded": 0
+    },
+    {
+      "id": "percival",
+      "seatGames": 3,
+      "wins": 1,
+      "decisions": 85,
+      "calls": 99,
+      "cost": 0.16,
+      "degraded": 0
+    },
+    {
+      "id": "servant",
+      "seatGames": 6,
+      "wins": 2,
+      "decisions": 165,
+      "calls": 199,
+      "cost": 0.1519,
+      "degraded": 0
+    }
+  ],
+  "byDecisionKind": [
+    {
+      "id": "discuss",
+      "decisions": 371,
+      "calls": null,
+      "cost": null,
+      "degraded": 0
+    },
+    {
+      "id": "propose",
+      "decisions": 19,
+      "calls": null,
+      "cost": null,
+      "degraded": 0
+    },
+    {
+      "id": "finalize",
+      "decisions": 19,
+      "calls": null,
+      "cost": null,
+      "degraded": 1
+    },
+    {
+      "id": "vote",
+      "decisions": 133,
+      "calls": null,
+      "cost": null,
+      "degraded": 0
+    },
+    {
+      "id": "quest",
+      "decisions": 32,
+      "calls": null,
+      "cost": null,
+      "degraded": 0
+    },
+    {
+      "id": "assassinate",
+      "decisions": 2,
+      "calls": null,
+      "cost": null,
+      "degraded": 0
+    }
+  ],
+  "byModel": [
+    {
+      "id": "deepseek",
+      "seatGames": 3,
+      "wins": 2,
+      "decisions": 81,
+      "calls": 98,
+      "cost": 0.036,
+      "degraded": 0
+    },
+    {
+      "id": "gemini",
+      "seatGames": 3,
+      "wins": 1,
+      "decisions": 83,
+      "calls": 101,
+      "cost": 0.0932,
+      "degraded": 1
+    },
+    {
+      "id": "gemini-flash",
+      "seatGames": 3,
+      "wins": 1,
+      "decisions": 85,
+      "calls": 100,
+      "cost": 0.2149,
+      "degraded": 0
+    },
+    {
+      "id": "glm",
+      "seatGames": 3,
+      "wins": 2,
+      "decisions": 83,
+      "calls": 97,
+      "cost": 0.1435,
+      "degraded": 0
+    },
+    {
+      "id": "gpt-oss",
+      "seatGames": 3,
+      "wins": 1,
+      "decisions": 79,
+      "calls": 110,
+      "cost": 0.0415,
+      "degraded": 0
+    },
+    {
+      "id": "kimi",
+      "seatGames": 3,
+      "wins": 0,
+      "decisions": 82,
+      "calls": 94,
+      "cost": 0.1527,
+      "degraded": 0
+    },
+    {
+      "id": "seed",
+      "seatGames": 3,
+      "wins": 3,
+      "decisions": 83,
+      "calls": 100,
+      "cost": 0.1034,
+      "degraded": 0
+    }
+  ]
+}

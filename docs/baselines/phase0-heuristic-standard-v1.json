@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "bank": "standard-v1",
+  "cases": [
+    "10p-oberon",
+    "5p-assassin",
+    "5p-merlin",
+    "5p-morgana",
+    "5p-percival",
+    "5p-servant",
+    "6p-servant",
+    "7p-oberon",
+    "8p-minion",
+    "9p-mordred"
+  ],
+  "variants": [
+    {
+      "id": "heuristic-v1",
+      "components": {
+        "agent": "autopilot@v1",
+        "model": "none",
+        "belief": "none",
+        "policy": "heuristic-v1",
+        "communication": "none"
+      },
+      "games": 10,
+      "wins": 7,
+      "forcedViolations": 0,
+      "degraded": 0,
+      "calls": 0,
+      "cost": 0,
+      "byRole": [
+        {
+          "role": "assassin",
+          "games": 1,
+          "wins": 1,
+          "voteScore": 0,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "merlin",
+          "games": 1,
+          "wins": 1,
+          "voteScore": 1,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "minion",
+          "games": 1,
+          "wins": 1,
+          "voteScore": 0,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "mordred",
+          "games": 1,
+          "wins": 1,
+          "voteScore": 0,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "morgana",
+          "games": 1,
+          "wins": 1,
+          "voteScore": 0,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "oberon",
+          "games": 2,
+          "wins": 2,
+          "voteScore": 0.35,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "percival",
+          "games": 1,
+          "wins": 0,
+          "voteScore": 0.375,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        },
+        {
+          "role": "servant",
+          "games": 2,
+          "wins": 0,
+          "voteScore": 0.3571428571428571,
+          "forcedViolations": 0,
+          "degraded": 0,
+          "calls": 0,
+          "cost": 0
+        }
+      ],
+      "byKind": [
+        {
+          "kind": "propose",
+          "decisions": 11,
+          "calls": 0,
+          "degraded": 0,
+          "cost": 0
+        },
+        {
+          "kind": "quest",
+          "decisions": 20,
+          "calls": 0,
+          "degraded": 0,
+          "cost": 0
+        },
+        {
+          "kind": "vote",
+          "decisions": 72,
+          "calls": 0,
+          "degraded": 0,
+          "cost": 0
+        }
+      ],
+      "byModel": []
+    }
+  ],
+  "comparisons": []
+}

@@ -2,7 +2,7 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 0, preserve foundations and establish baselines.
+**Current target phase:** Phase 0 complete; Phase 1 has not started.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -86,8 +86,8 @@ compose and difficult to measure independently.
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 0. Preserve foundations and establish baselines | In progress | Stable comparison point and contracts |
-| 1. Exact joint-world foundation | Blocked on Phase 0 exit gate | Uniform posterior over every feasible hidden world |
+| 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
+| 1. Exact joint-world foundation | Next, not started | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Not started | Typed incremental cognition and decision-ready summaries |
 | 3. Composed agent and policy boundary | Not started | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
@@ -117,8 +117,9 @@ compose and difficult to measure independently.
 ### Baseline work
 
 - [x] Select a fixed paired-seed bank covering 5 through 10 players and all standard special roles.
-- [ ] Record current prompt-guided LLM results by role, decision kind, model, cost, and degradation.
-- [ ] Record current heuristic results on the same seeds with discussion disabled.
+- [x] Record migration-start prompt-guided LLM results by role, decision kind, model, cost, and
+      degradation, reusing already-paid archived playtests.
+- [x] Record current heuristic results on the same seeds with discussion disabled.
 - [x] Freeze representative `PlayerView` decision fixtures for belief and policy regression tests.
 - [x] Add a compact architecture benchmark report format that can compare component versions.
 
@@ -126,6 +127,16 @@ compose and difficult to measure independently.
 
 The baseline bank can compare two agent versions on identical deals and table configurations, and a
 future belief model can be evaluated without changing the game engine.
+
+**Satisfied.** `test/architecture-eval.test.ts` runs two component-version bundles on an identical
+bank deal and rejects configuration drift. The committed decision fixtures contain only
+`DecisionRequest`, seat-filtered `PlayerView`, and the baseline decision, so a future belief or
+policy evaluator can consume them without a `Game`. The free heuristic record is
+[`baselines/phase0-heuristic-standard-v1.json`](baselines/phase0-heuristic-standard-v1.json).
+Available prompt-guided evidence is preserved in
+[`baselines/phase0-prompt-guided-observed.json`](baselines/phase0-prompt-guided-observed.json);
+it came from three existing paid playtests, not new calls, and is explicitly observational rather
+than a paired promotion result.
 
 ---
 
@@ -476,3 +487,8 @@ here.
   decision fixtures through the existing verified replay path. The set covers every decision kind,
   special-role private-knowledge shapes, accumulated quest evidence, the two-Fail quest, and the
   assassination transition without exposing a raw `Game`.
+- Phase 0 baselines and exit gate: recorded the ten-game free heuristic bank (7/10 target-side
+  wins, zero forced-play violations, zero degradation) and summarized three already-paid
+  prompt-guided playtests (21 seat-games, 576 decisions, 700 calls, $0.7852 transcript-rounded
+  spend, one degraded finalize). No LLM call was made for Phase 0. Paired configuration checks and
+  `PlayerView`-only frozen inputs satisfy the exit gate; Phase 1 remains untouched.
