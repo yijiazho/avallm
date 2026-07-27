@@ -2,6 +2,7 @@ import type { Alignment, Seat } from '../../engine/types.ts'
 import type { TeamAssessment } from '../belief/types.ts'
 
 export const SITUATION_ANALYSIS_VERSION = 'situation-analysis-v1'
+export const GOOD_VOTE_SITUATION_VERSION = 'good-vote-situation-v1'
 
 export interface BoardScore {
   good: number
@@ -41,6 +42,21 @@ export interface PolicyCandidateTeamAssessment
   beliefModelVersion: string
   beliefThroughSeq: number
   probabilitySemantics: 'uniform-feasible-joint'
+}
+
+/**
+ * Decision-ready posterior projection for a good-side vote. These are exact
+ * shares of currently feasible joint worlds, not calibrated quest-success
+ * probabilities.
+ */
+export interface GoodVoteSituation {
+  version: typeof GOOD_VOTE_SITUATION_VERSION
+  probabilitySemantics: 'uniform-feasible-joint'
+  beliefModelVersion: string
+  beliefThroughSeq: number
+  currentTeam: SituationTeamAssessment
+  currentCandidateId: string
+  bestAlternative: PolicyCandidateTeamAssessment
 }
 
 export interface DeclaredLeanTally {
@@ -115,6 +131,8 @@ export interface SituationAnalysis extends BoardSituation {
    * explicitly requests the exhaustive team surface.
    */
   policyCandidateAssessments: readonly PolicyCandidateTeamAssessment[]
+  /** Opt-in current-team versus best-different-team vote projection. */
+  goodVote?: GoodVoteSituation
   /** Latest public lean per seat on the current proposal segment. */
   declaredLeans: readonly DeclaredLeanTally[]
   /** Whether this seat's approve/reject could still change passage by public leans. */

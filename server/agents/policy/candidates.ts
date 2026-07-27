@@ -54,6 +54,29 @@ const candidate = <D extends Decision>(
   decision,
 })
 
+/**
+ * Canonical legal proposal teams for the current quest. This projection is
+ * intentionally phase-independent so vote policy can compare the team on the
+ * table with teams a later leader could legally propose. Candidate generation
+ * remains the sole owner of that hypothetical surface.
+ */
+export function hypotheticalProposalCandidates(
+  view: PlayerView,
+): readonly (PolicyCandidate & {
+  kind: 'propose'
+  decision: Extract<Decision, { kind: 'propose' }>
+})[] {
+  const seats = view.players
+    .map((player) => player.seat)
+    .sort((a, b) => a - b)
+  const size = view.quests[view.round - 1]?.teamSize
+  if (!Number.isInteger(size) || size <= 0 || size > seats.length) {
+    throw new Error(`cannot generate proposal teams for quest ${view.round}`)
+  }
+  return combinations(seats, size).map((team) =>
+    candidate('propose', teamKey(team), { kind: 'propose', team }))
+}
+
 function validateRequest(req: DecisionRequest, view: PlayerView): void {
   if (req.seat !== view.seat) {
     throw new Error(
@@ -107,9 +130,7 @@ export function legalCandidates(
       })
     }
     case 'propose': {
-      const size = view.quests[view.round - 1].teamSize
-      return combinations(seats, size).map((team) =>
-        candidate('propose', teamKey(team), { kind: 'propose', team }))
+      return hypotheticalProposalCandidates(view)
     }
     case 'finalize': {
       const size = view.quests[view.round - 1].teamSize

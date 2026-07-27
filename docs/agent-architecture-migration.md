@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 4A exact-posterior good proposal scoring is complete. Phase 4B
-good-side vote value and controlled variation is next.
+**Current target phase:** Phase 4A exact-posterior good proposal scoring and Phase 4B good-side
+vote value are complete. Phase 4C communication intent and bounded hybrid planning is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -49,8 +49,8 @@ compose and difficult to measure independently.
 | Complete feasible worlds | Exact `PlayerView`-only enumeration | Add typed evidence updates and soft factors in later phases |
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
-| Team-clean probability | Exact joint assessment is available through `SituationAnalysis` and drives the opt-in good proposal scorer | Extend to current-team and alternative value for Phase 4B votes |
-| Candidate evaluation | `good-proposal-scorer-v1` values opt-in good proposals; `compatibility-scorer-v1` remains the default ablation | Add vote value and a measured viable band before rollout |
+| Team-clean probability | Exact joint assessment drives opt-in good proposals plus current-team and best-alternative good votes | Add soft likelihood calibration only in Phase 5 |
+| Candidate evaluation | Separate opt-in scorers provide deterministic good proposal/vote value and seeded near-equivalent vote variation; compatibility remains the default ablation | Add the Phase 4C bounded planner and evaluate rollout |
 | Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
@@ -90,8 +90,8 @@ compose and difficult to measure independently.
 | 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
 | 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
-| 3. Composed agent and policy boundary | In progress (3A-3B complete) | Brain, model, persona, policy, and voice become separate |
-| 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
+| 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
+| 4. Belief-driven production policy | In progress (4A-4B complete) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
@@ -674,12 +674,41 @@ contains 252 teams over 60,480 full-role worlds and remained comfortably below t
 ceiling; measured warm analysis before the final mask aggregation was about 29 ms median and 32 ms
 p95. No production default, registry mode, prompt, paid call, or Phase 4B behavior changed.
 
+### Phase 4B implementation record
+
+`good-proposal-vote-scorer-v1` extends the Phase 4A scorer with good-side vote value while retaining
+the Phase 4A scorer and `compatibility-scorer-v1` as independent ablations. `good-vote-situation-v1`
+owns exact current-team and best-different-team summaries. Both probabilities come from the same
+feasible joint-world posterior; the scorer never combines independent seat suspicion.
+
+`good-vote-utility-v1` makes its intentionally conservative, pre-calibration assumptions explicit.
+It values approval from current-team clean probability and a small information bonus only while
+later quests remain. It values rejection from the best legal alternative, discounted by proposal
+runway and charged for hammer risk. Match point raises the stake. These constants are heuristic
+policy parameters, not learned likelihood factors or calibrated quest-success probabilities, and
+remain versioned and visible in candidate features and traces.
+
+The deterministic scorer keeps only the top-utility forced-policy survivor viable. The separate
+`good-proposal-vote-seeded-band-v1` mode keeps both votes viable only when their utility gap is at
+most `0.04`, then uses the composed agent's game seed, seat, request coordinates, and belief cursor
+to select replayably within that band. Outside the band, seed cannot change the choice. A forced
+selection remains authoritative and disables variation. Analysis projections, scorer values,
+selection adjustment, candidate ID, committed action, relevant-team trace, and stdio transport are
+validated as one joined record.
+
+Independent review found duplicated best-alternative ownership and an independently supplied
+variation seed. The scorer now consumes the analysis-owned projection after checking its max/tie
+contract, and variation derives only from the composed agent's game seed and stable event identity.
+Boundary validation also recomputes the seed bucket and couples it to the selected vote and exact
+score adjustment. Compatibility remains the composed default; no production registry mode, prompt,
+paid call, role-specific objective, soft factor, search, or factor graph changed.
+
 ### Structured decisions
 
 - [x] Propose teams using joint team-clean probability, not summed suspicion.
-- [ ] Vote using current-team probability, best-alternative value, score, and hammer position.
-- [ ] Preserve information-seeking only when future quests remain.
-- [ ] Add calibrated stochasticity or a viable-candidate band so play does not become mechanical.
+- [x] Vote using current-team probability, best-alternative value, score, and hammer position.
+- [x] Preserve information-seeking only when future quests remain.
+- [x] Add calibrated stochasticity or a viable-candidate band so play does not become mechanical.
 - [ ] Attach selected reasons and uncertainty to the communication intent.
 
 ### Hybrid planning
@@ -928,3 +957,7 @@ here.
   candidate-ID-keyed joint team assessments, batch alignment-mask projection, posterior-causal
   feature/value validation, deterministic ties, and hardened scorer/stdio boundaries. Compatibility
   remains the default and good-side vote policy remains Phase 4B work.
+- Phase 4B good vote value: added analysis-owned current/best-alternative joint summaries,
+  versioned board/runway/hammer/information utility, deterministic and game-seeded viable-band
+  scorers, and end-to-end score/action/trace validation. Compatibility and Phase 4A remain distinct
+  ablations; the composed brain is still opt-in.

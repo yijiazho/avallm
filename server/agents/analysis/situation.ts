@@ -24,12 +24,14 @@ import type {
 import type { Evidence } from '../cognition/types.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
+  GOOD_VOTE_SITUATION_VERSION,
   type AnalysisFactCode,
   type BoardSituation,
   type CandidateTeamFacts,
   type DeclaredLeanTally,
   type DeductionProvenance,
   type ForcedPlayReasonCode,
+  type GoodVoteSituation,
   type HardDeduction,
   type PolicyCandidateTeamAssessment,
   type SituationAnalysis,
@@ -340,6 +342,8 @@ export interface AnalyzeSituationOptions {
     candidateId: string
     team: readonly Seat[]
   }[]
+  /** Build the opt-in current-team versus best-alternative vote projection. */
+  goodVote?: boolean
 }
 
 export function analyzeSituation(
@@ -439,6 +443,46 @@ export function analyzeSituation(
       }
     },
   )
+  let goodVote: GoodVoteSituation | undefined
+  if (options.goodVote) {
+    if (!currentTeam || !view.currentTeam?.length) {
+      throw new Error('good vote analysis requires a current team')
+    }
+    const canonicalCurrent = [...view.currentTeam].sort((a, b) => a - b)
+    const currentMatches = policyCandidateAssessments.filter(
+      (assessment) =>
+        assessment.team.length === canonicalCurrent.length
+        && assessment.team.every(
+          (seat, index) => seat === canonicalCurrent[index],
+        ),
+    )
+    if (currentMatches.length !== 1) {
+      throw new Error(
+        'good vote analysis requires exactly one current-team candidate',
+      )
+    }
+    const alternatives = policyCandidateAssessments
+      .filter((assessment) => assessment.candidateId !== currentMatches[0].candidateId)
+      .sort((left, right) =>
+        right.cleanProbability - left.cleanProbability
+        || (
+          left.candidateId < right.candidateId
+            ? -1
+            : left.candidateId > right.candidateId ? 1 : 0
+        ))
+    if (!alternatives.length) {
+      throw new Error('good vote analysis requires a different legal alternative')
+    }
+    goodVote = {
+      version: GOOD_VOTE_SITUATION_VERSION,
+      probabilitySemantics: 'uniform-feasible-joint',
+      beliefModelVersion: belief.modelVersion,
+      beliefThroughSeq: belief.throughSeq,
+      currentTeam,
+      currentCandidateId: currentMatches[0].candidateId,
+      bestAlternative: alternatives[0],
+    }
+  }
   const declaredLeans = declaredLeansFor(view)
   const declared = (lean: DeclaredLeanTally['lean']): number =>
     declaredLeans.filter(
@@ -458,6 +502,7 @@ export function analyzeSituation(
     candidateTeams,
     policyCandidateTeams,
     policyCandidateAssessments,
+    ...(goodVote ? { goodVote } : {}),
     declaredLeans,
     voteLeverage,
     provenGood,

@@ -23,6 +23,7 @@ import { heuristicDecide } from './heuristic.ts'
 import {
   candidateIdForDecision,
   candidateTeams,
+  hypotheticalProposalCandidates,
   legalCandidates,
 } from './policy/candidates.ts'
 import { applyForcedPolicy } from './policy/forced.ts'
@@ -306,15 +307,36 @@ export function createComposedAgent(
       stage('candidates')
       const policyTeams = candidateTeams(candidates, view)
       const wantsJointProposalAssessments =
-        scorer.analysisRequirement === 'joint-proposal-team-assessments'
+        (
+          scorer.analysisRequirement === 'joint-proposal-team-assessments'
+          || scorer.analysisRequirement
+            === 'joint-proposal-vote-team-assessments'
+        )
         && req.kind === 'propose'
         && view.alignment === 'good'
+      const wantsJointVoteAssessments =
+        scorer.analysisRequirement
+          === 'joint-proposal-vote-team-assessments'
+        && req.kind === 'vote'
+        && view.alignment === 'good'
+      const hypotheticalTeamCandidates = wantsJointVoteAssessments
+        ? hypotheticalProposalCandidates(view)
+        : undefined
+      const hypotheticalTeams = hypotheticalTeamCandidates
+        ? candidateTeams(hypotheticalTeamCandidates, view)
+        : undefined
       analysis = analyzeSituation(view, {
         belief: cognition.belief,
         evidence: cognition.evidence,
         policyCandidateTeams: policyTeams,
         ...(wantsJointProposalAssessments
           ? { policyCandidateAssessments: policyTeams }
+          : {}),
+        ...(hypotheticalTeams
+          ? {
+              policyCandidateAssessments: hypotheticalTeams,
+              goodVote: true,
+            }
           : {}),
       })
       const forced = applyForcedPolicy(req, view, analysis, candidates)
@@ -323,10 +345,14 @@ export function createComposedAgent(
       const compatibility = compatibilityDecision(req, view, options.seed)
       const compatibilityCandidateId = candidateIdForDecision(compatibility)
       const scoringContext = {
+        deterministicSeed: options.seed,
         request: req,
         view,
         analysis,
         candidates,
+        ...(hypotheticalTeamCandidates
+          ? { hypotheticalTeamCandidates }
+          : {}),
         forced,
         compatibilityCandidateId,
       }

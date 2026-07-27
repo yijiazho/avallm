@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { isDeepStrictEqual } from 'node:util'
+import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
@@ -23,7 +24,13 @@ import {
 import {
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_FEATURE_VERSION,
+  GOOD_VOTE_UTILITY_CONSTANTS,
+  GOOD_VOTE_UTILITY_VERSION,
 } from './policy/score.ts'
+import { GOOD_VOTE_SITUATION_VERSION } from './analysis/types.ts'
 import {
   DECISION_TRACE_VERSION,
   decisionTraceIdForRequest,
@@ -94,7 +101,7 @@ function validCandidateScores(value: unknown): boolean {
     const features = score?.features as Record<string, unknown> | undefined
     const distribution = features?.evilCountDistribution
     const team = features?.team
-    const validFeatures = features === undefined || (
+    const validProposalFeatures = (
       !!features
       && typeof features === 'object'
       && !Array.isArray(features)
@@ -115,6 +122,164 @@ function validCandidateScores(value: unknown): boolean {
       ) <= 1e-9
       && Math.abs(distribution[0] - features.cleanProbability) <= 1e-12
     )
+    const currentDistribution = features?.currentEvilCountDistribution
+    const alternativeDistribution =
+      features?.bestAlternativeEvilCountDistribution
+    const currentTeam = features?.currentTeam
+    const alternativeTeam = features?.bestAlternativeTeam
+    const boardScore = features?.boardScore as
+      | Record<string, unknown>
+      | undefined
+    const expectedStake = boardScore
+      ? (
+          1
+          + (boardScore.good === 2
+            ? GOOD_VOTE_UTILITY_CONSTANTS.matchPointStakeBonus
+            : 0)
+          + (boardScore.evil === 2
+            ? GOOD_VOTE_UTILITY_CONSTANTS.matchPointStakeBonus
+            : 0)
+        )
+      : Number.NaN
+    const expectedRealization =
+      GOOD_VOTE_UTILITY_CONSTANTS.alternativeRealizationBase
+      + GOOD_VOTE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
+        * Number(features?.rejectionsBeforeHammer)
+    const expectedHammerPenalty =
+      GOOD_VOTE_UTILITY_CONSTANTS.hammerPenaltyScale
+      * (1 - Number(features?.rejectionsBeforeHammer) / 4)
+      + (
+        features?.rejectionsBeforeHammer === 1
+          ? GOOD_VOTE_UTILITY_CONSTANTS.nextHammerPenalty
+          : 0
+      )
+    const expectedInformationBonus = features?.futureQuestsRemain === true
+      ? GOOD_VOTE_UTILITY_CONSTANTS.informationBonusScale
+        * (1 - Number(features?.currentCleanProbability))
+      : 0
+    const validVoteFeatures = (
+      !!features
+      && typeof features === 'object'
+      && !Array.isArray(features)
+      && features.version === GOOD_VOTE_FEATURE_VERSION
+      && features.utilityVersion === GOOD_VOTE_UTILITY_VERSION
+      && features.situationVersion === GOOD_VOTE_SITUATION_VERSION
+      && features.semantics === 'uniform-feasible-joint'
+      && typeof features.beliefModelVersion === 'string'
+      && features.beliefModelVersion.length > 0
+      && Number.isInteger(features.beliefThroughSeq)
+      && seatArray(currentTeam)
+      && new Set(currentTeam).size === currentTeam.length
+      && currentTeam.every(
+        (seat, index) => index === 0 || currentTeam[index - 1] < seat,
+      )
+      && finiteProbability(features.currentCleanProbability)
+      && Array.isArray(currentDistribution)
+      && currentDistribution.length === currentTeam.length + 1
+      && currentDistribution.every(finiteProbability)
+      && Math.abs(
+        currentDistribution.reduce(
+          (sum, probability) => sum + probability,
+          0,
+        ) - 1,
+      ) <= 1e-9
+      && Math.abs(
+        currentDistribution[0] - features.currentCleanProbability,
+      ) <= 1e-12
+      && typeof features.bestAlternativeCandidateId === 'string'
+      && features.bestAlternativeCandidateId.startsWith(
+        `${LEGAL_CANDIDATE_VERSION}:propose:`,
+      )
+      && seatArray(alternativeTeam)
+      && new Set(alternativeTeam).size === alternativeTeam.length
+      && alternativeTeam.every(
+        (seat, index) => index === 0 || alternativeTeam[index - 1] < seat,
+      )
+      && features.bestAlternativeCandidateId === (
+        `${LEGAL_CANDIDATE_VERSION}:propose:`
+        + alternativeTeam.join(',')
+      )
+      && !isDeepStrictEqual(currentTeam, alternativeTeam)
+      && finiteProbability(features.bestAlternativeCleanProbability)
+      && Array.isArray(alternativeDistribution)
+      && alternativeDistribution.length === alternativeTeam.length + 1
+      && alternativeDistribution.every(finiteProbability)
+      && Math.abs(
+        alternativeDistribution.reduce(
+          (sum, probability) => sum + probability,
+          0,
+        ) - 1,
+      ) <= 1e-9
+      && Math.abs(
+        alternativeDistribution[0]
+        - features.bestAlternativeCleanProbability,
+      ) <= 1e-12
+      && !!boardScore
+      && typeof boardScore === 'object'
+      && Number.isInteger(boardScore.good)
+      && Number.isInteger(boardScore.evil)
+      && Number.isInteger(features.proposalNumber)
+      && Number.isInteger(features.rejectionsBeforeHammer)
+      && typeof features.futureQuestsRemain === 'boolean'
+      && typeof features.stake === 'number'
+      && Number.isFinite(features.stake)
+      && Math.abs(features.stake - expectedStake) <= 1e-12
+      && typeof features.alternativeRealization === 'number'
+      && Number.isFinite(features.alternativeRealization)
+      && Math.abs(
+        features.alternativeRealization - expectedRealization,
+      ) <= 1e-12
+      && typeof features.hammerPenalty === 'number'
+      && Number.isFinite(features.hammerPenalty)
+      && Math.abs(features.hammerPenalty - expectedHammerPenalty) <= 1e-12
+      && typeof features.informationBonus === 'number'
+      && Number.isFinite(features.informationBonus)
+      && Math.abs(
+        features.informationBonus - expectedInformationBonus,
+      ) <= 1e-12
+      && typeof features.approveUtility === 'number'
+      && Number.isFinite(features.approveUtility)
+      && Math.abs(
+        features.approveUtility - (
+          Number(features.stake)
+          * Number(features.currentCleanProbability)
+          + Number(features.informationBonus)
+        ),
+      ) <= 1e-12
+      && typeof features.rejectUtility === 'number'
+      && Number.isFinite(features.rejectUtility)
+      && Math.abs(
+        features.rejectUtility - (
+          Number(features.stake)
+          * Number(features.bestAlternativeCleanProbability)
+          * Number(features.alternativeRealization)
+          - Number(features.hammerPenalty)
+        ),
+      ) <= 1e-12
+      && typeof features.baseUtility === 'number'
+      && Number.isFinite(features.baseUtility)
+      && typeof features.selectionAdjustment === 'number'
+      && Number.isFinite(features.selectionAdjustment)
+      && (
+        features.selectionMode === 'top-utility'
+        || features.selectionMode === 'seeded-band'
+      )
+      && features.viableBand === GOOD_VOTE_UTILITY_CONSTANTS.viableBand
+      && features.inViableBand === (
+        Math.abs(
+          Number(features.approveUtility)
+          - Number(features.rejectUtility),
+        ) <= GOOD_VOTE_UTILITY_CONSTANTS.viableBand
+      )
+      && (
+        features.seedBucket === undefined
+        || features.seedBucket === 0
+        || features.seedBucket === 1
+      )
+    )
+    const validFeatures = features === undefined
+      || validProposalFeatures
+      || validVoteFeatures
     return !!score
       && typeof score === 'object'
       && typeof score.version === 'string'
@@ -187,20 +352,52 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   if (
     scores.some((score) => {
       const features = score.features as Record<string, unknown> | undefined
-      return features !== undefined && (
-        score.version !== GOOD_PROPOSAL_SCORER_VERSION
-        || features.beliefModelVersion !== trace.beliefModelVersion
+      if (features === undefined) return false
+      if (
+        features.beliefModelVersion !== trace.beliefModelVersion
         || features.beliefThroughSeq !== trace.beliefThroughSeq
-        || score.candidateId !== (
-          `${LEGAL_CANDIDATE_VERSION}:propose:`
-          + (features.team as number[]).join(',')
+      ) {
+        return true
+      }
+      if (features.version === GOOD_PROPOSAL_FEATURE_VERSION) {
+        return (
+          ![
+            GOOD_PROPOSAL_SCORER_VERSION,
+            GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+            GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+          ].includes(score.version as typeof GOOD_PROPOSAL_SCORER_VERSION)
+          || score.candidateId !== (
+            `${LEGAL_CANDIDATE_VERSION}:propose:`
+            + (features.team as number[]).join(',')
+          )
+          || score.value !== (
+            score.viable
+              ? features.cleanProbability
+              : -Number.MAX_SAFE_INTEGER
+          )
         )
-        || score.value !== (
-          score.viable
-            ? features.cleanProbability
-            : -Number.MAX_SAFE_INTEGER
+      }
+      if (features.version === GOOD_VOTE_FEATURE_VERSION) {
+        const vote = String(score.candidateId).split(':').at(-1)
+        const base = vote === 'approve'
+          ? features.approveUtility
+          : vote === 'reject' ? features.rejectUtility : undefined
+        return (
+          ![
+            GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+            GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+          ].includes(score.version as typeof GOOD_PROPOSAL_VOTE_SCORER_VERSION)
+          || base === undefined
+          || features.baseUtility !== base
+          || (
+            score.value !== -Number.MAX_SAFE_INTEGER
+            && score.value !== (
+              (base as number) + (features.selectionAdjustment as number)
+            )
+          )
         )
-      )
+      }
+      return true
     })
   ) {
     return false
@@ -221,17 +418,29 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   const action = trace.action as Record<string, unknown>
   const relevantTeam = trace.relevantTeam as Record<string, unknown> | undefined
   const featureScores = scores.filter((score) => score.features !== undefined)
+  const proposalFeatureScores = featureScores.filter(
+    (score) =>
+      (score.features as Record<string, unknown>).version
+      === GOOD_PROPOSAL_FEATURE_VERSION,
+  )
+  const voteFeatureScores = featureScores.filter(
+    (score) =>
+      (score.features as Record<string, unknown>).version
+      === GOOD_VOTE_FEATURE_VERSION,
+  )
   if (
-    featureScores.length > 0
+    proposalFeatureScores.length > 0
     && (
       action.kind !== 'propose'
-      || featureScores.length !== scores.length
+      || proposalFeatureScores.length !== scores.length
       || !chosenFeatures
     )
   ) {
     return false
   }
-  if (chosenFeatures) {
+  if (
+    chosenFeatures?.version === GOOD_PROPOSAL_FEATURE_VERSION
+  ) {
     const actionTeam = [...(action.team as number[])].sort((left, right) =>
       left - right)
     if (
@@ -242,6 +451,135 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       || !isDeepStrictEqual(
         relevantTeam.evilCountDistribution,
         chosenFeatures.evilCountDistribution,
+      )
+    ) {
+      return false
+    }
+  }
+  if (voteFeatureScores.length > 0) {
+    if (
+      action.kind !== 'vote'
+      || voteFeatureScores.length !== scores.length
+      || scores.length !== 2
+      || !chosenFeatures
+      || chosenFeatures.version !== GOOD_VOTE_FEATURE_VERSION
+      || chosen !== `${LEGAL_CANDIDATE_VERSION}:vote:${action.vote}`
+      || !relevantTeam
+      || !isDeepStrictEqual(
+        relevantTeam.team,
+        chosenFeatures.currentTeam,
+      )
+      || relevantTeam.cleanProbability
+        !== chosenFeatures.currentCleanProbability
+      || !isDeepStrictEqual(
+        relevantTeam.evilCountDistribution,
+        chosenFeatures.currentEvilCountDistribution,
+      )
+    ) {
+      return false
+    }
+    const first = voteFeatureScores[0].features as Record<string, unknown>
+    const request = trace.request as DecisionRequest
+    const boardScore = first.boardScore as Record<string, unknown>
+    const sharedKeys = [
+      'utilityVersion', 'situationVersion', 'semantics',
+      'beliefModelVersion', 'beliefThroughSeq', 'currentTeam',
+      'currentCleanProbability', 'currentEvilCountDistribution',
+      'bestAlternativeCandidateId', 'bestAlternativeTeam',
+      'bestAlternativeCleanProbability',
+      'bestAlternativeEvilCountDistribution', 'boardScore',
+      'proposalNumber', 'rejectionsBeforeHammer', 'futureQuestsRemain',
+      'stake', 'alternativeRealization', 'hammerPenalty',
+      'informationBonus', 'approveUtility', 'rejectUtility',
+      'selectionMode', 'viableBand', 'inViableBand', 'seedBucket',
+    ]
+    if (
+      voteFeatureScores.some((score) => {
+        const features = score.features as Record<string, unknown>
+        return sharedKeys.some(
+          (key) => !isDeepStrictEqual(features[key], first[key]),
+        )
+      })
+      || first.proposalNumber !== request.proposalNum
+      || first.rejectionsBeforeHammer
+        !== MAX_PROPOSALS - request.proposalNum
+      || first.futureQuestsRemain !== (
+        request.round < 5
+        && boardScore.good !== QUESTS_TO_WIN - 1
+        && boardScore.evil !== QUESTS_TO_WIN - 1
+      )
+    ) {
+      return false
+    }
+    const mode = first.selectionMode
+    const expectedScorer = mode === 'seeded-band'
+      ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+      : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+    const available = voteFeatureScores.filter(
+      (score) => score.value !== -Number.MAX_SAFE_INTEGER,
+    )
+    const viable = voteFeatureScores.filter((score) => score.viable === true)
+    const maxBase = Math.max(
+      ...available.map(
+        (score) =>
+          (score.features as Record<string, unknown>).baseUtility as number,
+      ),
+    )
+    const canonicalTop = available
+      .filter(
+        (score) =>
+          (score.features as Record<string, unknown>).baseUtility === maxBase,
+      )
+      .map((score) => score.candidateId as string)
+      .sort()[0]
+    const selectedByValue = viable
+      .slice()
+      .sort((left, right) =>
+        (right.value as number) - (left.value as number)
+        || String(left.candidateId).localeCompare(String(right.candidateId)))[0]
+    const bandActive =
+      mode === 'seeded-band'
+      && first.inViableBand === true
+      && first.seedBucket !== undefined
+    const seededCandidateId = first.seedBucket === 0
+      ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
+      : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
+    if (
+      components?.scorer !== expectedScorer
+      || !available.length
+      || !selectedByValue
+      || selectedByValue.candidateId !== chosen
+      || (
+        bandActive
+          ? (
+              available.length !== 2
+              || viable.length !== 2
+              || voteFeatureScores.some((score) => {
+                const features =
+                  score.features as Record<string, unknown>
+                const expectedAdjustment =
+                  score.candidateId === seededCandidateId
+                    ? maxBase - (features.baseUtility as number) + 1e-9
+                    : 0
+                return Math.abs(
+                  (features.selectionAdjustment as number)
+                  - expectedAdjustment,
+                ) > 1e-15
+              })
+            )
+          : (
+              viable.length !== 1
+              || viable[0].candidateId !== canonicalTop
+              || voteFeatureScores.some(
+                (score) =>
+                  (
+                    score.features as Record<string, unknown>
+                  ).selectionAdjustment !== 0
+                  || (
+                    score.features as Record<string, unknown>
+                  ).seedBucket !== undefined,
+              )
+            )
       )
     ) {
       return false

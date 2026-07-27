@@ -127,6 +127,7 @@ function scoringContext(
   const forced = forcedOverride
     ?? applyForcedPolicy(request, view, analysis, candidates)
   return {
+    deterministicSeed: 'good-proposal-test-seed',
     request,
     view,
     analysis,
