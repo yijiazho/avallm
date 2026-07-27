@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 3 architecture separation is complete. Phase 4's first
-belief-driven production policy slice is next.
+**Current target phase:** Phase 4A exact-posterior good proposal scoring is complete. Phase 4B
+good-side vote value and controlled variation is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -49,8 +49,8 @@ compose and difficult to measure independently.
 | Complete feasible worlds | Exact `PlayerView`-only enumeration | Add typed evidence updates and soft factors in later phases |
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
-| Team-clean probability | Exact joint assessment is available through `SituationAnalysis` | Not yet wired into production policy |
-| Candidate evaluation | `compatibility-scorer-v1` owns typed, finite Phase 3 scores over `legal-candidates-v1` | Replace compatibility preference with belief-driven role utility in Phase 4 |
+| Team-clean probability | Exact joint assessment is available through `SituationAnalysis` and drives the opt-in good proposal scorer | Extend to current-team and alternative value for Phase 4B votes |
+| Candidate evaluation | `good-proposal-scorer-v1` values opt-in good proposals; `compatibility-scorer-v1` remains the default ablation | Add vote value and a measured viable band before rollout |
 | Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
@@ -646,9 +646,37 @@ The first production slice should be narrow enough to attribute gains:
 4. existing LLM for social planning and speech;
 5. existing heuristic as final fallback.
 
+### Phase 4A implementation record
+
+`good-proposal-scorer-v1` is an injected composed-policy scorer for good-side proposal requests.
+Every forced-policy survivor remains viable, and its numeric value is the exact joint probability
+that the whole team is clean under `exact-constraints-v1`. It does not multiply or sum independent
+seat marginals. Exact ties resolve by stable candidate ID. All other alignments and decision kinds
+delegate to compatibility scoring, and `compatibility-scorer-v1` remains the composed default and
+explicit ablation.
+
+The scorer declares `joint-proposal-team-assessments` as an analysis requirement. Only that opt-in
+path asks `SituationAnalysis` for the exhaustive, candidate-ID-keyed projection; ordinary
+compatibility analysis pays no batch cost. The belief layer aggregates full-role worlds by compact
+alignment mask, preserves exact uniform output, and sums probability mass correctly for a future
+nonuniform snapshot. Each score records `good-proposal-features-v1`, including probability
+semantics, belief version/cursor, canonical team, clean probability, and evil-count distribution.
+Validation joins candidate ID, team, analysis assessment, score value, trace action, and relevant
+team before accepting that attribution.
+
+Independent review found and corrected a mutable scorer-context escape that could reopen a forced
+candidate, missing score-to-feature coupling, incomplete stdio relations, empty-batch overhead, and
+an implicit uniform-weight assumption. Scorers now receive a defensive clone while validation and
+selection retain untouched authoritative state. Parent focused validation passed 59 tests; the
+independent final review passed 68 tests; the complete API-free suite passed 591 tests. All eight
+architecture fixtures and raw prompt hashes remained current. The ten-player Quest 4 surface
+contains 252 teams over 60,480 full-role worlds and remained comfortably below the two-second test
+ceiling; measured warm analysis before the final mask aggregation was about 29 ms median and 32 ms
+p95. No production default, registry mode, prompt, paid call, or Phase 4B behavior changed.
+
 ### Structured decisions
 
-- [ ] Propose teams using joint team-clean probability, not summed suspicion.
+- [x] Propose teams using joint team-clean probability, not summed suspicion.
 - [ ] Vote using current-team probability, best-alternative value, score, and hammer position.
 - [ ] Preserve information-seeking only when future quests remain.
 - [ ] Add calibrated stochasticity or a viable-candidate band so play does not become mechanical.
@@ -896,3 +924,7 @@ here.
   complete component attribution, central forced-result rendering, and the optional stdio trace
   envelope. Raw prompt bytes and every production baseline remain unchanged; Phase 4 owns the
   first belief-driven policy and any production rollout.
+- Phase 4A good proposal value: added opt-in `good-proposal-scorer-v1`, scorer-requested
+  candidate-ID-keyed joint team assessments, batch alignment-mask projection, posterior-causal
+  feature/value validation, deterministic ties, and hardened scorer/stdio boundaries. Compatibility
+  remains the default and good-side vote policy remains Phase 4B work.

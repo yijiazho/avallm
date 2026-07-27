@@ -40,6 +40,7 @@ import {
   structuredChoice,
   validateCandidateScores,
   type CandidateScore,
+  type CandidateScorer,
   type CandidateScoringContext,
 } from './policy/score.ts'
 import {
@@ -116,11 +117,6 @@ export interface ComposedAgentOptions {
     view: PlayerView,
     seed: string,
   ) => Decision
-}
-
-export interface CandidateScorer {
-  version: string
-  score(context: CandidateScoringContext): readonly CandidateScore[]
 }
 
 export interface ComposedAvalonAgent extends AvalonAgent {
@@ -308,10 +304,18 @@ export function createComposedAgent(
       stage('analysis')
       const candidates = legalCandidates(req, view)
       stage('candidates')
+      const policyTeams = candidateTeams(candidates, view)
+      const wantsJointProposalAssessments =
+        scorer.analysisRequirement === 'joint-proposal-team-assessments'
+        && req.kind === 'propose'
+        && view.alignment === 'good'
       analysis = analyzeSituation(view, {
         belief: cognition.belief,
         evidence: cognition.evidence,
-        policyCandidateTeams: candidateTeams(candidates, view),
+        policyCandidateTeams: policyTeams,
+        ...(wantsJointProposalAssessments
+          ? { policyCandidateAssessments: policyTeams }
+          : {}),
       })
       const forced = applyForcedPolicy(req, view, analysis, candidates)
       stage('forced-policy')
@@ -329,8 +333,9 @@ export function createComposedAgent(
       let scorerVersion = scorer.version
       let scores: readonly CandidateScore[]
       try {
-        scores = scorer.score(scoringContext)
-        validateCandidateScores(scoringContext, scores, scorer.version)
+        const suppliedScores = scorer.score(structuredClone(scoringContext))
+        validateCandidateScores(scoringContext, suppliedScores, scorerVersion)
+        scores = structuredClone(suppliedScores)
       } catch {
         degradation.push('scorer-invalid-output')
         scorerVersion = CANDIDATE_SCORER_VERSION

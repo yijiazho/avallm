@@ -171,22 +171,69 @@ export function assessTeam(
   snapshot: BeliefSnapshot,
   proposedTeam: readonly Seat[],
 ): TeamAssessment {
-  const team = validateTeam(snapshot, proposedTeam)
-  const evilWorldCounts = Array<number>(team.length + 1).fill(0)
-  for (const weightedWorld of snapshot.worlds) {
-    const evil = team.filter(
-      (seat) => weightedWorld.world.alignmentBySeat[seat] === 'evil',
-    ).length
-    evilWorldCounts[evil]++
+  return assessTeams(snapshot, [proposedTeam])[0]
+}
+
+const countBits = (value: number): number => {
+  let remaining = value
+  let count = 0
+  while (remaining) {
+    remaining &= remaining - 1
+    count++
   }
-  const evilCountDistribution = evilWorldCounts.map(
-    (count) => count / snapshot.worlds.length,
+  return count
+}
+
+/**
+ * Batch the joint team projection so exhaustive 10-player proposal surfaces
+ * scan each world's compact alignment mask rather than allocating a filtered
+ * team for every world/candidate pair. The returned order matches the input;
+ * decision-facing callers attach and validate stable candidate IDs.
+ */
+export function assessTeams(
+  snapshot: BeliefSnapshot,
+  proposedTeams: readonly (readonly Seat[])[],
+): readonly TeamAssessment[] {
+  if (!proposedTeams.length) return []
+  const teams = proposedTeams.map((team) => validateTeam(snapshot, team))
+  const firstProbability = snapshot.worlds[0]?.probability
+  const uniform = snapshot.worlds.every(
+    (weightedWorld) => weightedWorld.probability === firstProbability,
   )
-  return {
-    team,
-    cleanProbability: evilCountDistribution[0],
-    evilCountDistribution,
+  const maskWeights = new Map<number, number>()
+  for (const weightedWorld of snapshot.worlds) {
+    let evilMask = 0
+    for (
+      let seat = 0;
+      seat < weightedWorld.world.alignmentBySeat.length;
+      seat++
+    ) {
+      if (weightedWorld.world.alignmentBySeat[seat] === 'evil') {
+        evilMask |= 1 << seat
+      }
+    }
+    maskWeights.set(
+      evilMask,
+      (maskWeights.get(evilMask) ?? 0)
+        + (uniform ? 1 : weightedWorld.probability),
+    )
   }
+  return teams.map((team): TeamAssessment => {
+    let teamMask = 0
+    for (const seat of team) teamMask |= 1 << seat
+    const evilWorldCounts = Array<number>(team.length + 1).fill(0)
+    for (const [evilMask, weight] of maskWeights) {
+      evilWorldCounts[countBits(teamMask & evilMask)] += weight
+    }
+    const evilCountDistribution = uniform
+      ? evilWorldCounts.map((count) => count / snapshot.worlds.length)
+      : evilWorldCounts
+    return {
+      team,
+      cleanProbability: evilCountDistribution[0],
+      evilCountDistribution,
+    }
+  })
 }
 
 export function rolePossibilities(

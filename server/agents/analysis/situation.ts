@@ -9,6 +9,7 @@ import type {
 } from '../../engine/types.ts'
 import {
   assessTeam,
+  assessTeams,
   exactBelief,
   feasibleWorlds,
 } from '../belief/exact.ts'
@@ -30,6 +31,7 @@ import {
   type DeductionProvenance,
   type ForcedPlayReasonCode,
   type HardDeduction,
+  type PolicyCandidateTeamAssessment,
   type SituationAnalysis,
   type SituationTeamAssessment,
 } from './types.ts'
@@ -334,6 +336,10 @@ export interface AnalyzeSituationOptions {
     candidateId: string
     team: readonly Seat[]
   }[]
+  policyCandidateAssessments?: readonly {
+    candidateId: string
+    team: readonly Seat[]
+  }[]
 }
 
 export function analyzeSituation(
@@ -395,6 +401,44 @@ export function analyzeSituation(
       knownFailsAboard: knownFailsAboard(view, candidate.team),
     }),
   )
+  const assessmentRequests = options.policyCandidateAssessments ?? []
+  const assessmentIds = new Set<string>()
+  for (const request of assessmentRequests) {
+    if (!request.candidateId || assessmentIds.has(request.candidateId)) {
+      throw new Error(
+        `duplicate or empty policy assessment ID ${request.candidateId}`,
+      )
+    }
+    assessmentIds.add(request.candidateId)
+  }
+  const batchAssessments = assessTeams(
+    belief,
+    assessmentRequests.map((request) => request.team),
+  )
+  const policyCandidateAssessments = assessmentRequests.map(
+    (request, index): PolicyCandidateTeamAssessment => {
+      const assessment = batchAssessments[index]
+      const requestedTeam = [...request.team].sort((a, b) => a - b)
+      if (
+        !assessment
+        || assessment.team.length !== requestedTeam.length
+        || assessment.team.some((seat, teamIndex) =>
+          seat !== requestedTeam[teamIndex])
+      ) {
+        throw new Error(
+          `analysis mismatch for policy assessment ${request.candidateId}`,
+        )
+      }
+      return {
+        candidateId: request.candidateId,
+        beliefModelVersion: belief.modelVersion,
+        beliefThroughSeq: belief.throughSeq,
+        probabilitySemantics: 'uniform-feasible-joint',
+        ...assessment,
+        knownFailsAboard: knownFailsAboard(view, assessment.team),
+      }
+    },
+  )
   const declaredLeans = declaredLeansFor(view)
   const declared = (lean: DeclaredLeanTally['lean']): number =>
     declaredLeans.filter(
@@ -413,6 +457,7 @@ export function analyzeSituation(
     ...(currentTeam ? { currentTeam } : {}),
     candidateTeams,
     policyCandidateTeams,
+    policyCandidateAssessments,
     declaredLeans,
     voteLeverage,
     provenGood,

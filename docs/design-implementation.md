@@ -64,7 +64,10 @@ forced constraints; neither reads raw `Game`. The heuristic and runtime fallback
 owners before applying ordinary seeded scoring. The engine's `applyDecision` remains the final
 legality authority. Prompt-guided LLM policy remains the production compatibility baseline. The
 opt-in composed path sequences typed cognition, analysis, candidates, forced policy, scoring, a
-bounded planner, committed plan, and plan-driven voice; Phase 4 must earn any default switch.
+bounded planner, committed plan, and plan-driven voice. Its optional
+`good-proposal-scorer-v1` requests candidate-ID-keyed exact joint team assessments from
+`SituationAnalysis`; the compatibility default does not pay for that projection. Phase 4 must earn
+any default switch.
 
 ### Pluggable agents (the decision interface is a plugin API)
 

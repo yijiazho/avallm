@@ -35,6 +35,14 @@ export interface CandidateTeamFacts {
   knownFailsAboard: readonly Seat[]
 }
 
+export interface PolicyCandidateTeamAssessment
+  extends SituationTeamAssessment {
+  candidateId: string
+  beliefModelVersion: string
+  beliefThroughSeq: number
+  probabilitySemantics: 'uniform-feasible-joint'
+}
+
 export interface DeclaredLeanTally {
   seat: Seat
   lean: 'approve' | 'reject' | 'unsure'
@@ -102,6 +110,11 @@ export interface SituationAnalysis extends BoardSituation {
   candidateTeams: readonly SituationTeamAssessment[]
   /** Cheap mechanical facts for exhaustive legal-team candidate surfaces. */
   policyCandidateTeams: readonly CandidateTeamFacts[]
+  /**
+   * Opt-in decision-ready joint posterior projection. Empty unless a policy
+   * explicitly requests the exhaustive team surface.
+   */
+  policyCandidateAssessments: readonly PolicyCandidateTeamAssessment[]
   /** Latest public lean per seat on the current proposal segment. */
   declaredLeans: readonly DeclaredLeanTally[]
   /** Whether this seat's approve/reject could still change passage by public leans. */

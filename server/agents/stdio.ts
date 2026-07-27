@@ -16,7 +16,14 @@ import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
 } from './analysis/types.ts'
-import { FORCED_POLICY_VERSION } from './policy/types.ts'
+import {
+  FORCED_POLICY_VERSION,
+  LEGAL_CANDIDATE_VERSION,
+} from './policy/types.ts'
+import {
+  GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_FEATURE_VERSION,
+} from './policy/score.ts'
 import {
   DECISION_TRACE_VERSION,
   decisionTraceIdForRequest,
@@ -84,6 +91,30 @@ function validCandidateScores(value: unknown): boolean {
   if (value === undefined) return true
   return Array.isArray(value) && value.every((entry) => {
     const score = entry as Record<string, unknown>
+    const features = score?.features as Record<string, unknown> | undefined
+    const distribution = features?.evilCountDistribution
+    const team = features?.team
+    const validFeatures = features === undefined || (
+      !!features
+      && typeof features === 'object'
+      && !Array.isArray(features)
+      && features.version === GOOD_PROPOSAL_FEATURE_VERSION
+      && features.semantics === 'uniform-feasible-joint'
+      && typeof features.beliefModelVersion === 'string'
+      && features.beliefModelVersion.length > 0
+      && Number.isInteger(features.beliefThroughSeq)
+      && seatArray(team)
+      && new Set(team).size === team.length
+      && team.every((seat, index) => index === 0 || team[index - 1] < seat)
+      && finiteProbability(features.cleanProbability)
+      && Array.isArray(distribution)
+      && distribution.length === team.length + 1
+      && distribution.every(finiteProbability)
+      && Math.abs(
+        distribution.reduce((sum, probability) => sum + probability, 0) - 1,
+      ) <= 1e-9
+      && Math.abs(distribution[0] - features.cleanProbability) <= 1e-12
+    )
     return !!score
       && typeof score === 'object'
       && typeof score.version === 'string'
@@ -94,6 +125,7 @@ function validCandidateScores(value: unknown): boolean {
       && Number.isFinite(score.value)
       && typeof score.viable === 'boolean'
       && stringArray(score.reasonCodes)
+      && validFeatures
   })
 }
 
@@ -152,6 +184,27 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   ) {
     return false
   }
+  if (
+    scores.some((score) => {
+      const features = score.features as Record<string, unknown> | undefined
+      return features !== undefined && (
+        score.version !== GOOD_PROPOSAL_SCORER_VERSION
+        || features.beliefModelVersion !== trace.beliefModelVersion
+        || features.beliefThroughSeq !== trace.beliefThroughSeq
+        || score.candidateId !== (
+          `${LEGAL_CANDIDATE_VERSION}:propose:`
+          + (features.team as number[]).join(',')
+        )
+        || score.value !== (
+          score.viable
+            ? features.cleanProbability
+            : -Number.MAX_SAFE_INTEGER
+        )
+      )
+    })
+  ) {
+    return false
+  }
   const chosen = trace.chosenCandidateId
   if (
     typeof chosen !== 'string'
@@ -160,6 +213,39 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
     )
   ) {
     return false
+  }
+  const chosenScore = scores.find((score) => score.candidateId === chosen)
+  const chosenFeatures = chosenScore?.features as
+    | Record<string, unknown>
+    | undefined
+  const action = trace.action as Record<string, unknown>
+  const relevantTeam = trace.relevantTeam as Record<string, unknown> | undefined
+  const featureScores = scores.filter((score) => score.features !== undefined)
+  if (
+    featureScores.length > 0
+    && (
+      action.kind !== 'propose'
+      || featureScores.length !== scores.length
+      || !chosenFeatures
+    )
+  ) {
+    return false
+  }
+  if (chosenFeatures) {
+    const actionTeam = [...(action.team as number[])].sort((left, right) =>
+      left - right)
+    if (
+      !isDeepStrictEqual(chosenFeatures.team, actionTeam)
+      || !relevantTeam
+      || !isDeepStrictEqual(relevantTeam.team, actionTeam)
+      || relevantTeam.cleanProbability !== chosenFeatures.cleanProbability
+      || !isDeepStrictEqual(
+        relevantTeam.evilCountDistribution,
+        chosenFeatures.evilCountDistribution,
+      )
+    ) {
+      return false
+    }
   }
   const forced = trace.forcedPolicyResult as Record<string, unknown> | undefined
   if (forced) {
