@@ -496,8 +496,10 @@ The prompt is no longer the authoritative database of strategy or memory.
 
 ## 9. Agent boundary and telemetry
 
-The current `AvalonAgent.decide()` returns only an engine `Decision`. The target boundary should
-allow agent-owned trace data without adding cognition concepts to the pure engine:
+Phase 3 introduced a compatibility boundary where legacy agents may still return a bare engine
+`Decision` and composed agents return `AgentDecision`; runners normalize that transitional
+`AgentOutput` union. The target boundary remains envelope-only, allowing agent-owned trace data
+without adding cognition concepts to the pure engine:
 
 ```ts
 interface AgentDecision {
@@ -511,10 +513,10 @@ interface AvalonAgent {
 }
 ```
 
-The runner unwraps `decision` for `applyDecision` and records the optional trace in evaluation or
-full-reveal artifacts. `DecisionTrace` can contain component versions, posterior summaries,
+The runner unwraps `decision` for `applyDecision` and records an envelope trace only after the
+engine accepts that action. `DecisionTrace` can contain component versions, posterior summaries,
 candidate scores, degradation state, and token cost. It must never enter another live player's
-view.
+view. The bare-decision branch is a migration aid, not the final plugin contract.
 
 Legacy agents can be adapted with `{ decision }`. External stdio agents should gain the trace field
 only as an optional protocol extension.
