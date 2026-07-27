@@ -1,0 +1,42 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  buildDecisionFixtures,
+  DECISION_FIXTURE_SCHEMA,
+  readDecisionFixtures,
+} from '../server/eval/decision-fixtures.ts'
+import type { Visibility } from '../server/engine/types.ts'
+
+const visibleTo = (visibility: Visibility, seat: number): boolean =>
+  visibility === 'public' || visibility.only.includes(seat)
+
+test('frozen decision fixtures match deterministic verified replay', async () => {
+  const frozen = readDecisionFixtures()
+  const regenerated = await buildDecisionFixtures()
+  assert.deepEqual(regenerated, frozen)
+})
+
+test('frozen decision fixtures cover every decision kind and private-knowledge shape', () => {
+  const fixtures = readDecisionFixtures()
+  assert.ok(fixtures.every((fixture) => fixture.schema === DECISION_FIXTURE_SCHEMA))
+  assert.deepEqual(
+    [...new Set(fixtures.map((fixture) => fixture.req.kind))].sort(),
+    ['assassinate', 'discuss', 'finalize', 'propose', 'quest', 'vote'],
+  )
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.knownEvil))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.merlinCandidates))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.evilPartners))
+  assert.ok(fixtures.some((fixture) => Object.keys(fixture.view.privateInfo).length === 0))
+})
+
+test('frozen decision fixtures expose only events visible to the viewing seat', () => {
+  for (const fixture of readDecisionFixtures()) {
+    assert.ok(
+      fixture.view.events.every((event) => visibleTo(event.visibility, fixture.view.seat)),
+      fixture.id,
+    )
+    assert.ok(fixture.view.players.every((player) =>
+      !Object.hasOwn(player, 'role') && !Object.hasOwn(player, 'alignment')),
+    )
+  }
+})

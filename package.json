@@ -12,6 +12,7 @@
     "report": "node server/eval/report.ts",
     "architecture-bench": "node server/eval/architecture-bench.ts",
     "architecture-report": "node server/eval/architecture-report.ts",
+    "architecture-fixtures": "node server/eval/decision-fixtures.ts",
     "probe": "node server/eval/probe.ts",
     "judge": "node server/eval/judge.ts",
     "bank": "node server/eval/bank.ts"

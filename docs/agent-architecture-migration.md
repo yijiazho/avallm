@@ -119,7 +119,7 @@ compose and difficult to measure independently.
 - [x] Select a fixed paired-seed bank covering 5 through 10 players and all standard special roles.
 - [ ] Record current prompt-guided LLM results by role, decision kind, model, cost, and degradation.
 - [ ] Record current heuristic results on the same seeds with discussion disabled.
-- [ ] Freeze representative `PlayerView` decision fixtures for belief and policy regression tests.
+- [x] Freeze representative `PlayerView` decision fixtures for belief and policy regression tests.
 - [x] Add a compact architecture benchmark report format that can compare component versions.
 
 ### Exit gate
@@ -472,3 +472,7 @@ here.
   text/JSON report grouped by component versions, target role, decision/call kind, model, exact
   token cost, and degradation. Paid variants are refused unless the caller passes the explicit
   `--allow-paid` gate.
+- Phase 0 regression seam: froze representative `DecisionRequest` + `PlayerView` + heuristic
+  decision fixtures through the existing verified replay path. The set covers every decision kind,
+  special-role private-knowledge shapes, accumulated quest evidence, the two-Fail quest, and the
+  assassination transition without exposing a raw `Game`.
