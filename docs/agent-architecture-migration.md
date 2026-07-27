@@ -2,11 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** human checkpoint after the Phase 5C vote-conversion diagnosis and
-Phase 6A public-language contract. The quest-weighted proposal-only policy improved outcomes in
-both free opponent populations, but the structured vote policies changed sign between heuristic
-and seeded-random tables. Choose the target population and whether to iterate mechanical vote
-utility or run a small paid/human study before further tuning. No production default has changed.
+**Current target phase:** complete the Phase 6 bounded-language architecture before returning to
+behavioral tuning. Phase 6A established the public interpretation boundary and Phase 6B supplies
+the pure, capped likelihood factor; Phase 6C will wire interpretation, persistent typed state,
+attribution, and fail-closed orchestration into the opt-in composed agent. The Phase 5C population
+sign flip remains recorded, but win-rate tuning is intentionally deferred until this architecture
+is complete. No production default has changed.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -56,7 +57,7 @@ compose and difficult to measure independently.
 | Candidate evaluation | Separate opt-in scorers provide deterministic good proposal/vote value, seeded near-equivalent vote variation, and a non-dominated bounded planner surface | Evaluate against raw LLMs and humans before rollout |
 | Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
-| Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
+| Language evidence | Public input and admission contracts plus a pure, capped joint-world factor | Wire the opt-in interpreter, persistent typed state, and private attribution in Phase 6C |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
 | Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend only when another evidence class lands |
@@ -188,7 +189,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
-| 6. Bounded language evidence and commitments | In progress; public contract complete | Dialogue affects beliefs without owning them |
+| 6. Bounded language evidence and commitments | In progress; public contract and likelihood factor complete | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
@@ -1057,19 +1058,46 @@ source sequences, a public rationale, an interpreter version, and a monotonic cu
 validates the complete input and output at runtime, canonicalizes provider-controlled ordering,
 rejects duplicate or stale sources, and advances across public events that contain no speech.
 
-This is a schema and safety foundation, not operational language inference. It makes no provider
-call, maps no evidence to likelihood ratios, changes no posterior or policy, and adds no persistent
-language state to cognition. Those behaviors remain Phase 6B and Phase 6C work, and the Phase 6
-interpreter checklist remains open until the bounded path executes end to end.
+Phase 6A is a schema and safety foundation, not operational language inference. By itself it makes
+no provider call, maps no evidence to likelihood ratios, changes no posterior or policy, and adds
+no persistent language state to cognition. Phase 6B now supplies the likelihood mapping below;
+Phase 6C still owns runtime interpretation and persistent state, so the Phase 6 exit gate remains
+open until the bounded path executes end to end.
+
+### Phase 6B bounded-language factor record
+
+`bounded-language-likelihood-v1` is a pure, API-free factor over a supplied normalized joint-world
+posterior. It accepts only admitted finite evidence and a narrow attribution context containing
+the viewer seat, public cursor, player count, interpreter version, and canonical source
+sequence/speaker pairs. Raw utterance text, player names, public rationale, plans, private events,
+and posterior summaries cannot enter the likelihood arithmetic.
+
+The initial hand-authored mapping is deliberately weak and symmetric: low, medium, and high
+confidence apply likelihood ratios of `1.02`, `1.05`, and `1.10` to worlds whose subject
+alignment matches the interpreted direction. Evidence class is attributable but does not alter
+strength. `unchanged` reads and the viewer's own speech are exact no-ops, and the entire language
+history is capped to a maximum relative-odds span of `1.25:1`.
+
+Admission requires exact agreement among the Phase 6A cursor, the cited evidence sources, and the
+current public-language projection. The public cursor is intentionally distinct from the
+seat-visible belief cursor, which may include private trailing events. The factor reweights all
+and only positive worlds from the supplied exact or mechanically weighted posterior, so it cannot
+restore an impossible world. It preserves prior provenance and degradation, appends attributable
+source/version records when active, and returns the supplied mechanical posterior with typed
+degradation on contract or computation failure.
+
+This chunk remains behaviorally inert: it adds no interpreter, provider, registry entry, prompt,
+runtime wiring, or default change. Phase 6C owns the opt-in orchestration and persistent language
+state required to make the path execute end to end.
 
 ### Interpreter
 
 - [ ] Process only new attributed utterances.
-- [ ] Return a finite evidence class, direction, confidence bucket, subjects, and source sequences.
-- [ ] Require a public rationale tied to the cited utterance or event.
-- [ ] Deduplicate repeated interpretations of the same source.
-- [ ] Map the schema to capped, versioned likelihood ratios outside the LLM.
-- [ ] Prevent language evidence from reviving impossible worlds.
+- [x] Return a finite evidence class, direction, confidence bucket, subjects, and source sequences.
+- [x] Require a public rationale tied to the cited utterance or event.
+- [x] Deduplicate repeated interpretations of the same source.
+- [x] Map the schema to capped, versioned likelihood ratios outside the LLM.
+- [x] Prevent language evidence from reviving impossible worlds.
 
 ### Typed memory
 
