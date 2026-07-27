@@ -2,7 +2,7 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 1, exact joint-world foundation.
+**Current target phase:** Phase 0, preserve foundations and establish baselines.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -86,8 +86,8 @@ compose and difficult to measure independently.
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 0. Preserve foundations and establish baselines | Inherited / verify | Stable comparison point and contracts |
-| 1. Exact joint-world foundation | Next | Uniform posterior over every feasible hidden world |
+| 0. Preserve foundations and establish baselines | In progress | Stable comparison point and contracts |
+| 1. Exact joint-world foundation | Blocked on Phase 0 exit gate | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Not started | Typed incremental cognition and decision-ready summaries |
 | 3. Composed agent and policy boundary | Not started | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
@@ -116,7 +116,7 @@ compose and difficult to measure independently.
 
 ### Baseline work
 
-- [ ] Select a fixed paired-seed bank covering 5 through 10 players and all standard special roles.
+- [x] Select a fixed paired-seed bank covering 5 through 10 players and all standard special roles.
 - [ ] Record current prompt-guided LLM results by role, decision kind, model, cost, and degradation.
 - [ ] Record current heuristic results on the same seeds with discussion disabled.
 - [ ] Freeze representative `PlayerView` decision fixtures for belief and policy regression tests.
@@ -465,3 +465,6 @@ here.
 
 - Initial document: target architecture and phased migration defined; Phase 1 selected as the next
   implementation step.
+- Phase 0 seed contract: added the versioned `standard-v1` architecture bank. Its ten fixed cases
+  cover 5 through 10 players, target every standard role, pin the dealt target seat, and disable
+  discussion for the free mechanical baseline.
