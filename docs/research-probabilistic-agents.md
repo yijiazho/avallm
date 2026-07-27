@@ -7,7 +7,9 @@ capabilities of an LLM.
 
 Companion: [research-strategy.md](research-strategy.md) covers human strategy and prompt-ready role
 heuristics; this brief focuses on the machinery agents use to represent uncertainty and choose
-actions.
+actions. [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md) turns the
+findings into a target architecture, and
+[agent-architecture-migration.md](agent-architecture-migration.md) tracks the implementation path.
 
 **Scope.** This is a research brief, not an implementation specification. It records what the
 published systems do, what their experiments support, where their claims stop, and the design
@@ -196,6 +198,11 @@ GRAIL, the Graph Reasoning Agent Informed through Language, separates three comp
 - a learned conditional-probability function trained on non-language game histories;
 - an LLM that interprets dialogue and generates messages.
 
+The developed GRAIL variants are six-player Loyal Servant agents with no special roles. The released
+Bayesian-Avalon harness can run complete good-versus-evil games and supports Minion seats, but those
+seats are controlled by other agent types such as ReCon, random, reasoning-model, or human agents.
+The repository does not demonstrate a Bayesian GRAIL policy for evil play.
+
 The graph enforces the fixed number of evil players and uses max-product belief propagation to
 estimate a most-likely role assignment and per-seat max-marginals. Its learned factor consumes party
 composition, public approval, and quest outcome history. The LLM does not emit unrestricted numeric
@@ -209,24 +216,9 @@ than Evil. This demonstrates the benefit of the beliefs, but it is not a general
 fixed `0.5` member thresholds ignore board score, hammer position, alternative teams, and the joint
 probability that the whole party is clean.
 
-#### Scope correction: Minion support versus GRAIL Minion play
-
-The released Bayesian-Avalon game harness **does support Minion seats**. Its configuration allows a
-Minion to be controlled by ReCon, a random agent, an OpenAI or DeepSeek reasoning agent, or a human.
-The repository includes Minion configuration and can run complete good-versus-evil games.
-
-However, the README exposes the three GRAIL variants (`ours`, `ours_graph_only`, and
-`ours_llm_only`) **only for Servant seats**. The paper likewise says the developed agent plays
-exclusively as Good and excludes special roles to focus on detecting deception. Therefore:
-
-- it is too broad to say the repository has no Minion play;
-- it is accurate to say the published Bayesian GRAIL policy is a good-side, no-special-role agent;
-- the repository's Minions are opponents supplied by other agent types, not a demonstrated
-  Bayesian evil-side extension of GRAIL.
-
-The distinction matters because evil reasoning is not merely the inverse of good-side role
-inference. Evil already knows some teammates and instead needs to estimate public suspicion,
-coordinate secret Fail cards, choose when to slow-play, and identify Merlin.
+This scope matters because evil reasoning is not merely the inverse of good-side role inference.
+Evil already knows some teammates and instead needs to estimate public suspicion, coordinate secret
+Fail cards, choose when to slow-play, and identify Merlin.
 
 #### Results and limitations
 
