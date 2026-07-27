@@ -1,9 +1,8 @@
 import type {
   Lean,
-  Phase,
-  Role,
   Seat,
 } from '../../engine/types.ts'
+import type { PublicRecord } from './public-record.ts'
 
 export const LANGUAGE_INTERPRETER_INPUT_VERSION =
   'public-language-input-v1'
@@ -81,38 +80,7 @@ export interface PublicAttributedUtterance {
   context?: LanguageUtteranceContext
 }
 
-export interface LanguagePublicContext {
-  playerCount: number
-  rolesInPlay: readonly Role[]
-  players: readonly { seat: Seat; name: string }[]
-  phase: Phase
-  round: number
-  proposalNum: number
-  leaderSeat: Seat
-  quests: readonly {
-    num: number
-    teamSize: number
-    failsRequired: number
-    team?: readonly Seat[]
-    result?: 'success' | 'fail'
-    failCount?: number
-  }[]
-  proposals: readonly {
-    round: number
-    proposalNum: number
-    leader: Seat
-    team: readonly Seat[]
-    revisedFrom?: readonly Seat[]
-    votes?: readonly { seat: Seat; vote: 'approve' | 'reject' }[]
-    approved?: boolean
-    auto?: boolean
-  }[]
-  currentTeam?: readonly Seat[]
-  discussionRound?: number
-  discussionPostRevision?: boolean
-  winner?: 'good' | 'evil'
-  winReason?: string
-}
+export type LanguagePublicContext = PublicRecord
 
 /**
  * Strict public-only DTO. `newUtterances` is the only output-eligible source;

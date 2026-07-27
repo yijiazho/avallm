@@ -48,8 +48,13 @@
 import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../engine/rules.ts'
 import type { PlayerView, Seat } from '../engine/types.ts'
 import { boardSituation } from './analysis/situation.ts'
+import {
+  projectPublicRecord,
+  type PublicRecord,
+} from './communication/public-record.ts'
 
-const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
+const nameOf = (record: PublicRecord, s: Seat) =>
+  `${record.players[s].name}(seat ${s})`
 
 // The canonical rendering of a quest result token — `Q3(FAIL)` / `Q1(ok)`. Lives
 // here (the facts layer that owns the dossier vocabulary) and is reused by the
@@ -83,15 +88,15 @@ interface PlayerRecord {
   rejectedSucceeded: number // voted reject on a team that was approved anyway and succeeded
 }
 
-function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
+function computeRecords(record: PublicRecord): Map<Seat, PlayerRecord> {
   const rec = new Map<Seat, PlayerRecord>()
-  for (const p of view.players) {
+  for (const p of record.players) {
     rec.set(p.seat, { onQuests: [], playedVotes: [], unplayedVotes: [], ledFailed: 0, approvedFailedOff: 0, rejectedSucceeded: 0 })
   }
 
   // Quest membership from the ACTUAL played team (quest.team is the approved
   // proposal's team). Resolved quests only.
-  for (const q of view.quests) {
+  for (const q of record.quests) {
     if (q.result === undefined || !q.team) continue
     const failed = q.result === 'fail'
     for (const s of q.team) rec.get(s)!.onQuests.push({ num: q.num, failed })
@@ -100,9 +105,9 @@ function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
   // Vote-matrix signals. Only APPROVED proposals produced a quest, so only they
   // carry an outcome; rejected proposals never played. Attribute against the
   // quest that resulted for that round.
-  for (const prop of view.proposals) {
+  for (const prop of record.proposals) {
     if (!prop.approved || !prop.votes) continue
-    const quest = view.quests[prop.round - 1]
+    const quest = record.quests[prop.round - 1]
     if (quest?.result === undefined) continue
     const failed = quest.result === 'fail'
     if (failed) rec.get(prop.leader)!.ledFailed += 1
@@ -120,7 +125,7 @@ function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
   // playedVotes, because those two carry different evidence: a played vote is
   // scored against the quest it produced, while a rejected one has no outcome
   // and is read purely as a partition of the table.
-  for (const prop of view.proposals) {
+  for (const prop of record.proposals) {
     if (prop.approved || !prop.votes) continue
     for (const v of prop.votes) {
       rec.get(v.seat)!.unplayedVotes.push({ round: prop.round, num: prop.proposalNum, vote: v.vote })
@@ -135,15 +140,15 @@ function computeRecords(view: PlayerView): Map<Seat, PlayerRecord> {
 // from the full log, this one renders live facts from the seat's view. Kept
 // separate to avoid inverting the agents->eval layering; a future refactor
 // could unify the core derivation.
-function ownPositions(view: PlayerView): string[] {
+function ownPositions(record: PublicRecord, viewerSeat: Seat): string[] {
   const out: string[] = []
-  for (const prop of view.proposals) {
+  for (const prop of record.proposals) {
     if (!prop.approved || !prop.votes) continue
-    const quest = view.quests[prop.round - 1]
+    const quest = record.quests[prop.round - 1]
     if (quest?.result === undefined) continue
-    const mine = prop.votes.find((v) => v.seat === view.seat)
-    const led = prop.leader === view.seat
-    const team = prop.team.map((s) => view.players[s].name).join('/')
+    const mine = prop.votes.find((v) => v.seat === viewerSeat)
+    const led = prop.leader === viewerSeat
+    const team = prop.team.map((s) => record.players[s].name).join('/')
     if ((led || mine?.vote === 'approve') && quest.result === 'fail') {
       out.push(`You ${led ? 'PROPOSED' : 'APPROVED'} the Q${prop.round} team [${team}] → it FAILED.`)
     } else if (mine?.vote === 'reject' && quest.result === 'success') {
@@ -167,8 +172,8 @@ function ownPositions(view: PlayerView): string[] {
 // and evil (this is the last round that exists). Rule 2 of the format
 // conventions, and the reason this belongs here rather than in three ASK
 // branches: one fact, every decision, both alignments.
-function boardStakesSection(view: PlayerView): string {
-  const board = boardSituation(view)
+function boardStakesSection(record: PublicRecord): string {
+  const board = boardSituation(record)
   const successes = board.score.good
   const fails = board.score.evil
 
@@ -176,7 +181,7 @@ function boardStakesSection(view: PlayerView): string {
   // when the game continues (engine: applyDecision 'quest'). So "nothing pending
   // here" means exactly one thing — a side reached QUESTS_TO_WIN and the quest
   // phase is over, which is the board an assassin decides on.
-  const q = view.quests[view.round - 1]
+  const q = record.quests[record.round - 1]
   const pending = q && q.result === undefined ? q : undefined
 
   const score = `Score: good ${successes} of ${QUESTS_TO_WIN} successes | evil ${fails} of ${QUESTS_TO_WIN} fails`
@@ -184,7 +189,7 @@ function boardStakesSection(view: PlayerView): string {
     return `Board state: the score, with the quest phase over.\n  ${score} | no quest remains to be played.`
   }
 
-  const after = view.quests.filter((x) => x.num > pending.num).map((x) => `Q${x.num}`)
+  const after = record.quests.filter((x) => x.num > pending.num).map((x) => `Q${x.num}`)
   const runway = after.length
     ? ` | quests after this one: ${after.join(', ')}`
     : ` | none after this one, it is the last quest on the board`
@@ -193,7 +198,8 @@ function boardStakesSection(view: PlayerView): string {
   // when there is no assassin-and-Merlin pair left to shoot. Role sets are
   // configurable (validateRoles requires neither), so read both off rolesInPlay
   // instead of assuming the default deal.
-  const shotRemains = view.rolesInPlay.includes('assassin') && view.rolesInPlay.includes('merlin')
+  const shotRemains = record.rolesInPlay.includes('assassin')
+    && record.rolesInPlay.includes('merlin')
   const ifSuccess = successes + 1 >= QUESTS_TO_WIN
     ? `good's ${QUESTS_TO_WIN}rd success, which ends the quest phase` +
       (shotRemains
@@ -245,11 +251,11 @@ export function dossierEnabled(): boolean {
 // Stated as evidence, never as instruction: "at least 3 of these 4 are evil" is
 // a fact, while "so reject teams containing them" would be policy and belongs
 // in a guidance slot (design-bot-guidance.md §6.1).
-function questEvidenceSection(view: PlayerView): string {
+function questEvidenceSection(record: PublicRecord): string {
   const rows: string[] = []
-  for (const q of view.quests) {
+  for (const q of record.quests) {
     if (q.result === undefined || !q.team) continue
-    const team = q.team.map((s) => nameOf(view, s)).join(', ')
+    const team = q.team.map((s) => nameOf(record, s)).join(', ')
     const cells = [questResultTag(q.num, q.result === 'fail'), `team: ${team}`]
     if (q.result === 'fail') {
       // failCount is optional on Quest, and a failed quest always had at least
@@ -276,8 +282,21 @@ function questEvidenceSection(view: PlayerView): string {
 // prompt doesn't carry an empty section.
 export function factsDossier(view: PlayerView): string {
   if (!dossierEnabled()) return ''
-  const rec = computeRecords(view)
-  const anyResolved = view.quests.some((q) => q.result !== undefined)
+  return factsDossierFromPublicRecord(projectPublicRecord(view), view.seat)
+}
+
+/**
+ * Render the compatibility dossier from the shared public record.
+ *
+ * The viewer seat affects only the explicitly labeled "Your resolved public
+ * positions" section. Every fact it selects already exists in PublicRecord.
+ */
+export function factsDossierFromPublicRecord(
+  record: PublicRecord,
+  viewerSeat: Seat,
+): string {
+  const rec = computeRecords(record)
+  const anyResolved = record.quests.some((q) => q.result !== undefined)
   if (!anyResolved) return ''
 
   const sections: string[] = []
@@ -286,12 +305,12 @@ export function factsDossier(view: PlayerView): string {
   // (what a clean record is worth depends on how many quests are left to spend
   // it on). Suppressed with the rest of the dossier before the first resolve,
   // where the score is 0-0 and says nothing.
-  sections.push(boardStakesSection(view))
+  sections.push(boardStakesSection(record))
 
   // Quest evidence sits between the board and the player rows on purpose: it is
   // the bridge between them. The board says what is at stake, this says what the
   // record has already proven, and the rows below say who did what.
-  const questEvidence = questEvidenceSection(view)
+  const questEvidence = questEvidenceSection(record)
   if (questEvidence) sections.push(questEvidence)
 
   // Per-player public record — ONE row per player, so every derived fact about a
@@ -308,13 +327,13 @@ export function factsDossier(view: PlayerView): string {
   // The per-player vote row also surfaces CORRECT rejections of teams that then
   // failed — a strong good/Merlin tell the old aggregate signals hid entirely.
   const rows: string[] = []
-  for (const p of view.players) {
+  for (const p of record.players) {
     const r = rec.get(p.seat)!
     // Row shape (see the FORMAT CONVENTIONS note at the top of this file):
     //   <player> | <key>: <value> | <key>: <value> ...
     // The player id is the row key (first cell); every other cell is `key: value`,
     // cells pipe-separated. Empty fields are omitted, never rendered blank.
-    const fields: string[] = [nameOf(view, p.seat)]
+    const fields: string[] = [nameOf(record, p.seat)]
     fields.push(
       r.onQuests.length
         ? `on-team: ${r.onQuests.map((q) => questResultTag(q.num, q.failed)).join(', ')}`
@@ -344,13 +363,13 @@ export function factsDossier(view: PlayerView): string {
   )
 
   // The deciding seat's own resolved positions.
-  const positions = ownPositions(view)
+  const positions = ownPositions(record, viewerSeat)
   if (positions.length) sections.push(`Your resolved public positions:\n${positions.map((p) => `  ${p}`).join('\n')}`)
 
   // Hammer proximity — how much rejection runway is left this round.
-  const rejectsLeft = boardSituation(view).proposalsRemaining
-  if (rejectsLeft <= 2 && view.proposalNum < MAX_PROPOSALS) {
-    sections.push(`Hammer proximity: proposal ${view.proposalNum} of ${MAX_PROPOSALS} this round, so up to ${rejectsLeft} more proposal${rejectsLeft > 1 ? 's' : ''} can be rejected before the 5th is auto-approved.`)
+  const rejectsLeft = boardSituation(record).proposalsRemaining
+  if (rejectsLeft <= 2 && record.proposalNum < MAX_PROPOSALS) {
+    sections.push(`Hammer proximity: proposal ${record.proposalNum} of ${MAX_PROPOSALS} this round, so up to ${rejectsLeft} more proposal${rejectsLeft > 1 ? 's' : ''} can be rejected before the 5th is auto-approved.`)
   }
 
   if (!sections.length) return ''

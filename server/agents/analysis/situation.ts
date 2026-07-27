@@ -5,6 +5,7 @@ import {
 import type {
   Alignment,
   PlayerView,
+  Quest,
   Seat,
 } from '../../engine/types.ts'
 import {
@@ -38,7 +39,13 @@ import {
   type SituationTeamAssessment,
 } from './types.ts'
 
-export function boardSituation(view: PlayerView): BoardSituation {
+export function boardSituation(
+  view: {
+    readonly quests: readonly Quest[]
+    readonly proposalNum: number
+    readonly round: number
+  },
+): BoardSituation {
   const good = view.quests.filter((quest) => quest.result === 'success').length
   const evil = view.quests.filter((quest) => quest.result === 'fail').length
   const proposalsRemaining = Math.max(0, MAX_PROPOSALS - view.proposalNum)

@@ -2,12 +2,11 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** human architecture checkpoint after the Phase 6C bounded-language path.
-The opt-in composed agent now carries public-only interpretation through persistent typed state,
-capped joint-world inference, policy, and private attribution without requiring a provider or
-changing a production default. Before Phase 7, choose whether to close the ready public-record and
-active-language evaluation follow-ups or begin role-specific observer and identity models. The
-Phase 5C population sign flip remains recorded; win-rate tuning is still intentionally deferred.
+**Current target phase:** Phase 6D architecture closure before Phase 7. NB-001B now consolidates
+the prompt dossier and language context onto one typed public-record projection; NB-004 next adds
+an active-dialogue language evaluation bank and stable belief-pipeline matcher. Phase 7 then begins
+with an opt-in public observer and role-identity substrate. The Phase 5C population sign flip
+remains recorded, and win-rate tuning is still intentionally deferred.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -169,7 +168,7 @@ while the primary lane runs, then integrate them one at a time.
 | ID | Source | Follow-up | Independence boundary and acceptance | Status |
 |---|---|---|---|---|
 | NB-001A | Phase 3 | Route compatibility certainty prose through typed belief and situation analysis | Preserve exact feasible-world support, record provenance, prompt bytes, and compatibility behavior; false certainty from rounded weighted marginals is forbidden. | `landed` |
-| NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | The Phase 6 public-language boundary now owns the shared public record. The replacement must remain byte-equivalent unless its renderer is deliberately versioned. | `ready` |
+| NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | The Phase 6 public-language boundary owns the shared public record. Dossier and language-input bytes remain frozen and the viewer seat affects only the existing own-position callout. | `landed` |
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
 | NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `ready` |
@@ -505,7 +504,7 @@ Non-blocking consolidation work during Phase 3:
       direct `PlayerView` arithmetic or prompt-only authority.
 - [x] **NB-001A:** Route compatibility certainty prose through typed belief and situation analysis
       after equivalent typed renderers pass tests.
-- [ ] **NB-001B:** Replace independently derived dossier facts with the Phase 6 typed public-record
+- [x] **NB-001B:** Replace independently derived dossier facts with the Phase 6 typed public-record
       projection after that boundary lands.
 - [x] Expand decision traces with the analysis, policy, renderer, prompt, and applicable factor
       versions needed to attribute behavior to a complete brain configuration.
@@ -1122,6 +1121,21 @@ proves zero-cost configured attribution but cannot exercise active interpretatio
 the required stable-pipeline matcher and public-dialogue bank before language evaluation or paid
 provider work.
 
+### Phase 6D public-record consolidation
+
+`PublicRecord` is now the single typed owner for public board state consumed by deterministic
+prompt facts and the language interpreter context. Its projection is an explicit nested allow-list
+with detached arrays and rows. It carries public players and names, roles in play, phase and board
+position, quests, proposals, votes, and public result, but no viewer identity, role, alignment,
+private information or events, cognition, posterior, plans, or language reads.
+
+The Phase 6A `publicContext` is a direct type alias and projection of this record. The compatibility
+dossier derives all board, quest, vote, lead, and per-player rows from the same record; the adapter
+passes the viewer seat separately only for the existing “Your resolved public positions” callout.
+Frozen dossier, complete language-input, and raw-prompt bytes are unchanged. Cross-seat equality,
+5–10-player coverage, private canaries, detached-copy tests, and the full API-free suite close
+NB-001B without changing policy, prompts, providers, or defaults.
+
 ### Interpreter
 
 - [x] Process only new attributed utterances.
@@ -1363,6 +1377,10 @@ here.
   stdio/artifact attribution. Independent review closed non-string version, missing attribution,
   cursor/provenance coupling, and full-world cloning defects. The standard no-discussion bank
   remains zero-cost and fully attributed; NB-004 tracks an active-language comparison bank.
+- Phase 6D public record: replaced independent language-context and prompt-dossier board
+  derivations with one typed, public-only projection. Frozen dossier, full language-input, and raw
+  prompt bytes remain identical; cross-seat, 5–10-player, private-canary, and detached-copy tests
+  establish the shared boundary. NB-001B is closed without policy or default changes.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

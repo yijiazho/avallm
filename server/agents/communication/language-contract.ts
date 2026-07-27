@@ -23,6 +23,7 @@ import {
   type LanguageUtteranceContext,
   type PublicAttributedUtterance,
 } from './language-types.ts'
+import { projectPublicRecord } from './public-record.ts'
 
 const PUBLIC_RATIONALE_MAX_LENGTH = 500
 const INTERPRETER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
@@ -161,59 +162,6 @@ function attributedUtterances(
   return utterances
 }
 
-function projectPublicContext(view: PlayerView): LanguagePublicContext {
-  return {
-    playerCount: view.playerCount,
-    rolesInPlay: view.rolesInPlay.slice(),
-    players: view.players.map((player) => ({
-      seat: player.seat,
-      name: player.name,
-    })),
-    phase: view.phase,
-    round: view.round,
-    proposalNum: view.proposalNum,
-    leaderSeat: view.leaderSeat,
-    quests: view.quests.map((quest) => ({
-      num: quest.num,
-      teamSize: quest.teamSize,
-      failsRequired: quest.failsRequired,
-      ...(quest.team ? { team: quest.team.slice() } : {}),
-      ...(quest.result ? { result: quest.result } : {}),
-      ...(quest.failCount === undefined ? {} : { failCount: quest.failCount }),
-    })),
-    proposals: view.proposals.map((proposal) => ({
-      round: proposal.round,
-      proposalNum: proposal.proposalNum,
-      leader: proposal.leader,
-      team: proposal.team.slice(),
-      ...(proposal.revisedFrom
-        ? { revisedFrom: proposal.revisedFrom.slice() }
-        : {}),
-      ...(proposal.votes
-        ? {
-            votes: proposal.votes.map((vote) => ({
-              seat: vote.seat,
-              vote: vote.vote,
-            })),
-          }
-        : {}),
-      ...(proposal.approved === undefined
-        ? {}
-        : { approved: proposal.approved }),
-      ...(proposal.auto === undefined ? {} : { auto: proposal.auto }),
-    })),
-    ...(view.currentTeam ? { currentTeam: view.currentTeam.slice() } : {}),
-    ...(view.discussionRound === undefined
-      ? {}
-      : { discussionRound: view.discussionRound }),
-    ...(view.discussionPostRevision === undefined
-      ? {}
-      : { discussionPostRevision: view.discussionPostRevision }),
-    ...(view.winner ? { winner: view.winner } : {}),
-    ...(view.winReason ? { winReason: view.winReason } : {}),
-  }
-}
-
 /**
  * Project a seat view through an explicit public allow-list.
  *
@@ -242,7 +190,7 @@ export function projectLanguageInterpreterInput(
       .filter((utterance) => utterance.sourceSeq > cursor.throughSeq)
       .map(copyAttributedUtterance),
     utteranceHistory: utteranceHistory.map(copyAttributedUtterance),
-    publicContext: projectPublicContext(view),
+    publicContext: projectPublicRecord(view),
   }
   validateLanguageInterpreterInput(input)
   return input
