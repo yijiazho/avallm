@@ -51,6 +51,8 @@ export interface ArtifactStrategyVersions {
   factors: readonly string[]
   beliefs: readonly string[]
   observers: readonly string[]
+  /** Added in Phase 7B1; absent on historical and identity-off artifacts. */
+  identities?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -166,6 +168,10 @@ function sortedUnique(values: readonly (string | undefined)[]): string[] {
 function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
   const traces = opts.decisionTraces ?? []
   const architecture = opts.architecture?.components ?? {}
+  const identities = sortedUnique([
+    architecture.identityModel,
+    ...traces.map((trace) => trace.componentVersions?.identityModel),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -194,6 +200,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       architecture.observerModel,
       ...traces.map((trace) => trace.componentVersions?.observerModel),
     ]),
+    ...(identities.length ? { identities } : {}),
   }
 }
 

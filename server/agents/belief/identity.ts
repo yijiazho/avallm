@@ -1,0 +1,765 @@
+import {
+  EVIL_COUNT,
+  ROLE_ALIGNMENT,
+  validateRoles,
+} from '../../engine/rules.ts'
+import type { Role, Seat } from '../../engine/types.ts'
+import {
+  CANONICAL_ROLE_ORDER,
+  PROBABILITY_TOLERANCE,
+  type BeliefSnapshot,
+  type PlayerMarginal,
+} from './types.ts'
+
+export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
+export const MAX_IDENTITY_ROLE_QUERIES = 16
+export const MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR = 4_096
+
+const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
+const roleRank = new Map(
+  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
+)
+
+export interface RoleIdentityQuery {
+  /** A multiset. Repeated roles request the seats holding every queried copy. */
+  roles: readonly Role[]
+}
+
+export interface IdentityProjectionScope {
+  roleQueries: readonly RoleIdentityQuery[]
+  hiddenTeam: boolean
+}
+
+export interface CanonicalRoleAssignment {
+  role: Role
+  seats: readonly Seat[]
+}
+
+export interface RoleIdentityHypothesis {
+  assignments: readonly CanonicalRoleAssignment[]
+  probability: number
+}
+
+export interface RoleIdentityPosterior {
+  /** Stable canonical serialization of the queried role multiset. */
+  queryKey: string
+  queriedRoles: readonly Role[]
+  hypotheses: readonly RoleIdentityHypothesis[]
+}
+
+export interface HiddenTeamHypothesis {
+  evilSeats: readonly Seat[]
+  probability: number
+}
+
+export interface HiddenTeamPosterior {
+  hypotheses: readonly HiddenTeamHypothesis[]
+}
+
+export interface PrivateIdentitySnapshot {
+  version: typeof JOINT_IDENTITY_MODEL_VERSION
+  sourceBelief: {
+    modelVersion: string
+    throughSeq: number
+    quality: BeliefSnapshot['quality']
+    playerCount: number
+    /** Canonical public cast that every source world assigns. */
+    rolesInPlay: readonly Role[]
+  }
+  scope: {
+    roleQueries: readonly { queryKey: string; queriedRoles: readonly Role[] }[]
+    hiddenTeam: boolean
+  }
+  rolePosteriors: readonly RoleIdentityPosterior[]
+  hiddenTeamPosterior?: HiddenTeamPosterior
+}
+
+const compareRoles = (a: Role, b: Role): number =>
+  (roleRank.get(a) ?? Number.MAX_SAFE_INTEGER)
+  - (roleRank.get(b) ?? Number.MAX_SAFE_INTEGER)
+
+function roleMultisetCounts(roles: readonly Role[]): Map<Role, number> {
+  const counts = new Map<Role, number>()
+  for (const role of roles) counts.set(role, (counts.get(role) ?? 0) + 1)
+  return counts
+}
+
+function denseArray(value: unknown): value is unknown[] {
+  return Array.isArray(value)
+    && Array.from(
+      { length: value.length },
+      (_, index) => Object.hasOwn(value, index),
+    ).every(Boolean)
+}
+
+function canonicalQuery(roles: readonly Role[]): {
+  queryKey: string
+  queriedRoles: readonly Role[]
+  counts: ReadonlyMap<Role, number>
+} {
+  if (
+    !denseArray(roles)
+    || roles.length === 0
+  ) {
+    throw new Error('identity role query requires at least one role')
+  }
+  if (roles.length > 10) {
+    throw new Error('identity role query exceeds the supported player limit')
+  }
+  if (roles.some((role) => !VALID_ROLES.has(role))) {
+    throw new Error('identity role query contains an invalid role')
+  }
+  const queriedRoles = [...roles].sort(compareRoles)
+  const counts = roleMultisetCounts(queriedRoles)
+  const queryKey = [...counts.entries()]
+    .map(([role, count]) => `${role}:${count}`)
+    .join('|')
+  return { queryKey, queriedRoles, counts }
+}
+
+function sameRoleCounts(
+  left: ReadonlyMap<Role, number>,
+  right: ReadonlyMap<Role, number>,
+): boolean {
+  return CANONICAL_ROLE_ORDER.every(
+    (role) => (left.get(role) ?? 0) === (right.get(role) ?? 0),
+  )
+}
+
+function validateQueryAgainstCast(
+  query: ReturnType<typeof canonicalQuery>,
+  castCounts: ReadonlyMap<Role, number>,
+  playerCount: number,
+): void {
+  if (query.queriedRoles.length > playerCount) {
+    throw new Error('identity role query exceeds player count')
+  }
+  for (const [role, count] of query.counts) {
+    const castCount = castCounts.get(role) ?? 0
+    if (count !== castCount) {
+      throw new Error(
+        `identity role query requests ${count} ${role} copies but cast contains ${castCount}`,
+      )
+    }
+  }
+}
+
+function validateBelief(snapshot: BeliefSnapshot): {
+  playerCount: number
+  rolesInPlay: readonly Role[]
+  castCounts: ReadonlyMap<Role, number>
+} {
+  if (
+    !snapshot
+    || typeof snapshot !== 'object'
+    || typeof snapshot.modelVersion !== 'string'
+    || snapshot.modelVersion.length === 0
+    || !Number.isSafeInteger(snapshot.throughSeq)
+    || snapshot.throughSeq < -1
+    || !['constraints-only', 'weighted', 'degraded'].includes(snapshot.quality)
+    || !Array.isArray(snapshot.worlds)
+    || snapshot.worlds.length === 0
+  ) {
+    throw new Error('identity projection requires a valid resolved belief snapshot')
+  }
+
+  let playerCount: number | undefined
+  let total = 0
+  const worldKeys = new Set<string>()
+  let expectedRoleCounts: Map<Role, number> | undefined
+  let expectedEvilCount: number | undefined
+  for (const weighted of snapshot.worlds) {
+    if (
+      !weighted
+      || typeof weighted !== 'object'
+      || !weighted.world
+      || typeof weighted.world !== 'object'
+      || !Number.isFinite(weighted.probability)
+      || weighted.probability <= 0
+      || !denseArray(weighted.world.roleBySeat)
+      || !denseArray(weighted.world.alignmentBySeat)
+      || weighted.world.roleBySeat.length !== weighted.world.alignmentBySeat.length
+      || weighted.world.roleBySeat.length < 5
+      || weighted.world.roleBySeat.length > 10
+      || weighted.world.roleBySeat.some((role) => !VALID_ROLES.has(role))
+      || weighted.world.alignmentBySeat.some(
+        (alignment, seat) =>
+          (alignment !== 'good' && alignment !== 'evil')
+          || ROLE_ALIGNMENT[weighted.world.roleBySeat[seat]] !== alignment,
+      )
+      || weighted.world.key !== weighted.world.roleBySeat.join('|')
+      || worldKeys.has(weighted.world.key)
+    ) {
+      throw new Error('identity projection received an invalid weighted world')
+    }
+    worldKeys.add(weighted.world.key)
+    playerCount ??= weighted.world.roleBySeat.length
+    if (weighted.world.roleBySeat.length !== playerCount) {
+      throw new Error('identity projection worlds disagree on player count')
+    }
+    const roleCounts = roleMultisetCounts(weighted.world.roleBySeat)
+    if (!expectedRoleCounts) {
+      expectedRoleCounts = roleCounts
+    } else if (
+      !sameRoleCounts(roleCounts, expectedRoleCounts)
+    ) {
+      throw new Error('identity projection worlds disagree on role multiset')
+    }
+    const evilCount = weighted.world.alignmentBySeat.filter(
+      (alignment) => alignment === 'evil',
+    ).length
+    expectedEvilCount ??= evilCount
+    if (evilCount !== expectedEvilCount) {
+      throw new Error('identity projection worlds disagree on hidden-team size')
+    }
+    total += weighted.probability
+  }
+  if (
+    !Number.isFinite(total)
+    || Math.abs(total - 1) > PROBABILITY_TOLERANCE
+  ) {
+    throw new Error('identity projection requires normalized positive support')
+  }
+  if (
+    snapshot.quality === 'constraints-only'
+    && snapshot.worlds.some(
+      (weighted) =>
+        Math.abs(
+          weighted.probability - snapshot.worlds[0].probability,
+        ) > PROBABILITY_TOLERANCE,
+    )
+  ) {
+    throw new Error('constraints-only identity support must be uniform')
+  }
+  const rolesInPlay = [...snapshot.worlds[0].world.roleBySeat].sort(compareRoles)
+  validateRoles(playerCount!, [...rolesInPlay])
+  return {
+    playerCount: playerCount!,
+    rolesInPlay,
+    castCounts: roleMultisetCounts(rolesInPlay),
+  }
+}
+
+function assignmentFor(
+  roleBySeat: readonly Role[],
+  counts: ReadonlyMap<Role, number>,
+): readonly CanonicalRoleAssignment[] {
+  return [...counts.entries()].map(([role, requiredCopies]) => {
+    const seats = roleBySeat
+      .map((candidate, seat) => candidate === role ? seat : -1)
+      .filter((seat) => seat >= 0)
+    if (seats.length !== requiredCopies) {
+      throw new Error(
+        `identity query requests ${requiredCopies} ${role} copies but worlds contain ${seats.length}`,
+      )
+    }
+    return { role, seats }
+  })
+}
+
+function assignmentKey(assignments: readonly CanonicalRoleAssignment[]): string {
+  return assignments
+    .map((assignment) => `${assignment.role}:${assignment.seats.join('.')}`)
+    .join('|')
+}
+
+function projectRolePosterior(
+  snapshot: BeliefSnapshot,
+  query: ReturnType<typeof canonicalQuery>,
+  total: number,
+): RoleIdentityPosterior {
+  const grouped = new Map<string, {
+    assignments: readonly CanonicalRoleAssignment[]
+    probability: number
+  }>()
+  for (const weighted of snapshot.worlds) {
+    const assignments = assignmentFor(weighted.world.roleBySeat, query.counts)
+    const key = assignmentKey(assignments)
+    const prior = grouped.get(key)
+    grouped.set(key, {
+      assignments: prior?.assignments ?? assignments,
+      probability: (prior?.probability ?? 0) + weighted.probability,
+    })
+    if (grouped.size > MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR) {
+      throw new Error(
+        `identity query ${query.queryKey} exceeds the bounded hypothesis limit`,
+      )
+    }
+  }
+  return {
+    queryKey: query.queryKey,
+    queriedRoles: [...query.queriedRoles],
+    hypotheses: [...grouped.entries()]
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([, hypothesis]) => ({
+        assignments: hypothesis.assignments.map((assignment) => ({
+          role: assignment.role,
+          seats: [...assignment.seats],
+        })),
+        probability: hypothesis.probability / total,
+      })),
+  }
+}
+
+function projectHiddenTeam(
+  snapshot: BeliefSnapshot,
+  total: number,
+): HiddenTeamPosterior {
+  const grouped = new Map<string, { evilSeats: readonly Seat[]; probability: number }>()
+  for (const weighted of snapshot.worlds) {
+    const evilSeats = weighted.world.alignmentBySeat
+      .map((alignment, seat) => alignment === 'evil' ? seat : -1)
+      .filter((seat) => seat >= 0)
+    const key = evilSeats.join('.')
+    const prior = grouped.get(key)
+    grouped.set(key, {
+      evilSeats: prior?.evilSeats ?? evilSeats,
+      probability: (prior?.probability ?? 0) + weighted.probability,
+    })
+    if (grouped.size > MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR) {
+      throw new Error('hidden-team identity exceeds the bounded hypothesis limit')
+    }
+  }
+  return {
+    hypotheses: [...grouped.entries()]
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([, hypothesis]) => ({
+        evilSeats: [...hypothesis.evilSeats],
+        probability: hypothesis.probability / total,
+      })),
+  }
+}
+
+/**
+ * Project bounded identity hypotheses by summing complete-world probability.
+ * This module deliberately knows nothing about the view, public observer,
+ * policy, prompt adapters, external services, evaluation labels, or deal labels.
+ */
+export function projectJointIdentity(
+  snapshot: BeliefSnapshot,
+  scope: IdentityProjectionScope,
+): PrivateIdentitySnapshot {
+  const source = validateBelief(snapshot)
+  if (
+    !scope
+    || typeof scope !== 'object'
+    || !denseArray(scope.roleQueries)
+    || typeof scope.hiddenTeam !== 'boolean'
+    || scope.roleQueries.length > MAX_IDENTITY_ROLE_QUERIES
+  ) {
+    throw new Error('identity projection received an invalid bounded query scope')
+  }
+  const queries = scope.roleQueries.map((query) => {
+    if (!query || typeof query !== 'object' || Array.isArray(query)) {
+      throw new Error('identity projection received an invalid role query')
+    }
+    const canonical = canonicalQuery(query.roles)
+    validateQueryAgainstCast(canonical, source.castCounts, source.playerCount)
+    return canonical
+  })
+  const unique = new Map(queries.map((query) => [query.queryKey, query]))
+  if (unique.size !== queries.length) {
+    throw new Error('identity projection scope contains duplicate role queries')
+  }
+  const canonicalQueries = [...unique.values()].sort(
+    (left, right) =>
+      left.queryKey < right.queryKey ? -1 : left.queryKey > right.queryKey ? 1 : 0,
+  )
+  if (canonicalQueries.length === 0 && !scope.hiddenTeam) {
+    throw new Error('identity projection scope must request at least one posterior')
+  }
+  const total = snapshot.worlds.reduce(
+    (sum, weighted) => sum + weighted.probability,
+    0,
+  )
+  return {
+    version: JOINT_IDENTITY_MODEL_VERSION,
+    sourceBelief: {
+      modelVersion: snapshot.modelVersion,
+      throughSeq: snapshot.throughSeq,
+      quality: snapshot.quality,
+      playerCount: source.playerCount,
+      rolesInPlay: [...source.rolesInPlay],
+    },
+    scope: {
+      roleQueries: canonicalQueries.map((query) => ({
+        queryKey: query.queryKey,
+        queriedRoles: [...query.queriedRoles],
+      })),
+      hiddenTeam: scope.hiddenTeam,
+    },
+    rolePosteriors: canonicalQueries.map(
+      (query) => projectRolePosterior(snapshot, query, total),
+    ),
+    ...(scope.hiddenTeam
+      ? { hiddenTeamPosterior: projectHiddenTeam(snapshot, total) }
+      : {}),
+  }
+}
+
+const exactKeys = (
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+): boolean => Object.keys(value).every((key) => allowed.includes(key))
+
+const probability = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isFinite(value)
+  && value > 0
+  && value <= 1
+
+const inclusiveProbability = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isFinite(value)
+  && value >= 0
+  && value <= 1
+
+function validCanonicalSeats(value: unknown, playerCount: number): value is Seat[] {
+  return denseArray(value)
+    && value.length > 0
+    && value.every(
+      (seat, index, all) =>
+        Number.isInteger(seat)
+        && seat >= 0
+        && seat < playerCount
+        && (index === 0 || all[index - 1] < seat),
+    )
+}
+
+function validSourceCast(
+  value: unknown,
+  playerCount: number,
+): value is Role[] {
+  if (
+    !denseArray(value)
+    || value.length !== playerCount
+    || value.some((role) => !VALID_ROLES.has(role as Role))
+  ) return false
+  const roles = value as Role[]
+  if (
+    JSON.stringify(roles)
+    !== JSON.stringify([...roles].sort(compareRoles))
+  ) return false
+  try {
+    validateRoles(playerCount, [...roles])
+    return true
+  } catch {
+    return false
+  }
+}
+
+function validProbabilityLattice(
+  hypotheses: readonly Record<string, unknown>[],
+): boolean {
+  return hypotheses.length > 0
+    && hypotheses.length <= MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR
+    && Math.abs(
+      hypotheses.reduce(
+        (sum, hypothesis) =>
+          sum + (typeof hypothesis.probability === 'number'
+            ? hypothesis.probability
+            : Number.NaN),
+        0,
+      ) - 1,
+    ) <= PROBABILITY_TOLERANCE
+}
+
+function reconcilesRoleAndTeamPosteriors(
+  snapshot: Record<string, unknown>,
+  rolesInPlay: readonly Role[],
+  playerCount: number,
+): boolean {
+  if (snapshot.hiddenTeamPosterior === undefined) return true
+  const hidden = snapshot.hiddenTeamPosterior as {
+    hypotheses: readonly { evilSeats: readonly Seat[]; probability: number }[]
+  }
+  const evilBySeat = Array<number>(playerCount).fill(0)
+  for (const hypothesis of hidden.hypotheses) {
+    for (const seat of hypothesis.evilSeats) {
+      evilBySeat[seat] += hypothesis.probability
+    }
+  }
+
+  const marginalsByRole = new Map<Role, readonly number[]>()
+  for (const posterior of snapshot.rolePosteriors as RoleIdentityPosterior[]) {
+    for (const role of new Set(posterior.queriedRoles)) {
+      const marginal = Array<number>(playerCount).fill(0)
+      for (const hypothesis of posterior.hypotheses) {
+        const assignment = hypothesis.assignments.find(
+          (candidate) => candidate.role === role,
+        )
+        if (!assignment) return false
+        for (const seat of assignment.seats) {
+          marginal[seat] += hypothesis.probability
+        }
+      }
+      const existing = marginalsByRole.get(role)
+      if (
+        existing
+        && existing.some(
+          (probability, seat) =>
+            Math.abs(probability - marginal[seat]) > PROBABILITY_TOLERANCE,
+        )
+      ) return false
+      marginalsByRole.set(role, marginal)
+    }
+  }
+
+  for (const alignment of ['evil', 'good'] as const) {
+    const queriedRoles = [...marginalsByRole.keys()].filter(
+      (role) => ROLE_ALIGNMENT[role] === alignment,
+    )
+    if (queriedRoles.length === 0) continue
+    const queriedCopies = queriedRoles.reduce(
+      (sum, role) =>
+        sum + rolesInPlay.filter((candidate) => candidate === role).length,
+      0,
+    )
+    const castCopies = rolesInPlay.filter(
+      (role) => ROLE_ALIGNMENT[role] === alignment,
+    ).length
+    for (let seat = 0; seat < playerCount; seat++) {
+      const roleProbability = queriedRoles.reduce(
+        (sum, role) => sum + marginalsByRole.get(role)![seat],
+        0,
+      )
+      const alignmentProbability = alignment === 'evil'
+        ? evilBySeat[seat]
+        : 1 - evilBySeat[seat]
+      if (
+        roleProbability > alignmentProbability + PROBABILITY_TOLERANCE
+        || (
+          queriedCopies === castCopies
+          && Math.abs(roleProbability - alignmentProbability)
+            > PROBABILITY_TOLERANCE
+        )
+      ) return false
+    }
+  }
+  return true
+}
+
+/** Strict private JSON boundary used by stdio and artifact validation. */
+export function validatePrivateIdentitySnapshot(
+  value: unknown,
+): value is PrivateIdentitySnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const snapshot = value as Record<string, unknown>
+  const source = snapshot.sourceBelief as Record<string, unknown>
+  const scope = snapshot.scope as Record<string, unknown>
+  if (
+    !exactKeys(snapshot, [
+      'version',
+      'sourceBelief',
+      'scope',
+      'rolePosteriors',
+      'hiddenTeamPosterior',
+    ])
+    || snapshot.version !== JOINT_IDENTITY_MODEL_VERSION
+    || !source
+    || typeof source !== 'object'
+    || Array.isArray(source)
+    || !exactKeys(source, [
+      'modelVersion',
+      'throughSeq',
+      'quality',
+      'playerCount',
+      'rolesInPlay',
+    ])
+    || typeof source.modelVersion !== 'string'
+    || source.modelVersion.length === 0
+    || !Number.isSafeInteger(source.throughSeq)
+    || (source.throughSeq as number) < -1
+    || !['constraints-only', 'weighted', 'degraded'].includes(source.quality as string)
+    || !Number.isInteger(source.playerCount)
+    || (source.playerCount as number) < 5
+    || (source.playerCount as number) > 10
+    || !validSourceCast(source.rolesInPlay, source.playerCount as number)
+    || !scope
+    || typeof scope !== 'object'
+    || Array.isArray(scope)
+    || !exactKeys(scope, ['roleQueries', 'hiddenTeam'])
+    || !denseArray(scope.roleQueries)
+    || scope.roleQueries.length > MAX_IDENTITY_ROLE_QUERIES
+    || typeof scope.hiddenTeam !== 'boolean'
+    || !denseArray(snapshot.rolePosteriors)
+    || snapshot.rolePosteriors.length !== scope.roleQueries.length
+    || ((scope.hiddenTeam as boolean) !== (snapshot.hiddenTeamPosterior !== undefined))
+    || (scope.roleQueries.length === 0 && !scope.hiddenTeam)
+  ) return false
+
+  const playerCount = source.playerCount as number
+  const rolesInPlay = source.rolesInPlay as Role[]
+  const castCounts = roleMultisetCounts(rolesInPlay)
+  const scopeKeys: string[] = []
+  const scopeQueries = scope.roleQueries as unknown[]
+  for (const value of scopeQueries) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const query = value as Record<string, unknown>
+    if (
+      !exactKeys(query, ['queryKey', 'queriedRoles'])
+      || typeof query.queryKey !== 'string'
+      || !Array.isArray(query.queriedRoles)
+    ) return false
+    let canonical: ReturnType<typeof canonicalQuery>
+    try {
+      canonical = canonicalQuery(query.queriedRoles as Role[])
+      validateQueryAgainstCast(canonical, castCounts, playerCount)
+    } catch {
+      return false
+    }
+    if (canonical.queryKey !== query.queryKey) return false
+    scopeKeys.push(canonical.queryKey)
+  }
+  if (
+    new Set(scopeKeys).size !== scopeKeys.length
+    || scopeKeys.some((key, index) => index > 0 && scopeKeys[index - 1] >= key)
+  ) return false
+
+  for (let index = 0; index < snapshot.rolePosteriors.length; index++) {
+    const value = snapshot.rolePosteriors[index]
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const posterior = value as Record<string, unknown>
+    const scopeQuery = scopeQueries[index] as Record<string, unknown>
+    if (
+      !exactKeys(posterior, ['queryKey', 'queriedRoles', 'hypotheses'])
+      || posterior.queryKey !== scopeQuery.queryKey
+      || JSON.stringify(posterior.queriedRoles)
+        !== JSON.stringify(scopeQuery.queriedRoles)
+      || !denseArray(posterior.hypotheses)
+    ) return false
+    const hypotheses = posterior.hypotheses as Record<string, unknown>[]
+    let priorKey = ''
+    for (const hypothesis of hypotheses) {
+      if (
+        !hypothesis
+        || typeof hypothesis !== 'object'
+        || Array.isArray(hypothesis)
+        || !exactKeys(hypothesis, ['assignments', 'probability'])
+        || !probability(hypothesis.probability)
+        || !denseArray(hypothesis.assignments)
+      ) return false
+      const assignments = hypothesis.assignments as Record<string, unknown>[]
+      const roles = posterior.queriedRoles as Role[]
+      const counts = roleMultisetCounts(roles)
+      if (assignments.length !== counts.size) return false
+      const assignedSeats = new Set<Seat>()
+      for (const [assignmentIndex, assignment] of assignments.entries()) {
+        const expected = [...counts.entries()][assignmentIndex]
+        if (
+          !assignment
+          || typeof assignment !== 'object'
+          || Array.isArray(assignment)
+          || !exactKeys(assignment, ['role', 'seats'])
+          || assignment.role !== expected[0]
+          || !validCanonicalSeats(assignment.seats, playerCount)
+          || assignment.seats.length !== expected[1]
+        ) return false
+        for (const seat of assignment.seats as Seat[]) {
+          if (assignedSeats.has(seat)) return false
+          assignedSeats.add(seat)
+        }
+      }
+      const key = assignmentKey(assignments as unknown as CanonicalRoleAssignment[])
+      if (priorKey && priorKey >= key) return false
+      priorKey = key
+    }
+    if (!validProbabilityLattice(hypotheses)) return false
+  }
+
+  if (snapshot.hiddenTeamPosterior !== undefined) {
+    const posterior = snapshot.hiddenTeamPosterior as Record<string, unknown>
+    if (
+      !posterior
+      || typeof posterior !== 'object'
+      || Array.isArray(posterior)
+      || !exactKeys(posterior, ['hypotheses'])
+      || !denseArray(posterior.hypotheses)
+    ) return false
+    const hypotheses = posterior.hypotheses as Record<string, unknown>[]
+    let priorKey = ''
+    let hiddenTeamSize: number | undefined
+    for (const hypothesis of hypotheses) {
+      if (
+        !hypothesis
+        || typeof hypothesis !== 'object'
+        || Array.isArray(hypothesis)
+        || !exactKeys(hypothesis, ['evilSeats', 'probability'])
+        || !probability(hypothesis.probability)
+        || !validCanonicalSeats(hypothesis.evilSeats, playerCount)
+        || hypothesis.evilSeats.length !== EVIL_COUNT[playerCount]
+      ) return false
+      const key = (hypothesis.evilSeats as Seat[]).join('.')
+      if (priorKey && priorKey >= key) return false
+      priorKey = key
+      hiddenTeamSize ??= (hypothesis.evilSeats as Seat[]).length
+      if ((hypothesis.evilSeats as Seat[]).length !== hiddenTeamSize) return false
+    }
+    if (!validProbabilityLattice(hypotheses)) return false
+  }
+  return reconcilesRoleAndTeamPosteriors(snapshot, rolesInPlay, playerCount)
+}
+
+/**
+ * Binds an otherwise valid private identity payload to its host cast and the
+ * belief marginals carried by the same trace. Call this at every transport or
+ * artifact boundary that has those independent authorities.
+ */
+export function validatePrivateIdentityHostJoin(
+  value: unknown,
+  hostRolesInPlay: unknown,
+  beliefPlayerMarginals: unknown,
+): value is PrivateIdentitySnapshot {
+  if (!validatePrivateIdentitySnapshot(value)) return false
+  const playerCount = value.sourceBelief.playerCount
+  if (
+    !denseArray(hostRolesInPlay)
+    || hostRolesInPlay.length !== playerCount
+    || hostRolesInPlay.some((role) => !VALID_ROLES.has(role as Role))
+  ) return false
+  const hostRoles = hostRolesInPlay as Role[]
+  try {
+    validateRoles(playerCount, [...hostRoles])
+  } catch {
+    return false
+  }
+  if (
+    !sameRoleCounts(
+      roleMultisetCounts(value.sourceBelief.rolesInPlay),
+      roleMultisetCounts(hostRoles),
+    )
+  ) return false
+
+  if (
+    !denseArray(beliefPlayerMarginals)
+    || beliefPlayerMarginals.length !== playerCount
+  ) return false
+  const marginals = beliefPlayerMarginals as PlayerMarginal[]
+  if (
+    marginals.some(
+      (marginal, seat) =>
+        !marginal
+        || typeof marginal !== 'object'
+        || Array.isArray(marginal)
+        || marginal.seat !== seat
+        || !inclusiveProbability(marginal.goodProbability)
+        || !inclusiveProbability(marginal.evilProbability)
+        || Math.abs(
+          marginal.goodProbability + marginal.evilProbability - 1,
+        ) > PROBABILITY_TOLERANCE,
+    )
+  ) return false
+
+  if (!value.hiddenTeamPosterior) return true
+  const evilBySeat = Array<number>(playerCount).fill(0)
+  for (const hypothesis of value.hiddenTeamPosterior.hypotheses) {
+    for (const seat of hypothesis.evilSeats) {
+      evilBySeat[seat] += hypothesis.probability
+    }
+  }
+  return marginals.every(
+    (marginal, seat) =>
+      Math.abs(marginal.evilProbability - evilBySeat[seat])
+      <= PROBABILITY_TOLERANCE,
+  )
+}

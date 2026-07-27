@@ -17,6 +17,7 @@ import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
+import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 
@@ -61,6 +62,8 @@ export interface DecisionTrace {
     factors: string
     languageEvidence: string
     observerModel: string
+    /** Absent means the private identity model is off. */
+    identityModel?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -90,6 +93,8 @@ export interface DecisionTrace {
   languageEvidence?: LanguageTraceAttribution
   /** Public-only observer output, absent unless the observer is enabled. */
   publicObserver?: PublicObserverSnapshot
+  /** Bounded private identity output, absent unless explicitly enabled. */
+  privateIdentity?: PrivateIdentitySnapshot
 }
 
 export function decisionTraceId(

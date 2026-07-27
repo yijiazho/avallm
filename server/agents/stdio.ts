@@ -65,6 +65,10 @@ import {
   validatePublicObserverSnapshot,
 } from './analysis/observer.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './analysis/observer-types.ts'
+import {
+  JOINT_IDENTITY_MODEL_VERSION,
+  validatePrivateIdentityHostJoin,
+} from './belief/identity.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -139,6 +143,13 @@ function validComponentVersions(value: unknown): boolean {
       || (
         typeof versions.beliefPipeline === 'string'
         && versions.beliefPipeline.length > 0
+      )
+    )
+    && (
+      versions.identityModel === undefined
+      || (
+        typeof versions.identityModel === 'string'
+        && versions.identityModel.length > 0
       )
     )
 }
@@ -313,6 +324,41 @@ function validPublicObserverTrace(
     components?.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   if (!enabled) return value === undefined
   return validatePublicObserverSnapshot(value)
+}
+
+function validPrivateIdentityTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  hostRolesInPlay: readonly unknown[] | undefined,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const declared = components?.identityModel
+  if (
+    declared !== undefined
+    && declared !== JOINT_IDENTITY_MODEL_VERSION
+  ) return false
+  const enabled = declared === JOINT_IDENTITY_MODEL_VERSION
+  if (!enabled) return value === undefined
+  if (value === undefined) {
+    return Array.isArray(trace.degradation)
+      && trace.degradation.includes('identity-projection-failed')
+  }
+  if (
+    !validatePrivateIdentityHostJoin(
+      value,
+      hostRolesInPlay,
+      trace.beliefPlayerMarginals,
+    )
+  ) return false
+  return (
+    value.sourceBelief.modelVersion === trace.beliefModelVersion
+    && value.sourceBelief.throughSeq === trace.beliefThroughSeq
+    && value.sourceBelief.quality === trace.quality
+    && Number.isInteger(trace.viewerSeat)
+    && (trace.viewerSeat as number) < value.sourceBelief.playerCount
+  )
 }
 
 function validBeliefProvenance(value: unknown): boolean {
@@ -1249,6 +1295,7 @@ function validDecisionTrace(
   req: DecisionRequest,
   decision: Decision,
   value: unknown,
+  hostRolesInPlay?: readonly unknown[],
 ): value is DecisionTrace {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const trace = value as Record<string, unknown>
@@ -1305,6 +1352,11 @@ function validDecisionTrace(
     && validComponentVersions(trace.componentVersions)
     && validLanguageTrace(trace.languageEvidence, trace)
     && validPublicObserverTrace(trace.publicObserver, trace)
+    && validPrivateIdentityTrace(
+      trace.privateIdentity,
+      trace,
+      hostRolesInPlay,
+    )
     && validCandidateScores(trace.candidateScores)
     && (
       trace.structuredCandidateId === undefined
@@ -1336,6 +1388,7 @@ export function parseStdioDecisionReply(
   req: DecisionRequest,
   reply: unknown,
   label = 'external agent',
+  hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): AgentOutput {
   const record = reply as Record<string, unknown>
   const decision = record?.decision as Decision | undefined
@@ -1343,7 +1396,14 @@ export function parseStdioDecisionReply(
     throw new Error(`${label} returned invalid decision for ${req.kind}`)
   }
   if (record.trace === undefined) return decision
-  if (!validDecisionTrace(req, decision, record.trace)) {
+  if (
+    !validDecisionTrace(
+      req,
+      decision,
+      record.trace,
+      hostView?.rolesInPlay,
+    )
+  ) {
     throw new Error(`${label} returned invalid decision trace for ${req.kind}`)
   }
   return { decision, trace: record.trace }
@@ -1419,7 +1479,12 @@ export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
         child!.stdin.write(JSON.stringify({ id, type: 'decide', request: req, view }) + '\n')
       })
       if (reply instanceof Error) throw reply
-      return parseStdioDecisionReply(req, reply, `agent "${label}"`)
+      return parseStdioDecisionReply(
+        req,
+        reply,
+        `agent "${label}"`,
+        view,
+      )
     },
     dispose() {
       child?.kill()

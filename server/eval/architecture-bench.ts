@@ -53,6 +53,10 @@ import {
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../agents/analysis/observer-types.ts'
+import {
+  JOINT_IDENTITY_MODEL_VERSION,
+  validatePrivateIdentityHostJoin,
+} from '../agents/belief/identity.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -262,6 +266,14 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     }
     const languageEnabled =
       variant.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
+    if (
+      variant.components.identityModel !== undefined
+      && variant.components.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid identityModel`,
+      )
+    }
     if (languageEnabled) {
       if (variant.components.belief !== undefined) {
         throw new Error(
@@ -417,6 +429,9 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           'planner',
           'voice',
         ]
+        const jointIdentity =
+          expectedComponents.identityModel === JOINT_IDENTITY_MODEL_VERSION
+        if (jointIdentity) tracedComponents.push('identityModel')
         if (
           expectedComponents.languageEvidence
           === LANGUAGE_FACTOR_BUNDLE_VERSION
@@ -448,6 +463,30 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               exactPublicObserver
                 ? !validatePublicObserverSnapshot(trace.publicObserver)
                 : trace.publicObserver !== undefined
+            )
+            || (
+              jointIdentity
+                ? (
+                    trace.privateIdentity === undefined
+                      ? !trace.degradation.includes('identity-projection-failed')
+                      : (
+                          !validatePrivateIdentityHostJoin(
+                            trace.privateIdentity,
+                            game.config.roles,
+                            trace.beliefPlayerMarginals,
+                          )
+                          || trace.privateIdentity.sourceBelief.modelVersion
+                            !== trace.beliefModelVersion
+                          || trace.privateIdentity.sourceBelief.throughSeq
+                            !== trace.beliefThroughSeq
+                          || trace.privateIdentity.sourceBelief.quality
+                            !== trace.quality
+                        )
+                  )
+                : (
+                    trace.privateIdentity !== undefined
+                    || traceVersions.identityModel !== undefined
+                  )
             )
             || tracedComponents.some(
               (key) =>

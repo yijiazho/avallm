@@ -18,6 +18,10 @@ import {
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../agents/analysis/observer-types.ts'
+import {
+  JOINT_IDENTITY_MODEL_VERSION,
+  validatePrivateIdentityHostJoin,
+} from '../agents/belief/identity.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -196,7 +200,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver/.test(
+    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel/.test(
       publicLog,
     )
   ) {
@@ -207,8 +211,30 @@ function architectureSafety(
     meta.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
   const declaresPublicObserver =
     meta.components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
+  const declaresJointIdentity =
+    meta.components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+  const invalidIdentityDeclaration =
+    meta.components.identityModel !== undefined
+    && !declaresJointIdentity
+  const artifactIdentities = artifact.strategyVersions?.identities
+  const invalidIdentityManifest = declaresJointIdentity
+    ? (
+        !artifactIdentities
+        || artifactIdentities.length !== 1
+        || artifactIdentities[0] !== JOINT_IDENTITY_MODEL_VERSION
+      )
+    : artifactIdentities !== undefined && artifactIdentities.length > 0
+  if (invalidIdentityManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
   if (
-    (declaresBoundedLanguage || declaresPublicObserver)
+    (
+      declaresBoundedLanguage
+      || declaresPublicObserver
+      || declaresJointIdentity
+      || invalidIdentityDeclaration
+    )
     && traces.length === 0
   ) {
     traceAttributionChecks++
@@ -225,6 +251,7 @@ function architectureSafety(
       ...(meta.components.observerModel === undefined
         ? []
         : ['observerModel']),
+      ...(declaresJointIdentity ? ['identityModel'] : []),
       'policy',
       'scorer',
       'planner',
@@ -258,11 +285,35 @@ function architectureSafety(
       || !versions
       || versions.belief !== trace.beliefModelVersion
       || invalidDeclaration
+      || invalidIdentityDeclaration
       || invalidTraceShape
       || (
         declaresPublicObserver
           ? !validatePublicObserverSnapshot(trace.publicObserver)
           : trace.publicObserver !== undefined
+      )
+      || (
+        declaresJointIdentity
+          ? (
+              trace.privateIdentity === undefined
+                ? !trace.degradation.includes('identity-projection-failed')
+                : (
+                    !validatePrivateIdentityHostJoin(
+                      trace.privateIdentity,
+                      artifact.roles,
+                      trace.beliefPlayerMarginals,
+                    )
+                    || trace.privateIdentity.sourceBelief.modelVersion
+                      !== trace.beliefModelVersion
+                    || trace.privateIdentity.sourceBelief.throughSeq
+                      !== trace.beliefThroughSeq
+                    || trace.privateIdentity.sourceBelief.quality !== trace.quality
+                  )
+            )
+          : (
+              trace.privateIdentity !== undefined
+              || versions.identityModel !== undefined
+            )
       )
       || stableKeys.some(
         (key) =>

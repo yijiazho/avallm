@@ -13,6 +13,12 @@ import {
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
+  JOINT_IDENTITY_MODEL_VERSION,
+  projectJointIdentity,
+  type IdentityProjectionScope,
+  type PrivateIdentitySnapshot,
+} from './belief/identity.ts'
+import {
   applyBoundedLanguageEvidence,
   boundedLanguageLikelihoodFactor,
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -125,6 +131,7 @@ export interface PlanVoice {
 export type ComposedStage =
   | 'language'
   | 'cognition'
+  | 'identity'
   | 'observer'
   | 'analysis'
   | 'candidates'
@@ -148,6 +155,11 @@ export interface ComposedAgentOptions {
   scorer?: CandidateScorer
   /** Opt-in exact public observer. It cannot influence Phase 7A policy. */
   publicObserver?: boolean
+  /**
+   * Opt-in private joint identity projection. It consumes the resolved belief
+   * and remains mechanically inert in Phase 7B1.
+   */
+  privateIdentity?: IdentityProjectionScope
   /** Compatibility policy used by the intentionally basic Phase 3 scorer. */
   compatibilityDecision?: (
     req: DecisionRequest,
@@ -347,6 +359,8 @@ function composedTrace(
   languageTrace?: LanguageTraceAttribution,
   languageEnabled = false,
   publicObserver?: PublicObserverSnapshot,
+  privateIdentity?: PrivateIdentitySnapshot,
+  identityEnabled = false,
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({
     type: 'composed',
@@ -380,6 +394,9 @@ function composedTrace(
       factors: factorsVersion,
       languageEvidence: brain.languageEvidence,
       observerModel: brain.observerModel,
+      ...(identityEnabled
+        ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
+        : {}),
       analysis: SITUATION_ANALYSIS_VERSION,
       candidates: LEGAL_CANDIDATE_VERSION,
       forcedPolicy: FORCED_POLICY_VERSION,
@@ -408,6 +425,9 @@ function composedTrace(
       : {}),
     ...(publicObserver
       ? { publicObserver: structuredClone(publicObserver) }
+      : {}),
+    ...(privateIdentity
+      ? { privateIdentity: structuredClone(privateIdentity) }
       : {}),
   }
 }
@@ -439,6 +459,9 @@ export function createComposedAgent(
   const configuredLanguageInterpreter = options.languageInterpreter
   const configuredLanguageVersion =
     configuredLanguageInterpreter?.interpreterVersion
+  const configuredIdentityScope = options.privateIdentity
+    ? structuredClone(options.privateIdentity)
+    : undefined
 
   return {
     setPlanner(next) {
@@ -527,6 +550,26 @@ export function createComposedAgent(
         cognition = advanceCognition(cognition, view, beliefModel)
       }
       stage('cognition')
+      let privateIdentity: PrivateIdentitySnapshot | undefined
+      if (configuredIdentityScope) {
+        try {
+          privateIdentity = projectJointIdentity(
+            cognition.belief,
+            configuredIdentityScope,
+          )
+          cognition = {
+            ...cognition,
+            identity: privateIdentity,
+            versions: {
+              ...cognition.versions,
+              identityModel: JOINT_IDENTITY_MODEL_VERSION,
+            },
+          }
+        } catch {
+          degradation.push('identity-projection-failed')
+        }
+        stage('identity')
+      }
       const publicObserver = options.publicObserver
         ? observePublicRecord(projectPublicRecord(view))
         : undefined
@@ -778,6 +821,8 @@ export function createComposedAgent(
         languageTrace,
         !!interpreter,
         publicObserver,
+        privateIdentity,
+        !!configuredIdentityScope,
       )
       return { decision: action, trace }
     },

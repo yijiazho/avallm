@@ -5,6 +5,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
+import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -192,6 +193,8 @@ export interface CognitionVersions {
   beliefPipeline: string
   /** Stable interpreter identity, or `off` when language inference is absent. */
   languageEvidence: string
+  /** Present only while the private joint-identity projection is enabled. */
+  identityModel?: string
 }
 
 export interface CognitionState {
@@ -205,6 +208,8 @@ export interface CognitionState {
   languageReads: readonly LanguageEvidence[]
   /** Public projection cursor, distinct from the seat-visible belief cursor. */
   languageCursor: LanguageEvidenceCursor
+  /** Private role/team identity projection. Never included in publicCognition. */
+  identity?: PrivateIdentitySnapshot
   versions: CognitionVersions
 }
 

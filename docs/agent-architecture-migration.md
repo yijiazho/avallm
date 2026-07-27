@@ -2,11 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7B identity and coherence substrate. Phase 7A landed an opt-in exact
-public observer without changing policy, and NB-005 closed its external snapshot semantic boundary.
-Phase 7B is split into a joint identity projector followed by private plan memory and post-legality
-coherence tracking. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
-intentionally deferred until the architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7B2 private plan memory and coherence. Phase 7B1 landed an opt-in
+joint identity projection over the resolved complete-world posterior without changing policy.
+Phase 7B2 will persist selected and applied plans only after legality is known, then classify
+literal commitment conflicts without asking speech generation to own memory. The Phase 5C
+population sign flip remains recorded, and win-rate tuning is still intentionally deferred until
+the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1197,6 +1198,7 @@ reviewable and ablatable:
    result is identical across viewing seats. **Complete.**
 2. **Phase 7B1, joint identity projection:** aggregate role and hidden-team identity posteriors
    directly from complete weighted worlds without reconstructing correlations from marginals.
+   **Complete.**
 3. **Phase 7B2, plan memory and coherence:** persist selected and applied plans privately, add a
    post-legality outcome acknowledgment, and distinguish consistent conduct, accidental conflict,
    intentional concealment, and strategic deception.
@@ -1244,6 +1246,39 @@ focused validation measured about 86 ms cold. The former 907,200-world stress fi
 evil roles and was not a legal 10-player cast, so it was replaced and is now pinned as invalid.
 NB-005 also requires externally supplied snapshots to reconstruct a legal cast, match raw and exact
 lattice probability semantics, and stay within that cast's multinomial world-count ceiling.
+
+### Identity and coherence substrate
+
+- [x] Project bounded role-to-seat hypotheses by summing complete-world probabilities directly.
+- [x] Project hidden evil-team hypotheses without multiplying independent seat suspicions.
+- [x] Bind private identity snapshots to a legal canonical cast, source belief, and trace marginals.
+- [x] Keep identity opt-in, private, attributable, and mechanically inert before role objectives.
+- [ ] Persist selected and engine-applied plans through a post-legality acknowledgment.
+- [ ] Classify literal commitment consistency, accidental conflict, intentional concealment, and
+      strategic deception without parsing generated prose.
+
+### Phase 7B1 implementation record
+
+`joint-identity-projection-v1` consumes the final resolved private `BeliefSnapshot`, including
+opt-in quest and language weights, and groups complete worlds into bounded canonical hypotheses.
+Each role query requests every copy of its named roles, so duplicate Servant and Minion assignments
+remain sets of seats and multi-role queries preserve correlations such as Merlin versus Morgana.
+The optional hidden-team projection groups full evil-seat sets. No projection reconstructs a joint
+probability from independent marginals.
+
+The substrate is opt-in and mechanically inert. Its private snapshot and component version are
+attributed through composed traces, stdio, artifacts, architecture benchmarks, and safety reports;
+identity-off and typed projection-degradation paths remain independently measurable. The external
+boundary requires a legal canonical public cast, exact role multiplicities, role/alignment
+agreement, dense bounded arrays, correct evil-team cardinality, and agreement among queried role
+marginals, hidden-team marginals, the trace belief marginals, and the host-known cast. Identity data
+does not enter `PlayerView`, public cognition, the public observer, public logs, prompts, or policy.
+
+Hand-worked joint sums, duplicate-role sets, input-order invariance, seat rotation, deterministic
+replay, partial scopes, weighted provenance, malformed external snapshots, stale-state removal,
+degradation, and observer/identity orthogonality are covered. A 10-player Servant projection over
+60,480 seat-filtered worlds completed in about 176 ms and produced a roughly 10.4 KB validated
+snapshot. Phase 7B2, rather than this projector, owns private plan memory and coherence.
 
 ### Merlin and Percival
 
@@ -1467,6 +1502,12 @@ here.
   multinomial assignment count. All 71 legal casts pass as priors and constrained posteriors. The
   former six-evil 10-player performance fixture is rejected and replaced by the legal 151,200-world
   cast; NB-005 closes before observer data becomes policy-authoritative.
+- Phase 7B1 joint identity: added bounded private role-assignment and hidden-team posteriors by
+  summing resolved complete-world weights directly. Legal-cast, source-belief, trace-marginal,
+  duplicate-role, cardinality, dense-array, stdio, artifact, and report joins prevent internally
+  valid but falsely attributed identity payloads. The opt-in substrate is private, attributable,
+  deterministic, observer-orthogonal, and mechanically inert; Phase 7B2 owns plan memory and
+  coherence.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents
