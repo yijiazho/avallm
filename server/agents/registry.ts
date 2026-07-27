@@ -14,7 +14,13 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
     case 'heuristic': return createHeuristicAgent(ctx)
     case 'random': return createRandomAgent(ctx)
     case 'stdio': return createStdioAgent(spec)
-    case 'llm': return createLlmAgent({ modelId: spec.model, client: getClient() })
+    case 'llm':
+      return createLlmAgent({
+        modelId: spec.model,
+        client: getClient(),
+        beliefMode: spec.beliefMode,
+        onDecisionTrace: ctx.onDecisionTrace,
+      })
   }
 }
 
@@ -33,6 +39,8 @@ export function createAgentFromDef(def: AgentDef, ctx: AgentContext, modelOverri
         label: `${def.name}${def.version ? ` v${def.version}` : ''}`,
         prompts: promptOverridesOf(def.engine),
         temperature: def.engine.temperature,
+        beliefMode: def.engine.beliefMode,
+        onDecisionTrace: ctx.onDecisionTrace,
       })
   }
 }

@@ -1,0 +1,11 @@
+{
+  "id": "exact-belief-experimental",
+  "name": "Exact Belief Lab",
+  "version": 1,
+  "author": "AvaLLM",
+  "about": "Experimental raw LLM baseline with the Phase 2 exact belief summary. It is not the default policy.",
+  "engine": {
+    "type": "llm",
+    "beliefMode": "exact-summary-v1"
+  }
+}

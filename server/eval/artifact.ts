@@ -10,6 +10,7 @@ import path from 'node:path'
 import type { DegradedDecision } from '../sim/runner.ts'
 import type { SpendEntry } from '../llm/openrouter.ts'
 import type { Alignment, Game, GameEvent, Role, Seat, TalkConfig } from '../engine/types.ts'
+import type { DecisionTrace } from '../agents/trace.ts'
 
 // Bump on any BREAKING artifact-shape change. Additive fields (like `roles`,
 // added in v2) don't require a bump for readers that tolerate their absence —
@@ -68,6 +69,11 @@ export interface GameArtifact {
   log: GameEvent[]
   architecture?: ArchitectureRunMetadata
   telemetry?: ArtifactTelemetry
+  /**
+   * Private full-reveal evaluation data. Server payload builders never read
+   * this field; it exists only in opt-in artifacts and offline tooling.
+   */
+  decisionTraces?: DecisionTrace[]
   // Free-form labels attached by the producer. The bench runner sets
   // { bench: <role>, variant: 'candidate'|'baseline', pairSeed, agentId } —
   // the report CLI groups paired runs by these.
@@ -128,6 +134,7 @@ export interface ToArtifactOpts {
   tags?: Record<string, string>
   architecture?: ArchitectureRunMetadata
   telemetry?: ArtifactTelemetry
+  decisionTraces?: DecisionTrace[]
 }
 
 export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
@@ -157,6 +164,9 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     ...(opts.tags ? { tags: opts.tags } : {}),
     ...(opts.architecture ? { architecture: opts.architecture } : {}),
     ...(opts.telemetry ? { telemetry: opts.telemetry } : {}),
+    ...(opts.decisionTraces?.length
+      ? { decisionTraces: structuredClone(opts.decisionTraces) }
+      : {}),
   }
 }
 

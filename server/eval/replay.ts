@@ -18,6 +18,7 @@ import type { GameArtifact } from './artifact.ts'
 import type {
   Decision, DecisionRequest, Game, GameEvent, PlayerView, Seat,
 } from '../engine/types.ts'
+import { decisionTraceId, type DecisionTrace } from '../agents/trace.ts'
 
 interface ReplayStep {
   firstSeq: number  // first event this step emitted (thinking/scratchpad precede the action)
@@ -230,6 +231,7 @@ export interface DecisionSnapshot {
   view: PlayerView   // exactly what the deciding agent saw
   scratchpad: string // the agent's private notes at that moment ('' if none)
   original: Decision // what actually happened, including private thinking
+  trace?: DecisionTrace
 }
 
 // The situation-bank extractor: the full decision context at event seq.
@@ -251,6 +253,17 @@ export function snapshotAt(a: GameArtifact, seq: number): DecisionSnapshot {
   const priorPad = a.log.findLast(
     (ev) => ev.type === 'scratchpad' && ev.payload.seat === step.seat && ev.seq < step.firstSeq,
   )
+  const view = viewFor(game, step.seat)
+  const req: DecisionRequest = {
+    kind: original.kind, seat: step.seat,
+    round: game.round, proposalNum: game.proposalNum,
+  }
+  const traceId = decisionTraceId(
+    req,
+    view,
+    view.events.reduce((cursor, event) => Math.max(cursor, event.seq), -1),
+  )
+  const trace = a.decisionTraces?.find((candidate) => candidate.decisionId === traceId)
   return {
     artifactId: a.id,
     seed: a.seed,
@@ -259,12 +272,10 @@ export function snapshotAt(a: GameArtifact, seq: number): DecisionSnapshot {
     seat: step.seat,
     kind: original.kind,
     role: a.players[step.seat].role,
-    req: {
-      kind: original.kind, seat: step.seat,
-      round: game.round, proposalNum: game.proposalNum,
-    },
-    view: viewFor(game, step.seat),
+    req,
+    view,
     scratchpad: original.notes ?? (priorPad?.payload.text as string | undefined) ?? '',
     original,
+    ...(trace ? { trace } : {}),
   }
 }

@@ -30,6 +30,19 @@ export interface RunOpts {
   maxSteps?: number
 }
 
+function recordFallbackTrace(
+  agent: AvalonAgent,
+  req: DecisionRequest,
+  view: ReturnType<typeof viewFor>,
+  decision: Decision,
+): void {
+  try {
+    agent.recordFallbackTrace?.(req, view, decision)
+  } catch {
+    // Optional telemetry must never turn a legal fallback into a stalled game.
+  }
+}
+
 export async function runGame(opts: RunOpts): Promise<RunResult> {
   const { game, agents } = opts
   const maxSteps = opts.maxSteps ?? 5000
@@ -45,19 +58,28 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
   }
   await flushEvents()
 
-  const decideOne = async (req: DecisionRequest): Promise<{ req: DecisionRequest; decision: Decision }> => {
+  const decideOne = async (
+    req: DecisionRequest,
+  ): Promise<{
+    req: DecisionRequest
+    view: ReturnType<typeof viewFor>
+    agent: AvalonAgent
+    decision: Decision
+  }> => {
     const view = viewFor(game, req.seat)
     const agent = agents.get(req.seat)
     if (!agent) throw new Error(`no agent for seat ${req.seat}`)
     try {
       const decision = await agent.decide(req, view)
-      return { req, decision }
+      return { req, view, agent, decision }
     } catch (err) {
       degraded.push({
         seat: req.seat, kind: req.kind, atEvent: game.log.length,
         error: err instanceof Error ? err.message : String(err),
       })
-      return { req, decision: heuristicDecide(req, view, game.seed) }
+      const decision = heuristicDecide(req, view, game.seed)
+      recordFallbackTrace(agent, req, view, decision)
+      return { req, view, agent, decision }
     }
   }
 
@@ -73,7 +95,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
       ? [await decideOne(reqs[0])]
       : await Promise.all(reqs.map(decideOne))
 
-    for (const { req, decision } of results) {
+    for (const { req, view, agent, decision } of results) {
       try {
         applyDecision(game, req.seat, decision)
       } catch (err) {
@@ -82,7 +104,9 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
           seat: req.seat, kind: req.kind, atEvent: game.log.length,
           error: err instanceof Error ? err.message : String(err),
         })
-        applyDecision(game, req.seat, heuristicDecide(req, viewFor(game, req.seat), game.seed))
+        const fallback = heuristicDecide(req, viewFor(game, req.seat), game.seed)
+        recordFallbackTrace(agent, req, view, fallback)
+        applyDecision(game, req.seat, fallback)
       }
       await flushEvents()
     }

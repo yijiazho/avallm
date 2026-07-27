@@ -10,10 +10,15 @@
 //
 // Consume ONLY PlayerView, like the prompt builders: no raw Game, no omniscience.
 
-import { QUESTS_TO_WIN, ROLE_ALIGNMENT } from '../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../engine/rules.ts'
 import type { Alignment, PlayerView, Role, Seat } from '../engine/types.ts'
-import { feasibleWorlds, rolePossibilities } from './belief/exact.ts'
-import { questFailEvidence } from './belief/constraints.ts'
+import { exactBelief, rolePossibilities } from './belief/exact.ts'
+import type { BeliefSnapshot } from './belief/types.ts'
+import {
+  analyzeSituation,
+  boardSituation,
+  knownFailsAboard,
+} from './analysis/situation.ts'
 
 // Evil on a team that THIS SEAT can see: itself plus known partners, never more.
 // Oberon is invisible to the rest of evil (and they to it), so a count that
@@ -22,9 +27,7 @@ import { questFailEvidence } from './belief/constraints.ts'
 // along. The narrowness is the point: "known Fails aboard" is what a seat can
 // actually commit to playing.
 export function knownEvilAboard(view: PlayerView, team: readonly Seat[] | undefined): Seat[] {
-  if (view.alignment !== 'evil' || !team) return []
-  const partners = view.privateInfo.evilPartners ?? []
-  return team.filter((s) => s === view.seat || partners.includes(s))
+  return [...knownFailsAboard(view, team)]
 }
 
 // Whose match point it is: one more quest of that result ends the quest phase.
@@ -33,9 +36,7 @@ export function knownEvilAboard(view: PlayerView, team: readonly Seat[] | undefi
 // who goes on the team, whether the team runs, and which card it carries — get
 // keyed to it.
 export function matchPoint(view: PlayerView): { good: boolean; evil: boolean } {
-  const successes = view.quests.filter((q) => q.result === 'success').length
-  const fails = view.quests.filter((q) => q.result === 'fail').length
-  return { good: successes === QUESTS_TO_WIN - 1, evil: fails === QUESTS_TO_WIN - 1 }
+  return boardSituation(view).matchPoint
 }
 
 // ---- what a seat can PROVE, before any read of anyone's behaviour ----
@@ -82,22 +83,18 @@ const sideOf = (roles: Set<Role>): Alignment | null => {
   return evil === roles.size ? 'evil' : evil === 0 ? 'good' : null
 }
 
-export function roleCertainties(view: PlayerView): RoleCertainties {
-  const worlds = feasibleWorlds(view)
-  const dealWorlds = feasibleWorlds(view, { questRecord: 'none' })
+export function roleCertainties(
+  view: PlayerView,
+  suppliedBelief?: BeliefSnapshot,
+): RoleCertainties {
+  const belief = suppliedBelief ?? exactBelief(view)
+  const worlds = belief.worlds.map((weighted) => weighted.world)
   const possible = new Map<Seat, Set<Role>>(
     view.players.map((player) => [
       player.seat,
       new Set(rolePossibilities(worlds, player.seat)),
     ]),
   )
-  const dealOnly = new Map<Seat, Set<Role>>(
-    view.players.map((player) => [
-      player.seat,
-      new Set(rolePossibilities(dealWorlds, player.seat)),
-    ]),
-  )
-
   const seats: SeatCertainty[] = view.players.map((p) => {
     const set = possible.get(p.seat) ?? new Set<Role>()
     return { seat: p.seat, possibleRoles: [...set], alignment: sideOf(set) }
@@ -106,40 +103,26 @@ export function roleCertainties(view: PlayerView): RoleCertainties {
   const pick = (want: Alignment | null) =>
     seats.filter((s) => s.seat !== view.seat && s.alignment === want).map((s) => s.seat)
 
-  const recordEvidence = questFailEvidence(view)
-  const forcedBy = new Map<Seat, number>()
-  let beforeQuest = dealWorlds
-  for (const evidence of recordEvidence) {
-    const couldBeEvil = evidence.team.filter((seat) =>
-      beforeQuest.some((world) => world.alignmentBySeat[seat] === 'evil'))
-    const afterQuest = feasibleWorlds(view, { questRecord: evidence.questNum })
-    if (couldBeEvil.length === evidence.minimumEvil) {
-      for (const seat of couldBeEvil) {
-        const wasProvenEvil = beforeQuest.every(
-          (world) => world.alignmentBySeat[seat] === 'evil',
-        )
-        const isProvenEvil = afterQuest.every(
-          (world) => world.alignmentBySeat[seat] === 'evil',
-        )
-        if (!wasProvenEvil && isProvenEvil && !forcedBy.has(seat)) {
-          forcedBy.set(seat, evidence.questNum)
-        }
-      }
-    }
-    beforeQuest = afterQuest
-  }
-
-  const fromRecord = seats
-    .filter((s) => s.seat !== view.seat && s.alignment !== null
-      && sideOf(dealOnly.get(s.seat) ?? new Set<Role>()) === null)
-    .map((s) => {
-      const questNum = forcedBy.get(s.seat)
-      return {
-        seat: s.seat,
-        alignment: s.alignment as Alignment,
-        ...(questNum !== undefined ? { questNum } : {}),
-      }
-    })
+  const analysis = analyzeSituation(view, { belief })
+  const fromRecord = analysis.deductions
+    .filter((deduction) =>
+      deduction.seat !== view.seat
+      && (
+        deduction.provenance.kind === 'quest-record'
+        || deduction.provenance.kind === 'joint-constraints'
+      ))
+    .map((deduction) => ({
+      seat: deduction.seat,
+      alignment: deduction.alignment,
+      ...((deduction.provenance.kind === 'quest-record'
+        || (
+          deduction.provenance.kind === 'joint-constraints'
+          && deduction.alignment === 'evil'
+        ))
+        && deduction.provenance.questNums.length === 1
+        ? { questNum: deduction.provenance.questNums[0] }
+        : {}),
+    }))
 
   return {
     seats,

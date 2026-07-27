@@ -25,6 +25,10 @@ import type { OpenRouterClient, SpendEntry } from '../llm/openrouter.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
 import type { Seat } from '../engine/types.ts'
+import {
+  upsertDecisionTrace,
+  type DecisionTrace,
+} from '../agents/trace.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -126,7 +130,7 @@ export function defaultComponents(def: AgentDef, modelOverride?: string): Record
   return {
     agent: `${def.id}@${version}`,
     model: resolveModel(def, modelOverride),
-    belief: 'none',
+    belief: def.engine.beliefMode ?? 'none',
     policy: PHASE0_COMPONENT_VERSIONS.promptGuidedPolicy,
     communication: PHASE0_COMPONENT_VERSIONS.promptGuidedCommunication,
   }
@@ -166,9 +170,15 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       }
 
       const agents = new Map<Seat, AvalonAgent>()
+      const decisionTraces: DecisionTrace[] = []
       const descriptors = game.players.map(() => 'heuristic')
       for (const player of game.players) {
-        const ctx = { seed: c.seed, seat: player.seat }
+        const ctx = {
+          seed: c.seed,
+          seat: player.seat,
+          onDecisionTrace: (trace: DecisionTrace) =>
+            upsertDecisionTrace(decisionTraces, trace),
+        }
         if (player.seat === target.seat) {
           agents.set(player.seat, createAgentFromDef(variant.agent, ctx, variant.modelOverride))
           descriptors[player.seat] = `def:${variant.agent.id}`
@@ -201,9 +211,14 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           targetRole: c.targetRole,
           targetSeat: target.seat,
           variant: variant.id,
-          components: { ...variant.components },
+          components: {
+            ...variant.components,
+            belief: variant.components.belief
+              ?? defaultComponents(variant.agent, variant.modelOverride).belief,
+          },
         },
         ...(llmTags ? { telemetry: { llm: { tags: llmTags } } } : {}),
+        decisionTraces,
       })
       if (opts.out) appendArtifact(opts.out, artifact)
       artifacts.push(artifact)

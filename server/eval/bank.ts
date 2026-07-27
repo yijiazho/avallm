@@ -129,7 +129,14 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
   // check, then ONE correction retry. Without this the replay fails on a first
   // malformed reply the live agent would have recovered from, inflating the
   // candidate's measured failure rate above what it plays at.
-  const messages = buildMessages(kind, snapshot.view, snapshot.scratchpad, overrides)
+  const messages = buildMessages(
+    kind,
+    snapshot.view,
+    snapshot.scratchpad,
+    overrides,
+    undefined,
+    { beliefMode: def.engine.beliefMode },
+  )
   const first = await call(messages)
   let parsed = parseDecision(kind, first, snapshot.view)
   let error = parsed.parseFailed ? parsed.error! : parsed.decision && legalityError(parsed.decision, snapshot.view)

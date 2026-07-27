@@ -47,6 +47,7 @@
 
 import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../engine/rules.ts'
 import type { PlayerView, Seat } from '../engine/types.ts'
+import { boardSituation } from './analysis/situation.ts'
 
 const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
 
@@ -167,8 +168,9 @@ function ownPositions(view: PlayerView): string[] {
 // conventions, and the reason this belongs here rather than in three ASK
 // branches: one fact, every decision, both alignments.
 function boardStakesSection(view: PlayerView): string {
-  const successes = view.quests.filter((q) => q.result === 'success').length
-  const fails = view.quests.filter((q) => q.result === 'fail').length
+  const board = boardSituation(view)
+  const successes = board.score.good
+  const fails = board.score.evil
 
   // A quest sits at quests[round-1] until it resolves, and `round` advances only
   // when the game continues (engine: applyDecision 'quest'). So "nothing pending
@@ -346,7 +348,7 @@ export function factsDossier(view: PlayerView): string {
   if (positions.length) sections.push(`Your resolved public positions:\n${positions.map((p) => `  ${p}`).join('\n')}`)
 
   // Hammer proximity — how much rejection runway is left this round.
-  const rejectsLeft = MAX_PROPOSALS - view.proposalNum
+  const rejectsLeft = boardSituation(view).proposalsRemaining
   if (rejectsLeft <= 2 && view.proposalNum < MAX_PROPOSALS) {
     sections.push(`Hammer proximity: proposal ${view.proposalNum} of ${MAX_PROPOSALS} this round, so up to ${rejectsLeft} more proposal${rejectsLeft > 1 ? 's' : ''} can be rejected before the 5th is auto-approved.`)
   }

@@ -26,6 +26,10 @@ import { ROLE_ALIGNMENT, nameIsReserved } from '../engine/rules.ts'
 import { resolvePacks } from './packs.ts'
 import type { ResolvedPack } from './packs.ts'
 import type { Role } from '../engine/types.ts'
+import {
+  EXPERIMENTAL_BELIEF_MODE,
+  type ExperimentalBeliefMode,
+} from './experimental.ts'
 
 export interface LlmEngine {
   type: 'llm'
@@ -39,6 +43,8 @@ export interface LlmEngine {
   roleGuidanceMode?: 'replace' | 'append'
   kindGuidance?: Partial<Record<LlmCallKind, string>>
   temperature?: number // global sampling override, must be in [0, 1]
+  /** Explicit, nondefault Phase 2 cognition visibility experiment. */
+  beliefMode?: ExperimentalBeliefMode
 }
 
 export type AgentEngine =
@@ -90,6 +96,7 @@ export interface AgentPublicInfo {
   custom: boolean        // editable (user tier)
   tier: AgentTier
   unavailable?: string
+  beliefMode?: ExperimentalBeliefMode
 }
 
 // One seat at a lobby table: which agent plays it, and (optionally) which
@@ -309,6 +316,9 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
         throw new Error('temperature must be a number in [0, 1]')
       }
     }
+    if (e.beliefMode !== undefined && e.beliefMode !== EXPERIMENTAL_BELIEF_MODE) {
+      throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
+    }
     if (customChars(e) > AGGREGATE_CAP) {
       throw new Error(`custom prompt text exceeds ${AGGREGATE_CAP} chars total`)
     }
@@ -436,5 +446,6 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',
     unavailable: def.unavailable,
+    beliefMode: e.type === 'llm' ? e.beliefMode : undefined,
   }
 }

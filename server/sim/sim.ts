@@ -19,6 +19,10 @@ import {
 } from '../eval/norms.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
+import {
+  upsertDecisionTrace,
+  type DecisionTrace,
+} from '../agents/trace.ts'
 import type { Seat } from '../engine/types.ts'
 
 const USAGE = `npm run sim -- [flags]        headless Avalon simulator
@@ -206,9 +210,17 @@ function specFor(seat: Seat, tierTable?: string[]): AgentSpec {
   return { type: 'heuristic' }
 }
 
-function agentFor(seat: Seat, seed: string, tierTable?: string[]): AvalonAgent {
-  if (packTable && packDefs) return createAgentFromDef(packDefs[seat], { seed, seat }, packTable[seat].model)
-  return createAgent(specFor(seat, tierTable), { seed, seat })
+function agentFor(
+  seat: Seat,
+  seed: string,
+  tierTable?: string[],
+  onDecisionTrace?: (trace: DecisionTrace) => void,
+): AvalonAgent {
+  const context = { seed, seat, onDecisionTrace }
+  if (packTable && packDefs) {
+    return createAgentFromDef(packDefs[seat], context, packTable[seat].model)
+  }
+  return createAgent(specFor(seat, tierTable), context)
 }
 
 // LLM tables are named after their models — the premise of the game. A homogeneous
@@ -273,8 +285,17 @@ async function playGame(i: number): Promise<void> {
     seed, playerCount, names: namesFor(playerCount, tierTable),
     talk: { maxRounds, maxRoundsAfterChange },
   })
+  const decisionTraces: DecisionTrace[] = []
   const agents = new Map<Seat, AvalonAgent>(
-    game.players.map((p) => [p.seat, agentFor(p.seat, seed, tierTable)]),
+    game.players.map((p) => [
+      p.seat,
+      agentFor(
+        p.seat,
+        seed,
+        tierTable,
+        (trace) => upsertDecisionTrace(decisionTraces, trace),
+      ),
+    ]),
   )
   const verbose = games === 1 && !values.quiet
   const result = await runGame({
@@ -303,6 +324,7 @@ async function playGame(i: number): Promise<void> {
     agents: game.players.map((p) => seatDescriptor(p.seat, tierTable)),
     degraded: result.degraded,
     steps: result.steps,
+    decisionTraces,
   })
   const violations = forcedPlayViolations(artifact)
   // Same deal as the forced plays: computed from the artifact we already built,

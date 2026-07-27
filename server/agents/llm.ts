@@ -17,6 +17,14 @@ import type { AskExtra, PromptOverrides } from './prompts.ts'
 import { legalityError, parseDecision } from './parse.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { AvalonAgent } from './types.ts'
+import {
+  EXPERIMENTAL_BELIEF_MODE,
+  experimentalBeliefContext,
+  type ExperimentalBeliefContext,
+  type ExperimentalBeliefMode,
+} from './experimental.ts'
+import type { CognitionState } from './cognition/types.ts'
+import { createDecisionTrace, type DecisionTrace } from './trace.ts'
 
 export interface LlmAgentOpts {
   modelId: string           // roster id, e.g. 'deepseek-flash'
@@ -26,6 +34,8 @@ export interface LlmAgentOpts {
                             // (two custom agents can share a model — the model name is ambiguous)
   prompts?: PromptOverrides // agent-config prompt layers
   temperature?: number      // agent-config override of the per-kind default, [0, 1]
+  beliefMode?: ExperimentalBeliefMode
+  onDecisionTrace?: (trace: DecisionTrace) => void
 }
 
 // A short, whitespace-collapsed, quoted view of a failed raw reply, for the
@@ -46,13 +56,37 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   let reflectedQuests = 0
   let reflectedRejections = 0
   let pendingNotes: string | null = null
+  let cognition: CognitionState | undefined
+  let pendingTraceDegradation: string[] = []
+
+  function beliefContext(
+    view: PlayerView,
+    candidateTeams: readonly (readonly number[])[] = [],
+  ): ExperimentalBeliefContext | undefined {
+    if (opts.beliefMode !== EXPERIMENTAL_BELIEF_MODE) return undefined
+    const context = experimentalBeliefContext(view, candidateTeams, cognition)
+    cognition = context.cognition
+    return context
+  }
 
   async function callKind(
     kind: LlmCallKind, view: PlayerView,
     correction?: { prior: string; error: string }, extra?: AskExtra,
   ): Promise<string> {
     const params = CALL_PARAMS[kind]
-    const messages: Msg[] = buildMessages(kind, view, scratchpad, overrides, extra)
+    const context = beliefContext(view, extra?.chosenTeam ? [extra.chosenTeam] : [])
+    const messages: Msg[] = buildMessages(
+      kind,
+      view,
+      scratchpad,
+      overrides,
+      extra,
+      {
+        beliefMode: opts.beliefMode,
+        beliefBlock: context?.rendered,
+        belief: context?.cognition.belief,
+      },
+    )
     if (correction) {
       messages.push(
         { role: 'assistant', content: correction.prior },
@@ -111,14 +145,41 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       if (!parsed.parseFailed && parsed.scratchpad) {
         scratchpad = parsed.scratchpad
         pendingNotes = parsed.scratchpad // ride the next decision into the log
+      } else if (opts.beliefMode) {
+        pendingTraceDegradation.push('reflection-failed')
       }
     } catch {
       // Reflection is best-effort; a failed reflect never blocks a decision.
+      if (opts.beliefMode) pendingTraceDegradation.push('reflection-failed')
     }
+  }
+
+  function recordTrace(
+    req: DecisionRequest,
+    view: PlayerView,
+    decision: Decision,
+  ): void {
+    if (!opts.onDecisionTrace || opts.beliefMode !== EXPERIMENTAL_BELIEF_MODE) return
+    const candidateTeams =
+      decision.kind === 'propose' || (decision.kind === 'finalize' && !decision.stick)
+        ? [decision.team]
+        : []
+    const context = beliefContext(view, candidateTeams)
+    if (!context) return
+    opts.onDecisionTrace(createDecisionTrace(
+      req,
+      view,
+      context.cognition.belief,
+      context.analysis,
+      decision,
+      pendingTraceDegradation,
+    ))
+    pendingTraceDegradation = []
   }
 
   return {
     async decide(req: DecisionRequest, view: PlayerView): Promise<Decision> {
+      pendingTraceDegradation = []
       await maybeReflect(view)
       // Good's quest card is forced (the engine coerces fail -> success), so
       // a call would buy nothing. Skipping it is unobservable at the table:
@@ -130,6 +191,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
           decision.notes = pendingNotes
           pendingNotes = null
         }
+        recordTrace(req, view, decision)
         return decision
       }
       const kind = req.kind as LlmCallKind
@@ -139,6 +201,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         ? parsed.error!
         : parsed.decision && legalityError(parsed.decision, view)
       if (error) {
+        if (opts.beliefMode) pendingTraceDegradation.push('decision-retry')
         const second = await callKind(kind, view, { prior: first, error })
         parsed = parseDecision(kind, second, view)
         error = parsed.parseFailed
@@ -173,12 +236,27 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
             if (pitchParsed.thinking) {
               decision.thinking = [decision.thinking, pitchParsed.thinking].filter(Boolean).join(' / ')
             }
+          } else if (opts.beliefMode) {
+            pendingTraceDegradation.push('pitch-failed')
           }
         } catch {
+          if (opts.beliefMode) pendingTraceDegradation.push('pitch-failed')
           // silent proposal — the table will notice
         }
       }
+      recordTrace(req, view, decision)
       return decision
+    },
+    recordFallbackTrace(
+      req: DecisionRequest,
+      view: PlayerView,
+      decision: Decision,
+    ): void {
+      if (opts.beliefMode !== EXPERIMENTAL_BELIEF_MODE) return
+      if (!pendingTraceDegradation.includes('decision-fallback')) {
+        pendingTraceDegradation.push('decision-fallback')
+      }
+      recordTrace(req, view, decision)
     },
   }
 }

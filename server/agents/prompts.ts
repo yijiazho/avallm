@@ -23,8 +23,14 @@ import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
 import { knownEvilAboard, matchPoint, roleCertainties } from './board.ts'
 import type { RoleCertainties } from './board.ts'
 import { factsDossier, questResultTag } from './facts.ts'
+import {
+  EXPERIMENTAL_BELIEF_MODE,
+  experimentalBeliefContext,
+  type ExperimentalBeliefMode,
+} from './experimental.ts'
 import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
+import type { BeliefSnapshot } from './belief/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 
 // ---- constants (cache-friendly) ----
@@ -357,8 +363,12 @@ function recordLine(view: PlayerView, certain: RoleCertainties): string {
     + ` the table can follow the same steps, and if it rests on who you were shown at the deal, showing the working shows what you are.`
 }
 
-export function knowledgeText(view: PlayerView): string {
-  return dealKnowledgeText(view) + recordLine(view, roleCertainties(view))
+export function knowledgeText(
+  view: PlayerView,
+  belief?: BeliefSnapshot,
+): string {
+  const certainty = roleCertainties(view, belief)
+  return dealKnowledgeText(view, certainty) + recordLine(view, certainty)
 }
 
 // Both private lists below are COMPLETE unless one specific role is dealt, and
@@ -372,9 +382,12 @@ export function knowledgeText(view: PlayerView): string {
 // Certainty is more dangerous to say out loud than doubt was, so every branch
 // that closes a deduction also carries the gag. Merlin's may name the Assassin
 // because knownEvil is Merlin-only and the lattice makes Assassin implied.
-function dealKnowledgeText(view: PlayerView): string {
+function dealKnowledgeText(
+  view: PlayerView,
+  suppliedCertainty?: RoleCertainties,
+): string {
   const info = view.privateInfo
-  const certain = roleCertainties(view)
+  const certain = suppliedCertainty ?? roleCertainties(view)
   const named = (seats: readonly Seat[]) => seats.map((s) => nameOf(view, s)).join(', ')
 
   if (info.knownEvil?.length) {
@@ -877,6 +890,16 @@ export interface PromptOverrides {
   kindGuidance?: Partial<Record<string, string>>
 }
 
+export interface PromptFeatures {
+  beliefMode?: ExperimentalBeliefMode
+  /**
+   * Live agents may supply their incrementally computed block. Preview and
+   * offline callers omit it and use deterministic full reconstruction.
+   */
+  beliefBlock?: string
+  belief?: BeliefSnapshot
+}
+
 // Layer order (front to back): alignment-shared -> role-specific -> custom.
 // The alignment-shared fragment is ALWAYS present, even under a 'replace'
 // override, so no role (built-in or custom) can silently miss the coordination
@@ -941,14 +964,23 @@ export function roleGuidanceFor(role: string, overrides: PromptOverrides, view?:
 export function buildMessages(
   kind: LlmCallKind, view: PlayerView, scratchpad: string,
   overrides: PromptOverrides = {}, extra?: AskExtra,
+  features: PromptFeatures = {},
 ): Msg[] {
+  const computedBelief = features.beliefMode === EXPERIMENTAL_BELIEF_MODE
+    && (!features.beliefBlock || !features.belief)
+    ? experimentalBeliefContext(
+        view,
+        extra?.chosenTeam ? [extra.chosenTeam] : [],
+      )
+    : undefined
+  const belief = features.belief ?? computedBelief?.cognition.belief
   const guidance = roleGuidanceFor(view.role, overrides, view)
   const kindGuidance = overrides.kindGuidance?.[kind]
   const system = [
     rulesDigest(view),
     ``,
     `You are ${nameOf(view, view.seat)}. Your secret role: ${view.role.toUpperCase()} (${view.alignment}).`,
-    knowledgeText(view),
+    knowledgeText(view, belief),
     ...(overrides.strategy
       ? [``, `Your general strategy. Apply it every turn: ${overrides.strategy}`]
       : []),
@@ -972,10 +1004,16 @@ export function buildMessages(
   // neutral data — what to do about them is the agent's policy. The dossier is
   // omitted early-game when nothing has resolved yet (returns '').
   const dossier = factsDossier(view)
+  const beliefBlock = features.beliefMode === EXPERIMENTAL_BELIEF_MODE
+    ? features.beliefBlock
+      ?? computedBelief?.rendered
+      ?? ''
+    : ''
   const user = [
     `== GAME STATE ==`,
     publicStateText(view),
     ...(dossier ? [``, dossier] : []),
+    ...(beliefBlock ? [``, beliefBlock] : []),
     ``,
     `== YOUR PRIVATE NOTES (from earlier this game) ==`,
     scratchpad || '(none yet)',

@@ -40,6 +40,10 @@ import { getClient } from './llm/client.ts'
 import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, nameIsReserved, validateRoles } from './engine/rules.ts'
 import type { AvalonAgent } from './agents/types.ts'
+import {
+  upsertDecisionTrace,
+  type DecisionTrace,
+} from './agents/trace.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
 import { renderTranscript, type TranscriptSeat } from './transcript.ts'
 
@@ -155,6 +159,11 @@ function engineFrom(body: any, base?: LlmEngine): LlmEngine {
       if (typeof v !== 'number') throw new Error('temperature must be a number (or null to clear)')
       return v
     }, base?.temperature),
+    beliefMode: pick('beliefMode', (v) => {
+      if (v === null || v === undefined || v === '') return undefined
+      if (v === 'exact-summary-v1') return v
+      throw new Error('beliefMode must be "exact-summary-v1"')
+    }, base?.beliefMode),
   }
 }
 
@@ -325,6 +334,7 @@ function startLobby(l: Lobby): void {
   }
   const botInfo: Record<number, AgentPublicInfo> = {}
   const agents = new Map<Seat, AvalonAgent>()
+  const decisionTraces: DecisionTrace[] = []
   // Deep-copy each seat's def PLUS its seat model override: the reveal (and,
   // later, session snapshots) must serve the config that actually played, so
   // a PUT or DELETE mid-game only affects future games (design doc §5). The
@@ -358,12 +368,20 @@ function startLobby(l: Lobby): void {
     seed, playerCount, names, roles: l.config.roles,
   })
   botSeatList.forEach((seat, i) => {
-    agents.set(seat, createAgentFromDef(defs[i], { seed, seat }, table[i].model))
+    agents.set(seat, createAgentFromDef(
+      defs[i],
+      {
+        seed,
+        seat,
+        onDecisionTrace: (trace) => upsertDecisionTrace(decisionTraces, trace),
+      },
+      table[i].model,
+    ))
   })
 
   const id = newId()
   const session: Session = {
-    game, agents, humans, botInfo, agentDefs,
+    game, agents, humans, botInfo, agentDefs, decisionTraces,
     spectators: new Set(l.spectators.map((s) => s.token)),
     waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0, artifactWritten: false,
     listeners: new Set(), pumping: false,
@@ -388,6 +406,7 @@ interface Session {
   acting: Seat[]
   degraded: { seat: Seat; kind: string; error: string }[]
   degradedSeqs: number[]
+  decisionTraces: DecisionTrace[]
   listeners: Set<{ res: http.ServerResponse; token: string }>
   pumping: boolean
   steps: number            // decisions applied, for the artifact's steps field
@@ -440,6 +459,7 @@ function saveArtifact(s: Session): void {
       agents: s.game.players.map((p) => seatAgentLabel(s, p.seat)),
       degraded: s.degraded,
       steps: s.steps,
+      decisionTraces: s.decisionTraces,
     }))
   } catch (err) {
     // Never let bookkeeping take down a finished game. The result is already in
@@ -500,16 +520,28 @@ async function pump(s: Session): Promise<void> {
         const view = viewFor(s.game, req.seat)
         const agent = s.agents.get(req.seat)!
         try {
-          return { req, decision: await agent.decide(req, view), fallback: false }
+          return {
+            req,
+            view,
+            agent,
+            decision: await agent.decide(req, view),
+            fallback: false,
+          }
         } catch (err) {
           s.degraded.push({
             seat: req.seat, kind: req.kind,
             error: err instanceof Error ? err.message : String(err),
           })
-          return { req, decision: heuristicDecide(req, view, s.game.seed), fallback: true }
+          const decision = heuristicDecide(req, view, s.game.seed)
+          try {
+            agent.recordFallbackTrace?.(req, view, decision)
+          } catch {
+            // Optional private telemetry never blocks the live game.
+          }
+          return { req, view, agent, decision, fallback: true }
         }
       }))
-      for (const { req, decision, fallback } of decisions) {
+      for (const { req, view, agent, decision, fallback } of decisions) {
         const seqStart = s.game.log.length
         let wasFallback = fallback
         try {
@@ -519,7 +551,17 @@ async function pump(s: Session): Promise<void> {
             seat: req.seat, kind: req.kind,
             error: err instanceof Error ? err.message : String(err),
           })
-          applyDecision(s.game, req.seat, heuristicDecide(req, viewFor(s.game, req.seat), s.game.seed)); s.steps++
+          const fallbackDecision = heuristicDecide(
+            req,
+            viewFor(s.game, req.seat),
+            s.game.seed,
+          )
+          try {
+            agent.recordFallbackTrace?.(req, view, fallbackDecision)
+          } catch {
+            // Optional private telemetry never blocks the live game.
+          }
+          applyDecision(s.game, req.seat, fallbackDecision); s.steps++
           wasFallback = true
         }
         if (wasFallback) {
@@ -909,7 +951,14 @@ const server = http.createServer(async (req, res) => {
       } catch (err) {
         return json(res, 400, { error: err instanceof Error ? err.message : String(err) })
       }
-      const messages = buildMessages(kind, viewFor(game, player.seat), FIXTURE_SCRATCHPAD, promptOverridesOf(engine))
+      const messages = buildMessages(
+        kind,
+        viewFor(game, player.seat),
+        FIXTURE_SCRATCHPAD,
+        promptOverridesOf(engine),
+        undefined,
+        { beliefMode: engine.beliefMode },
+      )
       const chars = messages.reduce((n, m) => n + m.content.length, 0)
       json(res, 200, { messages, rolesInPlay, kinds: Object.keys(CALL_PARAMS), tokenEstimate: Math.round(chars / 4) })
       return

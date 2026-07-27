@@ -27,6 +27,10 @@ import type { GameArtifact } from './artifact.ts'
 import type { AgentDef } from '../agents/defs.ts'
 import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
 import type { Role, Seat, TalkConfig } from '../engine/types.ts'
+import {
+  upsertDecisionTrace,
+  type DecisionTrace,
+} from '../agents/trace.ts'
 
 export interface BenchOpts {
   role: Role
@@ -81,9 +85,15 @@ export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
       })
       const roleSeat = game.players.find((p) => p.role === opts.role)!.seat
       const agents = new Map<Seat, AvalonAgent>()
+      const decisionTraces: DecisionTrace[] = []
       const descriptors: string[] = []
       for (const p of game.players) {
-        const ctx = { seed, seat: p.seat }
+        const ctx = {
+          seed,
+          seat: p.seat,
+          onDecisionTrace: (trace: DecisionTrace) =>
+            upsertDecisionTrace(decisionTraces, trace),
+        }
         if (p.seat === roleSeat) {
           agents.set(p.seat, createAgentFromDef(def, ctx))
           descriptors.push(`def:${def.id}`)
@@ -101,6 +111,7 @@ export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
         agents: descriptors,
         degraded: result.degraded,
         steps: result.steps,
+        decisionTraces,
         tags: { bench: opts.role, variant, pairSeed: seed, agentId: def.id, agentModel: resolved },
       })
       if (opts.out) appendArtifact(opts.out, artifact)

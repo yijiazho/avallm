@@ -62,3 +62,21 @@ test('/valid returns 404 for a game the server does not have', async () => {
   const r = await fetch(`${base}/api/game/deadbeef99/valid?token=whatever`)
   assert.equal(r.status, 404)
 })
+
+test('/api/agents/preview renders the exact belief block only when explicitly selected', async () => {
+  const preview = async (beliefMode?: string) => {
+    const response = await fetch(`${base}/api/agents/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'servant', kind: 'discuss', beliefMode }),
+    })
+    assert.equal(response.status, 200)
+    return response.json() as Promise<{ messages: { content: string }[] }>
+  }
+  const normal = await preview()
+  const experimental = await preview('exact-summary-v1')
+  assert.ok(normal.messages.every((message) =>
+    !message.content.includes('EXACT BELIEF SUMMARY')))
+  assert.ok(experimental.messages.some((message) =>
+    message.content.includes('EXACT BELIEF SUMMARY')))
+})

@@ -1,0 +1,351 @@
+import {
+  MAX_PROPOSALS,
+  QUESTS_TO_WIN,
+} from '../../engine/rules.ts'
+import type {
+  Alignment,
+  PlayerView,
+  Seat,
+} from '../../engine/types.ts'
+import {
+  assessTeam,
+  exactBelief,
+  feasibleWorlds,
+} from '../belief/exact.ts'
+import {
+  questFailEvidence,
+  type QuestFailEvidence,
+} from '../belief/constraints.ts'
+import type {
+  BeliefSnapshot,
+  HiddenWorld,
+} from '../belief/types.ts'
+import type { Evidence } from '../cognition/types.ts'
+import {
+  SITUATION_ANALYSIS_VERSION,
+  type AnalysisFactCode,
+  type BoardSituation,
+  type DeductionProvenance,
+  type ForcedPlayReasonCode,
+  type HardDeduction,
+  type SituationAnalysis,
+  type SituationTeamAssessment,
+} from './types.ts'
+
+export function boardSituation(view: PlayerView): BoardSituation {
+  const good = view.quests.filter((quest) => quest.result === 'success').length
+  const evil = view.quests.filter((quest) => quest.result === 'fail').length
+  const proposalsRemaining = Math.max(0, MAX_PROPOSALS - view.proposalNum)
+  const automaticApproval = view.proposalNum === MAX_PROPOSALS
+  const proximity =
+    automaticApproval ? 'hammer'
+      : view.proposalNum === MAX_PROPOSALS - 1 ? 'next'
+        : view.proposalNum === MAX_PROPOSALS - 2 ? 'near'
+          : 'normal'
+  return {
+    score: { good, evil },
+    matchPoint: {
+      good: good === QUESTS_TO_WIN - 1,
+      evil: evil === QUESTS_TO_WIN - 1,
+    },
+    proposalNumber: view.proposalNum,
+    proposalsRemaining,
+    rejectionsBeforeHammer: automaticApproval ? 0 : proposalsRemaining,
+    hammer: { proximity, automaticApproval },
+  }
+}
+
+/**
+ * Evil seats this viewer can legally identify on a team. Oberon is absent from
+ * partner lists and therefore remains invisible in both directions.
+ */
+export function knownFailsAboard(
+  view: PlayerView,
+  team: readonly Seat[] | undefined,
+): readonly Seat[] {
+  if (view.alignment !== 'evil' || !team) return []
+  const legallyKnown = new Set<Seat>([
+    view.seat,
+    ...(view.privateInfo.evilPartners ?? []),
+  ])
+  return team.filter((seat) => legallyKnown.has(seat)).sort((a, b) => a - b)
+}
+
+function alignmentOf(
+  worlds: readonly HiddenWorld[],
+  seat: Seat,
+): Alignment | undefined {
+  const first = worlds[0]?.alignmentBySeat[seat]
+  return first && worlds.every((world) => world.alignmentBySeat[seat] === first)
+    ? first
+    : undefined
+}
+
+const roleEvidenceIds = (evidence: readonly Evidence[]): readonly string[] =>
+  evidence
+    .filter((record) =>
+      record.kind === 'private-role' || record.kind === 'private-knowledge')
+    .map((record) => record.id)
+
+const questEvidenceId = (
+  evidence: readonly Evidence[],
+  questNum: number,
+): string | undefined =>
+  evidence.find(
+    (record) =>
+      record.kind === 'quest-result' && record.payload.questNum === questNum,
+  )?.id
+
+function worldMatchesQuest(
+  world: HiddenWorld,
+  record: QuestFailEvidence,
+): boolean {
+  return record.team.filter(
+    (seat) => world.alignmentBySeat[seat] === 'evil',
+  ).length >= record.minimumEvil
+}
+
+function combinations<T>(items: readonly T[], size: number): readonly T[][] {
+  const output: T[][] = []
+  const current: T[] = []
+  const visit = (start: number): void => {
+    if (current.length === size) {
+      output.push(current.slice())
+      return
+    }
+    for (let index = start; index < items.length; index++) {
+      current.push(items[index])
+      visit(index + 1)
+      current.pop()
+    }
+  }
+  visit(0)
+  return output
+}
+
+function minimalQuestProof(
+  dealWorlds: readonly HiddenWorld[],
+  records: readonly QuestFailEvidence[],
+  seat: Seat,
+  alignment: Alignment,
+): readonly QuestFailEvidence[] {
+  for (let size = 1; size <= records.length; size++) {
+    for (const selected of combinations(records, size)) {
+      const worlds = dealWorlds.filter((world) =>
+        selected.every((record) => worldMatchesQuest(world, record)))
+      if (
+        worlds.length
+        && worlds.every((world) => world.alignmentBySeat[seat] === alignment)
+      ) {
+        return selected
+      }
+    }
+  }
+  return []
+}
+
+function directPrivateSeat(view: PlayerView, seat: Seat): boolean {
+  return seat === view.seat
+    || (view.privateInfo.knownEvil ?? []).includes(seat)
+    || (view.privateInfo.evilPartners ?? []).includes(seat)
+}
+
+function directSingleQuestProof(
+  record: QuestFailEvidence,
+  seat: Seat,
+  alignment: Alignment,
+): boolean {
+  if (alignment !== 'evil' || !record.team.includes(seat)) return false
+  // The quest record alone identifies a seat only when every team member
+  // supplied a Fail. Any narrower candidate set comes from private deal
+  // knowledge or role-cardinality closure and therefore needs joint provenance.
+  return record.minimumEvil === record.team.length
+}
+
+function provenanceFor(
+  view: PlayerView,
+  evidence: readonly Evidence[],
+  dealWorlds: readonly HiddenWorld[],
+  questRecords: readonly QuestFailEvidence[],
+  seat: Seat,
+  alignment: Alignment,
+): DeductionProvenance {
+  const privateIds = roleEvidenceIds(evidence)
+  if (directPrivateSeat(view, seat)) {
+    return { kind: 'private-deal', evidenceIds: privateIds }
+  }
+  if (alignmentOf(dealWorlds, seat) === alignment) {
+    return { kind: 'role-cardinality-closure', evidenceIds: privateIds }
+  }
+
+  const proof = minimalQuestProof(dealWorlds, questRecords, seat, alignment)
+  const questNums = proof.map((record) => record.questNum)
+  const questIds = questNums
+    .map((questNum) => questEvidenceId(evidence, questNum))
+    .filter((id): id is string => id !== undefined)
+  if (
+    proof.length === 1
+    && directSingleQuestProof(proof[0], seat, alignment)
+  ) {
+    return { kind: 'quest-record', evidenceIds: questIds, questNums }
+  }
+  return {
+    kind: 'joint-constraints',
+    evidenceIds: [...privateIds, ...questIds],
+    questNums,
+    components: [
+      ...(privateIds.length ? ['private-knowledge' as const] : []),
+      'role-cardinality',
+      'quest-record',
+    ],
+  }
+}
+
+function teamAssessment(
+  view: PlayerView,
+  snapshot: BeliefSnapshot,
+  team: readonly Seat[],
+): SituationTeamAssessment {
+  return {
+    ...assessTeam(snapshot, team),
+    knownFailsAboard: knownFailsAboard(view, team),
+  }
+}
+
+function factCodesFor(
+  board: BoardSituation,
+  current: SituationTeamAssessment | undefined,
+  failsRequired: number,
+  deductions: readonly HardDeduction[],
+): readonly AnalysisFactCode[] {
+  const codes = new Set<AnalysisFactCode>()
+  if (board.matchPoint.good) codes.add('GOOD_MATCH_POINT')
+  if (board.matchPoint.evil) codes.add('EVIL_MATCH_POINT')
+  if (board.hammer.proximity === 'near') codes.add('HAMMER_NEAR')
+  if (board.hammer.proximity === 'next') codes.add('HAMMER_NEXT')
+  if (board.hammer.automaticApproval) codes.add('HAMMER_AUTOMATIC')
+  if (current?.knownFailsAboard.length) codes.add('CURRENT_TEAM_HAS_KNOWN_EVIL')
+  if ((current?.knownFailsAboard.length ?? 0) >= failsRequired) {
+    codes.add('CURRENT_TEAM_CAN_MEET_FAIL_REQUIREMENT')
+  }
+  for (const deduction of deductions) {
+    if (deduction.provenance.kind === 'private-deal') {
+      codes.add('ALIGNMENT_PROVEN_PRIVATE')
+    } else if (deduction.provenance.kind === 'role-cardinality-closure') {
+      codes.add('ALIGNMENT_PROVEN_CLOSURE')
+    } else if (deduction.provenance.kind === 'quest-record') {
+      codes.add('ALIGNMENT_PROVEN_QUEST')
+    } else {
+      codes.add('ALIGNMENT_PROVEN_JOINT')
+    }
+  }
+  return [...codes]
+}
+
+function forcedCodesFor(
+  view: PlayerView,
+  board: BoardSituation,
+  current: SituationTeamAssessment | undefined,
+  failsRequired: number,
+): readonly ForcedPlayReasonCode[] {
+  const codes = new Set<ForcedPlayReasonCode>()
+  if (
+    view.phase === 'quest'
+    && view.alignment === 'good'
+    && current?.team.includes(view.seat)
+  ) {
+    codes.add('GOOD_QUEST_CARD_FORCED_SUCCESS')
+  }
+  if (board.hammer.automaticApproval) codes.add('HAMMER_TEAM_AUTOMATIC')
+  if (view.alignment === 'evil' && current) {
+    const canSink = current.knownFailsAboard.length >= failsRequired
+    if (canSink) codes.add('EVIL_TEAM_CAN_SINK')
+    if (board.matchPoint.evil && canSink) {
+      codes.add('EVIL_MATCH_POINT_FAIL_AVAILABLE')
+    }
+    if (board.matchPoint.good) {
+      if (canSink) codes.add('GOOD_MATCH_POINT_FAIL_REQUIRED')
+      else codes.add('EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT')
+    }
+  }
+  return [...codes]
+}
+
+export interface AnalyzeSituationOptions {
+  belief?: BeliefSnapshot
+  evidence?: readonly Evidence[]
+  candidateTeams?: readonly (readonly Seat[])[]
+}
+
+export function analyzeSituation(
+  view: PlayerView,
+  options: AnalyzeSituationOptions = {},
+): SituationAnalysis {
+  const belief = options.belief ?? exactBelief(view)
+  const evidence = options.evidence ?? []
+  const board = boardSituation(view)
+  const questRecords = questFailEvidence(view)
+  let dealWorldCache: readonly HiddenWorld[] | undefined
+  const dealWorlds = (): readonly HiddenWorld[] =>
+    dealWorldCache ??= feasibleWorlds(view, { questRecord: 'none' })
+  const deductions: HardDeduction[] = []
+  const provenGood: Seat[] = []
+  const provenEvil: Seat[] = []
+  const unresolved: Seat[] = []
+  for (const player of view.players) {
+    const marginal = belief.playerMarginals[player.seat]
+    const alignment: Alignment | undefined =
+      marginal.evilProbability === 1 ? 'evil'
+        : marginal.goodProbability === 1 ? 'good'
+          : undefined
+    if (!alignment) {
+      unresolved.push(player.seat)
+      continue
+    }
+    if (alignment === 'good') provenGood.push(player.seat)
+    else provenEvil.push(player.seat)
+    const provenance = directPrivateSeat(view, player.seat)
+      ? {
+          kind: 'private-deal' as const,
+          evidenceIds: roleEvidenceIds(evidence),
+        }
+      : provenanceFor(
+          view,
+          evidence,
+          dealWorlds(),
+          questRecords,
+          player.seat,
+          alignment,
+        )
+    deductions.push({
+      seat: player.seat,
+      alignment,
+      provenance,
+    })
+  }
+
+  const currentTeam = view.currentTeam?.length
+    ? teamAssessment(view, belief, view.currentTeam)
+    : undefined
+  const candidateTeams = (options.candidateTeams ?? []).map((team) =>
+    teamAssessment(view, belief, team))
+  const failsRequired = view.quests[view.round - 1]?.failsRequired ?? 1
+  return {
+    throughSeq: belief.throughSeq,
+    modelVersion: SITUATION_ANALYSIS_VERSION,
+    ...board,
+    ...(currentTeam ? { currentTeam } : {}),
+    candidateTeams,
+    provenGood,
+    provenEvil,
+    unresolved,
+    deductions,
+    factCodes: factCodesFor(board, currentTeam, failsRequired, deductions),
+    forcedPlayReasonCodes: forcedCodesFor(
+      view,
+      board,
+      currentTeam,
+      failsRequired,
+    ),
+  }
+}

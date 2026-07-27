@@ -2,7 +2,7 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 1 complete; Phase 2 is next.
+**Current target phase:** Phase 2 complete; Phase 3 is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -88,8 +88,8 @@ compose and difficult to measure independently.
 |---|---|---|
 | 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
 | 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
-| 2. Evidence, analysis, and belief visibility | Next | Typed incremental cognition and decision-ready summaries |
-| 3. Composed agent and policy boundary | Not started | Brain, model, persona, policy, and voice become separate |
+| 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
+| 3. Composed agent and policy boundary | Next | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
@@ -233,7 +233,7 @@ current limitations.
   role marginals, team-clean probability, evil-count distributions, and entropy today. Once
   `WeightedWorld.probability` can vary, those quantities must sum world weights and entropy must
   use the weighted distribution. Add a deliberately non-uniform projection test with that change.
-- [ ] Add a repeatable exact-belief and prompt-rendering performance benchmark, then monitor it as
+- [x] Add a repeatable exact-belief and prompt-rendering performance benchmark, then monitor it as
   coverage grows. On the development Windows host, the full suite increased from roughly 3 seconds
   before Phase 1 to roughly 42 seconds after it; exhaustive legal-cast certainty and rendered-prompt
   audits account for most of the increase. Preserve those exhaustive tests, and improve snapshot
@@ -245,38 +245,136 @@ current limitations.
 
 ### Incremental cognition
 
-- [ ] Add typed `Evidence` records keyed by visible event sequence.
-- [ ] Add `CognitionState.throughSeq` and process each event once.
-- [ ] Separate private evidence from the public evidence projection.
-- [ ] Add a typed commitment ledger for proposals, votes, leans, and explicit claims.
-- [ ] Reconstruct cognition deterministically from a full `PlayerView` for replay and recovery.
+- [x] Add typed `Evidence` records keyed by visible event sequence.
+- [x] Add `CognitionState.throughSeq` and process each event once.
+- [x] Separate private evidence from the public evidence projection.
+- [x] Add a typed commitment ledger for proposals, votes, leans, and explicit claims.
+- [x] Reconstruct cognition deterministically from a full `PlayerView` for replay and recovery.
 
 ### Decision-ready analysis
 
-- [ ] Move score, match point, hammer proximity, and known-Fails-aboard calculations into
+- [x] Move score, match point, hammer proximity, and known-Fails-aboard calculations into
       `SituationAnalysis`.
-- [ ] Add current-team and candidate-team assessments.
-- [ ] Express hard deductions with provenance: private deal, role-count closure, or quest record.
-- [ ] Define stable reason codes for facts and forced-play triggers.
+- [x] Add current-team and candidate-team assessments.
+- [x] Express hard deductions with provenance: private deal, role-count closure, or quest record.
+- [x] Define stable reason codes for facts and forced-play triggers.
 
 ### Prompt visibility
 
-- [ ] Add a compact belief renderer generated from `BeliefSnapshot` and `SituationAnalysis`.
-- [ ] Distinguish `proven`, `uniform hypothesis share`, and later `weighted probability` in wording.
-- [ ] Keep joint relationships such as "exactly one of A/B is evil" visible.
-- [ ] Render the same summaries into prompt preview and live play.
-- [ ] Add prompt audits for impossible certainty and private/public scope mistakes.
+- [x] Add a compact belief renderer generated from `BeliefSnapshot` and `SituationAnalysis`.
+- [x] Distinguish `proven`, `uniform hypothesis share`, and later `weighted probability` in wording.
+- [x] Keep joint relationships such as "exactly one of A/B is evil" visible.
+- [x] Render the same summaries into prompt preview and live play.
+- [x] Add prompt audits for impossible certainty and private/public scope mistakes.
 
 ### Trace seam
 
-- [ ] Introduce optional `DecisionTrace` data without exposing it to live opponents.
-- [ ] Record belief version, event cursor, top hypotheses, team assessment, and degradation quality.
-- [ ] Decide whether traces live in the main game artifact or a private sidecar.
+- [x] Introduce optional `DecisionTrace` data without exposing it to live opponents.
+- [x] Record belief version, event cursor, top hypotheses, team assessment, and degradation quality.
+- [x] Decide whether traces live in the main game artifact or a private sidecar.
 
 ### Exit gate
 
 An explicit experimental agent can consume the exact belief summary, and offline artifacts can
 compare its stated reasoning and actions with the posterior that existed at decision time.
+
+**Satisfied.** The nondefault `exact-belief-experimental` definition selects
+`beliefMode: "exact-summary-v1"`. Its live prompts, fixed-fixture previews, and offline situation
+replays all use the same `compact-belief-v1` renderer. The normal LLM definitions select no belief
+mode and their prompt bytes and policy path remain unchanged. Experimental decisions can emit an
+optional private trace into the completed-game artifact. `snapshotAt()` associates that trace with
+the replayed decision by its stable seat, request, and visible-event cursor identity, so an offline
+evaluator can compare the recorded action and stated reasoning with the exact posterior available
+before that action.
+
+### Phase 2 implementation record
+
+#### Evidence, cursors, and boundaries
+
+- `mechanical-evidence-v1` is a discriminated union. Public records cover game setup and leader
+  changes, proposed/locked/revised teams, raw attributed utterances, declared leans, revealed
+  votes, quest teams and results with Fail counts, renames, assassination, and the game result.
+  Private records cover only the viewer's own role and legal deal knowledge. Hidden `voteCast` and
+  `questCard` events, model thinking, scratchpads, and other seats' private events produce no
+  evidence.
+- Every event-derived id is `event:<visible sequence>:<evidence kind>`. An utterance with a lean
+  deliberately produces two typed records with the same source sequence and different kinds.
+  Evidence sorts by source sequence and id. `CognitionState.throughSeq` is the maximum sequence
+  visible to that seat, including ignored private events, so advancing from that cursor processes
+  every later visible event exactly once. Repeating a view is idempotent.
+- `advanceCognition(previous, newerView)` and `reconstructCognition(completeView)` both recompute
+  the exact posterior from the complete seat-filtered view while incrementally merging evidence.
+  They produce identical state. Version metadata records the cognition schema, evidence model,
+  commitment model, and belief model.
+- `publicCognition()` contains public evidence, literal public commitments, and the last public
+  evidence sequence. It contains no viewer identity, role, private knowledge, feasible worlds,
+  marginals, or posterior. Equal public game states project identically for every seat.
+
+#### Commitments and analysis
+
+- `public-commitments-v1` records proposed and revised teams, revealed votes, declared leans, and
+  exact public text from discussion, pitches, and revision reasons. It does not interpret prose.
+  Each entry carries its source evidence id and sequence, actor, quest/proposal/team context,
+  public visibility, and current or superseded status. A revision supersedes the original team and
+  pre-revision leans; a newer lean supersedes the prior lean in that proposal context; a revealed
+  vote supersedes that actor's nonbinding lean.
+- `situation-analysis-v1` owns score, match point, proposal runway, hammer state, current and
+  caller-supplied team assessment, legally known Fails aboard, proven alignments, hard deductions,
+  and stable fact/forced-play codes. `board.ts` is now a compatibility wrapper over this owner, and
+  the facts dossier reads the same board result. Existing heuristic and prompt forced-play behavior
+  therefore keeps its former interface while sharing the migrated calculations.
+- Deduction provenance distinguishes `private-deal`, `role-cardinality-closure`, `quest-record`,
+  and `joint-constraints`. A quest is the sole provenance only when every member of its team
+  supplied a Fail, so the public quest record alone proves each alignment. Conclusions that also
+  need the viewer's role, private knowledge, role cardinality, or several quest records use
+  `joint-constraints` with every required evidence id and quest number.
+
+#### Rendering, experiment identity, and traces
+
+- `compact-belief-v1` renders proven good and evil seats separately from unresolved player shares,
+  current/candidate team-clean shares and evil-count possibilities, aggregated top joint alignment
+  hypotheses, exact pair relationships, the belief model, visible cursor, and quality. Under
+  `exact-constraints-v1`, every numeric line says "uniform share of feasible hypotheses" and the
+  block explicitly says it is not a calibrated behavioral likelihood. The renderer already has a
+  distinct wording branch reserved for a future weighted snapshot; it does not implement weights.
+- `exact-summary-v1` is a prompt visibility mode, not a Phase 3 brain configuration. The curated
+  `exact-belief-experimental` agent is the explicit test surface. The mode appears in public agent
+  metadata and architecture artifact component metadata, but the rendered belief block remains
+  private to the deciding model.
+- Traces live as the optional `decisionTraces` field in the main full-reveal game artifact rather
+  than a sidecar. This preserves atomic association with the replayable event log and avoids a
+  second retention lifecycle. The artifact is already opt-in for web games and private by
+  contract. Traces are never stored in `Game`, emitted as events, added to `PlayerView`, included
+  in SSE/client payloads, or read while producing cognition. Truth remains available only from the
+  rest of the completed artifact for a later offline join.
+- Parse-level failures in reflection and pitch calls are explicit trace degradation codes even when
+  the transport succeeds. If the decision call or engine application falls back, the runner invokes
+  the agent's optional private fallback-trace hook and upserts the same stable decision identity
+  with the heuristic action that was actually applied. Trace telemetry remains best-effort and
+  cannot stall a game.
+
+#### Performance
+
+`npm run belief-performance` runs without an API key and reports the first call plus warm median
+and p95 over a configurable iteration count. It benchmarks a Servant opening view in the standard
+5-player cast (24 worlds) and 10-player cast (60,480 worlds), both for the exact posterior alone
+and for the complete experimental prompt path. The prompt measurement follows the exact
+measurement in one process, so its first-call number has the canonical assignment cache warm but
+still pays its first complete cognition, analysis, renderer, and prompt construction.
+
+On the development Windows host with Node v24.15.0 and 20 warm samples, the final Phase 2 run
+recorded:
+
+| Players | Worlds | Exact cold / median / p95 | Experimental prompt cold / median / p95 |
+|---|---:|---:|---:|
+| 5 | 24 | 0.752 / 0.048 / 0.072 ms | 7.497 / 0.077 / 0.243 ms |
+| 10 | 60,480 | 95.866 / 17.009 / 20.467 ms | 41.392 / 36.069 / 41.543 ms |
+
+The benchmark is reproducible and the performance follow-up is complete. The separate
+weight-aware projection follow-up remains open until Phase 5 supplies a deliberately non-uniform
+test. Warm medians average the two middle samples for even runs; p95 uses the nearest-rank
+definition, so the documented 20-sample p95 is the nineteenth ordered sample rather than the
+maximum.
 
 ---
 
@@ -552,5 +650,10 @@ here.
   and quest constraints, the uniform `exact-constraints-v1` posterior, alignment/role/team/entropy
   projections, and cached deal-world reuse. `roleCertainties()` is now a joint-world projection
   with its old output and attribution contract. Hand-worked, rotation, exhaustive soundness, raw
-  `Game` boundary, true-world retention, and all eight frozen-fixture expectations pass. Phase 2
-  is now the current target.
+  `Game` boundary, true-world retention, and all eight frozen-fixture expectations pass.
+- Phase 2 typed cognition and exit gate: added stable typed evidence, literal commitment history,
+  deterministic incremental/reconstructed cognition, one decision-ready analysis owner, compact
+  exact-belief rendering, the explicit `exact-summary-v1` prompt experiment, and optional private
+  artifact traces associated through replay. Default agents and policy remain unchanged. The
+  repeatable 5/10-player belief and prompt benchmark closes the performance follow-up; uniform-only
+  projections remain tracked for a weight-aware conversion before Phase 5.

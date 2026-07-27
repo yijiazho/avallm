@@ -308,6 +308,13 @@ prompt caches can hit, testable in isolation):
    Budget in §5.
 5. **The decision ask** for this kind.
 
+Phase 2 adds one explicit, nondefault context experiment: an LLM definition with
+`beliefMode: "exact-summary-v1"` receives a compact exact-belief block between the derived facts
+and private notes. The block is reconstructed only from that seat's `PlayerView`, labels its values
+as uniform shares of feasible hypotheses, and uses the same renderer in live play, the fixed
+preview fixture, and offline replay. Baseline LLM definitions omit the mode and retain the existing
+prompt and policy behavior.
+
 ### Malformed-output ladder
 
 Use a tolerant-parse philosophy (salvage first, and a `parseFailed` flag distinct from "empty"):
@@ -326,6 +333,15 @@ Use a tolerant-parse philosophy (salvage first, and a `parseFailed` flag distinc
 Fallback events carry a `degraded: true` flag surfaced in the post-game reveal ("GPT-4o mini's
 vote on quest 3 was a fallback") — honesty about which decisions were actually the model's, which
 matters for a game whose premise is model identity.
+
+Completed-game artifacts may also contain optional private `DecisionTrace` rows for experimental
+agents. A trace records the seat, request identity, exact-belief version and visible-event cursor,
+quality/degradation state, compact hypotheses, relevant team assessment, reason codes, and chosen
+action. Traces live only in the opt-in full-reveal artifact path. They never enter the engine event
+log, `PlayerView`, SSE, or any client response. Auxiliary parse failures are recorded even when the
+provider call itself succeeded. When the runner substitutes a heuristic, an optional telemetry hook
+upserts that stable decision identity with the fallback action actually applied; telemetry failures
+remain best-effort and cannot stall the game.
 
 ### Consistency across a game
 
