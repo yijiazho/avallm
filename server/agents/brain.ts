@@ -1,4 +1,5 @@
 import { EXACT_BELIEF_MODEL_VERSION } from './belief/types.ts'
+import { LANGUAGE_FACTOR_BUNDLE_VERSION } from './belief/language-factor.ts'
 import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
 
 export const BRAIN_SPEC_VERSION = 'brain-spec-v1'
@@ -40,7 +41,10 @@ export type CommunicationComponent =
   | typeof PROMPT_COMMUNICATION_VERSION
   | typeof PLAN_COMMUNICATION_VERSION
   | 'external'
-export type LanguageEvidenceComponent = 'off' | 'external'
+export type LanguageEvidenceComponent =
+  | 'off'
+  | typeof LANGUAGE_FACTOR_BUNDLE_VERSION
+  | 'external'
 export type ObserverModelComponent = 'off' | 'external'
 
 /**
@@ -81,7 +85,10 @@ type BrainSource =
   | LlmBrainSource
   | { type: 'heuristic' }
   | { type: 'random' }
-  | { type: 'composed' }
+  | {
+      type: 'composed'
+      languageEvidence?: typeof LANGUAGE_FACTOR_BUNDLE_VERSION
+    }
   | { type: 'stdio' }
 
 const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
@@ -212,7 +219,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         beliefVisibility: 'none',
         policy: COMPOSED_POLICY_VERSION,
         communication: PLAN_COMMUNICATION_VERSION,
-        languageEvidence: 'off',
+        languageEvidence: source.languageEvidence ?? 'off',
         observerModel: 'off',
       }
     case 'stdio':

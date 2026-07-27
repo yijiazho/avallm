@@ -44,6 +44,7 @@ export const LANGUAGE_LIKELIHOOD_FACTOR_VERSION =
   'bounded-language-likelihood-v1'
 export const LANGUAGE_FACTOR_BUNDLE_VERSION =
   'bounded-language-only-v1'
+export const LANGUAGE_BELIEF_VERSION_SUFFIX = 'bounded-language-v1'
 export const LANGUAGE_WEIGHTED_BELIEF_VERSION =
   'exact-constraints+bounded-language-v1'
 export const LANGUAGE_HISTORY_LOG_ODDS_CAP = Math.log(1.25)
@@ -326,7 +327,7 @@ function degradedBase(
 function combinedModelVersion(base: BeliefSnapshot): string {
   return base.modelVersion === EXACT_BELIEF_MODEL_VERSION
     ? LANGUAGE_WEIGHTED_BELIEF_VERSION
-    : `${base.modelVersion}+bounded-language-v1`
+    : `${base.modelVersion}+${LANGUAGE_BELIEF_VERSION_SUFFIX}`
 }
 
 /**

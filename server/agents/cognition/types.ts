@@ -5,6 +5,10 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
+import type {
+  LanguageEvidence,
+  LanguageEvidenceCursor,
+} from '../communication/language-types.ts'
 
 export const COGNITION_SCHEMA_VERSION = 1
 export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v1'
@@ -180,7 +184,14 @@ export interface CognitionVersions {
   schema: typeof COGNITION_SCHEMA_VERSION
   evidence: typeof EVIDENCE_MODEL_VERSION
   commitments: typeof COMMITMENT_MODEL_VERSION
+  /** Actual version of the resolved snapshot stored in this state. */
   belief: string
+  /** Stable identity of the configured rules/mechanical inference model. */
+  mechanicalBelief: string
+  /** Stable identity of the complete configured belief pipeline. */
+  beliefPipeline: string
+  /** Stable interpreter identity, or `off` when language inference is absent. */
+  languageEvidence: string
 }
 
 export interface CognitionState {
@@ -190,6 +201,10 @@ export interface CognitionState {
   evidence: readonly Evidence[]
   belief: BeliefSnapshot
   commitments: readonly PublicCommitment[]
+  /** Private admitted interpretations. Never included in publicCognition. */
+  languageReads: readonly LanguageEvidence[]
+  /** Public projection cursor, distinct from the seat-visible belief cursor. */
+  languageCursor: LanguageEvidenceCursor
   versions: CognitionVersions
 }
 

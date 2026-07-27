@@ -15,6 +15,7 @@ import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
 import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
+import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 
@@ -74,6 +75,11 @@ export interface DecisionTrace {
   decisionPlanVersion?: string
   forcedPolicyResult?: ForcedPolicyResult
   communicationIntent?: CommunicationIntent
+  /**
+   * Private component attribution only. It deliberately excludes player text,
+   * names, rationales, and provider payloads.
+   */
+  languageEvidence?: LanguageTraceAttribution
 }
 
 export function decisionTraceId(

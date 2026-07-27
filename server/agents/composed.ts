@@ -8,13 +8,30 @@ import { analyzeSituation } from './analysis/situation.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
+  applyBoundedLanguageEvidence,
+  boundedLanguageLikelihoodFactor,
+  LANGUAGE_FACTOR_BUNDLE_VERSION,
+  type LanguageLikelihoodFactor,
+} from './belief/language-factor.ts'
+import {
   brainComponents,
   COMPOSED_POLICY_VERSION,
   resolveBrain,
   type AgentExecutionMode,
 } from './brain.ts'
-import { advanceCognition } from './cognition/state.ts'
+import {
+  advanceCognition,
+  advanceCognitionFromBelief,
+} from './cognition/state.ts'
 import type { CognitionState } from './cognition/types.ts'
+import {
+  orchestrateLanguageEvidence,
+  type LanguageTraceAttribution,
+} from './communication/language-orchestration.ts'
+import type {
+  LanguageInterpreter,
+  LanguageInterpreterInput,
+} from './communication/language-types.ts'
 import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
@@ -100,6 +117,7 @@ export interface PlanVoice {
 }
 
 export type ComposedStage =
+  | 'language'
   | 'cognition'
   | 'analysis'
   | 'candidates'
@@ -112,6 +130,10 @@ export type ComposedStage =
 export interface ComposedAgentOptions {
   seed: string
   beliefModel?: BeliefModel
+  /** Opt-in public-language interpretation. Never configured by the registry. */
+  languageInterpreter?: LanguageInterpreter
+  /** API-free factor injection for contract and failure testing. */
+  languageFactor?: LanguageLikelihoodFactor
   planner?: CandidatePlanner
   voice?: PlanVoice
   onDecisionTrace?: (trace: DecisionTrace) => void
@@ -313,8 +335,15 @@ function composedTrace(
   plannerCandidateId?: string,
   plannerReasonCodes?: readonly string[],
   factorsVersion = 'off',
+  languageTrace?: LanguageTraceAttribution,
+  languageEnabled = false,
 ): DecisionTrace {
-  const brain = brainComponents(resolveBrain({ type: 'composed' }))
+  const brain = brainComponents(resolveBrain({
+    type: 'composed',
+    ...(languageEnabled
+      ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
+      : {}),
+  }))
   return {
     ...createDecisionTrace(
       req,
@@ -355,7 +384,16 @@ function composedTrace(
     ...(communication
       ? { communicationIntent: structuredClone(communication) }
       : {}),
+    ...(languageTrace
+      ? { languageEvidence: structuredClone(languageTrace) }
+      : {}),
   }
+}
+
+function combinedFactorBundle(mechanical: string): string {
+  return mechanical === 'off'
+    ? LANGUAGE_FACTOR_BUNDLE_VERSION
+    : `${mechanical}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`
 }
 
 /**
@@ -376,6 +414,9 @@ export function createComposedAgent(
   }
   const stage = (value: ComposedStage): void => options.onStage?.(value)
   const beliefModel = options.beliefModel ?? exactWorldBeliefModel
+  const configuredLanguageInterpreter = options.languageInterpreter
+  const configuredLanguageVersion =
+    configuredLanguageInterpreter?.interpreterVersion
 
   return {
     setPlanner(next) {
@@ -406,7 +447,63 @@ export function createComposedAgent(
       const voiceVersion = activeVoice?.version ?? NO_VOICE_VERSION
       if (planner && !activePlanner) degradation.push('planner-invalid-version')
       if (voice && !activeVoice) degradation.push('voice-invalid-version')
-      cognition = advanceCognition(cognition, view, beliefModel)
+      const interpreter = configuredLanguageInterpreter
+      let languageTrace: LanguageTraceAttribution | undefined
+      if (interpreter) {
+        const interpreterVersion = interpreter.interpreterVersion
+        const interpret = interpreter.interpret.bind(interpreter)
+        const interpreterSnapshot: LanguageInterpreter = {
+          interpreterVersion,
+          interpret(input: LanguageInterpreterInput) {
+            return interpret(input)
+          },
+        }
+        const language = await orchestrateLanguageEvidence(
+          view,
+          cognition,
+          interpreterSnapshot,
+          configuredLanguageVersion,
+        )
+        stage('language')
+        degradation.push(...language.degradation)
+
+        const mechanicalBelief = beliefModel.infer(view)
+        if (mechanicalBelief.modelVersion !== beliefModel.version) {
+          throw new Error(
+            `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
+          )
+        }
+        const resolvedBelief = language.applyEvidence
+          && language.inferenceContext
+          ? applyBoundedLanguageEvidence(
+              view,
+              mechanicalBelief,
+              language.inferenceContext,
+              {
+                evidence: language.reads,
+                cursor: language.cursor,
+              },
+              options.languageFactor ?? boundedLanguageLikelihoodFactor,
+            )
+          : mechanicalBelief
+        const nextCognition = advanceCognitionFromBelief(
+          cognition,
+          view,
+          {
+            belief: resolvedBelief,
+            mechanicalBelief: beliefModel.version,
+            beliefPipeline:
+              `${beliefModel.version}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`,
+            languageEvidence: language.trace.interpreterVersion,
+            languageReads: language.reads,
+            languageCursor: language.cursor,
+          },
+        )
+        cognition = nextCognition
+        languageTrace = language.trace
+      } else {
+        cognition = advanceCognition(cognition, view, beliefModel)
+      }
       stage('cognition')
       let analysis = analyzeSituation(view, {
         belief: cognition.belief,
@@ -649,7 +746,11 @@ export function createComposedAgent(
         plan.communication,
         plannerCandidateId,
         plannerReasonCodes,
-        beliefModel.factorsVersion,
+        interpreter
+          ? combinedFactorBundle(beliefModel.factorsVersion)
+          : beliefModel.factorsVersion,
+        languageTrace,
+        !!interpreter,
       )
       return { decision: action, trace }
     },

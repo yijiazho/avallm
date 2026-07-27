@@ -2,12 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** complete the Phase 6 bounded-language architecture before returning to
-behavioral tuning. Phase 6A established the public interpretation boundary and Phase 6B supplies
-the pure, capped likelihood factor; Phase 6C will wire interpretation, persistent typed state,
-attribution, and fail-closed orchestration into the opt-in composed agent. The Phase 5C population
-sign flip remains recorded, but win-rate tuning is intentionally deferred until this architecture
-is complete. No production default has changed.
+**Current target phase:** human architecture checkpoint after the Phase 6C bounded-language path.
+The opt-in composed agent now carries public-only interpretation through persistent typed state,
+capped joint-world inference, policy, and private attribution without requiring a provider or
+changing a production default. Before Phase 7, choose whether to close the ready public-record and
+active-language evaluation follow-ups or begin role-specific observer and identity models. The
+Phase 5C population sign flip remains recorded; win-rate tuning is still intentionally deferred.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -57,7 +57,7 @@ compose and difficult to measure independently.
 | Candidate evaluation | Separate opt-in scorers provide deterministic good proposal/vote value, seeded near-equivalent vote variation, and a non-dominated bounded planner surface | Evaluate against raw LLMs and humans before rollout |
 | Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
-| Language evidence | Public input and admission contracts plus a pure, capped joint-world factor | Wire the opt-in interpreter, persistent typed state, and private attribution in Phase 6C |
+| Language evidence | Opt-in public interpreter seam, persistent typed reads/cursor, capped joint-world update, and private attribution | Add a real provider adapter and evaluation population only with explicit scope and spend permission |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
 | Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend only when another evidence class lands |
@@ -169,9 +169,10 @@ while the primary lane runs, then integrate them one at a time.
 | ID | Source | Follow-up | Independence boundary and acceptance | Status |
 |---|---|---|---|---|
 | NB-001A | Phase 3 | Route compatibility certainty prose through typed belief and situation analysis | Preserve exact feasible-world support, record provenance, prompt bytes, and compatibility behavior; false certainty from rounded weighted marginals is forbidden. | `landed` |
-| NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | Defer until the Phase 6 public-language boundary owns the shared public record. The replacement must remain byte-equivalent unless its renderer is deliberately versioned. | `deferred` |
+| NB-001B | Phase 3 / Phase 6 | Replace independently derived public dossier facts with a typed public-record projection | The Phase 6 public-language boundary now owns the shared public record. The replacement must remain byte-equivalent unless its renderer is deliberately versioned. | `ready` |
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
+| NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `ready` |
 
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
@@ -189,7 +190,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
-| 6. Bounded language evidence and commitments | In progress; public contract and likelihood factor complete | Dialogue affects beliefs without owning them |
+| 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
@@ -1090,9 +1091,40 @@ This chunk remains behaviorally inert: it adds no interpreter, provider, registr
 runtime wiring, or default change. Phase 6C owns the opt-in orchestration and persistent language
 state required to make the path execute end to end.
 
+### Phase 6C orchestration record
+
+The opt-in composed agent now snapshots an injected interpreter identity, projects only the new
+public utterance batch, admits finite evidence once, infers the configured exact or mechanically
+weighted posterior, applies the cumulative Phase 6B factor, and atomically commits cognition before
+analysis or scoring. `CognitionState` owns admitted private reads and their public cursor separately
+from mechanical evidence, commitments, the seat-visible cursor, and the actual resolved belief.
+Language-off execution retains its prior stage order, decision behavior, component values, and
+trace shape.
+
+Interpreter errors, malformed replies, invalid runtime versions, and version drift fail closed.
+A validated batch advances once without evidence, so a repeated decision cannot repeat an
+interpreter call. An input-projection failure retains the previous language state for a later
+retry. Unexpected belief or cognition failure commits no candidate language state. Valid evidence
+remains admitted even when its likelihood factor degrades, while the legal mechanical path
+continues.
+
+Private traces identify the public input/cursor schemas, stable interpreter identity, likelihood
+factor and bundle, cursor, newly admitted sources, cumulative sources, and typed degradation,
+without retaining player text, names, rationales, provider payloads, or private view fields. Stdio
+validation couples that block to the declared bounded-language components, cursor, and language
+factor provenance. A safe sentinel attributes invalid interpreter identities without copying
+arbitrary runtime values.
+
+The implementation remains a fake-tested injection seam. It adds no OpenRouter adapter, prompt,
+registry entry, production default, paid call, language-strength tuning, special-role objective,
+search, or factor graph. The standard architecture bank has discussion disabled and therefore
+proves zero-cost configured attribution but cannot exercise active interpretation. NB-004 tracks
+the required stable-pipeline matcher and public-dialogue bank before language evaluation or paid
+provider work.
+
 ### Interpreter
 
-- [ ] Process only new attributed utterances.
+- [x] Process only new attributed utterances.
 - [x] Return a finite evidence class, direction, confidence bucket, subjects, and source sequences.
 - [x] Require a public rationale tied to the cited utterance or event.
 - [x] Deduplicate repeated interpretations of the same source.
@@ -1101,10 +1133,12 @@ state required to make the path execute end to end.
 
 ### Typed memory
 
-- [ ] Make `CognitionState` the authoritative persistent state.
-- [ ] Store beliefs, commitments, social models, language reads, and current plan separately.
+- [x] Make `CognitionState` authoritative for composed mechanical and language inference.
+- [x] Store beliefs, commitments, language reads, and the public language cursor separately.
+- [ ] Add social models and persistent current-plan state when their owning phases begin.
 - [ ] Retain natural-language private notes only as a lossy voice aid and reveal feature.
-- [ ] Stop using scratchpad prose as the only source for any actionable belief or promise.
+- [x] Keep composed actionable beliefs and literal public promises out of scratchpad prose.
+- [ ] Retire scratchpad-only authority from remaining raw-LLM compatibility paths.
 
 ### Coherence
 
@@ -1117,6 +1151,9 @@ state required to make the path execute end to end.
 
 Dialogue can change the posterior through a bounded, inspectable path, and turning language
 evidence off leaves a complete mechanical agent rather than an amnesiac one.
+
+**Bounded-language result:** passed by the opt-in composed path. Commitment-coherence work and a
+real provider remain separate follow-ups; neither is required for the mechanical fallback.
 
 ---
 
@@ -1315,6 +1352,17 @@ here.
   Explicit nested allow-lists, cross-seat equality, complete runtime validation, canonical output
   ordering, lean-only attribution, and adversarial private-field canaries establish the boundary
   for later bounded language likelihoods.
+- Phase 6B bounded-language factor: added a pure API-free likelihood layer over supplied exact or
+  quest-weighted joint worlds. Finite direction/confidence ratios are symmetric and weak, class is
+  strength-neutral, own and unchanged speech are no-ops, and the complete history is capped at
+  `1.25:1` relative odds. Exact admission, cursor separation, support preservation, provenance,
+  and typed fallback landed without runtime behavior changes.
+- Phase 6C bounded-language orchestration: wired the Phase 6A and 6B contracts through opt-in
+  composed cognition, deterministic fake interpretation, atomic persistent reads/cursor, actual
+  posterior consumption by scoring, skip-once failure, stable brain/factor identity, and private
+  stdio/artifact attribution. Independent review closed non-string version, missing attribution,
+  cursor/provenance coupling, and full-world cloning defects. The standard no-discussion bank
+  remains zero-cost and fully attributed; NB-004 tracks an active-language comparison bank.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

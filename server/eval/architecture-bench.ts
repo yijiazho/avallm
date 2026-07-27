@@ -244,6 +244,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     return {
       belief: 'exact-constraints-v1',
       factors: 'off',
+      languageEvidence: 'off',
       ...variant.components,
     }
   }
@@ -343,6 +344,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           'brain',
           'belief',
           'factors',
+          'languageEvidence',
           'policy',
           'scorer',
           'planner',

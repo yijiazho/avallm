@@ -41,6 +41,18 @@ import {
 import type { AgentOutput, AvalonAgent } from './types.ts'
 import type { AgentExecutionMode } from './brain.ts'
 import {
+  LANGUAGE_BELIEF_VERSION_SUFFIX,
+  LANGUAGE_FACTOR_BUNDLE_VERSION,
+  LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
+} from './belief/language-factor.ts'
+import {
+  INVALID_LANGUAGE_INTERPRETER_VERSION,
+} from './communication/language-orchestration.ts'
+import {
+  LANGUAGE_CURSOR_VERSION,
+  LANGUAGE_INTERPRETER_INPUT_VERSION,
+} from './communication/language-types.ts'
+import {
   COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
@@ -110,6 +122,150 @@ function validComponentVersions(value: unknown): boolean {
   ]
   return required.every(
     (key) => typeof versions[key] === 'string' && versions[key].length > 0,
+  )
+}
+
+function validLanguageTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const componentDeclaresLanguage =
+    components?.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
+  const factorsDeclareLanguage =
+    typeof components?.factors === 'string'
+    && (
+      components.factors === LANGUAGE_FACTOR_BUNDLE_VERSION
+      || components.factors
+        .split('+')
+        .includes(LANGUAGE_FACTOR_BUNDLE_VERSION)
+    )
+  if (componentDeclaresLanguage !== factorsDeclareLanguage) return false
+  if (value === undefined) return !componentDeclaresLanguage
+  if (!componentDeclaresLanguage) return false
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const language = value as Record<string, unknown>
+  if (!exactKeys(language, [
+    'inputSchemaVersion',
+    'cursorSchemaVersion',
+    'interpreterVersion',
+    'factorVersion',
+    'factorBundleVersion',
+    'cursorThroughSeq',
+    'admittedSourceSeqs',
+    'cumulativeSourceSeqs',
+    'degradation',
+  ])) {
+    return false
+  }
+  const admitted = language.admittedSourceSeqs
+  const cumulative = language.cumulativeSourceSeqs
+  const degradation = language.degradation
+  const allowedDegradation = new Set([
+    'language-input-failed',
+    'language-interpreter-invalid-version',
+    'language-interpreter-failed',
+    'language-evidence-invalid-output',
+  ])
+  const cursorThroughSeq = language.cursorThroughSeq
+  const canonicalSeqs = (candidate: unknown): candidate is number[] =>
+    Array.isArray(candidate)
+    && candidate.every(
+      (seq, index, all) =>
+        Number.isSafeInteger(seq)
+        && seq >= 0
+        && Number.isSafeInteger(cursorThroughSeq)
+        && seq <= (cursorThroughSeq as number)
+        && (index === 0 || all[index - 1] < seq),
+    )
+  const interpreterVersion = language.interpreterVersion
+  const validAttributedVersion =
+    typeof interpreterVersion === 'string'
+    && /^[a-z0-9][a-z0-9._-]{0,99}$/.test(interpreterVersion)
+  const languageProvenance = Array.isArray(trace.beliefProvenance)
+    ? trace.beliefProvenance.filter(
+        (entry) =>
+          !!entry
+          && typeof entry === 'object'
+          && (entry as Record<string, unknown>).factorId === 'language',
+      )
+    : []
+  const beliefUsesLanguage =
+    typeof trace.beliefModelVersion === 'string'
+    && (
+      trace.beliefModelVersion === LANGUAGE_BELIEF_VERSION_SUFFIX
+      || trace.beliefModelVersion.endsWith(
+        `+${LANGUAGE_BELIEF_VERSION_SUFFIX}`,
+      )
+    )
+  const provenanceMatches = (
+    beliefUsesLanguage
+      ? languageProvenance.length === 1
+      : languageProvenance.length === 0
+  )
+    && languageProvenance.every((entry) => {
+      const contribution = entry as Record<string, unknown>
+      if (
+        contribution.factorVersion !== LANGUAGE_LIKELIHOOD_FACTOR_VERSION
+        || !Array.isArray(contribution.evidenceIds)
+        || contribution.evidenceIds.length === 0
+      ) {
+        return false
+      }
+      const provenanceSeqs = new Set<number>()
+      return contribution.evidenceIds.every((id) => {
+        if (typeof id !== 'string') return false
+        const match = id.match(
+          /^event:(\d+):language:([a-z0-9][a-z0-9._-]{0,99}):subject:/,
+        )
+        if (!match) return false
+        const sourceSeq = Number(match[1])
+        if (
+          !Number.isSafeInteger(sourceSeq)
+          || provenanceSeqs.has(sourceSeq)
+          || !cumulative.includes(sourceSeq)
+          || match[2] !== interpreterVersion
+        ) {
+          return false
+        }
+        provenanceSeqs.add(sourceSeq)
+        return true
+      })
+    })
+  return (
+    language.inputSchemaVersion === LANGUAGE_INTERPRETER_INPUT_VERSION
+    && language.cursorSchemaVersion === LANGUAGE_CURSOR_VERSION
+    && validAttributedVersion
+    && (
+      interpreterVersion !== INVALID_LANGUAGE_INTERPRETER_VERSION
+      || (
+        Array.isArray(degradation)
+        && (
+          degradation.includes('language-interpreter-invalid-version')
+          || degradation.includes('language-input-failed')
+        )
+      )
+    )
+    && language.factorVersion === LANGUAGE_LIKELIHOOD_FACTOR_VERSION
+    && language.factorBundleVersion === LANGUAGE_FACTOR_BUNDLE_VERSION
+    && Number.isSafeInteger(language.cursorThroughSeq)
+    && (language.cursorThroughSeq as number) >= -1
+    && (language.cursorThroughSeq as number)
+      <= (trace.beliefThroughSeq as number)
+    && canonicalSeqs(admitted)
+    && canonicalSeqs(cumulative)
+    && admitted.every((seq) => cumulative.includes(seq))
+    && Array.isArray(degradation)
+    && new Set(degradation).size === degradation.length
+    && degradation.every(
+      (code) =>
+        typeof code === 'string'
+        && allowedDegradation.has(code)
+        && (trace.degradation as string[]).includes(code),
+    )
+    && provenanceMatches
   )
 }
 
@@ -1101,6 +1257,7 @@ function validDecisionTrace(
       || typeof trace.statedReasoning === 'string'
     )
     && validComponentVersions(trace.componentVersions)
+    && validLanguageTrace(trace.languageEvidence, trace)
     && validCandidateScores(trace.candidateScores)
     && (
       trace.structuredCandidateId === undefined

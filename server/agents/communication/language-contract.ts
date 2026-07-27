@@ -679,3 +679,37 @@ export function admitLanguageEvidence(
     },
   }
 }
+
+/**
+ * Mark a validated public batch as processed without admitting evidence.
+ *
+ * This is the fail-closed path for an unavailable or invalid interpreter and
+ * the normal path for a public cursor advance that contains no new speech.
+ * Previously admitted source identities remain authoritative.
+ */
+export function advanceLanguageEvidenceCursorWithoutEvidence(
+  input: LanguageInterpreterInput,
+  cursor: LanguageEvidenceCursor,
+): LanguageEvidenceAdmission {
+  validateLanguageEvidenceCursor(cursor)
+  validateLanguageInterpreterInput(input)
+  if (
+    input.throughSeq < cursor.throughSeq
+    || input.newUtterances.some(
+      (utterance) => utterance.sourceSeq <= cursor.throughSeq,
+    )
+    || input.newUtterances.length !== input.utteranceHistory.filter(
+      (utterance) => utterance.sourceSeq > cursor.throughSeq,
+    ).length
+  ) {
+    throw new Error('language cursor-only admission contract mismatch')
+  }
+  return {
+    evidence: [],
+    cursor: {
+      schemaVersion: LANGUAGE_CURSOR_VERSION,
+      throughSeq: input.throughSeq,
+      countedSourceSeqs: cursor.countedSourceSeqs.slice(),
+    },
+  }
+}
