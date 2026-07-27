@@ -14,6 +14,7 @@
     "architecture-report": "node server/eval/architecture-report.ts",
     "phase4-policy-bench": "node server/eval/phase4-policy-bench.ts",
     "phase5-quest-bench": "node server/eval/phase5-quest-bench.ts",
+    "phase5-vote-conversion-bench": "node server/eval/phase5-vote-conversion-bench.ts",
     "architecture-fixtures": "node server/eval/decision-fixtures.ts",
     "belief-performance": "node server/eval/belief-performance.ts",
     "architecture-baselines": "node server/eval/phase0-baselines.ts",

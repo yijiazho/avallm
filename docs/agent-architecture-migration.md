@@ -2,11 +2,11 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** complete the API-free Phase 5 vote-conversion diagnosis and Phase 6
-language-evidence foundation, then stop before factor-strength tuning, paid interpretation,
-human studies, or production-default promotion. The quest factor remains opt-in because the
-structured policy still trails compatibility on absolute win rate. No production default has
-changed.
+**Current target phase:** human checkpoint after the Phase 5C vote-conversion diagnosis and
+Phase 6A public-language contract. The quest-weighted proposal-only policy improved outcomes in
+both free opponent populations, but the structured vote policies changed sign between heuristic
+and seeded-random tables. Choose the target population and whether to iterate mechanical vote
+utility or run a small paid/human study before further tuning. No production default has changed.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1003,6 +1003,43 @@ weighted structured policy remains below Phase 4D compatibility's `42/180` (`23.
 The factor stays opt-in, proposal/vote factors remain unimplemented, and the next step requires a
 human choice between another mechanical iteration and a deliberately small paid/human study.
 
+### Phase 5C vote-conversion diagnosis
+
+The frozen 180-deal bank was replayed through four API-free lanes: compatibility; quest-weighted
+good proposals with compatibility votes; the same proposals with deterministic top-utility votes;
+and the same proposals with seeded-band votes. A post-hoc full-reveal report measures quest
+success, assassination reach and survival, win-reason transitions, clean-team rejection,
+dirty-team approval, role and player-count slices, and deterministic game-paired intervals.
+Full-reveal labels never enter a running agent.
+
+Against heuristic opponents, compatibility won `42/180`; proposal-only won `47/180`, a `+2.8`
+point paired delta with a 95% interval of `-0.6` to `+6.1`; top-utility won `33/180`, a `-5.0`
+point delta (`-10.6` to `+0.6`); and seeded-band won `32/180`, a `-5.6` point delta (`-12.2`
+to `+0.6`). Proposal-only increased assassination reach from `68/180` to `77/180` while leaving
+conditional survival effectively unchanged. Top-utility substantially reduced both vote-error
+classes, yet conditional assassination survival fell by `11.8` points (`-24.2` to `-0.2`) and
+Servant wins fell from `16/60` to `9/60`. Better literal vote classification did not convert into
+better play against the primary strategic population.
+
+Against seeded-random opponents, compatibility won `83/180`; proposal-only won `92/180`, a
+significant `+5.0` point delta (`+1.1` to `+9.4`); top-utility won `108/180`, a `+13.9` point
+delta (`+6.1` to `+21.7`); and seeded-band won `102/180`, a `+10.6` point delta (`+2.2` to
+`+18.9`). The structured vote policies improved quest success, assassination reach, and both
+vote-error classes in this shifted population.
+
+All 1,440 games completed with zero calls, cost, degradation, hidden-information findings, or
+trace-attribution findings. The population sign flip closes Phase 5C as a diagnosis, not a
+promotion. Proposal-only is the most robust current candidate, while the v1 vote scorers remain
+ablations. Adding proposal or vote likelihood factors would not resolve this action-conversion
+ambiguity. Further vote-policy iteration now requires an explicit target-population decision or a
+small paid/human study; production defaults remain unchanged.
+
+Non-blocking Phase 5C follow-up:
+
+- [ ] Reuse the architecture report's complete matched-table validator in the direct conversion
+      report API. The supported benchmark path already runs that validator first, so this is
+      defense-in-depth for callers that invoke the post-hoc report directly.
+
 ---
 
 ## 11. Phase 6: bounded language evidence and commitments
@@ -1250,3 +1287,8 @@ here.
   Explicit nested allow-lists, cross-seat equality, complete runtime validation, canonical output
   ordering, lean-only attribution, and adversarial private-field canaries establish the boundary
   for later bounded language likelihoods.
+- Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
+  bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
+  both populations, while top-utility and seeded-band votes were harmful against heuristic agents
+  and strongly beneficial against seeded-random agents. The sign flip triggers the human checkpoint
+  before further mechanical tuning, paid study, or rollout.
