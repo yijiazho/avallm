@@ -61,6 +61,7 @@ export const STANDARD_ROLES: readonly Role[] = [
 
 export function validateArchitectureBank(
   cases: readonly ArchitectureBankCase[] = ARCHITECTURE_BANK,
+  opts: { requireCoverage?: boolean } = {},
 ): void {
   const ids = new Set<string>()
   const seeds = new Set<string>()
@@ -85,14 +86,16 @@ export function validateArchitectureBank(
     }
   }
 
-  for (let playerCount = MIN_PLAYERS; playerCount <= MAX_PLAYERS; playerCount++) {
-    if (!cases.some((c) => c.playerCount === playerCount)) {
-      throw new Error(`architecture bank does not cover ${playerCount} players`)
+  if (opts.requireCoverage ?? true) {
+    for (let playerCount = MIN_PLAYERS; playerCount <= MAX_PLAYERS; playerCount++) {
+      if (!cases.some((c) => c.playerCount === playerCount)) {
+        throw new Error(`architecture bank does not cover ${playerCount} players`)
+      }
     }
-  }
-  for (const role of STANDARD_ROLES) {
-    if (!cases.some((c) => c.targetRole === role)) {
-      throw new Error(`architecture bank does not target standard role ${role}`)
+    for (const role of STANDARD_ROLES) {
+      if (!cases.some((c) => c.targetRole === role)) {
+        throw new Error(`architecture bank does not target standard role ${role}`)
+      }
     }
   }
 }

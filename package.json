@@ -10,6 +10,8 @@
     "play": "node server/sim/play.ts",
     "bench": "node server/eval/bench.ts",
     "report": "node server/eval/report.ts",
+    "architecture-bench": "node server/eval/architecture-bench.ts",
+    "architecture-report": "node server/eval/architecture-report.ts",
     "probe": "node server/eval/probe.ts",
     "judge": "node server/eval/judge.ts",
     "bank": "node server/eval/bank.ts"

@@ -120,7 +120,7 @@ compose and difficult to measure independently.
 - [ ] Record current prompt-guided LLM results by role, decision kind, model, cost, and degradation.
 - [ ] Record current heuristic results on the same seeds with discussion disabled.
 - [ ] Freeze representative `PlayerView` decision fixtures for belief and policy regression tests.
-- [ ] Add a compact architecture benchmark report format that can compare component versions.
+- [x] Add a compact architecture benchmark report format that can compare component versions.
 
 ### Exit gate
 
@@ -468,3 +468,7 @@ here.
 - Phase 0 seed contract: added the versioned `standard-v1` architecture bank. Its ten fixed cases
   cover 5 through 10 players, target every standard role, pin the dealt target seat, and disable
   discussion for the free mechanical baseline.
+- Phase 0 comparison seam: added an architecture runner over the fixed bank plus a compact
+  text/JSON report grouped by component versions, target role, decision/call kind, model, exact
+  token cost, and degradation. Paid variants are refused unless the caller passes the explicit
+  `--allow-paid` gate.

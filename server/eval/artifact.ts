@@ -8,6 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { DegradedDecision } from '../sim/runner.ts'
+import type { SpendEntry } from '../llm/openrouter.ts'
 import type { Alignment, Game, GameEvent, Role, Seat, TalkConfig } from '../engine/types.ts'
 
 // Bump on any BREAKING artifact-shape change. Additive fields (like `roles`,
@@ -29,6 +30,24 @@ export interface ArtifactPlayer {
   agent: string // descriptor: 'heuristic' | 'random' | 'llm:<roster id>' | 'def:<agent id>' | 'stdio' | 'human'
 }
 
+export interface ArchitectureRunMetadata {
+  bank: string
+  caseId: string
+  targetRole: Role
+  targetSeat: Seat
+  variant: string
+  // Open-ended on purpose: Phase 0 can name the current agent/model/policy
+  // versions without importing future belief or policy domain types.
+  components: Record<string, string>
+}
+
+export interface ArtifactTelemetry {
+  // Run-local deltas copied from the shared OpenRouter client's per-tag spend
+  // map. Architecture benchmarks run variants sequentially, so each artifact
+  // owns the exact calls and cost caused by that game.
+  llm?: { tags: Record<string, SpendEntry> }
+}
+
 export interface GameArtifact {
   schema: number
   id: string
@@ -47,6 +66,8 @@ export interface GameArtifact {
   steps: number
   degraded: DegradedDecision[]
   log: GameEvent[]
+  architecture?: ArchitectureRunMetadata
+  telemetry?: ArtifactTelemetry
   // Free-form labels attached by the producer. The bench runner sets
   // { bench: <role>, variant: 'candidate'|'baseline', pairSeed, agentId } —
   // the report CLI groups paired runs by these.
@@ -105,6 +126,8 @@ export interface ToArtifactOpts {
   degraded: DegradedDecision[]
   steps: number
   tags?: Record<string, string>
+  architecture?: ArchitectureRunMetadata
+  telemetry?: ArtifactTelemetry
 }
 
 export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
@@ -132,6 +155,8 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     degraded: opts.degraded,
     log: game.log,
     ...(opts.tags ? { tags: opts.tags } : {}),
+    ...(opts.architecture ? { architecture: opts.architecture } : {}),
+    ...(opts.telemetry ? { telemetry: opts.telemetry } : {}),
   }
 }
 
