@@ -6,6 +6,7 @@
 // explicit allowPaid flag so importing or smoke-testing this module cannot
 // spend money accidentally.
 
+import fs from 'node:fs'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { createGame } from '../engine/game.ts'
@@ -86,6 +87,16 @@ export function spendDelta(before: SpendMap, after: SpendMap): SpendMap {
     }
   }
   return delta
+}
+
+export function assertFreshArchitectureOutput(file: string): void {
+  if (!fs.existsSync(file)) return
+  const stat = fs.statSync(file)
+  if (stat.isFile() && stat.size === 0) return
+  throw new Error(
+    `${file}: refusing to append architecture results to an existing corpus; `
+    + 'choose a fresh --out path or remove the old file first',
+  )
 }
 
 function isPaid(variant: ArchitectureVariant): boolean {
@@ -220,6 +231,7 @@ async function main(): Promise<void> {
       quiet: { type: 'boolean', default: false },
     },
   })
+  assertFreshArchitectureOutput(values.out!)
   const library = loadAgentLibrary().agents
   const byId = (id: string): AgentDef => {
     const def = library.find((candidate) => candidate.id === id)

@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { runArchitectureBench, spendDelta } from '../server/eval/architecture-bench.ts'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import {
+  assertFreshArchitectureOutput,
+  runArchitectureBench,
+  spendDelta,
+} from '../server/eval/architecture-bench.ts'
 import {
   architectureReport,
   renderArchitectureReport,
@@ -91,6 +98,23 @@ test('architecture bench refuses an LLM variant without explicit paid approval',
     }),
     /allowPaid: true/,
   )
+})
+
+test('architecture bench CLI refuses a non-empty output corpus before a rerun', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-architecture-output-'))
+  const output = path.join(directory, 'architecture.jsonl')
+  try {
+    assert.doesNotThrow(() => assertFreshArchitectureOutput(output))
+    fs.writeFileSync(output, '')
+    assert.doesNotThrow(() => assertFreshArchitectureOutput(output))
+    fs.writeFileSync(output, '{"existing":true}\n')
+    assert.throws(
+      () => assertFreshArchitectureOutput(output),
+      /refusing to append architecture results to an existing corpus/,
+    )
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 test('spendDelta records only calls made during one architecture game', () => {

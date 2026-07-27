@@ -482,7 +482,8 @@ here.
 - Phase 0 comparison seam: added an architecture runner over the fixed bank plus a compact
   text/JSON report grouped by component versions, target role, decision/call kind, model, exact
   token cost, and degradation. Paid variants are refused unless the caller passes the explicit
-  `--allow-paid` gate.
+  `--allow-paid` gate, and non-empty output corpora are refused before a run starts so duplicate
+  cells cannot waste paid calls or invalidate the report.
 - Phase 0 regression seam: froze representative `DecisionRequest` + `PlayerView` + heuristic
   decision fixtures through the existing verified replay path. The set covers every decision kind,
   special-role private-knowledge shapes, accumulated quest evidence, the two-Fail quest, and the

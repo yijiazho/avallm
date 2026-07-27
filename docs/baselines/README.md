@@ -33,8 +33,10 @@ fixed bank's configurations.
 Future prompt-guided or hybrid results should be captured with:
 
 ```text
-npm run architecture-bench -- --baseline autopilot --candidate <agent-id> --allow-paid
-npm run architecture-report -- data/eval/architecture-standard-v1.jsonl
+npm run architecture-bench -- --baseline autopilot --candidate <agent-id> --allow-paid --out data/eval/<run-id>.jsonl
+npm run architecture-report -- data/eval/<run-id>.jsonl
 ```
 
 `--allow-paid` is intentionally required. Do not run that lane without explicit approval.
+Use a fresh output path for every run. The benchmark refuses a non-empty output file before
+starting so a rerun cannot spend money and then leave duplicate bank cells that the report rejects.
