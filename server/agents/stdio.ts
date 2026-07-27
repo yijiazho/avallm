@@ -22,6 +22,7 @@ import {
   LEGAL_CANDIDATE_VERSION,
 } from './policy/types.ts'
 import {
+  CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
@@ -29,6 +30,7 @@ import {
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  type CandidateScore,
 } from './policy/score.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from './analysis/types.ts'
 import {
@@ -37,6 +39,15 @@ import {
   type DecisionTrace,
 } from './trace.ts'
 import type { AgentOutput, AvalonAgent } from './types.ts'
+import type { AgentExecutionMode } from './brain.ts'
+import {
+  COMMUNICATION_CLAIM_CODES,
+  COMMUNICATION_INTENT_VERSION,
+  DECISION_PLAN_VERSION,
+  POSTERIOR_UNCERTAINTY_VERSION,
+  communicationFactProjection,
+  selectedStrategicReasonCodes,
+} from './policy/plan.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -53,6 +64,13 @@ interface Hello {
 
 function stringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key))
 }
 
 function seatArray(value: unknown): value is readonly number[] {
@@ -336,8 +354,21 @@ function validForcedPolicyResult(value: unknown): boolean {
 
 function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   if (trace.candidateScores === undefined) {
+    const components = trace.componentVersions as
+      | Record<string, unknown>
+      | undefined
     return trace.chosenCandidateId === undefined
       && trace.plannerCandidateId === undefined
+      && trace.communicationIntent === undefined
+      && components?.policy !== 'composed-policy-v1'
+      && (
+        trace.agentMode === undefined
+        || (
+          trace.agentMode !== 'compatibility'
+          && trace.agentMode !== 'structured-only'
+          && trace.agentMode !== 'hybrid'
+        )
+      )
   }
   const scores = trace.candidateScores as Array<Record<string, unknown>>
   const ids = scores.map((score) => score.candidateId)
@@ -346,6 +377,29 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   if (
     components
     && scores.some((score) => score.version !== components.scorer)
+  ) {
+    return false
+  }
+  if (
+    trace.agentMode !== undefined
+    && (
+      !components
+      || (
+        trace.agentMode === 'compatibility'
+          ? (
+              components.scorer !== CANDIDATE_SCORER_VERSION
+              || components.planner !== 'planner-off'
+            )
+          : trace.agentMode === 'structured-only'
+            ? (
+                components.scorer === CANDIDATE_SCORER_VERSION
+                || components.planner !== 'planner-off'
+              )
+            : trace.agentMode === 'hybrid'
+              ? components.planner === 'planner-off'
+              : true
+      )
+    )
   ) {
     return false
   }
@@ -418,6 +472,182 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   const action = trace.action as Record<string, unknown>
   const relevantTeam = trace.relevantTeam as Record<string, unknown> | undefined
   const featureScores = scores.filter((score) => score.features !== undefined)
+  const intent = trace.communicationIntent as
+    | Record<string, unknown>
+    | undefined
+  const phase4c = trace.decisionPlanVersion === DECISION_PLAN_VERSION
+  const speechAction =
+    action.kind === 'discuss'
+    || action.kind === 'propose'
+    || (action.kind === 'finalize' && action.stick === false)
+  if (
+    phase4c
+    && (
+      trace.agentMode !== 'compatibility'
+      && trace.agentMode !== 'structured-only'
+      && trace.agentMode !== 'hybrid'
+    )
+  ) {
+    return false
+  }
+  if (phase4c && speechAction !== (intent !== undefined)) {
+    return false
+  }
+  if (intent !== undefined) {
+    if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
+      return false
+    }
+    const expectedChannel =
+      action.kind === 'discuss' ? 'discussion'
+        : action.kind === 'propose' ? 'proposal-pitch'
+          : action.kind === 'finalize' && action.stick === false
+            ? 'revision-reason'
+            : undefined
+    const facts = trace.factCodes as string[]
+    const projection = communicationFactProjection(facts)
+    const strategicReasons = intent.strategicReasonCodes
+    const claimCodes = intent.claimCodes
+    if (
+      !exactKeys(intent, [
+        'version',
+        'channel',
+        'desiredLean',
+        'targetSeats',
+        'claimCodes',
+        'safeFactCodes',
+        'conceal',
+        'strategicReasonCodes',
+        'uncertainty',
+        'tone',
+      ])
+      ||
+      intent.version !== COMMUNICATION_INTENT_VERSION
+      || intent.channel !== expectedChannel
+      || !seatArray(intent.targetSeats)
+      || new Set(intent.targetSeats as number[]).size
+        !== (intent.targetSeats as number[]).length
+      || !Array.isArray(claimCodes)
+      || new Set(claimCodes).size !== claimCodes.length
+      || !claimCodes.every((code) =>
+        typeof code === 'string'
+        && COMMUNICATION_CLAIM_CODES.includes(code as never))
+      || !stringArray(intent.safeFactCodes)
+      || new Set(intent.safeFactCodes as string[]).size
+        !== (intent.safeFactCodes as string[]).length
+      || !isDeepStrictEqual(intent.safeFactCodes, projection.safeFactCodes)
+      || !stringArray(intent.conceal)
+      || new Set(intent.conceal as string[]).size
+        !== (intent.conceal as string[]).length
+      || !isDeepStrictEqual(intent.conceal, projection.conceal)
+      || !stringArray(strategicReasons)
+      || new Set(strategicReasons).size !== strategicReasons.length
+      || !chosenScore
+      || strategicReasons.some(
+        (reason) =>
+          !selectedStrategicReasonCodes(
+            chosenScore as unknown as CandidateScore,
+            scores as unknown as CandidateScore[],
+          ).includes(reason),
+      )
+      || intent.tone !== 'natural'
+      || (
+        action.kind === 'discuss'
+          ? (
+              intent.desiredLean !== undefined
+              && intent.desiredLean !== action.lean
+            )
+          : intent.desiredLean !== undefined
+      )
+    ) {
+      return false
+    }
+    const uncertainty = intent.uncertainty as
+      | Record<string, unknown>
+      | undefined
+    const expectsUncertainty =
+      chosenFeatures?.version === GOOD_PROPOSAL_FEATURE_VERSION
+      || chosenFeatures?.version === GOOD_VOTE_FEATURE_VERSION
+    if (expectsUncertainty !== (uncertainty !== undefined)) {
+      return false
+    }
+    if (uncertainty !== undefined) {
+      if (
+        !exactKeys(
+          uncertainty,
+          uncertainty.kind === 'selected-team-clean'
+            ? [
+                'version',
+                'kind',
+                'semantics',
+                'beliefModelVersion',
+                'beliefThroughSeq',
+                'cleanProbability',
+                'residualProbability',
+              ]
+            : [
+                'version',
+                'kind',
+                'semantics',
+                'beliefModelVersion',
+                'beliefThroughSeq',
+                'currentCleanProbability',
+                'bestAlternativeCleanProbability',
+                'utilityGap',
+              ],
+        )
+        ||
+        uncertainty.version !== POSTERIOR_UNCERTAINTY_VERSION
+        || uncertainty.semantics !== 'uniform-feasible-joint'
+        || !chosenFeatures
+        || uncertainty.beliefModelVersion
+          !== chosenFeatures.beliefModelVersion
+        || uncertainty.beliefThroughSeq !== trace.beliefThroughSeq
+      ) {
+        return false
+      }
+      if (chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION) {
+        if (
+          uncertainty.kind !== 'selected-team-clean'
+          || !finiteProbability(uncertainty.cleanProbability)
+          || !finiteProbability(uncertainty.residualProbability)
+          || uncertainty.cleanProbability
+            !== chosenFeatures.cleanProbability
+          || Math.abs(
+            (uncertainty.residualProbability as number)
+            - (1 - (chosenFeatures.cleanProbability as number)),
+          ) > 1e-12
+        ) {
+          return false
+        }
+      } else if (chosenFeatures.version === GOOD_VOTE_FEATURE_VERSION) {
+        if (
+          uncertainty.kind !== 'current-versus-alternative-team-clean'
+          || !finiteProbability(uncertainty.currentCleanProbability)
+          || !finiteProbability(
+            uncertainty.bestAlternativeCleanProbability,
+          )
+          || typeof uncertainty.utilityGap !== 'number'
+          || !Number.isFinite(uncertainty.utilityGap)
+          || uncertainty.utilityGap < 0
+          || uncertainty.currentCleanProbability
+            !== chosenFeatures.currentCleanProbability
+          || uncertainty.bestAlternativeCleanProbability
+            !== chosenFeatures.bestAlternativeCleanProbability
+          || Math.abs(
+            (uncertainty.utilityGap as number)
+            - Math.abs(
+              (chosenFeatures.approveUtility as number)
+              - (chosenFeatures.rejectUtility as number),
+            ),
+          ) > 1e-12
+        ) {
+          return false
+        }
+      } else {
+        return false
+      }
+    }
+  }
   const proposalFeatureScores = featureScores.filter(
     (score) =>
       (score.features as Record<string, unknown>).version
@@ -632,6 +862,15 @@ function validDecisionTrace(
   const trace = value as Record<string, unknown>
   const throughSeq = trace.beliefThroughSeq
   const hypotheses = trace.topHypotheses
+  const agentModes: readonly AgentExecutionMode[] = [
+    'raw-llm',
+    'heuristic',
+    'random',
+    'external',
+    'compatibility',
+    'structured-only',
+    'hybrid',
+  ]
   return (
     trace.version === DECISION_TRACE_VERSION
     && typeof throughSeq === 'number'
@@ -657,6 +896,10 @@ function validDecisionTrace(
     && enumStringArray(trace.factCodes, ANALYSIS_FACT_CODES)
     && enumStringArray(trace.reasonCodes, FORCED_PLAY_REASON_CODES)
     && isDeepStrictEqual(trace.action, decision)
+    && (
+      trace.agentMode === undefined
+      || agentModes.includes(trace.agentMode as AgentExecutionMode)
+    )
     && (
       trace.statedReasoning === undefined
       || typeof trace.statedReasoning === 'string'

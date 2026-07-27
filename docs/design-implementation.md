@@ -65,9 +65,15 @@ owners before applying ordinary seeded scoring. The engine's `applyDecision` rem
 legality authority. Prompt-guided LLM policy remains the production compatibility baseline. The
 opt-in composed path sequences typed cognition, analysis, candidates, forced policy, scoring, a
 bounded planner, committed plan, and plan-driven voice. Its optional
-`good-proposal-scorer-v1` requests candidate-ID-keyed exact joint team assessments from
-`SituationAnalysis`; the compatibility default does not pay for that projection. Phase 4 must earn
-any default switch.
+`good-proposal-vote-scorer-v1` requests candidate-ID-keyed exact joint team assessments and
+good-side vote situation values from `SituationAnalysis`; the Phase 4A proposal-only scorer and
+compatibility scorer remain separately measurable ablations. Forced policy executes before scoring,
+and engine legality remains final. The bounded planner may choose only among exact-max proposal
+teams or the seeded near-equivalent vote band. Its voice adapter sees the committed action and a
+public-safe qualitative projection, never the candidate surface or exact posterior values.
+Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.
+The raw prompt-guided LLM remains the production default because the initial free Phase 4 outcome
+sample is insufficient to justify promotion.
 
 ### Pluggable agents (the decision interface is a plugin API)
 
@@ -359,14 +365,20 @@ Completed-game artifacts may also contain optional private `DecisionTrace` rows 
 agents. A composed trace records the seat and request identity; belief cursor and quality; compact
 hypotheses; relevant team assessment; the complete brain, belief/factor, analysis, candidate,
 forced-policy, policy, scorer, planner, typed-context/renderer, and communication versions; the
-central forced result; candidate scores; chosen ID; action; and degradation. Traces live only in
-the opt-in full-reveal artifact path. They never enter the engine event log, `PlayerView`, SSE, or
-any client response. Auxiliary parse failures are recorded even when the provider call itself
+central forced result; candidate scores; chosen ID; selected communication intent; execution mode;
+action; and degradation. Exact posterior uncertainty remains private trace data. A voice adapter
+receives only the committed action, public-safe fact and strategic reason codes, and qualitative
+uncertainty, so it cannot change mechanics or recover hidden numeric state. Traces live only in the
+opt-in full-reveal artifact path. They never enter the engine event log, `PlayerView`, SSE, or any
+client response. Auxiliary parse failures are recorded even when the provider call itself
 succeeded. A trace-bearing envelope remains pending until `applyDecision` accepts its action; an
 illegal attempt is discarded before the heuristic fallback runs. When the runner substitutes a
 heuristic, an optional telemetry hook upserts that stable decision identity with the fallback
-action actually applied. External stdio traces must satisfy the complete required base schema and
-stable request-derived identity. Telemetry failures remain best-effort and cannot stall the game.
+action actually applied. External stdio traces must satisfy the complete required base schema,
+stable request-derived identity, and mode/component relationships. The free architecture benchmark
+can inject explicitly labeled structured or fake-client hybrid agents and checks those declarations
+against their runtime traces; paid factories require an explicit paid declaration. Telemetry
+failures remain best-effort and cannot stall the game.
 
 ### Consistency across a game
 

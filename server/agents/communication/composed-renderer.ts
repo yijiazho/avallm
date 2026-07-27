@@ -1,11 +1,16 @@
 import type { PlayerView } from '../../engine/types.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
-import type { DecisionPlan } from '../policy/plan.ts'
+import {
+  plannerOverrideReasonCodes,
+  selectedStrategicReasonCodes,
+  type CommittedVoicePlan,
+  type DecisionPlan,
+} from '../policy/plan.ts'
 import type { CandidateScore } from '../policy/score.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from '../policy/types.ts'
 
-export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v1'
-export const COMPOSED_PROMPT_VERSION = 'composed-typed-context-v1'
+export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v2'
+export const COMPOSED_PROMPT_VERSION = 'composed-typed-context-v2'
 
 export interface ComposedPolicyContext {
   version: typeof COMPOSED_RENDERER_VERSION
@@ -42,6 +47,7 @@ export function composedPolicyContext(
   candidates: readonly PolicyCandidate[],
   forced: ForcedPolicyResult,
   scores: readonly CandidateScore[],
+  structuredCandidateId?: string,
 ): ComposedPolicyContext {
   const byScore = new Map(scores.map((score) => [score.candidateId, score]))
   return {
@@ -64,12 +70,22 @@ export function composedPolicyContext(
     },
     viableCandidates: candidates.flatMap((candidate) => {
       const score = byScore.get(candidate.id)
-      return score?.viable && forced.allowedCandidateIds.includes(candidate.id)
+      const plannerReasons = score && structuredCandidateId
+        && candidate.id !== structuredCandidateId
+        ? plannerOverrideReasonCodes(score, scores)
+        : score ? selectedStrategicReasonCodes(score, scores) : []
+      const plannerViable = score?.features?.version === 'good-vote-features-v1'
+        ? score.viable
+        : candidate.id === structuredCandidateId
+          || plannerReasons.length > 0
+      return score?.viable
+        && plannerViable
+        && forced.allowedCandidateIds.includes(candidate.id)
         ? [{
             id: candidate.id,
             decision: structuredClone(candidate.decision),
             score: score.value,
-            reasonCodes: score.reasonCodes,
+            reasonCodes: plannerReasons,
           }]
         : []
     }),
@@ -80,18 +96,24 @@ export function renderComposedPolicyContext(
   context: ComposedPolicyContext,
   plan?: DecisionPlan,
 ): string {
+  const committedPlan = plan
+    ? {
+        version: plan.version,
+        candidateId: plan.candidateId,
+        decision: plan.decision,
+        reasons: plan.reasons,
+        beliefThroughSeq: plan.beliefThroughSeq,
+        communication: plan.communication,
+      }
+    : undefined
   return JSON.stringify({
     ...context,
-    ...(plan
-      ? {
-          committedPlan: {
-            version: plan.version,
-            candidateId: plan.candidateId,
-            decision: plan.decision,
-            reasons: plan.reasons,
-            communication: plan.communication,
-          },
-        }
-      : {}),
+    ...(committedPlan ? { committedPlan } : {}),
   })
+}
+
+export function renderCommittedVoicePlan(
+  plan: CommittedVoicePlan,
+): string {
+  return JSON.stringify({ committedPlan: plan })
 }

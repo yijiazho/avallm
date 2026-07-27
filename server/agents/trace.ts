@@ -8,6 +8,8 @@ import type { SituationAnalysis, SituationTeamAssessment } from './analysis/type
 import type { BeliefSnapshot } from './belief/types.ts'
 import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
+import type { AgentExecutionMode } from './brain.ts'
+import type { CommunicationIntent } from './policy/plan.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 
@@ -31,6 +33,8 @@ export interface DecisionTrace {
   factCodes: SituationAnalysis['factCodes']
   reasonCodes: SituationAnalysis['forcedPlayReasonCodes']
   action: Decision
+  /** Explicit experiment cell; do not infer it from component versions. */
+  agentMode?: AgentExecutionMode
   statedReasoning?: string
   /** Complete ownership/version attribution for composed decisions. */
   componentVersions?: Readonly<{
@@ -56,6 +60,7 @@ export interface DecisionTrace {
   plannerCandidateId?: string
   decisionPlanVersion?: string
   forcedPolicyResult?: ForcedPolicyResult
+  communicationIntent?: CommunicationIntent
 }
 
 export function decisionTraceId(

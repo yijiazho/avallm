@@ -178,14 +178,17 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         : []
     const context = beliefContext(view, candidateTeams)
     if (!context) return
-    opts.onDecisionTrace(createDecisionTrace(
+    opts.onDecisionTrace({
+      ...createDecisionTrace(
       req,
       view,
       context.cognition.belief,
       context.analysis,
       decision,
       pendingTraceDegradation,
-    ))
+      ),
+      agentMode: 'raw-llm',
+    })
     pendingTraceDegradation = []
   }
 

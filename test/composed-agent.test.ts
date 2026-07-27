@@ -1,7 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createComposedAgent } from '../server/agents/composed.ts'
-import { scoreCandidates } from '../server/agents/policy/score.ts'
+import {
+  goodProposalScorer,
+  scoreCandidates,
+} from '../server/agents/policy/score.ts'
 import {
   isAgentDecision,
   normalizeAgentOutput,
@@ -78,14 +81,14 @@ test('composed engine runs in ownership order and attributes every component', a
     policy: 'composed-policy-v1',
     scorer: 'compatibility-scorer-v1',
     planner: 'fake-planner-v1',
-    prompt: 'composed-typed-context-v1',
-    renderer: 'composed-policy-renderer-v1',
-    communication: 'plan-voice-v1',
+    prompt: 'composed-typed-context-v2',
+    renderer: 'composed-policy-renderer-v2',
+    communication: 'plan-voice-v2',
     voice: 'fake-voice-v1',
   })
   assert.ok(output.trace!.candidateScores?.length)
   assert.ok(output.trace!.chosenCandidateId)
-  assert.equal(output.trace!.decisionPlanVersion, 'decision-plan-v1')
+  assert.equal(output.trace!.decisionPlanVersion, 'decision-plan-v2')
   assert.equal(output.trace!.forcedPolicyResult?.version, 'forced-policy-v1')
   assert.ok(output.trace!.forcedPolicyResult?.allowedCandidateIds.length)
   assert.deepEqual(
@@ -178,11 +181,16 @@ test('planner may select only a supplied viable candidate ID', async () => {
   let selected = ''
   const valid = createComposedAgent({
     seed: source.source.seed,
+    scorer: goodProposalScorer,
     planner: {
       version: 'fake-planner-v1',
       async choose(input) {
-        selected = input.context.viableCandidates.at(-1)!.id
-        return { candidateId: selected }
+        const candidate = input.context.viableCandidates.at(-1)!
+        selected = candidate.id
+        return {
+          candidateId: selected,
+          reasonCodes: candidate.reasonCodes,
+        }
       },
     },
   })
@@ -215,13 +223,11 @@ test('planner communication must match the committed action channel and lean', a
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v1',
+            version: 'communication-intent-v2',
             channel: 'discussion',
             desiredLean: 'reject',
             targetSeats: [],
-            claims: [],
-            safeFactCodes: [],
-            conceal: [],
+            claimCodes: [],
             tone: 'natural',
           },
         }
@@ -248,12 +254,10 @@ test('planner cannot publish private analysis fact codes', async () => {
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v1',
+            version: 'communication-intent-v2',
             channel: 'proposal-pitch',
             targetSeats: [],
-            claims: ['reveal private deduction'],
-            safeFactCodes: privateFacts,
-            conceal: [],
+            claimCodes: privateFacts,
             tone: 'natural',
           },
         }
@@ -301,8 +305,9 @@ test('proposal action is committed before voice and voice cannot alter it', asyn
       version: 'fake-voice-v1',
       async speak(input) {
         committed = structuredClone(input.plan.decision)
+        assert.equal('candidateScores' in input.plan, false)
         assert.equal(input.plan.communication?.channel, 'proposal-pitch')
-        assert.ok(input.renderedContext.includes(input.plan.candidateId))
+        assert.ok(input.renderedPlan.includes(input.plan.candidateId))
         return { text: 'This team is my call.' }
       },
     },
@@ -321,14 +326,20 @@ test('revision reason and discussion speech are plan-driven without changing mec
   let revisionId = ''
   const revision = createComposedAgent({
     seed: final.source.seed,
-    planner: {
-      version: 'fake-planner-v1',
-      async choose(input) {
-        revisionId = input.context.viableCandidates
-          .find((candidate) =>
-            candidate.decision.kind === 'finalize'
-            && candidate.decision.stick === false)!.id
-        return { candidateId: revisionId }
+    scorer: {
+      version: 'revision-test-scorer-v1',
+      score(context) {
+        return scoreCandidates(context).map((score, index) => {
+          const candidate = context.candidates[index]
+          const revise = candidate.decision.kind === 'finalize'
+            && candidate.decision.stick === false
+          if (revise) revisionId = candidate.id
+          return {
+            ...score,
+            version: 'revision-test-scorer-v1',
+            value: score.viable && revise ? 1_000_001 + index : score.value,
+          }
+        })
       },
     },
     voice: {
@@ -417,7 +428,7 @@ test('changing planner/model or voice identity does not reset persistent cogniti
   assert.equal(agent.cognitionCursor(), cursor)
   assert.equal(first.trace!.beliefThroughSeq, second.trace!.beliefThroughSeq)
   assert.equal(second.trace!.componentVersions!.planner, 'model-b')
-  assert.equal(second.trace!.componentVersions!.communication, 'plan-voice-v1')
+  assert.equal(second.trace!.componentVersions!.communication, 'plan-voice-v2')
   assert.equal(second.trace!.componentVersions!.voice, 'persona-b')
 })
 
@@ -594,11 +605,26 @@ test('stdio boundary accepts an optional valid trace envelope and rejects invali
     }),
     /invalid decision trace/,
   )
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, {
+      decision: action,
+      trace: {
+        ...trace,
+        communicationIntent: {
+          privateInfo: { knownEvil: [2, 3] },
+        },
+      },
+    }),
+    /invalid decision trace/,
+  )
 })
 
 test('stdio boundary accepts the complete composed trace extension', async () => {
   const source = fixture('merlin-opening-proposal')
-  const agent = createComposedAgent({ seed: source.source.seed })
+  const agent = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  })
   const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
   assert.deepEqual(
     parseStdioDecisionReply(source.req, output),
@@ -619,6 +645,50 @@ test('stdio boundary accepts the complete composed trace extension', async () =>
   }
   assert.throws(
     () => parseStdioDecisionReply(source.req, impossibleForced),
+    /invalid decision trace/,
+  )
+  const forgedIntent = structuredClone(output)
+  if (forgedIntent.trace!.communicationIntent?.uncertainty) {
+    forgedIntent.trace!.communicationIntent.uncertainty.beliefThroughSeq += 1
+  }
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, forgedIntent),
+    /invalid decision trace/,
+  )
+  const missingMode = structuredClone(output)
+  delete missingMode.trace!.agentMode
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, missingMode),
+    /invalid decision trace/,
+  )
+  const missingIntent = structuredClone(output)
+  delete missingIntent.trace!.communicationIntent
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, missingIntent),
+    /invalid decision trace/,
+  )
+  const extraIntent = structuredClone(output)
+  Object.assign(extraIntent.trace!.communicationIntent!, {
+    privateInfo: { knownEvil: [2, 3] },
+  })
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, extraIntent),
+    /invalid decision trace/,
+  )
+  const duplicateTarget = structuredClone(output)
+  const targets = duplicateTarget.trace!.communicationIntent!.targetSeats
+  duplicateTarget.trace!.communicationIntent!.targetSeats = [
+    ...targets,
+    targets[0],
+  ]
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, duplicateTarget),
+    /invalid decision trace/,
+  )
+  const wrongMode = structuredClone(output)
+  wrongMode.trace!.agentMode = 'hybrid'
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, wrongMode),
     /invalid decision trace/,
   )
 })

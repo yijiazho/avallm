@@ -2,8 +2,9 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 4A exact-posterior good proposal scoring and Phase 4B good-side
-vote value are complete. Phase 4C communication intent and bounded hybrid planning is next.
+**Current target phase:** Phase 4 implementation is complete and remains opt-in. The technical exit
+gate is met; paid raw-LLM comparison, broader outcome evidence, and human predictability testing
+remain promotion gates before any production-default switch.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -50,14 +51,14 @@ compose and difficult to measure independently.
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
 | Team-clean probability | Exact joint assessment drives opt-in good proposals plus current-team and best-alternative good votes | Add soft likelihood calibration only in Phase 5 |
-| Candidate evaluation | Separate opt-in scorers provide deterministic good proposal/vote value and seeded near-equivalent vote variation; compatibility remains the default ablation | Add the Phase 4C bounded planner and evaluate rollout |
+| Candidate evaluation | Separate opt-in scorers provide deterministic good proposal/vote value, seeded near-equivalent vote variation, and a non-dominated bounded planner surface | Evaluate against raw LLMs and humans before rollout |
 | Forced plays | `forced-policy-v1` executes for heuristic/fallback and composed policy; its typed result is rendered to the composed planner and voice | Raw-LLM ASKS retain compatibility prose only as a frozen experiment |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
 | Decision trace | Composed traces include brain, belief/factors, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend factor provenance when soft factors land |
-| Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity | Production still defaults to the deliberately separate raw-LLM baseline |
+| Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity; explicit mode labels distinguish compatibility, structured-only, hybrid, and raw LLM | Production still defaults to the deliberately separate raw-LLM baseline |
 
 ---
 
@@ -91,7 +92,7 @@ compose and difficult to measure independently.
 | 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
 | 3. Composed agent and policy boundary | Complete | Brain, model, persona, policy, and voice are separate |
-| 4. Belief-driven production policy | In progress (4A-4B complete) | Exact beliefs directly improve proposals and votes |
+| 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
 | 7. Role-specific observer and identity models | Not started | Merlin, Percival, evil, Oberon, and Assassin objectives |
@@ -606,7 +607,7 @@ Non-blocking Phase 3C follow-ups:
 
 - [ ] Replace `compatibility-scorer-v1` with Phase 4 role-aware belief features and a measured
       viable band before exposing composed agents in the normal table registry.
-- [ ] Add the real bounded planner and voice adapters only with an explicit free fake-client test
+- [x] Add the real bounded planner and voice adapters only with an explicit free fake-client test
       path and the existing paid-call gate; Phase 3 defines the injection contracts only.
 - [ ] Collapse the transitional `AgentOutput` union after external and direct callers have had a
       compatibility window; until then runners remain the single normalization boundary.
@@ -703,20 +704,62 @@ Boundary validation also recomputes the seed bucket and couples it to the select
 score adjustment. Compatibility remains the composed default; no production registry mode, prompt,
 paid call, role-specific objective, soft factor, search, or factor graph changed.
 
+### Phase 4C implementation record
+
+`decision-plan-v2` and `communication-intent-v2` attach feature-derived selected reasons and
+`posterior-uncertainty-v1` to the committed candidate. Proposal reasons are recomputed from the
+validated full score surface, and vote reasons are recomputed from validated vote features; a
+scorer cannot turn an invented reason string into speech. Exact posterior numbers remain in private
+trace intent. The voice receives only the committed action, public-safe fact codes, selected
+strategic reasons, and `voice-uncertainty-v1` qualitative confidence. It does not receive the
+candidate surface, forced/private reason names, concealment list, posterior numbers, belief model,
+or cursor.
+
+The planner surface is narrower than scorer viability. Phase 4A remains an ablation in which every
+forced-policy survivor is scored, but the bounded planner sees only exact-max proposal teams.
+Choosing a different max team requires `GOOD_PROPOSAL_MAX_TEAM_CLEAN`. Vote planning preserves the
+Phase 4B viable band and requires `GOOD_VOTE_SEEDED_VIABLE_BAND` for a nonstructured choice.
+Compatibility and featureless scorers expose only the structured choice. Planner output names only
+a supplied candidate ID, feature-derived reason codes, and finite communication direction codes.
+The strict JSON adapter rejects wrapped, partial, extra-field, duplicate, and malformed output.
+Planner or voice failure retains the committed structured action.
+
+`AgentExecutionMode` explicitly distinguishes `raw-llm`, `compatibility`, `structured-only`,
+`hybrid`, heuristic, random, and external execution. Private traces and architecture artifacts join
+the mode to actual scorer, planner, voice, brain, and policy versions. The architecture benchmark
+accepts an opt-in custom factory only with an explicit paid declaration and validates every
+declared component against runtime traces. This enables API-free composed comparisons without
+adding composed agents to the registry or changing the production default.
+
+Independent review found and corrected mutable planner inputs and component-version time-of-check
+gaps, discarded override reasons, semantic reason spoofing, dominated proposal exposure, permissive
+JSON salvage, private voice fields, and incomplete stdio/artifact relations. The final adversarial
+review approved the corrected boundary after 74 focused API-free tests. A matched free ten-case
+bank compared compatibility, structured-only, and fake-client hybrid with zero forced violations,
+zero degradation, zero recorded calls, and zero cost. A separate 60-case good-target comparison
+improved vote truth accuracy from `55.5%` to `70.9%`; initial clean-team proposal rate moved from
+`49.3%` to `47.1%` and good wins from 8/60 to 6/60, both inconclusive at this sample size but not
+evidence for promotion. Phase 4 therefore closes as an opt-in technical foundation, not as a
+production-default recommendation. Parent verification passed 178 focused tests and all 612
+repository tests, including frozen decision fixtures, raw prompt hashes, deterministic replay,
+hidden-information boundaries, stdio/trace attribution, and screenshot freshness. A final standard
+ten-case autopilot bank also completed with 7/10 target-side wins, zero forced violations, zero
+degradation, zero calls, and zero cost.
+
 ### Structured decisions
 
 - [x] Propose teams using joint team-clean probability, not summed suspicion.
 - [x] Vote using current-team probability, best-alternative value, score, and hammer position.
 - [x] Preserve information-seeking only when future quests remain.
 - [x] Add calibrated stochasticity or a viable-candidate band so play does not become mechanical.
-- [ ] Attach selected reasons and uncertainty to the communication intent.
+- [x] Attach selected reasons and uncertainty to the communication intent.
 
 ### Hybrid planning
 
-- [ ] Let the LLM choose among non-dominated candidate teams or social plans.
-- [ ] Require any override of the top numerical candidate to name a permitted strategic reason.
-- [ ] Reject planner output that references an absent candidate or contradicts a forced rule.
-- [ ] Keep deterministic structured choice available as an ablation and fallback.
+- [x] Let the LLM choose among non-dominated candidate teams or social plans.
+- [x] Require any override of the top numerical candidate to name a permitted strategic reason.
+- [x] Reject planner output that references an absent candidate or contradicts a forced rule.
+- [x] Keep deterministic structured choice available as an ablation and fallback.
 
 ### Rollout
 
@@ -730,6 +773,19 @@ paid call, role-specific objective, soft factor, search, or factor graph changed
 
 The production agent's good-side proposals and votes are causally driven by the exact posterior, and
 the structured-only, hybrid, and raw-LLM modes can be compared independently.
+
+**Status:** met for the opt-in composed policy. Exact posterior causality is pinned at the
+score/value/action boundary, and every experiment cell has explicit runtime attribution. Promotion
+is intentionally not met: the raw-LLM comparison requires paid permission, the current free outcome
+sample is inconclusive, and human predictability/persuasiveness testing has not run.
+
+Non-blocking Phase 4 follow-ups:
+
+- [ ] Persist the admitted planner-reason subset separately for non-speech vote overrides; current
+      attribution retains scores, chosen/planner IDs, component versions, and degradation.
+- [ ] Expand matched outcome evaluation before interpreting win-rate or clean-proposal movement;
+      the 60-case free sample establishes vote improvement but is too small for promotion.
+- [ ] Run the paid raw-LLM comparison and human playtests only with explicit permission.
 
 ---
 
@@ -961,3 +1017,8 @@ here.
   versioned board/runway/hammer/information utility, deterministic and game-seeded viable-band
   scorers, and end-to-end score/action/trace validation. Compatibility and Phase 4A remain distinct
   ablations; the composed brain is still opt-in.
+- Phase 4C bounded hybrid: added feature-derived communication intent, private exact and public
+  qualitative uncertainty, non-dominated planner candidates, strict fake-tested planner/voice
+  adapters, explicit execution modes, and custom-factory architecture comparisons. Adversarial
+  review closed mutation, semantic-reason, voice-leak, stdio, and artifact-attribution gaps. The
+  composed brain remains opt-in pending paid and human rollout evidence.

@@ -8,9 +8,17 @@ export const HEURISTIC_POLICY_VERSION = 'heuristic-policy-v2'
 export const RANDOM_POLICY_VERSION = 'random-v1'
 export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
 export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
-export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v1'
+export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v2'
 export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
 export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
+export type AgentExecutionMode =
+  | 'raw-llm'
+  | 'heuristic'
+  | 'random'
+  | 'external'
+  | 'compatibility'
+  | 'structured-only'
+  | 'hybrid'
 
 export type BeliefComponent =
   | 'none'
@@ -41,6 +49,7 @@ export type ObserverModelComponent = 'off' | 'external'
  */
 export interface BrainSpec {
   version: typeof BRAIN_SPEC_VERSION
+  mode: AgentExecutionMode
   belief: BeliefComponent
   beliefVisibility: BeliefVisibility
   policy: PolicyComponent
@@ -77,6 +86,7 @@ type BrainSource =
 
 const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
   version: BRAIN_SPEC_VERSION,
+  mode: 'raw-llm',
   belief: EXACT_BELIEF_MODEL_VERSION,
   beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY,
   policy: RAW_LLM_POLICY_VERSION,
@@ -133,6 +143,7 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
 
   const brain: BrainSpec = {
     version: BRAIN_SPEC_VERSION,
+    mode: 'raw-llm',
     belief: assertOneOf(
       'belief',
       raw.belief ?? DEFAULT_LLM_BRAIN.belief,
@@ -174,6 +185,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'heuristic':
       return {
         version: BRAIN_SPEC_VERSION,
+        mode: 'heuristic',
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: HEURISTIC_POLICY_VERSION,
@@ -184,6 +196,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'random':
       return {
         version: BRAIN_SPEC_VERSION,
+        mode: 'random',
         belief: 'none',
         beliefVisibility: 'none',
         policy: RANDOM_POLICY_VERSION,
@@ -194,6 +207,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'composed':
       return {
         version: BRAIN_SPEC_VERSION,
+        mode: 'compatibility',
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: COMPOSED_POLICY_VERSION,
@@ -204,6 +218,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'stdio':
       return {
         version: BRAIN_SPEC_VERSION,
+        mode: 'external',
         belief: 'external',
         beliefVisibility: 'external',
         policy: 'external',
@@ -218,6 +233,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
 export function brainComponents(brain: BrainSpec): Record<string, string> {
   return {
     brain: brain.version,
+    mode: brain.mode,
     belief: brain.belief,
     beliefVisibility: brain.beliefVisibility,
     policy: brain.policy,

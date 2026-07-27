@@ -9,6 +9,7 @@ import {
   brainComponents,
   COMPOSED_POLICY_VERSION,
   resolveBrain,
+  type AgentExecutionMode,
 } from './brain.ts'
 import { advanceCognition } from './cognition/state.ts'
 import type { CognitionState } from './cognition/types.ts'
@@ -16,6 +17,7 @@ import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
   composedPolicyContext,
+  renderCommittedVoicePlan,
   renderComposedPolicyContext,
   type ComposedPolicyContext,
 } from './communication/composed-renderer.ts'
@@ -28,12 +30,16 @@ import {
 } from './policy/candidates.ts'
 import { applyForcedPolicy } from './policy/forced.ts'
 import {
+  COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
-  communicationFactProjection,
   defaultCommunicationIntent,
-  type CommunicationIntent,
+  plannerOverrideReasonCodes,
+  selectedStrategicReasonCodes,
+  voiceUncertainty,
+  type CommittedVoicePlan,
   type DecisionPlan,
+  type PlannerCommunicationDirection,
 } from './policy/plan.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -57,8 +63,6 @@ export const NO_PLANNER_VERSION = 'planner-off'
 export const NO_VOICE_VERSION = 'voice-off'
 
 export interface PlannerInput {
-  request: DecisionRequest
-  view: PlayerView
   context: ComposedPolicyContext
   renderedContext: string
   structuredCandidateId: string
@@ -66,7 +70,8 @@ export interface PlannerInput {
 
 export interface PlannerOutput {
   candidateId: string
-  communication?: CommunicationIntent
+  reasonCodes?: readonly string[]
+  communication?: PlannerCommunicationDirection
 }
 
 export interface CandidatePlanner {
@@ -78,11 +83,8 @@ export interface CandidatePlanner {
 export type LlmCandidatePlanner = CandidatePlanner
 
 export interface VoiceInput {
-  request: DecisionRequest
-  view: PlayerView
-  plan: DecisionPlan
-  context: ComposedPolicyContext
-  renderedContext: string
+  plan: CommittedVoicePlan
+  renderedPlan: string
 }
 
 export interface VoiceOutput {
@@ -139,6 +141,13 @@ function validComponentVersion(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
+function exactKeys(
+  value: object,
+  allowed: readonly string[],
+): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key))
+}
+
 function silenceMechanicalCommunication(decision: Decision): Decision {
   const copy = structuredClone(decision)
   if (copy.kind === 'discuss') copy.say = ''
@@ -147,25 +156,51 @@ function silenceMechanicalCommunication(decision: Decision): Decision {
   return copy
 }
 
-function validCommunicationIntent(
-  value: CommunicationIntent | undefined,
+function validPlannerCommunication(
+  value: PlannerCommunicationDirection | undefined,
   decision: Decision,
-  factCodes: readonly string[],
   view: PlayerView,
-): value is CommunicationIntent {
+): value is PlannerCommunicationDirection {
   const expectedChannel =
     decision.kind === 'discuss' ? 'discussion'
       : decision.kind === 'propose' ? 'proposal-pitch'
         : decision.kind === 'finalize' && !decision.stick
           ? 'revision-reason'
           : undefined
-  const projection = communicationFactProjection(factCodes)
-  const publicFacts = new Set(projection.safeFactCodes)
-  const requiredConceal = new Set(projection.conceal)
+  const claimCodes = new Set<string>(COMMUNICATION_CLAIM_CODES)
+  const claimsByChannel: Record<
+    NonNullable<typeof expectedChannel>,
+    ReadonlySet<string>
+  > = {
+    discussion: new Set([
+      'STATE_COMMITTED_LEAN',
+      'ADVOCATE_SELECTED_ACTION',
+      'ACKNOWLEDGE_UNCERTAINTY',
+    ]),
+    'proposal-pitch': new Set([
+      'EXPLAIN_COMMITTED_TEAM',
+      'ADVOCATE_SELECTED_ACTION',
+      'ACKNOWLEDGE_UNCERTAINTY',
+    ]),
+    'revision-reason': new Set([
+      'EXPLAIN_COMMITTED_REVISION',
+      'ADVOCATE_SELECTED_ACTION',
+      'ACKNOWLEDGE_UNCERTAINTY',
+    ]),
+  }
   return (
     expectedChannel !== undefined
     &&
-    value?.version === COMMUNICATION_INTENT_VERSION
+    !!value
+    && exactKeys(value, [
+      'version',
+      'channel',
+      'desiredLean',
+      'targetSeats',
+      'claimCodes',
+      'tone',
+    ])
+    && value.version === COMMUNICATION_INTENT_VERSION
     && value.channel === expectedChannel
     && (
       decision.kind !== 'discuss'
@@ -174,21 +209,47 @@ function validCommunicationIntent(
     )
     && (decision.kind === 'discuss' || value.desiredLean === undefined)
     && Array.isArray(value.targetSeats)
+    && new Set(value.targetSeats).size === value.targetSeats.length
     && value.targetSeats.every(
       (seat) => Number.isInteger(seat)
         && view.players.some((player) => player.seat === seat),
     )
-    && Array.isArray(value.claims)
-    && value.claims.every((claim) => typeof claim === 'string')
-    && Array.isArray(value.safeFactCodes)
-    && value.safeFactCodes.every(
-      (code) => typeof code === 'string' && publicFacts.has(code),
+    && Array.isArray(value.claimCodes)
+    && new Set(value.claimCodes).size === value.claimCodes.length
+    && value.claimCodes.every(
+      (code) =>
+        typeof code === 'string'
+        && claimCodes.has(code)
+        && claimsByChannel[expectedChannel].has(code),
     )
-    && Array.isArray(value.conceal)
-    && value.conceal.every((code) => typeof code === 'string')
-    && [...requiredConceal].every((code) => value.conceal.includes(code))
     && value.tone === 'natural'
   )
+}
+
+function validPlannerReasons(
+  reasons: readonly string[] | undefined,
+  chosenScore: CandidateScore,
+  scores: readonly CandidateScore[],
+  structuredCandidateId: string,
+): reasons is readonly string[] {
+  if (reasons === undefined) {
+    return chosenScore.candidateId === structuredCandidateId
+  }
+  const permitted = chosenScore.candidateId === structuredCandidateId
+    ? selectedStrategicReasonCodes(chosenScore, scores)
+    : plannerOverrideReasonCodes(chosenScore, scores)
+  if (
+    !Array.isArray(reasons)
+    || new Set(reasons).size !== reasons.length
+    || reasons.some(
+      (code) =>
+        typeof code !== 'string'
+        || !permitted.includes(code),
+    )
+  ) {
+    return false
+  }
+  return chosenScore.candidateId === structuredCandidateId || reasons.length > 0
 }
 
 function withVoice(decision: Decision, output: VoiceOutput | undefined): Decision {
@@ -199,6 +260,35 @@ function withVoice(decision: Decision, output: VoiceOutput | undefined): Decisio
   else if (voiced.kind === 'finalize' && !voiced.stick && text) voiced.reason = text
   if (output?.thinking?.trim()) voiced.thinking = output.thinking.trim()
   return voiced
+}
+
+function committedVoicePlan(
+  plan: DecisionPlan,
+): CommittedVoicePlan {
+  const communication = plan.communication
+    ? (() => {
+        const {
+          conceal: _conceal,
+          uncertainty,
+          ...publicIntent
+        } = plan.communication
+        return structuredClone({
+          ...publicIntent,
+          strategicReasonCodes: publicIntent.strategicReasonCodes.filter(
+            (reason) => reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK',
+          ),
+          ...(uncertainty
+            ? { uncertainty: voiceUncertainty(uncertainty) }
+            : {}),
+        })
+      })()
+    : undefined
+  return {
+    version: plan.version,
+    decision: structuredClone(plan.decision),
+    candidateId: plan.candidateId,
+    ...(communication ? { communication } : {}),
+  }
 }
 
 function composedTrace(
@@ -214,6 +304,8 @@ function composedTrace(
   voiceVersion: string,
   scorerVersion: string,
   degradation: readonly string[],
+  agentMode: AgentExecutionMode,
+  communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({ type: 'composed' }))
@@ -226,6 +318,7 @@ function composedTrace(
       action,
       degradation,
     ),
+    agentMode,
     componentVersions: {
       brain: brain.brain,
       belief: brain.belief,
@@ -249,6 +342,9 @@ function composedTrace(
     ...(plannerCandidateId ? { plannerCandidateId } : {}),
     decisionPlanVersion: DECISION_PLAN_VERSION,
     forcedPolicyResult: structuredClone(forced),
+    ...(communication
+      ? { communicationIntent: structuredClone(communication) }
+      : {}),
   }
 }
 
@@ -294,6 +390,9 @@ export function createComposedAgent(
       const activeVoice = voice && validComponentVersion(voice.version)
         ? voice
         : undefined
+      const plannerVersion =
+        activePlanner?.version ?? NO_PLANNER_VERSION
+      const voiceVersion = activeVoice?.version ?? NO_VOICE_VERSION
       if (planner && !activePlanner) degradation.push('planner-invalid-version')
       if (voice && !activeVoice) degradation.push('voice-invalid-version')
       cognition = advanceCognition(cognition, view)
@@ -386,37 +485,56 @@ export function createComposedAgent(
         candidates,
         forced,
         scores,
+        structured.candidateId,
       )
       const viableIds = new Set(
         context.viableCandidates.map((candidate) => candidate.id),
       )
       let chosenCandidateId = structured.candidateId
       let plannerCandidateId: string | undefined
-      let communication: CommunicationIntent | undefined
+      let plannerCommunication: PlannerCommunicationDirection | undefined
+      let plannerReasonCodes: readonly string[] | undefined
       if (activePlanner && !forced.selectedCandidateId) {
         stage('planner')
         try {
-          const planned = await activePlanner.choose({
-            request: req,
-            view,
-            context,
+          const suppliedPlan = await activePlanner.choose({
+            context: structuredClone(context),
             renderedContext: renderComposedPolicyContext(context),
             structuredCandidateId: structured.candidateId,
           })
-          if (planned) {
+          const planned = suppliedPlan === undefined
+            ? undefined
+            : structuredClone(suppliedPlan)
+          if (!planned) {
+            degradation.push('planner-no-choice')
+          } else {
             plannerCandidateId = planned.candidateId
-            if (!viableIds.has(planned.candidateId)) {
+            const plannedScore = scores.find(
+              (score) => score.candidateId === planned.candidateId,
+            )
+            if (!viableIds.has(planned.candidateId) || !plannedScore) {
               degradation.push('planner-invalid-candidate')
+            } else if (!validPlannerReasons(
+              planned.reasonCodes,
+              plannedScore,
+              scores,
+              structured.candidateId,
+            )) {
+              degradation.push('planner-invalid-reason')
             } else {
               chosenCandidateId = planned.candidateId
+              plannerReasonCodes = planned.reasonCodes === undefined
+                ? undefined
+                : [...planned.reasonCodes]
               if (planned.communication !== undefined) {
-                if (validCommunicationIntent(
+                if (validPlannerCommunication(
                   planned.communication,
                   byId(candidates, planned.candidateId).decision,
-                  analysis.factCodes,
                   view,
                 )) {
-                  communication = structuredClone(planned.communication)
+                  plannerCommunication = structuredClone(
+                    planned.communication,
+                  )
                 } else {
                   degradation.push('planner-invalid-communication')
                 }
@@ -429,27 +547,36 @@ export function createComposedAgent(
       }
 
       const candidate = byId(candidates, chosenCandidateId)
+      const chosenScore = scores.find(
+        (score) => score.candidateId === chosenCandidateId,
+      )
+      if (!chosenScore) {
+        throw new Error('composed policy selected candidate without a score')
+      }
       const mechanicalDecision = silenceMechanicalCommunication(candidate.decision)
+      const communication = defaultCommunicationIntent(
+        mechanicalDecision,
+        analysis.factCodes,
+        chosenScore,
+        scores,
+        plannerCommunication,
+        plannerReasonCodes,
+      )
+      const planStrategicReasons = plannerReasonCodes
+        ?? selectedStrategicReasonCodes(chosenScore, scores)
       const plan: DecisionPlan = {
         version: DECISION_PLAN_VERSION,
         request: { ...req },
         decision: structuredClone(mechanicalDecision),
         candidateId: chosenCandidateId,
         policyId: COMPOSED_POLICY_VERSION,
-        reasons: forced.reasonCodes,
+        reasons: [
+          ...forced.reasonCodes,
+          ...planStrategicReasons,
+        ],
         beliefThroughSeq: cognition.throughSeq,
         candidateScores: scores,
-        ...((communication ?? defaultCommunicationIntent(
-          mechanicalDecision,
-          analysis.factCodes,
-        ))
-          ? {
-              communication: communication ?? defaultCommunicationIntent(
-                mechanicalDecision,
-                analysis.factCodes,
-              ),
-            }
-          : {}),
+        ...(communication ? { communication } : {}),
       }
       stage('plan-committed')
 
@@ -457,14 +584,16 @@ export function createComposedAgent(
       if (activeVoice && plan.communication) {
         stage('voice')
         try {
+          const voicePlan = committedVoicePlan(plan)
           const output = await activeVoice.speak({
-            request: req,
-            view,
-            plan: structuredClone(plan),
-            context,
-            renderedContext: renderComposedPolicyContext(context, plan),
+            plan: structuredClone(voicePlan),
+            renderedPlan: renderCommittedVoicePlan(voicePlan),
           })
-          action = withVoice(plan.decision, output)
+          if (!output) {
+            degradation.push('voice-no-output')
+          } else {
+            action = withVoice(plan.decision, output)
+          }
         } catch {
           degradation.push('voice-failed')
           action = structuredClone(plan.decision)
@@ -496,10 +625,16 @@ export function createComposedAgent(
         scores,
         chosenCandidateId,
         forced,
-        activePlanner?.version ?? NO_PLANNER_VERSION,
-        activeVoice?.version ?? NO_VOICE_VERSION,
+        plannerVersion,
+        voiceVersion,
         scorerVersion,
         degradation,
+        activePlanner
+          ? 'hybrid'
+          : scorerVersion === CANDIDATE_SCORER_VERSION
+            ? 'compatibility'
+            : 'structured-only',
+        plan.communication,
         plannerCandidateId,
       )
       return { decision: action, trace }

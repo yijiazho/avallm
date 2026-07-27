@@ -38,6 +38,7 @@ test('resolved LLM brains separate exact inference from compatibility and compac
   const normal = resolveBrain({ type: 'llm' })
   assert.deepEqual(normal, {
     version: 'brain-spec-v1',
+    mode: 'raw-llm',
     belief: EXACT_BELIEF_MODEL_VERSION,
     beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY,
     policy: RAW_LLM_POLICY_VERSION,
@@ -94,6 +95,7 @@ test('heuristic, random, and stdio component identities remain truthful', () => 
     brainComponents(resolveBrain({ type: 'heuristic' })),
     {
       brain: 'brain-spec-v1',
+      mode: 'heuristic',
       belief: EXACT_BELIEF_MODEL_VERSION,
       beliefVisibility: 'none',
       policy: HEURISTIC_POLICY_VERSION,
@@ -108,16 +110,18 @@ test('heuristic, random, and stdio component identities remain truthful', () => 
     brainComponents(resolveBrain({ type: 'composed' })),
     {
       brain: 'brain-spec-v1',
+      mode: 'compatibility',
       belief: EXACT_BELIEF_MODEL_VERSION,
       beliefVisibility: 'none',
       policy: 'composed-policy-v1',
-      communication: 'plan-voice-v1',
+      communication: 'plan-voice-v2',
       languageEvidence: 'off',
       observerModel: 'off',
     },
   )
   assert.deepEqual(resolveBrain({ type: 'stdio' }), {
     version: 'brain-spec-v1',
+    mode: 'external',
     belief: 'external',
     beliefVisibility: 'external',
     policy: 'external',

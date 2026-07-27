@@ -20,7 +20,7 @@ import {
   validateArchitectureBank,
 } from './architecture-bank.ts'
 import type { AgentDef } from '../agents/defs.ts'
-import type { AvalonAgent } from '../agents/types.ts'
+import type { AgentContext, AvalonAgent } from '../agents/types.ts'
 import type { OpenRouterClient, SpendEntry } from '../llm/openrouter.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
@@ -32,11 +32,20 @@ import {
 import {
   brainComponents,
   resolveBrain,
+  type AgentExecutionMode,
 } from '../agents/brain.ts'
 
 export interface ArchitectureVariant {
   id: string
-  agent: AgentDef
+  /**
+   * Normal registry-backed variant. Custom factories are an API-free
+   * evaluation seam and never enter the production agent registry.
+   */
+  agent?: AgentDef
+  createTargetAgent?: (context: AgentContext) => AvalonAgent
+  descriptor?: string
+  /** Required for custom factories so a benchmark cannot omit cost intent. */
+  paid?: boolean
   modelOverride?: string
   components: Record<string, string>
 }
@@ -108,7 +117,7 @@ export function assertFreshArchitectureOutput(file: string): void {
 }
 
 function isPaid(variant: ArchitectureVariant): boolean {
-  return variant.agent.engine.type === 'llm'
+  return variant.paid === true || variant.agent?.engine.type === 'llm'
 }
 
 export function defaultComponents(def: AgentDef, modelOverride?: string): Record<string, string> {
@@ -135,7 +144,42 @@ export function defaultComponents(def: AgentDef, modelOverride?: string): Record
 }
 
 function resolvedVariantComponents(variant: ArchitectureVariant): Record<string, string> {
-  const resolved = defaultComponents(variant.agent, variant.modelOverride)
+  if (!!variant.agent === !!variant.createTargetAgent) {
+    throw new Error(
+      `architecture variant ${variant.id} must supply exactly one agent or createTargetAgent`,
+    )
+  }
+  if (variant.createTargetAgent) {
+    if (typeof variant.paid !== 'boolean') {
+      throw new Error(
+        `custom architecture variant ${variant.id} must declare paid true or false`,
+      )
+    }
+    for (const key of ['mode', 'brain', 'policy', 'scorer', 'planner', 'voice']) {
+      if (!variant.components[key]?.trim()) {
+        throw new Error(
+          `custom architecture variant ${variant.id} requires component ${key}`,
+        )
+      }
+    }
+    const modes: readonly AgentExecutionMode[] = [
+      'raw-llm',
+      'heuristic',
+      'random',
+      'external',
+      'compatibility',
+      'structured-only',
+      'hybrid',
+    ]
+    if (!modes.includes(variant.components.mode as AgentExecutionMode)) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
+      )
+    }
+    return { ...variant.components }
+  }
+  const def = variant.agent!
+  const resolved = defaultComponents(def, variant.modelOverride)
   for (const [key, value] of Object.entries(resolved)) {
     const supplied = variant.components[key]
     if (supplied !== undefined && supplied !== value) {
@@ -193,8 +237,17 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             upsertDecisionTrace(decisionTraces, trace),
         }
         if (player.seat === target.seat) {
-          agents.set(player.seat, createAgentFromDef(variant.agent, ctx, variant.modelOverride))
-          descriptors[player.seat] = `def:${variant.agent.id}`
+          const targetAgent = variant.createTargetAgent
+            ? variant.createTargetAgent(ctx)
+            : createAgentFromDef(
+                variant.agent!,
+                ctx,
+                variant.modelOverride,
+              )
+          agents.set(player.seat, targetAgent)
+          descriptors[player.seat] = variant.createTargetAgent
+            ? (variant.descriptor ?? `experiment:${variant.id}`)
+            : `def:${variant.agent!.id}`
         } else {
           agents.set(player.seat, createAgent({ type: 'heuristic' }, ctx))
         }
@@ -208,6 +261,30 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         before = copySpend(client.getSpend())
       }
       const result = await runGame({ game, agents })
+      if (variant.createTargetAgent) {
+        const expectedComponents = resolvedVariantComponents(variant)
+        const tracedComponents = [
+          'brain',
+          'policy',
+          'scorer',
+          'planner',
+          'voice',
+        ] as const
+        if (
+          !decisionTraces.length
+          || decisionTraces.some((trace) =>
+            trace.agentMode !== expectedComponents.mode
+            || !trace.componentVersions
+            || tracedComponents.some(
+              (key) =>
+                trace.componentVersions![key] !== expectedComponents[key],
+            ))
+        ) {
+          throw new Error(
+            `custom architecture variant ${variant.id} trace components do not match declared components`,
+          )
+        }
+      }
       const llmTags = before ? spendDelta(before, copySpend(client!.getSpend())) : undefined
       const artifact = toArtifact(game, {
         agents: descriptors,

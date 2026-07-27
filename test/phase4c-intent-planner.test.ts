@@ -1,0 +1,644 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  createComposedAgent,
+  type PlannerInput,
+} from '../server/agents/composed.ts'
+import {
+  createBoundedPlannerVoice,
+} from '../server/agents/communication/planner-voice-adapter.ts'
+import {
+  goodProposalScorer,
+  goodProposalVoteScorer,
+} from '../server/agents/policy/score.ts'
+import { normalizeAgentOutput } from '../server/agents/types.ts'
+import {
+  defaultComponents,
+  runArchitectureBench,
+} from '../server/eval/architecture-bench.ts'
+import { architectureReport } from '../server/eval/architecture-report.ts'
+import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import type { AgentDef } from '../server/agents/defs.ts'
+import type { Msg, CallOpts } from '../server/llm/openrouter.ts'
+
+const fixture = (id: string) =>
+  readDecisionFixtures().find((candidate) => candidate.id === id)!
+
+interface FakeCall {
+  model: string
+  messages: Msg[]
+  opts?: CallOpts
+}
+
+function fakeClient(
+  reply: (call: FakeCall) => string | Promise<string>,
+): { calls: FakeCall[]; call: (
+  model: string,
+  messages: Msg[],
+  opts?: CallOpts,
+) => Promise<string> } {
+  const calls: FakeCall[] = []
+  return {
+    calls,
+    async call(model, messages, opts) {
+      const call = structuredClone({ model, messages, opts })
+      calls.push(call)
+      return reply(call)
+    },
+  }
+}
+
+function plannerInput(call: FakeCall): {
+  structuredCandidateId: string
+  context: PlannerInput['context']
+} {
+  return JSON.parse(call.messages[1].content) as {
+    structuredCandidateId: string
+    context: PlannerInput['context']
+  }
+}
+
+test('bounded fake-client planner and voice use chosen posterior reasons without changing mechanics', async () => {
+  const source = fixture('merlin-opening-proposal')
+  let expectedCandidateId = ''
+  let expectedReasonCodes: readonly string[] = []
+  let offeredCandidateIds: readonly string[] = []
+  let voicePayload = ''
+  const client = fakeClient((call) => {
+    if (call.opts?.tag === 'phase4c/planner') {
+      const input = plannerInput(call)
+      offeredCandidateIds = input.context.viableCandidates.map(
+        (candidate) => candidate.id,
+      )
+      const selected = input.context.viableCandidates.at(-1)!
+      expectedCandidateId = selected.id
+      expectedReasonCodes = selected.reasonCodes
+      return JSON.stringify({
+        candidateId: selected.id,
+        reasonCodes: selected.reasonCodes,
+        communication: {
+          version: 'communication-intent-v2',
+          channel: 'proposal-pitch',
+          targetSeats: selected.decision.kind === 'propose'
+            ? selected.decision.team
+            : [],
+          claimCodes: [
+            'EXPLAIN_COMMITTED_TEAM',
+            'ACKNOWLEDGE_UNCERTAINTY',
+          ],
+          tone: 'natural',
+        },
+      })
+    }
+    voicePayload = call.messages[1].content
+    return JSON.stringify({
+      text: 'I prefer this team, though I am not fully certain.',
+    })
+  })
+  const adapters = createBoundedPlannerVoice({
+    client,
+    model: 'fake/model',
+    tagPrefix: 'phase4c',
+  })
+  const agent = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    ...adapters,
+  })
+
+  const output = normalizeAgentOutput(
+    await agent.decide(source.req, source.view),
+  )
+  assert.equal(output.trace!.agentMode, 'hybrid')
+  assert.equal(output.trace!.chosenCandidateId, expectedCandidateId)
+  assert.equal(output.decision.kind, 'propose')
+  assert.deepEqual(
+    output.decision.team,
+    expectedCandidateId.split(':').at(-1)!.split(',').map(Number),
+  )
+  assert.equal(
+    output.decision.pitch,
+    'I prefer this team, though I am not fully certain.',
+  )
+  assert.deepEqual(
+    output.trace!.communicationIntent?.strategicReasonCodes,
+    expectedReasonCodes,
+  )
+  assert.equal(
+    output.trace!.communicationIntent?.uncertainty?.kind,
+    'selected-team-clean',
+  )
+  assert.equal(
+    output.trace!.communicationIntent?.uncertainty?.semantics,
+    'uniform-feasible-joint',
+  )
+  const proposalScores = output.trace!.candidateScores!.filter(
+    (score) => score.features?.version === 'good-proposal-features-v1',
+  )
+  const maxClean = Math.max(...proposalScores
+    .filter((score) => score.viable)
+    .map((score) => score.features!.cleanProbability))
+  assert.ok(offeredCandidateIds.every((candidateId) => {
+    const score = proposalScores.find(
+      (candidate) => candidate.candidateId === candidateId,
+    )!
+    return score.features!.cleanProbability === maxClean
+  }))
+
+  const renderedVoice = JSON.parse(voicePayload)
+  assert.deepEqual(
+    renderedVoice.committedPlan.decision,
+    {
+      kind: 'propose',
+      team: output.decision.team,
+    },
+  )
+  assert.equal(renderedVoice.viableCandidates, undefined)
+  assert.equal(renderedVoice.privateInfo, undefined)
+  assert.equal(renderedVoice.committedPlan.reasons, undefined)
+  assert.equal(
+    renderedVoice.committedPlan.communication.conceal,
+    undefined,
+  )
+  assert.equal(
+    renderedVoice.committedPlan.communication.uncertainty
+      .cleanProbability,
+    undefined,
+  )
+  assert.equal(
+    renderedVoice.committedPlan.communication.uncertainty
+      .beliefModelVersion,
+    undefined,
+  )
+  if (
+    output.trace!.communicationIntent?.uncertainty?.kind
+      === 'selected-team-clean'
+    && output.trace.communicationIntent.uncertainty.residualProbability === 0
+  ) {
+    assert.ok(
+      !renderedVoice.committedPlan.communication.claimCodes.includes(
+        'ACKNOWLEDGE_UNCERTAINTY',
+      ),
+    )
+  }
+  assert.doesNotMatch(voicePayload, /roleBySeat|alignmentBySeat|topHypotheses/)
+})
+
+test('absent, malformed, and failed adapters degrade to the structured committed action', async () => {
+  const source = fixture('merlin-opening-proposal')
+  const structured = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view))
+
+  const malformed = fakeClient((call) =>
+    call.opts?.tag?.endsWith('/planner')
+      ? '{}'
+      : '{"unexpected":"voice"}')
+  const malformedAgent = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    ...createBoundedPlannerVoice({
+      client: malformed,
+      model: 'fake/model',
+    }),
+  })
+  const degraded = normalizeAgentOutput(
+    await malformedAgent.decide(source.req, source.view),
+  )
+  assert.deepEqual(degraded.decision.team, structured.decision.team)
+  assert.equal(degraded.decision.pitch, undefined)
+  assert.ok(degraded.trace!.degradation.includes('planner-no-choice'))
+  assert.ok(degraded.trace!.degradation.includes('voice-no-output'))
+
+  const failed = fakeClient(() => {
+    throw new Error('offline')
+  })
+  const failedAgent = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    ...createBoundedPlannerVoice({ client: failed, model: 'fake/model' }),
+  })
+  const failure = normalizeAgentOutput(
+    await failedAgent.decide(source.req, source.view),
+  )
+  assert.deepEqual(failure.decision.team, structured.decision.team)
+  assert.ok(failure.trace!.degradation.includes('planner-failed'))
+  assert.ok(failure.trace!.degradation.includes('voice-failed'))
+})
+
+test('planner overrides require a viable candidate and a reason owned by that candidate', async () => {
+  const source = fixture('merlin-opening-proposal')
+  const base = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view))
+  for (const reply of [
+    {
+      candidateId: 'invented:team',
+      reasonCodes: ['GOOD_PROPOSAL_JOINT_TEAM_CLEAN'],
+    },
+    {
+      candidateId: 'last',
+      reasonCodes: [],
+    },
+    {
+      candidateId: 'last',
+      reasonCodes: ['PRIVATE_ROLE_CERTAINTY'],
+    },
+  ]) {
+    const agent = createComposedAgent({
+      seed: source.source.seed,
+      scorer: goodProposalScorer,
+      planner: {
+        version: 'hostile-planner-v1',
+        async choose(input) {
+          const candidateId = reply.candidateId === 'last'
+            ? input.context.viableCandidates.at(-1)!.id
+            : reply.candidateId
+          return { ...reply, candidateId }
+        },
+      },
+    })
+    const output = normalizeAgentOutput(
+      await agent.decide(source.req, source.view),
+    )
+    assert.deepEqual(output.decision.team, base.decision.team)
+    assert.ok(output.trace!.degradation.some((code) =>
+      code === 'planner-invalid-candidate'
+      || code === 'planner-invalid-reason'))
+  }
+})
+
+test('planner cannot trade exact posterior quality for an unqualified override', async () => {
+  const source = fixture('merlin-opening-proposal')
+  const structured = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view))
+  const scores = structured.trace!.candidateScores!
+  const structuredId = structured.trace!.chosenCandidateId!
+  const max = Math.max(...scores
+    .filter((score) => score.viable)
+    .map((score) => score.features!.cleanProbability))
+  const dominated = scores.find(
+    (score) =>
+      score.viable
+      && score.features!.cleanProbability < max,
+  )!
+  const alternateMax = scores.find(
+    (score) =>
+      score.viable
+      && score.candidateId !== structuredId
+      && score.features!.cleanProbability === max,
+  )!
+  assert.ok(dominated)
+  assert.ok(alternateMax)
+
+  const attempt = async (
+    candidateId: string,
+    reasonCodes: readonly string[],
+  ) => normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    planner: {
+      version: 'quality-probe-v1',
+      async choose() {
+        return { candidateId, reasonCodes }
+      },
+    },
+  }).decide(source.req, source.view))
+
+  const dominatedOutput = await attempt(
+    dominated.candidateId,
+    ['GOOD_PROPOSAL_JOINT_TEAM_CLEAN'],
+  )
+  assert.equal(dominatedOutput.trace!.chosenCandidateId, structuredId)
+  assert.ok(
+    dominatedOutput.trace!.degradation.includes(
+      'planner-invalid-candidate',
+    ),
+  )
+
+  const genericOutput = await attempt(
+    alternateMax.candidateId,
+    ['GOOD_PROPOSAL_JOINT_TEAM_CLEAN'],
+  )
+  assert.equal(genericOutput.trace!.chosenCandidateId, structuredId)
+  assert.ok(
+    genericOutput.trace!.degradation.includes('planner-invalid-reason'),
+  )
+
+  const qualifiedOutput = await attempt(
+    alternateMax.candidateId,
+    ['GOOD_PROPOSAL_MAX_TEAM_CLEAN'],
+  )
+  assert.equal(
+    qualifiedOutput.trace!.chosenCandidateId,
+    alternateMax.candidateId,
+  )
+  assert.deepEqual(
+    qualifiedOutput.trace!.communicationIntent?.strategicReasonCodes,
+    ['GOOD_PROPOSAL_MAX_TEAM_CLEAN'],
+  )
+})
+
+test('planner inputs and admitted component versions are immutable boundaries', async () => {
+  const source = fixture('merlin-opening-proposal')
+  const planner = {
+    version: 'planner-admitted-v1',
+    async choose(input: PlannerInput) {
+      const target = input.context.viableCandidates.at(-1)!
+      ;(input.context.forcedPolicy.reasonCodes as string[]).push(
+        'HAMMER_TEAM_AUTOMATIC',
+      )
+      ;(target.reasonCodes as string[]).push(
+        'GOOD_PROPOSAL_JOINT_TEAM_CLEAN',
+      )
+      planner.version = 'planner-mutated-v2'
+      return {
+        candidateId: target.id,
+        reasonCodes: target.reasonCodes,
+      }
+    },
+  }
+  const voice = {
+    version: 'voice-admitted-v1',
+    async speak() {
+      voice.version = 'voice-mutated-v2'
+      return {
+        text: 'The committed team stands.',
+        candidateId: 'invented:action',
+      } as never
+    },
+  }
+  const output = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    planner,
+    voice,
+  }).decide(source.req, source.view))
+  assert.equal(
+    output.trace!.componentVersions!.planner,
+    'planner-admitted-v1',
+  )
+  assert.equal(
+    output.trace!.componentVersions!.voice,
+    'voice-admitted-v1',
+  )
+  assert.ok(
+    !output.trace!.forcedPolicyResult!.reasonCodes.includes(
+      'HAMMER_TEAM_AUTOMATIC',
+    ),
+  )
+  assert.ok(
+    output.trace!.candidateScores!.every(
+      (score) =>
+        score.reasonCodes.filter(
+          (reason) => reason === 'GOOD_PROPOSAL_JOINT_TEAM_CLEAN',
+        ).length <= 1,
+    ),
+  )
+  assert.equal(output.decision.kind, 'propose')
+  assert.equal(output.decision.pitch, 'The committed team stands.')
+})
+
+test('bounded adapters reject wrapped JSON and action-shaped voice extras', async () => {
+  const source = fixture('merlin-opening-proposal')
+  for (const reply of [
+    'preface {"candidateId":"invented"} after',
+    '```json\n{"candidateId":"invented"}\n```',
+  ]) {
+    const client = fakeClient((call) =>
+      call.opts?.tag?.endsWith('/planner')
+        ? reply
+        : '{"text":"should not matter"}')
+    const output = normalizeAgentOutput(await createComposedAgent({
+      seed: source.source.seed,
+      scorer: goodProposalScorer,
+      ...createBoundedPlannerVoice({ client, model: 'fake/model' }),
+    }).decide(source.req, source.view))
+    assert.ok(output.trace!.degradation.includes('planner-no-choice'))
+  }
+
+  const extraVoice = fakeClient((call) => {
+    if (call.opts?.tag?.endsWith('/planner')) {
+      return JSON.stringify({
+        candidateId: plannerInput(call).structuredCandidateId,
+      })
+    }
+    return '{"text":"wrapped voice","candidateId":"invented"}'
+  })
+  const output = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    ...createBoundedPlannerVoice({
+      client: extraVoice,
+      model: 'fake/model',
+    }),
+  }).decide(source.req, source.view))
+  assert.ok(output.trace!.degradation.includes('voice-no-output'))
+  assert.equal(output.decision.kind, 'propose')
+  assert.equal(output.decision.pitch, undefined)
+})
+
+test('direct planner communication rejects extra private-shaped fields', async () => {
+  const source = fixture('merlin-opening-proposal')
+  let renderedPlan = ''
+  const output = normalizeAgentOutput(await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    planner: {
+      version: 'extra-field-planner-v1',
+      async choose(input) {
+        return {
+          candidateId: input.structuredCandidateId,
+          communication: {
+            version: 'communication-intent-v2',
+            channel: 'proposal-pitch',
+            targetSeats: [],
+            claimCodes: ['EXPLAIN_COMMITTED_TEAM'],
+            tone: 'natural',
+            privateInfo: { knownEvil: [2, 3] },
+          },
+        } as never
+      },
+    },
+    voice: {
+      version: 'capture-voice-v1',
+      async speak(input) {
+        renderedPlan = input.renderedPlan
+        return { text: 'The committed team stands.' }
+      },
+    },
+  }).decide(source.req, source.view))
+  assert.ok(
+    output.trace!.degradation.includes('planner-invalid-communication'),
+  )
+  assert.doesNotMatch(renderedPlan, /privateInfo|knownEvil/)
+})
+
+test('structured intent and hybrid adapter replay deterministically', async () => {
+  const source = fixture('merlin-opening-proposal')
+  const decide = async () => {
+    const client = fakeClient((call) => {
+      if (call.opts?.tag?.endsWith('/planner')) {
+        const input = plannerInput(call)
+        return JSON.stringify({
+          candidateId: input.structuredCandidateId,
+        })
+      }
+      return '{"text":"The plan stands."}'
+    })
+    return normalizeAgentOutput(await createComposedAgent({
+      seed: source.source.seed,
+      scorer: goodProposalScorer,
+      ...createBoundedPlannerVoice({ client, model: 'fake/model' }),
+    }).decide(source.req, source.view))
+  }
+  assert.deepEqual(await decide(), await decide())
+})
+
+test('architecture bank can compare free compatibility, structured-only, and hybrid factories', async () => {
+  const baseComponents = {
+    brain: 'brain-spec-v1',
+    policy: 'composed-policy-v1',
+    voice: 'voice-off',
+  }
+  const client = fakeClient((call) => {
+    if (call.opts?.tag?.endsWith('/planner')) {
+      return JSON.stringify({
+        candidateId: plannerInput(call).structuredCandidateId,
+      })
+    }
+    return '{"text":"The committed plan stands."}'
+  })
+  const adapters = createBoundedPlannerVoice({
+    client,
+    model: 'fake/model',
+    tagPrefix: 'architecture-fake',
+  })
+  const bankCase = {
+    id: 'phase4c-5p-merlin',
+    seed: 'architecture-v1-5-merlin',
+    playerCount: 5,
+    roles: [
+      'merlin',
+      'percival',
+      'servant',
+      'morgana',
+      'assassin',
+    ] as const,
+    talk: {
+      maxRounds: 0,
+      maxRoundsAfterChange: 0,
+      leaderInDiscussion: 'none' as const,
+    },
+    targetRole: 'merlin' as const,
+    expectedTargetSeat: 4,
+  }
+  const artifacts = await runArchitectureBench({
+    bankId: 'phase4c-modes',
+    cases: [bankCase],
+    variants: [
+      {
+        id: 'compatibility',
+        components: {
+          ...baseComponents,
+          mode: 'compatibility',
+          scorer: 'compatibility-scorer-v1',
+          planner: 'planner-off',
+        },
+        paid: false,
+        createTargetAgent: (context) => createComposedAgent({
+          seed: context.seed,
+          onDecisionTrace: context.onDecisionTrace,
+        }),
+      },
+      {
+        id: 'structured-only',
+        components: {
+          ...baseComponents,
+          mode: 'structured-only',
+          scorer: 'good-proposal-vote-scorer-v1',
+          planner: 'planner-off',
+        },
+        paid: false,
+        createTargetAgent: (context) => createComposedAgent({
+          seed: context.seed,
+          scorer: goodProposalVoteScorer,
+          onDecisionTrace: context.onDecisionTrace,
+        }),
+      },
+      {
+        id: 'hybrid',
+        components: {
+          ...baseComponents,
+          mode: 'hybrid',
+          scorer: 'good-proposal-vote-scorer-v1',
+          planner: 'bounded-llm-planner-v1',
+          voice: 'bounded-llm-voice-v1',
+        },
+        paid: false,
+        createTargetAgent: (context) => createComposedAgent({
+          seed: context.seed,
+          scorer: goodProposalVoteScorer,
+          onDecisionTrace: context.onDecisionTrace,
+          ...adapters,
+        }),
+      },
+    ],
+  })
+  const report = architectureReport(artifacts)
+  assert.deepEqual(
+    report.variants.map((variant) => variant.components.mode),
+    ['compatibility', 'structured-only', 'hybrid'],
+  )
+  assert.equal(report.comparisons.length, 2)
+  assert.ok(artifacts.every((artifact) =>
+    artifact.decisionTraces?.every((trace) =>
+      trace.agentMode === artifact.architecture?.components.mode)))
+  await assert.rejects(
+    runArchitectureBench({
+      bankId: 'phase4c-mislabeled',
+      cases: [bankCase],
+      variants: [{
+        id: 'mislabeled',
+        components: {
+          ...baseComponents,
+          mode: 'structured-only',
+          scorer: 'dishonest-scorer-label',
+          planner: 'planner-off',
+        },
+        paid: false,
+        createTargetAgent: (context) => createComposedAgent({
+          seed: context.seed,
+          scorer: goodProposalVoteScorer,
+          onDecisionTrace: context.onDecisionTrace,
+        }),
+      }],
+    }),
+    /trace components do not match declared components/,
+  )
+})
+
+test('raw LLM remains an attributable paid-gated architecture mode', async () => {
+  const raw: AgentDef = {
+    id: 'raw-mode',
+    name: 'Raw Mode',
+    version: 1,
+    engine: { type: 'llm', model: 'deepseek-flash' },
+  }
+  assert.equal(defaultComponents(raw).mode, 'raw-llm')
+  await assert.rejects(
+    runArchitectureBench({
+      cases: [],
+      variants: [{
+        id: 'raw-llm',
+        agent: raw,
+        components: defaultComponents(raw),
+      }],
+    }),
+    /allowPaid: true/,
+  )
+})
