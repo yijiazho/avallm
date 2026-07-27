@@ -819,6 +819,10 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
     { key: 'mordred', label: 'Mordred', roles: ['mordred'] },
     { key: 'oberon', label: 'Oberon', roles: ['oberon'] },
   ]
+  const toggleRoleDesc = (role: Role, attributed: boolean) => {
+    const { name, desc } = ROLE_INFO[role]
+    return attributed ? `${name} ${desc[0].toLowerCase()}${desc.slice(1)}` : desc
+  }
 
   const goodRoles = built.roles?.filter((r) => ROLE_INFO[r].side === 'good') ?? []
   const evilRoles = built.roles?.filter((r) => ROLE_INFO[r].side === 'evil') ?? []
@@ -935,10 +939,23 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
                         checked={sel[t.key]}
                         onChange={() => toggle(t.key)}
                       />
-                      <span className={`gembox ${side}`} />
-                      <span>
-                        <span className={`gr-name ${side}`}>{t.label}</span>{' '}
-                        <span className="gr-desc">{t.roles.map((r) => ROLE_INFO[r].desc).join(' ')}</span>
+                      <span className={`gembox ${t.roles.length > 1 ? 'mixed' : side}`} />
+                      <span className="gr-copy">
+                        {t.roles.length === 1 ? (
+                          <span className={`gr-name ${side}`}>{t.label}</span>
+                        ) : (
+                          <span className="gr-name">
+                            {t.roles.map((r, i) => (
+                              <span key={r}>
+                                {i > 0 && <span className="gr-name-join"> &amp; </span>}
+                                <span className={ROLE_INFO[r].side}>{ROLE_INFO[r].name}</span>
+                              </span>
+                            ))}
+                          </span>
+                        )}{' '}
+                        <span className="gr-desc">
+                          {t.roles.map((r) => toggleRoleDesc(r, t.roles.length > 1)).join(' ')}
+                        </span>
                       </span>
                     </label>
                   )

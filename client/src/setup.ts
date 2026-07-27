@@ -21,7 +21,7 @@ export const TEAM_SIZES: Record<number, number[]> = {
 export const ROLE_INFO: Record<Role, { name: string; side: 'good' | 'evil'; desc: string }> = {
   merlin: {
     name: 'Merlin', side: 'good',
-    desc: 'Sees who is evil (except Mordred), but must hide it. If good wins 3 quests, the Assassin gets one shot at naming Merlin; a correct pick steals the game for evil.',
+    desc: 'Sees who is evil (except Mordred), but must hide it.',
   },
   percival: {
     name: 'Percival', side: 'good',

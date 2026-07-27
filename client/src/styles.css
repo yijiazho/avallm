@@ -1674,10 +1674,18 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
 }
 .gem-role.checked .gembox.good { background: rgba(111, 143, 217, 0.55); border-color: var(--good); box-shadow: 0 0 8px rgba(111, 143, 217, 0.4); }
 .gem-role.checked .gembox.evil { background: rgba(194, 94, 84, 0.55); border-color: var(--evil); box-shadow: 0 0 8px rgba(194, 94, 84, 0.4); }
+.gem-role.checked .gembox.mixed {
+  background: linear-gradient(45deg, rgba(111, 143, 217, 0.65) 50%, rgba(194, 94, 84, 0.65) 50%);
+  border-color: var(--gold-deep);
+  box-shadow: -3px 3px 8px rgba(111, 143, 217, 0.35), 3px -3px 8px rgba(194, 94, 84, 0.35);
+}
 .gem-role input:focus-visible + .gembox { outline: 2px solid var(--gold); outline-offset: 3px; }
 .gr-name { font-weight: 700; font-size: 0.92rem; }
 .gr-name.good { color: var(--good); }
 .gr-name.evil { color: var(--evil); }
+.gr-name .good { color: var(--good); }
+.gr-name .evil { color: var(--evil); }
+.gr-name-join { color: var(--dim); }
 .gr-desc { color: var(--dim); font-size: 0.78rem; line-height: 1.4; }
 
 .cta-rail {
