@@ -247,6 +247,7 @@ function assertMatched(a: GameObservation, b: GameObservation): void {
     deal: a.artifact.players.map((p) => p.role),
     targetRole: a.meta.targetRole,
     targetSeat: a.meta.targetSeat,
+    names: a.artifact.players.map((p) => p.name),
     opponents: a.artifact.players.map((p) => p.seat === a.meta.targetSeat ? '<variant>' : p.agent),
   }
   const other = {
@@ -257,6 +258,7 @@ function assertMatched(a: GameObservation, b: GameObservation): void {
     deal: b.artifact.players.map((p) => p.role),
     targetRole: b.meta.targetRole,
     targetSeat: b.meta.targetSeat,
+    names: b.artifact.players.map((p) => p.name),
     opponents: b.artifact.players.map((p) => p.seat === b.meta.targetSeat ? '<variant>' : p.agent),
   }
   if (JSON.stringify(comparable) !== JSON.stringify(other)) {
@@ -269,6 +271,16 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
   const games = artifacts.map(observe)
   const banks = new Set(games.map((g) => g.meta.bank))
   if (banks.size !== 1) throw new Error('architecture report cannot mix seed banks')
+  const cells = new Set<string>()
+  for (const game of games) {
+    const cell = `${game.meta.variant}\0${game.meta.caseId}`
+    if (cells.has(cell)) {
+      throw new Error(
+        `duplicate architecture result for variant ${game.meta.variant}, case ${game.meta.caseId}`,
+      )
+    }
+    cells.add(cell)
+  }
   const caseIds = [...new Set(games.map((g) => g.meta.caseId))].sort()
   // Preserve artifact order: the runner writes the declared baseline first.
   // Alphabetical sorting can silently turn "candidate" into the baseline.

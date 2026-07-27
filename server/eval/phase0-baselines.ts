@@ -86,7 +86,7 @@ const DECISION_KINDS: readonly DecisionKind[] = [
   'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
 ]
 
-function action(a: GameArtifact, type: string, payload: Record<string, unknown>): {
+function action(type: string, payload: Record<string, unknown>): {
   kind: DecisionKind
   seat: Seat
 } | undefined {
@@ -157,12 +157,18 @@ export function buildObservedPromptBaseline(directory: string): ObservedPromptBa
       { file: transcriptName, sha256: hashFile(transcriptFile) },
     )
     const spend = transcriptSpend(fs.readFileSync(transcriptFile, 'utf8'))
+    const models = artifact.players.map((player) => player.agent.replace(/^llm:/, ''))
+    if (new Set(models).size !== models.length) {
+      throw new Error(
+        `${artifactFile}: duplicate model seats cannot be attributed from model-level transcript spend`,
+      )
+    }
 
     const decisions = artifact.players.map(() => Object.fromEntries(
       DECISION_KINDS.map((kind) => [kind, 0]),
     ) as Record<string, number>)
     for (const event of artifact.log) {
-      const observed = action(artifact, event.type, event.payload)
+      const observed = action(event.type, event.payload)
       if (observed) decisions[observed.seat][observed.kind]++
     }
     const degraded = artifact.players.map(() => Object.fromEntries(

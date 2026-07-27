@@ -60,6 +60,17 @@ test('architecture bench compares variants on an identical fixed deal and table'
   assert.equal(report.comparisons[0].degraded, 0)
   assert.match(renderArchitectureReport(report), /1 matched/)
   assert.match(renderArchitectureReport(report), /components belief=none policy=heuristic-a/)
+
+  assert.throws(
+    () => architectureReport([...artifacts, baseline]),
+    /duplicate architecture result/,
+  )
+  const mismatched = structuredClone(candidate)
+  mismatched.players[0].name = 'Different table'
+  assert.throws(
+    () => architectureReport([baseline, mismatched]),
+    /not matched on deal and table configuration/,
+  )
 })
 
 test('architecture bench refuses an LLM variant without explicit paid approval', async () => {
