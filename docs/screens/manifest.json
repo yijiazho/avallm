@@ -26,6 +26,7 @@
     "desktop/lobby-host.jpg",
     "desktop/propose.jpg",
     "desktop/quest-ballot.jpg",
+    "desktop/quest-card.jpg",
     "desktop/reconnect-banner.jpg",
     "desktop/record-sheet.jpg",
     "desktop/reveal-thinking.jpg",
@@ -53,5 +54,5 @@
     "mobile/vote-ballot.jpg",
     "mobile/vote.jpg"
   ],
-  "sourceHash": "95ff5529499f6041"
+  "sourceHash": "5a5279713cf167aa"
 }

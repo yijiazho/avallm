@@ -9,7 +9,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import { buildMessages, TABLE_TALK_NORMS } from '../server/agents/prompts.ts'
+import {
+  buildMessages, PLAYER_REFERENCE_NORMS, TABLE_TALK_NORMS,
+} from '../server/agents/prompts.ts'
 import type { LlmCallKind } from '../server/llm/call-params.ts'
 
 test('TABLE_TALK_NORMS carries the anti-house-style rules', () => {
@@ -17,6 +19,29 @@ test('TABLE_TALK_NORMS carries the anti-house-style rules', () => {
   assert.match(TABLE_TALK_NORMS, /Make a point ONCE/)
   assert.match(TABLE_TALK_NORMS, /Vary your temperature/)
   assert.match(TABLE_TALK_NORMS, /Don't announce your lean in words/)
+})
+
+test('every LLM call gets a neutral player-reference rule', () => {
+  assert.match(PLAYER_REFERENCE_NORMS, /always use singular they, them, and their/)
+  assert.match(PLAYER_REFERENCE_NORMS, /Never infer a player's gender/)
+
+  const g = createGame({ seed: 'neutral-pronouns', playerCount: 5 })
+  const view = viewFor(g, 0)
+  const kinds: LlmCallKind[] = [
+    'discuss', 'propose', 'pitch', 'finalize', 'vote', 'quest', 'assassinate', 'reflect',
+  ]
+  for (const kind of kinds) {
+    const [system] = buildMessages(kind, view, '')
+    assert.ok(system.content.includes(PLAYER_REFERENCE_NORMS), `${kind} prompt carries the rule`)
+  }
+
+  const [custom] = buildMessages('discuss', view, '', {
+    personality: 'Use a custom voice that may describe another player differently.',
+  })
+  assert.ok(
+    custom.content.indexOf(PLAYER_REFERENCE_NORMS) > custom.content.indexOf('Your table persona'),
+    'the engine-owned rule takes precedence over custom prompt layers',
+  )
 })
 
 // Dropped on evidence, not taste: a matched A/B (same seeds, same roster)
@@ -52,6 +77,7 @@ const BANNED_DASH = /[—–]/
 // which is the actual tell. NOT plain contrast ("my issue is with you, not
 // Flash"), which is ordinary English and would flag half of normal speech.
 const BANNED_SLOGAN = /\b(is|are|was|were|it'?s|that'?s|this is)\s+not\s+[^.!?;:]{2,60}?,\s*(it'?s|that'?s|it is|that is|they'?re)\b/i
+const BANNED_GENDERED_PRONOUN = /\b(?:he|him|his|himself|she|her|hers|herself)\b/i
 // The norms name the anti-pattern on purpose, and quoting an ANTI-example is
 // safe (bots parrot quoted positive examples, not negative ones — measured).
 const ANTI_EXAMPLE = `"that's not X, that's Y"`
@@ -95,16 +121,26 @@ test('no rendered prompt shows the model a construction the norms ban', () => {
         BANNED_SLOGAN,
         `${where} contains a "that's not X, that's Y" reframe`,
       )
+      assert.doesNotMatch(
+        rendered,
+        BANNED_GENDERED_PRONOUN,
+        `${where} assumes a player's gender instead of using singular they`,
+      )
     }
   }
 })
 
 // CURATED agents ship WITH the repo (read-only, baked into the deploy image),
-// so their personality/strategy text is ours and gets the same house style as
-// the engine prompts. It matters MORE here than anywhere else: persona text is
-// the layer closest to "how to talk", and its quoted example lines are the text
-// bots copy hardest. All six curated agents violated this when written (12
-// dashes, all in persona slots).
+// so their personality/strategy text is ours and gets the same speech-style
+// rules as the engine prompts. It matters MORE here than anywhere else:
+// persona text is the layer closest to "how to talk", and its quoted example
+// lines are the text bots copy hardest. All six curated agents violated this
+// when written (12 dashes, all in persona slots).
+//
+// Do not apply the gendered-pronoun scan to these fields. A persona based on a
+// known character may intentionally describe its OWN identity with explicit
+// pronouns. References to OTHER players stay neutral through the engine-owned
+// PLAYER_REFERENCE_NORMS, which is appended after every persona layer.
 //
 // USER agents (data/agents/*.json, authored at runtime through the API) are
 // deliberately NOT checked, and must never be. That text belongs to the user:
@@ -169,6 +205,10 @@ test('prompt-building source carries no banned construction in any branch', () =
       assert.doesNotMatch(
         line, BANNED_DASH,
         `server/agents/${name}:${i + 1} has an em or en dash in prompt text (comments are exempt, so this is a string the model sees)`,
+      )
+      assert.doesNotMatch(
+        line, BANNED_GENDERED_PRONOUN,
+        `server/agents/${name}:${i + 1} has a gendered third-person pronoun in prompt text`,
       )
     })
   }

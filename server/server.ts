@@ -160,7 +160,7 @@ function engineFrom(body: any, base?: LlmEngine): LlmEngine {
 // Preview fixture: a real engine-generated mid-game state — createGame with a
 // fixed seed, heuristic-driven into quest 2's table talk. Handcrafted views
 // would get privateInfo consistency wrong (design doc §7). Built lazily once.
-const FIXTURE_SCRATCHPAD = 'Q1 succeeded with Ada/Circe/Fergus. Brutus rejected a clean team — watching him. Elaine is quiet.'
+const FIXTURE_SCRATCHPAD = 'Q1 succeeded with Ada/Circe/Fergus. Brutus rejected a clean team — watching them. Elaine is quiet.'
 let fixtureCache: Game | null = null
 function fixtureGame(): Game {
   if (fixtureCache) return fixtureCache

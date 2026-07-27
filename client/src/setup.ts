@@ -37,7 +37,7 @@ export const ROLE_INFO: Record<Role, { name: string; side: 'good' | 'evil'; desc
   },
   morgana: {
     name: 'Morgana', side: 'evil',
-    desc: 'Appears to Percival as a possible Merlin, muddying his information.',
+    desc: 'Appears to Percival as a possible Merlin, muddying their information.',
   },
   mordred: {
     name: 'Mordred', side: 'evil',
@@ -105,8 +105,8 @@ export const PRESETS: Record<PresetId, { label: string; blurb: string; pick: (n:
       percival: true,
       // Below 7 players there are only 2 evil seats, and this preset spends them
       // on Assassin + Mordred, so there is no room for Morgana. Percival stays
-      // in, but with no Morgana his candidate pair collapses to Merlin alone:
-      // he simply sees Merlin. Lattice-safe either way, since Percival is always
+      // in, but with no Morgana their candidate pair collapses to Merlin alone:
+      // they simply see Merlin. Lattice-safe either way, since Percival is always
       // true here, so the morgana -> percival edge holds at every player count.
       morgana: n >= 7,
       mordred: true,
@@ -132,12 +132,12 @@ export interface BuiltRoles {
 // the other, so they are the root and require nothing.
 //
 // Oberon's edge is a product choice, not a rules necessity: an Oberon works fine
-// in a Merlin-less game (he is just an evil who cannot coordinate). It is kept
+// in a Merlin-less game (they are just an evil player who cannot coordinate). It is kept
 // as-is to preserve the setups the picker offers today.
 const REQUIRES: Partial<Record<keyof SpecialSelection, { needs: keyof SpecialSelection; error: string }>> = {
-  percival: { needs: 'merlinPair', error: 'Percival needs Merlin in play. There is nobody for him to find.' },
-  morgana: { needs: 'percival', error: 'Morgana needs Percival in play. With no Percival to mislead, she is just a Minion.' },
-  mordred: { needs: 'merlinPair', error: 'Mordred needs Merlin in play. Hiding from Merlin is his whole power.' },
+  percival: { needs: 'merlinPair', error: 'Percival needs Merlin in play. There is nobody for them to find.' },
+  morgana: { needs: 'percival', error: 'Morgana needs Percival in play. With no Percival to mislead, they are just a Minion.' },
+  mordred: { needs: 'merlinPair', error: 'Mordred needs Merlin in play. Hiding from Merlin is their whole power.' },
   oberon: { needs: 'merlinPair', error: 'Special evil roles need Merlin & Assassin in play.' },
 }
 
