@@ -5,6 +5,8 @@ import type {
 } from '../engine/types.ts'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
+import { exactWorldBeliefModel } from './belief/exact.ts'
+import type { BeliefModel } from './belief/types.ts'
 import {
   brainComponents,
   COMPOSED_POLICY_VERSION,
@@ -109,6 +111,7 @@ export type ComposedStage =
 
 export interface ComposedAgentOptions {
   seed: string
+  beliefModel?: BeliefModel
   planner?: CandidatePlanner
   voice?: PlanVoice
   onDecisionTrace?: (trace: DecisionTrace) => void
@@ -309,6 +312,7 @@ function composedTrace(
   communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
   plannerReasonCodes?: readonly string[],
+  factorsVersion = 'off',
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({ type: 'composed' }))
   return {
@@ -323,9 +327,9 @@ function composedTrace(
     agentMode,
     componentVersions: {
       brain: brain.brain,
-      belief: brain.belief,
+      belief: cognition.belief.modelVersion,
       beliefVisibility: brain.beliefVisibility,
-      factors: 'off',
+      factors: factorsVersion,
       languageEvidence: brain.languageEvidence,
       observerModel: brain.observerModel,
       analysis: SITUATION_ANALYSIS_VERSION,
@@ -371,6 +375,7 @@ export function createComposedAgent(
     score: scoreCandidates,
   }
   const stage = (value: ComposedStage): void => options.onStage?.(value)
+  const beliefModel = options.beliefModel ?? exactWorldBeliefModel
 
   return {
     setPlanner(next) {
@@ -401,7 +406,7 @@ export function createComposedAgent(
       const voiceVersion = activeVoice?.version ?? NO_VOICE_VERSION
       if (planner && !activePlanner) degradation.push('planner-invalid-version')
       if (voice && !activeVoice) degradation.push('voice-invalid-version')
-      cognition = advanceCognition(cognition, view)
+      cognition = advanceCognition(cognition, view, beliefModel)
       stage('cognition')
       let analysis = analyzeSituation(view, {
         belief: cognition.belief,
@@ -644,6 +649,7 @@ export function createComposedAgent(
         plan.communication,
         plannerCandidateId,
         plannerReasonCodes,
+        beliefModel.factorsVersion,
       )
       return { decision: action, trace }
     },

@@ -2,10 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 5A weight-aware belief and calibration foundations. Phase 4 remains
-opt-in: its reproducible 180-deal good-side evaluation found a decisive vote-accuracy gain but a
-significant win-rate regression, so paid raw-LLM comparison and human testing remain inappropriate
-until the mechanical policy improves.
+**Current target phase:** Phase 5B first capped, opt-in analytical quest-card factor and held-out
+ablation. Phase 4 remains opt-in: its reproducible 180-deal good-side evaluation found a decisive
+vote-accuracy gain but a significant win-rate regression, so paid raw-LLM comparison and human
+testing remain inappropriate until the mechanical policy improves.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -231,7 +231,7 @@ vote, quest-card, discussion, or assassination policy, and it makes no LLM calls
 These items do not reopen the Phase 1 exit gate, but later phases must not silently build on the
 current limitations.
 
-- [ ] Make every posterior projection weight-aware before Phase 5 introduces non-uniform worlds.
+- [x] Make every posterior projection weight-aware before Phase 5 introduces non-uniform worlds.
   The Phase 1 posterior is uniform, so counting feasible worlds gives correct player marginals,
   role marginals, team-clean probability, evil-count distributions, and entropy today. Once
   `WeightedWorld.probability` can vary, those quantities must sum world weights and entropy must
@@ -821,10 +821,10 @@ the current candidate.
 
 ### Data contract
 
-- [ ] Version game artifacts with agent, model, prompt, policy, and factor identifiers.
-- [ ] Define training rows from public information only.
-- [ ] Split data by game and opponent population to avoid leakage.
-- [ ] Keep evaluation deals and human-study games out of training.
+- [x] Version game artifacts with agent, model, prompt, policy, and factor identifiers.
+- [x] Define training rows from public information only.
+- [x] Split data by game and opponent population to avoid leakage.
+- [x] Keep evaluation deals and human-study games out of training.
 
 ### Factors
 
@@ -837,8 +837,8 @@ the current candidate.
 
 ### Calibration
 
-- [ ] Log loss and Brier score.
-- [ ] Player-alignment and team-clean calibration curves.
+- [x] Log loss and Brier score.
+- [x] Player-alignment and team-clean calibration curves.
 - [ ] Held-out comparison against uniform feasible worlds.
 - [ ] Sensitivity to opponent-population shift.
 - [ ] Ablations for quest, proposal, and vote factors separately.
@@ -847,6 +847,24 @@ the current candidate.
 
 Weighted beliefs improve held-out calibration or decision quality over uniform feasible worlds.
 Factors that do not improve a measured outcome remain disabled.
+
+### Phase 5A foundation record
+
+All belief projections now consume normalized world weights. Player and role marginals, team-clean
+probability, evil-count distributions, entropy, top worlds, decision analysis, and Phase 4 proposal
+and vote features share the same weighted joint distribution. The constraints-only path preserves
+its exact historical values and frozen prompt bytes. Weighted snapshots carry factor-level
+provenance and typed degradation, and composed cognition accepts an injected, versioned belief
+model while continuing to default to `exact-constraints-v1` with factors off.
+
+New artifacts include a strategy-version manifest derived from agent descriptors, architecture
+metadata, and admitted traces. `mechanical-public-rows-v1` extracts proposal, vote, and quest rows
+only from public events; deterministic game-plus-population splits keep every game in one partition,
+and architecture-bank or human-study artifacts are excluded from training. Tests prove that
+changing hidden roles and private events cannot change these rows. `belief-calibration-v1` provides
+Brier score, log loss, player-alignment and team-clean reliability curves, population slices, and
+paired held-out deltas. This is measurement infrastructure, not evidence that a factor is
+calibrated; the first real uniform-versus-weighted comparison remains a Phase 5B gate.
 
 ---
 
@@ -1056,3 +1074,8 @@ here.
   paired-bootstrap deltas, posterior regret, variation, latency, privacy canaries, and attribution
   checks. The full 540-game free run confirmed the vote-accuracy gain but found statistically
   adverse win-rate deltas, so Phase 5 begins from an explicit no-promotion result.
+- Phase 5A foundations: converted every posterior projection and Phase 4 scorer join to normalized
+  joint world weights, added an injectable versioned belief-model seam with provenance and
+  degradation, versioned artifact strategy components, and added public-only mechanical rows,
+  leakage-safe population/game splits, calibration scores, reliability curves, and paired
+  comparison primitives. Default behavior and frozen prompt bytes remain unchanged.

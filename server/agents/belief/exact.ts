@@ -8,6 +8,8 @@ import {
   DEFAULT_TOP_WORLD_LIMIT,
   EXACT_BELIEF_MODEL_VERSION,
   type BeliefSnapshot,
+  type BeliefModel,
+  type EvidenceContribution,
   type HiddenWorld,
   type PlayerMarginal,
   type RoleMarginal,
@@ -84,7 +86,7 @@ export function feasibleWorlds(
   return worlds
 }
 
-function weighted(worlds: readonly HiddenWorld[]): readonly WeightedWorld[] {
+function uniformWeights(worlds: readonly HiddenWorld[]): readonly WeightedWorld[] {
   const probability = 1 / worlds.length
   return worlds.map((world) => ({ world, probability }))
 }
@@ -93,14 +95,20 @@ function playerMarginals(
   worlds: readonly WeightedWorld[],
   playerCount: number,
 ): readonly PlayerMarginal[] {
+  const uniform = worlds.every(
+    (weightedWorld) =>
+      weightedWorld.probability === worlds[0]?.probability,
+  )
   return Array.from({ length: playerCount }, (_, seat) => {
+    let evilProbability = 0
     let evilWorlds = 0
     for (const weightedWorld of worlds) {
       if (weightedWorld.world.alignmentBySeat[seat] === 'evil') {
         evilWorlds++
+        evilProbability += weightedWorld.probability
       }
     }
-    const evilProbability = evilWorlds / worlds.length
+    if (uniform) evilProbability = evilWorlds / worlds.length
     return {
       seat,
       goodProbability: 1 - evilProbability,
@@ -114,17 +122,24 @@ function roleMarginals(
   rolesInPlay: readonly Role[],
   playerCount: number,
 ): readonly RoleMarginal[] {
+  const uniform = worlds.every(
+    (weightedWorld) =>
+      weightedWorld.probability === worlds[0]?.probability,
+  )
   const roles = [...new Set(canonicalRoleMultiset(rolesInPlay))]
   const out: RoleMarginal[] = []
   for (let seat = 0; seat < playerCount; seat++) {
     for (const role of roles) {
+      let probability = 0
       let matchingWorlds = 0
       for (const weightedWorld of worlds) {
         if (weightedWorld.world.roleBySeat[seat] === role) {
           matchingWorlds++
+          probability += weightedWorld.probability
         }
       }
-      out.push({ seat, role, probability: matchingWorlds / worlds.length })
+      if (uniform) probability = matchingWorlds / worlds.length
+      out.push({ seat, role, probability })
     }
   }
   return out
@@ -141,19 +156,99 @@ export function topWorlds(
     .slice(0, limit)
 }
 
-export function exactBelief(view: PlayerView): BeliefSnapshot {
-  const worlds = weighted(feasibleWorlds(view))
+export interface BeliefProjectionOptions {
+  modelVersion: string
+  quality: BeliefSnapshot['quality']
+  provenance?: readonly EvidenceContribution[]
+  degradation?: readonly string[]
+}
+
+/**
+ * Normalize and project an arbitrary positive distribution over already
+ * feasible worlds. This is the single projection path for both uniform and
+ * factor-weighted snapshots.
+ */
+export function beliefFromWeightedWorlds(
+  view: PlayerView,
+  input: readonly WeightedWorld[],
+  options: BeliefProjectionOptions,
+): BeliefSnapshot {
+  if (!input.length) throw new Error('belief projection requires at least one world')
+  const keys = new Set<string>()
+  let total = 0
+  for (const weightedWorld of input) {
+    if (keys.has(weightedWorld.world.key)) {
+      throw new Error(`belief projection contains duplicate world ${weightedWorld.world.key}`)
+    }
+    keys.add(weightedWorld.world.key)
+    if (
+      !Number.isFinite(weightedWorld.probability)
+      || weightedWorld.probability < 0
+    ) {
+      throw new Error(`invalid world weight ${weightedWorld.probability}`)
+    }
+    total += weightedWorld.probability
+  }
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error('belief projection requires positive finite total weight')
+  }
+  const inputUniform = input.every(
+    (weightedWorld) =>
+      weightedWorld.probability === input[0]?.probability,
+  )
+  if (options.quality === 'constraints-only' && !inputUniform) {
+    throw new Error('constraints-only belief projection requires uniform weights')
+  }
+  const worlds = input
+    .filter((weightedWorld) => weightedWorld.probability > 0)
+    .map((weightedWorld) => ({
+      world: weightedWorld.world,
+      probability: options.quality === 'constraints-only'
+        ? 1 / input.length
+        : weightedWorld.probability / total,
+    }))
+  const uniform = worlds.every(
+    (weightedWorld) =>
+      weightedWorld.probability === worlds[0]?.probability,
+  )
+  const entropy = uniform
+    ? Math.log2(worlds.length)
+    : -worlds.reduce(
+        (sum, weightedWorld) =>
+          sum
+          + weightedWorld.probability * Math.log2(weightedWorld.probability),
+        0,
+      )
   return {
     throughSeq: visibleEventCursor(view),
-    modelVersion: EXACT_BELIEF_MODEL_VERSION,
-    quality: 'constraints-only',
+    modelVersion: options.modelVersion,
+    quality: options.quality,
     worlds,
     playerMarginals: playerMarginals(worlds, view.playerCount),
     roleMarginals: roleMarginals(worlds, view.rolesInPlay, view.playerCount),
-    entropy: Math.log2(worlds.length),
+    entropy,
     topWorlds: topWorlds(worlds),
+    provenance: structuredClone(options.provenance ?? []),
+    degradation: [...(options.degradation ?? [])],
   }
 }
+
+export function exactBelief(view: PlayerView): BeliefSnapshot {
+  return beliefFromWeightedWorlds(
+    view,
+    uniformWeights(feasibleWorlds(view)),
+    {
+      modelVersion: EXACT_BELIEF_MODEL_VERSION,
+      quality: 'constraints-only',
+    },
+  )
+}
+
+export const exactWorldBeliefModel: BeliefModel = Object.freeze({
+  version: EXACT_BELIEF_MODEL_VERSION,
+  factorsVersion: 'off',
+  infer: exactBelief,
+})
 
 function validateTeam(snapshot: BeliefSnapshot, team: readonly Seat[]): readonly Seat[] {
   const unique = new Set(team)

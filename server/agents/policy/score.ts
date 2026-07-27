@@ -1,6 +1,7 @@
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
+  type JointProbabilitySemantics,
   type SituationAnalysis,
 } from '../analysis/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
@@ -50,12 +51,11 @@ export type GoodVoteSelectionMode = 'top-utility' | 'seeded-band'
 
 /**
  * The score's decision-ready posterior projection. Phase 4A deliberately
- * names the current uniform-feasible semantics rather than implying that the
- * hard-constraint posterior is behaviorally calibrated.
+ * names whether the joint posterior is uniform-feasible or factor-weighted.
  */
 export interface GoodProposalFeatures {
   version: typeof GOOD_PROPOSAL_FEATURE_VERSION
-  semantics: 'uniform-feasible-joint'
+  semantics: JointProbabilitySemantics
   beliefModelVersion: string
   beliefThroughSeq: number
   team: readonly number[]
@@ -67,7 +67,7 @@ export interface GoodVoteFeatures {
   version: typeof GOOD_VOTE_FEATURE_VERSION
   utilityVersion: typeof GOOD_VOTE_UTILITY_VERSION
   situationVersion: typeof GOOD_VOTE_SITUATION_VERSION
-  semantics: 'uniform-feasible-joint'
+  semantics: JointProbabilitySemantics
   beliefModelVersion: string
   beliefThroughSeq: number
   currentTeam: readonly number[]
@@ -136,7 +136,7 @@ function validGoodProposalFeatures(
   if (
     !assessment
     || features.version !== GOOD_PROPOSAL_FEATURE_VERSION
-    || features.semantics !== 'uniform-feasible-joint'
+    || features.semantics !== assessment.probabilitySemantics
     || features.beliefModelVersion !== assessment.beliefModelVersion
     || features.beliefThroughSeq !== assessment.beliefThroughSeq
     || features.beliefThroughSeq !== context.analysis.throughSeq
@@ -217,7 +217,9 @@ function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
     || context.view.alignment !== 'good'
     || !projection
     || projection.version !== GOOD_VOTE_SITUATION_VERSION
-    || projection.probabilitySemantics !== 'uniform-feasible-joint'
+    || !['uniform-feasible-joint', 'weighted-joint'].includes(
+      projection.probabilitySemantics,
+    )
     || projection.beliefModelVersion !== context.analysis.goodVote?.beliefModelVersion
     || projection.beliefThroughSeq !== context.analysis.throughSeq
     || !surface?.length
@@ -252,7 +254,8 @@ function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
       || !sameNumbers(assessment.team, team)
       || assessment.beliefModelVersion !== projection.beliefModelVersion
       || assessment.beliefThroughSeq !== projection.beliefThroughSeq
-      || assessment.probabilitySemantics !== 'uniform-feasible-joint'
+      || assessment.probabilitySemantics
+        !== projection.probabilitySemantics
     ) {
       throw new Error(`good vote assessment mismatch for ${candidateId}`)
     }
@@ -365,7 +368,8 @@ function validGoodVoteFeatures(
     || features.version !== GOOD_VOTE_FEATURE_VERSION
     || features.utilityVersion !== GOOD_VOTE_UTILITY_VERSION
     || features.situationVersion !== GOOD_VOTE_SITUATION_VERSION
-    || features.semantics !== 'uniform-feasible-joint'
+    || features.semantics
+      !== context.analysis.goodVote?.probabilitySemantics
   ) {
     return false
   }
@@ -763,7 +767,7 @@ export function scoreGoodProposalCandidates(
       ],
       features: {
         version: GOOD_PROPOSAL_FEATURE_VERSION,
-        semantics: 'uniform-feasible-joint',
+        semantics: assessment.probabilitySemantics,
         beliefModelVersion: assessment.beliefModelVersion,
         beliefThroughSeq: assessment.beliefThroughSeq,
         team,
@@ -944,7 +948,7 @@ function scoreGoodProposalVoteCandidates(
         version: GOOD_VOTE_FEATURE_VERSION,
         utilityVersion: GOOD_VOTE_UTILITY_VERSION,
         situationVersion: GOOD_VOTE_SITUATION_VERSION,
-        semantics: 'uniform-feasible-joint',
+        semantics: context.analysis.goodVote!.probabilitySemantics,
         beliefModelVersion:
           context.analysis.goodVote!.beliefModelVersion,
         beliefThroughSeq: context.analysis.throughSeq,

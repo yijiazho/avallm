@@ -419,6 +419,10 @@ export function analyzeSituation(
     belief,
     assessmentRequests.map((request) => request.team),
   )
+  const probabilitySemantics =
+    belief.quality === 'weighted'
+      ? 'weighted-joint' as const
+      : 'uniform-feasible-joint' as const
   const policyCandidateAssessments = assessmentRequests.map(
     (request, index): PolicyCandidateTeamAssessment => {
       const assessment = batchAssessments[index]
@@ -437,7 +441,7 @@ export function analyzeSituation(
         candidateId: request.candidateId,
         beliefModelVersion: belief.modelVersion,
         beliefThroughSeq: belief.throughSeq,
-        probabilitySemantics: 'uniform-feasible-joint',
+        probabilitySemantics,
         ...assessment,
         knownFailsAboard: knownFailsAboard(view, assessment.team),
       }
@@ -475,7 +479,7 @@ export function analyzeSituation(
     }
     goodVote = {
       version: GOOD_VOTE_SITUATION_VERSION,
-      probabilitySemantics: 'uniform-feasible-joint',
+      probabilitySemantics,
       beliefModelVersion: belief.modelVersion,
       beliefThroughSeq: belief.throughSeq,
       currentTeam,

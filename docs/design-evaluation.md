@@ -258,6 +258,15 @@ loop is only as good as the reward signal under it.
 > controlled-variation rates, target-seat latency, and structural privacy/trace-attribution
 > counters. The privacy counters detect schema and exact-intent canaries in public output; the
 > exhaustive knowledge/leak suite remains the semantic authority.
+>
+> **Phase 5 calibration foundation, 2026-07-27:** new artifacts carry a compact strategy-version
+> manifest for agent descriptors plus available model, prompt, policy, belief, and factor
+> identifiers. `mechanical-public-rows-v1` builds proposal, vote, and quest rows exclusively from
+> public events, assigns deterministic whole-game splits within opponent populations, and excludes
+> architecture-bank and human-study artifacts from training. `belief-calibration-v1` computes
+> Brier score, log loss, player-alignment and team-clean reliability curves, population slices, and
+> paired deltas on identical validation or test rows. Hidden truth remains an offline label, never
+> a factor input.
 
 1. **Game artifacts** — persist full event log + agent configs + seed as JSONL per sim game
    (plumbing; the data already exists in `game.log`).

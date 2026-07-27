@@ -42,6 +42,16 @@ export interface ArchitectureRunMetadata {
   components: Record<string, string>
 }
 
+export interface ArtifactStrategyVersions {
+  schema: 1
+  agentDescriptors: readonly string[]
+  models: readonly string[]
+  prompts: readonly string[]
+  policies: readonly string[]
+  factors: readonly string[]
+  beliefs: readonly string[]
+}
+
 export interface ArtifactTelemetry {
   // Run-local deltas copied from the shared OpenRouter client's per-tag spend
   // map. Architecture benchmarks run variants sequentially, so each artifact
@@ -75,6 +85,8 @@ export interface GameArtifact {
   degraded: DegradedDecision[]
   log: GameEvent[]
   architecture?: ArchitectureRunMetadata
+  /** Stable identifiers required to interpret or train from this artifact. */
+  strategyVersions?: ArtifactStrategyVersions
   telemetry?: ArtifactTelemetry
   /**
    * Private full-reveal evaluation data. Server payload builders never read
@@ -144,6 +156,42 @@ export interface ToArtifactOpts {
   decisionTraces?: DecisionTrace[]
 }
 
+function sortedUnique(values: readonly (string | undefined)[]): string[] {
+  return [...new Set(values.filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  ))].sort()
+}
+
+function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
+  const traces = opts.decisionTraces ?? []
+  const architecture = opts.architecture?.components ?? {}
+  return {
+    schema: 1,
+    agentDescriptors: sortedUnique(opts.agents),
+    models: sortedUnique([
+      architecture.model,
+      ...opts.agents.map((agent) =>
+        agent.startsWith('llm:') ? agent.slice('llm:'.length) : undefined),
+    ]),
+    prompts: sortedUnique([
+      architecture.prompt,
+      ...traces.map((trace) => trace.componentVersions?.prompt),
+    ]),
+    policies: sortedUnique([
+      architecture.policy,
+      ...traces.map((trace) => trace.componentVersions?.policy),
+    ]),
+    factors: sortedUnique([
+      architecture.factors,
+      ...traces.map((trace) => trace.componentVersions?.factors),
+    ]),
+    beliefs: sortedUnique([
+      architecture.belief,
+      ...traces.map((trace) => trace.beliefModelVersion),
+    ]),
+  }
+}
+
 export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
   if (game.phase !== 'gameOver' || !game.winner || !game.winReason) {
     throw new Error(`artifact requires a finished game (phase: ${game.phase})`)
@@ -168,6 +216,7 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     steps: opts.steps,
     degraded: opts.degraded,
     log: game.log,
+    strategyVersions: strategyVersions(opts),
     ...(opts.tags ? { tags: opts.tags } : {}),
     ...(opts.architecture ? { architecture: opts.architecture } : {}),
     ...(opts.telemetry ? { telemetry: opts.telemetry } : {}),

@@ -1,6 +1,9 @@
 import type { PlayerView } from '../../engine/types.ts'
-import { exactBelief, visibleEventCursor } from '../belief/exact.ts'
-import { EXACT_BELIEF_MODEL_VERSION } from '../belief/types.ts'
+import {
+  exactWorldBeliefModel,
+  visibleEventCursor,
+} from '../belief/exact.ts'
+import type { BeliefModel } from '../belief/types.ts'
 import { buildCommitments } from './commitments.ts'
 import { compareEvidence, extractEvidence } from './evidence.ts'
 import {
@@ -12,12 +15,16 @@ import {
   type PublicCognitionProjection,
 } from './types.ts'
 
-function validateEarlier(earlier: CognitionState, view: PlayerView): void {
+function validateEarlier(
+  earlier: CognitionState,
+  view: PlayerView,
+  beliefModel: BeliefModel,
+): void {
   if (
     earlier.versions.schema !== COGNITION_SCHEMA_VERSION
     || earlier.versions.evidence !== EVIDENCE_MODEL_VERSION
     || earlier.versions.commitments !== COMMITMENT_MODEL_VERSION
-    || earlier.versions.belief !== EXACT_BELIEF_MODEL_VERSION
+    || earlier.versions.belief !== beliefModel.version
   ) {
     throw new Error('cannot advance cognition produced by incompatible component versions')
   }
@@ -44,8 +51,9 @@ function validateEarlier(earlier: CognitionState, view: PlayerView): void {
 export function advanceCognition(
   earlier: CognitionState | undefined,
   view: PlayerView,
+  beliefModel: BeliefModel = exactWorldBeliefModel,
 ): CognitionState {
-  if (earlier) validateEarlier(earlier, view)
+  if (earlier) validateEarlier(earlier, view, beliefModel)
   const throughSeq = visibleEventCursor(view)
   if (earlier && throughSeq < earlier.throughSeq) {
     throw new Error(
@@ -63,7 +71,17 @@ export function advanceCognition(
     byId.set(evidence.id, evidence)
   }
   const evidence = [...byId.values()].sort(compareEvidence)
-  const belief = exactBelief(view)
+  const belief = beliefModel.infer(view)
+  if (belief.modelVersion !== beliefModel.version) {
+    throw new Error(
+      `belief model ${beliefModel.version} returned snapshot ${belief.modelVersion}`,
+    )
+  }
+  if (belief.throughSeq !== throughSeq) {
+    throw new Error(
+      `belief model ${beliefModel.version} returned cursor ${belief.throughSeq}, expected ${throughSeq}`,
+    )
+  }
   return {
     viewerSeat: view.seat,
     throughSeq,
@@ -80,8 +98,11 @@ export function advanceCognition(
 }
 
 /** Replay/recovery path from a complete seat-filtered view. */
-export function reconstructCognition(view: PlayerView): CognitionState {
-  return advanceCognition(undefined, view)
+export function reconstructCognition(
+  view: PlayerView,
+  beliefModel: BeliefModel = exactWorldBeliefModel,
+): CognitionState {
+  return advanceCognition(undefined, view, beliefModel)
 }
 
 /** Strictly public evidence and literal public commitments, with no posterior. */

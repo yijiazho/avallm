@@ -386,6 +386,14 @@ proposal and vote quality, posterior regret, controlled variation, latency, and 
 and trace-attribution counters. Those privacy counters are canaries; the exhaustive knowledge and
 leak tests remain authoritative. Telemetry failures remain best-effort and cannot stall the game.
 
+Belief snapshots support constraints-only, weighted, and degraded quality. A single projection
+kernel normalizes feasible-world weights and derives player/role marginals, joint team
+distributions, Shannon entropy, and top worlds. Composed cognition accepts a versioned belief model
+with a factor-bundle identifier, but the default remains `exact-constraints-v1` with factors off.
+Weighted snapshots retain factor-level evidence provenance and typed degradation only in private
+cognition and trace paths. New evaluation artifacts summarize the strategy component identifiers
+needed to interpret later calibration corpora.
+
 ### Consistency across a game
 
 - Fixed per-bot system identity (name/seat/role text byte-identical across calls → cache hits).

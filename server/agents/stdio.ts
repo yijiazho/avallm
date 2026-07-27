@@ -945,7 +945,9 @@ function validDecisionTrace(
     && isDeepStrictEqual(trace.request, req)
     && typeof trace.beliefModelVersion === 'string'
     && trace.beliefModelVersion.length > 0
-    && trace.quality === 'constraints-only'
+    && ['constraints-only', 'weighted', 'degraded'].includes(
+      trace.quality as string,
+    )
     && stringArray(trace.degradation)
     && Array.isArray(hypotheses)
     && hypotheses.every((entry) => {

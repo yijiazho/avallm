@@ -1,11 +1,17 @@
-import type { Alignment, Role, Seat } from '../../engine/types.ts'
+import type {
+  Alignment,
+  PlayerView,
+  Role,
+  Seat,
+} from '../../engine/types.ts'
 
 /**
- * Probability semantics for Phase 1:
+ * Probability semantics:
  *
  * - every world is a complete assignment of the public role multiset;
  * - impossible worlds are absent rather than present with zero weight;
- * - every feasible world has the same probability;
+ * - constraints-only snapshots give every feasible world the same probability;
+ * - weighted snapshots normalize capped factor contributions over feasible worlds;
  * - entropy is Shannon entropy in bits.
  *
  * World arrays and projections are ordered by ascending seat. Role-valued
@@ -53,10 +59,19 @@ export interface RoleMarginal {
   probability: number
 }
 
+export interface EvidenceContribution {
+  factorId: string
+  factorVersion: string
+  evidenceIds: readonly string[]
+  logLikelihoodCap: number
+  minLogLikelihood: number
+  maxLogLikelihood: number
+}
+
 export interface BeliefSnapshot {
   throughSeq: number
-  modelVersion: typeof EXACT_BELIEF_MODEL_VERSION
-  quality: 'constraints-only'
+  modelVersion: string
+  quality: 'constraints-only' | 'weighted' | 'degraded'
   worlds: readonly WeightedWorld[]
   playerMarginals: readonly PlayerMarginal[]
   roleMarginals: readonly RoleMarginal[]
@@ -64,6 +79,16 @@ export interface BeliefSnapshot {
   entropy: number
   /** Highest-probability worlds, then canonical key; capped at 10 by default. */
   topWorlds: readonly WeightedWorld[]
+  /** Factor-level summaries only; never public player state. */
+  provenance: readonly EvidenceContribution[]
+  /** Typed inference failures that caused a fallback or omitted factor. */
+  degradation: readonly string[]
+}
+
+export interface BeliefModel {
+  version: string
+  factorsVersion: string
+  infer(view: PlayerView): BeliefSnapshot
 }
 
 export interface TeamAssessment {

@@ -3,6 +3,9 @@ import type { TeamAssessment } from '../belief/types.ts'
 
 export const SITUATION_ANALYSIS_VERSION = 'situation-analysis-v1'
 export const GOOD_VOTE_SITUATION_VERSION = 'good-vote-situation-v1'
+export type JointProbabilitySemantics =
+  | 'uniform-feasible-joint'
+  | 'weighted-joint'
 
 export interface BoardScore {
   good: number
@@ -41,7 +44,7 @@ export interface PolicyCandidateTeamAssessment
   candidateId: string
   beliefModelVersion: string
   beliefThroughSeq: number
-  probabilitySemantics: 'uniform-feasible-joint'
+  probabilitySemantics: JointProbabilitySemantics
 }
 
 /**
@@ -51,7 +54,7 @@ export interface PolicyCandidateTeamAssessment
  */
 export interface GoodVoteSituation {
   version: typeof GOOD_VOTE_SITUATION_VERSION
-  probabilitySemantics: 'uniform-feasible-joint'
+  probabilitySemantics: JointProbabilitySemantics
   beliefModelVersion: string
   beliefThroughSeq: number
   currentTeam: SituationTeamAssessment

@@ -224,6 +224,7 @@ interface BeliefSnapshot {
   entropy: number
   provenance: readonly EvidenceContribution[]
   quality: 'constraints-only' | 'weighted' | 'degraded'
+  degradation: readonly string[]
 }
 ```
 
@@ -234,6 +235,10 @@ P(w \mid E) \propto I[w\text{ feasible}]P_0(w)\prod_i \phi_i(w,E_i)
 \]
 
 Implementation should accumulate log likelihoods and normalize with log-sum-exp.
+The landed projection kernel normalizes arbitrary positive feasible-world weights and is shared by
+constraints-only and weighted models. Every downstream marginal, joint team quantity, entropy
+value, and decision feature consumes those weights. Constraints-only snapshots retain exact
+uniform arithmetic so frozen prompts and fixtures do not drift.
 
 Initial factors should be transparent:
 
