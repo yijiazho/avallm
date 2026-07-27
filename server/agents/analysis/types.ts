@@ -13,6 +13,7 @@ export type HammerProximity = 'normal' | 'near' | 'next' | 'hammer'
 export interface BoardSituation {
   score: BoardScore
   matchPoint: { good: boolean; evil: boolean }
+  failsRequired: number
   proposalNumber: number
   /** Future proposals after the current one, including the hammer if reachable. */
   proposalsRemaining: number
@@ -26,6 +27,17 @@ export interface BoardSituation {
 
 export interface SituationTeamAssessment extends TeamAssessment {
   knownFailsAboard: readonly Seat[]
+}
+
+export interface CandidateTeamFacts {
+  candidateId: string
+  team: readonly Seat[]
+  knownFailsAboard: readonly Seat[]
+}
+
+export interface DeclaredLeanTally {
+  seat: Seat
+  lean: 'approve' | 'reject' | 'unsure'
 }
 
 export type DeductionProvenance =
@@ -70,10 +82,13 @@ export type AnalysisFactCode =
 
 export type ForcedPlayReasonCode =
   | 'GOOD_QUEST_CARD_FORCED_SUCCESS'
+  | 'EVIL_QUEST_CARD_CANNOT_SINK'
   | 'EVIL_MATCH_POINT_FAIL_AVAILABLE'
   | 'GOOD_MATCH_POINT_FAIL_REQUIRED'
   | 'EVIL_TEAM_CAN_SINK'
   | 'EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT'
+  | 'EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED'
+  | 'EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED'
   | 'HAMMER_TEAM_AUTOMATIC'
 
 export interface SituationAnalysis extends BoardSituation {
@@ -81,6 +96,15 @@ export interface SituationAnalysis extends BoardSituation {
   modelVersion: typeof SITUATION_ANALYSIS_VERSION
   currentTeam?: SituationTeamAssessment
   candidateTeams: readonly SituationTeamAssessment[]
+  /** Cheap mechanical facts for exhaustive legal-team candidate surfaces. */
+  policyCandidateTeams: readonly CandidateTeamFacts[]
+  /** Latest public lean per seat on the current proposal segment. */
+  declaredLeans: readonly DeclaredLeanTally[]
+  /** Whether this seat's approve/reject could still change passage by public leans. */
+  voteLeverage: {
+    approveCouldMatter: boolean
+    rejectCouldMatter: boolean
+  }
   provenGood: readonly Seat[]
   provenEvil: readonly Seat[]
   unresolved: readonly Seat[]

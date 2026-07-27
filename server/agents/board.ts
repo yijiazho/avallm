@@ -1,12 +1,9 @@
 // Board reads that decide forced plays (docs/design-bot-guidance.md §7.2).
 //
-// Every T1 trigger in the catalogue is phrased in terms of these two questions —
-// how many Fails this seat can account for on a team, and whose match point the
-// board is on — so they get one definition each, shared by every consumer:
-// prompts.ts writes them into ASK branches for LLM seats, heuristic.ts branches
-// on them directly, and forced.ts re-derives the same quantities from the
-// artifact to grade the result. A rule and its detector drifting apart would
-// make the metric measure the wrong thing silently.
+// This compatibility facade exposes exact belief and situation projections to
+// legacy prompt renderers. New executable policy consumes SituationAnalysis
+// directly; the artifact evaluator independently derives its own quantities so
+// the measurement can detect rather than inherit policy defects.
 //
 // Consume ONLY PlayerView, like the prompt builders: no raw Game, no omniscience.
 

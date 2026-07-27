@@ -9,11 +9,12 @@
 // exceptions, and grading it needs judgement, which is the LLM judge's job
 // (INCIDENT_FAMILIES in judge.ts, notably 'blunder').
 //
-// This module MEASURES and never enforces. Making the engine or the agent layer
-// play the forced move would inject a decision the bot never reached on its own
-// — the line the reverted "lowest seat on the team fails" convention crossed —
-// and it would destroy the very signal we are reading. So a violation is
-// recorded, reported, and left standing.
+// This module MEASURES independently and never enforces. The raw-LLM baseline
+// must not be corrected after it answers, because that would destroy the
+// compliance signal. A composed policy may narrow legal candidates before a
+// discretionary planner runs; that is an attributable policy choice, not an
+// evaluator rewrite. Violations are always recorded from the artifact and left
+// standing.
 //
 // Judged against what the seat COULD know, never against omniscience: knowledge
 // comes from computeKnowledge, the engine's single producer of night-phase

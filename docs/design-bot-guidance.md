@@ -376,8 +376,10 @@ strength. This section adds the missing axis.
 | **T3 Style** | Table-talk behaviour, persona, pacing | Descriptive | Not a correctness question |
 
 T0 has exactly one member: **good cannot play Fail** (`applyDecision` in `server/engine/game.ts`,
-commented "Rule, not honor system"). Everything else that feels absolute is T1 — enforced by
-nothing, which is why it needs both the strongest wording and a measurement (§7.5).
+commented "Rule, not honor system"). Everything else that feels absolute is T1. The raw-LLM
+baseline receives those rules as strong prompt guidance and is measured without correction. The
+composed, heuristic, and forever-fallback policy paths apply the same class of rule before
+discretionary choice, and expose the reason in policy output.
 
 ### 7.2 The forced plays (T1 catalogue)
 
@@ -386,21 +388,23 @@ omniscience to evaluate, it is not T1** — it is a read, and reads belong to th
 
 | Forced play | Trigger (in view terms) | Why it is forced | Lives in |
 |---|---|---|---|
-| Fail the quest that would be good's third | on the team, `successes === 2`, known Fails aboard ≥ `failsRequired` | A success ends the quest phase; cover is worthless in a game you have lost | `quest` ASK, first branch |
-| Fail the quest that would be evil's third | on the team, `fails === 2`, known Fails aboard ≥ `failsRequired` | It wins the game outright | `quest` ASK |
-| Do **not** Fail below the requirement | on the team, known Fails aboard < `failsRequired` | The card cannot sink the quest and only advertises an evil. **Exception: Oberon**, whose extra card is how unseen teammates locate it | `quest` ASK, needs-two branch |
-| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | `vote` ASK |
-| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired` | Approving hands good the quest phase and leaves only the Assassin's guess | `vote` ASK |
-| Be on the team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | `propose` ASK |
+| Fail the quest that would be good's third | on the team, `successes === 2`, known Fails aboard ≥ `failsRequired` | A success ends the quest phase; cover is worthless in a game you have lost | central forced policy; raw `quest` ASK |
+| Fail the quest that would be evil's third | on the team, `fails === 2`, known Fails aboard ≥ `failsRequired` | It wins the game outright | central forced policy; raw `quest` ASK |
+| Do **not** Fail below the requirement | on the team, known Fails aboard < `failsRequired` | The card cannot sink the quest and only advertises an evil. **Exception: Oberon**, whose extra card is how unseen teammates locate it | central forced policy; raw `quest` ASK |
+| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board, and an approval could still affect passage under declared public leans | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | central forced policy; raw `vote` ASK |
+| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired`, and a rejection could still affect passage under declared public leans | Approving hands good the quest phase and leaves only the Assassin's guess | central forced policy; raw `vote` ASK |
+| Be on a sinkable team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | central forced policy; raw `propose` ASK |
 
 "Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `server/agents/board.ts` counts
 the seat plus partners the deal lets it see. Oberon is invisible to the rest of evil, so a count
 over the whole team would both leak the deal into the prompt and let a note claim a team is
 evil-free while Oberon rides along. `matchPoint` (same file) and `failsRequired` (`rules.ts`) are
 the other shared pieces — one definition each, so a rule and its detector can never drift apart.
-`board.ts` exists because these triggers have three consumers, not one: `prompts.ts` writes them
-into ASK branches for LLM seats, `heuristic.ts` branches on them directly, and `forced.ts`
-re-derives them from the artifact to grade the result.
+`SituationAnalysis` now owns these board quantities. `policy/forced.ts` consumes them for the
+heuristic and forever fallback, while `eval/forced.ts` independently re-derives what the seat could
+know from the completed artifact to grade the result. The prompt ASKs still carry compatibility
+trigger branches for raw LLM seats; Phase 3C will render the central policy result for the composed
+path without changing the raw baseline.
 
 **All six are graded**, as `FORCED_PLAY_RULES` in `eval/forced.ts`, and `npm run sim` reports them
 on every run without needing `--out`. Keep that mapping total: a forced play in this table with no
@@ -438,13 +442,17 @@ when the leader's visible pool was too small to build a sinkable team at all.
 5. **T1 beats every T2 it touches.** If a new note contradicts an existing default, that is the
    system working — say so in the note rather than hedging both.
 
-### 7.5 Measure, never enforce
+### 7.5 Measure raw model choices; enforce composed policy
 
-The forced tier is tempting to enforce in code. **Do not.** Playing the forced move on the bot's
-behalf injects a decision it never reached — the same line the reverted "lowest seat on the team
-fails" convention crossed (§6.5 note; the user called it cheating, correctly) — and it destroys the
-signal we are trying to read. A bot that cannot find a forced play is telling us something about the
-guidance or the model, and we want to hear it.
+For a raw prompt-guided LLM baseline, do not replace the model's answer after the fact. That would
+erase the compliance signal this document was designed to measure. A model that misses a forced
+play is evidence about the guidance or model, and the raw baseline must preserve that evidence.
+
+The composed architecture has a different contract: its policy selects from legal candidate IDs,
+and `forced-policy-v1` narrows that set before any discretionary scorer or planner runs. The action
+is therefore the agent's declared policy result, not a hidden correction applied after the model
+decides. The heuristic and forever fallback use this executable path. The raw-LLM baseline remains
+measured, and the hybrid path must expose the forced reason in its decision trace.
 
 So T1 is **measured**: `server/eval/forced.ts` detects violations from a game artifact,
 `computeMetrics` exposes them per seat (`forcedPlayViolations`) and in full (`forcedPlays`), and

@@ -25,6 +25,8 @@ import {
   SITUATION_ANALYSIS_VERSION,
   type AnalysisFactCode,
   type BoardSituation,
+  type CandidateTeamFacts,
+  type DeclaredLeanTally,
   type DeductionProvenance,
   type ForcedPlayReasonCode,
   type HardDeduction,
@@ -48,6 +50,7 @@ export function boardSituation(view: PlayerView): BoardSituation {
       good: good === QUESTS_TO_WIN - 1,
       evil: evil === QUESTS_TO_WIN - 1,
     },
+    failsRequired: view.quests[view.round - 1]?.failsRequired ?? 1,
     proposalNumber: view.proposalNum,
     proposalsRemaining,
     rejectionsBeforeHammer: automaticApproval ? 0 : proposalsRemaining,
@@ -246,6 +249,8 @@ function forcedCodesFor(
   view: PlayerView,
   board: BoardSituation,
   current: SituationTeamAssessment | undefined,
+  policyCandidateTeams: readonly CandidateTeamFacts[],
+  voteLeverage: SituationAnalysis['voteLeverage'],
   failsRequired: number,
 ): readonly ForcedPlayReasonCode[] {
   const codes = new Set<ForcedPlayReasonCode>()
@@ -260,21 +265,75 @@ function forcedCodesFor(
   if (view.alignment === 'evil' && current) {
     const canSink = current.knownFailsAboard.length >= failsRequired
     if (canSink) codes.add('EVIL_TEAM_CAN_SINK')
+    if (
+      view.phase === 'quest'
+      && !canSink
+      && view.role !== 'oberon'
+    ) {
+      codes.add('EVIL_QUEST_CARD_CANNOT_SINK')
+    }
     if (board.matchPoint.evil && canSink) {
       codes.add('EVIL_MATCH_POINT_FAIL_AVAILABLE')
     }
     if (board.matchPoint.good) {
       if (canSink) codes.add('GOOD_MATCH_POINT_FAIL_REQUIRED')
-      else codes.add('EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT')
+      else if (
+        view.phase === 'vote'
+        && voteLeverage.rejectCouldMatter
+      ) {
+        codes.add('EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT')
+      }
+    }
+    if (
+      view.phase === 'vote'
+      && canSink
+      && (board.matchPoint.good || board.matchPoint.evil)
+      && voteLeverage.approveCouldMatter
+    ) {
+      codes.add('EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED')
     }
   }
+  if (
+    (view.phase === 'proposal' || view.phase === 'finalize')
+    && view.alignment === 'evil'
+    && board.matchPoint.good
+    && policyCandidateTeams.some(
+      (candidate) => candidate.knownFailsAboard.length >= failsRequired,
+    )
+  ) {
+    codes.add('EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED')
+  }
   return [...codes]
+}
+
+function declaredLeansFor(view: PlayerView): readonly DeclaredLeanTally[] {
+  const latest = new Map<Seat, DeclaredLeanTally['lean']>()
+  for (const event of view.events) {
+    if (event.type === 'proposal' || event.type === 'proposalRevised') {
+      latest.clear()
+    } else if (
+      event.type === 'utterance'
+      && event.payload.lean !== undefined
+    ) {
+      latest.set(
+        event.payload.seat as Seat,
+        event.payload.lean as DeclaredLeanTally['lean'],
+      )
+    }
+  }
+  return [...latest.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([seat, lean]) => ({ seat, lean }))
 }
 
 export interface AnalyzeSituationOptions {
   belief?: BeliefSnapshot
   evidence?: readonly Evidence[]
   candidateTeams?: readonly (readonly Seat[])[]
+  policyCandidateTeams?: readonly {
+    candidateId: string
+    team: readonly Seat[]
+  }[]
 }
 
 export function analyzeSituation(
@@ -329,23 +388,50 @@ export function analyzeSituation(
     : undefined
   const candidateTeams = (options.candidateTeams ?? []).map((team) =>
     teamAssessment(view, belief, team))
-  const failsRequired = view.quests[view.round - 1]?.failsRequired ?? 1
+  const policyCandidateTeams = (options.policyCandidateTeams ?? []).map(
+    (candidate): CandidateTeamFacts => ({
+      candidateId: candidate.candidateId,
+      team: [...candidate.team].sort((a, b) => a - b),
+      knownFailsAboard: knownFailsAboard(view, candidate.team),
+    }),
+  )
+  const declaredLeans = declaredLeansFor(view)
+  const declared = (lean: DeclaredLeanTally['lean']): number =>
+    declaredLeans.filter(
+      (entry) => entry.seat !== view.seat && entry.lean === lean,
+    ).length
+  const passes = (approves: number): boolean =>
+    approves * 2 > view.playerCount
+  const voteLeverage = {
+    approveCouldMatter: passes(view.playerCount - declared('reject')),
+    rejectCouldMatter: !passes(declared('approve')),
+  }
   return {
     throughSeq: belief.throughSeq,
     modelVersion: SITUATION_ANALYSIS_VERSION,
     ...board,
     ...(currentTeam ? { currentTeam } : {}),
     candidateTeams,
+    policyCandidateTeams,
+    declaredLeans,
+    voteLeverage,
     provenGood,
     provenEvil,
     unresolved,
     deductions,
-    factCodes: factCodesFor(board, currentTeam, failsRequired, deductions),
+    factCodes: factCodesFor(
+      board,
+      currentTeam,
+      board.failsRequired,
+      deductions,
+    ),
     forcedPlayReasonCodes: forcedCodesFor(
       view,
       board,
       currentTeam,
-      failsRequired,
+      policyCandidateTeams,
+      voteLeverage,
+      board.failsRequired,
     ),
   }
 }

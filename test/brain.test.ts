@@ -94,7 +94,7 @@ test('heuristic, random, and stdio component identities remain truthful', () => 
     brainComponents(resolveBrain({ type: 'heuristic' })),
     {
       brain: 'brain-spec-v1',
-      belief: 'none',
+      belief: EXACT_BELIEF_MODEL_VERSION,
       beliefVisibility: 'none',
       policy: HEURISTIC_POLICY_VERSION,
       communication: 'none',

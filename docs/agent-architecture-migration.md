@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 3A component identity complete; Phase 3B shared candidates and
-forced policy is next.
+**Current target phase:** Phase 3B shared candidates and forced policy complete; Phase 3C composed
+planning, decision traces, and voice separation is next.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -29,7 +29,7 @@ The current system already has strong foundations that should be retained.
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
 | Hard role deductions | Exact complete worlds feed the temporary `roleCertainties()` projection used by normal LLM prompts | Keep exact worlds authoritative; consolidate the compatibility renderer during Phase 3 |
-| Heuristic policy | `heuristic.ts` scores suspicion and directly chooses actions | Split into analysis, forced rules, and policy |
+| Heuristic policy | `heuristic-policy-v2` applies shared candidates and forced rules before legacy suspicion scoring | Keep as fallback; replace scalar scoring in Phase 4 |
 | Prompt policy | `prompts.ts` contains role guidance, forced-play asks, facts, transcript, and output contracts | Reduce to rendering and communication contracts |
 | Proposal coherence | LLM proposal is committed before a separate pitch call | Generalize to every plan-driven utterance |
 | Fallback | Agent errors degrade to the heuristic in server and simulator | Preserve; make degradation classes more specific |
@@ -50,8 +50,8 @@ compose and difficult to measure independently.
 | Normalized posterior | Uniform share of feasible worlds plus exact projections | No calibrated behavioral weighting yet |
 | Evidence ledger | Typed, deduplicated evidence and commitments in `CognitionState` | Not yet authoritative for every agent path |
 | Team-clean probability | Exact joint assessment is available through `SituationAnalysis` | Not yet wired into production policy |
-| Candidate evaluation | Direct branch logic or free-form generation | No shared legal candidate and value layer |
-| Forced plays | Executed in heuristic, described in prompts, graded separately | Definitions can drift |
+| Candidate evaluation | `legal-candidates-v1` owns the finite legal surface | No shared candidate value/scoring layer yet |
+| Forced plays | `forced-policy-v1` executes for heuristic/fallback; prompts and grading still have compatibility triggers | Render central results in Phase 3C and keep grading independent |
 | Persistent commitments | Typed literal public-position history plus natural-language notes | Not yet consumed by production policy |
 | Language evidence | Whole transcript re-read by the LLM | No bounded, attributable belief update |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
@@ -90,7 +90,7 @@ compose and difficult to measure independently.
 | 0. Preserve foundations and establish baselines | Complete | Stable comparison point and contracts |
 | 1. Exact joint-world foundation | Complete | Uniform posterior over every feasible hidden world |
 | 2. Evidence, analysis, and belief visibility | Complete | Typed incremental cognition and decision-ready summaries |
-| 3. Composed agent and policy boundary | In progress (3A complete) | Brain, model, persona, policy, and voice become separate |
+| 3. Composed agent and policy boundary | In progress (3A-3B complete) | Brain, model, persona, policy, and voice become separate |
 | 4. Belief-driven production policy | Not started | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | Not started | Calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Not started | Dialogue affects beliefs without owning them |
@@ -404,7 +404,7 @@ Required Phase 3 preflight:
 
 Non-blocking consolidation work during Phase 3:
 
-- [ ] Route new policy code through `CognitionState` and `SituationAnalysis`; do not add another
+- [x] Route new policy code through `CognitionState` and `SituationAnalysis`; do not add another
       direct `PlayerView` arithmetic or prompt-only authority.
 - [ ] Reduce direct prompt use of `roleCertainties()` and independently derived dossier facts after
       equivalent typed renderers pass tests.
@@ -444,7 +444,7 @@ adapter used by runtime LLM construction, validation, public metadata, prompt pr
 new architecture artifacts. Model choice, personality, strategy, and prompt guidance remain in
 their existing configuration and are not members of `BrainSpec`.
 
-The identifiers for the current executable paths are:
+The identifiers at the Phase 3A checkpoint were:
 
 | Component | Identifier |
 |---|---|
@@ -454,7 +454,7 @@ The identifiers for the current executable paths are:
 | Experimental belief visibility | `compact-belief-v1` |
 | Current raw prompt-guided LLM policy | `prompt-guided-v1` |
 | Current LLM communication | `prompt-voice-v1` |
-| Heuristic policy | `heuristic-v1` |
+| Phase 3A heuristic policy | `heuristic-v1` |
 | Random policy | `random-v1` |
 | Language evidence and observer model | `off` |
 | Stdio-owned components | `external` |
@@ -480,17 +480,82 @@ decision-fixture kind and private-knowledge shape, typed HTTP preview equivalenc
 complete API-free suite passed 545 tests, all eight frozen architecture fixtures were current, and
 the screenshot manifest remained current without regeneration.
 
-Phase 3B is the next bounded target: create one legal candidate owner and one executable
-forced-policy owner, then make the heuristic fallback consume those owners through
-`SituationAnalysis`. It must preserve heuristic decisions while removing duplicated forced-rule
-triggers from decision code; prompt rendering of those results can follow once equivalence is
-pinned.
+Phase 3A handed off a bounded Phase 3B target: one legal candidate owner, one executable
+forced-policy owner, and a heuristic fallback consuming both through `SituationAnalysis`, with
+behavior equivalence pinned before prompt rendering changed.
+
+### Phase 3B implementation record
+
+`server/agents/policy/candidates.ts` is the single finite legal-candidate owner. Version
+`legal-candidates-v1` enumerates canonical proposal teams, stick plus every non-identical revision,
+approve/reject votes, alignment-legal quest cards, and every non-self assassination target.
+Discussion uses a finite pass-and-public-lean template seam; arbitrary speech remains a
+communication concern. Candidate IDs are deterministic, canonical by seat, independent of player
+names, and generated from `DecisionRequest` plus `PlayerView` only. The engine remains authoritative:
+an exhaustive architecture-bank test applies every generated candidate to a cloned real decision
+state through `applyDecision`.
+
+`server/agents/policy/forced.ts` owns executable T1 constraints as `forced-policy-v1`. It returns
+the surviving candidate IDs, an optional single selected candidate, and stable
+`ForcedPlayReasonCode` values supplied by `situation-analysis-v1`. It covers good's mandatory
+Success card; the non-Oberon Success required when legally known Fails cannot meet the quest
+threshold; decisive-board Fail and vote choices when the public lean tally says the vote can still
+matter; and the sinkable-team constraint for both proposal and finalize, including the hammer, when
+an evil leader acts at good's match point. Oberon's missing partner knowledge remains an explicit
+exception.
+Away from a decisive board, two-Fail cover versus failure timing remains seeded heuristic policy,
+not a falsely absolute forced rule; its shared public-board RNG still makes every designated evil
+choose consistently.
+
+The heuristic and forever-fallback path now reconstruct `CognitionState`, obtains
+`SituationAnalysis`, generates candidates, applies forced rules before ordinary scoring, and proves
+its preferred decision names a surviving candidate. Exhaustive proposal surfaces use the cheap
+`SituationAnalysis.policyCandidateTeams` projection (candidate ID, canonical team, and legally
+known Fails) rather than computing a 60,480-world joint assessment for each of as many as 252 teams.
+The analysis also owns the current Fail requirement, current-segment public leans, and whether this
+seat's approve or reject could still change passage. Candidate joins validate both ID and team;
+request/view seat, phase, round, and proposal coordinates must all agree. The current brain identity
+is therefore exact inference plus `heuristic-policy-v2`, with no belief renderer or communication
+component. Historical Phase 0 `heuristic-v1` artifacts remain unchanged.
+
+Behavior equivalence is pinned two ways. All eight frozen decision fixtures match their Phase 3A
+decisions after JSON boundary normalization. The complete ten-game `standard-v1` architecture bank
+hashes `JSON.stringify(artifacts.map(({seed, log, degraded}) => ...))` with SHA-256; both sides of
+the rewrite equal
+`0c6a67ef0c269f0ab5fc46fb8a9d5e55216bd2290f1551a7b6c689a4ad6db52f`.
+The before value was captured from a clean worktree at Phase 3A commit
+`ee8803b81ec7688db2fc2a2bf311590824c00fcf` before the rewrite.
+On the development Windows host, a 10-player opening proposal with 252 legal teams measured
+26.379 ms cold, 0.326 ms warm median, and 0.720 ms warm p95 over 20 warm samples.
+
+Independent review found and corrected five boundary defects before landing: vote rules now share
+the evaluator's public-leverage admission condition, finalize cannot escape the sinkable-team
+constraint, stale request/view coordinates fail closed, and candidate facts are keyed and verified
+rather than joined by array position; decision-ready quest and vote arithmetic now stays in
+`SituationAnalysis`. Verification completed with 44 focused policy, forced-rule,
+equivalence, heuristic, attribution, and situation tests plus all 559 API-free tests. All eight
+architecture fixtures and the screenshot manifest were current, and a fresh ten-game heuristic
+architecture bank completed without a network or paid LLM call in about 2.4 seconds end to end.
+
+Non-blocking Phase 3B follow-ups:
+
+- [ ] Cache or increment the heuristic's `CognitionState` if larger simulations show the current
+      reconstruct-per-decision path is material; the present ten-game bank is acceptable.
+- [ ] Add closed-form candidate-count properties by player count and decision kind. Exhaustive
+      engine acceptance across the architecture bank currently proves legality, but an independent
+      cardinality oracle would strengthen completeness coverage.
+
+Phase 3C is next. It should add the composed hybrid constructor, structured candidate scoring,
+`AgentDecision`/`DecisionPlan`, complete component versions in traces, and plan-driven voice.
+Prompt ASKs still duplicate forced triggers during this compatibility window; Phase 3C should
+render the central rule result and then remove those trigger branches without changing the raw-LLM
+baseline experiment.
 
 ### Central policy
 
-- [ ] Generate legal candidate actions in one module.
-- [ ] Move forced-play triggers into executable policy rules with stable reason codes.
-- [ ] Make the heuristic fallback consume the same analysis and forced-rule modules.
+- [x] Generate legal candidate actions in one module.
+- [x] Move forced-play triggers into executable policy rules with stable reason codes.
+- [x] Make the heuristic fallback consume the same analysis and forced-rule modules.
 - [ ] Render forced-rule results into prompts rather than reimplementing triggers in `ASKS`.
 - [ ] Add a structured candidate scorer.
 - [ ] Add an LLM planner that may choose only from the supplied viable candidate IDs.
@@ -754,3 +819,8 @@ here.
   resolver. Legacy `beliefMode` remains a single validated adapter. Raw LLM, heuristic, random,
   and stdio behavior is unchanged, prompt bytes are pinned, and historical Phase 0 records retain
   their original semantics.
+- Phase 3B central policy: added deterministic `legal-candidates-v1` and executable
+  `forced-policy-v1`, routed `heuristic-policy-v2` and the forever fallback through typed cognition
+  and situation analysis, and preserved every frozen decision plus the complete Phase 3A
+  architecture-bank event-log hash. Exhaustive team candidates use a cheap known-Fails projection;
+  prompt rule rendering, structured scoring, plan traces, and voice separation remain for Phase 3C.

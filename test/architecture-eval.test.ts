@@ -66,8 +66,8 @@ test('architecture bench compares variants on an identical fixed deal and table'
   assert.equal(report.comparisons[0].wins, 0)
   assert.equal(report.comparisons[0].degraded, 0)
   assert.match(renderArchitectureReport(report), /1 matched/)
-  assert.match(renderArchitectureReport(report), /belief=none/)
-  assert.match(renderArchitectureReport(report), /policy=heuristic-v1/)
+  assert.match(renderArchitectureReport(report), /belief=exact-constraints-v1/)
+  assert.match(renderArchitectureReport(report), /policy=heuristic-policy-v2/)
   assert.match(renderArchitectureReport(report), /experiment=baseline/)
 
   assert.throws(
@@ -108,11 +108,11 @@ test('architecture bench rejects component labels that disagree with runtime res
       variants: [{
         id: 'mislabelled',
         agent: heuristic('mislabelled'),
-        components: { belief: 'exact-constraints-v1' },
+        components: { belief: 'none' },
       }],
       cases: [],
     }),
-    /labels belief=exact-constraints-v1.*runtime uses belief=none/,
+    /labels belief=none.*runtime uses belief=exact-constraints-v1/,
   )
 })
 

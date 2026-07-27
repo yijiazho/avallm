@@ -38,7 +38,7 @@ resume/undo/replay.
 server/
   engine/          ← PURE deterministic game logic. No I/O, no LLM, no Date.now.
                      Runs headless under node:test. This is where all rules live.
-  bots/            ← prompt builders (pure) + decision parsers (pure) + heuristic fallbacks (pure)
+  agents/          ← PlayerView-only cognition, analysis, policy, prompts, parsers, and fallbacks
   llm/             ← the OpenRouter chokepoint, call-kind param table,
                      model roster config, reasoning policy
   server.js        ← http glue: game session store, POST /api/game/*, SSE stream to client
@@ -57,6 +57,13 @@ This applies a transport-abstraction pattern at the agent level: a single `LlmTr
 the live API path and a headless mirror, so the engine never knows or cares whether a decision came
 from a model, a heuristic, or a person, and the whole game is simulatable headless at zero API cost
 (a calibration/golden-set harness — the single most valuable pattern in this design).
+
+Inside `server/agents/`, cognition and `SituationAnalysis` own seat-scoped mechanical state.
+`policy/candidates.ts` owns the finite legal action surface and `policy/forced.ts` owns executable
+forced constraints; neither reads raw `Game`. The heuristic and runtime fallback consume those
+owners before applying ordinary seeded scoring. The engine's `applyDecision` remains the final
+legality authority. Prompt-guided LLM policy remains a compatibility baseline until the composed
+planner and plan-driven voice path replace it.
 
 ### Pluggable agents (the decision interface is a plugin API)
 

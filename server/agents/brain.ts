@@ -4,7 +4,7 @@ import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
 export const BRAIN_SPEC_VERSION = 'brain-spec-v1'
 export const COMPAT_CERTAINTIES_VISIBILITY = 'compat-certainties-v1'
 export const RAW_LLM_POLICY_VERSION = 'prompt-guided-v1'
-export const HEURISTIC_POLICY_VERSION = 'heuristic-v1'
+export const HEURISTIC_POLICY_VERSION = 'heuristic-policy-v2'
 export const RANDOM_POLICY_VERSION = 'random-v1'
 export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
 export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
@@ -169,7 +169,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'heuristic':
       return {
         version: BRAIN_SPEC_VERSION,
-        belief: 'none',
+        belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: HEURISTIC_POLICY_VERSION,
         communication: 'none',

@@ -40,8 +40,10 @@ export async function buildHeuristicBaseline(): Promise<ArchitectureBenchmarkRep
       id: 'heuristic-v1',
       agent,
       // Historical Phase 0 identity is intentionally frozen. New architecture
-      // artifacts use the richer resolved BrainSpec component bundle.
-      components: historicalComponents,
+      // artifacts use the richer resolved BrainSpec component bundle. Run with
+      // the current truthful identity, then project the unchanged behavior
+      // back onto its historical label below.
+      components: {},
     }],
   })
   for (const artifact of artifacts) {

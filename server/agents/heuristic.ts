@@ -7,9 +7,18 @@
 
 import { makeRng, fnv1a } from '../engine/prng.ts'
 import type { Rng } from '../engine/prng.ts'
-import { knownEvilAboard, matchPoint } from './board.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
+import { analyzeSituation } from './analysis/situation.ts'
+import type { SituationAnalysis } from './analysis/types.ts'
+import { reconstructCognition } from './cognition/state.ts'
+import {
+  candidateIdForDecision,
+  candidateTeams,
+  legalCandidates,
+} from './policy/candidates.ts'
+import { applyForcedPolicy, forcedVoteChoice } from './policy/forced.ts'
+import type { PolicyCandidate } from './policy/types.ts'
 
 // ---- shared analysis helpers ----
 
@@ -94,29 +103,29 @@ function decidePropose(view: PlayerView, rng: Rng): Decision {
 
 // Only proposals 1-4 are ever voted on: the 5th ("hammer") proposal is
 // auto-approved by the engine, so no hammer logic is needed here.
-function decideVote(view: PlayerView, rng: Rng): Decision {
+function decideVote(
+  view: PlayerView,
+  rng: Rng,
+  analysis: SituationAnalysis,
+): Extract<Decision, { kind: 'vote' }> {
   const team = view.currentTeam ?? []
   const evil = knownEvilSeats(view)
   const teamHasKnownEvil = team.some((s) => evil.has(s) && s !== view.seat)
   const selfOnTeam = team.includes(view.seat)
 
   if (view.alignment === 'evil') {
-    // Forced plays first, before any cover reasoning (§7.4 rule 1). Both hinge
-    // on the same question the cover instinct never asks: can the seats this
-    // voter KNOWS about actually sink this quest? "One of ours is aboard" is not
-    // "we can sink it" — Q4 at 7+ needs two Fails, so a lone teammate sinks
-    // nothing and approving it just runs the quest.
-    const failsNeeded = view.quests[view.round - 1].failsRequired
-    const aboard = knownEvilAboard(view, team).length
+    // Decisive-board votes were already selected by forced-policy-v1. The
+    // remaining default asks whether the seats this voter knows can sink the
+    // quest; Q4 at 7+ needs two Fails, so one known evil is insufficient.
+    const failsNeeded = analysis.failsRequired
+    const aboard = analysis.currentTeam?.knownFailsAboard.length ?? 0
     // Approve a team our side can sink: approval keeps the option, and the card
     // is a later, secret decision. Off a decisive board this is also the old
     // "any evil aboard => approve" default, since failsRequired is 1 there.
     if (aboard >= failsNeeded) return { kind: 'vote', vote: 'approve' }
-    // Nothing aboard can sink it. At good's match point a success ends the quest
-    // phase, so approving loses outright and the reject is the last lever —
-    // worth the tell, which is why this REPLACES the blend-in default rather
-    // than stacking with it (§7.4 rule 3).
-    if (matchPoint(view).good) return { kind: 'vote', vote: 'reject' }
+    // When declared leans make the vote immaterial, forced-policy-v1 correctly
+    // stands down. Preserve the compatibility policy's historical choice.
+    if (analysis.matchPoint.good) return { kind: 'vote', vote: 'reject' }
     // Undecided board: an unsinkable team still costs nothing to wave through
     // if a teammate is on it, and there are later rounds to recover in.
     if (aboard > 0) return { kind: 'vote', vote: 'approve' }
@@ -146,32 +155,22 @@ function decideVote(view: PlayerView, rng: Rng): Decision {
   return { kind: 'vote', vote: rng.chance(p) ? 'approve' : 'reject' }
 }
 
-function decideQuest(view: PlayerView, seed: string): Decision {
-  if (view.alignment === 'good') return { kind: 'quest', card: 'success' }
-
+function decideQuest(
+  view: PlayerView,
+  seed: string,
+  analysis: SituationAnalysis,
+): Decision {
   const quest = view.quests[view.round - 1]
   const team = view.currentTeam ?? quest.team ?? []
-  const need = quest.failsRequired
-  const evilOnTeam = knownEvilAboard(view, team)
+  const need = analysis.failsRequired
+  const evilOnTeam = [...(analysis.currentTeam?.knownFailsAboard ?? [])]
 
-  // Forced play (§7.2): a Fail below the quest's requirement cannot sink it and
-  // only advertises an evil aboard for free. Oberon is the named exception — it
-  // cannot see a partner to coordinate with, so its own card is never the whole
-  // story, and the extra Fail is how its unseen teammates locate it.
+  // Only Oberon reaches this branch below the requirement: forced-policy-v1
+  // already selected Success for evil seats with normal partner knowledge.
+  // Oberon's extra Fail is how unseen teammates may locate it.
   if (evilOnTeam.length < need) {
-    return { kind: 'quest', card: view.role === 'oberon' ? 'fail' : 'success' }
+    return { kind: 'quest', card: 'fail' }
   }
-
-  // Enough known Fails are aboard to sink it, so all that is left is who spends
-  // a card, and when.
-
-  // On a decisive board, everyone aboard spends one: the quest ends the game
-  // either way, so a redundant Fail costs nothing — no later round exists for
-  // the extra card to have leaked into — while holding one back bets the game on
-  // a partner whose card you cannot see. The card-count leak is the only thing
-  // the convention below is protecting, and here there is nothing left to leak.
-  const mp = matchPoint(view)
-  if (mp.good || mp.evil) return { kind: 'quest', card: 'fail' }
 
   // Undecided board: spend exactly the Fails the quest requires, taken from the
   // lowest known-evil seats aboard. At need = 1 that is the old "only the lowest
@@ -219,11 +218,18 @@ function decideAssassinate(view: PlayerView, rng: Rng): Decision {
   return { kind: 'assassinate', target: best.length ? rng.pick(best) : rng.pick(candidates) }
 }
 
-function decideDiscuss(view: PlayerView, rng: Rng): Decision {
+function decideDiscuss(
+  view: PlayerView,
+  rng: Rng,
+  analysis: SituationAnalysis,
+): Decision {
   // Lean: when a team is on the table, signal how we'd vote right now. The
   // leader never leans — their signals are the pitch and the finalize turn.
   const lean = view.currentTeam && view.leaderSeat !== view.seat
-    ? (decideVote(view, rng) as { vote: 'approve' | 'reject' }).vote
+    ? (
+        forcedVoteChoice(view, analysis)?.decision
+        ?? decideVote(view, rng, analysis)
+      ).vote
     : undefined
   // Passing is natural, and later rounds are mostly for whoever still has
   // something to say.
@@ -267,16 +273,48 @@ export function heuristicDecide(
   // Fresh RNG per decision, keyed by seed+seat+log position: deterministic
   // on replay, varied across a game.
   const rng = makeRng(fnv1a(`${seed}:${req.seat}:${view.events.length}:${req.kind}`))
+  const candidates = legalCandidates(req, view)
+  const cognition = reconstructCognition(view)
+  const analysis = analyzeSituation(view, {
+    belief: cognition.belief,
+    evidence: cognition.evidence,
+    policyCandidateTeams: candidateTeams(candidates, view),
+  })
+  const forced = applyForcedPolicy(req, view, analysis, candidates)
+  if (forced.selectedCandidateId) {
+    return candidateById(candidates, forced.selectedCandidateId).decision
+  }
+
+  let preferred: Decision
   switch (req.kind) {
-    case 'discuss': return decideDiscuss(view, rng)
-    case 'propose': return decidePropose(view, rng)
+    case 'discuss': preferred = decideDiscuss(view, rng, analysis); break
+    case 'propose': preferred = decidePropose(view, rng); break
     // The heuristic keeps its proposal: revision is a judgment about the
     // discussion, which the heuristic doesn't model.
-    case 'finalize': return { kind: 'finalize', stick: true }
-    case 'vote': return decideVote(view, rng)
-    case 'quest': return decideQuest(view, seed)
-    case 'assassinate': return decideAssassinate(view, rng)
+    case 'finalize': preferred = { kind: 'finalize', stick: true }; break
+    case 'vote': preferred = decideVote(view, rng, analysis); break
+    case 'quest': preferred = decideQuest(view, seed, analysis); break
+    case 'assassinate': preferred = decideAssassinate(view, rng); break
   }
+  const preferredId = candidateIdForDecision(preferred)
+  if (
+    candidates.some((candidate) => candidate.id === preferredId)
+    && forced.allowedCandidateIds.includes(preferredId)
+  ) {
+    // Preserve seeded team order and discussion prose after proving the
+    // decision names a surviving legal candidate.
+    return preferred
+  }
+  return candidateById(candidates, forced.allowedCandidateIds[0]).decision
+}
+
+function candidateById(
+  candidates: readonly PolicyCandidate[],
+  id: string,
+): PolicyCandidate {
+  const found = candidates.find((candidate) => candidate.id === id)
+  if (!found) throw new Error(`policy selected absent candidate ${id}`)
+  return found
 }
 
 export function createHeuristicAgent(ctx: AgentContext): AvalonAgent {
