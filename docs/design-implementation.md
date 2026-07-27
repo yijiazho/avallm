@@ -366,7 +366,9 @@ agents. A composed trace records the seat and request identity; belief cursor an
 hypotheses; relevant team assessment; the complete brain, belief/factor, analysis, candidate,
 forced-policy, policy, scorer, planner, typed-context/renderer, and communication versions; the
 central forced result; candidate scores; chosen ID; selected communication intent; execution mode;
-action; and degradation. Exact posterior uncertainty remains private trace data. A voice adapter
+action; and degradation. It separately records the structured scorer choice, the planner attempt,
+and the feature-derived reason subset admitted for an override, including non-speech votes. Exact
+posterior uncertainty remains private trace data. A voice adapter
 receives only the committed action, public-safe fact and strategic reason codes, and qualitative
 uncertainty, so it cannot change mechanics or recover hidden numeric state. Traces live only in the
 opt-in full-reveal artifact path. They never enter the engine event log, `PlayerView`, SSE, or any
@@ -377,8 +379,12 @@ heuristic, an optional telemetry hook upserts that stable decision identity with
 action actually applied. External stdio traces must satisfy the complete required base schema,
 stable request-derived identity, and mode/component relationships. The free architecture benchmark
 can inject explicitly labeled structured or fake-client hybrid agents and checks those declarations
-against their runtime traces; paid factories require an explicit paid declaration. Telemetry
-failures remain best-effort and cannot stall the game.
+against their runtime traces; paid factories require an explicit paid declaration. Architecture
+artifacts carry target-seat decision latency samples. The `phase4-good-v1` runner freezes 180
+good-side deals and reports Wilson rate intervals, deterministic paired-bootstrap deltas, clean
+proposal and vote quality, posterior regret, controlled variation, latency, and structural privacy
+and trace-attribution counters. Those privacy counters are canaries; the exhaustive knowledge and
+leak tests remain authoritative. Telemetry failures remain best-effort and cannot stall the game.
 
 ### Consistency across a game
 

@@ -46,6 +46,7 @@ import {
   DECISION_PLAN_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,
   communicationFactProjection,
+  plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
 } from './policy/plan.ts'
 
@@ -358,7 +359,9 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       | Record<string, unknown>
       | undefined
     return trace.chosenCandidateId === undefined
+      && trace.structuredCandidateId === undefined
       && trace.plannerCandidateId === undefined
+      && trace.plannerReasonCodes === undefined
       && trace.communicationIntent === undefined
       && components?.policy !== 'composed-policy-v1'
       && (
@@ -466,6 +469,8 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
     return false
   }
   const chosenScore = scores.find((score) => score.candidateId === chosen)
+  const structured = trace.structuredCandidateId
+  const plannerReasons = trace.plannerReasonCodes
   const chosenFeatures = chosenScore?.features as
     | Record<string, unknown>
     | undefined
@@ -486,6 +491,65 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       trace.agentMode !== 'compatibility'
       && trace.agentMode !== 'structured-only'
       && trace.agentMode !== 'hybrid'
+    )
+  ) {
+    return false
+  }
+  if (
+    phase4c
+    && (
+      (
+        structured === undefined
+        && plannerReasons !== undefined
+      )
+      || (
+        structured !== undefined
+        && (
+          typeof structured !== 'string'
+          || !scores.some(
+            (score) =>
+              score.candidateId === structured
+              && score.viable === true,
+          )
+          || (
+            trace.agentMode !== 'hybrid'
+            && structured !== chosen
+          )
+          || (
+            plannerReasons !== undefined
+            && (
+              !stringArray(plannerReasons)
+              || new Set(plannerReasons).size !== plannerReasons.length
+              || trace.plannerCandidateId !== chosen
+              || !chosenScore
+              || plannerReasons.some(
+                (reason) =>
+                  !selectedStrategicReasonCodes(
+                    chosenScore as unknown as CandidateScore,
+                    scores as unknown as CandidateScore[],
+                  ).includes(reason),
+              )
+            )
+          )
+          || (
+            trace.agentMode === 'hybrid'
+            && chosen !== structured
+            && (
+              trace.plannerCandidateId !== chosen
+              || !Array.isArray(plannerReasons)
+              || plannerReasons.length === 0
+              || !chosenScore
+              || plannerReasons.some(
+                (reason) =>
+                  !plannerOverrideReasonCodes(
+                    chosenScore as unknown as CandidateScore,
+                    scores as unknown as CandidateScore[],
+                  ).includes(reason),
+              )
+            )
+          )
+        )
+      )
     )
   ) {
     return false
@@ -907,12 +971,20 @@ function validDecisionTrace(
     && validComponentVersions(trace.componentVersions)
     && validCandidateScores(trace.candidateScores)
     && (
+      trace.structuredCandidateId === undefined
+      || typeof trace.structuredCandidateId === 'string'
+    )
+    && (
       trace.chosenCandidateId === undefined
       || typeof trace.chosenCandidateId === 'string'
     )
     && (
       trace.plannerCandidateId === undefined
       || typeof trace.plannerCandidateId === 'string'
+    )
+    && (
+      trace.plannerReasonCodes === undefined
+      || stringArray(trace.plannerReasonCodes)
     )
     && (
       trace.decisionPlanVersion === undefined

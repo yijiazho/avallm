@@ -47,6 +47,13 @@ export interface ArtifactTelemetry {
   // map. Architecture benchmarks run variants sequentially, so each artifact
   // owns the exact calls and cost caused by that game.
   llm?: { tags: Record<string, SpendEntry> }
+  /** Wall-clock target-seat decision samples; evaluation-only and never replayed. */
+  decisionLatency?: {
+    samples: Array<{
+      kind: DecisionTrace['request']['kind']
+      milliseconds: number
+    }>
+  }
 }
 
 export interface GameArtifact {

@@ -2,9 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 4 implementation is complete and remains opt-in. The technical exit
-gate is met; paid raw-LLM comparison, broader outcome evidence, and human predictability testing
-remain promotion gates before any production-default switch.
+**Current target phase:** Phase 5A weight-aware belief and calibration foundations. Phase 4 remains
+opt-in: its reproducible 180-deal good-side evaluation found a decisive vote-accuracy gain but a
+significant win-rate regression, so paid raw-LLM comparison and human testing remain inappropriate
+until the mechanical policy improves.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -781,11 +782,38 @@ sample is inconclusive, and human predictability/persuasiveness testing has not 
 
 Non-blocking Phase 4 follow-ups:
 
-- [ ] Persist the admitted planner-reason subset separately for non-speech vote overrides; current
-      attribution retains scores, chosen/planner IDs, component versions, and degradation.
-- [ ] Expand matched outcome evaluation before interpreting win-rate or clean-proposal movement;
-      the 60-case free sample establishes vote improvement but is too small for promotion.
+- [x] Persist the admitted planner-reason subset separately for non-speech vote overrides.
+- [x] Expand matched outcome evaluation before interpreting win-rate or clean-proposal movement.
 - [ ] Run the paid raw-LLM comparison and human playtests only with explicit permission.
+
+### Phase 4D evaluation-hardening record
+
+`plannerReasonCodes` now records only the reason subset admitted by the planner boundary, separately
+from speech-bearing communication intent. `structuredCandidateId` distinguishes the scorer choice
+from the committed candidate, so non-speech vote overrides are attributable without inferring
+behavior from score order. The stdio boundary joins both fields to the chosen score and permits only
+feature-derived override reasons; traces created before these additive fields remain accepted.
+
+`phase4-good-v1` freezes 180 good-side target deals: ten deals each for Merlin, Percival, and the
+first Servant seat at every supported player count. `npm run phase4-policy-bench` compares
+compatibility, seeded structured-only, and bounded fake-client hybrid agents on identical deals and
+heuristic opponents. The architecture report now includes Wilson intervals for per-variant rates,
+deterministic paired-bootstrap intervals for matched deltas, clean initial proposals, vote truth
+accuracy, selected posterior regret, planner overrides, seeded vote variation, approve rate,
+target-seat median/p95/max latency, degradation/cost, and structural privacy and trace-attribution
+counters. The privacy counter is a canary for private trace keys or exact private intent values in
+public output; the exhaustive knowledge/leak tests remain the authoritative semantic boundary.
+
+The full API-free run completed 540 games with zero forced violations, degradation, calls, cost,
+structural privacy findings, or attribution mismatches. Against compatibility, structured-only
+improved vote truth accuracy by `14.6` points (paired 95% interval `10.9` to `18.3`) but reduced
+target-side wins by `11.7` points (`-17.8` to `-5.6`). Fake-client hybrid improved vote truth by
+`13.7` points (`9.9` to `17.7`) but reduced wins by `8.3` points (`-14.4` to `-2.2`). Clean initial
+proposal deltas included zero. Seeded variation activated on about `27%` of scored votes, and the
+adversarial fake planner exercised an admitted override on `34.6%` of its selections. Median target
+decision latency stayed below `1 ms`; p95 was below `100 ms`. This larger result supersedes the
+temporary 60-case estimate and is evidence against production promotion, not a reason to spend on
+the current candidate.
 
 ---
 
@@ -1022,3 +1050,9 @@ here.
   adapters, explicit execution modes, and custom-factory architecture comparisons. Adversarial
   review closed mutation, semantic-reason, voice-leak, stdio, and artifact-attribution gaps. The
   composed brain remains opt-in pending paid and human rollout evidence.
+- Phase 4D evaluation hardening: persisted the structured choice and admitted planner reasons,
+  froze the 180-deal `phase4-good-v1` bank, and added reproducible compatibility,
+  structured-only, and fake-client hybrid evaluation with rate confidence intervals, matched
+  paired-bootstrap deltas, posterior regret, variation, latency, privacy canaries, and attribution
+  checks. The full 540-game free run confirmed the vote-accuracy gain but found statistically
+  adverse win-rate deltas, so Phase 5 begins from an explicit no-promotion result.

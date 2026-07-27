@@ -7,6 +7,7 @@
 // spend money accidentally.
 
 import fs from 'node:fs'
+import { performance } from 'node:perf_hooks'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { createGame } from '../engine/game.ts'
@@ -60,6 +61,9 @@ export interface ArchitectureBenchOpts {
 }
 
 type SpendMap = Record<string, SpendEntry>
+type DecisionLatencySample = NonNullable<
+  NonNullable<GameArtifact['telemetry']>['decisionLatency']
+>['samples'][number]
 
 export const PHASE0_COMPONENT_VERSIONS = {
   heuristicPolicy: 'heuristic-v1',
@@ -114,6 +118,54 @@ export function assertFreshArchitectureOutput(file: string): void {
     `${file}: refusing to append architecture results to an existing corpus; `
     + 'choose a fresh --out path or remove the old file first',
   )
+}
+
+function withDecisionTiming(
+  agent: AvalonAgent,
+  samples: DecisionLatencySample[],
+): AvalonAgent {
+  return {
+    async decide(req, view) {
+      const started = performance.now()
+      try {
+        return await agent.decide(req, view)
+      } finally {
+        samples.push({
+          kind: req.kind,
+          milliseconds: Math.max(0, performance.now() - started),
+        })
+      }
+    },
+    ...(agent.recordDecisionTrace
+      ? {
+          recordDecisionTrace: (trace: DecisionTrace) =>
+            agent.recordDecisionTrace!.call(agent, trace),
+        }
+      : {}),
+    ...(agent.recordFallbackTrace
+      ? {
+          recordFallbackTrace: (
+            req: Parameters<NonNullable<
+              AvalonAgent['recordFallbackTrace']
+            >>[0],
+            view: Parameters<NonNullable<
+              AvalonAgent['recordFallbackTrace']
+            >>[1],
+            decision: Parameters<NonNullable<
+              AvalonAgent['recordFallbackTrace']
+            >>[2],
+          ) => agent.recordFallbackTrace!.call(
+            agent,
+            req,
+            view,
+            decision,
+          ),
+        }
+      : {}),
+    ...(agent.dispose
+      ? { dispose: () => agent.dispose!.call(agent) }
+      : {}),
+  }
 }
 
 function isPaid(variant: ArchitectureVariant): boolean {
@@ -228,6 +280,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
 
       const agents = new Map<Seat, AvalonAgent>()
       const decisionTraces: DecisionTrace[] = []
+      const targetLatencySamples: DecisionLatencySample[] = []
       const descriptors = game.players.map(() => 'heuristic')
       for (const player of game.players) {
         const ctx = {
@@ -244,7 +297,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 ctx,
                 variant.modelOverride,
               )
-          agents.set(player.seat, targetAgent)
+          agents.set(
+            player.seat,
+            withDecisionTiming(targetAgent, targetLatencySamples),
+          )
           descriptors[player.seat] = variant.createTargetAgent
             ? (variant.descriptor ?? `experiment:${variant.id}`)
             : `def:${variant.agent!.id}`
@@ -286,6 +342,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         }
       }
       const llmTags = before ? spendDelta(before, copySpend(client!.getSpend())) : undefined
+      const telemetry = {
+        ...(llmTags ? { llm: { tags: llmTags } } : {}),
+        decisionLatency: {
+          samples: structuredClone(targetLatencySamples),
+        },
+      }
       const artifact = toArtifact(game, {
         agents: descriptors,
         degraded: result.degraded,
@@ -303,7 +365,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           variant: variant.id,
           components: resolvedVariantComponents(variant),
         },
-        ...(llmTags ? { telemetry: { llm: { tags: llmTags } } } : {}),
+        telemetry,
         decisionTraces,
       })
       if (opts.out) appendArtifact(opts.out, artifact)

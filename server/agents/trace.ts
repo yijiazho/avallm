@@ -56,8 +56,13 @@ export interface DecisionTrace {
     voice: string
   }>
   candidateScores?: readonly CandidateScore[]
+  /** Structured scorer choice before any admitted planner selection. */
+  structuredCandidateId?: string
   chosenCandidateId?: string
+  /** Last planner attempt, including attempts rejected by the boundary. */
   plannerCandidateId?: string
+  /** Reason subset admitted for the chosen planner selection. */
+  plannerReasonCodes?: readonly string[]
   decisionPlanVersion?: string
   forcedPolicyResult?: ForcedPolicyResult
   communicationIntent?: CommunicationIntent

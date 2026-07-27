@@ -250,6 +250,14 @@ loop is only as good as the reward signal under it.
 > Remaining: step 6 (optimizer loop) + an automated pass/fail checker for bank replays.
 > First real result: the heuristic Merlin ranks #1 (most truth-aligned good player) in 16/16
 > smoke games — maximally conspicuous, as suspected.
+>
+> **Probabilistic-policy extension, 2026-07-27:** `npm run phase4-policy-bench` runs the frozen
+> 180-deal `phase4-good-v1` bank across compatibility, seeded structured-only, and bounded
+> fake-client hybrid modes without provider calls. Its architecture report adds Wilson intervals,
+> deterministic paired-bootstrap rate deltas, clean-proposal and vote quality, posterior regret,
+> controlled-variation rates, target-seat latency, and structural privacy/trace-attribution
+> counters. The privacy counters detect schema and exact-intent canaries in public output; the
+> exhaustive knowledge/leak suite remains the semantic authority.
 
 1. **Game artifacts** — persist full event log + agent configs + seed as JSONL per sim game
    (plumbing; the data already exists in `game.log`).

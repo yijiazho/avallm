@@ -18,7 +18,6 @@ import {
 } from './architecture-bench.ts'
 import { architectureReport } from './architecture-report.ts'
 import { readArtifacts } from './artifact.ts'
-import type { ArchitectureBenchmarkReport } from './architecture-report.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role, Seat } from '../engine/types.ts'
 
@@ -26,7 +25,7 @@ export const HEURISTIC_BASELINE_FILE = 'docs/baselines/phase0-heuristic-standard
 export const OBSERVED_LLM_BASELINE_FILE = 'docs/baselines/phase0-prompt-guided-observed.json'
 export const OBSERVED_LLM_BASELINE_SCHEMA = 1
 
-export async function buildHeuristicBaseline(): Promise<ArchitectureBenchmarkReport> {
+export async function buildHeuristicBaseline() {
   const agent = builtinDefs().find((def) => def.id === 'autopilot')!
   const historicalComponents = {
     agent: 'autopilot@v1',
@@ -49,7 +48,44 @@ export async function buildHeuristicBaseline(): Promise<ArchitectureBenchmarkRep
   for (const artifact of artifacts) {
     artifact.architecture!.components = { ...historicalComponents }
   }
-  return architectureReport(artifacts)
+  const current = architectureReport(artifacts)
+  return {
+    // Phase 0 is a frozen historical record. Keep its schema stable even as
+    // current architecture reports gain nondeterministic telemetry such as
+    // latency and new derived metrics.
+    schema: 1,
+    bank: current.bank,
+    cases: current.cases,
+    variants: current.variants.map((summary) => {
+      const {
+        decisionQuality: _decisionQuality,
+        latency: _latency,
+        safety: _safety,
+        ...historical
+      } = summary
+      return {
+        ...historical,
+        byRole: summary.byRole.map((roleSummary) => {
+          const {
+            decisionQuality: _roleDecisionQuality,
+            latency: _roleLatency,
+            safety: _roleSafety,
+            ...role
+          } = roleSummary
+          return role
+        }),
+      }
+    }),
+    comparisons: current.comparisons.map((comparison) => {
+      const {
+        targetWinRateDelta: _targetWinRateDelta,
+        cleanInitialProposalRateDelta: _cleanInitialProposalRateDelta,
+        voteTruthAccuracyDelta: _voteTruthAccuracyDelta,
+        ...historical
+      } = comparison
+      return historical
+    }),
+  }
 }
 
 interface ObservedDimension {

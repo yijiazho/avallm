@@ -298,6 +298,7 @@ function composedTrace(
   analysis: ReturnType<typeof analyzeSituation>,
   action: Decision,
   scores: readonly CandidateScore[],
+  structuredCandidateId: string,
   chosenCandidateId: string,
   forced: ForcedPolicyResult,
   plannerVersion: string,
@@ -307,6 +308,7 @@ function composedTrace(
   agentMode: AgentExecutionMode,
   communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
+  plannerReasonCodes?: readonly string[],
 ): DecisionTrace {
   const brain = brainComponents(resolveBrain({ type: 'composed' }))
   return {
@@ -338,8 +340,12 @@ function composedTrace(
       voice: voiceVersion,
     },
     candidateScores: scores,
+    structuredCandidateId,
     chosenCandidateId,
     ...(plannerCandidateId ? { plannerCandidateId } : {}),
+    ...(plannerReasonCodes
+      ? { plannerReasonCodes: [...plannerReasonCodes] }
+      : {}),
     decisionPlanVersion: DECISION_PLAN_VERSION,
     forcedPolicyResult: structuredClone(forced),
     ...(communication
@@ -623,6 +629,7 @@ export function createComposedAgent(
         traceAnalysis,
         action,
         scores,
+        structured.candidateId,
         chosenCandidateId,
         forced,
         plannerVersion,
@@ -636,6 +643,7 @@ export function createComposedAgent(
             : 'structured-only',
         plan.communication,
         plannerCandidateId,
+        plannerReasonCodes,
       )
       return { decision: action, trace }
     },
