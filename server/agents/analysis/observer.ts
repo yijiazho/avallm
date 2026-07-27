@@ -1,5 +1,9 @@
 import type { Role, Seat } from '../../engine/types.ts'
 import {
+  ROLE_ALIGNMENT,
+  validateRoles,
+} from '../../engine/rules.ts'
+import {
   questFailEvidenceFromQuests,
   worldSatisfiesQuestEvidence,
 } from '../belief/quest-constraints.ts'
@@ -161,6 +165,34 @@ const exactKeys = (
   allowed: readonly string[],
 ): boolean => Object.keys(value).every((key) => allowed.includes(key))
 
+// Validate in count space, where an exact uniform marginal is an integer number
+// of feasible worlds divided by feasibleWorldCount. Sixteen denominator-scaled
+// machine epsilons admit ordinary division round trips while keeping one-world
+// snapshots effectively exact instead of granting them a fixed decimal slack.
+const PUBLIC_OBSERVER_COUNT_ULP_MULTIPLIER = 16
+const PUBLIC_OBSERVER_PROBABILITY_TOLERANCE = 1e-12
+
+function factorial(value: number): number {
+  let result = 1
+  for (let factor = 2; factor <= value; factor++) result *= factor
+  return result
+}
+
+function latticeCount(
+  value: unknown,
+  feasibleWorldCount: number,
+): number | undefined {
+  if (!probability(value)) return undefined
+  const scaled = value * feasibleWorldCount
+  const nearest = Math.round(scaled)
+  const tolerance = PUBLIC_OBSERVER_COUNT_ULP_MULTIPLIER
+    * Number.EPSILON
+    * feasibleWorldCount
+  return Math.abs(scaled - nearest) <= tolerance
+    ? nearest
+    : undefined
+}
+
 /** Strict JSON boundary used by stdio and persisted-artifact readers. */
 export function validatePublicObserverSnapshot(
   value: unknown,
@@ -197,11 +229,35 @@ export function validatePublicObserverSnapshot(
   ) {
     return false
   }
-  return snapshot.seats.every((value, seat) => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-    const assessment = value as Record<string, unknown>
+
+  const playerCount = snapshot.playerCount as number
+  const feasibleWorldCount = snapshot.feasibleWorldCount as number
+  // No role multiset can produce more distinct assignments than n!; reject
+  // impossible or unsafe denominators before multiplying any marginal by it.
+  if (feasibleWorldCount > factorial(playerCount)) return false
+  let sharedRoles: readonly Role[] | undefined
+  const roleWorldOccurrences = new Map<Role, number>()
+  let goodWorldOccurrences = 0
+  let evilWorldOccurrences = 0
+
+  for (let seat = 0; seat < playerCount; seat++) {
+    const seatValue = snapshot.seats[seat]
+    if (
+      !seatValue
+      || typeof seatValue !== 'object'
+      || Array.isArray(seatValue)
+    ) return false
+    const assessment = seatValue as Record<string, unknown>
     const roles = assessment.roleMarginals
     const behavior = assessment.behavior as Record<string, unknown>
+    const goodCount = latticeCount(
+      assessment.goodProbability,
+      feasibleWorldCount,
+    )
+    const evilCount = latticeCount(
+      assessment.evilProbability,
+      feasibleWorldCount,
+    )
     if (
       !exactKeys(assessment, [
         'seat',
@@ -211,8 +267,8 @@ export function validatePublicObserverSnapshot(
         'behavior',
       ])
       || assessment.seat !== seat
-      || !probability(assessment.goodProbability)
-      || !probability(assessment.evilProbability)
+      || goodCount === undefined
+      || evilCount === undefined
       || Math.abs(
         assessment.goodProbability + assessment.evilProbability - 1,
       ) > 1e-12
@@ -239,25 +295,114 @@ export function validatePublicObserverSnapshot(
     ) {
       return false
     }
-    const seen = new Set<string>()
-    let total = 0
-    for (const roleValue of roles) {
+
+    if (roles.length === 0) return false
+    const seatRoles: Role[] = []
+    let seatWorldOccurrences = 0
+    let seatGoodWorldOccurrences = 0
+    let seatEvilWorldOccurrences = 0
+    let seatProbabilityTotal = 0
+    let seatGoodProbability = 0
+    let seatEvilProbability = 0
+    let previousRoleRank = -1
+    for (let roleIndex = 0; roleIndex < roles.length; roleIndex++) {
+      const roleValue = roles[roleIndex]
       if (
         !roleValue
         || typeof roleValue !== 'object'
         || Array.isArray(roleValue)
       ) return false
       const marginal = roleValue as Record<string, unknown>
+      const role = marginal.role as Role
+      const canonicalRank = CANONICAL_ROLE_ORDER.indexOf(role)
+      const count = latticeCount(marginal.probability, feasibleWorldCount)
       if (
         !exactKeys(marginal, ['role', 'probability'])
         || typeof marginal.role !== 'string'
-        || !CANONICAL_ROLE_ORDER.includes(marginal.role as Role)
-        || seen.has(marginal.role)
-        || !probability(marginal.probability)
+        || canonicalRank < 0
+        || canonicalRank <= previousRoleRank
+        || count === undefined
       ) return false
-      seen.add(marginal.role)
-      total += marginal.probability
+      previousRoleRank = canonicalRank
+      seatRoles.push(role)
+      seatWorldOccurrences += count
+      const aggregateRoleOccurrences =
+        (roleWorldOccurrences.get(role) ?? 0) + count
+      if (!Number.isSafeInteger(aggregateRoleOccurrences)) return false
+      roleWorldOccurrences.set(role, aggregateRoleOccurrences)
+      const roleProbability = marginal.probability as number
+      seatProbabilityTotal += roleProbability
+      if (ROLE_ALIGNMENT[role] === 'good') {
+        seatGoodWorldOccurrences += count
+        seatGoodProbability += roleProbability
+      } else {
+        seatEvilWorldOccurrences += count
+        seatEvilProbability += roleProbability
+      }
     }
-    return roles.length > 0 && Math.abs(total - 1) <= 1e-12
-  })
+    if (
+      !Number.isSafeInteger(seatWorldOccurrences)
+      || !Number.isSafeInteger(seatGoodWorldOccurrences)
+      || !Number.isSafeInteger(seatEvilWorldOccurrences)
+      || seatWorldOccurrences !== feasibleWorldCount
+      || seatGoodWorldOccurrences !== goodCount
+      || seatEvilWorldOccurrences !== evilCount
+      || Math.abs(seatProbabilityTotal - 1)
+        > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
+      || Math.abs(
+        seatGoodProbability - (assessment.goodProbability as number),
+      ) > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
+      || Math.abs(
+        seatEvilProbability - (assessment.evilProbability as number),
+      ) > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
+    ) return false
+    if (sharedRoles === undefined) {
+      sharedRoles = seatRoles
+    } else if (
+      seatRoles.length !== sharedRoles.length
+      || seatRoles.some((role, index) => role !== sharedRoles![index])
+    ) return false
+    goodWorldOccurrences += goodCount
+    evilWorldOccurrences += evilCount
+    if (
+      !Number.isSafeInteger(goodWorldOccurrences)
+      || !Number.isSafeInteger(evilWorldOccurrences)
+    ) return false
+  }
+
+  if (!sharedRoles) return false
+  const reconstructedRoles: Role[] = []
+  const reconstructedRoleCounts = new Map<Role, number>()
+  for (const role of sharedRoles) {
+    const occurrences = roleWorldOccurrences.get(role) ?? 0
+    if (occurrences % feasibleWorldCount !== 0) return false
+    const roleCount = occurrences / feasibleWorldCount
+    if (!Number.isSafeInteger(roleCount) || roleCount <= 0) return false
+    reconstructedRoleCounts.set(role, roleCount)
+    reconstructedRoles.push(...Array<Role>(roleCount).fill(role))
+  }
+  if (reconstructedRoles.length !== playerCount) return false
+  try {
+    validateRoles(playerCount, reconstructedRoles)
+  } catch {
+    return false
+  }
+
+  const repeatedRoleDivisor = [...reconstructedRoleCounts.values()].reduce(
+    (product, roleCount) => product * factorial(roleCount),
+    1,
+  )
+  const maximumDistinctWorlds =
+    factorial(playerCount) / repeatedRoleDivisor
+  if (
+    !Number.isSafeInteger(maximumDistinctWorlds)
+    || feasibleWorldCount > maximumDistinctWorlds
+  ) return false
+
+  const reconstructedGood = reconstructedRoles.filter(
+    (role) => ROLE_ALIGNMENT[role] === 'good',
+  ).length
+  const reconstructedEvil = playerCount - reconstructedGood
+  return goodWorldOccurrences === reconstructedGood * feasibleWorldCount
+    && evilWorldOccurrences === reconstructedEvil * feasibleWorldCount
 }

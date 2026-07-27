@@ -3,11 +3,10 @@
 **Status:** active tracking document.
 
 **Current target phase:** Phase 7B identity and coherence substrate. Phase 7A landed an opt-in exact
-public observer without changing policy. Phase 7B is split into a joint identity projector followed
-by private plan memory and post-legality coherence tracking. NB-005 may harden the external observer
-snapshot validator in parallel, but must close before observer data can influence policy. The
-Phase 5C population sign flip remains recorded, and win-rate tuning is still intentionally deferred
-until the architecture is complete enough to evaluate as a whole.
+public observer without changing policy, and NB-005 closed its external snapshot semantic boundary.
+Phase 7B is split into a joint identity projector followed by private plan memory and post-legality
+coherence tracking. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
+intentionally deferred until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -173,7 +172,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-002 | Phase 4 | Paid raw-LLM comparison and human playtests | No code dependency, but requires explicit spend/study permission and a frozen candidate commit. Results must remain attributable to that exact commit and population. | `permission-gated` |
 | NB-003 | Phase 5 | Extend factor calibration beyond heuristic and seeded-random opponents | Requires a versioned corpus from the target model or human population, leakage-safe splits, and a uniform-versus-weighted ablation. Synthetic work must not be presented as human calibration. | `data-gated` |
 | NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `landed` |
-| NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `ready` |
+| NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `landed` |
 
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
@@ -1239,11 +1238,12 @@ artifacts, architecture benchmarks, and safety reports. Cross-seat and private-c
 detached data, deterministic replay is exact, and forged observer-on/off attribution is rejected
 while historical observer-absent artifacts remain valid.
 
-The maximum-special 10-player stress cast contains 907,200 complete worlds. Independent validation
-measured about 427 ms cold, effectively immediate cached replay, and a 6,089-byte snapshot; parent
-full-suite load measured about one second cold. This is acceptable for an opt-in first observation,
-but remains a performance datum for later rollout. NB-005 tracks stronger semantic validation of
-externally supplied observer snapshots before such data can influence policy.
+The legal maximum-special 10-player cast contains 151,200 complete worlds. NB-005 validation
+measured about 77 ms cold, effectively immediate cached replay, and a 5,727-byte snapshot; parent
+focused validation measured about 86 ms cold. The former 907,200-world stress fixture contained six
+evil roles and was not a legal 10-player cast, so it was replaced and is now pinned as invalid.
+NB-005 also requires externally supplied snapshots to reconstruct a legal cast, match raw and exact
+lattice probability semantics, and stay within that cast's multinomial world-count ceiling.
 
 ### Merlin and Percival
 
@@ -1456,10 +1456,17 @@ here.
 - Phase 7A exact public observer: added a `PublicRecord`-only uniform posterior over complete public
   role worlds plus separately labeled non-probabilistic behavior indices. Shared streaming
   projection arithmetic keeps private and public exact marginals consistent without storing the
-  907,200-world maximum cast in traces. Cross-seat, private-canary, symmetry, cache-isolation,
+  151,200-world legal maximum-special cast in traces. Cross-seat, private-canary, symmetry,
+  cache-isolation,
   replay, attribution, historical-artifact, and performance checks passed; the observer remains
   opt-in and mechanically inert. NB-005 records stronger external semantic validation before any
   observer payload becomes policy-authoritative.
+- NB-005 observer semantic validation: externally supplied observer snapshots now require one
+  canonical role set, raw and integer-lattice role/alignment agreement, safe aggregate counts, an
+  engine-legal reconstructed cast, and a feasible-world count no larger than that cast's exact
+  multinomial assignment count. All 71 legal casts pass as priors and constrained posteriors. The
+  former six-evil 10-player performance fixture is rejected and replaced by the legal 151,200-world
+  cast; NB-005 closes before observer data becomes policy-authoritative.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

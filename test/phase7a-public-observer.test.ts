@@ -23,6 +23,12 @@ import {
 } from '../server/agents/communication/public-record.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { createGame } from '../server/engine/game.ts'
+import {
+  DEFAULT_ROLES,
+  ROLE_ALIGNMENT,
+  TEAM_SIZES,
+  failsRequired,
+} from '../server/engine/rules.ts'
 import type {
   PlayerView,
   Role,
@@ -37,6 +43,7 @@ import {
 } from '../server/eval/architecture-bench.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
+import { legalCasts } from './casts.ts'
 
 const VANILLA_5: Role[] = [
   'servant', 'servant', 'servant', 'minion', 'minion',
@@ -50,10 +57,11 @@ function close(actual: number, expected: number): void {
 }
 
 function baseRecord(rolesInPlay: readonly Role[] = VANILLA_5): PublicRecord {
+  const playerCount = rolesInPlay.length
   return {
-    playerCount: 5,
+    playerCount,
     rolesInPlay,
-    players: Array.from({ length: 5 }, (_, seat) => ({
+    players: Array.from({ length: playerCount }, (_, seat) => ({
       seat,
       name: `P${seat}`,
     })),
@@ -63,8 +71,8 @@ function baseRecord(rolesInPlay: readonly Role[] = VANILLA_5): PublicRecord {
     leaderSeat: 0,
     quests: Array.from({ length: 5 }, (_, index) => ({
       num: index + 1,
-      teamSize: index < 2 ? 2 : 3,
-      failsRequired: 1,
+      teamSize: TEAM_SIZES[playerCount][index],
+      failsRequired: failsRequired(playerCount, index + 1),
     })),
     proposals: [],
   }
@@ -152,6 +160,210 @@ test('complete-world posterior is normalized and impossible worlds are absent', 
   )
   assert.equal(feasible, snapshot.feasibleWorldCount)
   assert.equal(impossible, 3)
+})
+
+test('10-player output is bounded and cached replay is fast', () => {
+  const roles: Role[] = [
+    'merlin', 'percival', 'servant', 'servant', 'servant', 'servant',
+    'assassin', 'morgana', 'mordred', 'oberon',
+  ]
+  const record: PublicRecord = {
+    ...baseRecord(roles),
+    playerCount: 10,
+    players: Array.from({ length: 10 }, (_, seat) => ({
+      seat,
+      name: `P${seat}`,
+    })),
+    quests: Array.from({ length: 5 }, (_, index) => ({
+      num: index + 1,
+      teamSize: index < 2 ? 3 : index === 3 ? 5 : 4,
+      failsRequired: index === 3 ? 2 : 1,
+    })),
+  }
+  const started = performance.now()
+  const snapshot = observePublicRecord(record)
+  const coldMs = performance.now() - started
+  const replayStarted = performance.now()
+  const replay = observePublicRecord(record)
+  const replayMs = performance.now() - replayStarted
+
+  assert.equal(snapshot.feasibleWorldCount, 151_200)
+  assert.ok(validatePublicObserverSnapshot(snapshot))
+  assert.deepEqual(replay, snapshot)
+  assert.ok(JSON.stringify(snapshot).length < 15_000)
+  assert.ok(coldMs < 5_000, `cold 10p observer took ${coldMs.toFixed(1)}ms`)
+  assert.ok(replayMs < 50, `cached 10p observer took ${replayMs.toFixed(1)}ms`)
+})
+
+test('external observer validation rejects semantically impossible marginals', () => {
+  const vanilla = observePublicRecord(baseRecord())
+
+  const reviewerExample = structuredClone(vanilla)
+  reviewerExample.feasibleWorldCount = 1
+  reviewerExample.entropy = 0
+  for (const seat of reviewerExample.seats) {
+    seat.goodProbability = 0.9
+    seat.evilProbability = 0.1
+    seat.roleMarginals = [{ role: 'minion', probability: 1 }]
+  }
+  assert.equal(validatePublicObserverSnapshot(reviewerExample), false)
+
+  const deterministic = observePublicRecord(baseRecord(DEFAULT_ROLES[5]))
+  deterministic.feasibleWorldCount = 1
+  deterministic.entropy = 0
+  for (const [seat, assignedRole] of DEFAULT_ROLES[5].entries()) {
+    deterministic.seats[seat].goodProbability =
+      ROLE_ALIGNMENT[assignedRole] === 'good' ? 1 : 0
+    deterministic.seats[seat].evilProbability =
+      ROLE_ALIGNMENT[assignedRole] === 'evil' ? 1 : 0
+    deterministic.seats[seat].roleMarginals = deterministic.seats[seat]
+      .roleMarginals.map(({ role }) => ({
+        role,
+        probability: role === assignedRole ? 1 : 0,
+      }))
+  }
+  assert.ok(validatePublicObserverSnapshot(deterministic))
+
+  const rawTotalOverflow = structuredClone(deterministic)
+  rawTotalOverflow.seats[0].roleMarginals.find(
+    ({ role }) => role === 'percival',
+  )!.probability = 5e-10
+  assert.equal(validatePublicObserverSnapshot(rawTotalOverflow), false)
+
+  const rawAlignmentShift = structuredClone(deterministic)
+  rawAlignmentShift.seats[3].roleMarginals.find(
+    ({ role }) => role === 'morgana',
+  )!.probability = 1 - 5e-10
+  rawAlignmentShift.seats[3].roleMarginals.find(
+    ({ role }) => role === 'servant',
+  )!.probability = 5e-10
+  assert.equal(validatePublicObserverSnapshot(rawAlignmentShift), false)
+
+  const sameAlignmentShift = structuredClone(deterministic)
+  sameAlignmentShift.seats[0].roleMarginals.find(
+    ({ role }) => role === 'merlin',
+  )!.probability = 1 - 5e-10
+  sameAlignmentShift.seats[0].roleMarginals.find(
+    ({ role }) => role === 'percival',
+  )!.probability = 5e-10
+  assert.equal(validatePublicObserverSnapshot(sameAlignmentShift), false)
+
+  const tooManyVanillaWorlds = structuredClone(vanilla)
+  tooManyVanillaWorlds.feasibleWorldCount = 11
+  tooManyVanillaWorlds.entropy = Math.log2(11)
+  const servantWorldCounts = [7, 7, 7, 6, 6]
+  for (const [seat, servantCount] of servantWorldCounts.entries()) {
+    const minionCount = 11 - servantCount
+    tooManyVanillaWorlds.seats[seat].goodProbability = servantCount / 11
+    tooManyVanillaWorlds.seats[seat].evilProbability = minionCount / 11
+    tooManyVanillaWorlds.seats[seat].roleMarginals = [
+      { role: 'minion', probability: minionCount / 11 },
+      { role: 'servant', probability: servantCount / 11 },
+    ]
+  }
+  assert.equal(validatePublicObserverSnapshot(tooManyVanillaWorlds), false)
+
+  const unsafeWorldCount = structuredClone(vanilla)
+  unsafeWorldCount.feasibleWorldCount = 9_000_000_000_000_000
+  unsafeWorldCount.entropy = Math.log2(
+    unsafeWorldCount.feasibleWorldCount,
+  )
+  assert.equal(validatePublicObserverSnapshot(unsafeWorldCount), false)
+
+  const invalidSixEvilCast = observePublicRecord(baseRecord([
+    'merlin', 'percival', 'servant', 'servant',
+    'assassin', 'morgana', 'mordred', 'oberon', 'minion', 'minion',
+  ]))
+  assert.equal(validatePublicObserverSnapshot(invalidSixEvilCast), false)
+
+  const differentRoleSet = structuredClone(vanilla)
+  differentRoleSet.seats[0].goodProbability = 1
+  differentRoleSet.seats[0].evilProbability = 0
+  differentRoleSet.seats[0].roleMarginals = [{
+    role: 'servant',
+    probability: 1,
+  }]
+  assert.equal(validatePublicObserverSnapshot(differentRoleSet), false)
+
+  const noncanonicalOrder = structuredClone(vanilla)
+  for (const seat of noncanonicalOrder.seats) {
+    seat.roleMarginals.reverse()
+  }
+  assert.equal(validatePublicObserverSnapshot(noncanonicalOrder), false)
+
+  const nonintegralCastCount = structuredClone(vanilla)
+  nonintegralCastCount.seats[0].goodProbability = 0.7
+  nonintegralCastCount.seats[0].evilProbability = 0.3
+  nonintegralCastCount.seats[0].roleMarginals = [
+    { role: 'minion', probability: 0.3 },
+    { role: 'servant', probability: 0.7 },
+  ]
+  assert.equal(validatePublicObserverSnapshot(nonintegralCastCount), false)
+
+  const wrongAlignmentCount = structuredClone(vanilla)
+  for (const seat of wrongAlignmentCount.seats) {
+    seat.goodProbability = 0.8
+    seat.evilProbability = 0.2
+    seat.roleMarginals = [
+      { role: 'minion', probability: 0.2 },
+      { role: 'servant', probability: 0.8 },
+    ]
+  }
+  assert.equal(validatePublicObserverSnapshot(wrongAlignmentCount), false)
+
+  const invalidDependency = structuredClone(vanilla)
+  for (const seat of invalidDependency.seats) {
+    seat.goodProbability = 0.6
+    seat.evilProbability = 0.4
+    seat.roleMarginals = [
+      { role: 'minion', probability: 0.4 },
+      { role: 'percival', probability: 0.2 },
+      { role: 'servant', probability: 0.4 },
+    ]
+  }
+  assert.equal(validatePublicObserverSnapshot(invalidDependency), false)
+
+  const alignmentMismatch = structuredClone(vanilla)
+  alignmentMismatch.seats[0].goodProbability = 0.5
+  alignmentMismatch.seats[0].evilProbability = 0.5
+  assert.equal(validatePublicObserverSnapshot(alignmentMismatch), false)
+
+  const offLattice = observePublicRecord(baseRecord(DEFAULT_ROLES[5]))
+  offLattice.seats[0].roleMarginals[0].probability += 0.001
+  offLattice.seats[0].roleMarginals[1].probability -= 0.001
+  assert.equal(validatePublicObserverSnapshot(offLattice), false)
+})
+
+test('validator accepts every legal cast and constrained snapshots from 5-10', () => {
+  for (const cast of legalCasts()) {
+    const snapshot = observePublicRecord(baseRecord(cast.roles))
+    assert.ok(
+      validatePublicObserverSnapshot(snapshot),
+      `rejected runtime prior for ${cast.label}`,
+    )
+  }
+
+  for (let playerCount = 5; playerCount <= 10; playerCount++) {
+    const record = baseRecord(DEFAULT_ROLES[playerCount])
+    const prior = observePublicRecord(record)
+    const constrained = structuredClone(record)
+    constrained.quests[0] = {
+      ...constrained.quests[0],
+      team: [0, 1],
+      result: 'fail',
+      failCount: 1,
+    }
+    const posterior = observePublicRecord(constrained)
+    assert.notEqual(
+      posterior.feasibleWorldCount,
+      prior.feasibleWorldCount,
+      `${playerCount}p constraint did not change feasible worlds`,
+    )
+    assert.ok(
+      validatePublicObserverSnapshot(posterior),
+      `rejected constrained ${playerCount}p runtime snapshot`,
+    )
+  }
 })
 
 test('offline truth retention joins only after public inference', () => {
@@ -338,39 +550,6 @@ test('observer result is identical across seats and rejects private canaries 5-1
       snapshots[0],
     )
   }
-})
-
-test('10-player output is bounded and cached replay is fast', () => {
-  const roles: Role[] = [
-    'merlin', 'percival', 'servant', 'servant',
-    'assassin', 'morgana', 'mordred', 'oberon', 'minion', 'minion',
-  ]
-  const record: PublicRecord = {
-    ...baseRecord(roles),
-    playerCount: 10,
-    players: Array.from({ length: 10 }, (_, seat) => ({
-      seat,
-      name: `P${seat}`,
-    })),
-    quests: Array.from({ length: 5 }, (_, index) => ({
-      num: index + 1,
-      teamSize: index < 2 ? 3 : index === 3 ? 5 : 4,
-      failsRequired: index === 3 ? 2 : 1,
-    })),
-  }
-  const started = performance.now()
-  const snapshot = observePublicRecord(record)
-  const coldMs = performance.now() - started
-  const replayStarted = performance.now()
-  const replay = observePublicRecord(record)
-  const replayMs = performance.now() - replayStarted
-
-  assert.equal(snapshot.feasibleWorldCount, 907_200)
-  assert.ok(validatePublicObserverSnapshot(snapshot))
-  assert.deepEqual(replay, snapshot)
-  assert.ok(JSON.stringify(snapshot).length < 15_000)
-  assert.ok(coldMs < 5_000, `cold 10p observer took ${coldMs.toFixed(1)}ms`)
-  assert.ok(replayMs < 50, `cached 10p observer took ${replayMs.toFixed(1)}ms`)
 })
 
 test('composed observer is opt-in, attributable, and mechanically inert', async () => {
