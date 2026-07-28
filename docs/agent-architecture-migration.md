@@ -220,6 +220,16 @@ thinking, and scratchpad causes, and terminal rendering escapes untrusted text. 
 approved the final boundary and terminal-safety behavior. Parent validation passed all 833
 API-free repository tests on the branch rebased onto Phase 7R1.
 
+The same command now accepts `--ui` to launch the **Seat Decision Microscope** on an
+ephemeral loopback port, or `--ui --file <snapshot.json>` for a custom snapshot. The eval-only
+server binds to `127.0.0.1`, validates and projects every snapshot before listening, and sends the
+browser only `SeatViewInspection`; it adds no production route and never serves raw request/view
+input. The UI separates public and private evidence, visible history, and omitted facts, then shows
+the future belief/component/candidate/policy/decision/voice path as unavailable rather than
+inventing trace data. Focused boundary coverage passed 15 cases. Desktop and 390-pixel visual
+review verified the evidence split and zero mobile page overflow, and the complete rebased tree
+passed all 847 API-free repository tests after one isolated transient server-test rerun.
+
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
 follow-up updates both this register and its phase-local checkbox in the same commit.
