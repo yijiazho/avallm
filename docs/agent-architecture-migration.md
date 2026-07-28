@@ -2156,13 +2156,16 @@ reviewed slices are now landed:
   pass.
 - **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
   mechanically split every large module. The staged type design makes invalid pipeline states
-  unrepresentable: request, view, belief, and analysis establish the analyzed frame; the legal
-  candidate surface precedes forced-policy survivors; survivors precede scoring and strategic
-  choice; a committed action precedes voice. Existing C2, D2, E1, and D3 behavior moves behind
-  compatibility adapters before new ordered-layer behavior is added.
+  unrepresentable: canonical request/view precede legal candidates; candidate-aware analysis
+  precedes universal forced policy; component execution consumes that exact analysis and universal
+  surface; the quarantined D3 adapter may run only afterward; scoring, selection, commit, and
+  voice follow in order. Existing C2, D2, E1, and D3 behavior moves behind compatibility adapters
+  before new ordered-layer behavior is added.
   Implement C4A first as types, constructors, nonempty survivor/viable collections, and one
   compatibility scorer adapter without touching the runtime orchestrator. C4B then wires those
-  transitions through `composed.ts`. A new native policy family must not add role-named branches
+  transitions through `composed.ts` and removes `composed.ts` from the architecture-fitness
+  `TRUSTED_RUNTIME_OWNERS` allowlist when its old component-execution path is deleted. A new native
+  policy family must not add role-named branches
   to trace, artifact, report, stdio, or Inspector. Operation counters follow the owners that
   perform work: kernel roots/components, analysis posterior batches, and frame-runner candidate,
   layer, planner, and voice calls.
@@ -2218,6 +2221,22 @@ The cross-review findings establish these development guardrails for the rest of
 12. **Quarantine migration debt.** Historical readers have named adapters, explicit version
     states, and retirement owners. New write paths never emit legacy optional bags. Compatibility
     code does not become a shared utility imported by native policy.
+13. **Keep behavior-free seams additive.** The old call path and its assertions remain unchanged
+    until the wiring chunk replaces them; a seam does not justify changing behavior.
+14. **Expire every parallel authority.** Its next chunk names and deletes the old writer, then
+    reviews net complexity instead of merely celebrating the new abstraction.
+15. **Carry provenance from construction.** A stage initiates dependent work against its own
+    detached inputs and passes the exact completed frame to trusted-provider factories. Do not
+    pre-run work for later attachment, add global provenance registries, or rely on downstream
+    deep revalidation.
+16. **Ratchet compatibility debt.** Native code adds no legacy walker, central role field,
+    optional compatibility bag, or unowned cast; every exception names its retirement owner.
+17. **Build typed semantic scenarios.** Normal tests use scenario builders; only the generic
+    contract kit constructs hostile raw values. A second repeated proof pattern triggers shared
+    automation.
+18. **Treat assertion changes as behavior decisions.** They require explicit justification and
+    cannot be inverted merely to bless a refactor. A change-surface or complexity-budget breach
+    stops new cross-layer branching.
 
 The development model follows a proof pyramid rather than using end-to-end mutation matrices as
 the first line of defense:

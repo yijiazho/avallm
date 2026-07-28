@@ -262,6 +262,10 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
         'server/agents/components/kernel.ts',
         'export interface DecisionComponentTrustedHostInputProviders {}',
       ],
+      [
+        'server/agents/policy/decision-frame.ts',
+        'const roots: DecisionComponentTrustedHostInputProviders = factory(frame)',
+      ],
     ]),
     [],
   )

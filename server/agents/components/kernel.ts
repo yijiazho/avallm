@@ -195,6 +195,41 @@ const EMPTY_COMPONENT_RUN: DecisionComponentRun = Object.freeze({
   policyUse: Object.freeze([]),
 })
 
+/** Admit only monotonic causal-use changes to one exact component run. */
+export function advanceDecisionComponentRun(
+  prior: DecisionComponentRun,
+  next: DecisionComponentRun,
+): DecisionComponentRun {
+  if (
+    prior.version !== next.version
+    || prior.configured !== next.configured
+    || prior.entries !== next.entries
+    || prior.policyUse.length !== next.policyUse.length
+  ) {
+    throw new Error('component run advancement changed resolved graph state')
+  }
+  for (let index = 0; index < prior.policyUse.length; index++) {
+    const before = prior.policyUse[index]
+    const after = next.policyUse[index]
+    const prefix = before.stages.every(
+      (stage, stageIndex) => after.stages[stageIndex] === stage,
+    )
+    if (
+      componentIdentityKey(before.component) !==
+        componentIdentityKey(after.component)
+      || (before.used && !after.used)
+      || after.used !== (after.stages.length > 0)
+      || after.stages.length < before.stages.length
+      || !prefix
+      || new Set(after.stages).size !== after.stages.length
+      || after.stages.some((stage) => !canonicalCode(stage))
+    ) {
+      throw new Error('component run policy use did not advance monotonically')
+    }
+  }
+  return next
+}
+
 export function decisionComponentPlan(
   brain: ResolvedComposedBrain,
 ): DecisionComponentPlan {

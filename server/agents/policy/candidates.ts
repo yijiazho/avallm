@@ -77,7 +77,10 @@ export function hypotheticalProposalCandidates(
     candidate('propose', teamKey(team), { kind: 'propose', team }))
 }
 
-function validateRequest(req: DecisionRequest, view: PlayerView): void {
+export function validateCandidateRequest(
+  req: DecisionRequest,
+  view: PlayerView,
+): void {
   if (req.seat !== view.seat) {
     throw new Error(
       `candidate request seat ${req.seat} does not match view seat ${view.seat}`,
@@ -105,7 +108,7 @@ export function legalCandidates(
   req: DecisionRequest,
   view: PlayerView,
 ): readonly PolicyCandidate[] {
-  validateRequest(req, view)
+  validateCandidateRequest(req, view)
   const seats = view.players.map((player) => player.seat).sort((a, b) => a - b)
   switch (req.kind) {
     case 'discuss': {
