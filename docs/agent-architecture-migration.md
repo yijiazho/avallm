@@ -1693,8 +1693,9 @@ decisive rules; separate Oberon cases pin both the uncoordinated ordinary path a
 Fail. A genuine 7-player no-Oberon, three-visible-evil exact-quota conflict proves that an
 undesignated seat's strategic Success is not resolved, universal Fail is selected, and the trace
 passes host reconstruction and stdio round-trip. A further 23 composed, trace, and stdio adjacency
-cases passed. The full suite and final architecture-bank gate remain parent-owned under the
-validation cadence above.
+cases passed. Independent re-review found no remaining correctness issue. Parent validation passed
+all 824 API-free repository tests; that complete run also executed the free D3 architecture bank
+and its hostile trace and artifact mutations.
 
 ### Mordred
 
@@ -2003,8 +2004,9 @@ here.
 - Phase 7R1 forced-policy authority: reordered universal quest-card rules ahead of the optional D3
   strategic directive across runtime and admission, and pinned adversarial no-sink, match-point,
   exact-quota conflict, and Oberon behavior. Focused validation passed 47 API-free forced-policy,
-  D3, composed, trace, and stdio cases; the parent completion gate owns the full suite and final
-  architecture bank once per executable chunk.
+  D3, composed, trace, and stdio cases. Independent re-review approved the corrected integration;
+  all 824 API-free tests then passed, including the free D3 architecture bank and hostile stored
+  mutations.
 - Validation cadence checkpoint: moved adversarial parent and fresh-agent review ahead of expensive
   banks and the complete suite. Normal iteration now uses dedicated low-cost fixtures, then only
   the high-player-count boundary cases required by the contract. The applicable free bank and full
