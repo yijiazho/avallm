@@ -2,12 +2,14 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E2A Mordred substrate. Phase 7E1B gave the landed Morgana
-counterfeit objective bounded opt-in proposal and vote authority while retaining D2, forced
-policy, and engine legality as higher-priority constraints. The remaining role work is the
-Mordred substrate and policy, Assassin specialization, and the Phase 7 role-bank evaluation and
-exit audit. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
-intentionally deferred until the architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7R2A and 7R2B generic component boundary. Phase 7R1 restored
+universal forced-policy authority ahead of optional D3 strategy. Before Mordred is integrated, the
+host-admission machinery and composed brain will move to a registered generic component contract
+with compatibility projections for the landed C2, D2, E1, and D3 paths. Mordred E2A then becomes
+the first native component rather than another role-specific central field. Mordred policy,
+Assassin specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population sign
+flip remains recorded, and win-rate tuning is still intentionally deferred until the architecture
+is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -60,8 +62,8 @@ compose and difficult to measure independently.
 | Language evidence | Opt-in public interpreter seam, persistent typed reads/cursor, capped joint-world update, and private attribution | Add a real provider adapter and evaluation population only with explicit scope and spend permission |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
-| Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Extend only when another evidence class lands |
-| Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity; explicit mode labels distinguish compatibility, structured-only, hybrid, and raw LLM | Production still defaults to the deliberately separate raw-LLM baseline |
+| Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Replace role-specific optional fields with configured and resolved component entries plus private tagged payloads |
+| Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity; explicit mode labels distinguish compatibility, structured-only, hybrid, and raw LLM | Resolve component configuration into a typed immutable brain; keep runtime planner, voice, seed, client, and sink injection separate |
 
 ---
 
@@ -233,7 +235,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7E1B complete | Mordred substrate and policy, Assassin specialization, then role-bank audit |
+| 7. Role-specific observer and identity models | In progress; Phase 7R1 complete | Generic component boundary, Mordred substrate and policy, Assassin specialization, then role-bank audit |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1262,15 +1264,31 @@ reviewable and ablatable:
    complete-world candidate objective without changing policy. **Complete.**
 10. **Phase 7E1B, Morgana policy:** make counterfeit-Merlin and Percival-influence value causally
     affect bounded policy. **Complete.**
-11. **Phase 7E2A, Mordred substrate:** model Merlin-blindness opportunity and anomalous public
-    treatment from exact joint worlds plus public-only observations without changing policy.
-12. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
-    over proposal and vote decisions while preserving D2 and forced-policy dominance.
-13. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
-   remains distinct from generic goodness.
-14. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
-   role-specific, and full configurations on a frozen API-free role bank, including virtual
-   Assassin guesses derived only from seat-filtered views.
+11. **Phase 7R1, forced-policy authority:** run universal quest-card rules before optional D3
+    strategic policy across runtime and admission. **Complete.**
+12. **Phase 7R2A, mechanical host-admission extraction:** move the existing component
+    reconstruction and exact admission equations out of stdio and evaluation call sites into one
+    shared owner without changing behavior, schemas, or promotion eligibility.
+13. **Phase 7R2B, generic component kernel:** resolve a typed composed brain, introduce configured
+    and resolved component entries with private tagged payloads, and register compatibility
+    adapters for C2, D2, E1, and D3. New traces dual-write the generic representation and the
+    existing projection until equality and legacy artifact reads are proved.
+14. **Phase 7E2A, Mordred substrate:** add the first native generic component, modeling
+    Merlin-blindness opportunity and anomalous public treatment from exact joint worlds plus
+    public-only observations without changing policy or adding any Mordred-specific central field.
+15. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
+    E1 transformations as registered ordered layers with explicit dependencies and fallback.
+16. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
+    forced policy as a registered strategic layer, remove superseded role-specific write paths
+    after equality is proved, and retain read compatibility for old artifacts.
+17. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
+    over proposal and vote decisions through the ordered layer contract while preserving D2 and
+    forced-policy dominance.
+18. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
+    remains distinct from generic goodness.
+19. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+    role-specific, and full configurations on a frozen API-free role bank, including virtual
+    Assassin guesses derived only from seat-filtered views.
 
 Every slice remains opt-in, records its component versions, preserves raw and compatibility
 baselines, and lands only after independent review plus focused and complete API-free validation.
@@ -1708,6 +1726,47 @@ cases passed. Independent re-review found no remaining correctness issue. Parent
 all 824 API-free repository tests; that complete run also executed the free D3 architecture bank
 and its hostile trace and artifact mutations.
 
+### Phase 7R generic component checkpoint
+
+This checkpoint prevents each new role from extending central scorer, context, trace, stdio,
+artifact, and report shapes independently. It is behavior-preserving migration work, not a change
+to beliefs, objective formulas, defaults, prompts, planner authority, voice, or engine legality.
+
+**7R2A extracts mechanical admission first.** The exact reconstruction and cross-field equations
+currently enforced by stdio, architecture generation, stored reports, and artifact validation move
+behind a shared host-admission owner. Call sites invoke that owner but keep their current schemas
+and outcomes. Detached or externally supplied weighted payloads whose complete world source is not
+present remain structurally usable where already supported, but are explicitly unverifiable and
+ineligible for promotion admission. Extraction is complete only when old and new admission results
+are identical over valid fixtures and every hostile mutation.
+
+**7R2B introduces the generic kernel.** A typed resolved brain owns the requested component set,
+versions, dependencies, and order. Runtime injection owns only operational dependencies such as
+seed, planner, voice, clients, and sinks. Traces record configured and successfully resolved
+component entries; private outputs use tagged payloads whose validators and reconstructors come
+from the component registry. Compatibility adapters project the existing C2, D2, E1, and D3 data
+into this representation. During the compatibility window, new traces and manifests carry both
+generic and legacy projections, validation requires exact equality between them, and readers
+continue to accept historical artifacts that have only the old schema.
+
+The 7R2B exit gate requires frozen prompt bytes, decisions, event logs, deterministic replay,
+degradation, component versions, and architecture-bank results. Exact and constraints-only host
+reconstruction must still pass. A weighted result without complete reconstructable provenance must
+still receive the same explicit unverifiable and nonpromotable outcome. A structural test must add
+a native fixture component and prove that it needs no component-named field in the composed host,
+common score or scorer context, trace envelope, stdio protocol, artifact manifest, or evaluator.
+E2A adds Mordred through this seam and must pass the same test with **zero Mordred-specific central
+fields**.
+
+**7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
+score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
+valid forced-policy survivor surface, declares its dependencies and fallback, and cannot revive a
+removed candidate. In 7R3B, D3 becomes a strategic decision layer that is reachable only after
+universal forced rules leave discretion. Generic-versus-legacy equality is required across all
+landed role paths before legacy write-side wrappers and optional fields are removed. Historical
+artifact read compatibility remains after that cleanup. E2B and Assassin policy do not begin
+until these ordered layers are the sole write path.
+
 ### Mordred
 
 - [ ] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
@@ -1720,7 +1779,9 @@ and its hostile trace and artifact mutations.
 
 Phase 7E2 is split into E2A substrate and E2B policy so the exact joint-world/public-observer
 formula, legal-information boundary, and weighted provenance can be audited before mechanical
-authority is added. E2A is the next implementation target.
+authority is added. E2A starts only after 7R2B proves the generic component boundary and becomes its
+first native role component. E2B starts only after 7R3 makes ordered score and decision layers the
+sole write path.
 
 ### Assassin
 
@@ -2011,13 +2072,18 @@ here.
   stdio/report joins, exact reconstruction rejection of forged E1B degradation, and weighted
   runtime passed alongside 181 focused tests and all 821 API-free repository tests. Weighted
   traces remain ineligible for external promotion admission until complete-world provenance is
-  certifiable. Phase 7E2A is next.
+  certifiable. Phase 7R now establishes the generic component boundary before E2A.
 - Phase 7R1 forced-policy authority: reordered universal quest-card rules ahead of the optional D3
   strategic directive across runtime and admission, and pinned adversarial no-sink, match-point,
   exact-quota conflict, and Oberon behavior. Focused validation passed 47 API-free forced-policy,
   D3, composed, trace, and stdio cases. Independent re-review approved the corrected integration;
   all 824 API-free tests then passed, including the free D3 architecture bank and hostile stored
   mutations.
+- Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
+  centralizes host reconstruction and admission; 7R2B introduces the resolved brain, generic
+  configured and resolved entries, private tagged payloads, and legacy adapters; E2A is the first
+  native component; 7R3 then replaces nested role scorers and D3 call-site ordering with registered
+  policy layers before E2B and Assassin specialization.
 - Validation cadence checkpoint: moved adversarial parent and fresh-agent review ahead of expensive
   banks and the complete suite. Normal iteration now uses dedicated low-cost fixtures, then only
   the high-player-count boundary cases required by the contract. The applicable free bank and full

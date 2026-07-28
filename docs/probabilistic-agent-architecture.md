@@ -376,6 +376,42 @@ The policy commits this plan before the voice layer runs. `CommunicationIntent` 
 claim to advance, facts safe to cite, facts to conceal, desired lean, target players, and tone. The
 LLM turns that intent into natural table talk.
 
+### 5.7 Decision components and resolved brains
+
+Role observers, private objectives, score projections, and strategic decision rules are versioned
+**decision components**, not optional fields added to central scorer or trace types one role at a
+time. A component declares:
+
+- the decision kinds and roles to which it applies;
+- its required upstream components and typed inputs;
+- the private tagged payload or policy transformation it produces;
+- its version, deterministic seed domain, degradation behavior, and admission rules.
+
+The exact interface names are deliberately not fixed here. The durable contract is that a new role
+can be implemented by registering a component and its policy layer without adding a role-named
+field to the composed-agent host, common candidate score, common scorer context, trace envelope,
+stdio transport, artifact manifest, or evaluator.
+
+Configuration and execution have different representations. Configuration names requested
+components and modes. A typed resolved brain freezes the applicable components, versions,
+dependencies, policy order, and compatibility projections for one agent construction. Runtime
+options supply operational dependencies such as the game seed, planner and voice implementations,
+trace sinks, and clocks or clients where permitted; they do not become a second source of component
+configuration. A resolved brain is immutable for a decision and is recorded before execution.
+
+Traces preserve both requested and actual execution. Configured component entries show intent;
+resolved entries appear only for components whose output was successfully admitted and used.
+Component payloads are tagged by component identity, version, kind, and privacy rather than stored
+in unrelated role-specific fields. Private cognition remains private even when the component
+metadata is included in an artifact manifest.
+
+Admission belongs to the component boundary. Runtime, stdio, architecture-bank generation, stored
+report replay, and artifact validation invoke the same registered reconstruction and validation
+rules instead of independently mirroring each component's equations. Admission distinguishes an
+exact host-reconstructable result from a structurally valid result whose weighted-world source
+cannot be verified from the trace. The latter may remain useful for live execution and diagnostics,
+but it is not promotion evidence.
+
 ---
 
 ## 6. Belief model
@@ -487,12 +523,26 @@ role wants to do about it.
 ### 7.1 Policy order
 
 1. Generate legal candidates.
-2. Apply forced-play rules that dominate strategic discretion.
-3. Compute role-specific candidate features and expected values.
-4. Remove clearly dominated candidates.
-5. Choose among the remaining candidates using the configured policy.
-6. Commit a `DecisionPlan`.
-7. Generate any public explanation from that plan.
+2. Apply universal forced-play rules that dominate strategic discretion.
+3. Compute the shared base candidate features and expected values.
+4. Apply configured score-policy layers in explicit order.
+5. Remove clearly dominated candidates.
+6. Apply any remaining strategic decision layers that are valid for the unresolved choice.
+7. Choose among the remaining candidates using the configured policy.
+8. Commit a `DecisionPlan`.
+9. Generate any public explanation from that plan.
+
+Score and decision layers transform a typed prior surface. Each layer declares its inputs,
+applicability, version, and fallback. It may narrow or rank the candidates that survived universal
+forced policy, but it cannot revive a removed candidate, mutate the committed engine action, or
+silently bypass a stronger shared objective. If a layer is missing, inapplicable, malformed, or
+degraded, execution continues from the last valid surface and records that resolution.
+
+Universal rules and strategic rules remain distinct even when both choose an action directly.
+Good always playing Success, evil being unable to sink a quest, and decisive match-point play are
+universal forced policy. A role or coordination strategy such as an optional nondecisive evil
+quest-card convention runs only after those universal rules leave discretion. Ordered layers make
+that precedence executable and independently testable rather than dependent on call-site order.
 
 ### 7.2 Policy modes
 
@@ -609,6 +659,19 @@ view. The bare-decision branch is a migration aid, not the final plugin contract
 
 Legacy agents can be adapted with `{ decision }`. External stdio agents should gain the trace field
 only as an optional protocol extension.
+
+The composed-agent host resolves one typed brain before a decision. That resolved brain owns
+component selection, versions, dependency order, score and decision layers, and configured versus
+resolved attribution. Operational injection remains separate: a planner, voice adapter, fake
+client, seed source, or trace sink can be replaced for testing without changing which brain was
+configured.
+
+Transport and evaluation are consumers of component metadata, not parallel policy
+implementations. Stdio may carry registered tagged payloads, and artifacts may retain compatibility
+projections while older readers are supported, but reconstruction, equation checks, privacy
+classification, and promotion eligibility come from the shared component admission owner. New
+manifests and reports are derived from resolved component entries rather than extended with another
+role-specific array for each feature.
 
 ---
 
