@@ -2,11 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2A and 7R2B generic component boundary. Phase 7R1 restored
-universal forced-policy authority ahead of optional D3 strategy. Before Mordred is integrated, the
-host-admission machinery and composed brain will move to a registered generic component contract
-with compatibility projections for the landed C2, D2, E1, and D3 paths. Mordred E2A then becomes
-the first native component rather than another role-specific central field. Mordred policy,
+**Current target phase:** Phase 7R2B generic component kernel. Phase 7R1 restored universal
+forced-policy authority ahead of optional D3 strategy, and Phase 7R2A moved detached validation,
+host reconstruction, and promotion admission behind an agent-owned boundary. Before Mordred is
+integrated, the composed brain will move to a registered generic component contract with
+compatibility projections for the landed C2, D2, E1, and D3 paths. Mordred E2A then becomes the
+first native component rather than another role-specific central field. Mordred policy,
 Assassin specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population sign
 flip remains recorded, and win-rate tuning is still intentionally deferred until the architecture
 is complete enough to evaluate as a whole.
@@ -1268,7 +1269,7 @@ reviewable and ablatable:
     strategic policy across runtime and admission. **Complete.**
 12. **Phase 7R2A, mechanical host-admission extraction:** move the existing component
     reconstruction and exact admission equations out of stdio and evaluation call sites into one
-    shared owner without changing behavior, schemas, or promotion eligibility.
+    shared owner without changing behavior, schemas, or promotion eligibility. **Complete.**
 13. **Phase 7R2B, generic component kernel:** resolve a typed composed brain, introduce configured
     and resolved component entries with private tagged payloads, and register compatibility
     adapters for C2, D2, E1, and D3. New traces dual-write the generic representation and the
@@ -1740,6 +1741,15 @@ present remain structurally usable where already supported, but are explicitly u
 ineligible for promotion admission. Extraction is complete only when old and new admission results
 are identical over valid fixtures and every hostile mutation.
 
+The implementation now lives under `server/agents/admission/`. Stdio consumes that owner and keeps
+only transitional re-exports for source compatibility; architecture generation and stored-report
+replay import the agent-owned module directly. The move preserves the existing trace and artifact
+schemas, versions, exact reconstruction equations, weighted-unverifiable treatment, and D3
+configured-but-unresolved suppression join. Dependency tests prevent evaluation from importing
+stdio for admission. The focused API-free gate passed 151 stdio, trace, architecture-report,
+C1/C2, D1/D2/D3, and E1A/E1B cases, including existing hostile mutation and free-bank fixtures.
+Parent review, the completed-chunk bank, and the full API-free suite remain the landing gate.
+
 **7R2B introduces the generic kernel.** At construction time, a typed resolved brain owns the
 requested and eligible component graph, versions, dependencies, and layer order. Runtime injection
 owns only operational dependencies such as seed, planner, voice, clients, and sinks. Each request
@@ -2082,6 +2092,12 @@ here.
   D3, composed, trace, and stdio cases. Independent re-review approved the corrected integration;
   all 824 API-free tests then passed, including the free D3 architecture bank and hostile stored
   mutations.
+- Phase 7R2A shared admission owner: mechanically moved composed-trace detached validation, host
+  reconstruction, exact cross-field joins, and promotion admission from stdio into the agent
+  boundary. Stdio now consumes that owner and retains transitional join re-exports, while all
+  evaluation sources are structurally barred from importing stdio for admission. Existing valid,
+  degraded, weighted-unverifiable, D3-suppressed, and hostile-mutation outcomes passed 151 focused
+  API-free cases without changing trace or artifact schemas, versions, decisions, or defaults.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission; 7R2B introduces the resolved brain, generic
   configured requests, admitted per-decision entries, separate causal-policy attribution, private

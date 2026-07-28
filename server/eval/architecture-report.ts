@@ -83,7 +83,7 @@ import {
 import {
   validateComposedTraceHostJoin,
   validateSuppressedEvilQuestCardPolicyHostJoin,
-} from '../agents/stdio.ts'
+} from '../agents/admission/composed-trace.ts'
 import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
