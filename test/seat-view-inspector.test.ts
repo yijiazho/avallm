@@ -6,6 +6,7 @@ import {
   inspectSeatView,
   renderSeatViewInspection,
   SEAT_VIEW_INSPECTION_SCHEMA,
+  SEAT_VIEW_INSPECTOR_USAGE,
 } from '../server/eval/seat-view-inspector.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type {
@@ -45,6 +46,7 @@ test('inspects a frozen decision fixture deterministically from the agent bounda
   assert.ok(first.publicBoard.players.every((player) =>
     Object.keys(player).sort().join(',') === 'name,seat'))
   assert.match(renderSeatViewInspection(first), /^Seat view inspection v1\n/)
+  assert.match(SEAT_VIEW_INSPECTOR_USAGE, /--fixture <id>/)
 })
 
 test('different seats expose different private knowledge over the same public board', () => {
@@ -81,22 +83,46 @@ test('different seats expose different private knowledge over the same public bo
   )
   assert.ok(servantInspection.visibleHistory.events.every((event) =>
     event.scope === 'public'
-      || event.payload.seat === servant.seat))
+      || event.scope === 'private-to-viewer'))
 })
 
-test('explicit output allow-list does not copy hidden fields attached to public players', () => {
-  const fixture = readDecisionFixtures()[0]
+test('explicit nested output allow-lists do not copy hostile extra fields', () => {
+  const fixture = readDecisionFixtures().find(({ id }) => id === 'servant-vote-after-evidence')
+  assert.ok(fixture)
   const poisoned = structuredClone(fixture.view) as PlayerView
-  Object.assign(poisoned.players[0], { secretNote: 'not-for-inspector' })
+  const forbidden = 'not-for-inspector'
+  Object.assign(poisoned, { trueDeal: forbidden })
+  Object.assign(poisoned.privateInfo, { exactRoleMap: forbidden })
+  Object.assign(poisoned.players[0], { secretNote: forbidden })
+  Object.assign(poisoned.quests[0], { trueQuestCards: forbidden })
+  Object.assign(poisoned.proposals[0], { trueDeal: forbidden })
+  Object.assign(poisoned.proposals[0].votes![0], { voterRole: forbidden })
+  Object.assign(poisoned.transcript[0], { privateScratchpad: forbidden })
+  Object.assign(poisoned.transcript[0].prop!, { hiddenLeaderRole: forbidden })
+  Object.assign(poisoned.events[0].payload, { trueDeal: forbidden })
 
   const inspection = inspectSeatView(fixture.req, poisoned)
   const rendered = JSON.stringify(inspection)
 
-  assert.ok(!rendered.includes('secretNote'))
-  assert.ok(!rendered.includes('not-for-inspector'))
+  for (const key of [
+    'secretNote',
+    'exactRoleMap',
+    'trueQuestCards',
+    'trueDeal',
+    'voterRole',
+    'privateScratchpad',
+    'hiddenLeaderRole',
+  ]) {
+    assert.ok(!rendered.includes(key), key)
+  }
+  assert.ok(!rendered.includes(forbidden))
   assert.deepEqual(
     Object.keys(inspection.publicBoard.players[0]).sort(),
     ['name', 'seat'],
+  )
+  assert.deepEqual(
+    Object.keys(inspection.visibleHistory.events[0]).sort(),
+    ['scope', 'seq', 'type'],
   )
 })
 
@@ -135,4 +161,32 @@ test('rejects a mismatched decision cursor and an event invisible to the viewer'
     () => inspectSeatView(fixture.req, invisibleEvent),
     /event seq=999 type=scratchpad is not visible/,
   )
+})
+
+test('malformed snapshot structures fail through the controlled boundary error', () => {
+  const fixture = readDecisionFixtures()[0]
+  const cases: [string, (view: PlayerView) => void][] = [
+    ['privateInfo', (view) => { (view as any).privateInfo = null }],
+    ['quests', (view) => { (view as any).quests = 'not-an-array' }],
+    ['proposals[0]', (view) => { (view as any).proposals = [null] }],
+    ['transcript[0]', (view) => { (view as any).transcript = [null] }],
+    ['events[0].payload', (view) => {
+      (view as any).events = [{
+        seq: 0,
+        type: 'gameCreated',
+        visibility: 'public',
+        payload: null,
+      }]
+    }],
+  ]
+
+  for (const [label, mutate] of cases) {
+    const malformed = structuredClone(fixture.view) as PlayerView
+    mutate(malformed)
+    assert.throws(
+      () => inspectSeatView(fixture.req, malformed),
+      new RegExp(`^Error: seat-view inspection rejected: .*${label.replaceAll('[', '\\[').replaceAll(']', '\\]')}`),
+      label,
+    )
+  }
 })

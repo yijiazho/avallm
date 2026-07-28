@@ -206,6 +206,12 @@ while the primary lane runs, then integrate them one at a time.
 | NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `landed` |
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `review` |
 
+NB-006 is directly discoverable with
+`node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
+fixtures by ID or one standalone request/view snapshot and emits deterministic text or JSON.
+Review evidence includes hostile extra fields on players, quests, proposals, votes, transcript
+entries, proposal tags, and event payloads; none can cross the explicit diagnostic schemas.
+
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
 follow-up updates both this register and its phase-local checkbox in the same commit.
