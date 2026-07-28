@@ -38,6 +38,18 @@ import {
   validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
 import {
+  buildEvilRoleObjectiveSnapshot,
+  validatePrivateEvilRoleObjectiveHostJoin,
+} from '../agents/analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+  ROLE_OBJECTIVE_ROUTER_VERSION,
+} from '../agents/analysis/evil-objective-types.ts'
+import {
+  routedRoleObjectiveModel,
+} from '../agents/analysis/role-objective-router.ts'
+import {
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   buildRoleUtilityProjection,
@@ -283,7 +295,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|roleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|roleObjective|privateRoleUtility|roleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|roleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -296,11 +308,21 @@ function architectureSafety(
     meta.components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   const declaresJointIdentity =
     meta.components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+  const declaresRoleObjectiveRouter =
+    meta.components.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
+  const routedObjective = declaresRoleObjectiveRouter
+    ? routedRoleObjectiveModel(meta.targetRole)
+    : 'off'
   const declaresRoleObjective =
     meta.components.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
   const roleObjectiveApplicable =
-    declaresRoleObjective
-    && (meta.targetRole === 'merlin' || meta.targetRole === 'percival')
+    routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
+    || (
+      declaresRoleObjective
+      && (meta.targetRole === 'merlin' || meta.targetRole === 'percival')
+    )
+  const evilRoleObjectiveApplicable =
+    routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
   const declaresRoleUtility =
     meta.components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
   const roleUtilityApplicable = declaresRoleUtility && roleObjectiveApplicable
@@ -326,6 +348,18 @@ function architectureSafety(
       meta.components.roleObjective !== undefined
       && !declaresRoleObjective
     )
+    || (
+      meta.components.roleObjectiveRouter !== undefined
+      && !declaresRoleObjectiveRouter
+    )
+    || (
+      declaresRoleObjectiveRouter
+      && (
+        meta.components.roleObjective !== undefined
+        || !declaresPublicObserver
+        || !declaresJointIdentity
+      )
+    )
   const invalidRoleUtilityDeclaration =
     (
       meta.components.roleUtility !== undefined
@@ -334,7 +368,7 @@ function architectureSafety(
     || (
       declaresRoleUtility
       && (
-        !declaresRoleObjective
+        (!declaresRoleObjective && !declaresRoleObjectiveRouter)
         || ![
           ROLE_OBJECTIVE_SCORER_VERSION,
           ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -357,6 +391,7 @@ function architectureSafety(
     || declaresJointIdentity
     || declaresPlanMemory
     || declaresRoleObjective
+    || declaresRoleObjectiveRouter
     || declaresRoleUtility
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
@@ -404,12 +439,23 @@ function architectureSafety(
         || (artifactCoherences?.length ?? 0) > 0
       )
   const artifactRoleObjectives = artifact.strategyVersions?.roleObjectives
-  const invalidRoleObjectiveManifest = declaresRoleObjective
+  const expectedObjectiveManifest = routedObjective === 'off'
+    ? declaresRoleObjective ? [ROLE_OBJECTIVE_MODEL_VERSION] : []
+    : [routedObjective]
+  const invalidRoleObjectiveManifest = expectedObjectiveManifest.length
     ? (
-        artifactRoleObjectives?.length !== 1
-        || artifactRoleObjectives[0] !== ROLE_OBJECTIVE_MODEL_VERSION
+      artifactRoleObjectives?.length !== 1
+        || artifactRoleObjectives[0] !== expectedObjectiveManifest[0]
       )
     : (artifactRoleObjectives?.length ?? 0) > 0
+  const artifactRoleObjectiveRouters =
+    artifact.strategyVersions?.roleObjectiveRouters
+  const invalidRoleObjectiveRouterManifest = declaresRoleObjectiveRouter
+    ? (
+        artifactRoleObjectiveRouters?.length !== 1
+        || artifactRoleObjectiveRouters[0] !== ROLE_OBJECTIVE_ROUTER_VERSION
+      )
+    : (artifactRoleObjectiveRouters?.length ?? 0) > 0
   const artifactRoleUtilities = artifact.strategyVersions?.roleUtilities
   const invalidRoleUtilityManifest = declaresRoleUtility
     ? (
@@ -426,6 +472,10 @@ function architectureSafety(
     traceAttributionViolations++
   }
   if (invalidRoleObjectiveManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidRoleObjectiveRouterManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -450,7 +500,12 @@ function architectureSafety(
         : ['observerModel']),
       ...(declaresJointIdentity ? ['identityModel'] : []),
       ...(declaresPlanMemory ? ['planMemory', 'coherence'] : []),
-      ...(roleObjectiveApplicable ? ['roleObjective'] : []),
+      ...(
+        roleObjectiveApplicable && !declaresRoleObjectiveRouter
+          ? ['roleObjective']
+          : []
+      ),
+      ...(declaresRoleObjectiveRouter ? ['roleObjectiveRouter'] : []),
       'policy',
       'planner',
       'voice',
@@ -504,6 +559,13 @@ function architectureSafety(
         })
       )
       || versions.belief !== trace.beliefModelVersion
+      || versions.roleObjective !== (
+        roleObjectiveApplicable
+          ? ROLE_OBJECTIVE_MODEL_VERSION
+          : evilRoleObjectiveApplicable
+            ? EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+            : undefined
+      )
       || invalidDeclaration
       || invalidIdentityDeclaration
       || invalidPlanDeclaration
@@ -719,8 +781,63 @@ function architectureSafety(
             )
           : (
               trace.privateRoleObjective !== undefined
-              || versions.roleObjective !== undefined
               || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+            )
+      )
+      || (
+        evilRoleObjectiveApplicable
+          ? (() => {
+              const snapshot = targetSnapshots.get(trace.decisionId)
+              if (trace.privateEvilRoleObjective === undefined) {
+                if (
+                  !trace.degradation.includes(
+                    EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                  )
+                  || !snapshot
+                  || !trace.publicObserver
+                ) return true
+                if (!trace.privateIdentity) {
+                  return !trace.degradation.includes(
+                    'identity-projection-failed',
+                  )
+                }
+                try {
+                  buildEvilRoleObjectiveSnapshot({
+                    req: snapshot.req,
+                    view: snapshot.view,
+                    identity: trace.privateIdentity,
+                    observer: trace.publicObserver,
+                    candidates: legalCandidates(snapshot.req, snapshot.view),
+                  })
+                  return true
+                } catch {
+                  return false
+                }
+              }
+              return (
+                !snapshot
+                || !trace.publicObserver
+                || !trace.privateIdentity
+                || trace.degradation.includes(
+                  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                )
+                || !validatePrivateEvilRoleObjectiveHostJoin(
+                  trace.privateEvilRoleObjective,
+                  {
+                    req: snapshot.req,
+                    view: snapshot.view,
+                    identity: trace.privateIdentity,
+                    observer: trace.publicObserver,
+                    candidates: legalCandidates(snapshot.req, snapshot.view),
+                  },
+                )
+              )
+            })()
+          : (
+              trace.privateEvilRoleObjective !== undefined
+              || trace.degradation.includes(
+                EVIL_ROLE_OBJECTIVE_DEGRADATION,
+              )
             )
       )
       || stableKeys.some(

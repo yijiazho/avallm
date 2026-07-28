@@ -71,6 +71,18 @@ import {
   validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
 import {
+  buildEvilRoleObjectiveSnapshot,
+  validatePrivateEvilRoleObjectiveHostJoin,
+} from '../agents/analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+  ROLE_OBJECTIVE_ROUTER_VERSION,
+} from '../agents/analysis/evil-objective-types.ts'
+import {
+  routedRoleObjectiveModel,
+} from '../agents/analysis/role-objective-router.ts'
+import {
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   buildRoleUtilityProjection,
@@ -325,6 +337,18 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       )
     }
     if (
+      variant.components.roleObjectiveRouter !== undefined
+      && (
+        variant.components.roleObjectiveRouter
+          !== ROLE_OBJECTIVE_ROUTER_VERSION
+        || variant.components.roleObjective !== undefined
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid roleObjectiveRouter`,
+      )
+    }
+    if (
       variant.components.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
       && (
         variant.components.identityModel !== JOINT_IDENTITY_MODEL_VERSION
@@ -333,6 +357,17 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     ) {
       throw new Error(
         `custom architecture variant ${variant.id} roleObjective requires exact observer and identity models`,
+      )
+    }
+    if (
+      variant.components.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
+      && (
+        variant.components.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+        || variant.components.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} role objective router requires exact observer and identity models`,
       )
     }
     if (
@@ -346,7 +381,11 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     if (
       variant.components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
       && (
-        variant.components.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+        (
+          variant.components.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+          && variant.components.roleObjectiveRouter
+            !== ROLE_OBJECTIVE_ROUTER_VERSION
+        )
         || ![
           ROLE_OBJECTIVE_SCORER_VERSION,
           ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -558,12 +597,22 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const jointIdentity =
           expectedComponents.identityModel === JOINT_IDENTITY_MODEL_VERSION
         if (jointIdentity) tracedComponents.push('identityModel')
-        const roleObjectiveConfigured =
-          expectedComponents.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+        const roleObjectiveRouter =
+          expectedComponents.roleObjectiveRouter
+          === ROLE_OBJECTIVE_ROUTER_VERSION
+        if (roleObjectiveRouter) {
+          tracedComponents.push('roleObjectiveRouter')
+        }
+        const actualRoleObjective = roleObjectiveRouter
+          ? routedRoleObjectiveModel(c.targetRole)
+          : expectedComponents.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+            && (c.targetRole === 'merlin' || c.targetRole === 'percival')
+            ? ROLE_OBJECTIVE_MODEL_VERSION
+            : 'off'
         const roleObjectiveApplicable =
-          roleObjectiveConfigured
-          && (c.targetRole === 'merlin' || c.targetRole === 'percival')
-        if (roleObjectiveApplicable) tracedComponents.push('roleObjective')
+          actualRoleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+        const evilRoleObjectiveApplicable =
+          actualRoleObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
         const roleUtilityConfigured =
           expectedComponents.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
         const planMemory =
@@ -615,6 +664,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               })
             )
             || traceVersions.belief !== trace.beliefModelVersion
+            || traceVersions.roleObjective !== (
+              actualRoleObjective === 'off'
+                ? undefined
+                : actualRoleObjective
+            )
             || (
               !boundedLanguage
               && (
@@ -849,8 +903,67 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
                 : (
                     trace.privateRoleObjective !== undefined
-                    || traceVersions.roleObjective !== undefined
                     || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+                  )
+            )
+            || (
+              evilRoleObjectiveApplicable
+                ? (
+                    trace.privateEvilRoleObjective === undefined
+                      ? (
+                          !trace.degradation.includes(
+                            EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                          )
+                          || (
+                            snapshot
+                            && trace.publicObserver
+                            && trace.privateIdentity
+                            && (() => {
+                              try {
+                                buildEvilRoleObjectiveSnapshot({
+                                  req: snapshot.req,
+                                  view: snapshot.view,
+                                  identity: trace.privateIdentity!,
+                                  observer: trace.publicObserver,
+                                  candidates: legalCandidates(
+                                    snapshot.req,
+                                    snapshot.view,
+                                  ),
+                                })
+                                return true
+                              } catch {
+                                return false
+                              }
+                            })()
+                          )
+                        )
+                      : (
+                          !snapshot
+                          || !trace.publicObserver
+                          || !trace.privateIdentity
+                          || trace.degradation.includes(
+                            EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                          )
+                          || !validatePrivateEvilRoleObjectiveHostJoin(
+                            trace.privateEvilRoleObjective,
+                            {
+                              req: snapshot.req,
+                              view: snapshot.view,
+                              identity: trace.privateIdentity,
+                              observer: trace.publicObserver,
+                              candidates: legalCandidates(
+                                snapshot.req,
+                                snapshot.view,
+                              ),
+                            },
+                          )
+                        )
+                  )
+                : (
+                    trace.privateEvilRoleObjective !== undefined
+                    || trace.degradation.includes(
+                      EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                    )
                   )
             )
             || tracedComponents.some(

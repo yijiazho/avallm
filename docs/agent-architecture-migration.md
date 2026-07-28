@@ -2,13 +2,13 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7D1 visible-evil and Oberon objective substrate plus the
-role-objective router. Phase 7C2 landed bounded, opt-in Merlin and Percival proposal and vote
-authority over the exact Phase 7C1 substrate, with host-replayed scoring, fallback attribution,
-and role-neutral voice projection. Phase 7D is split into three independently reviewable landings:
-objective substrate and routing, proposal/vote policy, then quest-card coordination and forced
-policy ablations. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
-intentionally deferred until the architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7D2 opt-in evil and Oberon proposal and vote policy. Phase 7D1
+landed the mechanically inert `role-objective-router-v1` and exact visible-evil/Oberon objective
+substrate over the resolved joint identity posterior. Phase 7D remains split into independently
+reviewable landings: completed objective substrate and routing, proposal/vote policy, then
+quest-card coordination and forced-policy ablations. The Phase 5C population sign flip remains
+recorded, and win-rate tuning is still intentionally deferred until the architecture is complete
+enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -193,7 +193,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7B2 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
+| 7. Role-specific observer and identity models | In progress; Phase 7D1 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1211,7 +1211,7 @@ reviewable and ablatable:
    good-side scorer. **Complete.**
 6. **Phase 7D1, evil/Oberon substrate and routing:** add a role-objective router, exact private
    visible-team or unseen-team projections, public standing, and explicitly non-probabilistic
-   cover and burn proxies without changing policy.
+   cover and burn proxies without changing policy. **Complete.**
 7. **Phase 7D2, evil/Oberon proposal and vote policy:** add bounded opt-in failure-capacity,
    cover, and future-opportunity utility while keeping Oberon separate from visible-partner
    coordination.
@@ -1417,16 +1417,52 @@ establishes architecture and safety correctness, not playing-strength promotion.
 
 ### Evil and Oberon
 
-- [ ] Add `role-objective-router-v1` so each actual role resolves to one attributable objective
+- [x] Add `role-objective-router-v1` so each actual role resolves to one attributable objective
       model while preserving historical Merlin/Percival artifacts and preparing Assassin routing.
-- [ ] Add exact public standing and explicit public burn and cover proxies with observation
+- [x] Add exact public standing and explicit public burn and cover proxies with observation
       numerators and denominators; missing observations are not evidence of innocence.
-- [ ] Add visible-evil objectives using only `{self, ...privateInfo.evilPartners}`. Never infer a
+- [x] Add visible-evil objectives using only `{self, ...privateInfo.evilPartners}`. Never infer a
       partner seat or special-role identity, and never include Oberon in coordination.
-- [ ] Add an Oberon joint posterior over unseen evil-seat sets by summing complete worlds. Keep
+- [x] Add an Oberon joint posterior over unseen evil-seat sets by summing complete worlds. Keep
       unseen-evil-on-team probability distinct from coordination or Fail probability.
-- [ ] Represent Assassin shot preservation, Morgana counterfeit cover, Mordred deep cover, Minion
+- [x] Represent Assassin shot preservation, Morgana counterfeit cover, Mordred deep cover, Minion
       failure banking, and Oberon uncoordinated disruption as explicit attributable postures.
+
+### Phase 7D1 implementation record
+
+`role-objective-router-v1` now resolves Merlin and Percival to their existing C1 model, Assassin,
+Morgana, Mordred, Minion, and Oberon to `evil-oberon-objectives-v1`, and Servant to off. The
+configured router and concrete resolved objective remain separately attributable. The legacy C1
+lane is unchanged, and a router configured with the C2 scorer applies C2 only to Merlin and
+Percival; evil and Servant decisions resolve to the matching seeded Phase 4 base scorer.
+
+The evil substrate consumes the resolved `PrivateIdentitySnapshot.hiddenTeam` posterior, including
+weighted pipelines. Visible evil coordinate only over the sorted set formed from self and
+`privateInfo.evilPartners`; no partner role identity is inferred and unseen Oberon never enters
+coordination. Oberon instead receives an exact posterior over unseen evil-seat sets and a separate
+unseen-evil-on-team probability. Candidate failure capability sums complete-world evil-count mass
+at or above the current quest threshold, including the two-Fail quest. Exact public standing uses
+explicit world and observation numerators and denominators. Burn, cover, and standing are labeled
+deterministic proxies, with null rather than innocence when no public observation exists. All five
+evil-role postures are explicit data and have no policy authority in this slice.
+
+The objective remains opt-in, private, bounded to 256 assessments and one MiB, absent from prompts
+and public cognition, and mechanically inert. Exact API-free admission reconstructs the
+authoritative belief, mandatory hidden-team identity, public observer, and objective across stdio,
+generation-time architecture capture, and stored reports. The unreconstructable weighted external
+lane admits only either a complete hidden-team identity/objective chain with no dependency
+degradation or simultaneous absence of both payloads with both typed degradation labels. Public
+observer data is always host-reconstructed. This rejects scope substitution, coherent false
+posterior chains, partial payloads, observer mutation, and degradation-label mismatches while
+keeping genuine weighted failures measurable.
+
+Independent review passed 48 focused tests and the complete 769-test API-free suite. The free
+10-case bank admitted all 103 traces with zero calls, cost, degradation, forced-policy,
+hidden-information, or attribution findings. Router-on and router-off all-seat replays produced
+identical event logs for every bank case. The 10-player quest-four surface retained all 252 legal
+team candidates within the payload bound. Phase 7D2, not this substrate, owns the first evil and
+Oberon proposal or vote authority.
+
 - [ ] Give proposal and vote candidates bounded failure-capacity-first utility. Failure capacity
       owns at least 70 percent of normalized value; cover and future opportunity together own at
       most 30 percent.
@@ -1674,6 +1710,13 @@ here.
   score, seed, action, deletion, degradation, and speech-leak forgeries. The component remains
   opt-in, API-free, and absent from production defaults; Phase 7D is split into substrate/routing,
   proposal/vote policy, and quest-card coordination landings.
+- Phase 7D1 evil and Oberon substrate: added the explicit role-objective router, exact visible-evil
+  and Oberon hidden-team projections, threshold-correct candidate failure capability, exact public
+  standing counts, null-aware burn and cover proxies, and five role postures without changing
+  policy. Exact host replay and a strict two-state weighted boundary join identity, observer, and
+  objective attribution across stdio, architecture capture, and stored reporting. Independent
+  review passed 769 API-free tests and a 103-trace free bank; all router-on/off event logs matched.
+  Phase 7D2 owns proposal and vote authority.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

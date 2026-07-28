@@ -33,6 +33,13 @@ import {
 import {
   validatePrivateRoleObjectiveSnapshot,
 } from '../analysis/role-objectives.ts'
+import {
+  validatePrivateEvilRoleObjectiveSnapshot,
+} from '../analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+  ROLE_OBJECTIVE_ROUTER_VERSION,
+} from '../analysis/evil-objective-types.ts'
 
 function validateEarlier(
   earlier: CognitionState,
@@ -70,15 +77,36 @@ function validateEarlier(
   ) {
     throw new Error('cannot advance malformed private plan memory')
   }
-  const hasRoleObjective = earlier.roleObjective !== undefined
+  const hasRoleObjective =
+    earlier.roleObjective !== undefined
+    || earlier.evilRoleObjective !== undefined
   if (
-    hasRoleObjective !== (earlier.versions.roleObjective !== undefined)
+    (
+      earlier.roleObjective !== undefined
+      && earlier.evilRoleObjective !== undefined
+    )
+    || hasRoleObjective !== (earlier.versions.roleObjective !== undefined)
     || (
-      hasRoleObjective
+      earlier.roleObjective !== undefined
       && (
         earlier.versions.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
         || !validatePrivateRoleObjectiveSnapshot(earlier.roleObjective)
       )
+    )
+    || (
+      earlier.evilRoleObjective !== undefined
+      && (
+        earlier.versions.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+        || earlier.versions.roleObjectiveRouter
+          !== ROLE_OBJECTIVE_ROUTER_VERSION
+        || !validatePrivateEvilRoleObjectiveSnapshot(
+          earlier.evilRoleObjective,
+        )
+      )
+    )
+    || (
+      earlier.versions.roleObjectiveRouter !== undefined
+      && earlier.versions.roleObjectiveRouter !== ROLE_OBJECTIVE_ROUTER_VERSION
     )
   ) {
     throw new Error('cannot advance malformed private role objective')

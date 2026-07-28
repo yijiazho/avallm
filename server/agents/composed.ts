@@ -23,6 +23,19 @@ import {
   roleObjectiveIdentityScope,
 } from './analysis/role-objectives.ts'
 import {
+  buildEvilRoleObjectiveSnapshot,
+} from './analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+  ROLE_OBJECTIVE_ROUTER_VERSION,
+  type PrivateEvilRoleObjectiveSnapshot,
+  type RoutedRoleObjectiveModel,
+} from './analysis/evil-objective-types.ts'
+import {
+  routedRoleObjectiveModel,
+} from './analysis/role-objective-router.ts'
+import {
   buildRoleUtilityProjection,
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
@@ -202,6 +215,11 @@ export interface ComposedAgentOptions {
    * seats and remains mechanically inert until a later policy phase.
    */
   roleObjectives?: boolean
+  /**
+   * Explicit opt-in Phase 7D router. It resolves the actual seat role to one
+   * objective model but grants no scoring or quest-card policy authority.
+   */
+  roleObjectiveRouter?: boolean
   /** Opt-in Phase 7B2 private selected/applied plan memory. */
   planMemory?: boolean
   /** Literal conflict classification intent. Defaults to maintain when enabled. */
@@ -411,7 +429,9 @@ function composedTrace(
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
   privateRoleObjective?: PrivateRoleObjectiveSnapshot,
-  roleObjectiveEnabled = false,
+  privateEvilRoleObjective?: PrivateEvilRoleObjectiveSnapshot,
+  resolvedRoleObjective: RoutedRoleObjectiveModel = 'off',
+  roleObjectiveRouterEnabled = false,
   privateRoleUtility?: PrivateRoleUtilityProjection,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
@@ -451,8 +471,11 @@ function composedTrace(
       ...(identityEnabled
         ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
         : {}),
-      ...(roleObjectiveEnabled
-        ? { roleObjective: ROLE_OBJECTIVE_MODEL_VERSION }
+      ...(resolvedRoleObjective === 'off'
+        ? {}
+        : { roleObjective: resolvedRoleObjective }),
+      ...(roleObjectiveRouterEnabled
+        ? { roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION }
         : {}),
       ...(privateRoleUtility
         ? { roleUtility: ROLE_UTILITY_PROJECTION_VERSION }
@@ -501,6 +524,9 @@ function composedTrace(
       : {}),
     ...(privateRoleObjective
       ? { privateRoleObjective: structuredClone(privateRoleObjective) }
+      : {}),
+    ...(privateEvilRoleObjective
+      ? { privateEvilRoleObjective: structuredClone(privateEvilRoleObjective) }
       : {}),
     ...(privateRoleUtility
       ? { privateRoleUtility: structuredClone(privateRoleUtility) }
@@ -729,6 +755,15 @@ export function createComposedAgent(
         cognition = advanceCognition(cognition, view, beliefModel)
       }
       stage('cognition')
+      if (options.roleObjectiveRouter === true) {
+        cognition = {
+          ...cognition,
+          versions: {
+            ...cognition.versions,
+            roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
+          },
+        }
+      }
       if (planMemoryEnabled && appliedPlanMemory) {
         cognition = {
           ...cognition,
@@ -744,11 +779,19 @@ export function createComposedAgent(
         scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
         && (req.kind === 'propose' || req.kind === 'vote')
         && (view.role === 'merlin' || view.role === 'percival')
+      const routerConfigured = options.roleObjectiveRouter === true
+      const routedObjective = routerConfigured
+        ? routedRoleObjectiveModel(view.role)
+        : 'off'
       const roleObjectiveRole: RoleObjectiveRole | undefined =
         (options.roleObjectives === true || roleScorerApplicable)
         && (view.role === 'merlin' || view.role === 'percival')
           ? view.role
-          : undefined
+          : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
+            ? view.role as RoleObjectiveRole
+            : undefined
+      const evilRoleObjectiveApplicable =
+        routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
       let resolvedScorer: CandidateScorer =
         scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
         && !roleScorerApplicable
@@ -759,7 +802,12 @@ export function createComposedAgent(
             configuredIdentityScope,
             roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
           )
-        : configuredIdentityScope
+        : evilRoleObjectiveApplicable
+          ? mergeIdentityScopes(
+              configuredIdentityScope,
+              { roleQueries: [], hiddenTeam: true },
+            )
+          : configuredIdentityScope
       let privateIdentity: PrivateIdentitySnapshot | undefined
       if (decisionIdentityScope) {
         try {
@@ -780,7 +828,11 @@ export function createComposedAgent(
         }
         stage('identity')
       }
-      const publicObserver = (options.publicObserver || roleObjectiveRole)
+      const publicObserver = (
+        options.publicObserver
+        || roleObjectiveRole
+        || evilRoleObjectiveApplicable
+      )
         ? observePublicRecord(projectPublicRecord(view))
         : undefined
       if (publicObserver) stage('observer')
@@ -792,6 +844,8 @@ export function createComposedAgent(
       const candidates = legalCandidates(req, view)
       stage('candidates')
       let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
+      let privateEvilRoleObjective:
+        PrivateEvilRoleObjectiveSnapshot | undefined
       let privateRoleUtility: PrivateRoleUtilityProjection | undefined
       if (roleObjectiveRole) {
         try {
@@ -815,6 +869,32 @@ export function createComposedAgent(
           }
         } catch {
           degradation.push(ROLE_OBJECTIVE_DEGRADATION)
+        }
+        stage('role-objective')
+      }
+      if (evilRoleObjectiveApplicable) {
+        try {
+          if (!privateIdentity || !publicObserver) {
+            throw new Error('evil role objective dependencies unavailable')
+          }
+          privateEvilRoleObjective = buildEvilRoleObjectiveSnapshot({
+            req,
+            view,
+            identity: privateIdentity,
+            observer: publicObserver,
+            candidates,
+          })
+          cognition = {
+            ...cognition,
+            evilRoleObjective: privateEvilRoleObjective,
+            versions: {
+              ...cognition.versions,
+              roleObjective: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+              roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
+            },
+          }
+        } catch {
+          degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
         }
         stage('role-objective')
       }
@@ -1121,7 +1201,13 @@ export function createComposedAgent(
         privateIdentity,
         !!decisionIdentityScope,
         privateRoleObjective,
-        !!roleObjectiveRole,
+        privateEvilRoleObjective,
+        roleObjectiveRole
+          ? ROLE_OBJECTIVE_MODEL_VERSION
+          : evilRoleObjectiveApplicable
+            ? EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+            : 'off',
+        routerConfigured,
         privateRoleUtility,
         planMemoryEnabled,
         coherenceIntent,

@@ -8,6 +8,7 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
 import type { PrivatePlanMemory } from './plan-memory.ts'
 import type { PrivateRoleObjectiveSnapshot } from '../analysis/role-objective-types.ts'
+import type { PrivateEvilRoleObjectiveSnapshot } from '../analysis/evil-objective-types.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -203,6 +204,8 @@ export interface CognitionVersions {
   coherence?: string
   /** Present only for an enabled Merlin/Percival private objective. */
   roleObjective?: string
+  /** Present only when explicit role routing is configured. */
+  roleObjectiveRouter?: string
 }
 
 export interface CognitionState {
@@ -222,6 +225,8 @@ export interface CognitionState {
   planMemory?: PrivatePlanMemory
   /** Private, mechanically inert Merlin/Percival objective substrate. */
   roleObjective?: PrivateRoleObjectiveSnapshot
+  /** Private, mechanically inert visible-evil/Oberon objective substrate. */
+  evilRoleObjective?: PrivateEvilRoleObjectiveSnapshot
   versions: CognitionVersions
 }
 

@@ -105,6 +105,16 @@ import {
   roleObjectiveIdentityScope,
   validatePrivateRoleObjectiveHostJoin,
 } from './analysis/role-objectives.ts'
+import {
+  buildEvilRoleObjectiveSnapshot,
+  validatePrivateEvilRoleObjectiveHostJoin,
+} from './analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+  ROLE_OBJECTIVE_ROUTER_VERSION,
+} from './analysis/evil-objective-types.ts'
+import { routedRoleObjectiveModel } from './analysis/role-objective-router.ts'
 import { projectPublicRecord } from './communication/public-record.ts'
 import {
   candidateIdForDecision,
@@ -208,6 +218,11 @@ function validComponentVersions(value: unknown): boolean {
     && (
       versions.roleObjective === undefined
       || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+      || versions.roleObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    )
+    && (
+      versions.roleObjectiveRouter === undefined
+      || versions.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
     )
     && (
       versions.roleUtility === undefined
@@ -411,6 +426,7 @@ function validLanguageTrace(
 function validPublicObserverTrace(
   value: unknown,
   trace: Record<string, unknown>,
+  hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): boolean {
   const components = trace.componentVersions as
     | Record<string, unknown>
@@ -418,7 +434,12 @@ function validPublicObserverTrace(
   const enabled =
     components?.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   if (!enabled) return value === undefined
-  return validatePublicObserverSnapshot(value)
+  if (!validatePublicObserverSnapshot(value)) return false
+  return !isFullPlayerView(hostView)
+    || isDeepStrictEqual(
+      value,
+      observePublicRecord(projectPublicRecord(hostView)),
+    )
 }
 
 function validPrivateIdentityTrace(
@@ -466,10 +487,13 @@ function validPrivateRoleObjectiveTrace(
     | Record<string, unknown>
     | undefined
   const declared = components?.roleObjective
-  if (
-    declared !== undefined
-    && declared !== ROLE_OBJECTIVE_MODEL_VERSION
-  ) return false
+  if (declared !== ROLE_OBJECTIVE_MODEL_VERSION) {
+    return value === undefined
+      && !(
+        Array.isArray(trace.degradation)
+        && trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+      )
+  }
   const degradation = Array.isArray(trace.degradation)
     ? trace.degradation as unknown[]
     : []
@@ -520,6 +544,110 @@ function validPrivateRoleObjectiveTrace(
   } catch {
     return false
   }
+}
+
+function validPrivateEvilRoleObjectiveTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const router = components?.roleObjectiveRouter
+  const declared = components?.roleObjective
+  const degradation = Array.isArray(trace.degradation)
+    ? trace.degradation as unknown[]
+    : []
+  const roleDegraded = degradation.includes(
+    EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  )
+  if (router === undefined) {
+    return declared !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+      && value === undefined
+      && !roleDegraded
+  }
+  if (router !== ROLE_OBJECTIVE_ROUTER_VERSION || !hostView) return false
+  const routed = routedRoleObjectiveModel(hostView.role)
+  if (routed !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION) {
+    return value === undefined && !roleDegraded
+  }
+  if (
+    declared !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    || components?.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+    || components?.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+  ) return false
+  const observer = observePublicRecord(projectPublicRecord(hostView))
+  const candidates = legalCandidates(req, hostView)
+  if (value === undefined) {
+    if (!roleDegraded) return false
+    if (trace.privateIdentity) {
+      try {
+        buildEvilRoleObjectiveSnapshot({
+          req,
+          view: hostView,
+          identity: trace.privateIdentity as never,
+          observer,
+          candidates,
+        })
+        return false
+      } catch {
+        return true
+      }
+    }
+    const exactNonLanguage =
+      components.belief === EXACT_BELIEF_MODEL_VERSION
+      && components.languageEvidence === 'off'
+      && components.factors === 'off'
+    if (!exactNonLanguage) {
+      return degradation.includes('identity-projection-failed')
+    }
+    try {
+      const identity = projectJointIdentity(exactBelief(hostView), {
+        roleQueries: [],
+        hiddenTeam: true,
+      })
+      buildEvilRoleObjectiveSnapshot({
+        req,
+        view: hostView,
+        identity,
+        observer,
+        candidates,
+      })
+      return false
+    } catch {
+      return true
+    }
+  }
+  return !roleDegraded
+    && !!trace.privateIdentity
+    && validatePrivateEvilRoleObjectiveHostJoin(value, {
+      req,
+      view: hostView,
+      identity: trace.privateIdentity as never,
+      observer,
+      candidates,
+    })
+}
+
+function validRoleObjectiveRoute(
+  trace: Record<string, unknown>,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const router = components?.roleObjectiveRouter
+  if (router === undefined) {
+    return components?.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+      && trace.privateEvilRoleObjective === undefined
+  }
+  if (router !== ROLE_OBJECTIVE_ROUTER_VERSION || !hostView) return false
+  const expected = routedRoleObjectiveModel(hostView.role)
+  return components?.roleObjective === (
+    expected === 'off' ? undefined : expected
+  )
 }
 
 function validPrivateRoleUtilityTrace(
@@ -1918,8 +2046,9 @@ function validDecisionTrace(
       || typeof trace.statedReasoning === 'string'
     )
     && validComponentVersions(trace.componentVersions)
+    && validRoleObjectiveRoute(trace, hostView)
     && validLanguageTrace(trace.languageEvidence, trace)
-    && validPublicObserverTrace(trace.publicObserver, trace)
+    && validPublicObserverTrace(trace.publicObserver, trace, hostView)
     && validPrivateIdentityTrace(
       trace.privateIdentity,
       trace,
@@ -1927,6 +2056,12 @@ function validDecisionTrace(
     )
     && validPrivateRoleObjectiveTrace(
       trace.privateRoleObjective,
+      trace,
+      req,
+      hostView,
+    )
+    && validPrivateEvilRoleObjectiveTrace(
+      trace.privateEvilRoleObjective,
       trace,
       req,
       hostView,
@@ -2003,17 +2138,28 @@ export function validateComposedTraceHostJoin(input: {
       || !isDeepStrictEqual(trace.request, req)
       || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
+      || !validRoleObjectiveRoute(
+        trace as unknown as Record<string, unknown>,
+        view,
+      )
       || !validCandidateScores(trace.candidateScores)
       || !validForcedPolicyResult(trace.forcedPolicyResult)
-      || !validPublicObserverTrace(trace.publicObserver, trace)
+      || !validPublicObserverTrace(trace.publicObserver, trace, view)
       || !validPrivateIdentityTrace(
         trace.privateIdentity,
         trace as unknown as Record<string, unknown>,
         view.rolesInPlay,
       )
+      || !validPrivateEvilRoleObjectiveTrace(
+        trace.privateEvilRoleObjective,
+        trace as unknown as Record<string, unknown>,
+        req,
+        view,
+      )
     ) return false
     const components = trace.componentVersions!
     if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false
+    if (!validateRoutedEvilDependencyHostJoin(trace, req, view)) return false
     const hasRoleObjective =
       components.roleObjective !== undefined
       || trace.privateRoleObjective !== undefined
@@ -2259,6 +2405,96 @@ function validateExactRoleDependencyHostJoin(
   }
 }
 
+/**
+ * Exact routed D1 dependencies are wholly reconstructable from PlayerView.
+ * Rebuild the mandatory hidden-team scope and reject coordinated deletion or
+ * scope substitution hidden behind degradation labels. Weighted dependencies
+ * remain externally attributable through their narrowly typed paired
+ * degradation because the host does not own their private world weights.
+ */
+function validateRoutedEvilDependencyHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+): boolean {
+  const components = trace.componentVersions
+  if (!components) return false
+  const applicable =
+    components.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
+    && routedRoleObjectiveModel(view.role)
+      === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+  const exactNonLanguage =
+    components.belief === EXACT_BELIEF_MODEL_VERSION
+    && components.languageEvidence === 'off'
+    && components.factors === 'off'
+  if (!applicable) return true
+  if (!exactNonLanguage) {
+    const identityFailed = trace.degradation.includes(
+      'identity-projection-failed',
+    )
+    const objectiveFailed = trace.degradation.includes(
+      EVIL_ROLE_OBJECTIVE_DEGRADATION,
+    )
+    const complete =
+      trace.privateIdentity !== undefined
+      && trace.privateIdentity.scope.hiddenTeam
+      && trace.privateEvilRoleObjective !== undefined
+      && !identityFailed
+      && !objectiveFailed
+    const pairedFailure =
+      trace.privateIdentity === undefined
+      && trace.privateEvilRoleObjective === undefined
+      && identityFailed
+      && objectiveFailed
+    return complete || pairedFailure
+  }
+
+  try {
+    const belief = exactBelief(view)
+    if (
+      trace.beliefModelVersion !== belief.modelVersion
+      || trace.beliefThroughSeq !== belief.throughSeq
+      || trace.quality !== belief.quality
+      || !isDeepStrictEqual(
+        trace.beliefPlayerMarginals,
+        belief.playerMarginals,
+      )
+    ) return false
+    const identity = projectJointIdentity(belief, {
+      roleQueries: trace.privateIdentity
+        ? trace.privateIdentity.scope.roleQueries.map(
+            (query) => ({ roles: [...query.queriedRoles] }),
+          )
+        : [],
+      hiddenTeam: true,
+    })
+    const observer = observePublicRecord(projectPublicRecord(view))
+    const candidates = legalCandidates(req, view)
+    const objective = buildEvilRoleObjectiveSnapshot({
+      req,
+      view,
+      identity,
+      observer,
+      candidates,
+    })
+    return (
+      components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+      && components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
+      && components.roleObjective
+        === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+      && !trace.degradation.includes('identity-projection-failed')
+      && !trace.degradation.includes(
+        EVIL_ROLE_OBJECTIVE_DEGRADATION,
+      )
+      && isDeepStrictEqual(trace.privateIdentity, identity)
+      && isDeepStrictEqual(trace.publicObserver, observer)
+      && isDeepStrictEqual(trace.privateEvilRoleObjective, objective)
+    )
+  } catch {
+    return false
+  }
+}
+
 function isFullPlayerView(
   value: Pick<PlayerView, 'rolesInPlay'> | undefined,
 ): value is PlayerView {
@@ -2293,6 +2529,14 @@ export function parseStdioDecisionReply(
     || (
       isFullPlayerView(hostView)
       && !validateExactRoleDependencyHostJoin(
+        record.trace as DecisionTrace,
+        req,
+        hostView,
+      )
+    )
+    || (
+      isFullPlayerView(hostView)
+      && !validateRoutedEvilDependencyHostJoin(
         record.trace as DecisionTrace,
         req,
         hostView,

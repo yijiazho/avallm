@@ -59,6 +59,8 @@ export interface ArtifactStrategyVersions {
   coherences?: readonly string[]
   /** Added in Phase 7C1; absent on role-objective-off artifacts. */
   roleObjectives?: readonly string[]
+  /** Added in Phase 7D1; configured router is separate from resolved models. */
+  roleObjectiveRouters?: readonly string[]
   /** Added in Phase 7C2; absent when the role scorer input is inactive. */
   roleUtilities?: readonly string[]
 }
@@ -192,6 +194,12 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.roleObjective,
     ...traces.map((trace) => trace.componentVersions?.roleObjective),
   ])
+  const roleObjectiveRouters = sortedUnique([
+    architecture.roleObjectiveRouter,
+    ...traces.map(
+      (trace) => trace.componentVersions?.roleObjectiveRouter,
+    ),
+  ])
   const roleUtilities = sortedUnique([
     architecture.roleUtility,
     ...traces.map((trace) => trace.componentVersions?.roleUtility),
@@ -228,6 +236,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(planMemories.length ? { planMemories } : {}),
     ...(coherences.length ? { coherences } : {}),
     ...(roleObjectives.length ? { roleObjectives } : {}),
+    ...(roleObjectiveRouters.length ? { roleObjectiveRouters } : {}),
     ...(roleUtilities.length ? { roleUtilities } : {}),
   }
 }
