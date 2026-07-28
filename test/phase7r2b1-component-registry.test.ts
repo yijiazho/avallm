@@ -9,6 +9,9 @@ import {
 } from '../server/agents/components/resolved-brain.ts'
 import type {
   ComponentAdmissionResult,
+  ComponentHostInputDefinition,
+  ComponentHostInputRef,
+  ComponentHostInputToken,
   ComponentRef,
   DecisionComponentDefinition,
 } from '../server/agents/components/types.ts'
@@ -35,24 +38,55 @@ function admitted<Payload>(
   })
 }
 
+const PRIVATE_ROOT: ComponentHostInputToken<{ seed: string }> = {
+  id: 'runtime.seed',
+  version: 'v1',
+  privacy: 'private',
+}
+
+function hostInput(
+  token: ComponentHostInputToken<unknown> = PRIVATE_ROOT,
+): ComponentHostInputDefinition<unknown> {
+  return {
+    token,
+    maxPayloadBytes: 128,
+    validate: (value) => ({ valid: true, value }),
+  }
+}
+
 function definition(
   id: string,
   dependencies: ComponentRef[] = [],
   hostRequirements: string[] = [],
   version = 'v1',
+  privacy: 'public' | 'private' = 'private',
+  requiredHostInputs: ComponentHostInputRef[] = [],
 ): DecisionComponentDefinition {
   return {
     token: {
       id,
       version,
       kind: 'observer',
-      privacy: 'private',
+      privacy,
     },
     source: 'native',
     dependencies,
+    requiredHostInputs,
     hostRequirements,
     maxPayloadBytes: 256,
     degradationCode: `${id}-failed`,
+    applies: () => true,
+    execute() {
+      return {
+        status: 'produced',
+        envelope: {
+          component: { id, version },
+          kind: 'observer',
+          privacy,
+          payload: null,
+        },
+      }
+    },
     validateDetached: admitted,
     admitHost: ({ payload }) => admitted(payload),
   }
@@ -89,6 +123,19 @@ test('registry rejects duplicate, conflicting, missing, and cyclic definitions',
     ])),
     'missing-dependency',
   )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([
+      definition('private-source'),
+      definition(
+        'public-consumer',
+        [{ id: 'private-source', version: 'v1' }],
+        [],
+        'v1',
+        'public',
+      ),
+    ])),
+    'privacy-violation',
+  )
   assert.throws(
     () => createDecisionComponentRegistry([
       definition('alpha', [{ id: 'bravo', version: 'v1' }]),
@@ -105,6 +152,115 @@ test('registry rejects duplicate, conflicting, missing, and cyclic definitions',
       return true
     },
   )
+})
+
+test('host inputs use a separate immutable registry namespace', () => {
+  const component = definition(
+    'runtime.seed',
+    [],
+    [],
+    'v1',
+    'private',
+    [PRIVATE_ROOT],
+  )
+  const root = hostInput()
+  const registry = createDecisionComponentRegistry([component], {
+    hostInputs: [root],
+  })
+
+  assert.equal(registry.size, 1)
+  assert.equal(registry.hostInputSize, 1)
+  assert.equal(registry.definitions()[0].token.id, 'runtime.seed')
+  assert.equal(
+    registry.hostInputDefinitions()[0].token.id,
+    'runtime.seed',
+  )
+  assert.deepEqual(
+    registry.definitions()[0].requiredHostInputs,
+    [PRIVATE_ROOT],
+  )
+  assert.ok(Object.isFrozen(registry.hostInputDefinitions()))
+  assert.ok(Object.isFrozen(registry.hostInputDefinitions()[0]))
+  assert.ok(Object.isFrozen(registry.hostInputDefinitions()[0].token))
+
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry(
+      [definition(
+        'missing-root-consumer',
+        [],
+        [],
+        'v1',
+        'private',
+        [PRIVATE_ROOT],
+      )],
+    )),
+    'missing-host-input',
+  )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([], {
+      hostInputs: [hostInput(), hostInput()],
+    })),
+    'duplicate-host-input-identity',
+  )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([], {
+      hostInputs: [
+        hostInput(),
+        hostInput({ ...PRIVATE_ROOT, version: 'v2' }),
+      ],
+    })),
+    'conflicting-host-input-version',
+  )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([
+      definition(
+        'public-consumer',
+        [],
+        [],
+        'v1',
+        'public',
+        [PRIVATE_ROOT],
+      ),
+    ], {
+      hostInputs: [root],
+    })),
+    'privacy-violation',
+  )
+})
+
+test('host input registry snapshots metadata and preserves validator receiver', () => {
+  class StatefulHostInput
+  implements ComponentHostInputDefinition<{ seed: string }> {
+    readonly token = { ...PRIVATE_ROOT }
+    readonly maxPayloadBytes = 128
+    #marker = 'original'
+
+    validate(value: unknown) {
+      assert.equal(this.#marker, 'original')
+      return {
+        valid: true as const,
+        value: value as { seed: string },
+      }
+    }
+  }
+  const source = new StatefulHostInput()
+  const registry = createDecisionComponentRegistry([], {
+    hostInputs: [source],
+  })
+  const mutable = source as unknown as {
+    token: { id: string }
+    maxPayloadBytes: number
+  }
+  mutable.token.id = 'mutated'
+  mutable.maxPayloadBytes = 999
+
+  const registered = registry.hostInputDefinitions()[0]
+  assert.equal(registered.token.id, 'runtime.seed')
+  assert.equal(registered.maxPayloadBytes, 128)
+  assert.deepEqual(registered.validate({ seed: 'x' }), {
+    valid: true,
+    value: { seed: 'x' },
+  })
 })
 
 test('registry resolves a deterministic dependency-first eligible graph', () => {
@@ -207,10 +363,29 @@ test('registry preserves stateful component receiver semantics', () => {
     }
     readonly source = 'native' as const
     readonly dependencies: readonly ComponentRef[] = []
+    readonly requiredHostInputs = []
     readonly hostRequirements: readonly string[] = []
     readonly maxPayloadBytes = 256
     readonly degradationCode = 'stateful-failed'
     #marker = 'original-receiver'
+
+    applies(): true {
+      assert.equal(this.#marker, 'original-receiver')
+      return true
+    }
+
+    execute() {
+      assert.equal(this.#marker, 'original-receiver')
+      return {
+        status: 'produced' as const,
+        envelope: {
+          component: { id: 'stateful', version: 'v1' },
+          kind: 'observer' as const,
+          privacy: 'private' as const,
+          payload: 'payload',
+        },
+      }
+    }
 
     validateDetached(payload: unknown): ComponentAdmissionResult<string> {
       assert.equal(this.#marker, 'original-receiver')
@@ -304,6 +479,8 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   assert.ok(Object.isFrozen(resolved.description))
   assert.ok(Object.isFrozen(resolved.description.base))
   assert.ok(Object.isFrozen(resolved.description.components))
+  assert.ok(Object.isFrozen(resolved.description.requiredHostInputs))
+  assert.ok(Object.isFrozen(resolved.hostInputDefinitions))
   assert.ok(Object.isFrozen(resolved.configuredDefinitions))
   assert.ok(Object.isFrozen(resolved.eligibleDefinitions))
   assert.ok(Object.isFrozen(resolved.description.scoreLayerOrder))
@@ -314,7 +491,7 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   assert.doesNotThrow(() => JSON.stringify(resolved.description))
   assert.doesNotMatch(
     JSON.stringify(resolved.description),
-    /validateDetached|admitHost/,
+    /validateDetached|admitHost|\"validate\"/,
   )
 })
 

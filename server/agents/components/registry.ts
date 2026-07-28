@@ -1,4 +1,6 @@
 import type {
+  ComponentHostInputDefinition,
+  ComponentHostInputRef,
   ComponentRef,
   DecisionComponentDefinition,
   HostCapability,
@@ -11,9 +13,14 @@ const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
 
 export type ComponentRegistryErrorCode =
   | 'invalid-definition'
+  | 'invalid-host-input-definition'
   | 'duplicate-identity'
+  | 'duplicate-host-input-identity'
   | 'conflicting-version'
+  | 'conflicting-host-input-version'
   | 'missing-dependency'
+  | 'missing-host-input'
+  | 'privacy-violation'
   | 'dependency-cycle'
   | 'unknown-request'
   | 'duplicate-request'
@@ -28,7 +35,8 @@ export class ComponentRegistryError extends Error {
   }
 }
 
-type AnyDefinition = DecisionComponentDefinition<any, any>
+type AnyDefinition = DecisionComponentDefinition<any>
+type AnyHostInputDefinition = ComponentHostInputDefinition<any>
 
 function identityKey(ref: ComponentRef): string {
   return `${ref.id}@${ref.version}`
@@ -40,6 +48,16 @@ function compareRefs(left: ComponentRef, right: ComponentRef): number {
 
 function frozenRef(ref: ComponentRef): ComponentRef {
   return Object.freeze({ id: ref.id, version: ref.version })
+}
+
+function frozenHostInputRef(
+  ref: ComponentHostInputRef,
+): ComponentHostInputRef {
+  return Object.freeze({
+    id: ref.id,
+    version: ref.version,
+    privacy: ref.privacy,
+  })
 }
 
 function assertRef(ref: ComponentRef, label: string): void {
@@ -66,6 +84,65 @@ function assertNonEmptyCanonical(
       `${label} must be a canonical non-empty string`,
     )
   }
+}
+
+function assertHostInputRef(
+  ref: ComponentHostInputRef,
+  label: string,
+): void {
+  assertRef(ref, label)
+  if (!['public', 'private'].includes(ref.privacy)) {
+    throw new ComponentRegistryError(
+      'invalid-definition',
+      `${label} has an invalid privacy class`,
+    )
+  }
+}
+
+function freezeHostInputDefinition(
+  definition: AnyHostInputDefinition,
+): AnyHostInputDefinition {
+  if (!definition || typeof definition !== 'object') {
+    throw new ComponentRegistryError(
+      'invalid-host-input-definition',
+      'host input definition must be an object',
+    )
+  }
+  try {
+    assertHostInputRef(definition.token, 'host input token')
+  } catch (error) {
+    if (error instanceof ComponentRegistryError) {
+      throw new ComponentRegistryError(
+        'invalid-host-input-definition',
+        error.message,
+      )
+    }
+    throw error
+  }
+  if (definition.token.privacy !== 'private') {
+    throw new ComponentRegistryError(
+      'privacy-violation',
+      `${identityKey(definition.token)} cannot be a public host input; `
+        + 'v1 roots have no reconstructable public provenance',
+    )
+  }
+  if (
+    !Number.isSafeInteger(definition.maxPayloadBytes)
+    || definition.maxPayloadBytes <= 0
+    || typeof definition.validate !== 'function'
+  ) {
+    throw new ComponentRegistryError(
+      'invalid-host-input-definition',
+      `${identityKey(definition.token)} has an incomplete host input contract`,
+    )
+  }
+  const token = frozenHostInputRef(definition.token)
+  const validate = definition.validate.bind(definition)
+  return Object.freeze({
+    token,
+    maxPayloadBytes: definition.maxPayloadBytes,
+    validate,
+  })
 }
 
 function freezeDefinition(definition: AnyDefinition): AnyDefinition {
@@ -124,7 +201,10 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
   }
   if (
     !Array.isArray(definition.dependencies)
+    || !Array.isArray(definition.requiredHostInputs)
     || !Array.isArray(definition.hostRequirements)
+    || typeof definition.applies !== 'function'
+    || typeof definition.execute !== 'function'
     || typeof definition.validateDetached !== 'function'
     || typeof definition.admitHost !== 'function'
   ) {
@@ -151,6 +231,26 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
     }
     dependencyKeys.add(key)
   }
+  const requiredHostInputs = definition.requiredHostInputs.map(
+    (input, index) => {
+      assertHostInputRef(
+        input,
+        `${identityKey(definition.token)} host input ${index}`,
+      )
+      return frozenHostInputRef(input)
+    },
+  )
+  const hostInputKeys = new Set<string>()
+  for (const input of requiredHostInputs) {
+    const key = identityKey(input)
+    if (hostInputKeys.has(key)) {
+      throw new ComponentRegistryError(
+        'invalid-definition',
+        `${identityKey(definition.token)} repeats host input ${key}`,
+      )
+    }
+    hostInputKeys.add(key)
+  }
   const hostRequirements = definition.hostRequirements.map(
     (requirement, index) => {
       assertNonEmptyCanonical(
@@ -174,16 +274,21 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
   })
   const validateDetached = definition.validateDetached.bind(definition)
   const admitHost = definition.admitHost.bind(definition)
+  const applies = definition.applies.bind(definition)
+  const execute = definition.execute.bind(definition)
   return Object.freeze({
     token,
     source: definition.source,
     dependencies: Object.freeze(dependencies),
+    requiredHostInputs: Object.freeze(requiredHostInputs),
     hostRequirements: Object.freeze(hostRequirements),
     maxPayloadBytes: definition.maxPayloadBytes,
     degradationCode: definition.degradationCode,
     ...(definition.deterministicSeedDomain === undefined
       ? {}
       : { deterministicSeedDomain: definition.deterministicSeedDomain }),
+    applies,
+    execute,
     validateDetached,
     admitHost,
   })
@@ -273,13 +378,23 @@ export interface ComponentResolutionRequest {
 
 export interface DecisionComponentRegistry {
   readonly size: number
+  readonly hostInputSize: number
   definitions(): readonly AnyDefinition[]
   definition(ref: ComponentRef): AnyDefinition | undefined
+  hostInputDefinitions(): readonly AnyHostInputDefinition[]
+  hostInputDefinition(
+    ref: ComponentHostInputRef,
+  ): AnyHostInputDefinition | undefined
   resolve(request: ComponentResolutionRequest): ResolvedComponentGraph
+}
+
+export interface DecisionComponentRegistryOptions {
+  readonly hostInputs?: readonly AnyHostInputDefinition[]
 }
 
 export function createDecisionComponentRegistry(
   sourceDefinitions: readonly AnyDefinition[],
+  options: DecisionComponentRegistryOptions = {},
 ): DecisionComponentRegistry {
   if (!Array.isArray(sourceDefinitions)) {
     throw new ComponentRegistryError(
@@ -287,6 +402,49 @@ export function createDecisionComponentRegistry(
       'component definitions must be an array',
     )
   }
+  if (
+    !options
+    || typeof options !== 'object'
+    || !Array.isArray(options.hostInputs ?? [])
+  ) {
+    throw new ComponentRegistryError(
+      'invalid-host-input-definition',
+      'host input definitions must be an array',
+    )
+  }
+  const hostInputDefinitions = (options.hostInputs ?? [])
+    .map(freezeHostInputDefinition)
+  const hostInputByKey = new Map<string, AnyHostInputDefinition>()
+  const hostInputVersionById = new Map<string, string>()
+  for (const definition of hostInputDefinitions) {
+    const key = identityKey(definition.token)
+    if (hostInputByKey.has(key)) {
+      throw new ComponentRegistryError(
+        'duplicate-host-input-identity',
+        `duplicate host input identity ${key}`,
+      )
+    }
+    const existingVersion = hostInputVersionById.get(definition.token.id)
+    if (
+      existingVersion !== undefined
+      && existingVersion !== definition.token.version
+    ) {
+      throw new ComponentRegistryError(
+        'conflicting-host-input-version',
+        `host input ${definition.token.id} has conflicting versions `
+          + `${existingVersion} and ${definition.token.version}`,
+      )
+    }
+    hostInputByKey.set(key, definition)
+    hostInputVersionById.set(
+      definition.token.id,
+      definition.token.version,
+    )
+  }
+  const exposedHostInputDefinitions = Object.freeze(
+    [...hostInputDefinitions].sort((left, right) =>
+      compareRefs(left.token, right.token)),
+  )
   const definitions = sourceDefinitions.map(freezeDefinition)
   const byKey = new Map<string, AnyDefinition>()
   const versionById = new Map<string, string>()
@@ -329,17 +487,78 @@ export function createDecisionComponentRegistry(
         `${identityKey(definition.token)} requires missing ${dependencyKey}`,
       )
     }
+    for (const requiredHostInput of definition.requiredHostInputs) {
+      const key = identityKey(requiredHostInput)
+      const hostInput = hostInputByKey.get(key)
+      if (!hostInput) {
+        const registeredVersion = hostInputVersionById.get(
+          requiredHostInput.id,
+        )
+        if (registeredVersion !== undefined) {
+          throw new ComponentRegistryError(
+            'conflicting-host-input-version',
+            `${identityKey(definition.token)} requires host input ${key}, `
+              + `but ${requiredHostInput.id}@${registeredVersion} `
+              + 'is registered',
+          )
+        }
+        throw new ComponentRegistryError(
+          'missing-host-input',
+          `${identityKey(definition.token)} requires missing host input ${key}`,
+        )
+      }
+      if (hostInput.token.privacy !== requiredHostInput.privacy) {
+        throw new ComponentRegistryError(
+          'privacy-violation',
+          `${identityKey(definition.token)} substitutes privacy for host `
+            + `input ${key}`,
+        )
+      }
+      if (
+        definition.token.privacy === 'public'
+        && hostInput.token.privacy !== 'public'
+      ) {
+        throw new ComponentRegistryError(
+          'privacy-violation',
+          `public component ${identityKey(definition.token)} cannot require `
+            + `private host input ${key}`,
+        )
+      }
+    }
+  }
+  for (const definition of definitions) {
+    if (definition.token.privacy !== 'public') continue
+    for (const dependency of definition.dependencies) {
+      const dependencyDefinition = byKey.get(identityKey(dependency))!
+      if (dependencyDefinition.token.privacy === 'private') {
+        throw new ComponentRegistryError(
+          'privacy-violation',
+          `public component ${identityKey(definition.token)} cannot depend `
+            + `on private component ${identityKey(dependencyDefinition.token)}`,
+        )
+      }
+    }
   }
   const ordered = stableTopologicalOrder(definitions, byKey)
   const exposedDefinitions = Object.freeze([...ordered])
 
   const registry: DecisionComponentRegistry = {
     size: ordered.length,
+    hostInputSize: exposedHostInputDefinitions.length,
     definitions() {
       return exposedDefinitions
     },
     definition(ref) {
       return byKey.get(identityKey(ref))
+    },
+    hostInputDefinitions() {
+      return exposedHostInputDefinitions
+    },
+    hostInputDefinition(ref) {
+      const definition = hostInputByKey.get(identityKey(ref))
+      return definition?.token.privacy === ref.privacy
+        ? definition
+        : undefined
     },
     resolve(request) {
       if (!request || !Array.isArray(request.requested)) {

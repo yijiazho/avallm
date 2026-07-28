@@ -6,6 +6,8 @@ import {
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../belief/language-factor.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
 import type {
+  ComponentHostInputDefinition,
+  ComponentHostInputRef,
   ComponentRef,
   DecisionComponentDefinition,
   HostCapability,
@@ -47,6 +49,11 @@ export interface ResolvedComposedBrainDescription {
   readonly base: BrainSpec
   readonly baseComponentVersions: Readonly<Record<string, string>>
   readonly components: ResolvedComponentGraph
+  /**
+   * Data-only invocation roots required by the configured graph. Values and
+   * validator implementations never enter this description.
+   */
+  readonly requiredHostInputs: readonly ComponentHostInputRef[]
   readonly scoreLayerOrder: readonly ComponentRef[]
   readonly decisionLayerOrder: readonly ComponentRef[]
   readonly compatibility: Readonly<Record<string, CompatibilityValue>>
@@ -57,14 +64,27 @@ export interface ResolvedComposedBrain {
   readonly description: ResolvedComposedBrainDescription
   /** Frozen implementations in dependency-first order for the B2 kernel. */
   readonly configuredDefinitions:
-    readonly DecisionComponentDefinition<any, any>[]
+    readonly DecisionComponentDefinition<any>[]
   /** Construction-eligible subset of configuredDefinitions. */
   readonly eligibleDefinitions:
-    readonly DecisionComponentDefinition<any, any>[]
+    readonly DecisionComponentDefinition<any>[]
+  /** Frozen validators for required invocation roots, never their values. */
+  readonly hostInputDefinitions:
+    readonly ComponentHostInputDefinition<any>[]
 }
 
 function freezeRef(ref: ComponentRef): ComponentRef {
   return Object.freeze({ id: ref.id, version: ref.version })
+}
+
+function freezeHostInputRef(
+  ref: ComponentHostInputRef,
+): ComponentHostInputRef {
+  return Object.freeze({
+    id: ref.id,
+    version: ref.version,
+    privacy: ref.privacy,
+  })
 }
 
 function freezeCompatibilityValue(
@@ -178,6 +198,40 @@ export function resolveComposedBrain(
         `${definition.token.id}@${definition.token.version}`,
       )),
   )
+  const requiredHostInputByKey = new Map<
+    string,
+    ComponentHostInputRef
+  >()
+  for (const definition of configuredDefinitions) {
+    for (const input of definition.requiredHostInputs) {
+      const key = `${input.id}@${input.version}`
+      const existing = requiredHostInputByKey.get(key)
+      if (existing && existing.privacy !== input.privacy) {
+        throw new Error(
+          `configured host input ${key} has conflicting privacy`,
+        )
+      }
+      requiredHostInputByKey.set(key, freezeHostInputRef(input))
+    }
+  }
+  const requiredHostInputs = Object.freeze(
+    [...requiredHostInputByKey.values()].sort((left, right) =>
+      `${left.id}@${left.version}`.localeCompare(
+        `${right.id}@${right.version}`,
+        'en',
+      )),
+  )
+  const hostInputDefinitions = Object.freeze(
+    requiredHostInputs.map((input) => {
+      const definition = registry.hostInputDefinition(input)
+      if (!definition) {
+        throw new Error(
+          `resolved host input ${input.id}@${input.version} disappeared`,
+        )
+      }
+      return definition
+    }),
+  )
   const scoreLayerOrder = freezeLayerOrder(
     'scoreLayerOrder',
     config.scoreLayerOrder,
@@ -206,6 +260,7 @@ export function resolveComposedBrain(
     base,
     baseComponentVersions: Object.freeze(brainComponents(base)),
     components,
+    requiredHostInputs,
     scoreLayerOrder,
     decisionLayerOrder,
     compatibility,
@@ -214,5 +269,6 @@ export function resolveComposedBrain(
     description,
     configuredDefinitions,
     eligibleDefinitions,
+    hostInputDefinitions,
   })
 }

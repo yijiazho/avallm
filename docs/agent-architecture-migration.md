@@ -1286,8 +1286,11 @@ reviewable and ablatable:
     eligible components once at construction without changing traces, artifacts, or decisions.
     **Complete.**
 14. **Phase 7R2B2, per-decision kernel:** determine applicability from each
-    `DecisionRequest + PlayerView`, execute and admit generic tagged outputs with bounded
-    degradation, and prove the seam with a test-local native fixture.
+    `DecisionRequest + PlayerView`, snapshot separately registered data-only host inputs for the
+    invocation, execute and admit generic tagged outputs with bounded degradation, and prove the
+    seam with a test-local native fixture. Host-input definitions own canonical identity, version,
+    privacy, bounds, and validation; components can read only declared roots. Roots are not
+    components and never enter component run, public projection, or policy-use records.
 15. **Phase 7R2B3A, good-role and generic-evil compatibility adapters:** dual-write the landed C1,
     C2, D1, and D2 paths into generic entries and their unchanged legacy projections, requiring
     exact equality.
@@ -1800,14 +1803,33 @@ not bypass or redesign them at a role-specific call site.
    semantics; the corrected implementation added stateful planner and component regressions and
    passed 164 affected compatibility cases plus all 841 API-free repository tests. Traces,
    artifacts, stdio, prompts, decisions, role execution, and defaults remain unchanged.
-2. **7R2B2, generic per-decision kernel and native fixture:** use only the current
-   `DecisionRequest + PlayerView` to determine applicability, execute components, admit bounded
-   private tagged payloads, degrade safely, and record configured, admitted, and causal-policy-use
-   states separately. The generic status vocabulary includes inapplicable, suppressed, degraded,
-   and admitted. A test-local native fixture must exercise the generic cognition, trace, stdio,
+2. **7R2B2, generic per-decision kernel and native fixture:** use the current
+   `DecisionRequest + PlayerView` to determine applicability and as the only game-state boundary.
+   Execution may additionally consume explicitly declared, registry-validated, invocation-local
+   operational roots already derived from that same seat's cognition. Admit bounded private tagged
+   payloads, degrade safely, and record configured, admitted, and causal-policy-use states
+   separately. Invocation-local host values use a separate typed namespace with
+   registry-owned validators and bounds. A component declares the roots it requires, the resolved
+   brain records only their data-only references, and each call snapshots every supplied binding
+   before asynchronous work. Root values never enter the immutable brain, component run, public
+   projection, trace envelope, or policy attribution. V1 roots are private-only because arbitrary
+   bindings cannot prove public-record provenance; public components continue to use the canonical
+   public record and public component dependencies. Missing and invalid roots degrade only an
+   applicable consumer, while duplicate, unknown, or tag-substituted extra bindings are programming
+   errors. The generic status vocabulary includes inapplicable, suppressed, degraded, and
+   admitted. A test-local native fixture must exercise the generic cognition, trace, stdio,
    artifact, and evaluation shapes without adding a fixture-named field to any central type or
    host. This is a structural boundary proof; B3B and B4 retain ownership of production transport
    admission and artifact/evaluation integration.
+
+   **Complete.** The kernel and hostile contract tests cover dependency-first execution,
+   applicability before every eligibility check, exact tagged and admission wrappers,
+   non-substitutive host-root validation, bounded JSON cloning including own `__proto__` keys,
+   rejection of proxy and alien-prototype values, private/public noninterference including wholly
+   private causal-policy attribution, and concurrent reentrancy on one resolved brain. Independent
+   review found and drove both the private policy-use projection correction and the strict proxy
+   and prototype correction before approval. The final affected matrix passed 77/77 tests and the
+   complete API-free repository suite passed 870/870.
 3. **7R2B3A, C1/C2/D1/D2 compatibility adapters:** project the existing good-role and generic-evil
    substrate and policy outputs into generic entries while dual-writing the unchanged legacy
    fields. Every generic and legacy projection must compare exactly, including degradation and
