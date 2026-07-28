@@ -2,16 +2,16 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** finish Phase 7R2C3's descriptor-derived artifact and report
-projections, followed by Phase 7R2C4's typed policy seam. Phase 7E2A is complete and approved:
+**Current target phase:** Phase 7R2C4A's typed `DecisionFrame` spine, followed by C4B's
+behavior-preserving runtime wiring. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
 The fast-feedback and static-check slice, the admission/conformance foundation, and the
 single-pass replay work are complete. The resolved descriptor now owns configured architecture
-identity and trace metadata, component host roots resolve only after a component is causally
-eligible, and a fast dependency-fitness guard protects the coarse ownership boundaries. Before
-ordered policy layers, the remaining work is to project artifact and report surfaces from that
-descriptor and extract a staged `DecisionFrame` policy-pipeline seam.
+identity across trace, artifact, and report surfaces, component host roots resolve only after a
+component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
+boundaries. Before ordered policy layers, the remaining work is to extract and wire a staged
+`DecisionFrame` policy-pipeline seam.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1327,7 +1327,7 @@ reviewable and ablatable:
     - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact,
       report, and future Inspector metadata from the resolved graph and admitted run. Replace
       repeated prefix replay with one pass over the event log while preserving exact snapshots.
-      **Replay and trace projection complete; artifact/report projection remains.**
+      **Complete.**
     - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
       canonical request, view, belief, analysis, candidate surface, forced survivors, and component
       run into ordered score layers, ordered decision layers, and the committed action.
@@ -2124,12 +2124,29 @@ reviewed slices are now landed:
   fail closed. This is a regression guard for trusted contributors, not a sandbox against a code
   author deliberately using runtime evaluation or filesystem loading. The 102-file inventory,
   982 correctness tests, and three isolated performance tests pass on the landed tree.
+- **The artifact/report slice of C3, commit `b422c31`, completes descriptor ownership.** One
+  migration-free `ResolvedArchitectureIdentity` and semantic codec now own current configured
+  truth. The immutable identity digest is computed once per composed agent, carried by its private
+  traces, and independently joined to the host-created target-seat manifest. Artifact admission
+  happens once per observation; safety, grouping, evidence, and rendering consume that typed
+  result. Exact identity equality controls current variant grouping, while configured display
+  metadata is only a projection. Runtime belief facts and finalized replay retain their existing
+  owners. Invalid present current manifests hard-fail, and schema-1 manifests remain readable
+  through a named nonpromotable legacy adapter. Independent review returned READY; strict
+  typechecking, 102-file inventory, 989 correctness tests, and three isolated performance tests
+  pass.
 - **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
   mechanically split every large module. The staged type design makes invalid pipeline states
   unrepresentable: request, view, belief, and analysis establish the analyzed frame; the legal
   candidate surface precedes forced-policy survivors; survivors precede scoring and strategic
   choice; a committed action precedes voice. Existing C2, D2, E1, and D3 behavior moves behind
   compatibility adapters before new ordered-layer behavior is added.
+  Implement C4A first as types, constructors, nonempty survivor/viable collections, and one
+  compatibility scorer adapter without touching the runtime orchestrator. C4B then wires those
+  transitions through `composed.ts`. A new native policy family must not add role-named branches
+  to trace, artifact, report, stdio, or Inspector. Operation counters follow the owners that
+  perform work: kernel roots/components, analysis posterior batches, and frame-runner candidate,
+  layer, planner, and voice calls.
 
 The cross-review findings establish these development guardrails for the rest of the migration:
 
@@ -2221,28 +2238,28 @@ a named retirement owner.
 
 The prioritized no-regret work before 7R3 is:
 
-1. Finish **C3 descriptor ownership** so one authoritative resolved descriptor derives artifact,
-   report, and future Inspector v2 metadata; trace projection is complete. The landed coarse
-   dependency-fitness check enforces import direction and trusted-provider ownership. Exact
-   descriptor/run joins and projection contract tests, rather than source scanning, own
-   cross-surface truth; lazy-root contract tests own causal materialization. Ratchet unsafe casts
-   toward codecs and compatibility readers rather than allowing them in new policy code.
-2. Implement **C4 as staged `DecisionFrame` types**, not one optional-field bag. Preserve forced
-   survivor monotonicity, engine legality, and voice-after-commit as type and contract boundaries.
-3. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
+1. Implement **C4 as two staged `DecisionFrame` chunks**, not one optional-field bag. C4A adds
+   separate analyzed, candidate, forced, scored, selected, committed, and voiced frame types plus
+   constructor-owned transitions and one legacy scorer adapter without changing `composed.ts`.
+   C4B replaces the corresponding local-variable pipeline in `composed.ts` while preserving
+   scorer fallback, degradation, trace, prompt, and decision bytes. Preserve forced survivor
+   monotonicity, engine legality, and voice-after-commit as type and contract boundaries.
+   D3 remains behind an explicitly named post-universal compatibility adapter until 7R3B; C4 must
+   not relabel it as universal forced policy or silently change its authority.
+2. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
    exemptions incrementally as their policy families move in 7R3. Component-specific formula
    tests remain beside the generic contract.
-4. Add **operation budgets** for applicability evaluations, roots materialized, components
+3. Add **operation budgets** for applicability evaluations, roots materialized, components
    executed, policy layers invoked, candidates scored, and posterior assessments reused. These
    budgets assert bounded work without turning development-host wall-clock timing into a false CI
    contract.
-5. Add a **tree-bound handoff manifest** containing base and head SHA or dirty-tree digest, changed
+4. Add a **tree-bound handoff manifest** containing base and head SHA or dirty-tree digest, changed
    contracts, focused and complete commands and results, component exemptions, paid-call status,
    and known issues. One implementation worktree is shared read-only with reviewers unless
    isolation is genuinely required.
 
-Descriptor ownership and C4 remain sequential because both define the interfaces 7R3 will
-consume. Coarse dependency fitness now runs in every verification lane: engine cannot import
+Descriptor ownership is complete, so C4 is now the only sequential interface gate before 7R3.
+Coarse dependency fitness runs in every verification lane: engine cannot import
 agents or evaluation; runtime agents cannot import evaluation or raw `Game`; generic policy and
 component code cannot import artifact or report types; trusted provider callbacks remain confined
 to in-process composition. Finer internal agent layering waits for C4 because transitional
@@ -2643,13 +2660,15 @@ here.
   machine. Trace metadata (`34b30ac`) is now a descriptor/run projection rather than a parallel
   role-aware author. The AST-based dependency-fitness guard (`5f47201`) runs in every verification
   lane and protects coarse import direction and trusted-provider ownership without becoming a
-  source-code sandbox. Strict typechecking, the 102-file lane inventory, 982 correctness tests,
-  and three isolated performance tests pass. The current target is descriptor-derived artifact
-  and report projection, followed by C4's staged `DecisionFrame` policy seam. Those slices own
-  redundant metadata authorship and optional-state pipeline ambiguity rather than allowing them
-  to accrete inside each component. Phase 7R3B separately owns D3's discriminated historical
-  compatibility read, incremental retirement of its conformance exemption, and deletion of its
-  transitional write path after equality.
+  source-code sandbox. Descriptor-derived artifacts and reports (`b422c31`) now share one
+  canonical migration-free identity, cached trace/manifest digest, exact run and replay joins,
+  once-per-observation admission, and a named nonpromotable schema-1 adapter. Strict typechecking,
+  the 102-file lane inventory, 989 correctness tests, and three isolated performance tests pass.
+  The current target is C4A's staged type spine followed by C4B runtime wiring. Those slices own
+  optional-state pipeline ambiguity rather than allowing it to accrete inside each component.
+  Phase 7R3B separately owns D3's discriminated historical compatibility read, incremental
+  retirement of its conformance exemption, and deletion of its transitional write path after
+  equality.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
