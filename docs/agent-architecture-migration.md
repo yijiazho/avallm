@@ -2,12 +2,13 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2C development-leverage checkpoint. Phase 7E2A is complete and
-approved: the first production-native graph adds a reusable actor-target treatment read plus a
-private Mordred blindness objective without policy authority. Before ordered policy layers, 7R2C
-must shorten the feedback loop, establish strict server typechecking, centralize parse-once
-canonicalization, automate generic component conformance, derive architecture metadata from one
-descriptor, and extract the typed policy-pipeline seam.
+**Current target phase:** Phase 7R2C3 descriptor ownership, followed by Phase 7R2C4's typed policy
+seam. Phase 7E2A is complete and approved: the first production-native graph adds a reusable
+actor-target treatment read plus a private Mordred blindness objective without policy authority.
+The fast-feedback and static-check slice, the admission/conformance foundation, and the
+single-pass replay half of 7R2C are complete. Before ordered policy layers, the remaining work is
+to derive architecture metadata from one authoritative descriptor and extract a staged
+`DecisionFrame` policy-pipeline seam.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1314,16 +1315,20 @@ reviewable and ablatable:
     - **7R2C1, fast feedback and static checks:** add strict no-emit server typechecking and
       fast, contract, evaluation, exhaustive, performance, and complete test lanes. Preserve the
       complete landing gate; move contested wall-clock assertions out of correctness lanes.
+      **Complete.**
     - **7R2C2, parse once and component conformance:** centralize hostile JavaScript/JSON handling,
       structural primitives, canonicalization, and bounded decoding at admission. Downstream code
       consumes admitted typed values. Add a registry-wide conformance harness and shared
       rotation, renaming, private-canary, raw-truth, reweighting, and hostile-shape fixtures.
+      **C2A admission and conformance foundation complete; incremental legacy migration remains.**
     - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact,
       report, and future Inspector metadata from the resolved graph and admitted run. Replace
       repeated prefix replay with one pass over the event log while preserving exact snapshots.
+      **Replay complete; descriptor ownership remains.**
     - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
       canonical request, view, belief, analysis, candidate surface, forced survivors, and component
       run into ordered score layers, ordered decision layers, and the committed action.
+      **Pending.**
 20. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
     E1 transformations as registered ordered layers with explicit dependencies and fallback.
 21. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
@@ -2062,50 +2067,107 @@ builders can trust admitted values without allowing raw or merely cast TypeScrip
 ### Phase 7R2C development-leverage checkpoint
 
 E2A proved the generic component architecture, but it also exposed repeated implementation work
-that should not scale linearly with every role. The frozen candidate brought the complete suite to
-938 tests and about one minute on the development host. Ten agent modules independently define a
-`plainDetachedData` walk, many repeat exact-record and bounded-array primitives, and new role
-coverage still reproduces generic transport, privacy, attribution, and hostile-shape matrices.
-The server uses TypeScript syntax but has no server `tsc --noEmit` gate, so runtime tests currently
-carry work that static checking should reject earlier. High-churn integration files have also
-grown beyond two thousand lines, making parallel edits and causal review increasingly expensive.
+that should not scale linearly with every role. At the start of this checkpoint, the frozen
+candidate had 938 tests and took about one minute on the development host. Ten agent modules
+independently defined a `plainDetachedData` walk, many repeated exact-record and bounded-array
+primitives, and new role coverage still reproduced generic transport, privacy, attribution, and
+hostile-shape matrices. Runtime tests also carried work that a strict server `tsc --noEmit` gate
+could reject earlier. High-churn integration files had grown beyond two thousand lines, making
+parallel edits and causal review increasingly expensive.
 
-7R2C is a bounded architecture investment, not a broad cleanup rewrite:
+7R2C is a bounded architecture investment, not a broad cleanup rewrite. Three independently
+reviewed slices are now landed:
 
-- **C1 keeps all coverage but separates feedback cadence.** A fast lane should finish in roughly
-  10-15 seconds; contract, evaluation, exhaustive, and performance lanes remain independently
-  runnable; the complete API-free suite remains mandatory before landing. Strict production
-  server typechecking uses development-only tooling and does not change the zero-dependency server
-  runtime. Test typechecking follows incrementally with standard hostile-mutation helpers rather
-  than weakening production types.
-- **C2 establishes one unsafe-input owner.** The component kernel owns strict JSON reconstruction,
-  freezing, clone safety, byte bounds, and canonical form. Each registered component owns one
-  semantic decoder and exact host-admission proof. Builders, scorers, planners, trace consumers,
-  and reports accept only typed admitted values and do not defensively parse them again. Malformed
-  input is rejected or degraded, never repaired by dropping or coercing fields. A registry-wide
-  conformance harness proves the generic contract once for every production token; formula tests
-  remain component-specific.
-- **C3 eliminates metadata and replay mirrors.** One resolved architecture descriptor is projected
-  into runtime trace, artifacts, reports, and the future private Inspector v2 debug snapshot.
-  Evaluation captures every predecision snapshot in one replay pass rather than replaying each log
-  prefix. Inspector v2 consumes the derived private debug projection and never raw `Game`.
-- **C4 extracts only the policy region needed by 7R3.** It must not mechanically split every large
-  module. The typed seam makes forced-survivor monotonicity and voice-after-commit ordering part of
-  the API, then existing C2, D2, E1, and D3 behavior moves behind compatibility adapters before new
-  ordered-layer behavior is added.
+- **C1, commit `30a96e8`, keeps all coverage but separates feedback cadence.** Strict no-emit
+  server typechecking and fail-closed fast, contract, evaluation, exhaustive, performance, and
+  complete lanes are available. Performance assertions run serially outside correctness lanes.
+  The tooling is development-only, so the production server remains zero dependency.
+- **C2A, commit `35f30cb`, establishes the unsafe-input and component-conformance foundation.**
+  The kernel performs bounded canonical JSON admission before semantic decoding, and every
+  ingress to detached component validation crosses that boundary. Two production components have
+  native executable conformance fixtures. The other ten production tokens are explicit legacy
+  exemptions owned by C2B and 7R3; the inventory fails closed if a token is added, removed, or
+  silently unclassified. New native components must use this boundary immediately, while legacy
+  exemptions are retired one family at a time.
+- **The replay half of C3, commit `b797a5e`, replaces repeated prefix reconstruction with one
+  authoritative replay timeline.** It applies each action once, projects each newly appended event
+  once into the timeline's seat-visible caches, binds private probes to their target seat, and
+  reports actual work plus unavoidable serialized snapshot bytes. The normal one-shot view path
+  constructs only the requested seat's projection, and artifact DTOs are detached from live replay
+  state. Exact replay, privacy, and integration coverage pass with the complete 951/951 API-free
+  suite. The descriptor half of C3 remains.
+- **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
+  mechanically split every large module. The staged type design makes invalid pipeline states
+  unrepresentable: request, view, belief, and analysis establish the analyzed frame; the legal
+  candidate surface precedes forced-policy survivors; survivors precede scoring and strategic
+  choice; a committed action precedes voice. Existing C2, D2, E1, and D3 behavior moves behind
+  compatibility adapters before new ordered-layer behavior is added.
 
-C1, the conformance-fixture portion of C2, and single-pass replay may proceed in isolated parallel
-worktrees after E2A lands. Descriptor ownership and C4 are sequential because both define the
-interfaces 7R3 will consume. Bulk conversion of every historical validator, broad file splitting,
-new caching, and third-party schema or property-test dependencies are deferred. New native code
-must use the centralized boundary immediately; D3's optional-field-heavy live payload becomes a
-discriminated native layer in 7R3B, while one quarantined compatibility decoder keeps historical
-artifacts readable.
+The cross-review findings establish these development guardrails for the rest of the migration:
 
-The 7R2C exit gate requires strict server typechecking, a green fast and complete test matrix, one
-conformance case for every production component token, byte-identical replay snapshots, derived
-metadata equality across runtime/artifact/report surfaces, frozen decisions/prompts/logs/replay,
-and no new role-named central write field.
+1. **Bound before traversal.** Admission rejects impossible declared array sizes and exhausts a
+   byte-derived work budget while walking; it never performs an unbounded walk and checks the size
+   afterward.
+2. **Canonicalize every ingress, then decode once.** Host roots, component payloads, traces, and
+   external reconstruction all enter through the same hostile-data boundary. One component-owned
+   semantic decoder produces the typed value. Downstream builders, policy, reports, and debug
+   projections consume that value without reparsing or relying on casts.
+3. **Reject unsupported attribution explicitly.** An unknown observer, mode, component token, or
+   lane classification is an error or an attributable degradation. It must never be relabeled as
+   `off`, absent, or otherwise valid.
+4. **Measure the work actually performed.** Complexity tests count log events scanned, seat-view
+   events projected, actions applied, and serialized bytes emitted. Full historical snapshots
+   necessarily cost the bytes they emit, so the replay contract is linear in log work plus output
+   size, not a misleading constant-time or event-only claim.
+5. **Test negative privacy capabilities.** A target-seat replay must prove that it cannot invoke
+   all-seat projection, capture a raw `GameEvent`, select another seat's decision, or expose a
+   private probe. The normal one-seat view path must not pay the cost or accept the capability of
+   building every seat's view.
+6. **Keep replay inputs append-only and outputs detached.** The replay projector binds one exact
+   `Game` identity, accepts only an immutable append-only event-log prefix, and returns detached
+   artifact DTOs rather than references to mutable engine or cache state. Historical rename
+   semantics remain behind one explicit compatibility adapter instead of contaminating the
+   current projection model.
+7. **Make the landing gate cheap to enter and hard to bypass.** Run strict typechecking and the
+   smallest focused test first, then independent boundary review, then contract and complete
+   API-free suites. The lane inventory is fail closed. Every commit has a detailed motivation,
+   behavior, design, and verification body, followed by a pre-land commit-message and clean-tree
+   check.
+
+The prioritized no-regret work before 7R3 is:
+
+1. Finish **C3 descriptor ownership** so one authoritative resolved descriptor derives trace,
+   artifact, report, and future Inspector v2 metadata. Add architecture dependency fitness checks
+   that reject duplicate authorship, undeclared dependencies, inapplicable eager roots, and
+   cross-surface drift. The checks also enforce import direction: the engine cannot depend on
+   agents or evaluation, runtime agents cannot depend on evaluation or raw `Game`, and generic
+   policy components cannot depend on artifact or report types. Ratchet unsafe casts toward codecs
+   and compatibility readers rather than allowing them in new policy code.
+2. Implement **C4 as staged `DecisionFrame` types**, not one optional-field bag. Preserve forced
+   survivor monotonicity, engine legality, and voice-after-commit as type and contract boundaries.
+3. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
+   exemptions incrementally as their policy families move in 7R3. Component-specific formula
+   tests remain beside the generic contract.
+4. Add stable **quick, contract, and full verification entry points** that include the applicable
+   strict typecheck and print the exact lane manifest. A fresh worktree should be bootstrapped by
+   one documented command, and each implementation handoff should carry a small machine-readable
+   manifest of base commit, changed contracts, focused commands, full-suite result, and known
+   exemptions.
+
+Descriptor ownership and C4 remain sequential because both define the interfaces 7R3 will
+consume. Broad file splitting, a third-party schema runtime, wholesale conversion of historical
+validators, and a rewrite of every legacy compatibility reader are deferred until a measured
+bottleneck or the owning migration slice justifies them. D3's optional-field-heavy live payload
+becomes a discriminated native layer in 7R3B, while one quarantined compatibility decoder keeps
+historical artifacts readable. Paid tests and win-rate tuning remain deferred until the
+architecture can be evaluated as a coherent whole.
+
+The 7R2C exit gate requires strict server typechecking, a green fast and complete test matrix,
+fail-closed classification of every production component token with an executable conformance
+fixture for every native token, byte-identical replay snapshots, derived metadata equality across
+runtime/artifact/report surfaces, frozen decisions/prompts/logs/replay, and no new role-named
+central write field. Each remaining legacy exemption must name its retirement owner; 7R3 cannot
+declare a migrated family native while its exemption remains.
 
 **7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
 score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
@@ -2476,13 +2538,17 @@ here.
   synchronous applicability, and registered exact suppression proofs close the host-replay gaps
   found during review. Focused architecture/privacy/replay validation passes 112/112 and all 938
   API-free repository tests pass. Independent final rereview passes 116/116 and returns READY.
-- Phase 7R2C active prerequisite: add strict server typechecking and tiered test lanes, centralize
-  parse-once canonicalization, automate production-component conformance, derive architecture
-  metadata and Inspector input from one descriptor, replace quadratic evaluation replay, and
-  extract the typed policy seam before ordered layers. This owns the redundant E2A belief recheck,
-  public-observer reconstruction, and eager inapplicable-root work rather than allowing them to
-  accrete inside each component. Phase 7R3B separately owns D3's discriminated historical
-  compatibility read and deletion of its transitional write path after equality.
+- Phase 7R2C checkpoint in progress: C1 (`30a96e8`) added strict server typechecking and
+  fail-closed tiered test lanes. C2A (`35f30cb`) added the bounded canonical admission boundary,
+  registry-wide conformance inventory, two native executable fixtures, and ten explicit legacy
+  exemptions owned by C2B and 7R3. The replay half of C3 (`b797a5e`) added one authoritative
+  replay timeline, incremental target-seat projection, private probe binding, detached artifact
+  DTOs, and honest work/output accounting; all 951 API-free tests pass. The current target is the
+  remaining C3 descriptor owner, followed by C4's staged `DecisionFrame` policy seam. Those slices
+  own redundant metadata authorship, eager inapplicable-root work, and optional-state pipeline
+  ambiguity rather than allowing them to accrete inside each component. Phase 7R3B separately
+  owns D3's discriminated historical compatibility read, incremental retirement of its
+  conformance exemption, and deletion of its transitional write path after equality.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
