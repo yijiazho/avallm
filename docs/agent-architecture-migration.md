@@ -1672,6 +1672,27 @@ requires E1A's exact host-reconstructable provenance because traces do not carry
 weighted world list; this is an explicit Phase 7F evidence limitation, not a claim that weighted
 promotion evidence is complete.
 
+### Phase 7R1 forced-policy authority checkpoint
+
+The pre-Mordred architecture audit found that D3's optional strategic quest-card directive was
+examined before universal T1 quest rules. The composed runtime reconstructed valid D3 directives,
+so no observed trace violated the rules, but the forced-policy owner was not independently
+authoritative against an adversarial caller.
+
+Universal good Success, non-Oberon evil cannot-sink Success, and decisive sinkable evil Fail now
+resolve before any D3 exact-quota or robust directive. Only a remaining nondecisive legal choice
+may reach the optional strategic policy. Oberon remains outside coordinated D3 policy, remains
+free on an ordinary two-Fail quest it cannot knowingly sink, and still Fails when its own card can
+decide a match-point quest. The change does not alter D3's opt-in and quarantine status, private
+payload, deterministic policy, scorer/planner ordering, or engine legality.
+
+Focused API-free validation passed 23 forced-policy and D3 cases. New direct regressions supply
+shape-valid adversarial Fail and Success directives and prove they cannot override cannot-sink or
+decisive rules; separate Oberon cases pin both the uncoordinated ordinary path and decisive forced
+Fail. A further 23 composed, trace, and stdio adjacency cases passed. The full suite and
+architecture bank remain the parent gate for the completed executable checkpoint under the
+validation cadence above.
+
 ### Mordred
 
 - [ ] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
@@ -1976,6 +1997,10 @@ here.
   runtime passed alongside 181 focused tests and all 821 API-free repository tests. Weighted
   traces remain ineligible for external promotion admission until complete-world provenance is
   certifiable. Phase 7E2A is next.
+- Phase 7R1 forced-policy authority: reordered universal quest-card rules ahead of the optional D3
+  strategic directive and pinned adversarial no-sink, match-point, and Oberon behavior. Focused
+  validation passed 46 API-free forced-policy, D3, composed, trace, and stdio cases; the parent
+  completion gate owns the once-per-executable-chunk full suite and architecture bank.
 - Validation cadence checkpoint: moved adversarial parent and fresh-agent review ahead of expensive
   banks and the complete suite. Normal iteration now uses dedicated low-cost fixtures, then only
   the high-player-count boundary cases required by the contract. The applicable free bank and full

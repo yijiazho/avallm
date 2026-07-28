@@ -139,8 +139,27 @@ export function applyForcedPolicy(
     const current = analysis.currentTeam
     const need = analysis.failsRequired
     const canSink = (current?.knownFailsAboard.length ?? 0) >= need
+    if (!canSink && view.role !== 'oberon') {
+      if (!analysis.forcedPlayReasonCodes.includes('EVIL_QUEST_CARD_CANNOT_SINK')) {
+        throw new Error('analysis omitted EVIL_QUEST_CARD_CANNOT_SINK')
+      }
+      return select(
+        candidates,
+        { kind: 'quest', card: 'success' },
+        ['EVIL_QUEST_CARD_CANNOT_SINK'],
+      )
+    }
+    if (
+      canSink
+      && (analysis.matchPoint.good || analysis.matchPoint.evil)
+    ) {
+      const reasons: ForcedPlayReasonCode[] = []
+      if (analysis.matchPoint.good) reasons.push('GOOD_MATCH_POINT_FAIL_REQUIRED')
+      if (analysis.matchPoint.evil) reasons.push('EVIL_MATCH_POINT_FAIL_AVAILABLE')
+      return select(candidates, { kind: 'quest', card: 'fail' }, reasons)
+    }
     const questPolicy = options.evilQuestCardPolicy
-    if (questPolicy?.selectedCard) {
+    if (view.role !== 'oberon' && questPolicy?.selectedCard) {
       const reason = {
         EXACT_QUOTA_DESIGNATED_FAIL:
           'EVIL_EXACT_QUOTA_DESIGNATED_FAIL',
@@ -165,30 +184,8 @@ export function applyForcedPolicy(
       return select(
         candidates,
         { kind: 'quest', card: questPolicy.selectedCard },
-        [
-          reason,
-          ...(!canSink ? ['EVIL_QUEST_CARD_CANNOT_SINK' as const] : []),
-        ],
+        [reason],
       )
-    }
-    if (!canSink && view.role !== 'oberon') {
-      if (!analysis.forcedPlayReasonCodes.includes('EVIL_QUEST_CARD_CANNOT_SINK')) {
-        throw new Error('analysis omitted EVIL_QUEST_CARD_CANNOT_SINK')
-      }
-      return select(
-        candidates,
-        { kind: 'quest', card: 'success' },
-        ['EVIL_QUEST_CARD_CANNOT_SINK'],
-      )
-    }
-    if (
-      canSink
-      && (analysis.matchPoint.good || analysis.matchPoint.evil)
-    ) {
-      const reasons: ForcedPlayReasonCode[] = []
-      if (analysis.matchPoint.good) reasons.push('GOOD_MATCH_POINT_FAIL_REQUIRED')
-      if (analysis.matchPoint.evil) reasons.push('EVIL_MATCH_POINT_FAIL_AVAILABLE')
-      return select(candidates, { kind: 'quest', card: 'fail' }, reasons)
     }
   }
 
