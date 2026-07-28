@@ -9,7 +9,15 @@ AvaLLM — a web implementation of The Resistance: Avalon where the other player
 ## Commands
 
 ```
+npm ci                                     # root dev tooling only; production server remains zero-dependency
 npm test                                   # all tests (node:test, no API key or network needed)
+npm run typecheck                          # strict no-emit check of all server TypeScript
+npm run test:fast                          # short developer feedback lane
+npm run test:contract                      # architecture and boundary contracts
+npm run test:eval                          # evaluation tooling and fixture contracts
+npm run test:exhaustive                    # combinatorial, fuzz, and privacy sweeps
+npm run test:perf                          # isolated serial elapsed-time budgets
+npm run test:lanes                         # fail on missing/duplicate test classification
 node --test test/rules.test.ts             # a single test file
 npm run sim -- --help                      # EVERY sim flag, with examples and live roster ids
 npm run sim -- --players 7 --seed 42       # one headless heuristic game, full transcript
@@ -26,7 +34,7 @@ npm --prefix client run dev                # vite build --watch (NOT a dev serve
 node server/server.ts                      # serve at http://localhost:8787
 ```
 
-- **Server requires Node ≥ 24** and runs TypeScript natively — there is no server build step, no server `node_modules`, and it must stay **zero-dependency** (plain `node:http`). Only the client has npm dependencies.
+- **Server requires Node ≥ 24** and runs TypeScript natively — there is no server build step, and the production server must stay **zero runtime dependencies** (plain `node:http`). Root `node_modules` contains dev-only TypeScript tooling installed by `npm ci`; client runtime/build dependencies remain isolated under `client/`.
 - There is no Vite dev server: the game server serves the static `client/dist`, so client changes need a build (or the `--watch` variant) to show up. `.claude/launch.json` defines the `avalon` preview config (port 8787, autoPort).
 - Config comes from a `.env` found by walking up from cwd (`server/llm/env.ts`); real env vars win. Keys: `OPENROUTER_API_KEY`, `OPENROUTER_MAX_SPEND_USD` (spend ceiling), `AVALON_INVITE_CODE` (gates money-spending/disk-writing routes on public deploys; comma-separated list — any one code opens the gate), `AVALON_PORT`/`PORT`, `AVALON_DATA_DIR` (parent dir for runtime-written user agents; defaults to `RAILWAY_VOLUME_MOUNT_PATH` then repo-local `./data` — point it at a mounted persistent disk so custom agents survive redeploys).
 

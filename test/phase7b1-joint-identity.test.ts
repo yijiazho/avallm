@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
   projectJointIdentity,
@@ -463,8 +464,9 @@ test('projection is deterministic, seat-rotation equivariant, and bounded for 5-
     assert.deepEqual(two, one)
     assert.ok(validatePrivateIdentitySnapshot(one))
     assert.ok(JSON.stringify(one).length < 250_000)
-    assert.ok(
-      elapsed < 5_000,
+    assertWallClockBelow(
+      elapsed,
+      5_000,
       `${playerCount}p identity took ${elapsed.toFixed(1)}ms`,
     )
   }

@@ -331,12 +331,14 @@ export function validatePublicObserverSnapshot(
     const assessment = seatValue as Record<string, unknown>
     const roles = assessment.roleMarginals
     const behavior = assessment.behavior as Record<string, unknown>
+    const goodProbability = assessment.goodProbability
+    const evilProbability = assessment.evilProbability
     const goodCount = latticeCount(
-      assessment.goodProbability,
+      goodProbability,
       feasibleWorldCount,
     )
     const evilCount = latticeCount(
-      assessment.evilProbability,
+      evilProbability,
       feasibleWorldCount,
     )
     if (
@@ -348,10 +350,12 @@ export function validatePublicObserverSnapshot(
         'behavior',
       ])
       || assessment.seat !== seat
+      || !probability(goodProbability)
+      || !probability(evilProbability)
       || goodCount === undefined
       || evilCount === undefined
       || Math.abs(
-        assessment.goodProbability + assessment.evilProbability - 1,
+        goodProbability + evilProbability - 1,
       ) > 1e-12
       || !Array.isArray(roles)
       || !behavior

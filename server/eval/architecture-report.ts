@@ -304,7 +304,9 @@ function publicSpeech(trace: NonNullable<GameArtifact['decisionTraces']>[number]
   const action = trace.action
   if (action.kind === 'discuss') return action.say ?? ''
   if (action.kind === 'propose') return action.pitch ?? ''
-  if (action.kind === 'finalize') return action.reason ?? ''
+  if (action.kind === 'finalize') {
+    return action.stick === false ? action.reason ?? '' : ''
+  }
   return ''
 }
 
@@ -1639,7 +1641,10 @@ function observe(a: GameArtifact): GameObservation {
               score.viable
               && score.features?.version === 'good-proposal-features-v1',
           )
-          .map((score) => score.features!.cleanProbability),
+          .flatMap((score) =>
+            score.features?.version === 'good-proposal-features-v1'
+              ? [score.features.cleanProbability]
+              : []),
       )
       proposalPosteriorRegrets.push(
         Math.max(0, best - chosen.features.cleanProbability),
@@ -1660,7 +1665,10 @@ function observe(a: GameArtifact): GameObservation {
             (score) =>
               score.features?.version === 'good-vote-features-v1',
           )
-          .map((score) => score.features!.baseUtility),
+          .flatMap((score) =>
+            score.features?.version === 'good-vote-features-v1'
+              ? [score.features.baseUtility]
+              : []),
       )
       voteUtilityRegrets.push(
         Math.max(0, best - chosen.features.baseUtility),

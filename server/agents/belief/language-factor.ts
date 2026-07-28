@@ -116,7 +116,10 @@ export const boundedLanguageLikelihoodFactor: LanguageLikelihoodFactor =
   Object.freeze({
     id: 'language',
     version: LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
-    logLikelihood(world, evidence) {
+    logLikelihood(
+      world: HiddenWorld,
+      evidence: LanguageLikelihoodEvidence,
+    ) {
       const alignment = targetAlignment(evidence.direction)
       if (!alignment) return 0
       return world.alignmentBySeat[evidence.subject] === alignment

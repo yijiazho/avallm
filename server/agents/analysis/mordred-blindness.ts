@@ -324,10 +324,12 @@ export function buildPrivateMordredBlindnessObjective(input: {
     treatment,
     candidates,
   } = input
+  if (req.kind !== 'propose' && req.kind !== 'vote') {
+    throw new Error('Mordred objective is inapplicable')
+  }
   if (
     view.role !== 'mordred'
     || req.seat !== view.seat
-    || !['propose', 'vote'].includes(req.kind)
     || req.round !== view.round
     || req.proposalNum !== view.proposalNum
     || view.phase !== (req.kind === 'propose' ? 'proposal' : 'vote')
@@ -335,6 +337,7 @@ export function buildPrivateMordredBlindnessObjective(input: {
   ) {
     throw new Error('Mordred objective is inapplicable')
   }
+  const requestKind: 'propose' | 'vote' = req.kind
   const worlds = validateBeliefForMordred(belief, view)
   const failsRequired = view.quests[view.round - 1]?.failsRequired
   const teamSize = TEAM_SIZES[view.playerCount]?.[view.round - 1]
@@ -542,7 +545,7 @@ export function buildPrivateMordredBlindnessObjective(input: {
     },
     request: {
       seat: req.seat,
-      kind: req.kind,
+      kind: requestKind,
       round: req.round,
       proposalNum: req.proposalNum,
       failsRequired: failsRequired!,

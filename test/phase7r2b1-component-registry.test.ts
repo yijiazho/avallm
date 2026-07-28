@@ -27,6 +27,23 @@ import {
 import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 
+test('registry rejects a single unsupported observer-model contribution', () => {
+  const custom = {
+    ...definition('custom-observer'),
+    brainContribution: {
+      observerModel: 'custom-observer-model-v1',
+    },
+  }
+  assert.throws(
+    () => createDecisionComponentRegistry([
+      custom as unknown as DecisionComponentDefinition,
+    ]),
+    (error: unknown) =>
+      error instanceof ComponentRegistryError
+      && error.code === 'invalid-definition',
+  )
+})
+
 function admitted<Payload>(
   payload: Payload,
 ): ComponentAdmissionResult<Payload> {

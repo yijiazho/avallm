@@ -75,6 +75,7 @@ import {
   COMPOSED_POLICY_VERSION,
   resolveBrain,
   type AgentExecutionMode,
+  type BrainSource,
 } from './brain.ts'
 import {
   DECISION_COMPONENT_RUN_VERSION,
@@ -799,15 +800,16 @@ function composedTrace(
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
-  const brain = brainComponents(resolveBrain({
+  const brainSource: BrainSource = {
     type: 'composed',
-    ...(languageEnabled
-      ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
-      : {}),
-    ...(observerModelEnabled
-      ? { observerModel: PUBLIC_OBSERVER_MODEL_VERSION }
-      : {}),
-  }))
+    languageEvidence: languageEnabled
+      ? LANGUAGE_FACTOR_BUNDLE_VERSION
+      : undefined,
+    observerModel: observerModelEnabled
+      ? PUBLIC_OBSERVER_MODEL_VERSION
+      : undefined,
+  }
+  const brain = brainComponents(resolveBrain(brainSource))
   return {
     ...createDecisionTrace(
       req,
@@ -1153,7 +1155,15 @@ export function createComposedAgent(
     compatibility: {
       requests: {
         publicObserver: publicObserverConfigured,
-        privateIdentity: configuredIdentityScope ?? null,
+        privateIdentity: configuredIdentityScope
+          ? {
+              roleQueries: configuredIdentityScope.roleQueries.map((query) =>
+                typeof query === 'string'
+                  ? query
+                  : { roles: [...query.roles] }),
+              hiddenTeam: configuredIdentityScope.hiddenTeam,
+            }
+          : null,
         roleObjectives: roleObjectivesConfigured,
         roleObjectiveRouter: roleObjectiveRouterConfigured,
         morganaCounterfeitObjectives: morganaCounterfeitConfigured,

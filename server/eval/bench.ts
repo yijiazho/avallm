@@ -166,7 +166,7 @@ async function main(): Promise<void> {
     games: Number(values.games),
     seedBase: values.seed!,
     playerCount: Number(values.players),
-    talk: { maxRounds, maxRoundsAfterChange },
+    talk: { maxRounds, maxRoundsAfterChange, leaderInDiscussion: 'last' },
     table,
     out,
     onProgress: values.quiet ? undefined : (line) => console.log(line),

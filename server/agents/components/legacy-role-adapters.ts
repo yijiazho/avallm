@@ -590,7 +590,7 @@ readonly LegacyRoleAdapterTraceBinding[] = Object.freeze([
         && trace.forcedPolicyResult?.applied
       )
         ? {
-            status: 'suppressed',
+            status: 'suppressed' as const,
             reasonCode: 'universal-forced-policy',
           }
         : 'applicable'
@@ -634,7 +634,7 @@ readonly LegacyRoleAdapterTraceBinding[] = Object.freeze([
         && trace.forcedPolicyResult?.applied
       )
         ? {
-            status: 'suppressed',
+            status: 'suppressed' as const,
             reasonCode: 'universal-forced-policy',
           }
         : 'applicable'

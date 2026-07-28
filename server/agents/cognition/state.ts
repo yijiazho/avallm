@@ -183,9 +183,10 @@ export function advanceCognitionFromBelief(
     )
   }
 
-  const languageReads = structuredClone(
-    resolved.languageReads ?? earlier?.languageReads ?? [],
-  ).sort((left, right) => left.sourceSeq - right.sourceSeq)
+  const languageReads: LanguageEvidence[] = [
+    ...structuredClone(resolved.languageReads ?? earlier?.languageReads ?? []),
+  ]
+  languageReads.sort((left, right) => left.sourceSeq - right.sourceSeq)
   const languageCursor = structuredClone(
     resolved.languageCursor
       ?? earlier?.languageCursor

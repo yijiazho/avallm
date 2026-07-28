@@ -13,6 +13,7 @@ import {
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
+  type ForcedPolicyResult,
 } from '../policy/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -94,6 +95,7 @@ import { COHERENCE_MODEL_VERSION } from '../cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
+  type RoleObjectiveRole,
 } from '../analysis/role-objective-types.ts'
 import {
   ROLE_UTILITY_DEGRADATION,
@@ -123,6 +125,8 @@ import {
   validatePrivateEvilRoleUtilityHostJoin,
   validatePrivateEvilRoleUtilityProjection,
 } from '../analysis/evil-role-utility.ts'
+
+type TraceValidationInput = Record<string, unknown> | DecisionTrace
 import { routedRoleObjectiveModel } from '../analysis/role-objective-router.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
@@ -351,7 +355,7 @@ function validComponentVersions(value: unknown): boolean {
 }
 
 function validMorganaCounterfeitTrace(
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -469,7 +473,7 @@ function validMorganaCounterfeitTrace(
 }
 
 function validMorganaRolePolicyTrace(
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
   deterministicSeed?: string,
@@ -519,6 +523,7 @@ function validMorganaRolePolicyTrace(
       configuredScorer !== MORGANA_ROLE_SCORER_VERSION
       && configuredScorer !== MORGANA_ROLE_SEEDED_SCORER_VERSION
     ) return false
+    const forcedResult = trace.forcedPolicyResult
     if (
       !validatePrivateMorganaCounterfeitObjective(
         trace.privateMorganaCounterfeitObjective,
@@ -526,7 +531,8 @@ function validMorganaRolePolicyTrace(
       || !validatePrivateEvilRoleUtilityProjection(
         trace.privateEvilRoleUtility,
       )
-      || !validForcedPolicyResult(trace.forcedPolicyResult)
+      || forcedResult === undefined
+      || !validForcedPolicyResult(forcedResult)
     ) {
       // Upstream exact-dependency admission independently decides whether an
       // absent or malformed prerequisite is an honest narrow degradation.
@@ -555,7 +561,7 @@ function validMorganaRolePolicyTrace(
         req,
         view: hostView,
         candidates,
-        forced: trace.forcedPolicyResult,
+        forced: forcedResult,
         counterfeitObjective: trace.privateMorganaCounterfeitObjective,
         evilRoleUtility: trace.privateEvilRoleUtility,
         selectionMode,
@@ -578,7 +584,7 @@ function validMorganaRolePolicyTrace(
 
 function validPrivateEvilQuestCardPolicyTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -783,7 +789,7 @@ function validPrivateEvilQuestCardPolicyTrace(
 
 function validPlanOutcomeTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   decision: Decision,
   hostView?: PlayerView,
@@ -801,7 +807,7 @@ function validPlanOutcomeTrace(
 
 function validLanguageTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
 ): boolean {
   const components = trace.componentVersions as
     | Record<string, unknown>
@@ -873,6 +879,9 @@ function validLanguageTrace(
   const validAttributedVersion =
     typeof interpreterVersion === 'string'
     && /^[a-z0-9][a-z0-9._-]{0,99}$/.test(interpreterVersion)
+  if (!canonicalSeqs(admitted) || !canonicalSeqs(cumulative)) {
+    return false
+  }
   const languageProvenance = Array.isArray(trace.beliefProvenance)
     ? trace.beliefProvenance.filter(
         (entry) =>
@@ -943,8 +952,6 @@ function validLanguageTrace(
     && (language.cursorThroughSeq as number) >= -1
     && (language.cursorThroughSeq as number)
       <= (trace.beliefThroughSeq as number)
-    && canonicalSeqs(admitted)
-    && canonicalSeqs(cumulative)
     && admitted.every((seq) => cumulative.includes(seq))
     && Array.isArray(degradation)
     && new Set(degradation).size === degradation.length
@@ -960,7 +967,7 @@ function validLanguageTrace(
 
 function validPublicObserverTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): boolean {
   const components = trace.componentVersions as
@@ -993,7 +1000,7 @@ function validPublicObserverTrace(
 
 function validPrivateIdentityTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   hostRolesInPlay: readonly unknown[] | undefined,
 ): boolean {
   const components = trace.componentVersions as
@@ -1028,7 +1035,7 @@ function validPrivateIdentityTrace(
 
 function validPrivateRoleObjectiveTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -1108,7 +1115,7 @@ function validPrivateRoleObjectiveTrace(
 
 function validPrivateEvilRoleObjectiveTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -1196,7 +1203,7 @@ function validPrivateEvilRoleObjectiveTrace(
 }
 
 function validRoleObjectiveRoute(
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   hostView?: PlayerView,
 ): boolean {
   const components = trace.componentVersions as
@@ -1216,7 +1223,7 @@ function validRoleObjectiveRoute(
 
 function validPrivateRoleUtilityTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -1303,7 +1310,7 @@ function validPrivateRoleUtilityTrace(
 
 function validPrivateEvilRoleUtilityTrace(
   value: unknown,
-  trace: Record<string, unknown>,
+  trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
@@ -1904,7 +1911,13 @@ function enumStringArray(
   return stringArray(value) && value.every((entry) => choices.has(entry))
 }
 
-function validForcedPolicyResult(value: unknown): boolean {
+function isRoleObjectiveRole(role: string): role is RoleObjectiveRole {
+  return role === 'merlin' || role === 'percival'
+}
+
+function validForcedPolicyResult(
+  value: unknown,
+): value is ForcedPolicyResult | undefined {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const forced = value as Record<string, unknown>
@@ -1936,7 +1949,7 @@ function validForcedPolicyResult(value: unknown): boolean {
   )
 }
 
-function validBeliefTraceRelations(trace: Record<string, unknown>): boolean {
+function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
   const components = trace.componentVersions as
     | Record<string, unknown>
     | undefined
@@ -1973,7 +1986,7 @@ function validBeliefTraceRelations(trace: Record<string, unknown>): boolean {
   )
 }
 
-function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
+function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   if (trace.candidateScores === undefined) {
     const components = trace.componentVersions as
       | Record<string, unknown>
@@ -1994,7 +2007,7 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       )
   }
   const scores = trace.candidateScores as Array<Record<string, unknown>>
-  const ids = scores.map((score) => score.candidateId)
+  const ids = scores.map((score) => String(score.candidateId))
   if (new Set(ids).size !== ids.length) return false
   const components = trace.componentVersions as Record<string, unknown> | undefined
   if (
@@ -3061,14 +3074,14 @@ function exactGenericArray(value: unknown): value is unknown[] {
     )
   ) return false
   const descriptors = Object.getOwnPropertyDescriptors(value)
-  const length = descriptors.length
+  const length = Object.getOwnPropertyDescriptor(value, 'length')
   if (
     !length
     || !('value' in length)
     || length.value !== value.length
     || length.enumerable !== false
-    || length.get !== undefined
-    || length.set !== undefined
+    || Object.hasOwn(length, 'get')
+    || Object.hasOwn(length, 'set')
   ) return false
   for (let index = 0; index < value.length; index++) {
     const descriptor = descriptors[String(index)]
@@ -3076,8 +3089,8 @@ function exactGenericArray(value: unknown): value is unknown[] {
       !!descriptor
       && descriptor.enumerable === true
       && 'value' in descriptor
-      && descriptor.get === undefined
-      && descriptor.set === undefined
+      && !Object.hasOwn(descriptor, 'get')
+      && !Object.hasOwn(descriptor, 'set')
     )) return false
   }
   return true
@@ -3412,10 +3425,11 @@ function validDecisionTrace(
   req: DecisionRequest,
   decision: Decision,
   value: unknown,
-  hostView?: PlayerView,
+  hostView?: PlayerView | Pick<PlayerView, 'rolesInPlay'>,
 ): value is DecisionTrace {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const trace = value as Record<string, unknown>
+  const fullHostView = isFullPlayerView(hostView) ? hostView : undefined
   const throughSeq = trace.beliefThroughSeq
   const hypotheses = trace.topHypotheses
   const agentModes: readonly AgentExecutionMode[] = [
@@ -3475,9 +3489,9 @@ function validDecisionTrace(
     && validComponentVersions(trace.componentVersions)
     && validGenericRoleComponents(
       trace as unknown as DecisionTrace,
-      hostView,
+      fullHostView,
     )
-    && validRoleObjectiveRoute(trace, hostView)
+    && validRoleObjectiveRoute(trace, fullHostView)
     && validLanguageTrace(trace.languageEvidence, trace)
     && validPublicObserverTrace(trace.publicObserver, trace, hostView)
     && validPrivateIdentityTrace(
@@ -3489,40 +3503,40 @@ function validDecisionTrace(
       trace.privateRoleObjective,
       trace,
       req,
-      hostView,
+      fullHostView,
     )
     && validPrivateEvilRoleObjectiveTrace(
       trace.privateEvilRoleObjective,
       trace,
       req,
-      hostView,
+      fullHostView,
     )
     && validPrivateRoleUtilityTrace(
       trace.privateRoleUtility,
       trace,
       req,
-      hostView,
+      fullHostView,
     )
     && validPrivateEvilRoleUtilityTrace(
       trace.privateEvilRoleUtility,
       trace,
       req,
-      hostView,
+      fullHostView,
     )
     && validPrivateEvilQuestCardPolicyTrace(
       trace.privateEvilQuestCardPolicy,
       trace,
       req,
-      hostView,
+      fullHostView,
     )
-    && validMorganaCounterfeitTrace(trace, req, hostView)
-    && validMorganaRolePolicyTrace(trace, req, hostView)
+    && validMorganaCounterfeitTrace(trace, req, fullHostView)
+    && validMorganaRolePolicyTrace(trace, req, fullHostView)
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
       req,
       decision,
-      hostView,
+      fullHostView,
     )
     && validCandidateScores(trace.candidateScores)
     && (
@@ -3615,37 +3629,41 @@ export function validateComposedTraceHostJoin(input: {
         )
       )
       || !validRoleObjectiveRoute(
-        trace as unknown as Record<string, unknown>,
+        trace,
         view,
       )
       || !validCandidateScores(trace.candidateScores)
       || !validForcedPolicyResult(trace.forcedPolicyResult)
-      || !validPublicObserverTrace(trace.publicObserver, trace, view)
+      || !validPublicObserverTrace(
+        trace.publicObserver,
+        trace,
+        view,
+      )
       || !validPrivateIdentityTrace(
         trace.privateIdentity,
-        trace as unknown as Record<string, unknown>,
+        trace,
         view.rolesInPlay,
       )
       || !validPrivateEvilRoleObjectiveTrace(
         trace.privateEvilRoleObjective,
-        trace as unknown as Record<string, unknown>,
+        trace,
         req,
         view,
       )
       || !validPrivateEvilQuestCardPolicyTrace(
         trace.privateEvilQuestCardPolicy,
-        trace as unknown as Record<string, unknown>,
+        trace,
         req,
         view,
       )
       || !validateEvilQuestCardPolicyHostJoin(trace, req, view)
       || !validMorganaCounterfeitTrace(
-        trace as unknown as Record<string, unknown>,
+        trace,
         req,
         view,
       )
       || !validMorganaRolePolicyTrace(
-        trace as unknown as Record<string, unknown>,
+        trace,
         req,
         view,
         deterministicSeed,
@@ -3662,20 +3680,20 @@ export function validateComposedTraceHostJoin(input: {
       hasRoleObjective
       && !validPrivateRoleObjectiveTrace(
         trace.privateRoleObjective,
-        trace as unknown as Record<string, unknown>,
+        trace,
         req,
         view,
       )
     ) return false
     if (!validPrivateRoleUtilityTrace(
       trace.privateRoleUtility,
-      trace as unknown as Record<string, unknown>,
+      trace,
       req,
       view,
     )) return false
     if (!validPrivateEvilRoleUtilityTrace(
       trace.privateEvilRoleUtility,
-      trace as unknown as Record<string, unknown>,
+      trace,
       req,
       view,
     )) return false
@@ -4043,10 +4061,11 @@ function validateExactRoleDependencyHostJoin(
     || configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
     || components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
     || components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+  const role = view.role
   const applicable =
     roleConfigured
     && (req.kind === 'propose' || req.kind === 'vote')
-    && (view.role === 'merlin' || view.role === 'percival')
+    && isRoleObjectiveRole(role)
   const exactNonLanguage =
     components.belief === EXACT_BELIEF_MODEL_VERSION
     && components.languageEvidence === 'off'
@@ -4072,7 +4091,7 @@ function validateExactRoleDependencyHostJoin(
           ),
           hiddenTeam: trace.privateIdentity.scope.hiddenTeam,
         }
-      : roleObjectiveIdentityScope(view.role, view.rolesInPlay)
+      : roleObjectiveIdentityScope(role, view.rolesInPlay)
     const identity = projectJointIdentity(belief, scope)
     const observer = observePublicRecord(projectPublicRecord(view))
     const candidates = legalCandidates(req, view)

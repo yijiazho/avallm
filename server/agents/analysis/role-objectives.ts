@@ -133,13 +133,17 @@ function canonicalSeats(
   return denseArray(value)
     && (allowEmpty || value.length > 0)
     && value.length <= playerCount
-    && value.every(
-      (seat, index, all) =>
-        Number.isSafeInteger(seat)
+    && value.every((seat, index, all) => {
+      const previous = all[index - 1]
+      return typeof seat === 'number'
+        && Number.isSafeInteger(seat)
         && seat >= 0
         && seat < playerCount
-        && (index === 0 || all[index - 1] < seat),
-    )
+        && (
+          index === 0
+          || (typeof previous === 'number' && previous < seat)
+        )
+    })
 }
 
 function canonicalRoles(value: unknown, playerCount: number): value is Role[] {

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
   observePublicRecord,
   validatePublicObserverSnapshot,
@@ -191,8 +192,16 @@ test('10-player output is bounded and cached replay is fast', () => {
   assert.ok(validatePublicObserverSnapshot(snapshot))
   assert.deepEqual(replay, snapshot)
   assert.ok(JSON.stringify(snapshot).length < 15_000)
-  assert.ok(coldMs < 5_000, `cold 10p observer took ${coldMs.toFixed(1)}ms`)
-  assert.ok(replayMs < 50, `cached 10p observer took ${replayMs.toFixed(1)}ms`)
+  assertWallClockBelow(
+    coldMs,
+    5_000,
+    `cold 10p observer took ${coldMs.toFixed(1)}ms`,
+  )
+  assertWallClockBelow(
+    replayMs,
+    50,
+    `cached 10p observer took ${replayMs.toFixed(1)}ms`,
+  )
 })
 
 test('external observer validation rejects semantically impossible marginals', () => {

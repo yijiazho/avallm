@@ -14,6 +14,9 @@ import type {
 import type {
   PublicRecord,
 } from '../communication/public-record.ts'
+import type {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+} from '../analysis/observer-types.ts'
 
 export type DecisionComponentKind =
   | 'observer'
@@ -201,7 +204,7 @@ export interface DecisionComponentDefinition<Payload = unknown> {
    * shared host input that unrelated components may also require.
    */
   readonly brainContribution?: Readonly<{
-    observerModel?: string
+    observerModel?: typeof PUBLIC_OBSERVER_MODEL_VERSION
   }>
   readonly dependencies: readonly ComponentRef[]
   readonly requiredHostInputs: readonly ComponentHostInputRef[]

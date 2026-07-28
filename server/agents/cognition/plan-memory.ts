@@ -222,7 +222,11 @@ function validDecision(value: unknown): value is Decision {
         && decision.team.length >= 1
         && decision.team.length <= 5
         && decision.team.every(
-          (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+          (seat) =>
+            typeof seat === 'number'
+            && Number.isInteger(seat)
+            && seat >= 0
+            && seat <= 9,
         )
         && new Set(decision.team).size === decision.team.length
         && (
@@ -242,7 +246,11 @@ function validDecision(value: unknown): value is Decision {
           && decision.team.length >= 1
           && decision.team.length <= 5
           && decision.team.every(
-            (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+            (seat) =>
+              typeof seat === 'number'
+              && Number.isInteger(seat)
+              && seat >= 0
+              && seat <= 9,
           )
           && new Set(decision.team).size === decision.team.length
           && (
@@ -384,7 +392,11 @@ function validCommitmentBasis(
       && payload.team.length >= 1
       && payload.team.length <= 5
       && payload.team.every(
-        (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
+        (seat) =>
+          typeof seat === 'number'
+          && Number.isInteger(seat)
+          && seat >= 0
+          && seat <= 9,
       )
       && new Set(payload.team).size === payload.team.length
   })

@@ -10,9 +10,14 @@ Every bot decision also carries private `thinking`, logged as a seat-visible eve
 
 ## Run it locally
 
-The server needs Node 24 or newer and runs TypeScript with no build step. Only the client is built.
+The server needs Node 24 or newer and runs TypeScript with no build step. The
+production server still has zero runtime dependencies. Root development
+tooling has dev-only TypeScript packages, and only the client is built.
 
 ```
+# one-time root development tooling
+npm ci
+
 # one-time client build
 npm --prefix client install && npm --prefix client run build
 
@@ -31,11 +36,23 @@ The engine is pure and deterministic, so a whole game can run without a browser 
 
 ```
 npm test                                # full test suite, no API needed
+npm run typecheck                       # strict no-emit check of server/**/*.ts
+npm run test:fast                       # ordinary developer loop (about 3 seconds)
+npm run test:contract                   # architecture and boundary contracts
+npm run test:eval                       # fixtures, reports, and evaluation tooling
+npm run test:exhaustive                 # combinatorial, fuzz, and leak sweeps
+npm run test:perf                       # isolated wall-clock budgets
 npm run sim -- --players 7 --seed 42    # one heuristic game, full transcript
 npm run sim -- --games 200 --talk 0,0   # aggregate win-rate stats
 npm run sim -- --agents llm --players 5 # a real LLM game headless, with a cost breakdown
 npm run play                            # play from the terminal against heuristic bots
 ```
+
+Every `test/*.test.ts` file belongs to exactly one lane. `npm run
+test:lanes` checks that classification and fails when a new test has not been
+assigned. The fast, contract, eval, and exhaustive lanes keep performance
+budgets dormant. `npm test` runs all correctness tests and then the isolated,
+serial performance lane; `test:perf` runs that lane directly.
 
 ## How it's built
 

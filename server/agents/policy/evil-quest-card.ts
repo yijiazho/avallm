@@ -319,6 +319,8 @@ export function validatePrivateEvilQuestCardPolicy(
       || ordered !== undefined
       || designation !== undefined
       || policy.sharedSlowPlayGateOpen !== undefined
+      || typeof policy.visibleEvilAboardCount !== 'number'
+      || typeof policy.visibleEvilCount !== 'number'
       || policy.visibleEvilAboardCount > policy.visibleEvilCount
     ) {
       return false
@@ -449,7 +451,12 @@ export function buildPrivateEvilQuestCardPolicy(input: {
   const orderedVisibleEvilAboard = exact
     ? rotateVisibleAboard(context, visibleEvilSeats, visibleEvilAboard)
     : []
-  const common = {
+  const common: Omit<
+    PrivateEvilQuestCardPolicy,
+    'applicable' | 'reason' | 'selectedCard'
+      | 'designation' | 'slowPlayProbability' | 'slowPlayBucket'
+      | 'sharedSlowPlayGateOpen' | 'localSlowPlayFail'
+  > = {
     version: EVIL_QUEST_CARD_POLICY_VERSION,
     policyVersion: policyVersion(mode),
     mode,

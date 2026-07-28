@@ -1,6 +1,7 @@
 import {
   brainComponents,
   resolveBrain,
+  type BrainSource,
   type BrainSpec,
 } from '../brain.ts'
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../belief/language-factor.ts'
@@ -256,7 +257,9 @@ export function resolveComposedBrain(
   }
   const resolvedObserverModel = config.publicObserverConfigured
     ? PUBLIC_OBSERVER_MODEL_VERSION
-    : requiredObserverModels[0]
+    : requiredObserverModels[0] === PUBLIC_OBSERVER_MODEL_VERSION
+      ? PUBLIC_OBSERVER_MODEL_VERSION
+      : undefined
   const scoreLayerOrder = freezeLayerOrder(
     'scoreLayerOrder',
     config.scoreLayerOrder,
@@ -267,15 +270,20 @@ export function resolveComposedBrain(
     config.decisionLayerOrder,
     eligible,
   )
-  const base = Object.freeze(resolveBrain({
+  const source: BrainSource = {
     type: 'composed',
-    ...(config.languageEvidenceEnabled
-      ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
-      : {}),
-    ...(resolvedObserverModel
-      ? { observerModel: resolvedObserverModel }
-      : {}),
-  }))
+    languageEvidence: config.languageEvidenceEnabled
+      ? LANGUAGE_FACTOR_BUNDLE_VERSION
+      : undefined,
+    observerModel: resolvedObserverModel,
+  }
+  if (
+    requiredObserverModels[0] !== undefined
+    && requiredObserverModels[0] !== PUBLIC_OBSERVER_MODEL_VERSION
+  ) {
+    throw new Error('resolved component declares an unsupported observer model')
+  }
+  const base = Object.freeze(resolveBrain(source))
   const compatibility = freezeCompatibilityValue(
     config.compatibility ?? {},
     'compatibility',

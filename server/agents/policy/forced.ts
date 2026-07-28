@@ -160,7 +160,7 @@ export function applyForcedPolicy(
     }
     const questPolicy = options.evilQuestCardPolicy
     if (view.role !== 'oberon' && questPolicy?.selectedCard) {
-      const reason = {
+      const reasonByPolicy = {
         EXACT_QUOTA_DESIGNATED_FAIL:
           'EVIL_EXACT_QUOTA_DESIGNATED_FAIL',
         EXACT_QUOTA_NONDESIGNATED_SUCCESS:
@@ -175,7 +175,17 @@ export function applyForcedPolicy(
           'EVIL_ROBUST_LOCAL_SLOW_PLAY_FAIL',
         ROBUST_LOCAL_SLOW_PLAY_HOLD:
           'EVIL_ROBUST_LOCAL_SLOW_PLAY_HOLD',
-      }[questPolicy.reason] as ForcedPlayReasonCode | undefined
+      } satisfies Partial<Record<
+        typeof questPolicy.reason,
+        ForcedPlayReasonCode
+      >>
+      const hasMappedReason = (
+        reason: typeof questPolicy.reason,
+      ): reason is keyof typeof reasonByPolicy =>
+        Object.hasOwn(reasonByPolicy, reason)
+      const reason = hasMappedReason(questPolicy.reason)
+        ? reasonByPolicy[questPolicy.reason]
+        : undefined
       if (!reason || (questPolicy.selectedCard === 'fail' && !canSink)) {
         throw new Error(
           `invalid forced quest-policy directive: ${questPolicy.reason}`,

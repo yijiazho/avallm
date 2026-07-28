@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import { assessTeams } from '../server/agents/belief/exact.ts'
 import type { BeliefSnapshot, HiddenWorld } from '../server/agents/belief/types.ts'
@@ -653,6 +654,10 @@ test('10-player quest-four surface remains bounded and JSON-safe', async () => {
   )
   const elapsedMs = performance.now() - started
   assert.equal(output.trace!.candidateScores!.length, 252)
-  assert.ok(elapsedMs < 2_000, `252-team scoring took ${elapsedMs.toFixed(1)}ms`)
+  assertWallClockBelow(
+    elapsedMs,
+    2_000,
+    `252-team scoring took ${elapsedMs.toFixed(1)}ms`,
+  )
   assert.doesNotThrow(() => JSON.stringify(output))
 })

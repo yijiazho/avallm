@@ -16,6 +16,11 @@ export const MAX_IDENTITY_ROLE_QUERIES = 16
 export const MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR = 4_096
 
 const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
+const VALID_ROLE_NAMES: ReadonlySet<string> = VALID_ROLES
+
+function isRole(value: unknown): value is Role {
+  return typeof value === 'string' && VALID_ROLE_NAMES.has(value)
+}
 const roleRank = new Map(
   CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
 )
@@ -181,11 +186,16 @@ function validateBelief(snapshot: BeliefSnapshot): {
       || weighted.world.roleBySeat.length !== weighted.world.alignmentBySeat.length
       || weighted.world.roleBySeat.length < 5
       || weighted.world.roleBySeat.length > 10
-      || weighted.world.roleBySeat.some((role) => !VALID_ROLES.has(role))
+      || weighted.world.roleBySeat.some((role: unknown) => !isRole(role))
       || weighted.world.alignmentBySeat.some(
-        (alignment, seat) =>
-          (alignment !== 'good' && alignment !== 'evil')
-          || ROLE_ALIGNMENT[weighted.world.roleBySeat[seat]] !== alignment,
+        (alignment: unknown, seat: number) => {
+          const role = weighted.world.roleBySeat[seat]
+          return (
+            (alignment !== 'good' && alignment !== 'evil')
+            || !isRole(role)
+            || ROLE_ALIGNMENT[role] !== alignment
+          )
+        },
       )
       || weighted.world.key !== weighted.world.roleBySeat.join('|')
       || worldKeys.has(weighted.world.key)
@@ -206,7 +216,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
       throw new Error('identity projection worlds disagree on role multiset')
     }
     const evilCount = weighted.world.alignmentBySeat.filter(
-      (alignment) => alignment === 'evil',
+      (alignment: unknown) => alignment === 'evil',
     ).length
     expectedEvilCount ??= evilCount
     if (evilCount !== expectedEvilCount) {
@@ -417,13 +427,17 @@ const inclusiveProbability = (value: unknown): value is number =>
 function validCanonicalSeats(value: unknown, playerCount: number): value is Seat[] {
   return denseArray(value)
     && value.length > 0
-    && value.every(
-      (seat, index, all) =>
-        Number.isInteger(seat)
+    && value.every((seat, index, all) => {
+      const previous = all[index - 1]
+      return typeof seat === 'number'
+        && Number.isInteger(seat)
         && seat >= 0
         && seat < playerCount
-        && (index === 0 || all[index - 1] < seat),
-    )
+        && (
+          index === 0
+          || (typeof previous === 'number' && previous < seat)
+        )
+    })
 }
 
 function validSourceCast(

@@ -244,6 +244,7 @@ export function buildRoleUtilityProjection(input: {
   ) {
     throw new Error('role utility is inapplicable or has invalid sources')
   }
+  const requestKind: 'propose' | 'vote' = req.kind
   const publicRecord = projectPublicRecord(view)
   if (!isDeepStrictEqual(observer, observePublicRecord(publicRecord))) {
     throw new Error('role utility public observer is not authoritative')
@@ -316,7 +317,7 @@ export function buildRoleUtilityProjection(input: {
         )
         return {
           candidateId: candidate.id,
-          kind: req.kind,
+          kind: requestKind,
           role: 'merlin',
           direction: merlin.candidate.direction,
           team: [...(merlin.candidate.team ?? [])],
@@ -347,7 +348,7 @@ export function buildRoleUtilityProjection(input: {
       )
       return {
         candidateId: candidate.id,
-        kind: req.kind,
+        kind: requestKind,
         role: 'percival',
         direction: percival.candidate.direction,
         team: [...(percival.candidate.team ?? [])],
@@ -412,6 +413,7 @@ export function validatePrivateRoleUtilityProjection(
       || !(detached.source.beliefModelVersion as string).length
       || !Number.isSafeInteger(detached.source.beliefThroughSeq)
       || (detached.source.beliefThroughSeq as number) < -1
+      || typeof detached.source.playerCount !== 'number'
       || !Number.isSafeInteger(detached.source.playerCount)
       || (detached.source.playerCount as number) < 5
       || (detached.source.playerCount as number) > 10
@@ -435,6 +437,7 @@ export function validatePrivateRoleUtilityProjection(
       || detached.assessments.length === 0
       || detached.assessments.length > 252
     ) return false
+    const playerCount = detached.source.playerCount
     const ids = new Set<string>()
     for (const raw of detached.assessments) {
       if (!plainRecord(raw)) return false
@@ -455,9 +458,10 @@ export function validatePrivateRoleUtilityProjection(
           !== (common.team as unknown[]).length
         || !(common.team as unknown[]).every(
           (seat) =>
-            Number.isSafeInteger(seat)
-            && (seat as number) >= 0
-            && (seat as number) < (detached.source.playerCount as number),
+            typeof seat === 'number'
+            && Number.isSafeInteger(seat)
+            && seat >= 0
+            && seat < playerCount,
         )
         || (common.team as number[]).some(
           (seat, index) =>

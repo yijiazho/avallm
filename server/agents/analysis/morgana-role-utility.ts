@@ -232,6 +232,9 @@ export function buildMorganaRoleUtilityProjection(input: {
     selectionMode,
     deterministicSeed,
   } = input
+  if (req.kind !== 'propose' && req.kind !== 'vote') {
+    throw new Error('Morgana role utility requires bound complete inputs')
+  }
   if (
     !sameRequest(counterfeitObjective, evilRoleUtility, req, view)
     || !validatePrivateMorganaCounterfeitObjective(counterfeitObjective)
@@ -243,6 +246,7 @@ export function buildMorganaRoleUtilityProjection(input: {
   ) {
     throw new Error('Morgana role utility requires bound complete inputs')
   }
+  const requestKind: 'propose' | 'vote' = req.kind
   const candidateIds = candidates.map((candidate) => candidate.id)
   const allowed = new Set(forced.allowedCandidateIds)
   const d2ById = new Map(
@@ -368,7 +372,7 @@ export function buildMorganaRoleUtilityProjection(input: {
       && d2Utility.roleValue >= d2BandFloor - 1e-12
     return {
       candidateId: candidate.id,
-      kind: req.kind,
+      kind: requestKind,
       decision: structuredClone(candidate.decision),
       forcedAllowed: allowed.has(candidate.id),
       d2RoleValue: d2Utility.roleValue,
@@ -393,7 +397,7 @@ export function buildMorganaRoleUtilityProjection(input: {
     },
     request: {
       seat: req.seat,
-      kind: req.kind,
+      kind: requestKind,
       round: req.round,
       proposalNum: req.proposalNum,
       ...(req.kind === 'vote'
@@ -425,6 +429,13 @@ export function buildMorganaRoleUtilityProjection(input: {
   }
   return projection
 }
+
+const safeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value)
+
+const seatArray = (value: unknown): value is readonly Seat[] =>
+  Array.isArray(value)
+  && value.every((seat) => safeInteger(seat) && seat >= 0)
 
 export function validatePrivateMorganaRoleUtilityProjection(
   value: unknown,
@@ -459,17 +470,21 @@ export function validatePrivateMorganaRoleUtilityProjection(
       || value.source.evilRoleUtilityVersion
         !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
       || typeof value.source.beliefModelVersion !== 'string'
-      || !Number.isSafeInteger(value.source.beliefThroughSeq)
-      || !Number.isSafeInteger(value.source.playerCount)
+      || !safeInteger(value.source.beliefThroughSeq)
+      || !safeInteger(value.source.playerCount)
       || !plainRecord(value.request)
       || !exactKeys(value.request, [
         'seat', 'kind', 'round', 'proposalNum',
         ...(value.request.kind === 'vote' ? ['currentTeam'] : []),
       ])
       || !['propose', 'vote'].includes(String(value.request.kind))
-      || !Number.isSafeInteger(value.request.seat)
-      || !Number.isSafeInteger(value.request.round)
-      || !Number.isSafeInteger(value.request.proposalNum)
+      || !safeInteger(value.request.seat)
+      || !safeInteger(value.request.round)
+      || !safeInteger(value.request.proposalNum)
+      || (
+        value.request.kind === 'vote'
+        && !seatArray(value.request.currentTeam)
+      )
       || ![
         'top-counterfeit-within-d2-band',
         'seeded-near-equal-vote-within-d2-band',
@@ -512,6 +527,9 @@ export function validatePrivateMorganaRoleUtilityProjection(
         assessment,
       ]),
     )
+    const requestTeam = seatArray(value.request.currentTeam)
+      ? value.request.currentTeam
+      : undefined
     if (
       value.counterfeitObjective.role !== 'morgana'
       || value.evilRoleUtility.role !== 'morgana'
@@ -540,38 +558,41 @@ export function validatePrivateMorganaRoleUtilityProjection(
       || (
         value.request.kind === 'vote'
         && !sameTeam(
-          value.request.currentTeam,
+          requestTeam,
           value.counterfeitObjective.request.currentTeam,
         )
       )
       || d2ById.size !== value.candidates.length
       || counterfeitById.size !== value.candidates.length
     ) return false
+    const d2BandFloor = value.d2BandFloor
     const ids = new Set<string>()
-    for (const candidate of value.candidates) {
-      const d2Utility = d2ById.get(candidate.candidateId)
+    for (const rawCandidate of value.candidates) {
+      if (!plainRecord(rawCandidate)) return false
+      const candidate = rawCandidate
+      if (typeof candidate.candidateId !== 'string') return false
+      const candidateId = candidate.candidateId
+      const d2Utility = d2ById.get(candidateId)
       const counterfeitAssessment =
-        counterfeitById.get(candidate.candidateId)
+        counterfeitById.get(candidateId)
       if (
-        !plainRecord(candidate)
-        || !exactKeys(candidate, [
+        !exactKeys(candidate, [
           'candidateId', 'kind', 'decision', 'forcedAllowed',
           'd2RoleValue', 'd2BandFloor', 'inD2ViableBand',
           'counterfeitValue', 'counterfeitRank',
         ])
-        || typeof candidate.candidateId !== 'string'
-        || ids.has(candidate.candidateId)
+        || ids.has(candidateId)
         || candidate.kind !== value.request.kind
         || typeof candidate.forcedAllowed !== 'boolean'
         || typeof candidate.d2RoleValue !== 'number'
-        || candidate.d2BandFloor !== value.d2BandFloor
+        || candidate.d2BandFloor !== d2BandFloor
         || typeof candidate.inD2ViableBand !== 'boolean'
         || candidate.inD2ViableBand !== (
           candidate.forcedAllowed
-          && candidate.d2RoleValue >= value.d2BandFloor - 1e-12
+          && candidate.d2RoleValue >= d2BandFloor - 1e-12
         )
         || typeof candidate.counterfeitValue !== 'number'
-        || !Number.isSafeInteger(candidate.counterfeitRank)
+        || !safeInteger(candidate.counterfeitRank)
         || candidate.counterfeitRank < 0
         || !d2Utility
         || !counterfeitAssessment
@@ -579,21 +600,21 @@ export function validatePrivateMorganaRoleUtilityProjection(
         || counterfeitAssessment.counterfeitValue
           !== candidate.counterfeitValue
         || candidateIdForDecision(candidate.decision as Decision)
-          !== candidate.candidateId
+          !== candidateId
         || !sameTeam(
           d2Utility.team,
           (candidate.decision as Decision).kind === 'propose'
             ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-            : value.request.currentTeam,
+            : requestTeam,
         )
         || !sameTeam(
           counterfeitAssessment.candidate.team,
           (candidate.decision as Decision).kind === 'propose'
             ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-            : value.request.currentTeam,
+            : requestTeam,
         )
       ) return false
-      ids.add(candidate.candidateId)
+      ids.add(candidateId)
     }
     const survivors = value.candidates.filter(
       (candidate) => candidate.forcedAllowed,
@@ -604,7 +625,7 @@ export function validatePrivateMorganaRoleUtilityProjection(
     )
     const bandRows = survivors.filter(
       (candidate) =>
-        candidate.d2RoleValue >= value.d2BandFloor - 1e-12,
+        candidate.d2RoleValue >= d2BandFloor - 1e-12,
     )
     const ranked = [...bandRows].sort(
       (left, right) =>

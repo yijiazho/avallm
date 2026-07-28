@@ -256,6 +256,7 @@ export function buildEvilRoleUtilityProjection(input: {
   ) {
     throw new Error('evil role utility is inapplicable or has invalid sources')
   }
+  const requestKind: 'propose' | 'vote' = req.kind
   const objectives = objectiveMap(objective)
   if (objectives.size !== candidates.length) {
     throw new Error('evil role utility requires the complete candidate surface')
@@ -393,7 +394,7 @@ export function buildEvilRoleUtilityProjection(input: {
       )
       return {
         candidateId: candidate.id,
-        kind: req.kind,
+        kind: requestKind,
         role: objective.role,
         posture: objective.posture.kind,
         direction: source.direction,
@@ -671,7 +672,7 @@ export function validatePrivateEvilRoleUtilityProjection(
         || !assessment.candidateId.length
         || assessment.candidateId.length > 256
         || assessment.kind !== projection.request.kind
-        || assessment.posture !== POSTURE_BY_ROLE[assessment.role]
+        || assessment.posture !== POSTURE_BY_ROLE[projection.role]
         || !['support', 'oppose'].includes(assessment.direction)
         || !canonicalSeats(
           assessment.team,

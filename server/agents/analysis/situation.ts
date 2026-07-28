@@ -5,7 +5,6 @@ import {
 import type {
   Alignment,
   PlayerView,
-  Quest,
   Seat,
 } from '../../engine/types.ts'
 import {
@@ -41,7 +40,10 @@ import {
 
 export function boardSituation(
   view: {
-    readonly quests: readonly Quest[]
+    readonly quests: readonly {
+      readonly result?: 'success' | 'fail'
+      readonly failsRequired: number
+    }[]
     readonly proposalNum: number
     readonly round: number
   },

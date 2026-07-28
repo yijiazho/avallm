@@ -711,7 +711,7 @@ export function validateCandidateScores(
   for (const score of scores) {
     const forcedAllowed = allowed.has(score.candidateId)
     const validGoodSemantics = !goodProposalSemantics || (
-      score.features !== undefined
+      score.features?.version === GOOD_PROPOSAL_FEATURE_VERSION
       && score.viable === forcedAllowed
       && score.value === (
         forcedAllowed
@@ -816,6 +816,10 @@ export function validateCandidateScores(
       : undefined
     const expectedSeededVote =
       expectedSeedBucket === 0 ? 'approve' : 'reject'
+    const isExpectedSeededVote = (candidateId: string): boolean => {
+      const decision = candidatesById.get(candidateId)?.decision
+      return decision?.kind === 'vote' && decision.vote === expectedSeededVote
+    }
     if (
       voteScores.some(({ score, features }) =>
         features.selectionMode !== selectionMode
@@ -848,10 +852,7 @@ export function validateCandidateScores(
               features.selectionAdjustment
               - (
                 (
-                  candidatesById.get(score.candidateId)?.decision.kind
-                    === 'vote'
-                  && candidatesById.get(score.candidateId)?.decision.vote
-                    === expectedSeededVote
+                  isExpectedSeededVote(score.candidateId)
                 )
                   ? maxBase - features.baseUtility + 1e-9
                   : 0
@@ -1055,7 +1056,7 @@ export const goodProposalScorer = Object.freeze({
 export const calibrationCompatibilityScorer: CandidateScorer = Object.freeze({
   version: CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   analysisRequirement: 'joint-proposal-vote-team-assessments',
-  score(context) {
+  score(context: CandidateScoringContext) {
     return scoreCandidates(context).map((score) => ({
       ...score,
       version: CALIBRATION_COMPATIBILITY_SCORER_VERSION,
@@ -1278,10 +1279,12 @@ function scoreRoleObjectiveCandidates(
   options: RoleObjectiveScorerOptions,
 ): readonly CandidateScore[] {
   const projection = context.roleUtility
+  if (context.request.kind !== 'propose' && context.request.kind !== 'vote') {
+    throw new Error('role-objective scorer requires an eligible bound utility')
+  }
   if (
     !projection
     || projection.version !== ROLE_UTILITY_PROJECTION_VERSION
-    || (context.request.kind !== 'propose' && context.request.kind !== 'vote')
     || (context.view.role !== 'merlin' && context.view.role !== 'percival')
     || projection.role !== context.view.role
     || projection.request.kind !== context.request.kind
@@ -1297,6 +1300,7 @@ function scoreRoleObjectiveCandidates(
   ) {
     throw new Error('role-objective scorer requires an eligible bound utility')
   }
+  const requestKind = context.request.kind
   const version = options.selectionMode === 'seeded-composite-band'
     ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
     : ROLE_OBJECTIVE_SCORER_VERSION
@@ -1407,6 +1411,12 @@ function scoreRoleObjectiveCandidates(
   const seededVote = seedBucket === 0 ? 'approve' : 'reject'
 
   return preliminary.map((row): CandidateScore => {
+    const baseFeatures = row.base.features
+    if (!baseFeatures) {
+      throw new Error(
+        `role-objective scorer missing base features for ${row.candidate.id}`,
+      )
+    }
     const forcedAllowed = allowed.has(row.candidate.id)
     const selectedBySeed =
       bandActive
@@ -1438,7 +1448,7 @@ function scoreRoleObjectiveCandidates(
         ...(viable ? ['PRIVATE_ROLE_OBJECTIVE_SELECTED_SET'] : []),
         ...(bandActive ? ['PRIVATE_ROLE_OBJECTIVE_SEEDED_BAND'] : []),
       ],
-      features: structuredClone(row.base.features),
+      features: structuredClone(baseFeatures),
       roleObjectiveFeatures: {
         version: ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
         utilityVersion: ROLE_OBJECTIVE_UTILITY_VERSION,
@@ -1446,9 +1456,9 @@ function scoreRoleObjectiveCandidates(
         sourceObjectiveVersion: ROLE_OBJECTIVE_MODEL_VERSION,
         role: projection.role,
         candidateId: row.candidate.id,
-        kind: context.request.kind,
+        kind: requestKind,
         baseScorerVersion: GOOD_PROPOSAL_VOTE_SCORER_VERSION,
-        baseFeatureVersion: row.base.features.version,
+        baseFeatureVersion: baseFeatures.version,
         baseValue: row.baseValue,
         roleValue: row.utility.roleValue,
         survivorMeanRoleValue: survivorMean,
@@ -1503,10 +1513,14 @@ function scoreEvilRoleObjectiveCandidates(
   options: EvilRoleObjectiveScorerOptions,
 ): readonly CandidateScore[] {
   const projection = context.evilRoleUtility
+  if (context.request.kind !== 'propose' && context.request.kind !== 'vote') {
+    throw new Error(
+      'evil role-objective scorer requires an eligible bound utility',
+    )
+  }
   if (
     !projection
     || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    || (context.request.kind !== 'propose' && context.request.kind !== 'vote')
     || context.view.alignment !== 'evil'
     || projection.role !== context.view.role
     || projection.request.kind !== context.request.kind
@@ -1519,6 +1533,7 @@ function scoreEvilRoleObjectiveCandidates(
       'evil role-objective scorer requires an eligible bound utility',
     )
   }
+  const requestKind = context.request.kind
   const version =
     options.selectionMode === 'seeded-role-utility-band'
       ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -1643,7 +1658,7 @@ function scoreEvilRoleObjectiveCandidates(
         sourceObjectiveVersion: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
         role: projection.role,
         candidateId: candidate.id,
-        kind: context.request.kind,
+        kind: requestKind,
         roleValue: utility.roleValue,
         selectionMode: options.selectionMode,
         viableBand: EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,

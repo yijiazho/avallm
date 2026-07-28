@@ -3,9 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "test": "node --test \"test/*.test.ts\"",
+    "test": "node tools/test-lanes.mjs full",
+    "test:full": "node tools/test-lanes.mjs full",
+    "test:fast": "node tools/test-lanes.mjs fast",
+    "test:contract": "node tools/test-lanes.mjs contract",
+    "test:eval": "node tools/test-lanes.mjs eval",
+    "test:exhaustive": "node tools/test-lanes.mjs exhaustive",
+    "test:perf": "node tools/test-lanes.mjs perf",
+    "test:lanes": "node tools/test-lanes.mjs --check",
+    "typecheck": "tsc -p tsconfig.server.json",
     "sim": "node server/sim/sim.ts",
     "play": "node server/sim/play.ts",
     "bench": "node server/eval/bench.ts",
@@ -21,5 +31,9 @@
     "probe": "node server/eval/probe.ts",
     "judge": "node server/eval/judge.ts",
     "bank": "node server/eval/bank.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3"
   }
 }

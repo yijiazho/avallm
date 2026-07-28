@@ -160,7 +160,7 @@ export const analyticalQuestCardFactor: QuestCardLikelihoodFactor =
   Object.freeze({
     id: 'quest-card',
     version: QUEST_CARD_FACTOR_VERSION,
-    logLikelihood(world, evidence) {
+    logLikelihood(world: HiddenWorld, evidence: QuestCardEvidence) {
       const distribution = questFailCountDistribution(world, evidence)
       const probability = distribution[evidence.failCount]
       if (probability === undefined || probability <= 0) {
@@ -217,17 +217,18 @@ export function createQuestWeightedBeliefModel(
   return Object.freeze({
     version: QUEST_WEIGHTED_BELIEF_VERSION,
     factorsVersion: QUEST_FACTOR_BUNDLE_VERSION,
-    infer(view) {
+    infer(view: PlayerView): BeliefSnapshot {
       try {
         return weightedSnapshot(view, factor)
       } catch {
         const fallback = exactBelief(view)
-        return {
+        const degraded: BeliefSnapshot = {
           ...fallback,
           modelVersion: QUEST_WEIGHTED_BELIEF_VERSION,
           quality: 'degraded',
           degradation: ['quest-card-factor-failed'],
         }
+        return degraded
       }
     },
   })

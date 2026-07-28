@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
   LANGUAGE_WEIGHTED_BELIEF_VERSION,
@@ -154,7 +155,11 @@ test('active public-dialogue bank exercises mixed belief snapshots for free', as
   assert.equal(summary.degraded, 0)
   assert.equal(summary.safety.hiddenInformationViolations, 0)
   assert.equal(summary.safety.traceAttributionViolations, 0)
-  assert.ok((summary.latency.p95Ms ?? Infinity) < 1_000)
+  assertWallClockBelow(
+    summary.latency.p95Ms ?? Infinity,
+    1_000,
+    `active-language p95 was ${summary.latency.p95Ms ?? 'missing'}ms`,
+  )
   assert.equal(artifact.telemetry?.llm, undefined)
   assert.deepEqual(
     artifact.strategyVersions?.beliefs,

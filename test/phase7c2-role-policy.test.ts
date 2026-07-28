@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import {
   beliefFromWeightedWorlds,
@@ -819,7 +820,7 @@ test('role scorer remains bounded at ten players', async () => {
   assert.ok(
     Buffer.byteLength(JSON.stringify(output.trace), 'utf8') < 2_097_152,
   )
-  assert.ok(elapsed < 2_500, `10p role decision took ${elapsed}ms`)
+  assertWallClockBelow(elapsed, 2_500, `10p role decision took ${elapsed}ms`)
 })
 
 test('architecture artifacts and reports host-join applicable role policy', async () => {

@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type {
@@ -920,7 +921,7 @@ test('legal no-Merlin view admits treatment but not Mordred objective', async ()
   }), false)
 })
 
-test('required-root brain contributions dedupe and reject conflicts', () => {
+test('required-root brain contributions dedupe and reject unsupported models', () => {
   const root = (id: string): {
     token: ComponentHostInputToken<number>
     definition: ComponentHostInputDefinition<number>
@@ -946,7 +947,7 @@ test('required-root brain contributions dedupe and reject conflicts', () => {
   const component = (
     id: string,
     input?: ComponentHostInputToken<number>,
-    observerModel?: string,
+    observerModel?: 'exact-public-observer-v1',
   ): {
     token: ComponentToken<number>
     definition: DecisionComponentDefinition<number>
@@ -1021,32 +1022,25 @@ test('required-root brain contributions dedupe and reject conflicts', () => {
   const conflictingComponent = component(
     'observer-consumer-c',
     conflicting.token,
-    'other-observer-v1',
   )
-  const conflictRegistry = createDecisionComponentRegistry(
-    [firstComponent.definition, conflictingComponent.definition],
-    { hostInputs: [first.definition, conflicting.definition] },
-  )
+  const unsupportedDefinition = {
+    ...conflictingComponent.definition,
+    brainContribution: { observerModel: 'other-observer-v1' },
+  } as unknown as DecisionComponentDefinition<number>
   assert.throws(
-    () => resolveComposedBrain({
-      requestedComponents: [
-        firstComponent.token,
-        conflictingComponent.token,
-      ],
-    }, conflictRegistry),
-    /conflicting observer models/,
+    () => createDecisionComponentRegistry(
+      [firstComponent.definition, unsupportedDefinition],
+      { hostInputs: [first.definition, conflicting.definition] },
+    ),
+    /invalid brain contribution/,
   )
 
-  const explicitConflict = createDecisionComponentRegistry(
-    [conflictingComponent.definition],
-    { hostInputs: [conflicting.definition] },
-  )
-  assert.throws(
-    () => resolveComposedBrain({
-      requestedComponents: [conflictingComponent.token],
+  assert.equal(
+    resolveComposedBrain({
+      requestedComponents: [firstComponent.token],
       publicObserverConfigured: true,
-    }, explicitConflict),
-    /explicit observer model conflicts/,
+    }, deduped).description.base.observerModel,
+    'exact-public-observer-v1',
   )
 
   const unrelated = component('unrelated-native')
@@ -1091,7 +1085,11 @@ test('5-10 player payload and latency bounds remain deterministic', async () => 
     assert.ok(objective.assessments.length <= MAX_MORDRED_BLINDNESS_ASSESSMENTS)
     // This is a deadlock/runaway guard, not a contested-CI latency SLO.
     // Deterministic candidate and byte bounds above are the stable gate.
-    assert.ok(elapsed < 2_000, `${playerCount}p took ${elapsed.toFixed(2)}ms`)
+    assertWallClockBelow(
+      elapsed,
+      2_000,
+      `${playerCount}p took ${elapsed.toFixed(2)}ms`,
+    )
   }
   const boundary = mordredProposal(10, 4)
   const output = await nativeAgent(boundary.game.seed)

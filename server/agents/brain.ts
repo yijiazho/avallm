@@ -85,7 +85,7 @@ export interface LlmBrainSource {
   beliefMode?: ExperimentalBeliefMode
 }
 
-type BrainSource =
+export type BrainSource =
   | LlmBrainSource
   | { type: 'heuristic' }
   | { type: 'random' }
@@ -191,9 +191,10 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
 }
 
 export function resolveBrain(source: BrainSource): BrainSpec {
-  switch (source.type ?? 'llm') {
+  switch (source.type) {
+    case undefined:
     case 'llm':
-      return resolveLlmBrain(source as LlmBrainSource)
+      return resolveLlmBrain(source)
     case 'heuristic':
       return {
         version: BRAIN_SPEC_VERSION,

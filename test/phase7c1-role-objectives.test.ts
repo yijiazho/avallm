@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
   assessPublicJointTeams,
   observePublicRecord,
@@ -899,7 +900,11 @@ test('5-10 player exact public joint surfaces stay bounded and deterministic', (
     assert.ok(first.length <= 252)
     assert.ok(JSON.stringify(first).length < 250_000)
   }
-  assert.ok(slowest < 5_000, `slowest public joint surface ${slowest.toFixed(1)}ms`)
+  assertWallClockBelow(
+    slowest,
+    5_000,
+    `slowest public joint surface ${slowest.toFixed(1)}ms`,
+  )
 })
 
 test('10-player quest-four Merlin and Percival snapshots fit the 252-candidate bound', async () => {
@@ -932,6 +937,10 @@ test('10-player quest-four Merlin and Percival snapshots fit the 252-candidate b
     assert.equal(snapshot.objective.assessments.length, 252)
     assert.ok(validatePrivateRoleObjectiveSnapshot(snapshot))
     assert.ok(JSON.stringify(snapshot).length < 1_048_576)
-    assert.ok(elapsed < 5_000, `${role} 10p surface took ${elapsed.toFixed(1)}ms`)
+    assertWallClockBelow(
+      elapsed,
+      5_000,
+      `${role} 10p surface took ${elapsed.toFixed(1)}ms`,
+    )
   }
 })

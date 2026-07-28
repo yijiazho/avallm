@@ -121,7 +121,9 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
   const overrides = promptOverridesOf(def.engine)
   const call = (messages: Msg[]) => client.call(slug, messages, {
     tag: `eval/bank/${def.id}`,
-    temperature: def.engine.temperature ?? params.temperature,
+    temperature: def.engine.type === 'llm'
+      ? def.engine.temperature ?? params.temperature
+      : params.temperature,
     max_tokens: params.max_tokens,
     response_format: params.json ? { type: 'json_object' } : undefined,
   })

@@ -7,6 +7,7 @@ import type {
   IneligibleComponent,
   ResolvedComponentGraph,
 } from './types.ts'
+import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
@@ -185,7 +186,7 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
       || Object.keys(contribution).some((key) => key !== 'observerModel')
       || (
         contribution.observerModel !== undefined
-        && !VERSION_PATTERN.test(contribution.observerModel)
+        && contribution.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
       )
     )
   ) {

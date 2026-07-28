@@ -427,7 +427,12 @@ interface Session {
   agentDefs: Record<number, { def: AgentDef; model?: string }>  // def snapshots + seat overrides, taken at game start
   waiting: DecisionRequest[]                           // pending HUMAN asks (any seat)
   acting: Seat[]
-  degraded: { seat: Seat; kind: string; error: string }[]
+  degraded: {
+    seat: Seat
+    kind: DecisionRequest['kind']
+    atEvent: number
+    error: string
+  }[]
   degradedSeqs: number[]
   decisionTraces: DecisionTrace[]
   listeners: Set<{ res: http.ServerResponse; token: string }>
@@ -554,7 +559,7 @@ async function pump(s: Session): Promise<void> {
           }
         } catch (err) {
           s.degraded.push({
-            seat: req.seat, kind: req.kind,
+            seat: req.seat, kind: req.kind, atEvent: s.game.log.length,
             error: err instanceof Error ? err.message : String(err),
           })
           const decision = heuristicDecide(req, view, s.game.seed)
@@ -588,7 +593,7 @@ async function pump(s: Session): Promise<void> {
             : 'selected-applied'
         } catch (err) {
           s.degraded.push({
-            seat: req.seat, kind: req.kind,
+            seat: req.seat, kind: req.kind, atEvent: s.game.log.length,
             error: err instanceof Error ? err.message : String(err),
           })
           const fallbackDecision = heuristicDecide(

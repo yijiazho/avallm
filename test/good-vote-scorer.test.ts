@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
+import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import type {
   BeliefSnapshot,
@@ -692,7 +693,11 @@ test('10-player vote projection remains bounded and JSON-safe', async () => {
       .bestAlternativeTeam.length,
     teamSize,
   )
-  assert.ok(elapsedMs < 2_000, `10p vote scoring took ${elapsedMs.toFixed(1)}ms`)
+  assertWallClockBelow(
+    elapsedMs,
+    2_000,
+    `10p vote scoring took ${elapsedMs.toFixed(1)}ms`,
+  )
   assert.doesNotThrow(() => JSON.stringify(output))
   assert.equal(
     GOOD_VOTE_UTILITY_CONSTANTS.viableBand,

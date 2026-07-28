@@ -692,7 +692,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const targetLatencySamples: DecisionLatencySample[] = []
       let expectedComponentPlan: DecisionComponentPlan | undefined
       let expectComponentTrace = false
-      const descriptors = game.players.map(() => opponentKind)
+      const descriptors: string[] = game.players.map(() => opponentKind)
       for (const player of game.players) {
         const ctx = {
           seed: c.seed,
