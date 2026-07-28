@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import {
   CANDIDATE_PLANNER_PROTOCOL_VERSION,
   NO_PLANNER_VERSION,
@@ -21,6 +22,9 @@ import {
 import {
   createDecisionComponentRegistry,
 } from '../server/agents/components/registry.ts'
+import {
+  ACTOR_TARGET_TREATMENT_COMPONENT,
+} from '../server/agents/components/native-role-components.ts'
 import {
   EXACT_BELIEF_MODEL_VERSION,
 } from '../server/agents/belief/types.ts'
@@ -54,6 +58,9 @@ import {
 import { brainComponents } from '../server/agents/brain.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
+import {
+  projectBaseTraceComponentVersions,
+} from '../server/agents/trace.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 
 const DEFAULT_PIPELINE: ResolvedConfiguredPipeline = {
@@ -213,6 +220,7 @@ test('resolved architecture descriptor is deterministic across a configuration m
     }
     assert.equal(first.version, RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION)
     assert.ok(Object.isFrozen(first))
+    assert.ok(Object.isFrozen(first.componentContributions))
     assert.ok(Object.isFrozen(first.configuredPipeline))
     assert.ok(Object.isFrozen(first.configuredPipeline.belief))
     assert.ok(Object.isFrozen(first.configuredPipeline.scoring))
@@ -242,6 +250,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
     'version',
     'base',
     'components',
+    'componentContributions',
     'requiredHostInputs',
     'scoreLayerOrder',
     'decisionLayerOrder',
@@ -550,4 +559,166 @@ test('mutable planner and voice adapters never mutate the lifetime descriptor', 
     output.trace!.componentVersions!.voice,
     NO_VOICE_VERSION,
   )
+})
+
+test('descriptor projection preserves default trace bytes and property order', async () => {
+  const source = readDecisionFixtures().find(
+    (entry) => entry.id === 'merlin-opening-proposal',
+  )!
+  const output = normalizeAgentOutput(
+    await createComposedAgent({
+      seed: source.source.seed,
+    }).decide(source.req, source.view),
+  )
+
+  assert.deepEqual(output.decision, {
+    kind: 'propose',
+    team: [0, 4],
+  })
+  assert.equal(
+    createHash('sha256')
+      .update(JSON.stringify(output.trace))
+      .digest('hex'),
+    '273f6989157c584523b09a354a403eac1193021d11db0a64d560ccf0bae68bda',
+  )
+  assert.deepEqual(Object.keys(output.trace!.componentVersions!), [
+    'brain',
+    'belief',
+    'beliefVisibility',
+    'factors',
+    'languageEvidence',
+    'observerModel',
+    'decisionComponents',
+    'analysis',
+    'candidates',
+    'forcedPolicy',
+    'policy',
+    'scorer',
+    'planner',
+    'prompt',
+    'renderer',
+    'communication',
+    'voice',
+  ])
+})
+
+test('base trace projection fails closed on descriptor and run drift', async () => {
+  const source = readDecisionFixtures().find(
+    (entry) => entry.id === 'merlin-opening-proposal',
+  )!
+  const agent = createComposedAgent({
+    seed: source.source.seed,
+    privateIdentity: {
+      roleQueries: ['merlin'],
+      hiddenTeam: false,
+    },
+  })
+  const output = normalizeAgentOutput(
+    await agent.decide(source.req, source.view),
+  )
+  const versions = output.trace!.componentVersions!
+  const run = output.trace!.components!
+  const projection = projectBaseTraceComponentVersions(
+    agent.resolvedBrain().description,
+    run,
+    {
+      belief: versions.belief,
+      factors: versions.factors,
+      scorer: versions.scorer,
+      planner: versions.planner,
+      voice: versions.voice,
+      legacyObserverProduced: false,
+    },
+  )
+
+  assert.deepEqual(Object.keys(projection.prefix), [
+    'brain',
+    'belief',
+    'beliefVisibility',
+    'factors',
+    'languageEvidence',
+    'observerModel',
+  ])
+  assert.deepEqual(Object.keys(projection.suffix), [
+    'decisionComponents',
+    'analysis',
+    'candidates',
+    'forcedPolicy',
+    'policy',
+    'scorer',
+    'planner',
+    'prompt',
+    'renderer',
+    'communication',
+    'voice',
+  ])
+  assert.doesNotMatch(
+    JSON.stringify(projection),
+    /roleQueries|hiddenTeam|merlin/,
+  )
+
+  assert.throws(
+    () => projectBaseTraceComponentVersions(
+      agent.resolvedBrain().description,
+      {
+        ...run,
+        configured: [
+          ...run.configured,
+          { id: 'forged-component', version: 'forged-v1' },
+        ],
+      },
+      {
+        belief: versions.belief,
+        factors: versions.factors,
+        scorer: versions.scorer,
+        planner: versions.planner,
+        voice: versions.voice,
+        legacyObserverProduced: false,
+      },
+    ),
+    /does not match the architecture descriptor/,
+  )
+})
+
+test('descriptor owns component observer attribution across inapplicable paths', async () => {
+  const fixtures = readDecisionFixtures()
+  const quest = fixtures.find((entry) => entry.req.kind === 'quest')!
+  const genericAgent = createComposedAgent({
+    seed: quest.source.seed,
+    decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+  })
+  const generic = normalizeAgentOutput(
+    await genericAgent.decide(quest.req, quest.view),
+  )
+  assert.equal(
+    genericAgent.resolvedBrain().description
+      .componentContributions.observerModel,
+    'exact-public-observer-v1',
+  )
+  assert.equal(
+    generic.trace!.components!.entries[0].status,
+    'inapplicable',
+  )
+  assert.equal(
+    generic.trace!.componentVersions!.observerModel,
+    'exact-public-observer-v1',
+  )
+
+  const servant = fixtures.find(
+    (entry) =>
+      entry.view.role === 'servant'
+      && (entry.req.kind === 'propose' || entry.req.kind === 'vote'),
+  )!
+  const legacyAgent = createComposedAgent({
+    seed: servant.source.seed,
+    roleObjectives: true,
+  })
+  const legacy = normalizeAgentOutput(
+    await legacyAgent.decide(servant.req, servant.view),
+  )
+  const descriptor = legacyAgent.resolvedBrain().description
+  assert.notEqual(descriptor.base.observerModel, 'off')
+  assert.equal(descriptor.componentContributions.observerModel, 'off')
+  assert.equal(legacy.trace!.privateRoleObjective, undefined)
+  assert.equal(legacy.trace!.componentVersions!.observerModel, 'off')
 })

@@ -107,6 +107,12 @@ export interface ResolvedArchitectureDescriptor {
   readonly version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
   readonly base: BrainSpec
   readonly components: ResolvedComponentGraph
+  /** Stable contributions declared by the resolved component graph. */
+  readonly componentContributions: Readonly<{
+    readonly observerModel:
+      | typeof PUBLIC_OBSERVER_MODEL_VERSION
+      | 'off'
+  }>
   /**
    * Data-only invocation roots required by the configured graph. Values and
    * validator implementations never enter this description.
@@ -379,6 +385,7 @@ export function projectPrivateArchitectureDebug(
     version: descriptor.version,
     base: descriptor.base,
     components: descriptor.components,
+    componentContributions: descriptor.componentContributions,
     requiredHostInputs: descriptor.requiredHostInputs,
     scoreLayerOrder: descriptor.scoreLayerOrder,
     decisionLayerOrder: descriptor.decisionLayerOrder,
@@ -617,6 +624,12 @@ export function resolveComposedBrain(
     version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
     base,
     components,
+    componentContributions: Object.freeze({
+      observerModel:
+        requiredObserverModels[0] === PUBLIC_OBSERVER_MODEL_VERSION
+          ? PUBLIC_OBSERVER_MODEL_VERSION
+          : 'off',
+    }),
     requiredHostInputs,
     scoreLayerOrder,
     decisionLayerOrder,

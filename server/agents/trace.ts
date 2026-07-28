@@ -47,6 +47,12 @@ import type {
   DecisionComponentPlan,
   DecisionComponentRun,
 } from './components/kernel.ts'
+import {
+  DECISION_COMPONENT_RUN_VERSION,
+} from './components/kernel.ts'
+import type {
+  ResolvedArchitectureDescriptor,
+} from './components/resolved-brain.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
@@ -183,6 +189,181 @@ export interface DecisionTrace {
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */
   coherenceIntent?: CoherenceIntent
+}
+
+export type TraceComponentVersions =
+  NonNullable<DecisionTrace['componentVersions']>
+
+export interface BaseTraceRuntimeActuals {
+  readonly belief: string
+  readonly factors: string
+  readonly scorer: string
+  readonly planner: string
+  readonly voice: string
+  /** Whether the invocation actually produced the legacy flat observer. */
+  readonly legacyObserverProduced: boolean
+  readonly mechanicalBelief?: string
+  readonly beliefPipeline?: string
+}
+
+export interface BaseTraceComponentVersionProjection {
+  /**
+   * Stable and runtime identities historically serialized before the
+   * role-specific attribution fields.
+   */
+  readonly prefix: Readonly<
+    Pick<
+      TraceComponentVersions,
+      | 'brain'
+      | 'belief'
+      | 'beliefVisibility'
+      | 'factors'
+      | 'languageEvidence'
+      | 'observerModel'
+    >
+    & Pick<
+      Partial<TraceComponentVersions>,
+      'mechanicalBelief' | 'beliefPipeline'
+    >
+  >
+  /**
+   * Stable and runtime identities historically serialized after the
+   * role-specific attribution fields.
+   */
+  readonly suffix: Readonly<
+    Pick<
+      TraceComponentVersions,
+      | 'decisionComponents'
+      | 'analysis'
+      | 'candidates'
+      | 'forcedPolicy'
+      | 'policy'
+      | 'scorer'
+      | 'planner'
+      | 'prompt'
+      | 'renderer'
+      | 'communication'
+      | 'voice'
+    >
+    & Pick<
+      Partial<TraceComponentVersions>,
+      'planMemory' | 'coherence' | 'configuredScorer'
+    >
+  >
+}
+
+/**
+ * Project the generic composed-trace identities from the one construction
+ * descriptor and the admitted runtime facts.
+ *
+ * The split projection preserves the historical JSON property order around
+ * role-specific fields. The run join is exact and fail-closed so a trace can
+ * never pair one configured graph with another descriptor.
+ */
+export function projectBaseTraceComponentVersions(
+  descriptor: ResolvedArchitectureDescriptor,
+  admittedRun: DecisionComponentRun,
+  runtime: BaseTraceRuntimeActuals,
+): BaseTraceComponentVersionProjection {
+  if (
+    admittedRun.version !== DECISION_COMPONENT_RUN_VERSION
+    || !isDeepStrictEqual(
+      admittedRun.configured,
+      descriptor.components.configured,
+    )
+  ) {
+    throw new Error(
+      'decision component run does not match the architecture descriptor',
+    )
+  }
+  const pipeline = descriptor.configuredPipeline
+  const planEnabled =
+    pipeline.planCoherence.memory !== 'off'
+    && pipeline.planCoherence.model !== 'off'
+  if (
+    (
+      pipeline.planCoherence.memory === 'off'
+      && pipeline.planCoherence.model !== 'off'
+    )
+    || (
+      pipeline.planCoherence.memory !== 'off'
+      && pipeline.planCoherence.model === 'off'
+    )
+  ) {
+    throw new Error(
+      'architecture descriptor has inconsistent plan coherence versions',
+    )
+  }
+  const languageEnabled = descriptor.base.languageEvidence !== 'off'
+  if (
+    languageEnabled
+    !== (
+      runtime.mechanicalBelief !== undefined
+      && runtime.beliefPipeline !== undefined
+    )
+  ) {
+    throw new Error(
+      'runtime belief pipeline does not match the architecture descriptor',
+    )
+  }
+  const componentObserverConfigured =
+    descriptor.componentContributions.observerModel !== 'off'
+  if (
+    (
+      runtime.legacyObserverProduced
+      || componentObserverConfigured
+    )
+    && descriptor.base.observerModel === 'off'
+  ) {
+    throw new Error(
+      'runtime observer does not match the architecture descriptor',
+    )
+  }
+  return Object.freeze({
+    prefix: Object.freeze({
+      brain: descriptor.base.version,
+      belief: runtime.belief,
+      ...(languageEnabled
+        ? {
+            mechanicalBelief: runtime.mechanicalBelief!,
+            beliefPipeline: runtime.beliefPipeline!,
+          }
+        : {}),
+      beliefVisibility: descriptor.base.beliefVisibility,
+      factors: runtime.factors,
+      languageEvidence: descriptor.base.languageEvidence,
+      observerModel: (
+        runtime.legacyObserverProduced
+        || componentObserverConfigured
+      )
+        ? descriptor.base.observerModel
+        : 'off',
+    }),
+    suffix: Object.freeze({
+      ...(planEnabled
+        ? {
+            planMemory: pipeline.planCoherence.memory,
+            coherence: pipeline.planCoherence.model,
+          }
+        : {}),
+      // The run protocol is an admitted runtime fact, not configuration.
+      // Its exact version was checked above before it can be attributed.
+      decisionComponents: admittedRun.version,
+      analysis: pipeline.analysis.situation,
+      candidates: pipeline.candidateGeneration.legalCandidates,
+      forcedPolicy: pipeline.forcedPolicy.policy,
+      policy: descriptor.base.policy,
+      scorer: runtime.scorer,
+      ...(pipeline.scoring.configuredScorer !== runtime.scorer
+        ? { configuredScorer: pipeline.scoring.configuredScorer }
+        : {}),
+      planner: runtime.planner,
+      prompt: pipeline.prompt.prompt,
+      renderer: pipeline.prompt.renderer,
+      communication: descriptor.base.communication,
+      voice: runtime.voice,
+    }),
+  })
 }
 
 export function decisionTraceId(

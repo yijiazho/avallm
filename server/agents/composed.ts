@@ -71,14 +71,10 @@ import {
   type LanguageLikelihoodFactor,
 } from './belief/language-factor.ts'
 import {
-  brainComponents,
   COMPOSED_POLICY_VERSION,
-  resolveBrain,
   type AgentExecutionMode,
-  type BrainSource,
 } from './brain.ts'
 import {
-  DECISION_COMPONENT_RUN_VERSION,
   attributeComponentPolicyUse,
   componentPayload,
   decisionComponentPlan,
@@ -196,6 +192,7 @@ import {
 import {
   COMPONENT_DECISION_TRACE_VERSION,
   createDecisionTrace,
+  projectBaseTraceComponentVersions,
   type DecisionTrace,
 } from './trace.ts'
 import type {
@@ -774,18 +771,17 @@ function composedTrace(
   plannerVersion: string,
   voiceVersion: string,
   scorerVersion: string,
-  configuredScorerVersion: string,
   degradation: readonly string[],
   componentPlan: DecisionComponentPlan,
   decisionComponents: DecisionComponentRun,
+  descriptor: ResolvedComposedBrain['description'],
   agentMode: AgentExecutionMode,
   communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
   plannerReasonCodes?: readonly string[],
   factorsVersion = 'off',
   languageTrace?: LanguageTraceAttribution,
-  languageEnabled = false,
-  observerModelEnabled = false,
+  legacyObserverProduced = false,
   publicObserver?: PublicObserverSnapshot,
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
@@ -802,19 +798,41 @@ function composedTrace(
   privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective,
   configuredMorganaRoleUtility?: string,
   privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection,
-  planMemoryEnabled = false,
-  coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
-  const brainSource: BrainSource = {
-    type: 'composed',
-    languageEvidence: languageEnabled
-      ? LANGUAGE_FACTOR_BUNDLE_VERSION
-      : undefined,
-    observerModel: observerModelEnabled
-      ? PUBLIC_OBSERVER_MODEL_VERSION
-      : undefined,
+  const baseVersions = projectBaseTraceComponentVersions(
+    descriptor,
+    decisionComponents,
+    {
+      belief: cognition.belief.modelVersion,
+      factors: factorsVersion,
+      scorer: scorerVersion,
+      planner: plannerVersion,
+      voice: voiceVersion,
+      legacyObserverProduced,
+      ...(descriptor.base.languageEvidence !== 'off'
+        ? {
+            mechanicalBelief: cognition.versions.mechanicalBelief,
+            beliefPipeline: cognition.versions.beliefPipeline,
+          }
+        : {}),
+    },
+  )
+  const planMemoryEnabled =
+    descriptor.configuredPipeline.planCoherence.memory !== 'off'
+  const configuredCoherenceIntent =
+    descriptor.configuredPipeline.planCoherence.intent
+  if (
+    planMemoryEnabled
+    && !['maintain', 'conceal', 'deceive'].includes(
+      configuredCoherenceIntent,
+    )
+  ) {
+    throw new Error(
+      'architecture descriptor has an invalid coherence intent',
+    )
   }
-  const brain = brainComponents(resolveBrain(brainSource))
+  const traceCoherenceIntent =
+    configuredCoherenceIntent as CoherenceIntent
   return {
     ...createDecisionTrace(
       req,
@@ -833,18 +851,7 @@ function composedTrace(
     ],
     agentMode,
     componentVersions: {
-      brain: brain.brain,
-      belief: cognition.belief.modelVersion,
-      ...(languageEnabled
-        ? {
-            mechanicalBelief: cognition.versions.mechanicalBelief,
-            beliefPipeline: cognition.versions.beliefPipeline,
-          }
-        : {}),
-      beliefVisibility: brain.beliefVisibility,
-      factors: factorsVersion,
-      languageEvidence: brain.languageEvidence,
-      observerModel: brain.observerModel,
+      ...baseVersions.prefix,
       ...(identityEnabled
         ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
         : {}),
@@ -890,28 +897,11 @@ function composedTrace(
       ...(configuredMorganaRoleUtility
         ? { configuredMorganaRoleUtility }
         : {}),
-      ...(planMemoryEnabled
-        ? {
-            planMemory: PLAN_MEMORY_VERSION,
-            coherence: COHERENCE_MODEL_VERSION,
-          }
-        : {}),
-      decisionComponents: DECISION_COMPONENT_RUN_VERSION,
-      analysis: SITUATION_ANALYSIS_VERSION,
-      candidates: LEGAL_CANDIDATE_VERSION,
-      forcedPolicy: FORCED_POLICY_VERSION,
-      policy: brain.policy,
-      scorer: scorerVersion,
-      ...(configuredScorerVersion !== scorerVersion
-        ? { configuredScorer: configuredScorerVersion }
-        : {}),
-      planner: plannerVersion,
-      prompt: COMPOSED_PROMPT_VERSION,
-      renderer: COMPOSED_RENDERER_VERSION,
-      communication: brain.communication,
-      voice: voiceVersion,
+      ...baseVersions.suffix,
     },
-    ...(planMemoryEnabled ? { coherenceIntent } : {}),
+    ...(planMemoryEnabled
+      ? { coherenceIntent: traceCoherenceIntent }
+      : {}),
     componentPlan: structuredClone(componentPlan),
     components: structuredClone(decisionComponents),
     candidateScores: scores,
@@ -921,7 +911,8 @@ function composedTrace(
     ...(plannerReasonCodes
       ? { plannerReasonCodes: [...plannerReasonCodes] }
       : {}),
-    decisionPlanVersion: DECISION_PLAN_VERSION,
+    decisionPlanVersion:
+      descriptor.configuredPipeline.planning.decisionPlan,
     forcedPolicyResult: structuredClone(forced),
     ...(communication
       ? { communicationIntent: structuredClone(communication) }
@@ -1218,12 +1209,6 @@ export function createComposedAgent(
       },
     },
   }, componentRegistry)
-  const componentObserverConfigured =
-    resolvedBrain.configuredDefinitions.some(
-      (definition) =>
-        definition.brainContribution?.observerModel
-          === PUBLIC_OBSERVER_MODEL_VERSION,
-    )
   const configuredComponentPlan = decisionComponentPlan(resolvedBrain)
   const requiredHostInputKeys = new Set(
     resolvedBrain.description.requiredHostInputs.map(
@@ -1546,7 +1531,7 @@ export function createComposedAgent(
           }
           stage('identity')
         }
-        const legacyPublicObserverApplicable = (
+        const legacyPublicObserverApplicable = Boolean(
           publicObserverConfigured
           || roleObjectiveRole
           || evilRoleObjectiveApplicable
@@ -2118,10 +2103,10 @@ export function createComposedAgent(
           plannerVersion,
           voiceVersion,
           scorerVersion,
-          scorer.version,
           degradation,
           configuredComponentPlan,
           decisionComponents,
+          resolvedBrain.description,
           activePlanner
             ? 'hybrid'
             : scorerVersion === CANDIDATE_SCORER_VERSION
@@ -2134,8 +2119,7 @@ export function createComposedAgent(
             ? combinedFactorBundle(beliefModel.factorsVersion)
             : beliefModel.factorsVersion,
           languageTrace,
-          !!interpreter,
-          componentObserverConfigured || tracePublicObserver !== undefined,
+          legacyPublicObserverApplicable,
           tracePublicObserver,
           privateIdentity,
           !!decisionIdentityScope,
@@ -2165,8 +2149,6 @@ export function createComposedAgent(
             ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
             : undefined,
           privateMorganaRoleUtility,
-          planMemoryEnabled,
-          coherenceIntent,
         )
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {
