@@ -536,6 +536,16 @@ Merlin's legal sight in each world: evil except that world's Mordred. This integ
 over which partner is Mordred through joint sums and preserves role correlations; multiplying
 independent role or alignment marginals is not an acceptable substitute.
 
+Morgana policy is bounded by the shared evil mechanical objective rather than blended into it.
+Forced policy filters first, then the maximum D2 role value over the surviving candidates defines
+an explicit `0.04` viability band. Counterfeit value may rank candidates only inside that band and
+can never revive a candidate removed by forced policy or lying below the D2 floor. Deterministic
+mode chooses maximum counterfeit value with canonical ties. Optional seeded variation is confined
+to approve versus reject when both votes are in the D2 band and their counterfeit values differ by
+at most `0.04`; proposals stay deterministic. Missing, malformed, or inapplicable Morgana evidence
+falls back to the matching D2 policy, not directly to compatibility. This preserves shared evil
+competence while making the special-role objective genuinely causal and separately attributable.
+
 Coordination policy must also be valid for heterogeneous tables containing humans, raw LLMs, and
 other agent types. A deployable evil agent cannot assume that teammates share its algorithm,
 timing convention, seed, or capability handshake. Independent robust play is therefore the

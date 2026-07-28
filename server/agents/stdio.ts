@@ -46,6 +46,8 @@ import {
   seededEvilRoleObjectiveScorer,
   roleObjectiveScorer,
   seededRoleObjectiveScorer,
+  morganaRoleScorer,
+  seededMorganaRoleScorer,
   stablePolicyBucket,
   structuredChoice,
   type CandidateScore,
@@ -159,6 +161,18 @@ import {
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
 } from './analysis/morgana-counterfeit-types.ts'
+import {
+  MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_SCORER_DEGRADATION,
+  MORGANA_ROLE_SCORE_FEATURE_VERSION,
+  MORGANA_ROLE_UTILITY_DEGRADATION,
+  MORGANA_ROLE_UTILITY_CONSTANTS,
+  MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+  buildMorganaRoleUtilityProjection,
+  validatePrivateMorganaRoleUtilityHostJoin,
+  validatePrivateMorganaRoleUtilityProjection,
+} from './analysis/morgana-role-utility.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -297,6 +311,16 @@ function validComponentVersions(value: unknown): boolean {
         === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
     )
     && (
+      versions.morganaRoleUtility === undefined
+      || versions.morganaRoleUtility
+        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    )
+    && (
+      versions.configuredMorganaRoleUtility === undefined
+      || versions.configuredMorganaRoleUtility
+        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    )
+    && (
       versions.configuredScorer === undefined
       || (
         typeof versions.configuredScorer === 'string'
@@ -311,6 +335,14 @@ function validComponentVersions(value: unknown): boolean {
     && (
       versions.evilRoleUtility === undefined
       || versions.roleObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    )
+    && (
+      versions.morganaRoleUtility === undefined
+      || (
+        versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+        && versions.morganaCounterfeitObjective
+          === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+      )
     )
     && (
       (versions.planMemory === undefined)
@@ -426,6 +458,114 @@ function validMorganaCounterfeitTrace(
   } catch {
     return false
   }
+}
+
+function validMorganaRolePolicyTrace(
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+  deterministicSeed?: string,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const configured = components?.configuredMorganaRoleUtility
+  const resolved = components?.morganaRoleUtility
+  const projection = trace.privateMorganaRoleUtility
+  const degradation = Array.isArray(trace.degradation)
+    ? trace.degradation as unknown[]
+    : []
+  const degraded = degradation.includes(MORGANA_ROLE_UTILITY_DEGRADATION)
+  if (configured === undefined) {
+    return resolved === undefined
+      && projection === undefined
+      && !degraded
+  }
+  if (
+    configured !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    || !hostView
+  ) return false
+  const applicable =
+    hostView.role === 'morgana'
+    && (req.kind === 'propose' || req.kind === 'vote')
+  if (!applicable) {
+    return resolved === undefined
+      && projection === undefined
+      && !degraded
+  }
+  if (degraded) {
+    const atomic = resolved === undefined
+      && projection === undefined
+      && components?.scorer !== MORGANA_ROLE_SCORER_VERSION
+      && components?.scorer !== MORGANA_ROLE_SEEDED_SCORER_VERSION
+    if (!atomic) return false
+    const exactReconstructable =
+      trace.beliefModelVersion === EXACT_BELIEF_MODEL_VERSION
+      && components?.belief === EXACT_BELIEF_MODEL_VERSION
+      && components?.factors === 'off'
+      && components?.languageEvidence === 'off'
+    if (!exactReconstructable) return true
+    const configuredScorer =
+      components?.configuredScorer ?? components?.scorer
+    if (
+      configuredScorer !== MORGANA_ROLE_SCORER_VERSION
+      && configuredScorer !== MORGANA_ROLE_SEEDED_SCORER_VERSION
+    ) return false
+    if (
+      !validatePrivateMorganaCounterfeitObjective(
+        trace.privateMorganaCounterfeitObjective,
+      )
+      || !validatePrivateEvilRoleUtilityProjection(
+        trace.privateEvilRoleUtility,
+      )
+      || !validForcedPolicyResult(trace.forcedPolicyResult)
+    ) {
+      // Upstream exact-dependency admission independently decides whether an
+      // absent or malformed prerequisite is an honest narrow degradation.
+      return true
+    }
+    const candidates = legalCandidates(req, hostView)
+    const selectionMode =
+      configuredScorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
+        ? 'seeded-near-equal-vote-within-d2-band'
+        : 'top-counterfeit-within-d2-band'
+    // The stdio envelope does not receive the private game seed. Any stable
+    // seed is sufficient to prove that projection construction succeeds;
+    // persisted and generation-time host replay supplies the authoritative
+    // seed and validates the selected bucket separately.
+    const reconstructionSeed = deterministicSeed ?? [
+      'morgana-role-external-admission-v1',
+      req.seat,
+      req.kind,
+      req.round,
+      req.proposalNum,
+      trace.beliefThroughSeq,
+      configuredScorer,
+    ].join(':')
+    try {
+      const input = {
+        req,
+        view: hostView,
+        candidates,
+        forced: trace.forcedPolicyResult,
+        counterfeitObjective: trace.privateMorganaCounterfeitObjective,
+        evilRoleUtility: trace.privateEvilRoleUtility,
+        selectionMode,
+        deterministicSeed: reconstructionSeed,
+      } as const
+      const rebuilt = buildMorganaRoleUtilityProjection(input)
+      // Exact E1A + D2 + forced inputs that can reconstruct E1B cannot claim
+      // projection failure merely by coherently substituting the D2 surface.
+      return !validatePrivateMorganaRoleUtilityHostJoin(rebuilt, input)
+    } catch {
+      return true
+    }
+  }
+  return resolved === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    && validatePrivateMorganaRoleUtilityProjection(projection)
+    && components?.morganaCounterfeitObjective
+      === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    && components?.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
 }
 
 function validPrivateEvilQuestCardPolicyTrace(
@@ -1138,6 +1278,8 @@ function validPrivateEvilRoleUtilityTrace(
     (
       configured === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
       || configured === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      || configured === MORGANA_ROLE_SCORER_VERSION
+      || configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
     )
     && (req.kind === 'propose' || req.kind === 'vote')
     && hostView?.alignment === 'evil'
@@ -1159,6 +1301,7 @@ function validPrivateEvilRoleUtilityTrace(
     && dependencyDegradation.every((code) => degradation.includes(code))
     && (
       configured === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      || configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
         ? components?.scorer
           === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
         : components?.scorer === GOOD_PROPOSAL_VOTE_SCORER_VERSION
@@ -1635,6 +1778,69 @@ function validCandidateScores(value: unknown): boolean {
       && typeof evilRole.utility === 'object'
       && !Array.isArray(evilRole.utility)
     )
+    const morganaRole = score?.morganaRoleObjectiveFeatures as
+      | Record<string, unknown>
+      | undefined
+    const morganaRoleKeys = [
+      'version',
+      'utilityProjectionVersion',
+      'sourceCounterfeitObjectiveVersion',
+      'sourceEvilRoleUtilityVersion',
+      'candidateId',
+      'kind',
+      'd2RoleValue',
+      'maxD2RoleValue',
+      'd2BandFloor',
+      'd2ViableBand',
+      'inD2ViableBand',
+      'counterfeitValue',
+      'counterfeitRank',
+      'selectionMode',
+      'seededVoteCounterfeitBand',
+      'selectedByPolicy',
+      ...(morganaRole?.seedBucket === undefined ? [] : ['seedBucket']),
+      'utility',
+    ]
+    const validMorganaRole = morganaRole === undefined || (
+      exactKeys(morganaRole, morganaRoleKeys)
+      && Object.keys(morganaRole).length === morganaRoleKeys.length
+      && morganaRole.version === MORGANA_ROLE_SCORE_FEATURE_VERSION
+      && morganaRole.utilityProjectionVersion
+        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      && morganaRole.sourceCounterfeitObjectiveVersion
+        === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+      && morganaRole.sourceEvilRoleUtilityVersion
+        === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+      && morganaRole.candidateId === score.candidateId
+      && ['propose', 'vote'].includes(String(morganaRole.kind))
+      && finiteProbability(morganaRole.d2RoleValue)
+      && finiteProbability(morganaRole.maxD2RoleValue)
+      && typeof morganaRole.d2BandFloor === 'number'
+      && Number.isFinite(morganaRole.d2BandFloor)
+      && morganaRole.d2ViableBand
+        === MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
+      && typeof morganaRole.inD2ViableBand === 'boolean'
+      && finiteProbability(morganaRole.counterfeitValue)
+      && Number.isSafeInteger(morganaRole.counterfeitRank)
+      && Number(morganaRole.counterfeitRank) >= 0
+      && (
+        morganaRole.selectionMode
+          === 'top-counterfeit-within-d2-band'
+        || morganaRole.selectionMode
+          === 'seeded-near-equal-vote-within-d2-band'
+      )
+      && morganaRole.seededVoteCounterfeitBand
+        === MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand
+      && typeof morganaRole.selectedByPolicy === 'boolean'
+      && (
+        morganaRole.seedBucket === undefined
+        || morganaRole.seedBucket === 0
+        || morganaRole.seedBucket === 1
+      )
+      && !!morganaRole.utility
+      && typeof morganaRole.utility === 'object'
+      && !Array.isArray(morganaRole.utility)
+    )
     return !!score
       && typeof score === 'object'
       && typeof score.version === 'string'
@@ -1648,7 +1854,8 @@ function validCandidateScores(value: unknown): boolean {
       && validFeatures
       && validRole
       && validEvilRole
-      && !(role && evilRole)
+      && validMorganaRole
+      && Number(!!role) + Number(!!evilRole) + Number(!!morganaRole) <= 1
   })
 }
 
@@ -2485,6 +2692,65 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       )
     ) return false
   }
+  const morganaRoleFeatureScores = scores.filter(
+    (score) => score.morganaRoleObjectiveFeatures !== undefined,
+  )
+  if (morganaRoleFeatureScores.length > 0) {
+    const projection = trace.privateMorganaRoleUtility as
+      | Record<string, unknown>
+      | undefined
+    const projectionRows = Array.isArray(projection?.candidates)
+      ? projection.candidates as Record<string, unknown>[]
+      : []
+    const rows = new Map(
+      projectionRows.map((row) => [row.candidateId as string, row]),
+    )
+    const selectedId = projection?.selectedCandidateId
+    const mode = projection?.selectionMode
+    const expectedScorer =
+      mode === 'seeded-near-equal-vote-within-d2-band'
+        ? MORGANA_ROLE_SEEDED_SCORER_VERSION
+        : MORGANA_ROLE_SCORER_VERSION
+    if (
+      !projection
+      || !validatePrivateMorganaRoleUtilityProjection(projection)
+      || morganaRoleFeatureScores.length !== scores.length
+      || rows.size !== scores.length
+      || components?.scorer !== expectedScorer
+      || structured !== selectedId
+      || chosen !== selectedId
+      || morganaRoleFeatureScores.filter(
+        (score) => score.viable === true,
+      ).length !== 1
+      || morganaRoleFeatureScores.some((score) => {
+        const row = rows.get(score.candidateId as string)
+        const feature = score.morganaRoleObjectiveFeatures as
+          Record<string, unknown>
+        if (!row) return true
+        const selected = score.candidateId === selectedId
+        return (
+          score.viable !== selected
+          || score.value !== (
+            row.forcedAllowed === true
+              ? row.counterfeitValue
+              : -Number.MAX_SAFE_INTEGER
+          )
+          || feature.candidateId !== row.candidateId
+          || feature.kind !== row.kind
+          || feature.d2RoleValue !== row.d2RoleValue
+          || feature.maxD2RoleValue !== projection.maxD2RoleValue
+          || feature.d2BandFloor !== projection.d2BandFloor
+          || feature.inD2ViableBand !== row.inD2ViableBand
+          || feature.counterfeitValue !== row.counterfeitValue
+          || feature.counterfeitRank !== row.counterfeitRank
+          || feature.selectionMode !== mode
+          || feature.selectedByPolicy !== selected
+          || feature.seedBucket !== projection.seedBucket
+          || !isDeepStrictEqual(feature.utility, row)
+        )
+      })
+    ) return false
+  }
   if (
     proposalFeatureScores.length > 0
     && (
@@ -2786,6 +3052,7 @@ function validDecisionTrace(
       hostView,
     )
     && validMorganaCounterfeitTrace(trace, req, hostView)
+    && validMorganaRolePolicyTrace(trace, req, hostView)
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
@@ -2882,6 +3149,12 @@ export function validateComposedTraceHostJoin(input: {
         req,
         view,
       )
+      || !validMorganaRolePolicyTrace(
+        trace as unknown as Record<string, unknown>,
+        req,
+        view,
+        deterministicSeed,
+      )
     ) return false
     const components = trace.componentVersions!
     if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false
@@ -2923,6 +3196,9 @@ export function validateComposedTraceHostJoin(input: {
     ) return false
 
     const configured = components.configuredScorer ?? components.scorer
+    const morganaConfigured =
+      configured === MORGANA_ROLE_SCORER_VERSION
+      || configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
     const d2Configured =
       configured === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
       || configured === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -2932,6 +3208,87 @@ export function validateComposedTraceHostJoin(input: {
     const c2Resolved =
       components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
       || components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+    if (morganaConfigured) {
+      const seeded = configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
+      const applicable =
+        view.role === 'morgana'
+        && (req.kind === 'propose' || req.kind === 'vote')
+      const applied =
+        applicable
+        && trace.privateMorganaRoleUtility !== undefined
+        && !trace.degradation.includes(MORGANA_ROLE_UTILITY_DEGRADATION)
+        && !trace.degradation.includes(MORGANA_ROLE_SCORER_DEGRADATION)
+      const d2Base = seeded
+        ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        : EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+      const downstream = (
+        (req.kind === 'propose' || req.kind === 'vote')
+        && view.alignment === 'evil'
+      )
+        ? d2Base
+        : (
+            (req.kind === 'propose' || req.kind === 'vote')
+            && (view.role === 'merlin' || view.role === 'percival')
+          )
+          ? seeded
+            ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+            : ROLE_OBJECTIVE_SCORER_VERSION
+          : seeded
+            ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+            : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      const expectedResolved = applied ? configured : downstream
+      if (
+        components.scorer !== expectedResolved
+        || components.configuredScorer !== (
+          expectedResolved === configured ? undefined : configured
+        )
+        || components.configuredMorganaRoleUtility
+          !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      ) return false
+      if (applied) {
+        const projection = trace.privateMorganaRoleUtility!
+        const selectionMode =
+          configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
+            ? 'seeded-near-equal-vote-within-d2-band'
+            : 'top-counterfeit-within-d2-band'
+        if (
+          !trace.privateMorganaCounterfeitObjective
+          || !trace.privateEvilRoleUtility
+          || !validatePrivateMorganaRoleUtilityHostJoin(projection, {
+            req,
+            view,
+            candidates: legal,
+            forced: trace.forcedPolicyResult!,
+            counterfeitObjective:
+              trace.privateMorganaCounterfeitObjective,
+            evilRoleUtility: trace.privateEvilRoleUtility,
+            selectionMode,
+            deterministicSeed,
+          })
+        ) return false
+        const scorer = seeded
+          ? seededMorganaRoleScorer
+          : morganaRoleScorer
+        const expectedScores = scorer.score({
+          deterministicSeed,
+          request: req,
+          view,
+          analysis: analyzeSituation(view, {
+            belief: exactBelief(view),
+            policyCandidateTeams: candidateTeams(legal, view),
+          }),
+          candidates: legal,
+          evilRoleUtility: trace.privateEvilRoleUtility,
+          morganaRoleUtility: projection,
+          forced: trace.forcedPolicyResult!,
+        })
+        if (
+          !isDeepStrictEqual(trace.candidateScores, expectedScores)
+          || trace.structuredCandidateId
+            !== projection.selectedCandidateId
+        ) return false
+      }
+    }
     if (c2Configured || c2Resolved) {
       const applicable =
         (req.kind === 'propose' || req.kind === 'vote')
@@ -3022,6 +3379,8 @@ export function validateComposedTraceHostJoin(input: {
         : undefined
       const roleBucket = score.roleObjectiveFeatures?.seedBucket
       const evilBucket = score.evilRoleObjectiveFeatures?.seedBucket
+      const morganaBucket =
+        score.morganaRoleObjectiveFeatures?.seedBucket
       const expectedEvilBucket = stablePolicyBucket([
         deterministicSeed,
         req.seat,
@@ -3037,6 +3396,17 @@ export function validateComposedTraceHostJoin(input: {
         roleBucket !== undefined && roleBucket !== expectedBucket
       ) || (
         evilBucket !== undefined && evilBucket !== expectedEvilBucket
+      ) || (
+        morganaBucket !== undefined
+        && morganaBucket !== stablePolicyBucket([
+          deterministicSeed,
+          req.seat,
+          req.kind,
+          req.round,
+          req.proposalNum,
+          trace.beliefThroughSeq,
+          MORGANA_ROLE_SEEDED_SCORER_VERSION,
+        ].join(':'))
       )
     })) return false
 
@@ -3317,6 +3687,8 @@ function validateRoutedEvilDependencyHostJoin(
     const d2Applied =
       components.scorer === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
       || components.scorer === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      || components.scorer === MORGANA_ROLE_SCORER_VERSION
+      || components.scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
     const alternativeObjective = req.kind === 'vote'
       ? buildEvilRoleObjectiveSnapshot({
           req: { ...req, kind: 'propose' },

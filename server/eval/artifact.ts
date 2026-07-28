@@ -69,6 +69,8 @@ export interface ArtifactStrategyVersions {
   evilQuestCardPolicies?: readonly string[]
   /** Added in Phase 7E1A; configured and resolved private substrates. */
   morganaCounterfeitObjectives?: readonly string[]
+  /** Added in Phase 7E1B; bounded causal Morgana policy projections. */
+  morganaRoleUtilities?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -233,6 +235,15 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       (trace) => trace.componentVersions?.morganaCounterfeitObjective,
     ),
   ])
+  const morganaRoleUtilities = sortedUnique([
+    architecture.morganaRoleUtility,
+    ...traces.map(
+      (trace) => trace.componentVersions?.configuredMorganaRoleUtility,
+    ),
+    ...traces.map(
+      (trace) => trace.componentVersions?.morganaRoleUtility,
+    ),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -272,6 +283,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(morganaCounterfeitObjectives.length
       ? { morganaCounterfeitObjectives }
       : {}),
+    ...(morganaRoleUtilities.length ? { morganaRoleUtilities } : {}),
   }
 }
 

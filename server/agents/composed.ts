@@ -60,6 +60,17 @@ import {
   type PrivateEvilRoleUtilityProjection,
   validatePrivateEvilRoleUtilityHostJoin,
 } from './analysis/evil-role-utility.ts'
+import {
+  buildMorganaRoleUtilityProjection,
+  MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_SCORER_DEGRADATION,
+  MORGANA_ROLE_UTILITY_DEGRADATION,
+  MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+  type MorganaRoleSelectionMode,
+  type PrivateMorganaRoleUtilityProjection,
+  validatePrivateMorganaRoleUtilityHostJoin,
+} from './analysis/morgana-role-utility.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
@@ -479,6 +490,8 @@ function composedTrace(
   configuredMorganaCounterfeitObjective?: string,
   publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot,
   privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective,
+  configuredMorganaRoleUtility?: string,
+  privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -559,6 +572,12 @@ function composedTrace(
       ...(configuredMorganaCounterfeitObjective
         ? { configuredMorganaCounterfeitObjective }
         : {}),
+      ...(privateMorganaRoleUtility
+        ? { morganaRoleUtility: MORGANA_ROLE_UTILITY_PROJECTION_VERSION }
+        : {}),
+      ...(configuredMorganaRoleUtility
+        ? { configuredMorganaRoleUtility }
+        : {}),
       ...(planMemoryEnabled
         ? {
             planMemory: PLAN_MEMORY_VERSION,
@@ -631,6 +650,12 @@ function composedTrace(
             structuredClone(privateMorganaCounterfeitObjective),
         }
       : {}),
+    ...(privateMorganaRoleUtility
+      ? {
+          privateMorganaRoleUtility:
+            structuredClone(privateMorganaRoleUtility),
+        }
+      : {}),
   }
 }
 
@@ -662,9 +687,15 @@ function resolveRolePolicyScorer(input: {
         === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       && (input.req.kind === 'propose' || input.req.kind === 'vote')
       && input.routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    const morganaApplicable =
+      current.morganaRoleUtilityRequirement
+        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      && evilApplicable
+      && input.view.role === 'morgana'
     if (
       (current.roleUtilityRequirement && !roleApplicable)
       || (current.evilRoleUtilityRequirement && !evilApplicable)
+      || (current.morganaRoleUtilityRequirement && !morganaApplicable)
     ) {
       if (!current.baseScorer) return current
       current = current.baseScorer
@@ -949,7 +980,11 @@ export function createComposedAgent(
       const evilRoleObjectiveApplicable =
         routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
       const morganaCounterfeitApplicable =
-        options.morganaCounterfeitObjectives === true
+        (
+          options.morganaCounterfeitObjectives === true
+          || resolvedScorer.morganaRoleUtilityRequirement
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+        )
         && view.role === 'morgana'
         && (req.kind === 'propose' || req.kind === 'vote')
       const decisionIdentityScope = roleObjectiveRole
@@ -1009,6 +1044,8 @@ export function createComposedAgent(
         PublicCounterfeitMerlinReadSnapshot | undefined
       let privateMorganaCounterfeitObjective:
         PrivateMorganaCounterfeitObjective | undefined
+      let privateMorganaRoleUtility:
+        PrivateMorganaRoleUtilityProjection | undefined
       if (roleObjectiveRole) {
         try {
           if (!privateIdentity || !publicObserver) {
@@ -1249,6 +1286,59 @@ export function createComposedAgent(
       })
       stage('forced-policy')
 
+      if (
+        resolvedScorer.morganaRoleUtilityRequirement
+          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      ) {
+        try {
+          if (
+            !privateMorganaCounterfeitObjective
+            || !privateEvilRoleUtility
+          ) {
+            throw new Error('Morgana policy dependencies unavailable')
+          }
+          const selectionMode: MorganaRoleSelectionMode =
+            resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+              ? 'seeded-near-equal-vote-within-d2-band'
+              : 'top-counterfeit-within-d2-band'
+          privateMorganaRoleUtility =
+            buildMorganaRoleUtilityProjection({
+              req,
+              view,
+              candidates,
+              forced,
+              counterfeitObjective: privateMorganaCounterfeitObjective,
+              evilRoleUtility: privateEvilRoleUtility,
+              selectionMode,
+              deterministicSeed: options.seed,
+            })
+          if (!validatePrivateMorganaRoleUtilityHostJoin(
+            privateMorganaRoleUtility,
+            {
+              req,
+              view,
+              candidates,
+              forced,
+              counterfeitObjective: privateMorganaCounterfeitObjective,
+              evilRoleUtility: privateEvilRoleUtility,
+              selectionMode,
+              deterministicSeed: options.seed,
+            },
+          )) {
+            throw new Error('Morgana role utility failed its host join')
+          }
+        } catch {
+          privateMorganaRoleUtility = undefined
+          degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
+          resolvedScorer = resolveRolePolicyScorer({
+            configured: resolvedScorer.baseScorer ?? resolvedScorer,
+            req,
+            view,
+            routedObjective,
+          })
+        }
+      }
+
       const compatibility = compatibilityDecision(req, view, options.seed)
       const compatibilityCandidateId = candidateIdForDecision(compatibility)
       const scoringContext = {
@@ -1263,6 +1353,9 @@ export function createComposedAgent(
         ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
         ...(privateEvilRoleUtility
           ? { evilRoleUtility: privateEvilRoleUtility }
+          : {}),
+        ...(privateMorganaRoleUtility
+          ? { morganaRoleUtility: privateMorganaRoleUtility }
           : {}),
         forced,
         compatibilityCandidateId,
@@ -1282,6 +1375,8 @@ export function createComposedAgent(
           || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
           || resolvedScorer.version
             === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
         const baseScorer = roleScorerFailed
           ? resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
@@ -1292,7 +1387,10 @@ export function createComposedAgent(
           : undefined
         if (baseScorer) {
           degradation.push(
-            resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+            resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+            || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+              ? MORGANA_ROLE_SCORER_DEGRADATION
+              : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
             || resolvedScorer.version
               === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
               ? 'evil-role-objective-scorer-failed'
@@ -1529,11 +1627,20 @@ export function createComposedAgent(
         privateEvilRoleUtility,
         configuredEvilQuestCardPolicy,
         privateEvilQuestCardPolicy,
-        options.morganaCounterfeitObjectives === true
+        (
+          options.morganaCounterfeitObjectives === true
+          || scorer.morganaRoleUtilityRequirement
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+        )
           ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
           : undefined,
         publicMorganaCounterfeitRead,
         privateMorganaCounterfeitObjective,
+        scorer.morganaRoleUtilityRequirement
+          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+          ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+          : undefined,
+        privateMorganaRoleUtility,
         planMemoryEnabled,
         coherenceIntent,
       )

@@ -2,12 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E1B Morgana policy. Phase 7E1A added the mechanically inert
-counterfeit-read and candidate-objective substrate on top of the heterogeneous-safe Phase 7D3
-quest policy. The remaining role work is Morgana policy, Mordred specialization, and Assassin
-specialization before the Phase 7 role-bank evaluation and exit audit. The Phase 5C population
-sign flip remains recorded, and win-rate tuning is still intentionally deferred until the
-architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7E2A Mordred substrate. Phase 7E1B gave the landed Morgana
+counterfeit objective bounded opt-in proposal and vote authority while retaining D2, forced
+policy, and engine legality as higher-priority constraints. The remaining role work is the
+Mordred substrate and policy, Assassin specialization, and the Phase 7 role-bank evaluation and
+exit audit. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
+intentionally deferred until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -192,7 +192,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7E1A complete | Morgana policy, Mordred and Assassin specialization, then role-bank audit |
+| 7. Role-specific observer and identity models | In progress; Phase 7E1B complete | Mordred substrate and policy, Assassin specialization, then role-bank audit |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1220,12 +1220,14 @@ reviewable and ablatable:
 9. **Phase 7E1A, Morgana substrate:** add a separate public counterfeit-Merlin read and a private,
    complete-world candidate objective without changing policy. **Complete.**
 10. **Phase 7E1B, Morgana policy:** make counterfeit-Merlin and Percival-influence value causally
-    affect bounded policy.
-11. **Phase 7E2, Mordred specialization:** make Merlin-blindness exploitation and anomalous public
-   treatment causally affect bounded policy.
-12. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
+    affect bounded policy. **Complete.**
+11. **Phase 7E2A, Mordred substrate:** model Merlin-blindness opportunity and anomalous public
+    treatment from exact joint worlds plus public-only observations without changing policy.
+12. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
+    over proposal and vote decisions while preserving D2 and forced-policy dominance.
+13. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
    remains distinct from generic goodness.
-13. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+14. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1568,9 +1570,9 @@ therefore required Phase 7 architecture, not optional cleanup.
 - [x] Derive counterfeit-Merlin and Percival-influence value only from legal private knowledge and
       public conduct; do not import Percival's private posterior or identify true Merlin through
       privileged data.
-- [ ] Give the objective bounded, opt-in causal authority over relevant proposal, vote, or
-      communication intent while preserving forced policy, legality, and generic evil fallback.
-- [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
+- [x] Give the objective bounded, opt-in causal authority over relevant proposal and vote
+      decisions while preserving forced policy, legality, and generic evil fallback.
+- [x] Prove causal action changes, privacy, replay, attribution, and API-free bounds.
 
 Phase 7E1A implements `morgana-counterfeit-public-read-v1` as a separate public-only projection
 rather than relabeling the generic Phase 7A behavior indices. It joins only executed proposals and
@@ -1606,6 +1608,40 @@ remain structurally valid and attributable, but are not yet certifiable promotio
 7F or a dedicated provenance follow-up must close that evidence-boundary limitation without
 discarding the weighted posterior from the north-star runtime.
 
+Phase 7E1B adds `morgana-counterfeit-role-utility-v1` and the deterministic
+`morgana-counterfeit-role-scorer-v1` plus its vote-only seeded ablation. This is the first causal
+Morgana specialization; the unchanged D2 `evil-oberon-role-utility-v1` still owns shared evil
+failure capacity, cover, and future opportunity. Forced policy filters first. Among its survivors,
+the Morgana projection computes the canonical maximum D2 role value and admits only candidates
+within the explicit `0.04` D2 band. No counterfeit feature can make a candidate outside that band
+viable. Deterministic proposals and votes choose maximum E1A `counterfeitValue` with canonical-ID
+ties. The optional seeded mode varies only between approve and reject when both survive the D2
+band and their counterfeit-value gap is at most `0.04`; proposals remain seed-invariant.
+
+The projection binds the request, canonical vote team, complete E1A and D2 candidate surfaces,
+forced survivors, D2 maximum and floor, band membership, counterfeit ranking, seed domain and
+bucket, and selected decision. It is plain detached data with exact keys, dense arrays, exhaustive
+legal candidate IDs, at most 252 candidates, and a 1 MiB JSON ceiling. Composed policy validates
+the full host join before scoring. The fallback chain remains Morgana policy to the matching
+deterministic or seeded D2 scorer, then C2, Phase 4, and compatibility. Missing or malformed E1A
+data records `morgana-role-utility-projection-failed` and resolves to D2; invalid Morgana scorer
+output separately records `morgana-role-objective-scorer-failed`. Ineligible roles and decision
+kinds resolve through the same chain without fake degradation, and configured versus resolved
+components stay distinct.
+
+Dedicated validation passed 15 causal and adversarial cases, including an authentic action change,
+both hand-worked `0.04` boundaries, a real match-point forced vote, proposal seed invariance, vote
+replay and both seed buckets, D2 fallback, weighted runtime, D3 invariance, rendered/public
+privacy, simultaneous vote-team substitution, hostile stdio and stored joins, 5-10 player
+surfaces including the 252-candidate maximum, forged exact E1B degradation behind a coherent D2
+surface, and a free architecture-bank run. The 181-test focused adjacency suite and all 821
+API-free repository tests also passed. E1B makes no
+prompt, voice, client, provider, D3, production-default, or paid-call change. Weighted joint
+beliefs remain supported in composed runtime. External and stored promotion admission still
+requires E1A's exact host-reconstructable provenance because traces do not carry the complete
+weighted world list; this is an explicit Phase 7F evidence limitation, not a claim that weighted
+promotion evidence is complete.
+
 ### Mordred
 
 - [ ] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
@@ -1615,6 +1651,10 @@ discarding the weighted posterior from the north-star runtime.
 - [ ] Give deep-cover and Merlin-blindness exploitation bounded, opt-in causal policy authority
       while preserving forced policy, legality, and generic evil fallback.
 - [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
+
+Phase 7E2 is split into E2A substrate and E2B policy so the exact joint-world/public-observer
+formula, legal-information boundary, and weighted provenance can be audited before mechanical
+authority is added. E2A is the next implementation target.
 
 ### Assassin
 
@@ -1896,6 +1936,16 @@ here.
   architecture-bank lane passed 65 focused tests and all 806 API-free repository tests. Applied
   weighted objectives are supported by the composed runtime but remain ineligible for external
   promotion evidence until a future provenance contract can certify their complete-world source.
+- Phase 7E1B Morgana counterfeit policy: added an opt-in scorer above the unchanged D2 evil
+  utility. Forced survivors must remain within `max(D2) - 0.04`; deterministic play selects maximum
+  E1A counterfeit value with canonical ties, and seeded variation is vote-only when both votes are
+  in the D2 band and within `0.04` counterfeit value. The exact fallback chain is E1B to matching
+  D2, C2, Phase 4, then compatibility. Fifteen dedicated causal/adversarial cases, the free
+  architecture bank, 5-10 player and 252-candidate bounds, privacy, replay, D3 invariance, hostile
+  stdio/report joins, exact reconstruction rejection of forged E1B degradation, and weighted
+  runtime passed alongside 181 focused tests and all 821 API-free repository tests. Weighted
+  traces remain ineligible for external promotion admission until complete-world provenance is
+  certifiable. Phase 7E2A is next.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

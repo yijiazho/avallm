@@ -121,6 +121,12 @@ import {
 import {
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
 } from '../agents/analysis/morgana-counterfeit-types.ts'
+import {
+  MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_UTILITY_DEGRADATION,
+  MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+} from '../agents/analysis/morgana-role-utility.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -410,6 +416,8 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
           ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
           EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
           EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+          MORGANA_ROLE_SCORER_VERSION,
+          MORGANA_ROLE_SEEDED_SCORER_VERSION,
         ].includes(
           variant.components.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION,
         )
@@ -474,6 +482,8 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         || ![
           EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
           EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+          MORGANA_ROLE_SCORER_VERSION,
+          MORGANA_ROLE_SEEDED_SCORER_VERSION,
         ].includes(
           variant.components.scorer as typeof EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
         )
@@ -490,6 +500,37 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     ) {
       throw new Error(
         `custom architecture variant ${variant.id} has invalid morganaCounterfeitObjective`,
+      )
+    }
+    if (
+      variant.components.morganaRoleUtility !== undefined
+      && variant.components.morganaRoleUtility
+        !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid morganaRoleUtility`,
+      )
+    }
+    if (
+      variant.components.morganaRoleUtility
+        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      && (
+        variant.components.morganaCounterfeitObjective
+          !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+        || variant.components.evilRoleUtility
+          !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+        || variant.components.roleObjectiveRouter
+          !== ROLE_OBJECTIVE_ROUTER_VERSION
+        || ![
+          MORGANA_ROLE_SCORER_VERSION,
+          MORGANA_ROLE_SEEDED_SCORER_VERSION,
+        ].includes(
+          variant.components.scorer as typeof MORGANA_ROLE_SCORER_VERSION,
+        )
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} Morgana policy requires E1A, D2, router, and matching scorer`,
       )
     }
     if (
@@ -729,6 +770,9 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const evilRoleUtilityConfigured =
           expectedComponents.evilRoleUtility
             === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+        const morganaRoleUtilityConfigured =
+          expectedComponents.morganaRoleUtility
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
         const planMemory =
           expectedComponents.planMemory === PLAN_MEMORY_VERSION
           && expectedComponents.coherence === COHERENCE_MODEL_VERSION
@@ -787,6 +831,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               !== expectedComponents.evilQuestCardPolicy
             || traceVersions.configuredMorganaCounterfeitObjective
               !== expectedComponents.morganaCounterfeitObjective
+            || traceVersions.configuredMorganaRoleUtility
+              !== expectedComponents.morganaRoleUtility
             || (
               trace.request.kind === 'quest'
               && trace.request.seat === c.expectedTargetSeat
@@ -841,20 +887,45 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 && !trace.degradation.includes(
                   'evil-role-objective-scorer-failed',
                 )
+              const morganaPolicyApplied =
+                morganaRoleUtilityConfigured
+                && c.targetRole === 'morgana'
+                && (
+                  trace.request.kind === 'propose'
+                  || trace.request.kind === 'vote'
+                )
+                && trace.privateMorganaRoleUtility !== undefined
+                && !trace.degradation.includes(
+                  MORGANA_ROLE_UTILITY_DEGRADATION,
+                )
               const configuredSeeded =
                 expectedComponents.scorer
                   === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
                 || expectedComponents.scorer
                   === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              const expectedResolvedScorer = evilPolicyApplied
+                || expectedComponents.scorer
+                  === MORGANA_ROLE_SEEDED_SCORER_VERSION
+              const expectedResolvedScorer = morganaPolicyApplied
                 ? expectedComponents.scorer
+                : evilPolicyApplied
+                  ? expectedComponents.scorer
+                      === MORGANA_ROLE_SEEDED_SCORER_VERSION
+                    ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                    : expectedComponents.scorer
+                        === MORGANA_ROLE_SCORER_VERSION
+                      ? EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+                      : expectedComponents.scorer
                 : rolePolicyApplied
                   ? (
                       expectedComponents.scorer
                         === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                        || expectedComponents.scorer
+                          === MORGANA_ROLE_SEEDED_SCORER_VERSION
                         ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
                         : expectedComponents.scorer
                             === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+                          || expectedComponents.scorer
+                            === MORGANA_ROLE_SCORER_VERSION
                           ? ROLE_OBJECTIVE_SCORER_VERSION
                           : expectedComponents.scorer
                     )
@@ -865,6 +936,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                           === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
                         || expectedComponents.scorer
                           === ROLE_OBJECTIVE_SCORER_VERSION
+                        || expectedComponents.scorer
+                          === MORGANA_ROLE_SCORER_VERSION
                       )
                       ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
                       : expectedComponents.scorer
@@ -878,6 +951,31 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
                 )
             })()
+            || (
+              morganaRoleUtilityConfigured
+              && c.targetRole === 'morgana'
+              && (
+                trace.request.kind === 'propose'
+                || trace.request.kind === 'vote'
+              )
+                ? (
+                    trace.privateMorganaRoleUtility === undefined
+                    || traceVersions.morganaRoleUtility
+                      !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+                    || trace.privateMorganaCounterfeitObjective === undefined
+                    || trace.privateEvilRoleUtility === undefined
+                    || trace.degradation.includes(
+                      MORGANA_ROLE_UTILITY_DEGRADATION,
+                    )
+                  )
+                : (
+                    trace.privateMorganaRoleUtility !== undefined
+                    || traceVersions.morganaRoleUtility !== undefined
+                    || trace.degradation.includes(
+                      MORGANA_ROLE_UTILITY_DEGRADATION,
+                    )
+                  )
+            )
             || (
               planMemory
                 ? (

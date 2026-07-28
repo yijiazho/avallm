@@ -18,6 +18,16 @@ import {
   type PrivateEvilRoleUtilityProjection,
 } from '../analysis/evil-role-utility.ts'
 import { EVIL_ROLE_OBJECTIVE_MODEL_VERSION } from '../analysis/evil-objective-types.ts'
+import {
+  MORGANA_ROLE_SCORE_FEATURE_VERSION,
+  MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_UTILITY_CONSTANTS,
+  MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+  type MorganaRoleCandidateUtility,
+  type MorganaRoleSelectionMode,
+  type PrivateMorganaRoleUtilityProjection,
+} from '../analysis/morgana-role-utility.ts'
 
 export const CANDIDATE_SCORER_VERSION = 'compatibility-scorer-v1'
 export const CALIBRATION_COMPATIBILITY_SCORER_VERSION =
@@ -147,6 +157,8 @@ export interface CandidateScore {
   roleObjectiveFeatures?: RoleObjectiveScoreFeatures
   /** Private evil/Oberon role-policy attribution. Never enters speech. */
   evilRoleObjectiveFeatures?: EvilRoleObjectiveScoreFeatures
+  /** Private Morgana specialization attribution. Never enters speech. */
+  morganaRoleObjectiveFeatures?: MorganaRoleObjectiveScoreFeatures
 }
 
 export type ScorerAnalysisRequirement =
@@ -160,6 +172,8 @@ export interface CandidateScorer {
   roleUtilityRequirement?: typeof ROLE_UTILITY_PROJECTION_VERSION
   /** Activates the private D1 objective and versioned D2 scorer input. */
   evilRoleUtilityRequirement?: typeof EVIL_ROLE_UTILITY_PROJECTION_VERSION
+  /** Activates the private E1A/D2-bound Morgana policy input. */
+  morganaRoleUtilityRequirement?: typeof MORGANA_ROLE_UTILITY_PROJECTION_VERSION
   /** Truthful fallback used when this opt-in scorer is inapplicable/degraded. */
   baseScorer?: CandidateScorer
   score(context: CandidateScoringContext): readonly CandidateScore[]
@@ -214,6 +228,27 @@ export interface EvilRoleObjectiveScoreFeatures {
   selectionAdjustment: number
   seedBucket?: 0 | 1
   utility: EvilRoleUtilityAssessment
+}
+
+export interface MorganaRoleObjectiveScoreFeatures {
+  version: typeof MORGANA_ROLE_SCORE_FEATURE_VERSION
+  utilityProjectionVersion: typeof MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+  sourceCounterfeitObjectiveVersion: string
+  sourceEvilRoleUtilityVersion: string
+  candidateId: string
+  kind: 'propose' | 'vote'
+  d2RoleValue: number
+  maxD2RoleValue: number
+  d2BandFloor: number
+  d2ViableBand: number
+  inD2ViableBand: boolean
+  counterfeitValue: number
+  counterfeitRank: number
+  selectionMode: MorganaRoleSelectionMode
+  seededVoteCounterfeitBand: number
+  selectedByPolicy: boolean
+  seedBucket?: 0 | 1
+  utility: MorganaRoleCandidateUtility
 }
 
 function plainDetachedData(
@@ -599,6 +634,8 @@ export function validateCandidateScores(
         || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
         || scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
         || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        || scorerVersion === MORGANA_ROLE_SCORER_VERSION
+        || scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
       )
       && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
     )
@@ -607,6 +644,16 @@ export function validateCandidateScores(
   }
   if (scores.length !== context.candidates.length) {
     throw new Error('candidate scorer did not score the complete legal surface')
+  }
+  if (
+    scorerVersion === MORGANA_ROLE_SCORER_VERSION
+    || scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
+  ) {
+    const expected = scoreMorganaRoleCandidates(context)
+    if (!isDeepStrictEqual(scores, expected)) {
+      throw new Error('invalid Morgana role candidate score surface')
+    }
+    return
   }
   if (
     scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
@@ -702,6 +749,7 @@ export function validateCandidateScores(
       || score.reasonCodes.some((reason) => typeof reason !== 'string')
       || score.roleObjectiveFeatures !== undefined
       || score.evilRoleObjectiveFeatures !== undefined
+      || score.morganaRoleObjectiveFeatures !== undefined
       || !validFeatures
       || !validGoodSemantics
       || !validVoteSemantics
@@ -842,6 +890,8 @@ export interface CandidateScoringContext {
   roleUtility?: PrivateRoleUtilityProjection
   /** Private, host-derived D2 scorer input. */
   evilRoleUtility?: PrivateEvilRoleUtilityProjection
+  /** Private, host-derived E1B Morgana policy input. */
+  morganaRoleUtility?: PrivateMorganaRoleUtilityProjection
   forced: ForcedPolicyResult
   compatibilityCandidateId?: string
 }
@@ -1636,3 +1686,131 @@ export const seededEvilRoleObjectiveScorer =
   createEvilRoleObjectiveScorer({
     selectionMode: 'seeded-role-utility-band',
   })
+
+function scoreMorganaRoleCandidates(
+  context: CandidateScoringContext,
+): readonly CandidateScore[] {
+  const projection = context.morganaRoleUtility
+  if (
+    !projection
+    || projection.version !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    || context.view.role !== 'morgana'
+    || (context.request.kind !== 'propose' && context.request.kind !== 'vote')
+    || projection.request.kind !== context.request.kind
+    || projection.request.seat !== context.request.seat
+    || projection.request.round !== context.request.round
+    || projection.request.proposalNum !== context.request.proposalNum
+    || projection.source.beliefThroughSeq !== context.analysis.throughSeq
+    || projection.candidates.length !== context.candidates.length
+  ) {
+    throw new Error('Morgana scorer requires an eligible bound utility')
+  }
+  const rows = new Map(
+    projection.candidates.map((candidate) => [
+      candidate.candidateId,
+      candidate,
+    ]),
+  )
+  const allowed = new Set(context.forced.allowedCandidateIds)
+  if (
+    rows.size !== context.candidates.length
+    || !allowed.has(projection.selectedCandidateId)
+    || (
+      context.forced.selectedCandidateId !== undefined
+      && context.forced.selectedCandidateId
+        !== projection.selectedCandidateId
+    )
+  ) {
+    throw new Error('Morgana scorer received an inconsistent selected set')
+  }
+  const version =
+    projection.selectionMode
+      === 'seeded-near-equal-vote-within-d2-band'
+      ? MORGANA_ROLE_SEEDED_SCORER_VERSION
+      : MORGANA_ROLE_SCORER_VERSION
+  return context.candidates.map((candidate): CandidateScore => {
+    const utility = rows.get(candidate.id)
+    if (
+      !utility
+      || utility.forcedAllowed !== allowed.has(candidate.id)
+      || utility.kind !== context.request.kind
+    ) {
+      throw new Error('Morgana scorer candidate join mismatch')
+    }
+    const selected = candidate.id === projection.selectedCandidateId
+    return {
+      version,
+      candidateId: candidate.id,
+      value: utility.forcedAllowed
+        ? utility.counterfeitValue
+        : -Number.MAX_SAFE_INTEGER,
+      viable: utility.forcedAllowed && selected,
+      reasonCodes: [
+        ...(utility.forcedAllowed
+          ? ['FORCED_POLICY_ALLOWED']
+          : ['FORCED_POLICY_REMOVED']),
+        ...(utility.inD2ViableBand
+          ? ['MORGANA_D2_VIABLE_BAND']
+          : ['MORGANA_D2_OUTSIDE_VIABLE_BAND']),
+        ...(selected ? ['MORGANA_COUNTERFEIT_SELECTED'] : []),
+        ...(projection.seedBucket === undefined
+          ? []
+          : ['MORGANA_COUNTERFEIT_SEEDED_VOTE_BAND']),
+      ],
+      morganaRoleObjectiveFeatures: {
+        version: MORGANA_ROLE_SCORE_FEATURE_VERSION,
+        utilityProjectionVersion:
+          MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+        sourceCounterfeitObjectiveVersion:
+          projection.source.morganaCounterfeitObjectiveVersion,
+        sourceEvilRoleUtilityVersion:
+          projection.source.evilRoleUtilityVersion,
+        candidateId: candidate.id,
+        kind: context.request.kind,
+        d2RoleValue: utility.d2RoleValue,
+        maxD2RoleValue: projection.maxD2RoleValue,
+        d2BandFloor: projection.d2BandFloor,
+        d2ViableBand: MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand,
+        inD2ViableBand: utility.inD2ViableBand,
+        counterfeitValue: utility.counterfeitValue,
+        counterfeitRank: utility.counterfeitRank,
+        selectionMode: projection.selectionMode,
+        seededVoteCounterfeitBand:
+          MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand,
+        selectedByPolicy: selected,
+        ...(projection.seedBucket === undefined
+          ? {}
+          : { seedBucket: projection.seedBucket }),
+        utility: structuredClone(utility),
+      },
+    }
+  })
+}
+
+export function createMorganaRoleScorer(options: {
+  selectionMode: MorganaRoleSelectionMode
+}): CandidateScorer {
+  const seeded =
+    options.selectionMode
+      === 'seeded-near-equal-vote-within-d2-band'
+  return Object.freeze({
+    version: seeded
+      ? MORGANA_ROLE_SEEDED_SCORER_VERSION
+      : MORGANA_ROLE_SCORER_VERSION,
+    morganaRoleUtilityRequirement:
+      MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+    evilRoleUtilityRequirement: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+    baseScorer: seeded
+      ? seededEvilRoleObjectiveScorer
+      : evilRoleObjectiveScorer,
+    score: scoreMorganaRoleCandidates,
+  })
+}
+
+export const morganaRoleScorer = createMorganaRoleScorer({
+  selectionMode: 'top-counterfeit-within-d2-band',
+})
+
+export const seededMorganaRoleScorer = createMorganaRoleScorer({
+  selectionMode: 'seeded-near-equal-vote-within-d2-band',
+})

@@ -27,6 +27,9 @@ import type {
 import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
 import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-utility.ts'
 import type {
+  PrivateMorganaRoleUtilityProjection,
+} from './analysis/morgana-role-utility.ts'
+import type {
   PrivateEvilQuestCardPolicy,
 } from './policy/evil-quest-card.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
@@ -110,6 +113,10 @@ export interface DecisionTrace {
     morganaCounterfeitObjective?: string
     /** Configured Phase 7E1A objective; resolved only for Morgana propose/vote. */
     configuredMorganaCounterfeitObjective?: string
+    /** Resolved private E1B policy projection. */
+    morganaRoleUtility?: string
+    /** Configured E1B projection, including ineligible/fallback decisions. */
+    configuredMorganaRoleUtility?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -157,6 +164,8 @@ export interface DecisionTrace {
   publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot
   /** Private mechanically inert Morgana counterfeit objective. */
   privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective
+  /** Private bounded E1B Morgana policy projection. */
+  privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */
