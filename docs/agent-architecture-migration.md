@@ -2,13 +2,15 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2C3 descriptor ownership, followed by Phase 7R2C4's typed policy
-seam. Phase 7E2A is complete and approved: the first production-native graph adds a reusable
+**Current target phase:** finish Phase 7R2C3's descriptor-derived trace, artifact, and report
+projections, followed by Phase 7R2C4's typed policy seam. Phase 7E2A is complete and approved:
+the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
 The fast-feedback and static-check slice, the admission/conformance foundation, and the
-single-pass replay half of 7R2C are complete. Before ordered policy layers, the remaining work is
-to derive architecture metadata from one authoritative descriptor and extract a staged
-`DecisionFrame` policy-pipeline seam.
+single-pass replay work are complete. The resolved descriptor now owns configured architecture
+identity, and component host roots resolve only after a component is causally eligible. Before
+ordered policy layers, the remaining work is to project every runtime and evaluation surface from
+that descriptor and extract a staged `DecisionFrame` policy-pipeline seam.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -2075,7 +2077,7 @@ hostile-shape matrices. Runtime tests also carried work that a strict server `ts
 could reject earlier. High-churn integration files had grown beyond two thousand lines, making
 parallel edits and causal review increasingly expensive.
 
-7R2C is a bounded architecture investment, not a broad cleanup rewrite. Three independently
+7R2C is a bounded architecture investment, not a broad cleanup rewrite. Five independently
 reviewed slices are now landed:
 
 - **C1, commit `30a96e8`, keeps all coverage but separates feedback cadence.** Strict no-emit
@@ -2095,7 +2097,19 @@ reviewed slices are now landed:
   reports actual work plus unavoidable serialized snapshot bytes. The normal one-shot view path
   constructs only the requested seat's projection, and artifact DTOs are detached from live replay
   state. Exact replay, privacy, and integration coverage pass with the complete 951/951 API-free
-  suite. The descriptor half of C3 remains.
+  suite.
+- **The descriptor foundation of C3, commit `21c60a1`, establishes one immutable
+  `ResolvedArchitectureDescriptor`.** It owns the configured component graph, required host
+  inputs, base scorer and hard fallback, planner and voice configuration, and migration-only
+  compatibility requests. The old private metadata shape is an exact projection rather than a
+  second author. Trace, artifact, report, and Inspector projections still need to consume it.
+- **The lazy-root slice of C3, commit `b646922`, makes component input work causal.** Runtime and
+  host reconstruction share one `unresolved | missing | invalid | admitted` state machine.
+  In-process providers execute only after applicability, construction eligibility, and dependency
+  admission; each root and validator runs at most once per decision. Callbacks cannot cross into
+  descriptors, traces, artifacts, or stdio. The generic observer now runs and stages only on first
+  use, while the compatibility observer keeps its historical ordering. Strict typechecking,
+  101-file lane inventory, 966 correctness tests, and three isolated performance tests pass.
 - **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
   mechanically split every large module. The staged type design makes invalid pipeline states
   unrepresentable: request, view, belief, and analysis establish the analyzed frame; the legal
@@ -2134,6 +2148,42 @@ The cross-review findings establish these development guardrails for the rest of
    behavior, design, and verification body, followed by a pre-land commit-message and clean-tree
    check.
 
+The development model follows a proof pyramid rather than using end-to-end mutation matrices as
+the first line of defense:
+
+1. **Types prevent invalid in-process states.** Staged frames and discriminated unions express
+   sequencing and availability. Optional bags and casts do not substitute for a state model.
+2. **One codec owns each external shape.** Hostile `unknown` data is bounded and canonicalized at
+   every ingress, then one component-owned decoder produces a trusted semantic value. Independent
+   trust boundaries still validate independently; downstream consumers do not parse again.
+3. **A reusable contract kit proves generic component behavior.** The kit owns bounds, hostile
+   shapes, detachment, deterministic replay, root/dependency degradation, privacy projection,
+   exact versus structural host admission, and causal-use attribution. Component tests add only
+   their formula and role semantics.
+4. **Algebraic and metamorphic tests cover broad policy behavior.** Fixed-seed generators exercise
+   survivor monotonicity, seat-permutation equivariance where applicable, hidden-equivalent view
+   invariance, irrelevant-history invariance, deterministic replay, forced-policy dominance, and
+   voice-after-commit. Failures print a replayable seed.
+5. **A small exact fixture bank proves composition.** Frozen decisions, prompt hashes, target-seat
+   privacy, artifacts, reports, and stdio prove the seams without making every local iteration
+   rebuild an entire game.
+6. **The complete API-free suite is the landing proof.** It is not the default tool for locating a
+   local defect.
+
+This ordering is a response to measured change cost, not an attempt to reduce assurance. At this
+checkpoint agent source was about 33,500 lines and tests about 35,600 lines. The test tree had
+roughly 550 manual `structuredClone` mutations, 250 direct composed-agent constructions, and 24
+files reaching into architecture bench or report paths. Those numbers show that common proof
+machinery is being restated. They do not justify deleting outer-boundary tests; they justify
+moving their repeated setup and mutation rules into owned contract and scenario helpers.
+
+Every new policy family also has a **change-surface test** during review. A native component should
+normally add its declaration, semantic codec, policy implementation, formula tests, and one
+independently maintained inventory entry. If it must also add role-named fields or branches to the
+central orchestrator, trace, stdio, artifact, report, and Inspector, that is an architecture gap to
+fix rather than a checklist to repeat. Compatibility readers are the explicit exception and carry
+a named retirement owner.
+
 The prioritized no-regret work before 7R3 is:
 
 1. Finish **C3 descriptor ownership** so one authoritative resolved descriptor derives trace,
@@ -2148,19 +2198,29 @@ The prioritized no-regret work before 7R3 is:
 3. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
    exemptions incrementally as their policy families move in 7R3. Component-specific formula
    tests remain beside the generic contract.
-4. Add stable **quick, contract, and full verification entry points** that include the applicable
-   strict typecheck and print the exact lane manifest. A fresh worktree should be bootstrapped by
-   one documented command, and each implementation handoff should carry a small machine-readable
-   manifest of base commit, changed contracts, focused commands, full-suite result, and known
-   exemptions.
+4. Add **operation budgets** for applicability evaluations, roots materialized, components
+   executed, policy layers invoked, candidates scored, and posterior assessments reused. These
+   budgets assert bounded work without turning development-host wall-clock timing into a false CI
+   contract.
+5. Add a **tree-bound handoff manifest** containing base and head SHA or dirty-tree digest, changed
+   contracts, focused and complete commands and results, component exemptions, paid-call status,
+   and known issues. One implementation worktree is shared read-only with reviewers unless
+   isolation is genuinely required.
 
 Descriptor ownership and C4 remain sequential because both define the interfaces 7R3 will
-consume. Broad file splitting, a third-party schema runtime, wholesale conversion of historical
-validators, and a rewrite of every legacy compatibility reader are deferred until a measured
-bottleneck or the owning migration slice justifies them. D3's optional-field-heavy live payload
-becomes a discriminated native layer in 7R3B, while one quarantined compatibility decoder keeps
-historical artifacts readable. Paid tests and win-rate tuning remain deferred until the
-architecture can be evaluated as a coherent whole.
+consume. Coarse dependency fitness checks land before C4: engine cannot import agents or
+evaluation; runtime agents cannot import evaluation or raw `Game`; generic policy and component
+code cannot import artifact or report types; trusted provider callbacks remain confined to
+in-process composition. Finer internal agent layering waits for C4 because transitional
+analysis-policy and cognition-communication cycles still exist.
+
+Broad file splitting, a third-party schema runtime, wholesale conversion of historical validators,
+and a rewrite of every legacy compatibility reader are deferred until a measured bottleneck or the
+owning migration slice justifies them. Large modules split by transformation ownership after the
+new seams exist, not by line count. D3's optional-field-heavy live payload becomes a discriminated
+native layer in 7R3B, while one quarantined compatibility decoder keeps historical artifacts
+readable. Paid tests and win-rate tuning remain deferred until the architecture can be evaluated
+as a coherent whole.
 
 The 7R2C exit gate requires strict server typechecking, a green fast and complete test matrix,
 fail-closed classification of every production component token with an executable conformance
@@ -2543,12 +2603,16 @@ here.
   registry-wide conformance inventory, two native executable fixtures, and ten explicit legacy
   exemptions owned by C2B and 7R3. The replay half of C3 (`b797a5e`) added one authoritative
   replay timeline, incremental target-seat projection, private probe binding, detached artifact
-  DTOs, and honest work/output accounting; all 951 API-free tests pass. The current target is the
-  remaining C3 descriptor owner, followed by C4's staged `DecisionFrame` policy seam. Those slices
-  own redundant metadata authorship, eager inapplicable-root work, and optional-state pipeline
-  ambiguity rather than allowing them to accrete inside each component. Phase 7R3B separately
-  owns D3's discriminated historical compatibility read, incremental retirement of its
-  conformance exemption, and deletion of its transitional write path after equality.
+  DTOs, and honest work/output accounting. The descriptor foundation (`21c60a1`) now owns
+  configured architecture identity, and lazy host roots (`b646922`) remove eager private work for
+  inapplicable, ineligible, or dependency-blocked components through one shared cached state
+  machine. Strict typechecking, the 101-file lane inventory, 966 correctness tests, and three
+  isolated performance tests pass. The current target is descriptor-derived trace, artifact, and
+  report projections, followed by C4's staged `DecisionFrame` policy seam. Those slices own
+  redundant metadata authorship and optional-state pipeline ambiguity rather than allowing them
+  to accrete inside each component. Phase 7R3B separately owns D3's discriminated historical
+  compatibility read, incremental retirement of its conformance exemption, and deletion of its
+  transitional write path after equality.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
