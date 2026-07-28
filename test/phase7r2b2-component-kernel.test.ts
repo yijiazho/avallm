@@ -8,6 +8,7 @@ import {
   publicDecisionComponentRun,
   runDecisionComponents,
   type DecisionComponentRun,
+  validateDecisionComponentRunHostJoin,
 } from '../server/agents/components/kernel.ts'
 import {
   createDecisionComponentRegistry,
@@ -2067,4 +2068,96 @@ test('empty graph is an inert deterministic identity', async () => {
   assert.equal(first, explicitEmpty)
   assert.equal(brain.configuredDefinitions.length, 0)
   assert.equal(brain.eligibleDefinitions.length, 0)
+})
+
+test('host admission rejects a structural child of a non-admitted dependency', () => {
+  const registry = createDecisionComponentRegistry([
+    definition({
+      token: SIGNAL_TOKEN,
+      execute: () => ({
+        status: 'produced',
+        envelope: componentEnvelope(SIGNAL_TOKEN, {
+          seat: 0,
+          proposal: 1,
+        }),
+      }),
+      validateDetached: validSignal,
+    }),
+    definition({
+      token: PROJECTION_TOKEN,
+      dependencies: [SIGNAL_TOKEN],
+      requiredHostInputs: [SEED_INPUT],
+      execute: () => ({
+        status: 'produced',
+        envelope: componentEnvelope(PROJECTION_TOKEN, {
+          sourceSeat: 0,
+          decisionKind: 'vote',
+        }),
+      }),
+    }),
+  ], {
+    hostInputs: [SEED_INPUT_DEFINITION],
+  })
+  const payload: ProjectionPayload = {
+    sourceSeat: 0,
+    decisionKind: 'vote',
+  }
+  const run: DecisionComponentRun = {
+    version: 'decision-component-run-v1',
+    configured: [
+      { id: SIGNAL_TOKEN.id, version: SIGNAL_TOKEN.version },
+      { id: PROJECTION_TOKEN.id, version: PROJECTION_TOKEN.version },
+    ],
+    entries: [
+      {
+        component: {
+          id: SIGNAL_TOKEN.id,
+          version: SIGNAL_TOKEN.version,
+        },
+        kind: SIGNAL_TOKEN.kind,
+        privacy: SIGNAL_TOKEN.privacy,
+        status: 'degraded',
+        degradationCode: 'context-signal-failed',
+        failureCode: 'execution-failed',
+      },
+      {
+        component: {
+          id: PROJECTION_TOKEN.id,
+          version: PROJECTION_TOKEN.version,
+        },
+        kind: PROJECTION_TOKEN.kind,
+        privacy: PROJECTION_TOKEN.privacy,
+        status: 'admitted',
+        envelope: componentEnvelope(PROJECTION_TOKEN, payload),
+        verification: 'structural',
+        promotionEligible: false,
+        payloadBytes: Buffer.byteLength(JSON.stringify(payload), 'utf8'),
+      },
+    ],
+    policyUse: [
+      {
+        component: {
+          id: SIGNAL_TOKEN.id,
+          version: SIGNAL_TOKEN.version,
+        },
+        used: false,
+        stages: [],
+      },
+      {
+        component: {
+          id: PROJECTION_TOKEN.id,
+          version: PROJECTION_TOKEN.version,
+        },
+        used: false,
+        stages: [],
+      },
+    ],
+  }
+  const { request, view } = fixture()
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+  }), false)
 })

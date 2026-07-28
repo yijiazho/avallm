@@ -118,6 +118,13 @@ import {
   validateSuppressedEvilQuestCardPolicyHostJoin,
 } from '../agents/admission/composed-trace.ts'
 import {
+  decisionComponentPlan,
+  type DecisionComponentPlan,
+} from '../agents/components/kernel.ts'
+import type {
+  ResolvedComposedBrain,
+} from '../agents/components/resolved-brain.ts'
+import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../agents/policy/evil-quest-card.ts'
@@ -683,6 +690,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const agents = new Map<Seat, AvalonAgent>()
       const decisionTraces: DecisionTrace[] = []
       const targetLatencySamples: DecisionLatencySample[] = []
+      let expectedComponentPlan: DecisionComponentPlan | undefined
+      let expectComponentTrace = false
       const descriptors = game.players.map(() => opponentKind)
       for (const player of game.players) {
         const ctx = {
@@ -699,6 +708,15 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 ctx,
                 variant.modelOverride,
               )
+          const possibleComposed = targetAgent as AvalonAgent & {
+            resolvedBrain?: () => ResolvedComposedBrain
+          }
+          if (typeof possibleComposed.resolvedBrain === 'function') {
+            expectedComponentPlan = structuredClone(
+              decisionComponentPlan(possibleComposed.resolvedBrain()),
+            )
+            expectComponentTrace = true
+          }
           agents.set(
             player.seat,
             withDecisionTiming(targetAgent, targetLatencySamples),
@@ -822,6 +840,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 authoritativeAction: snapshot.original,
                 selectedDecision,
                 deterministicSeed: c.seed,
+                ...(expectComponentTrace
+                  ? {
+                      expectComponentTrace: true,
+                      expectedComponentPlan,
+                    }
+                  : {}),
               })
             )
             || traceVersions.belief !== trace.beliefModelVersion

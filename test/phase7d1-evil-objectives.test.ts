@@ -955,15 +955,21 @@ test('architecture evaluation preserves narrowly typed weighted dependency degra
       belief: 'phase7d1-external-weighted-v1',
       factors: 'phase7d1-external-factor-v1',
     },
-    createTargetAgent: (context) => createComposedAgent({
-      seed: context.seed,
-      roleObjectiveRouter: true,
-      onDecisionTrace: (captured) => {
-        context.onDecisionTrace?.(
-          forgeUnverifiableWeightedDeletion(captured),
-        )
-      },
-    }),
+    createTargetAgent: (context) => {
+      const composed = createComposedAgent({
+        seed: context.seed,
+        roleObjectiveRouter: true,
+        onDecisionTrace: (captured) => {
+          context.onDecisionTrace?.(
+            forgeUnverifiableWeightedDeletion(captured),
+          )
+        },
+      })
+      // This fixture deliberately models a self-contained external producer.
+      // It must not expose the composed host's trusted resolved-brain witness.
+      const { resolvedBrain: _resolvedBrain, ...external } = composed
+      return external
+    },
   }
   const [artifact] = await runArchitectureBench({
     variants: [weightedVariant],

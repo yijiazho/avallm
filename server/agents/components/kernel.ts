@@ -13,6 +13,9 @@ import {
   componentIdentityKey,
 } from './registry.ts'
 import type {
+  DecisionComponentRegistry,
+} from './registry.ts'
+import type {
   ComponentAdmissionResult,
   ComponentDependencyReader,
   ComponentHostInputBinding,
@@ -127,6 +130,20 @@ type AnyDefinition = DecisionComponentDefinition<any>
 type AnyHostInputDefinition = ComponentHostInputDefinition<any>
 
 export interface DecisionComponentInvocation {
+  readonly hostInputs?:
+    readonly ComponentHostInputBinding<unknown>[]
+}
+
+export interface DecisionComponentRunHostJoinInput {
+  readonly registry: DecisionComponentRegistry
+  readonly run: DecisionComponentRun
+  readonly request: DecisionRequest
+  readonly view: PlayerView
+  /**
+   * Only independently reconstructed values belong here. Missing roots leave
+   * structural entries readable but can never preserve exact verification or
+   * promotion eligibility.
+   */
   readonly hostInputs?:
     readonly ComponentHostInputBinding<unknown>[]
 }
@@ -841,6 +858,166 @@ function executionContextFor(
     dependencies,
     hostInputs,
   })
+}
+
+/**
+ * Re-admit a detached run against canonical host state.
+ *
+ * This is deliberately separate from detached parsing: stdio can prove that
+ * an envelope is bounded and internally coherent without claiming provenance,
+ * while a host that owns request/view reconstruction can additionally prove
+ * every reconstructable entry through its registered definition. Dependencies
+ * are exposed only after their own detached/host admission succeeds.
+ */
+export function validateDecisionComponentRunHostJoin(
+  input: DecisionComponentRunHostJoinInput,
+): boolean {
+  try {
+    const {
+      registry,
+      run,
+      request,
+      view,
+      hostInputs = [],
+    } = input
+    if (
+      request.seat !== view.seat
+      || run.configured.length !== run.entries.length
+    ) return false
+
+    const definitions = new Map(
+      registry.definitions().map((definition) => [
+        componentIdentityKey(definition.token),
+        definition,
+      ]),
+    )
+    const hostInputDefinitions = new Map(
+      registry.hostInputDefinitions().map((definition) => [
+        componentIdentityKey(definition.token),
+        definition,
+      ]),
+    )
+    const hostInputValues = new Map<string, unknown>()
+    for (const binding of hostInputs) {
+      const definition = registry.hostInputDefinition(binding.input)
+      const key = componentIdentityKey(binding.input)
+      if (!definition || hostInputValues.has(key)) return false
+      const source = safePayload(binding.value, definition.maxPayloadBytes)
+      if (!source.ok) return false
+      const parsed = parseHostInputValidation(
+        definition.validate(source.payload),
+      )
+      if (!parsed?.valid) return false
+      const validated = safePayload(
+        parsed.value,
+        definition.maxPayloadBytes,
+      )
+      if (
+        !validated.ok
+        || !sameCanonicalPayload(source.payload, validated.payload)
+      ) return false
+      hostInputValues.set(key, validated.payload)
+    }
+
+    const admitted = new Map<string, DecisionComponentEntry>()
+    const publicDecision = frozenInput({ kind: request.kind })
+    const publicRecord = frozenInput(projectPublicRecord(view))
+    const frozenRequest = frozenInput(request)
+    const frozenView = frozenInput(view)
+    for (let index = 0; index < run.configured.length; index++) {
+      const ref = run.configured[index]
+      const entry = run.entries[index]
+      const key = componentIdentityKey(ref)
+      const definition = definitions.get(key)
+      if (
+        !definition
+        || componentIdentityKey(entry.component) !== key
+      ) return false
+      if (entry.status !== 'admitted') continue
+
+      const detached = parseAdmission(
+        definition.validateDetached(entry.envelope.payload),
+      )
+      if (
+        !detached?.admitted
+        || !sameCanonicalPayload(
+          detached.payload,
+          entry.envelope.payload,
+        )
+      ) return false
+
+      if (!definition.dependencies.every(
+        (dependency) =>
+          admitted.has(componentIdentityKey(dependency)),
+      )) return false
+      const rootsAvailable = definition.requiredHostInputs.every(
+        (root) => hostInputValues.has(componentIdentityKey(root)),
+      )
+      if (!rootsAvailable) {
+        if (
+          entry.verification !== 'structural'
+          || entry.promotionEligible
+        ) return false
+        admitted.set(key, entry)
+        continue
+      }
+
+      const applicability:
+      DecisionComponentApplicabilityContext =
+        definition.token.privacy === 'public'
+          ? Object.freeze({
+              privacy: 'public' as const,
+              decision: publicDecision,
+              publicRecord,
+            })
+          : Object.freeze({
+              privacy: 'private' as const,
+              request: frozenRequest,
+              view: frozenView,
+            })
+      const context = executionContextFor(
+        applicability,
+        definition,
+        admitted,
+        definitions,
+        hostInputValues,
+        hostInputDefinitions,
+      )
+      const host = parseAdmission(definition.admitHost({
+        payload: detached.payload,
+        host: context,
+      }))
+      if (!host?.admitted) return false
+      const hostPayload = safePayload(
+        host.payload,
+        definition.maxPayloadBytes,
+      )
+      if (
+        !hostPayload.ok
+        || !sameCanonicalPayload(
+          hostPayload.payload,
+          entry.envelope.payload,
+        )
+      ) return false
+      const verification: ComponentVerification =
+        detached.verification === 'exact'
+        && host.verification === 'exact'
+          ? 'exact'
+          : 'structural'
+      const promotionEligible =
+        detached.promotionEligible
+        && host.promotionEligible
+        && verification === 'exact'
+      if (
+        entry.verification !== verification
+        || entry.promotionEligible !== promotionEligible
+      ) return false
+      admitted.set(key, entry)
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 function frozenInput<T>(value: T): Readonly<T> {

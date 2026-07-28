@@ -32,10 +32,6 @@ import {
   routedRoleObjectiveModel,
 } from './analysis/role-objective-router.ts'
 import {
-  buildMorganaCounterfeitObjective,
-  buildPublicCounterfeitMerlinRead,
-} from './analysis/morgana-counterfeit.ts'
-import {
   MORGANA_COUNTERFEIT_DEGRADATION,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
@@ -53,15 +49,12 @@ import {
   type PrivateEvilRoleUtilityProjection,
 } from './analysis/evil-role-utility.ts'
 import {
-  buildMorganaRoleUtilityProjection,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
   MORGANA_ROLE_SCORER_DEGRADATION,
   MORGANA_ROLE_UTILITY_DEGRADATION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
-  type MorganaRoleSelectionMode,
   type PrivateMorganaRoleUtilityProjection,
-  validatePrivateMorganaRoleUtilityHostJoin,
 } from './analysis/morgana-role-utility.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
@@ -95,10 +88,20 @@ import {
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
+  EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  PRIVATE_BELIEF_INPUT,
+  PRIVATE_DETERMINISTIC_SEED_INPUT,
+  PRIVATE_FORCED_POLICY_INPUT,
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
+  PRIVATE_SITUATION_INPUT,
   createLegacyRoleAdapterRegistry,
 } from './components/legacy-role-adapters.ts'
 import {
@@ -147,12 +150,11 @@ import {
 } from './policy/candidates.ts'
 import { applyForcedPolicy } from './policy/forced.ts'
 import {
-  buildPrivateEvilQuestCardPolicy,
+  EVIL_QUEST_CARD_POLICY_DEGRADATION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
   type EvilQuestCardPolicyMode,
   type PrivateEvilQuestCardPolicy,
-  validatePrivateEvilQuestCardPolicyHostJoin,
 } from './policy/evil-quest-card.ts'
 import {
   COMMUNICATION_CLAIM_CODES,
@@ -433,7 +435,8 @@ function scorerRequires(
   source: CandidateScorer,
   requirement:
     | 'roleUtilityRequirement'
-    | 'evilRoleUtilityRequirement',
+    | 'evilRoleUtilityRequirement'
+    | 'morganaRoleUtilityRequirement',
 ): boolean {
   const seen = new Set<CandidateScorer>()
   let current: CandidateScorer | undefined = source
@@ -449,6 +452,8 @@ function attributeLegacyRolePolicyUse(
   run: DecisionComponentRun,
   appliedScorer: CandidateScorer,
   scores: readonly CandidateScore[],
+  morganaRoleUtilityComponent:
+    typeof MORGANA_ROLE_UTILITY_COMPONENT | undefined,
 ): DecisionComponentRun {
   const goodUsed =
     appliedScorer.roleUtilityRequirement
@@ -466,6 +471,12 @@ function attributeLegacyRolePolicyUse(
         )
         && score.morganaRoleObjectiveFeatures !== undefined
       ))
+  const morganaUsed =
+    appliedScorer.morganaRoleUtilityRequirement
+      === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    && scores.every(
+      (score) => score.morganaRoleObjectiveFeatures !== undefined,
+    )
   let attributed = run
   if (goodUsed) {
     attributed = attributeComponentPolicyUse(
@@ -491,6 +502,23 @@ function attributeLegacyRolePolicyUse(
       'candidate-score',
     )
   }
+  if (morganaUsed) {
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+      'candidate-score',
+    )
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+      'candidate-score',
+    )
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      morganaRoleUtilityComponent!,
+      'candidate-score',
+    )
+  }
   const used = new Map(
     attributed.policyUse.map((entry) => [entry.component.id, entry.used]),
   )
@@ -511,6 +539,14 @@ function attributeLegacyRolePolicyUse(
       used.has(EVIL_ROLE_UTILITY_COMPONENT.id)
       && used.get(EVIL_ROLE_UTILITY_COMPONENT.id) !== evilUsed
     )
+    || (
+      used.has(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
+      && used.get(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
+        !== morganaUsed
+    )
+    || [MORGANA_ROLE_UTILITY_COMPONENT, MORGANA_ROLE_UTILITY_SEEDED_COMPONENT]
+      .some((token) =>
+        used.has(token.id) && used.get(token.id) !== morganaUsed)
   ) {
     throw new Error('generic adapter causal policy-use mismatch')
   }
@@ -526,6 +562,10 @@ function attributeRoleActionSelection(
     GOOD_ROLE_UTILITY_COMPONENT,
     EVIL_ROLE_OBJECTIVE_COMPONENT,
     EVIL_ROLE_UTILITY_COMPONENT,
+    MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+    MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+    MORGANA_ROLE_UTILITY_COMPONENT,
+    MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
   ]) {
     const use = attributed.policyUse.find(
       (entry) =>
@@ -996,6 +1036,10 @@ export function createComposedAgent(
     scorer,
     'evilRoleUtilityRequirement',
   )
+  const morganaRoleUtilityConfigured = scorerRequires(
+    scorer,
+    'morganaRoleUtilityRequirement',
+  )
   const stage = (value: ComposedStage): void => onStage?.(value)
   const beliefModel = snapshotBeliefModel(
     options.beliefModel ?? exactWorldBeliefModel,
@@ -1026,6 +1070,18 @@ export function createComposedAgent(
       : evilQuestCardPolicyMode === 'robust-heterogeneous'
         ? EVIL_QUEST_ROBUST_POLICY_VERSION
         : undefined
+  const configuredEvilQuestCardComponent =
+    evilQuestCardPolicyMode === 'visible-exact-quota'
+      ? EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT
+      : evilQuestCardPolicyMode === 'robust-heterogeneous'
+        ? EVIL_QUEST_CARD_ROBUST_COMPONENT
+        : undefined
+  const configuredMorganaRoleUtilityComponent =
+    morganaRoleUtilityConfigured
+      ? scorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+        ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
+        : MORGANA_ROLE_UTILITY_COMPONENT
+      : undefined
   const coherenceIntent = options.coherenceIntent ?? 'maintain'
   if (!['maintain', 'conceal', 'deceive'].includes(coherenceIntent)) {
     throw new Error('coherenceIntent must be maintain, conceal, or deceive')
@@ -1056,6 +1112,17 @@ export function createComposedAgent(
         ? [EVIL_ROLE_UTILITY_COMPONENT]
         : []
     ),
+    ...(
+      morganaCounterfeitConfigured || morganaRoleUtilityConfigured
+        ? [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT]
+        : []
+    ),
+    ...(configuredMorganaRoleUtilityComponent
+      ? [configuredMorganaRoleUtilityComponent]
+      : []),
+    ...(configuredEvilQuestCardComponent
+      ? [configuredEvilQuestCardComponent]
+      : []),
   ]
   const resolvedBrain = resolveComposedBrain({
     requestedComponents,
@@ -1435,41 +1502,58 @@ export function createComposedAgent(
           PrivateMorganaCounterfeitObjective | undefined
         let privateMorganaRoleUtility:
           PrivateMorganaRoleUtilityProjection | undefined
-        if (morganaCounterfeitApplicable) {
-          try {
-            if (!publicObserver) {
-              throw new Error('Morgana counterfeit observer unavailable')
-            }
-            publicMorganaCounterfeitRead =
-              buildPublicCounterfeitMerlinRead(
-                projectPublicRecord(view),
-                publicObserver,
-              )
-            privateMorganaCounterfeitObjective =
-              buildMorganaCounterfeitObjective({
-                req,
-                view,
-                belief: cognition.belief,
-                publicRead: publicMorganaCounterfeitRead,
-                candidates,
-              })
-          } catch {
-            publicMorganaCounterfeitRead = undefined
-            privateMorganaCounterfeitObjective = undefined
-            degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
-          }
-          stage('morgana-counterfeit')
-        }
+        const policyTeams = candidateTeams(candidates, view)
+        const wantsJointProposalAssessments =
+          (
+            resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
+            || resolvedScorer.analysisRequirement
+              === 'joint-proposal-vote-team-assessments'
+          )
+          && req.kind === 'propose'
+          && view.alignment === 'good'
+        const wantsJointVoteAssessments =
+          resolvedScorer.analysisRequirement
+            === 'joint-proposal-vote-team-assessments'
+          && req.kind === 'vote'
+          && view.alignment === 'good'
+        const hypotheticalTeamCandidates = wantsJointVoteAssessments
+          ? hypotheticalProposalCandidates(view)
+          : undefined
+        const hypotheticalTeams = hypotheticalTeamCandidates
+          ? candidateTeams(hypotheticalTeamCandidates, view)
+          : undefined
+        analysis = analyzeSituation(view, {
+          belief: cognition.belief,
+          evidence: cognition.evidence,
+          policyCandidateTeams: policyTeams,
+          ...(wantsJointProposalAssessments
+            ? { policyCandidateAssessments: policyTeams }
+            : {}),
+          ...(hypotheticalTeams
+            ? {
+                policyCandidateAssessments: hypotheticalTeams,
+                goodVote: true,
+              }
+            : {}),
+        })
+        let privateEvilQuestCardPolicy:
+          PrivateEvilQuestCardPolicy | undefined
+        const universalForced =
+          applyForcedPolicy(req, view, analysis, candidates)
+        let forced = universalForced
         const configuredComponentIds = new Set(
           resolvedBrain.description.components.configured.map(
             (component) => component.id,
           ),
         )
+        const requiredHostInputIds = new Set(
+          resolvedBrain.description.requiredHostInputs.map(
+            (input) => input.id,
+          ),
+        )
         const hostInputs = [
           ...(
-            resolvedBrain.description.requiredHostInputs.some(
-              (input) => input.id === PRIVATE_IDENTITY_INPUT.id,
-            )
+            requiredHostInputIds.has(PRIVATE_IDENTITY_INPUT.id)
             && privateIdentity
               ? [{
                   input: PRIVATE_IDENTITY_INPUT,
@@ -1478,13 +1562,43 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            resolvedBrain.description.requiredHostInputs.some(
-              (input) => input.id === PRIVATE_PUBLIC_OBSERVER_INPUT.id,
-            )
+            requiredHostInputIds.has(PRIVATE_PUBLIC_OBSERVER_INPUT.id)
             && publicObserver
               ? [{
                   input: PRIVATE_PUBLIC_OBSERVER_INPUT,
                   value: publicObserver,
+                }]
+              : []
+          ),
+          ...(
+            requiredHostInputIds.has(PRIVATE_BELIEF_INPUT.id)
+              ? [{
+                  input: PRIVATE_BELIEF_INPUT,
+                  value: cognition.belief,
+                }]
+              : []
+          ),
+          ...(
+            requiredHostInputIds.has(PRIVATE_SITUATION_INPUT.id)
+              ? [{
+                  input: PRIVATE_SITUATION_INPUT,
+                  value: analysis,
+                }]
+              : []
+          ),
+          ...(
+            requiredHostInputIds.has(PRIVATE_FORCED_POLICY_INPUT.id)
+              ? [{
+                  input: PRIVATE_FORCED_POLICY_INPUT,
+                  value: universalForced,
+                }]
+              : []
+          ),
+          ...(
+            requiredHostInputIds.has(PRIVATE_DETERMINISTIC_SEED_INPUT.id)
+              ? [{
+                  input: PRIVATE_DETERMINISTIC_SEED_INPUT,
+                  value: seed,
                 }]
               : []
           ),
@@ -1543,6 +1657,71 @@ export function createComposedAgent(
             })
           }
         }
+        const genericPublicMorganaRead = componentPayload(
+          decisionComponents,
+          MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+        )
+        if (morganaCounterfeitApplicable) {
+          publicMorganaCounterfeitRead = genericPublicMorganaRead
+          privateMorganaCounterfeitObjective = componentPayload(
+            decisionComponents,
+            MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+          )
+          if (!privateMorganaCounterfeitObjective) {
+            publicMorganaCounterfeitRead = undefined
+            degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
+          }
+          stage('morgana-counterfeit')
+        }
+        if (
+          configuredMorganaRoleUtilityComponent !== undefined
+          && configuredComponentIds.has(
+            configuredMorganaRoleUtilityComponent.id,
+          )
+        ) {
+          privateMorganaRoleUtility = componentPayload(
+            decisionComponents,
+            configuredMorganaRoleUtilityComponent,
+          )
+          if (
+            resolvedScorer.morganaRoleUtilityRequirement
+              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+            && !privateMorganaRoleUtility
+          ) {
+            degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
+            resolvedScorer = resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+              req,
+              view,
+              routedObjective,
+            })
+          }
+        }
+        if (configuredEvilQuestCardComponent) {
+          privateEvilQuestCardPolicy = componentPayload(
+            decisionComponents,
+            configuredEvilQuestCardComponent,
+          )
+          if (privateEvilQuestCardPolicy) {
+            stage('quest-card-policy')
+            forced = applyForcedPolicy(req, view, analysis, candidates, {
+              evilQuestCardPolicy: privateEvilQuestCardPolicy,
+            })
+            decisionComponents = attributeComponentPolicyUse(
+              decisionComponents,
+              configuredEvilQuestCardComponent,
+              'action-selection',
+            )
+          } else if (
+            !universalForced.applied
+            && req.kind === 'quest'
+            && view.alignment === 'evil'
+            && view.role !== 'oberon'
+          ) {
+            degradation.push(EVIL_QUEST_CARD_POLICY_DEGRADATION)
+          }
+        }
+        stage('forced-policy')
         if (roleObjectiveRole || evilRoleObjectiveApplicable) {
           stage('role-objective')
         }
@@ -1565,126 +1744,6 @@ export function createComposedAgent(
               roleObjective: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
               roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
             },
-          }
-        }
-        const policyTeams = candidateTeams(candidates, view)
-        const wantsJointProposalAssessments =
-          (
-            resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
-            || resolvedScorer.analysisRequirement
-              === 'joint-proposal-vote-team-assessments'
-          )
-          && req.kind === 'propose'
-          && view.alignment === 'good'
-        const wantsJointVoteAssessments =
-          resolvedScorer.analysisRequirement
-            === 'joint-proposal-vote-team-assessments'
-          && req.kind === 'vote'
-          && view.alignment === 'good'
-        const hypotheticalTeamCandidates = wantsJointVoteAssessments
-          ? hypotheticalProposalCandidates(view)
-          : undefined
-        const hypotheticalTeams = hypotheticalTeamCandidates
-          ? candidateTeams(hypotheticalTeamCandidates, view)
-          : undefined
-        analysis = analyzeSituation(view, {
-          belief: cognition.belief,
-          evidence: cognition.evidence,
-          policyCandidateTeams: policyTeams,
-          ...(wantsJointProposalAssessments
-            ? { policyCandidateAssessments: policyTeams }
-            : {}),
-          ...(hypotheticalTeams
-            ? {
-                policyCandidateAssessments: hypotheticalTeams,
-                goodVote: true,
-              }
-            : {}),
-        })
-        let privateEvilQuestCardPolicy:
-          PrivateEvilQuestCardPolicy | undefined
-        let forced = applyForcedPolicy(req, view, analysis, candidates)
-        if (
-          !forced.applied
-          && evilQuestCardPolicyMode
-          && req.kind === 'quest'
-          && view.alignment === 'evil'
-          && view.role !== 'oberon'
-        ) {
-          privateEvilQuestCardPolicy = buildPrivateEvilQuestCardPolicy({
-            req,
-            view,
-            analysis,
-            mode: evilQuestCardPolicyMode,
-          })
-          if (!validatePrivateEvilQuestCardPolicyHostJoin(
-            privateEvilQuestCardPolicy,
-            {
-              req,
-              view,
-              analysis,
-              mode: evilQuestCardPolicyMode,
-            },
-          )) {
-            throw new Error('evil quest-card policy failed its host join')
-          }
-          stage('quest-card-policy')
-          forced = applyForcedPolicy(req, view, analysis, candidates, {
-            evilQuestCardPolicy: privateEvilQuestCardPolicy,
-          })
-        }
-        stage('forced-policy')
-
-        if (
-          resolvedScorer.morganaRoleUtilityRequirement
-            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-        ) {
-          try {
-            if (
-              !privateMorganaCounterfeitObjective
-              || !privateEvilRoleUtility
-            ) {
-              throw new Error('Morgana policy dependencies unavailable')
-            }
-            const selectionMode: MorganaRoleSelectionMode =
-              resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-                ? 'seeded-near-equal-vote-within-d2-band'
-                : 'top-counterfeit-within-d2-band'
-            privateMorganaRoleUtility =
-              buildMorganaRoleUtilityProjection({
-                req,
-                view,
-                candidates,
-                forced,
-                counterfeitObjective: privateMorganaCounterfeitObjective,
-                evilRoleUtility: privateEvilRoleUtility,
-                selectionMode,
-                deterministicSeed: seed,
-              })
-            if (!validatePrivateMorganaRoleUtilityHostJoin(
-              privateMorganaRoleUtility,
-              {
-                req,
-                view,
-                candidates,
-                forced,
-                counterfeitObjective: privateMorganaCounterfeitObjective,
-                evilRoleUtility: privateEvilRoleUtility,
-                selectionMode,
-                deterministicSeed: seed,
-              },
-            )) {
-              throw new Error('Morgana role utility failed its host join')
-            }
-          } catch {
-            privateMorganaRoleUtility = undefined
-            degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
-            resolvedScorer = resolveRolePolicyScorer({
-              configured: resolvedScorer.baseScorer ?? resolvedScorer,
-              req,
-              view,
-              routedObjective,
-            })
           }
         }
 
@@ -1790,6 +1849,7 @@ export function createComposedAgent(
           decisionComponents,
           appliedScorer,
           scores,
+          configuredMorganaRoleUtilityComponent,
         )
         const questCardPolicyCandidateId =
           privateEvilQuestCardPolicy?.selectedCard

@@ -138,10 +138,14 @@ import {
   DECISION_COMPONENT_RUN_VERSION,
   MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
   MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
+  type DecisionComponentPlan,
+  validateDecisionComponentRunHostJoin,
 } from '../components/kernel.ts'
 import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   createLegacyRoleAdapterRegistry,
+  reconstructLegacyRoleAdapterHostInputs,
 } from '../components/legacy-role-adapters.ts'
 import {
   EVIL_QUEST_CARD_POLICY_VERSION,
@@ -428,9 +432,17 @@ function validMorganaCounterfeitTrace(
     || components?.factors !== 'off'
     || components?.languageEvidence !== 'off'
   ) {
-    // Persisted/stdout traces do not carry the complete weighted world list,
-    // so admitting a weighted q distribution would not be host-reconstructable.
-    return false
+    // Weighted transport does not carry the complete world list. The generic
+    // entry may remain structurally readable, but it cannot claim exact host
+    // verification or promotion eligibility.
+    const genericObjective =
+      (trace.components as DecisionTrace['components'])?.entries.find(
+        (entry) =>
+          entry.component.id === MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+      )
+    return genericObjective?.status === 'admitted'
+      && genericObjective.verification === 'structural'
+      && genericObjective.promotionEligible === false
   }
   try {
     const belief = exactBelief(hostView)
@@ -3087,54 +3099,10 @@ function validDecisionTraceProvenance(trace: DecisionTrace): boolean {
   return false
 }
 
-function rolePolicyFamilyConsumption(
+function validGenericRoleComponents(
   trace: DecisionTrace,
-): Readonly<Record<'good-role' | 'evil-role', boolean>> {
-  const scorer = trace.componentVersions?.scorer
-  const scores = trace.candidateScores ?? []
-  return {
-    'good-role':
-      (
-        scorer === ROLE_OBJECTIVE_SCORER_VERSION
-        || scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-      )
-      && scores.length > 0
-      && scores.every((score) => score.roleObjectiveFeatures !== undefined),
-    'evil-role':
-      (
-        scorer === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-        || scorer === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-        || scorer === MORGANA_ROLE_SCORER_VERSION
-        || scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
-      )
-      && scores.length > 0
-      && scores.every((score) =>
-        score.evilRoleObjectiveFeatures !== undefined
-        || (
-          (
-            scorer === MORGANA_ROLE_SCORER_VERSION
-            || scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
-          )
-          && score.morganaRoleObjectiveFeatures !== undefined
-        )),
-  }
-}
-
-function rolePolicyActionSelectionSurvived(trace: DecisionTrace): boolean {
-  const plannerSelectionAccepted =
-    trace.plannerCandidateId !== undefined
-    && trace.plannerCandidateId === trace.chosenCandidateId
-    && !trace.degradation.some((code) => code.startsWith('planner-'))
-  return (
-    trace.structuredCandidateId !== undefined
-    && trace.chosenCandidateId === trace.structuredCandidateId
-    && trace.forcedPolicyResult?.selectedCandidateId === undefined
-    && trace.privateEvilQuestCardPolicy?.selectedCard === undefined
-    && !plannerSelectionAccepted
-  )
-}
-
-function validGenericRoleComponents(trace: DecisionTrace): boolean {
+  hostView?: PlayerView,
+): boolean {
   if (!validDecisionTraceProvenance(trace)) return false
   if (trace.version === DECISION_TRACE_VERSION) return true
   const plan = trace.componentPlan!
@@ -3210,19 +3178,6 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
       .map((definition) => definition.degradationCode),
   )
   const degradedCodes = new Set<string>()
-  const activeRoleAdapter = run.entries.some(
-    (entry) => entry.status !== 'inapplicable',
-  )
-  if (
-    activeRoleAdapter
-    && (
-      trace.componentVersions?.identityModel
-        !== JOINT_IDENTITY_MODEL_VERSION
-      || trace.componentVersions?.observerModel
-        !== PUBLIC_OBSERVER_MODEL_VERSION
-    )
-  ) return false
-
   for (let index = 0; index < run.configured.length; index++) {
     const ref = run.configured[index]
     const entry = run.entries[index]
@@ -3242,9 +3197,27 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
 
     const projection = binding.payload(trace)
     const declaredVersion = binding.declaredVersion(trace)
+    const requiresLegacyProjection =
+      binding.legacyProjectionRequired?.(trace, hostView) ?? true
+    const ownsLegacyDegradation =
+      binding.ownsLegacyDegradation !== false
     const degradationCount = trace.degradation.filter(
       (code) => code === definition.degradationCode,
     ).length
+    const expectedResolution =
+      binding.expectedResolution?.(trace, hostView)
+    if (
+      expectedResolution === 'inapplicable'
+        ? entry.status !== 'inapplicable'
+        : typeof expectedResolution === 'object'
+          ? (
+              entry.status !== 'suppressed'
+              || entry.reasonCode !== expectedResolution.reasonCode
+            )
+          : expectedResolution === 'applicable'
+            && entry.status !== 'admitted'
+            && entry.status !== 'degraded'
+    ) return false
     if (entry.status === 'admitted') {
       if (
         !exactGenericRecord(entry, [
@@ -3262,15 +3235,49 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
         || entry.payloadBytes < 0
         || entry.payloadBytes > definition.maxPayloadBytes
         || entry.payloadBytes !== jsonBytes(entry.envelope.payload)
-        || projection === undefined
-        || declaredVersion !== ref.version
-        || !isDeepStrictEqual(projection, entry.envelope.payload)
-        || degradationCount !== 0
+        || (
+          requiresLegacyProjection
+            ? (
+                projection === undefined
+                || declaredVersion !== ref.version
+                || !isDeepStrictEqual(
+                  projection,
+                  entry.envelope.payload,
+                )
+              )
+            : (
+                projection !== undefined
+                || declaredVersion !== undefined
+              )
+        )
+        || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
-      const exactBelief = trace.quality === 'constraints-only'
+      let detached: unknown
+      try {
+        detached = definition.validateDetached(entry.envelope.payload)
+      } catch {
+        return false
+      }
       if (
-        entry.verification !== (exactBelief ? 'exact' : 'structural')
-        || entry.promotionEligible !== exactBelief
+        !exactGenericRecord(detached, [
+          'admitted', 'payload', 'promotionEligible', 'verification',
+        ])
+        || detached.admitted !== true
+        || !isDeepStrictEqual(
+          detached.payload,
+          entry.envelope.payload,
+        )
+      ) return false
+      if (
+        entry.verification === 'exact'
+          ? (
+              detached.verification !== 'exact'
+              || entry.promotionEligible !== detached.promotionEligible
+            )
+          : (
+              entry.verification !== 'structural'
+              || entry.promotionEligible
+            )
       ) return false
     } else if (entry.status === 'degraded') {
       if (
@@ -3280,7 +3287,7 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
         ])
         || projection !== undefined
         || declaredVersion !== undefined
-        || degradationCount !== 1
+        || (ownsLegacyDegradation && degradationCount !== 1)
         || entry.degradationCode !== definition.degradationCode
         || !COMPONENT_FAILURE_CODES.has(entry.failureCode)
       ) return false
@@ -3293,19 +3300,27 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
         )
         || projection !== undefined
         || declaredVersion !== undefined
-        || degradationCount !== 0
+        || (ownsLegacyDegradation && degradationCount !== 0)
+      ) return false
+    } else if (entry.status === 'suppressed') {
+      const expectedReason = binding.suppressionReason?.(trace)
+      if (
+        !exactGenericRecord(
+          entry,
+          ['component', 'kind', 'privacy', 'status', 'reasonCode'],
+        )
+        || typeof entry.reasonCode !== 'string'
+        || entry.reasonCode !== expectedReason
+        || projection !== undefined
+        || declaredVersion !== undefined
+        || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
     } else {
       return false
     }
 
-    const familyConsumed =
-      rolePolicyFamilyConsumption(trace)[binding.policyFamily]
-      && entry.status === 'admitted'
-    const expectedStages = familyConsumed
-      ? rolePolicyActionSelectionSurvived(trace)
-        ? ['candidate-score', 'action-selection']
-        : ['candidate-score']
+    const expectedStages = entry.status === 'admitted'
+      ? binding.policyStages(trace)
       : []
     if (
       typeof use.used !== 'boolean'
@@ -3323,7 +3338,11 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
       binding.payload(trace) !== undefined
       || binding.declaredVersion(trace) !== undefined
       || trace.degradation.includes(definition.degradationCode)
-    if (hasLegacy && !entryByKey.has(key)) return false
+    if (
+      hasLegacy
+      && configuredKeys.includes(key)
+      && !entryByKey.has(key)
+    ) return false
   }
   for (const code of trace.degradation) {
     if (adapterDegradationCodes.has(code) && !degradedCodes.has(code)) {
@@ -3331,6 +3350,29 @@ function validGenericRoleComponents(trace: DecisionTrace): boolean {
     }
   }
   return true
+}
+
+function validGenericRoleComponentsHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+  deterministicSeed: string,
+): boolean {
+  if (trace.version === DECISION_TRACE_VERSION) return true
+  const plan = trace.componentPlan!
+  return validateDecisionComponentRunHostJoin({
+    registry: LEGACY_ROLE_COMPONENT_REGISTRY,
+    run: trace.components!,
+    request: req,
+    view,
+    hostInputs: reconstructLegacyRoleAdapterHostInputs({
+      trace,
+      plan,
+      req,
+      view,
+      deterministicSeed,
+    }),
+  })
 }
 
 function validDecisionTrace(
@@ -3398,7 +3440,10 @@ function validDecisionTrace(
       || typeof trace.statedReasoning === 'string'
     )
     && validComponentVersions(trace.componentVersions)
-    && validGenericRoleComponents(trace as unknown as DecisionTrace)
+    && validGenericRoleComponents(
+      trace as unknown as DecisionTrace,
+      hostView,
+    )
     && validRoleObjectiveRoute(trace, hostView)
     && validLanguageTrace(trace.languageEvidence, trace)
     && validPublicObserverTrace(trace.publicObserver, trace, hostView)
@@ -3487,6 +3532,13 @@ export function validateComposedTraceHostJoin(input: {
   /** Selected mechanical decision, before any engine fallback replacement. */
   selectedDecision: Decision
   deterministicSeed: string
+  /**
+   * Trusted construction-time witness, when the caller owns the producing
+   * resolved brain. Self-contained stdio and stored traces cannot supply it.
+   */
+  expectedComponentPlan?: DecisionComponentPlan
+  /** Require the component-bearing producer schema even for an empty plan. */
+  expectComponentTrace?: boolean
 }): boolean {
   try {
     const {
@@ -3496,6 +3548,8 @@ export function validateComposedTraceHostJoin(input: {
       authoritativeAction,
       selectedDecision,
       deterministicSeed,
+      expectedComponentPlan,
+      expectComponentTrace,
     } = input
     if (
       req.seat !== view.seat
@@ -3506,7 +3560,27 @@ export function validateComposedTraceHostJoin(input: {
       || !isDeepStrictEqual(trace.request, req)
       || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
-      || !validGenericRoleComponents(trace)
+      || !validGenericRoleComponents(trace, view)
+      || !validGenericRoleComponentsHostJoin(
+        trace,
+        req,
+        view,
+        deterministicSeed,
+      )
+      || (
+        expectComponentTrace === true
+        && trace.version !== COMPONENT_DECISION_TRACE_VERSION
+      )
+      || (
+        expectedComponentPlan !== undefined
+        && (
+          trace.version !== COMPONENT_DECISION_TRACE_VERSION
+          || !isDeepStrictEqual(
+            trace.componentPlan,
+            expectedComponentPlan,
+          )
+        )
+      )
       || !validRoleObjectiveRoute(
         trace as unknown as Record<string, unknown>,
         view,

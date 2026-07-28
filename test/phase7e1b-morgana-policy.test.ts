@@ -575,7 +575,7 @@ test('an E1A-only malformed belief degrades narrowly to D2', async () => {
   )
 })
 
-test('weighted runtime remains causal while external promotion admission stays exact-only', async () => {
+test('weighted runtime stays causal and host admission preserves nonpromotion', async () => {
   const input = morganaProposal(9)
   const partner = input.view.privateInfo.evilPartners![0]
   const weightedModel = {
@@ -622,7 +622,7 @@ test('weighted runtime remains causal while external promotion admission stays e
     authoritativeAction: result.decision,
     selectedDecision: result.decision,
     deterministicSeed: input.game.seed,
-  }), false)
+  }), true)
 })
 
 test('E1B leaves the independent robust D3 quest-card path unchanged', async () => {

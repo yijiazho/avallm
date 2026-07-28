@@ -2,16 +2,15 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2B2 generic per-decision kernel and native fixture. Phase 7R1
-restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A moved
-admission behind an agent-owned boundary, and Phase 7R2B1 established immutable generic component
-contracts, dependency resolution, and one construction-time resolved brain. Phase 7R2B now
-continues through the per-decision kernel, two compatibility-adapter slices, and
-artifact/evaluation integration. Mordred E2A cannot begin until the complete 7R2B4 exit gate
-passes; it then becomes the first production native component rather than another role-specific
-central field. Mordred policy, Assassin specialization, and the Phase 7 role-bank evaluation
-follow. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
-intentionally deferred until the architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7R2B4 artifact and exit-gate integration. Phase 7R1 restored
+universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A moved admission behind
+an agent-owned boundary, and Phase 7R2B1 through B3B landed the generic contracts, per-decision
+kernel, compatibility adapters, transport admission, and trusted generation-time plan join.
+Mordred E2A cannot begin until the complete 7R2B4 exit gate passes; it then becomes the first
+production native component rather than another role-specific central field. Mordred policy,
+Assassin specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population
+sign flip remains recorded, and win-rate tuning is still intentionally deferred until the
+architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1291,12 +1290,13 @@ reviewable and ablatable:
     seam with a test-local native fixture. Host-input definitions own canonical identity, version,
     privacy, bounds, and validation; components can read only declared roots. Roots are not
     components and never enter component run, public projection, or policy-use records.
+    **Complete.**
 15. **Phase 7R2B3A, good-role and generic-evil compatibility adapters:** dual-write the landed C1,
     C2, D1, and D2 paths into generic entries and their unchanged legacy projections, requiring
-    exact equality.
+    exact equality. **Complete.**
 16. **Phase 7R2B3B, Morgana and quest-card compatibility adapters:** dual-write E1A, E1B, and D3,
     integrate generic admission with transport, and preserve D3 suppression after universal forced
-    policy.
+    policy. **Complete.**
 17. **Phase 7R2B4, artifacts and exit gate:** derive generic manifests and evaluation views,
     retain reads of historical legacy-only artifacts, and complete the frozen behavior,
     reconstruction, privacy, replay, bank, size, and latency gates.
@@ -1894,6 +1894,57 @@ privacy, hostile-admission, replay, and concurrency cases, including 12/12 dedic
 cases. Parent full-suite validation passes 888/888. The rereview verdict is READY; B3A is complete
 while the independently expected-plan join remains an explicit B3B/B4 follow-up.
 
+**7R2B3B verified implementation.** E1A now separates a registered public counterfeit read from
+its private complete-world objective. The public component reads only the kernel's canonical
+`PublicRecord`, resolves for configured proposal and vote decisions even outside Morgana, and is
+the only E1 output eligible for public projection. The private E1A component consumes that public
+dependency plus an invocation-local resolved-belief root. E1B consumes admitted E1A and D2
+dependencies plus the universal forced-policy and deterministic-seed roots. Weighted E1A and E1B
+outputs remain structural and nonpromotable, while constraints-only exact output retains its
+existing promotion semantics. The legacy Morgana fields remain conditional and are exact
+projections of admitted generic payloads.
+
+D3 is represented by distinct robust and exact-quota private decision-rule definitions. The
+robust seat-local policy is exact and promotable; the mixed-unsafe exact-quota research ceiling is
+exact but nonpromotable. The host computes universal forced policy first and runs the resolved
+component graph exactly once with that result as an invocation-local root. A forced quest-card
+decision yields an explicit generic `suppressed` D3 entry before any D3 builder runs, so universal
+authority remains visible rather than being rewritten as inapplicability or degradation. Registry
+descriptors now own legacy projection, causal-stage, suppression, degradation, and promotion
+metadata for the compatibility adapters; shared admission walks those descriptors rather than
+switching on new Morgana or D3 scorer tokens.
+
+Architecture generation now captures the target composed agent's resolved component plan before
+installing the timing wrapper and supplies that independently expected plan to host admission.
+Consequently, a trusted built-in producer cannot coherently erase or relabel its graph, remove
+causal-use stages, or downgrade v2 to the historical v1 shape while remaining acceptable.
+The shared host path additionally re-admits every reconstructable generic entry dependency-first
+through its registry definition, using canonical request, seat view, public record, and only
+independently reconstructed roots. The public E1 read therefore always receives an exact host
+join, including for non-Morgana seats with no legacy flat projection. Missing weighted world roots
+can preserve only structural, nonpromotable admission; they cannot inherit detached exactness.
+Structural fallback cannot bypass the graph: every declared dependency must already have an
+admitted entry before its child can be considered, even when that child lacks a reconstructable
+host root.
+Deterministic and seeded E1B also use distinct component identities with fixed selection modes, so
+the plan identifies the implementation without consulting a legacy scorer label.
+
+Self-contained stdio and other external producers still receive strict registry-owned detached
+validation but do not gain authenticity merely by asserting a coherent plan. Historical v1 read
+compatibility remains unchanged. Binding stored reports to an independently trusted manifest
+remains B4's responsibility.
+
+The new eight-case B3B suite covers exact E1A/E1B dual-write and causal use, public/private
+projection, coherent public and private host forgeries, weighted structural nonpromotion,
+distinct seeded E1B identity and host admission, robust and exact-quota D3 promotion, forced
+suppression, trusted-plan hostile rewrites, architecture-generation capture, and the ten-player
+252-candidate boundary. The maximum generic E1 run is 1,404,041 bytes under the unchanged
+2,097,152-byte cap. Parent-focused validation passes 142/142 across the kernel, compatibility
+adapters, transport admission, D3, E1A, E1B, architecture artifacts, privacy, replay, and
+degradation surfaces. All 897 API-free repository tests pass. Independent review passes its
+36/36 dedicated kernel/B3B and 132/132 adjacent architecture, admission, D3, E1, privacy, replay,
+prompt, and compatibility matrices and returns READY. This checkpoint is complete.
+
 E2A does not begin after an intermediate kernel or adapter landing. It begins only after 7R2B4 and
 the complete 7R2B exit gate pass, then must add Mordred through the same seam with **zero
 Mordred-specific central fields**.
@@ -2239,6 +2290,17 @@ here.
   methods. Fresh re-review approved the corrected class/private-state and drift behavior; 164
   affected compatibility cases and all 841 API-free repository tests passed without trace,
   artifact, stdio, prompt, decision, role-policy, or default changes.
+- Phase 7R2B3B complete: registered the E1A public read, private E1A objective,
+  E1B utility, and separate robust and exact-quota D3 rules behind the generic kernel while
+  preserving exact legacy projections and universal forced-policy dominance. Adapter descriptors
+  now own projection, causal-use, suppression, degradation, and promotion admission. Shared host
+  admission re-runs each reconstructable entry through its registry definition and cannot promote
+  unavailable weighted roots; deterministic and seeded E1B have separate plan identities.
+  Structural children cannot survive a non-admitted dependency.
+  Architecture generation binds a trusted composed producer to its independently captured
+  resolved plan, while external self-contained traces remain unauthenticated. Eight dedicated
+  cases, 65 adjacent kernel, adapter, and role-policy cases, and all 897 API-free repository tests
+  pass. Independent review returned READY after 36/36 dedicated and 132/132 adjacent cases.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
