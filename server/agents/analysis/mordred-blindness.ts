@@ -43,6 +43,9 @@ import {
   type MordredBlindnessTeam,
   type PrivateMordredBlindnessObjective,
 } from './mordred-blindness-types.ts'
+import type {
+  CanonicalJsonValue,
+} from '../components/canonical-json.ts'
 
 const plainRecord = (value: unknown): value is Record<string, unknown> =>
   !!value
@@ -607,12 +610,13 @@ function validDistribution(
     )
 }
 
-export function validatePrivateMordredBlindnessObjective(
+function validatePrivateMordredBlindnessObjectiveShape(
   value: unknown,
+  detached: boolean,
 ): value is PrivateMordredBlindnessObjective {
   try {
     if (
-      !plainDetachedData(value)
+      (detached && !plainDetachedData(value))
       || !plainRecord(value)
       || !exactKeys(value, [
         'version',
@@ -626,8 +630,11 @@ export function validatePrivateMordredBlindnessObjective(
       || value.role !== 'mordred'
       || !plainRecord(value.source)
       || !plainRecord(value.request)
-      || Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_MORDRED_BLINDNESS_JSON_BYTES
+      || (
+        detached
+        && Buffer.byteLength(JSON.stringify(value), 'utf8')
+          > MAX_MORDRED_BLINDNESS_JSON_BYTES
+      )
     ) return false
     const source = value.source
     const request = value.request
@@ -838,6 +845,24 @@ export function validatePrivateMordredBlindnessObjective(
   }
 }
 
+export function validatePrivateMordredBlindnessObjective(
+  value: unknown,
+): value is PrivateMordredBlindnessObjective {
+  return validatePrivateMordredBlindnessObjectiveShape(value, true)
+}
+
+/**
+ * Decode a value already canonicalized and byte-bounded by the component
+ * kernel. Only the component's semantic schema is checked here.
+ */
+export function decodeCanonicalPrivateMordredBlindnessObjective(
+  value: CanonicalJsonValue,
+): PrivateMordredBlindnessObjective | undefined {
+  return validatePrivateMordredBlindnessObjectiveShape(value, false)
+    ? value
+    : undefined
+}
+
 export function validatePrivateMordredBlindnessHostJoin(
   value: unknown,
   input: {
@@ -853,4 +878,20 @@ export function validatePrivateMordredBlindnessHostJoin(
       value,
       buildPrivateMordredBlindnessObjective(input),
     )
+}
+
+export function validateAdmittedPrivateMordredBlindnessHostJoin(
+  value: PrivateMordredBlindnessObjective,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    belief: BeliefSnapshot
+    treatment: PrivateActorTargetTreatmentRead
+    candidates: readonly PolicyCandidate[]
+  },
+): boolean {
+  return isDeepStrictEqual(
+    value,
+    buildPrivateMordredBlindnessObjective(input),
+  )
 }

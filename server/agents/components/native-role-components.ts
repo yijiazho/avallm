@@ -1,12 +1,12 @@
 import {
   buildPrivateMordredBlindnessObjective,
-  validatePrivateMordredBlindnessHostJoin,
-  validatePrivateMordredBlindnessObjective,
+  decodeCanonicalPrivateMordredBlindnessObjective,
+  validateAdmittedPrivateMordredBlindnessHostJoin,
 } from '../analysis/mordred-blindness.ts'
 import {
   buildPrivateActorTargetTreatmentRead,
-  validatePrivateActorTargetTreatmentHostJoin,
-  validatePrivateActorTargetTreatmentRead,
+  decodeCanonicalPrivateActorTargetTreatmentRead,
+  validateAdmittedPrivateActorTargetTreatmentHostJoin,
 } from '../analysis/actor-target-treatment.ts'
 import {
   ACTOR_TARGET_TREATMENT_DEGRADATION,
@@ -112,13 +112,15 @@ readonly DecisionComponentDefinition<any>[] {
       }
     },
     validateDetached(payload) {
-      return validatePrivateActorTargetTreatmentRead(payload)
-        ? admitted(payload, true)
+      const decoded =
+        decodeCanonicalPrivateActorTargetTreatmentRead(payload)
+      return decoded
+        ? admitted(decoded, true)
         : rejected(ACTOR_TARGET_TREATMENT_DEGRADATION)
     },
     admitHost({ payload, host }) {
       const context = privateNativeContext(host)
-      return validatePrivateActorTargetTreatmentHostJoin(payload, {
+      return validateAdmittedPrivateActorTargetTreatmentHostJoin(payload, {
         record: projectPublicRecord(context.view),
         observer: context.hostInputs.require(
           PRIVATE_PUBLIC_OBSERVER_INPUT,
@@ -163,17 +165,19 @@ readonly DecisionComponentDefinition<any>[] {
       }
     },
     validateDetached(payload) {
-      return validatePrivateMordredBlindnessObjective(payload)
+      const decoded =
+        decodeCanonicalPrivateMordredBlindnessObjective(payload)
+      return decoded
         ? admitted(
-            payload,
-            payload.source.beliefQuality === 'constraints-only',
+            decoded,
+            decoded.source.beliefQuality === 'constraints-only',
           )
         : rejected(MORDRED_BLINDNESS_DEGRADATION)
     },
     admitHost({ payload, host }) {
       const context = privateNativeContext(host)
       const belief = context.hostInputs.require(PRIVATE_BELIEF_INPUT)
-      return validatePrivateMordredBlindnessHostJoin(payload, {
+      return validateAdmittedPrivateMordredBlindnessHostJoin(payload, {
         req: context.request,
         view: context.view,
         belief,

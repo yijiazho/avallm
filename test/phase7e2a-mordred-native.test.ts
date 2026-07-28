@@ -76,6 +76,9 @@ import {
   architectureReport,
   renderArchitectureReport,
 } from '../server/eval/architecture-report.ts'
+import {
+  rotatePlayerView,
+} from './support/player-view-metamorphic.ts'
 
 const ROLES: Record<number, Role[]> = {
   5: ['merlin', 'servant', 'servant', 'assassin', 'mordred'],
@@ -143,60 +146,6 @@ function nativeAgent(
     seed,
     decisionComponents: [MORDRED_BLINDNESS_COMPONENT],
   })
-}
-
-function rotateView(view: PlayerView, shift: number): PlayerView {
-  const rotate = (seat: number): number =>
-    (seat + shift) % view.playerCount
-  const seats = (source: readonly number[] | undefined) =>
-    source?.map(rotate).sort((left, right) => left - right)
-  const copy = structuredClone(view)
-  const players = copy.players
-    .map((player) => ({
-      seat: rotate(player.seat),
-      name: `Rotated ${rotate(player.seat)}`,
-    }))
-    .sort((left, right) => left.seat - right.seat)
-  return {
-    ...copy,
-    seat: rotate(copy.seat),
-    name: players.find((player) => player.seat === rotate(copy.seat))!.name,
-    players,
-    leaderSeat: rotate(copy.leaderSeat),
-    privateInfo: {
-      ...(copy.privateInfo.knownEvil
-        ? { knownEvil: seats(copy.privateInfo.knownEvil) }
-        : {}),
-      ...(copy.privateInfo.evilPartners
-        ? { evilPartners: seats(copy.privateInfo.evilPartners) }
-        : {}),
-      ...(copy.privateInfo.merlinCandidates
-        ? { merlinCandidates: seats(copy.privateInfo.merlinCandidates) }
-        : {}),
-    },
-    quests: copy.quests.map((quest) => ({
-      ...quest,
-      ...(quest.team ? { team: seats(quest.team) } : {}),
-    })),
-    proposals: copy.proposals.map((proposal) => ({
-      ...proposal,
-      leader: rotate(proposal.leader),
-      team: seats(proposal.team)!,
-      ...(proposal.revisedFrom
-        ? { revisedFrom: seats(proposal.revisedFrom) }
-        : {}),
-      ...(proposal.votes
-        ? {
-            votes: proposal.votes
-              .map((vote) => ({ ...vote, seat: rotate(vote.seat) }))
-              .sort((left, right) => left.seat - right.seat),
-          }
-        : {}),
-    })),
-    ...(copy.currentTeam ? { currentTeam: seats(copy.currentTeam) } : {}),
-    transcript: [],
-    events: [],
-  }
 }
 
 test('native Mordred graph is private, inert, exact, and host-admitted', async () => {
@@ -673,7 +622,7 @@ test('seat rotation, names, and private canaries cannot change semantics', () =>
   )
 
   const shift = 2
-  const rotatedView = rotateView(view, shift)
+  const rotatedView = rotatePlayerView(view, shift)
   const rotatedReq: DecisionRequest = {
     ...input.req,
     seat: (input.req.seat + shift) % view.playerCount,
@@ -851,6 +800,71 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
     mutate(forged)
     assert.equal(valid(forged), false)
   }
+
+  let getterCalls = 0
+  const getterTrace = structuredClone(original)
+  const getterEntry = getterTrace.components!.entries[1]
+  assert.equal(getterEntry.status, 'admitted')
+  if (getterEntry.status !== 'admitted') {
+    throw new Error('expected admitted native objective')
+  }
+  const getterPayload = structuredClone(getterEntry.envelope.payload)
+  Object.defineProperty(getterPayload, 'role', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      getterCalls++
+      return 'mordred'
+    },
+  })
+  ;(getterEntry.envelope as any).payload = getterPayload
+  assert.equal(valid(getterTrace), false)
+  assert.equal(getterCalls, 0)
+
+  let proxyCalls = 0
+  const proxyTrace = structuredClone(original)
+  const proxyEntry = proxyTrace.components!.entries[1]
+  assert.equal(proxyEntry.status, 'admitted')
+  if (proxyEntry.status !== 'admitted') {
+    throw new Error('expected admitted native objective')
+  }
+  ;(proxyEntry.envelope as any).payload = new Proxy(
+    structuredClone(proxyEntry.envelope.payload) as object,
+    {
+      get(target, property, receiver) {
+        proxyCalls++
+        return Reflect.get(target, property, receiver)
+      },
+    },
+  )
+  assert.equal(valid(proxyTrace), false)
+  assert.equal(proxyCalls, 0)
+
+  const oversizedTrace = structuredClone(original)
+  const oversizedEntry = oversizedTrace.components!.entries[1]
+  assert.equal(oversizedEntry.status, 'admitted')
+  if (oversizedEntry.status !== 'admitted') {
+    throw new Error('expected admitted native objective')
+  }
+  ;(oversizedEntry.envelope as any).payload = {
+    value: 'x'.repeat(MAX_MORDRED_BLINDNESS_JSON_BYTES + 1),
+  }
+  ;(oversizedEntry as any).payloadBytes =
+    MAX_MORDRED_BLINDNESS_JSON_BYTES
+  assert.equal(valid(oversizedTrace), false)
+
+  const hugeLengthTrace = structuredClone(original)
+  const hugeLengthEntry = hugeLengthTrace.components!.entries[1]
+  assert.equal(hugeLengthEntry.status, 'admitted')
+  if (hugeLengthEntry.status !== 'admitted') {
+    throw new Error('expected admitted native objective')
+  }
+  const hugeLengthPayload = structuredClone(
+    hugeLengthEntry.envelope.payload,
+  ) as any
+  hugeLengthPayload.assessments = new Array(0xffff_ffff)
+  ;(hugeLengthEntry.envelope as any).payload = hugeLengthPayload
+  assert.equal(valid(hugeLengthTrace), false)
 })
 
 test('legal no-Merlin view admits treatment but not Mordred objective', async () => {

@@ -17,6 +17,7 @@ import type {
 import type {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../analysis/observer-types.ts'
+import type { CanonicalJsonValue } from './canonical-json.ts'
 
 export type DecisionComponentKind =
   | 'observer'
@@ -77,7 +78,9 @@ export interface ComponentHostInputDefinition<Value = unknown> {
    * Validate one snapshotted value without substituting or normalizing it.
    * Implementations must be synchronous and data-only.
    */
-  validate(value: unknown): ComponentHostInputValidationResult<Value>
+  validate(
+    value: CanonicalJsonValue,
+  ): ComponentHostInputValidationResult<Value>
 }
 
 export interface ComponentHostInputBinding<Value = unknown> {
@@ -219,7 +222,9 @@ export interface DecisionComponentDefinition<Payload = unknown> {
     context: DecisionComponentContext,
   ): ComponentExecutionResult<Payload>
     | Promise<ComponentExecutionResult<Payload>>
-  validateDetached(payload: unknown): ComponentAdmissionResult<Payload>
+  validateDetached(
+    payload: CanonicalJsonValue,
+  ): ComponentAdmissionResult<Payload>
   /**
    * Optional exact host proof for an execution-time suppression discovered
    * after applies() returned applicable. Without this proof, host admission

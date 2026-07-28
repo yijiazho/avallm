@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { structurallyHostileRecords } from './support/hostile-data.ts'
 import {
   attributeComponentPolicyUse,
   componentEnvelope,
@@ -207,39 +208,6 @@ function requirePrivateContext(
   { privacy: 'private' }
 > {
   assert.equal(context.privacy, 'private')
-}
-
-function structurallyHostileRecords(
-  fields: Readonly<Record<string, unknown>>,
-): readonly unknown[] {
-  const accessor = { ...fields }
-  const firstKey = Object.keys(fields)[0]
-  Object.defineProperty(accessor, firstKey, {
-    enumerable: true,
-    configurable: true,
-    get: () => fields[firstKey],
-  })
-  const symbol = { ...fields }
-  Object.defineProperty(symbol, Symbol('hidden'), {
-    value: true,
-    enumerable: true,
-  })
-  const nonEnumerable = { ...fields }
-  Object.defineProperty(nonEnumerable, firstKey, {
-    value: fields[firstKey],
-    enumerable: false,
-  })
-  const array = Object.assign([], fields)
-  const nonPlain = Object.assign(Object.create({ inherited: true }), fields)
-  const transparentProxy = new Proxy({ ...fields }, {})
-  return [
-    accessor,
-    symbol,
-    nonEnumerable,
-    array,
-    nonPlain,
-    transparentProxy,
-  ]
 }
 
 test('kernel executes the native graph dependency-first and admits typed payloads', async () => {

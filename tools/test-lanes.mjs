@@ -79,6 +79,7 @@ const LANES = Object.freeze({
     'phase7r2b3b-morgana-quest-adapters.test.ts',
     'phase7r2b4-artifact-manifest.test.ts',
     'phase7r2b4-hostile-artifact.test.ts',
+    'phase7r2c2-component-conformance.test.ts',
   ]),
   eval: Object.freeze([
     'architecture-bank.test.ts',

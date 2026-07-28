@@ -154,6 +154,10 @@ import {
   createProductionComponentRegistry,
 } from '../components/production-registry.ts'
 import {
+  canonicalizeJson,
+  canonicalJsonEqual,
+} from '../components/canonical-json.ts'
+import {
   EVIL_QUEST_CARD_POLICY_VERSION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_PUBLIC_CONTEXT_VERSION,
@@ -3096,17 +3100,6 @@ function exactGenericArray(value: unknown): value is unknown[] {
   return true
 }
 
-function jsonBytes(value: unknown): number {
-  try {
-    const serialized = JSON.stringify(value)
-    return serialized === undefined
-      ? -1
-      : Buffer.byteLength(serialized, 'utf8')
-  } catch {
-    return -1
-  }
-}
-
 function validDecisionTraceProvenance(trace: DecisionTrace): boolean {
   const marked =
     trace.componentVersions?.decisionComponents
@@ -3134,22 +3127,36 @@ function validGenericRoleComponents(
 ): boolean {
   if (!validDecisionTraceProvenance(trace)) return false
   if (trace.version === DECISION_TRACE_VERSION) return true
-  const plan = trace.componentPlan!
-  const run = trace.components!
+  const safePlan = canonicalizeJson(
+    trace.componentPlan,
+    MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
+  )
+  const safeRun = canonicalizeJson(
+    trace.components,
+    MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
+  )
+  if (!safePlan.ok || !safeRun.ok) return false
+  const planRecord: unknown = safePlan.payload
+  const runRecord: unknown = safeRun.payload
   if (
-    !exactGenericRecord(plan, ['version', 'configured'])
-    || plan.version !== DECISION_COMPONENT_PLAN_VERSION
-    || !exactGenericArray(plan.configured)
+    !exactGenericRecord(planRecord, ['version', 'configured'])
+    || planRecord.version !== DECISION_COMPONENT_PLAN_VERSION
+    || !exactGenericArray(planRecord.configured)
     || !exactGenericRecord(
-      run,
+      runRecord,
       ['version', 'configured', 'entries', 'policyUse'],
     )
-    || run.version !== DECISION_COMPONENT_RUN_VERSION
-    || !exactGenericArray(run.configured)
-    || !exactGenericArray(run.entries)
-    || !exactGenericArray(run.policyUse)
-    || plan.configured.length !== run.configured.length
+    || runRecord.version !== DECISION_COMPONENT_RUN_VERSION
+    || !exactGenericArray(runRecord.configured)
+    || !exactGenericArray(runRecord.entries)
+    || !exactGenericArray(runRecord.policyUse)
+    || planRecord.configured.length !== runRecord.configured.length
   ) return false
+  // The strict canonical boundary and exact top-level shape checks above make
+  // these the typed structural views consumed by the remaining semantic join.
+  const plan = planRecord as unknown as DecisionComponentPlan
+  const run =
+    runRecord as unknown as NonNullable<DecisionTrace['components']>
   const configuredKeys: string[] = []
   for (let index = 0; index < plan.configured.length; index++) {
     const ref = plan.configured[index]
@@ -3165,15 +3172,6 @@ function validGenericRoleComponents(
     configuredKeys.push(componentKey(ref))
   }
   if (new Set(configuredKeys).size !== configuredKeys.length) return false
-  const planBytes = jsonBytes(plan)
-  const runBytes = jsonBytes(run)
-  if (
-    planBytes < 0
-    || planBytes > MAX_DECISION_COMPONENT_PLAN_JSON_BYTES
-    || runBytes < 0
-    || runBytes > MAX_DECISION_COMPONENT_RUN_JSON_BYTES
-  ) return false
-
   const dependencyKeys = new Set(
     plan.configured.flatMap((ref) =>
       PRODUCTION_COMPONENT_REGISTRY.definition(ref)!.dependencies
@@ -3276,7 +3274,6 @@ function validGenericRoleComponents(
         || !Number.isSafeInteger(entry.payloadBytes)
         || entry.payloadBytes < 0
         || entry.payloadBytes > definition.maxPayloadBytes
-        || entry.payloadBytes !== jsonBytes(entry.envelope.payload)
         || (
           requiresLegacyProjection
             ? (
@@ -3294,9 +3291,17 @@ function validGenericRoleComponents(
         )
         || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
+      const canonicalPayload = canonicalizeJson(
+        entry.envelope.payload,
+        definition.maxPayloadBytes,
+      )
+      if (
+        !canonicalPayload.ok
+        || entry.payloadBytes !== canonicalPayload.bytes
+      ) return false
       let detached: unknown
       try {
-        detached = definition.validateDetached(entry.envelope.payload)
+        detached = definition.validateDetached(canonicalPayload.payload)
       } catch {
         return false
       }
@@ -3305,9 +3310,16 @@ function validGenericRoleComponents(
           'admitted', 'payload', 'promotionEligible', 'verification',
         ])
         || detached.admitted !== true
-        || !isDeepStrictEqual(
-          detached.payload,
-          entry.envelope.payload,
+      ) return false
+      const canonicalDetached = canonicalizeJson(
+        detached.payload,
+        definition.maxPayloadBytes,
+      )
+      if (
+        !canonicalDetached.ok
+        || !canonicalJsonEqual(
+          canonicalDetached.payload,
+          canonicalPayload.payload,
         )
       ) return false
       if (

@@ -17,6 +17,9 @@ import {
   type ActorTargetTreatmentRow,
   type PrivateActorTargetTreatmentRead,
 } from './actor-target-treatment-types.ts'
+import type {
+  CanonicalJsonValue,
+} from '../components/canonical-json.ts'
 
 const plainRecord = (value: unknown): value is Record<string, unknown> =>
   !!value
@@ -245,12 +248,13 @@ function validFraction(
       )
 }
 
-export function validatePrivateActorTargetTreatmentRead(
+function validatePrivateActorTargetTreatmentShape(
   value: unknown,
+  detached: boolean,
 ): value is PrivateActorTargetTreatmentRead {
   try {
     if (
-      !plainDetachedData(value)
+      (detached && !plainDetachedData(value))
       || !plainRecord(value)
       || !exactKeys(value, [
         'version',
@@ -270,8 +274,11 @@ export function validatePrivateActorTargetTreatmentRead(
       || value.matrixSemantics !== 'dense-canonical-actor-target'
       || !denseArray(value.rows)
       || value.rows.length !== (value.playerCount as number) ** 2
-      || Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES
+      || (
+        detached
+        && Buffer.byteLength(JSON.stringify(value), 'utf8')
+          > MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES
+      )
     ) return false
     const playerCount = value.playerCount as number
     return value.rows.every((raw, index) =>
@@ -294,6 +301,24 @@ export function validatePrivateActorTargetTreatmentRead(
   }
 }
 
+export function validatePrivateActorTargetTreatmentRead(
+  value: unknown,
+): value is PrivateActorTargetTreatmentRead {
+  return validatePrivateActorTargetTreatmentShape(value, true)
+}
+
+/**
+ * Decode a value already canonicalized and byte-bounded by the component
+ * kernel. Only the component's semantic schema is checked here.
+ */
+export function decodeCanonicalPrivateActorTargetTreatmentRead(
+  value: CanonicalJsonValue,
+): PrivateActorTargetTreatmentRead | undefined {
+  return validatePrivateActorTargetTreatmentShape(value, false)
+    ? value
+    : undefined
+}
+
 export function validatePrivateActorTargetTreatmentHostJoin(
   value: unknown,
   input: {
@@ -306,4 +331,17 @@ export function validatePrivateActorTargetTreatmentHostJoin(
       value,
       buildPrivateActorTargetTreatmentRead(input.record, input.observer),
     )
+}
+
+export function validateAdmittedPrivateActorTargetTreatmentHostJoin(
+  value: PrivateActorTargetTreatmentRead,
+  input: {
+    record: PublicRecord
+    observer: PublicObserverSnapshot
+  },
+): boolean {
+  return isDeepStrictEqual(
+    value,
+    buildPrivateActorTargetTreatmentRead(input.record, input.observer),
+  )
 }

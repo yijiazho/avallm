@@ -1,6 +1,3 @@
-import {
-  isProxy,
-} from 'node:util/types'
 import type {
   DecisionRequest,
   PlayerView,
@@ -12,6 +9,13 @@ import type { ResolvedComposedBrain } from './resolved-brain.ts'
 import {
   componentIdentityKey,
 } from './registry.ts'
+import {
+  canonicalizeJson,
+  canonicalJsonEqual,
+  denseOwnDataArrayValues,
+  exactOwnDataRecord,
+  freezeComponentInput,
+} from './canonical-json.ts'
 import type {
   DecisionComponentRegistry,
 } from './registry.ts'
@@ -195,12 +199,12 @@ export function decisionComponentPlan(
 export function validateDecisionComponentPlan(
   value: unknown,
 ): value is DecisionComponentPlan {
-  const safe = safePayload(
+  const safe = canonicalizeJson(
     value,
     MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
   )
   if (!safe.ok) return false
-  const plan = exactDataRecord(safe.payload, ['version', 'configured'])
+  const plan = exactOwnDataRecord(safe.payload, ['version', 'configured'])
   if (
     !plan
     || plan.version !== DECISION_COMPONENT_PLAN_VERSION
@@ -210,7 +214,7 @@ export function validateDecisionComponentPlan(
   }
   const keys = new Set<string>()
   for (const candidate of plan.configured) {
-    const ref = exactDataRecord(candidate, ['id', 'version'])
+    const ref = exactOwnDataRecord(candidate, ['id', 'version'])
     if (
       !ref
       || !canonicalCode(ref.id)
@@ -259,225 +263,10 @@ function canonicalCode(value: unknown): value is string {
   return typeof value === 'string' && CODE_PATTERN.test(value)
 }
 
-function exactDataRecord(
-  value: unknown,
-  expected: readonly string[],
-): Readonly<Record<string, unknown>> | undefined {
-  try {
-    if (
-      !value
-      || typeof value !== 'object'
-      || Array.isArray(value)
-      || isProxy(value)
-    ) {
-      return undefined
-    }
-    const prototype = Object.getPrototypeOf(value)
-    if (prototype !== Object.prototype && prototype !== null) {
-      return undefined
-    }
-    const keys = Reflect.ownKeys(value)
-    const sortedExpected = [...expected].sort()
-    if (
-      !keys.every((key) => typeof key === 'string')
-      || keys.length !== expected.length
-      || ![...keys].sort().every(
-          (key, index) => key === sortedExpected[index],
-        )
-    ) {
-      return undefined
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value)
-    const record = Object.create(null) as Record<string, unknown>
-    for (const key of expected) {
-      const descriptor = descriptors[key]
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-      ) {
-        return undefined
-      }
-      Object.defineProperty(record, key, {
-        value: descriptor.value,
-        enumerable: true,
-        writable: false,
-        configurable: false,
-      })
-    }
-    return Object.freeze(record)
-  } catch {
-    return undefined
-  }
-}
-
-function freezeJsonValue(
-  value: unknown,
-  ancestors: Set<object>,
-  allowUndefined = false,
-): unknown {
-  if (value === undefined && allowUndefined) {
-    return value
-  }
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) {
-    return value
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new Error('non-finite number')
-    }
-    return value
-  }
-  if (typeof value !== 'object') {
-    throw new Error('non-JSON value')
-  }
-  if (isProxy(value)) {
-    throw new Error('proxy value')
-  }
-  if (ancestors.has(value)) {
-    throw new Error('cyclic value')
-  }
-  const isArray = Array.isArray(value)
-  const prototype = Object.getPrototypeOf(value)
-  if (
-    isArray
-      ? prototype !== Array.prototype
-      : prototype !== Object.prototype && prototype !== null
-  ) {
-    throw new Error('non-plain object')
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  if (
-    Reflect.ownKeys(value).some((key) => typeof key !== 'string')
-    || Object.values(descriptors).some(
-      (descriptor) =>
-        descriptor.get !== undefined || descriptor.set !== undefined,
-    )
-  ) {
-    throw new Error('unsafe property')
-  }
-  ancestors.add(value)
-  try {
-    if (isArray) {
-      const ownKeys = Reflect.ownKeys(value)
-      const indexKeys = Array.from(
-        { length: value.length },
-        (_, index) => `${index}`,
-      )
-      if (
-        ownKeys.length !== value.length + 1
-        || !ownKeys.includes('length')
-        || indexKeys.some((key) => !ownKeys.includes(key))
-        || indexKeys.some((key) =>
-          descriptors[key]?.enumerable !== true
-          || !Object.hasOwn(descriptors[key] ?? {}, 'value'))
-      ) {
-        throw new Error('non-JSON array shape')
-      }
-      const clone = value.map((entry) =>
-        freezeJsonValue(entry, ancestors, allowUndefined))
-      return Object.freeze(clone)
-    }
-    if (Object.values(descriptors).some(
-      (descriptor) => descriptor.enumerable !== true,
-    )) {
-      throw new Error('non-JSON property')
-    }
-    const clone: Record<string, unknown> = {}
-    for (const key of Object.keys(value).sort()) {
-      Object.defineProperty(clone, key, {
-        value: freezeJsonValue(
-          descriptors[key].value,
-          ancestors,
-          allowUndefined,
-        ),
-        enumerable: true,
-        writable: false,
-        configurable: false,
-      })
-    }
-    return Object.freeze(clone)
-  } finally {
-    ancestors.delete(value)
-  }
-}
-
-function safePayload(
-  value: unknown,
-  maxBytes: number,
-):
-  | Readonly<{ ok: true; payload: unknown; bytes: number }>
-  | Readonly<{
-      ok: false
-      failureCode: 'payload-json-unsafe' | 'payload-too-large'
-    }> {
-  try {
-    const payload = freezeJsonValue(value, new Set())
-    // Exercise the platform clone boundary on the sanitized value. Running the
-    // strict pass first prevents hostile getters from executing during clone.
-    structuredClone(payload)
-    const bytes = Buffer.byteLength(JSON.stringify(payload), 'utf8')
-    if (bytes > maxBytes) {
-      return { ok: false, failureCode: 'payload-too-large' }
-    }
-    return { ok: true, payload, bytes }
-  } catch {
-    return { ok: false, failureCode: 'payload-json-unsafe' }
-  }
-}
-
-function sameCanonicalPayload(left: unknown, right: unknown): boolean {
-  // safePayload has already rebuilt both values with sorted object keys and
-  // strict JSON leaves, so serialized equality is canonical equality here.
-  return JSON.stringify(left) === JSON.stringify(right)
-}
-
-function arrayDataValues(value: unknown): readonly unknown[] | undefined {
-  try {
-    if (!Array.isArray(value) || isProxy(value)) return undefined
-    const keys = Reflect.ownKeys(value)
-    const expected = Array.from(
-      { length: value.length },
-      (_, index) => `${index}`,
-    )
-    if (
-      keys.length !== expected.length + 1
-      || !keys.includes('length')
-      || expected.some((key) => !keys.includes(key))
-    ) {
-      return undefined
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value)
-    const result: unknown[] = []
-    for (const key of expected) {
-      const descriptor = descriptors[key]
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-      ) {
-        return undefined
-      }
-      result.push(descriptor.value)
-    }
-    return result
-  } catch {
-    return undefined
-  }
-}
-
 function parseHostInputValidation<Value>(
   value: unknown,
 ): ComponentHostInputValidationResult<Value> | undefined {
-  const rejected = exactDataRecord(
+  const rejected = exactOwnDataRecord(
     value,
     ['degradationCode', 'valid'],
   )
@@ -488,7 +277,7 @@ function parseHostInputValidation<Value>(
       degradationCode: rejected.degradationCode,
     }
   }
-  const admitted = exactDataRecord(value, ['valid', 'value'])
+  const admitted = exactOwnDataRecord(value, ['valid', 'value'])
   if (admitted?.valid !== true) return undefined
   return {
     valid: true,
@@ -508,10 +297,10 @@ function prepareHostInputs(
 ): PreparedHostInputs {
   let bindingValues: readonly unknown[] = []
   if (invocation !== undefined) {
-    const empty = exactDataRecord(invocation, [])
+    const empty = exactOwnDataRecord(invocation, [])
     const record = empty
       ? undefined
-      : exactDataRecord(invocation, ['hostInputs'])
+      : exactOwnDataRecord(invocation, ['hostInputs'])
     if (!empty && !record) {
       throw new DecisionComponentInvocationError(
         'malformed-invocation',
@@ -519,7 +308,7 @@ function prepareHostInputs(
       )
     }
     if (record && record.hostInputs !== undefined) {
-      const entries = arrayDataValues(record.hostInputs)
+      const entries = denseOwnDataArrayValues(record.hostInputs)
       if (!entries) {
         throw new DecisionComponentInvocationError(
           'malformed-invocation',
@@ -551,7 +340,7 @@ function prepareHostInputs(
   const boundByKey = new Map<string, unknown>()
 
   for (let index = 0; index < bindingValues.length; index++) {
-    const binding = exactDataRecord(
+    const binding = exactOwnDataRecord(
       bindingValues[index],
       ['input', 'value'],
     )
@@ -561,7 +350,7 @@ function prepareHostInputs(
         `host input binding ${index} must be a plain tagged data record`,
       )
     }
-    const token = exactDataRecord(
+    const token = exactOwnDataRecord(
       binding.input,
       ['id', 'privacy', 'version'],
     )
@@ -622,7 +411,7 @@ function prepareHostInputs(
       invalid.add(key)
       continue
     }
-    const source = safePayload(
+    const source = canonicalizeJson(
       boundByKey.get(key),
       definition.maxPayloadBytes,
     )
@@ -642,7 +431,7 @@ function prepareHostInputs(
       invalid.add(key)
       continue
     }
-    const validated = safePayload(
+    const validated = canonicalizeJson(
       parsed.value,
       definition.maxPayloadBytes,
     )
@@ -650,7 +439,7 @@ function prepareHostInputs(
       invalid.add(key)
       continue
     }
-    if (!sameCanonicalPayload(source.payload, validated.payload)) {
+    if (!canonicalJsonEqual(source.payload, validated.payload)) {
       invalid.add(key)
       continue
     }
@@ -667,7 +456,7 @@ function parseAdmission<Payload>(
   value: unknown,
 ): ComponentAdmissionResult<Payload> | undefined {
   try {
-    const rejectedRecord = exactDataRecord(
+    const rejectedRecord = exactOwnDataRecord(
       value,
       ['admitted', 'degradationCode'],
     )
@@ -680,7 +469,7 @@ function parseAdmission<Payload>(
         degradationCode: rejectedRecord.degradationCode,
       }
     }
-    const record = exactDataRecord(value, [
+    const record = exactOwnDataRecord(value, [
       'admitted',
       'payload',
       'promotionEligible',
@@ -717,12 +506,12 @@ function parseEnvelope(
   definition: AnyDefinition,
 ): Readonly<{ payload: unknown }> | undefined {
   try {
-    const envelope = exactDataRecord(
+    const envelope = exactOwnDataRecord(
       value,
       ['component', 'kind', 'payload', 'privacy'],
     )
     if (!envelope) return undefined
-    const component = exactDataRecord(
+    const component = exactOwnDataRecord(
       envelope.component,
       ['id', 'version'],
     )
@@ -748,7 +537,7 @@ function parseExecutionResult(
   | Readonly<{ status: 'suppressed'; reasonCode: string }>
   | undefined {
   try {
-    const suppressed = exactDataRecord(
+    const suppressed = exactOwnDataRecord(
       value,
       ['reasonCode', 'status'],
     )
@@ -761,7 +550,7 @@ function parseExecutionResult(
         reasonCode: suppressed.reasonCode,
       }
     }
-    const record = exactDataRecord(value, ['envelope', 'status'])
+    const record = exactOwnDataRecord(value, ['envelope', 'status'])
     if (
       record?.status === 'produced'
     ) {
@@ -785,14 +574,14 @@ function applicabilityKind(
   try {
     if (value === true) return { status: 'applicable' }
     if (value === false) return { status: 'inapplicable' }
-    const simple = exactDataRecord(value, ['status'])
+    const simple = exactOwnDataRecord(value, ['status'])
     if (
       simple?.status === 'applicable'
       || simple?.status === 'inapplicable'
     ) {
       return { status: simple.status }
     }
-    const record = exactDataRecord(value, ['reasonCode', 'status'])
+    const record = exactOwnDataRecord(value, ['reasonCode', 'status'])
     if (
       record?.status === 'suppressed'
       && canonicalCode(record.reasonCode)
@@ -941,19 +730,22 @@ export function validateDecisionComponentRunHostJoin(
       const definition = registry.hostInputDefinition(binding.input)
       const key = componentIdentityKey(binding.input)
       if (!definition || hostInputValues.has(key)) return false
-      const source = safePayload(binding.value, definition.maxPayloadBytes)
+      const source = canonicalizeJson(
+        binding.value,
+        definition.maxPayloadBytes,
+      )
       if (!source.ok) return false
       const parsed = parseHostInputValidation(
         definition.validate(source.payload),
       )
       if (!parsed?.valid) return false
-      const validated = safePayload(
+      const validated = canonicalizeJson(
         parsed.value,
         definition.maxPayloadBytes,
       )
       if (
         !validated.ok
-        || !sameCanonicalPayload(source.payload, validated.payload)
+        || !canonicalJsonEqual(source.payload, validated.payload)
       ) return false
       hostInputValues.set(key, validated.payload)
     }
@@ -971,6 +763,8 @@ export function validateDecisionComponentRunHostJoin(
       if (
         !definition
         || componentIdentityKey(entry.component) !== key
+        || entry.kind !== definition.token.kind
+        || entry.privacy !== definition.token.privacy
       ) return false
       const applicability:
       DecisionComponentApplicabilityContext =
@@ -1028,15 +822,30 @@ export function validateDecisionComponentRunHostJoin(
         continue
       }
       if (entry.status !== 'admitted') continue
+      if (
+        componentIdentityKey(entry.envelope.component) !== key
+        || entry.envelope.kind !== definition.token.kind
+        || entry.envelope.privacy !== definition.token.privacy
+      ) return false
 
+      const entryPayload = canonicalizeJson(
+        entry.envelope.payload,
+        definition.maxPayloadBytes,
+      )
+      if (!entryPayload.ok) return false
       const detached = parseAdmission(
-        definition.validateDetached(entry.envelope.payload),
+        definition.validateDetached(entryPayload.payload),
+      )
+      if (!detached?.admitted) return false
+      const detachedPayload = canonicalizeJson(
+        detached.payload,
+        definition.maxPayloadBytes,
       )
       if (
-        !detached?.admitted
-        || !sameCanonicalPayload(
-          detached.payload,
-          entry.envelope.payload,
+        !detachedPayload.ok
+        || !canonicalJsonEqual(
+          detachedPayload.payload,
+          entryPayload.payload,
         )
       ) return false
 
@@ -1065,19 +874,19 @@ export function validateDecisionComponentRunHostJoin(
         hostInputDefinitions,
       )
       const host = parseAdmission(definition.admitHost({
-        payload: detached.payload,
+        payload: detachedPayload.payload,
         host: context,
       }))
       if (!host?.admitted) return false
-      const hostPayload = safePayload(
+      const hostPayload = canonicalizeJson(
         host.payload,
         definition.maxPayloadBytes,
       )
       if (
         !hostPayload.ok
-        || !sameCanonicalPayload(
+        || !canonicalJsonEqual(
           hostPayload.payload,
-          entry.envelope.payload,
+          entryPayload.payload,
         )
       ) return false
       const verification: ComponentVerification =
@@ -1105,9 +914,7 @@ function frozenInput<T>(value: T): Readonly<T> {
   // PlayerView deliberately carries some optional properties as undefined
   // before it crosses a JSON boundary. Preserve that engine-native shape while
   // still cloning and freezing it. Component payloads remain strict JSON.
-  const frozen = freezeJsonValue(value, new Set(), true) as Readonly<T>
-  structuredClone(frozen)
-  return frozen
+  return freezeComponentInput(value)
 }
 
 /**
@@ -1287,7 +1094,7 @@ export async function runDecisionComponents(
       entries.push(degradation(definition, 'tag-mismatch'))
       continue
     }
-    const producedPayload = safePayload(
+    const producedPayload = canonicalizeJson(
       envelope.payload,
       definition.maxPayloadBytes,
     )
@@ -1326,7 +1133,7 @@ export async function runDecisionComponents(
       ))
       continue
     }
-    const detachedPayload = safePayload(
+    const detachedPayload = canonicalizeJson(
       detachedAdmission.payload,
       definition.maxPayloadBytes,
     )
@@ -1339,7 +1146,7 @@ export async function runDecisionComponents(
     }
     if (
       detachedAdmission.verification === 'exact'
-      && !sameCanonicalPayload(
+      && !canonicalJsonEqual(
         producedPayload.payload,
         detachedPayload.payload,
       )
@@ -1379,7 +1186,7 @@ export async function runDecisionComponents(
       ))
       continue
     }
-    const hostPayload = safePayload(
+    const hostPayload = canonicalizeJson(
       hostAdmission.payload,
       definition.maxPayloadBytes,
     )
@@ -1392,7 +1199,7 @@ export async function runDecisionComponents(
     }
     if (
       hostAdmission.verification === 'exact'
-      && !sameCanonicalPayload(
+      && !canonicalJsonEqual(
         detachedPayload.payload,
         hostPayload.payload,
       )
