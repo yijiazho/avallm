@@ -113,7 +113,37 @@ ambiguity, a merge conflict that changes semantics, destructive action, paid cal
 permission, production-default promotion, or a checkpoint whose purpose is human play or
 qualitative judgment.
 
-### 3.2 Parallel worktree protocol
+### 3.2 Risk-tiered validation funnel
+
+Validation should find structural mistakes before paying the wall-clock cost of exhaustive banks
+and the complete repository suite. Higher player counts remain required at phase gates, but they do
+not need to dominate the implementation loop.
+
+1. **Inner loop:** use the dedicated feature file and hand-worked low-cost fixtures, usually at five
+   players, while code is changing.
+2. **Boundary loop:** add only the targeted higher-count cases the contract needs. Typical examples
+   are the 7+ player two-Fail quest, the 9/10-player full-role cast, Oberon or Mordred visibility,
+   and the 10-player 252-team and payload ceilings. A lower-count pass never substitutes for these
+   boundary cases.
+3. **Adversarial review:** the parent and fresh reviewer inspect joins, degradation, replay,
+   attribution, privacy, and coherent whole-chain substitutions before the expensive gates. A
+   green suite is not evidence that a missing hostile case is safe.
+4. **Focused gate:** after review findings are corrected, run the dedicated tests plus the affected
+   adjacency, privacy, stdio, replay, and evaluation files.
+5. **Bank gate:** run the applicable free architecture bank once for the completed chunk, not after
+   every provisional repair.
+6. **Complete gate:** run the full API-free repository suite on the final executable commit before
+   landing. If review changes executable code, schemas, fixtures, or generated inputs, repeat this
+   gate on the amended commit. A later documentation-only amendment may carry forward the verified
+   executable tree after an exact tree-delta check plus documentation, diff, and screenshot
+   freshness checks.
+
+The parent owns the independent focused and complete gates. A reviewer should run the dedicated
+and adversarial evidence needed for an independent verdict, but need not duplicate the complete
+suite unless the review contract or a finding makes that useful. CPU-heavy parent, reviewer, and
+bank runs should not contend in parallel when sequential execution will finish sooner.
+
+### 3.3 Parallel worktree protocol
 
 Parallel code writers are allowed, including within the same broad architectural area, when each
 writer has a separate Git worktree and branch. A shared checkout is suitable only for one writer;
@@ -141,7 +171,7 @@ non-blocking follow-up. Work that changes the same baseline, fixture corpus, sch
 promotion decision is integrated sequentially even when separate worktrees make concurrent coding
 safe.
 
-### 3.3 Chunk handoff contract
+### 3.4 Chunk handoff contract
 
 Every dispatched chunk should answer this template:
 
@@ -159,7 +189,7 @@ Every dispatched chunk should answer this template:
 The parent records the base and resulting commit in the progress log. A review handoff cites that
 commit rather than a moving branch so the reviewed bytes are unambiguous.
 
-### 3.4 Parallel non-blocking follow-ups
+### 3.5 Parallel non-blocking follow-ups
 
 Phase-local follow-up lists remain the source of architectural context. An open item enters this
 cross-phase register when it has explicit acceptance criteria and can proceed without changing the
@@ -1946,6 +1976,11 @@ here.
   runtime passed alongside 181 focused tests and all 821 API-free repository tests. Weighted
   traces remain ineligible for external promotion admission until complete-world provenance is
   certifiable. Phase 7E2A is next.
+- Validation cadence checkpoint: moved adversarial parent and fresh-agent review ahead of expensive
+  banks and the complete suite. Normal iteration now uses dedicated low-cost fixtures, then only
+  the high-player-count boundary cases required by the contract. The applicable free bank and full
+  API-free suite run once on the completed executable chunk; a later documentation-only amendment
+  may carry forward that evidence after an exact tree-delta and documentation hygiene check.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents
