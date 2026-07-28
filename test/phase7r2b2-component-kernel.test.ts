@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { structurallyHostileRecords } from './support/hostile-data.ts'
+import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import {
   attributeComponentPolicyUse,
   componentEnvelope,
@@ -198,6 +199,7 @@ function resolve(
   return resolveComposedBrain({
     requestedComponents: requested,
     hostCapabilities,
+    configuredPipeline: testConfiguredPipeline(),
   }, createDecisionComponentRegistry(definitions, { hostInputs }))
 }
 

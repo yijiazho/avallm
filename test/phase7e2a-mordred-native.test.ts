@@ -31,8 +31,10 @@ import {
   PRIVATE_PUBLIC_OBSERVER_INPUT,
 } from '../server/agents/components/legacy-role-adapters.ts'
 import {
+  projectPrivateResolvedComposedBrainLegacy,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
+import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import type {
   ComponentHostInputDefinition,
   ComponentHostInputToken,
@@ -166,7 +168,9 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
     'exact-public-observer-v1',
   )
   assert.equal(
-    agent.resolvedBrain().description.baseComponentVersions.observerModel,
+    projectPrivateResolvedComposedBrainLegacy(
+      agent.resolvedBrain().description,
+    ).baseComponentVersions.observerModel,
     'exact-public-observer-v1',
   )
   assert.equal(
@@ -697,6 +701,7 @@ test('missing roots degrade through generic status without changing policy', asy
   })
   const brain = resolveComposedBrain({
     requestedComponents: [MORDRED_BLINDNESS_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
   }, registry)
   const run = await runDecisionComponents(
     brain,
@@ -894,6 +899,7 @@ test('legal no-Merlin view admits treatment but not Mordred objective', async ()
   })
   const brain = resolveComposedBrain({
     requestedComponents: [MORDRED_BLINDNESS_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
   }, registry)
   const observer = observePublicRecord(projectPublicRecord(view))
   const run = await runDecisionComponents(brain, req, view, {
@@ -1028,6 +1034,7 @@ test('required-root brain contributions dedupe and reject unsupported models', (
   assert.equal(
     resolveComposedBrain({
       requestedComponents: [firstComponent.token, secondComponent.token],
+      configuredPipeline: testConfiguredPipeline(),
     }, deduped).description.base.observerModel,
     'exact-public-observer-v1',
   )
@@ -1053,6 +1060,7 @@ test('required-root brain contributions dedupe and reject unsupported models', (
     resolveComposedBrain({
       requestedComponents: [firstComponent.token],
       publicObserverConfigured: true,
+      configuredPipeline: testConfiguredPipeline(),
     }, deduped).description.base.observerModel,
     'exact-public-observer-v1',
   )
@@ -1064,6 +1072,7 @@ test('required-root brain contributions dedupe and reject unsupported models', (
   assert.equal(
     resolveComposedBrain({
       requestedComponents: [unrelated.token],
+      configuredPipeline: testConfiguredPipeline(),
     }, unrelatedRegistry).description.base.observerModel,
     'off',
   )

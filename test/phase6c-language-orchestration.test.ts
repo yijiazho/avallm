@@ -340,6 +340,11 @@ test('invalid interpreter version is not called and advances the public cursor',
     first.trace!.languageEvidence?.interpreterVersion,
     INVALID_LANGUAGE_INTERPRETER_VERSION,
   )
+  assert.equal(
+    agent.resolvedBrain().description.configuredPipeline
+      .belief.languageInterpreter,
+    first.trace!.languageEvidence?.interpreterVersion,
+  )
   assert.deepEqual(parseStdioDecisionReply(req, first), first)
   assert.equal(
     first.trace!.languageEvidence?.cursorThroughSeq,
@@ -378,6 +383,11 @@ test('runtime non-string interpreter versions fail closed before a call', async 
   assert.equal(
     output.trace!.languageEvidence?.interpreterVersion,
     INVALID_LANGUAGE_INTERPRETER_VERSION,
+  )
+  assert.equal(
+    agent.resolvedBrain().description.configuredPipeline
+      .belief.languageInterpreter,
+    output.trace!.languageEvidence?.interpreterVersion,
   )
   assert.deepEqual(parseStdioDecisionReply(req, output), output)
 })

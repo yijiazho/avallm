@@ -64,8 +64,10 @@ import {
   ComponentRegistryError,
 } from '../server/agents/components/registry.ts'
 import {
+  projectPrivateResolvedComposedBrainLegacy,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
+import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import type {
   ComponentRef,
 } from '../server/agents/components/types.ts'
@@ -615,6 +617,7 @@ test('applicability excludes no-Merlin, non-Mordred, and wrong-kind hosts', asyn
   })
   const brain = resolveComposedBrain({
     requestedComponents: [MORDRED_BLINDNESS_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
   }, registry)
   const cases: Array<{
     req: DecisionRequest
@@ -723,6 +726,7 @@ test('exact evidence is promotable; weighted and degraded native evidence is not
   })
   const brain = resolveComposedBrain({
     requestedComponents: [MORDRED_BLINDNESS_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
   }, registry)
   const degraded = await runDecisionComponents(
     brain,
@@ -928,7 +932,9 @@ test('resolved base, trace, and artifact agree on E2A observer metadata', async 
     treatment.observerModelVersion,
   )
   assert.equal(
-    agent.resolvedBrain().description.baseComponentVersions.observerModel,
+    projectPrivateResolvedComposedBrainLegacy(
+      agent.resolvedBrain().description,
+    ).baseComponentVersions.observerModel,
     treatment.observerModelVersion,
   )
   assert.equal(

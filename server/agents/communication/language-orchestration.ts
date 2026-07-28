@@ -30,7 +30,9 @@ function validInterpreterVersion(value: unknown): value is string {
     && INTERPRETER_VERSION_PATTERN.test(value)
 }
 
-function interpreterVersionIdentity(value: unknown): string {
+export function languageInterpreterVersionIdentity(
+  value: unknown,
+): string {
   return validInterpreterVersion(value)
     ? value
     : INVALID_LANGUAGE_INTERPRETER_VERSION
@@ -115,7 +117,7 @@ export async function orchestrateLanguageEvidence(
   const interpreterVersion: unknown = interpreter.interpreterVersion
   const effectiveVersion = expectedInterpreterVersion
   const traceInterpreterVersion =
-    interpreterVersionIdentity(effectiveVersion)
+    languageInterpreterVersionIdentity(effectiveVersion)
   let input: LanguageInterpreterInput
   try {
     input = projectLanguageInterpreterInput(view, cursor)

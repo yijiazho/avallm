@@ -129,6 +129,7 @@ import {
 import { buildCommitments } from './cognition/commitments.ts'
 import { extractEvidence } from './cognition/evidence.ts'
 import {
+  languageInterpreterVersionIdentity,
   orchestrateLanguageEvidence,
   type LanguageTraceAttribution,
 } from './communication/language-orchestration.ts'
@@ -204,6 +205,9 @@ import type {
 
 export const NO_PLANNER_VERSION = 'planner-off'
 export const NO_VOICE_VERSION = 'voice-off'
+export const CANDIDATE_PLANNER_PROTOCOL_VERSION =
+  'candidate-planner-protocol-v1'
+export const PLAN_VOICE_PROTOCOL_VERSION = 'plan-voice-protocol-v1'
 
 export interface PlannerInput {
   context: ComposedPolicyContext
@@ -1040,6 +1044,7 @@ export function createComposedAgent(
     version: CANDIDATE_SCORER_VERSION,
     score: scoreCandidates,
   })
+  const configuredScorerChain = scorerVersions(scorer)
   const goodRoleUtilityConfigured = scorerRequires(
     scorer,
     'roleUtilityRequirement',
@@ -1142,6 +1147,47 @@ export function createComposedAgent(
     hostCapabilities: [],
     scoreLayerOrder: [],
     decisionLayerOrder: [],
+    configuredPipeline: {
+      belief: {
+        model: beliefModel.version,
+        factors: beliefModel.factorsVersion,
+        languageInterpreter: configuredLanguageInterpreter
+          ? languageInterpreterVersionIdentity(configuredLanguageVersion)
+          : 'off',
+        languageFactor: languageFactor.version,
+      },
+      analysis: {
+        situation: SITUATION_ANALYSIS_VERSION,
+      },
+      candidateGeneration: {
+        legalCandidates: LEGAL_CANDIDATE_VERSION,
+      },
+      forcedPolicy: {
+        policy: FORCED_POLICY_VERSION,
+      },
+      scoring: {
+        configuredScorer: scorer.version,
+        configuredBaseChain: configuredScorerChain.slice(1),
+        invalidOutputFallback: CANDIDATE_SCORER_VERSION,
+      },
+      planning: {
+        protocol: CANDIDATE_PLANNER_PROTOCOL_VERSION,
+        decisionPlan: DECISION_PLAN_VERSION,
+      },
+      prompt: {
+        prompt: COMPOSED_PROMPT_VERSION,
+        renderer: COMPOSED_RENDERER_VERSION,
+      },
+      communication: {
+        intent: COMMUNICATION_INTENT_VERSION,
+        voiceProtocol: PLAN_VOICE_PROTOCOL_VERSION,
+      },
+      planCoherence: {
+        memory: planMemoryEnabled ? PLAN_MEMORY_VERSION : 'off',
+        model: planMemoryEnabled ? COHERENCE_MODEL_VERSION : 'off',
+        intent: coherenceIntent,
+      },
+    },
     languageEvidenceEnabled:
       configuredLanguageInterpreter !== undefined,
     publicObserverConfigured:
@@ -1168,17 +1214,7 @@ export function createComposedAgent(
         roleObjectiveRouter: roleObjectiveRouterConfigured,
         morganaCounterfeitObjectives: morganaCounterfeitConfigured,
         evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
-        planMemory: planMemoryEnabled,
-        coherenceIntent,
       },
-      beliefModel: {
-        version: beliefModel.version,
-        factorsVersion: beliefModel.factorsVersion,
-      },
-      languageInterpreterVersion:
-        configuredLanguageVersion ?? 'off',
-      languageFactorVersion: languageFactor.version,
-      scorerVersions: scorerVersions(scorer),
     },
   }, componentRegistry)
   const componentObserverConfigured =

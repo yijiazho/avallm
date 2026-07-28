@@ -48,6 +48,7 @@ import {
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { structurallyHostileRecords } from './support/hostile-data.ts'
+import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 
 const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'actor-target-treatment-read':
@@ -234,6 +235,7 @@ test('native production family conforms through execution and host join', async 
   })
   const brain = resolveComposedBrain({
     requestedComponents: [MORDRED_BLINDNESS_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
   }, registry)
   assert.deepEqual(
     brain.description.components.configured.map((entry) => entry.id),
