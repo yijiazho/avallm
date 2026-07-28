@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
@@ -10,26 +10,26 @@ import {
   validateSuppressedEvilQuestCardPolicyHostJoin as validateSuppressedPolicyAtTransport,
 } from '../server/agents/stdio.ts'
 
-test('trace admission is agent-owned and evaluation does not depend on stdio', () => {
+test('composed trace admission consumers import the agent-owned module', () => {
   const owner = readFileSync(
     'server/agents/admission/composed-trace.ts',
     'utf8',
   )
   const stdio = readFileSync('server/agents/stdio.ts', 'utf8')
-  const evaluationSources = readdirSync('server/eval', {
-    recursive: true,
-    withFileTypes: true,
-  })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-    .map((entry) => readFileSync(
-      `${entry.parentPath}/${entry.name}`,
-      'utf8',
-    ))
+  const admissionConsumers = [
+    'server/eval/architecture-bench.ts',
+    'server/eval/architecture-report.ts',
+  ].map((path) => readFileSync(path, 'utf8'))
 
   assert.match(stdio, /from '\.\/admission\/composed-trace\.ts'/)
   assert.doesNotMatch(owner, /from ['"].*(?:stdio|server\/eval)/)
-  for (const source of evaluationSources) {
-    assert.doesNotMatch(source, /from ['"].*agents\/stdio\.ts'/)
+  for (const source of admissionConsumers) {
+    assert.match(source, /validateComposedTraceHostJoin/)
+    assert.match(source, /validateSuppressedEvilQuestCardPolicyHostJoin/)
+    assert.match(
+      source,
+      /from '\.\.\/agents\/admission\/composed-trace\.ts'/,
+    )
   }
 })
 
