@@ -14,6 +14,9 @@ import { createAgent } from '../server/agents/registry.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { decisionTraceIdForRequest } from '../server/agents/trace.ts'
 import { DECISION_COMPONENT_RUN_VERSION } from '../server/agents/components/kernel.ts'
+import {
+  ACTOR_TARGET_TREATMENT_COMPONENT,
+} from '../server/agents/components/native-role-components.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
@@ -98,6 +101,52 @@ test('composed engine runs in ownership order and attributes every component', a
     (output.decision as Extract<Decision, { kind: 'propose' }>).team,
   )
   assert.ok(Number.isFinite(output.trace!.relevantTeam!.cleanProbability))
+})
+
+test('generic observer roots stage only on causal use', async () => {
+  const proposal = fixture('merlin-opening-proposal')
+  const baseline = await createComposedAgent({
+    seed: proposal.source.seed,
+  }).decide(proposal.req, proposal.view)
+  const genericStages: string[] = []
+  const generic = await createComposedAgent({
+    seed: proposal.source.seed,
+    decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+    onStage: (stage) => genericStages.push(stage),
+  }).decide(proposal.req, proposal.view)
+  assert.deepEqual(generic.decision, baseline.decision)
+  assert.ok(
+    genericStages.indexOf('observer')
+      > genericStages.indexOf('candidates'),
+  )
+
+  const legacyStages: string[] = []
+  await createComposedAgent({
+    seed: proposal.source.seed,
+    publicObserver: true,
+    decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+    onStage: (stage) => legacyStages.push(stage),
+  }).decide(proposal.req, proposal.view)
+  assert.ok(
+    legacyStages.indexOf('observer')
+      < legacyStages.indexOf('analysis'),
+  )
+
+  const quest = readDecisionFixtures().find(
+    (candidate) => candidate.req.kind === 'quest',
+  )
+  assert.ok(quest)
+  const inapplicableStages: string[] = []
+  const inapplicable = await createComposedAgent({
+    seed: quest.source.seed,
+    decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+    onStage: (stage) => inapplicableStages.push(stage),
+  }).decide(quest.req, quest.view)
+  assert.equal(
+    inapplicable.trace!.components!.entries[0].status,
+    'inapplicable',
+  )
+  assert.equal(inapplicableStages.includes('observer'), false)
 })
 
 test('candidate scoring is deterministic and JSON-safe', async () => {

@@ -24,6 +24,7 @@ import type {
   ComponentDependencyReader,
   ComponentHostInputBinding,
   ComponentHostInputDefinition,
+  ComponentHostInputRef,
   ComponentHostInputReader,
   ComponentHostInputToken,
   ComponentHostInputValidationResult,
@@ -136,6 +137,21 @@ type AnyHostInputDefinition = ComponentHostInputDefinition<any>
 export interface DecisionComponentInvocation {
   readonly hostInputs?:
     readonly ComponentHostInputBinding<unknown>[]
+}
+
+/**
+ * In-process-only root supplier. Unlike DecisionComponentInvocation this
+ * binding is trusted executable state and must never be serialized into a
+ * descriptor, trace, artifact, or stdio message.
+ */
+export interface DecisionComponentTrustedHostInputProvider<Value = unknown> {
+  readonly input: ComponentHostInputToken<Value>
+  readonly provide: () => Value | undefined
+}
+
+export interface DecisionComponentTrustedHostInputProviders {
+  readonly providers?:
+    readonly DecisionComponentTrustedHostInputProvider<unknown>[]
 }
 
 export interface DecisionComponentRunHostJoinInput {
@@ -285,16 +301,82 @@ function parseHostInputValidation<Value>(
   }
 }
 
-interface PreparedHostInputs {
-  readonly values: ReadonlyMap<string, unknown>
-  readonly missing: ReadonlySet<string>
-  readonly invalid: ReadonlySet<string>
+type HostInputSource =
+  | Readonly<{ kind: 'value'; value: unknown }>
+  | Readonly<{ kind: 'provider'; provide: () => unknown }>
+
+type HostInputState =
+  | Readonly<{ status: 'unresolved'; source?: HostInputSource }>
+  | Readonly<{ status: 'missing' }>
+  | Readonly<{ status: 'invalid' }>
+  | Readonly<{ status: 'admitted'; value: unknown }>
+
+interface PreparedHostInputSources {
+  readonly states: Map<string, HostInputState>
+  readonly definitions: ReadonlyMap<string, AnyHostInputDefinition>
 }
 
-function prepareHostInputs(
-  brain: ResolvedComposedBrain,
+function registerHostInputSource(
+  input: unknown,
+  source: HostInputSource,
+  label: string,
+  requiredByKey: ReadonlyMap<string, ComponentHostInputRef>,
+  requiredById: ReadonlyMap<string, ComponentHostInputRef>,
+  sources: Map<string, HostInputSource>,
+): void {
+  const token = exactOwnDataRecord(
+    input,
+    ['id', 'privacy', 'version'],
+  )
+  if (
+    !token
+    || typeof token.id !== 'string'
+    || typeof token.version !== 'string'
+    || !['public', 'private'].includes(token.privacy as string)
+  ) {
+    throw new DecisionComponentInvocationError(
+      'malformed-host-input-binding',
+      `${label} has a malformed token`,
+    )
+  }
+  const key = componentIdentityKey({
+    id: token.id,
+    version: token.version,
+  })
+  const required = requiredByKey.get(key)
+  if (!required) {
+    if (requiredById.has(token.id)) {
+      throw new DecisionComponentInvocationError(
+        'host-input-tag-substitution',
+        `${label} substitutes the version for ${token.id}`,
+      )
+    }
+    throw new DecisionComponentInvocationError(
+      'unknown-host-input-binding',
+      `${label} is not required by the resolved brain`,
+    )
+  }
+  if (required.privacy !== token.privacy) {
+    throw new DecisionComponentInvocationError(
+      'host-input-tag-substitution',
+      `${label} substitutes privacy for ${key}`,
+    )
+  }
+  if (sources.has(key)) {
+    throw new DecisionComponentInvocationError(
+      'duplicate-host-input-binding',
+      `host input ${key} is bound more than once`,
+    )
+  }
+  sources.set(key, source)
+}
+
+function prepareHostInputSources(
+  requiredHostInputs: readonly ComponentHostInputRef[],
+  hostInputDefinitions: readonly AnyHostInputDefinition[],
   invocation: DecisionComponentInvocation | undefined,
-): PreparedHostInputs {
+  trusted: DecisionComponentTrustedHostInputProviders | undefined,
+): PreparedHostInputSources {
   let bindingValues: readonly unknown[] = []
   if (invocation !== undefined) {
     const empty = exactOwnDataRecord(invocation, [])
@@ -319,25 +401,49 @@ function prepareHostInputs(
     }
   }
 
+  let providerValues: readonly unknown[] = []
+  if (trusted !== undefined) {
+    const empty = exactOwnDataRecord(trusted, [])
+    const record = empty
+      ? undefined
+      : exactOwnDataRecord(trusted, ['providers'])
+    if (!empty && !record) {
+      throw new DecisionComponentInvocationError(
+        'malformed-invocation',
+        'trusted host input providers must contain only providers',
+      )
+    }
+    if (record && record.providers !== undefined) {
+      const entries = denseOwnDataArrayValues(record.providers)
+      if (!entries) {
+        throw new DecisionComponentInvocationError(
+          'malformed-invocation',
+          'trusted host input providers must be a plain dense array',
+        )
+      }
+      providerValues = entries
+    }
+  }
+
   const requiredByKey = new Map(
-    brain.description.requiredHostInputs.map((input) => [
+    requiredHostInputs.map((input) => [
       componentIdentityKey(input),
       input,
     ]),
   )
   const requiredById = new Map(
-    brain.description.requiredHostInputs.map((input) => [
+    requiredHostInputs.map((input) => [
       input.id,
       input,
     ]),
   )
   const definitions = new Map(
-    brain.hostInputDefinitions.map((definition) => [
+    hostInputDefinitions.map((definition) => [
       componentIdentityKey(definition.token),
       definition,
     ]),
   )
-  const boundByKey = new Map<string, unknown>()
+  const sources = new Map<string, HostInputSource>()
 
   for (let index = 0; index < bindingValues.length; index++) {
     const binding = exactOwnDataRecord(
@@ -350,106 +456,144 @@ function prepareHostInputs(
         `host input binding ${index} must be a plain tagged data record`,
       )
     }
-    const token = exactOwnDataRecord(
+    registerHostInputSource(
       binding.input,
-      ['id', 'privacy', 'version'],
+      { kind: 'value', value: binding.value },
+      `host input binding ${index}`,
+      requiredByKey,
+      requiredById,
+      sources,
     )
-    if (
-      !token
-      || typeof token.id !== 'string'
-      || typeof token.version !== 'string'
-      || !['public', 'private'].includes(token.privacy as string)
-    ) {
-      throw new DecisionComponentInvocationError(
-        'malformed-host-input-binding',
-        `host input binding ${index} has a malformed token`,
-      )
-    }
-    const key = componentIdentityKey({
-      id: token.id,
-      version: token.version,
-    })
-    const required = requiredByKey.get(key)
-    if (!required) {
-      if (requiredById.has(token.id)) {
-        throw new DecisionComponentInvocationError(
-          'host-input-tag-substitution',
-          `host input binding ${index} substitutes the version for ${token.id}`,
-        )
-      }
-      throw new DecisionComponentInvocationError(
-        'unknown-host-input-binding',
-        `host input binding ${index} is not required by the resolved brain`,
-      )
-    }
-    if (required.privacy !== token.privacy) {
-      throw new DecisionComponentInvocationError(
-        'host-input-tag-substitution',
-        `host input binding ${index} substitutes privacy for ${key}`,
-      )
-    }
-    if (boundByKey.has(key)) {
-      throw new DecisionComponentInvocationError(
-        'duplicate-host-input-binding',
-        `host input ${key} is bound more than once`,
-      )
-    }
-    boundByKey.set(key, binding.value)
   }
 
-  const values = new Map<string, unknown>()
-  const missing = new Set<string>()
-  const invalid = new Set<string>()
-  for (const input of brain.description.requiredHostInputs) {
+  for (let index = 0; index < providerValues.length; index++) {
+    const binding = exactOwnDataRecord(
+      providerValues[index],
+      ['input', 'provide'],
+    )
+    if (!binding || typeof binding.provide !== 'function') {
+      throw new DecisionComponentInvocationError(
+        'malformed-host-input-binding',
+        `trusted host input provider ${index} must be a tagged callback`,
+      )
+    }
+    registerHostInputSource(
+      binding.input,
+      {
+        kind: 'provider',
+        provide: binding.provide as () => unknown,
+      },
+      `trusted host input provider ${index}`,
+      requiredByKey,
+      requiredById,
+      sources,
+    )
+  }
+
+  const states = new Map<string, HostInputState>()
+  for (const input of requiredHostInputs) {
     const key = componentIdentityKey(input)
-    if (!boundByKey.has(key)) {
-      missing.add(key)
-      continue
-    }
-    const definition = definitions.get(key)
-    if (!definition) {
-      invalid.add(key)
-      continue
-    }
-    const source = canonicalizeJson(
-      boundByKey.get(key),
-      definition.maxPayloadBytes,
+    const source = sources.get(key)
+    states.set(
+      key,
+      source
+        ? { status: 'unresolved', source }
+        : { status: 'unresolved' },
     )
-    if (!source.ok) {
-      invalid.add(key)
-      continue
-    }
-    let validation: unknown
-    try {
-      validation = definition.validate(source.payload)
-    } catch {
-      invalid.add(key)
-      continue
-    }
-    const parsed = parseHostInputValidation(validation)
-    if (!parsed?.valid) {
-      invalid.add(key)
-      continue
-    }
-    const validated = canonicalizeJson(
-      parsed.value,
-      definition.maxPayloadBytes,
-    )
-    if (!validated.ok) {
-      invalid.add(key)
-      continue
-    }
-    if (!canonicalJsonEqual(source.payload, validated.payload)) {
-      invalid.add(key)
-      continue
-    }
-    values.set(key, validated.payload)
   }
   return {
-    values,
-    missing,
-    invalid,
+    states,
+    definitions,
   }
+}
+
+function resolveHostInput(
+  prepared: PreparedHostInputSources,
+  input: ComponentHostInputRef,
+): HostInputState {
+  const key = componentIdentityKey(input)
+  const prior = prepared.states.get(key)
+  if (!prior || prior.status !== 'unresolved') {
+    return prior ?? { status: 'invalid' }
+  }
+  if (!prior.source) {
+    const missing: HostInputState = { status: 'missing' }
+    prepared.states.set(key, missing)
+    return missing
+  }
+
+  let value: unknown
+  if (prior.source.kind === 'provider') {
+    try {
+      value = prior.source.provide()
+    } catch {
+      const invalid: HostInputState = { status: 'invalid' }
+      prepared.states.set(key, invalid)
+      return invalid
+    }
+  } else {
+    value = prior.source.value
+  }
+  if (value === undefined) {
+    const missing: HostInputState = { status: 'missing' }
+    prepared.states.set(key, missing)
+    return missing
+  }
+
+  const definition = prepared.definitions.get(key)
+  if (!definition) {
+    const invalid: HostInputState = { status: 'invalid' }
+    prepared.states.set(key, invalid)
+    return invalid
+  }
+  const source = canonicalizeJson(value, definition.maxPayloadBytes)
+  if (!source.ok) {
+    const invalid: HostInputState = { status: 'invalid' }
+    prepared.states.set(key, invalid)
+    return invalid
+  }
+  let validation: unknown
+  try {
+    validation = definition.validate(source.payload)
+  } catch {
+    const invalid: HostInputState = { status: 'invalid' }
+    prepared.states.set(key, invalid)
+    return invalid
+  }
+  const parsed = parseHostInputValidation(validation)
+  if (!parsed?.valid) {
+    const invalid: HostInputState = { status: 'invalid' }
+    prepared.states.set(key, invalid)
+    return invalid
+  }
+  const validated = canonicalizeJson(
+    parsed.value,
+    definition.maxPayloadBytes,
+  )
+  if (
+    !validated.ok
+    || !canonicalJsonEqual(source.payload, validated.payload)
+  ) {
+    const invalid: HostInputState = { status: 'invalid' }
+    prepared.states.set(key, invalid)
+    return invalid
+  }
+  const admitted: HostInputState = {
+    status: 'admitted',
+    value: validated.payload,
+  }
+  prepared.states.set(key, admitted)
+  return admitted
+}
+
+function admittedHostInputValues(
+  prepared: PreparedHostInputSources,
+): ReadonlyMap<string, unknown> {
+  const values = new Map<string, unknown>()
+  for (const [key, state] of prepared.states) {
+    if (state.status === 'admitted') values.set(key, state.value)
+  }
+  return values
 }
 
 function parseAdmission<Payload>(
@@ -725,30 +869,20 @@ export function validateDecisionComponentRunHostJoin(
         definition,
       ]),
     )
-    const hostInputValues = new Map<string, unknown>()
-    for (const binding of hostInputs) {
-      const definition = registry.hostInputDefinition(binding.input)
-      const key = componentIdentityKey(binding.input)
-      if (!definition || hostInputValues.has(key)) return false
-      const source = canonicalizeJson(
-        binding.value,
-        definition.maxPayloadBytes,
-      )
-      if (!source.ok) return false
-      const parsed = parseHostInputValidation(
-        definition.validate(source.payload),
-      )
-      if (!parsed?.valid) return false
-      const validated = canonicalizeJson(
-        parsed.value,
-        definition.maxPayloadBytes,
-      )
-      if (
-        !validated.ok
-        || !canonicalJsonEqual(source.payload, validated.payload)
-      ) return false
-      hostInputValues.set(key, validated.payload)
+    const requiredHostInputs = new Map<string, ComponentHostInputRef>()
+    for (const ref of run.configured) {
+      const definition = definitions.get(componentIdentityKey(ref))
+      if (!definition) return false
+      for (const root of definition.requiredHostInputs) {
+        requiredHostInputs.set(componentIdentityKey(root), root)
+      }
     }
+    const preparedHostInputs = prepareHostInputSources(
+      [...requiredHostInputs.values()],
+      [...hostInputDefinitions.values()],
+      { hostInputs },
+      undefined,
+    )
 
     const admitted = new Map<string, DecisionComponentEntry>()
     const publicDecision = frozenInput({ kind: request.kind })
@@ -796,23 +930,22 @@ export function validateDecisionComponentRunHostJoin(
       }
       if (entry.status === 'inapplicable') return false
       if (entry.status === 'suppressed') {
+        const rootStates = definition.requiredHostInputs.map((root) =>
+          resolveHostInput(preparedHostInputs, root))
         if (
           !definition.admitSuppressed
           || !definition.dependencies.every(
             (dependency) =>
               admitted.has(componentIdentityKey(dependency)),
           )
-          || !definition.requiredHostInputs.every(
-            (root) =>
-              hostInputValues.has(componentIdentityKey(root)),
-          )
+          || rootStates.some((root) => root.status !== 'admitted')
         ) return false
         const context = executionContextFor(
           applicability,
           definition,
           admitted,
           definitions,
-          hostInputValues,
+          admittedHostInputValues(preparedHostInputs),
           hostInputDefinitions,
         )
         if (!definition.admitSuppressed({
@@ -853,10 +986,10 @@ export function validateDecisionComponentRunHostJoin(
         (dependency) =>
           admitted.has(componentIdentityKey(dependency)),
       )) return false
-      const rootsAvailable = definition.requiredHostInputs.every(
-        (root) => hostInputValues.has(componentIdentityKey(root)),
-      )
-      if (!rootsAvailable) {
+      const rootStates = definition.requiredHostInputs.map((root) =>
+        resolveHostInput(preparedHostInputs, root))
+      if (rootStates.some((root) => root.status === 'invalid')) return false
+      if (rootStates.some((root) => root.status === 'missing')) {
         if (
           entry.verification !== 'structural'
           || entry.promotionEligible
@@ -870,7 +1003,7 @@ export function validateDecisionComponentRunHostJoin(
         definition,
         admitted,
         definitions,
-        hostInputValues,
+        admittedHostInputValues(preparedHostInputs),
         hostInputDefinitions,
       )
       const host = parseAdmission(definition.admitHost({
@@ -929,8 +1062,14 @@ export async function runDecisionComponents(
   request: DecisionRequest,
   view: PlayerView,
   invocation?: DecisionComponentInvocation,
+  trusted?: DecisionComponentTrustedHostInputProviders,
 ): Promise<DecisionComponentRun> {
-  const preparedHostInputs = prepareHostInputs(brain, invocation)
+  const preparedHostInputs = prepareHostInputSources(
+    brain.description.requiredHostInputs,
+    brain.hostInputDefinitions,
+    invocation,
+    trusted,
+  )
   if (brain.configuredDefinitions.length === 0) {
     return EMPTY_COMPONENT_RUN
   }
@@ -1031,24 +1170,16 @@ export async function runDecisionComponents(
       ))
       continue
     }
-    if (
-      definition.requiredHostInputs.some((input) =>
-        preparedHostInputs.missing.has(
-          componentIdentityKey(input),
-        ))
-    ) {
+    const roots = definition.requiredHostInputs.map((input) =>
+      resolveHostInput(preparedHostInputs, input))
+    if (roots.some((root) => root.status === 'missing')) {
       entries.push(degradation(
         definition,
         'host-input-unavailable',
       ))
       continue
     }
-    if (
-      definition.requiredHostInputs.some((input) =>
-        preparedHostInputs.invalid.has(
-          componentIdentityKey(input),
-        ))
-    ) {
+    if (roots.some((root) => root.status === 'invalid')) {
       entries.push(degradation(
         definition,
         'host-input-invalid',
@@ -1060,7 +1191,7 @@ export async function runDecisionComponents(
       definition,
       admitted,
       definitions,
-      preparedHostInputs.values,
+      admittedHostInputValues(preparedHostInputs),
       hostInputDefinitions,
     )
     let result: unknown

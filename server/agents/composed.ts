@@ -85,6 +85,7 @@ import {
   runDecisionComponents,
   type DecisionComponentPlan,
   type DecisionComponentRun,
+  type DecisionComponentTrustedHostInputProvider,
 } from './components/kernel.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
@@ -1551,13 +1552,18 @@ export function createComposedAgent(
           || evilRoleObjectiveApplicable
           || morganaCounterfeitApplicable
         )
-        const publicObserver = (
-          legacyPublicObserverApplicable
-          || requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)
-        )
-          ? observePublicRecord(projectPublicRecord(view))
-          : undefined
-        if (publicObserver) stage('observer')
+        let publicObserver: PublicObserverSnapshot | undefined
+        const providePublicObserver = (): PublicObserverSnapshot => {
+          if (!publicObserver) {
+            publicObserver =
+              observePublicRecord(projectPublicRecord(view))
+            stage('observer')
+          }
+          return publicObserver
+        }
+        if (legacyPublicObserverApplicable) {
+          providePublicObserver()
+        }
         let analysis = analyzeSituation(view, {
           belief: cognition.belief,
           evidence: cognition.evidence,
@@ -1615,69 +1621,59 @@ export function createComposedAgent(
           PrivateEvilQuestCardPolicy | undefined
         const universalForced =
           applyForcedPolicy(req, view, analysis, candidates)
+        const beliefRoot = cognition.belief
         let forced = universalForced
         const configuredComponentIds = new Set(
           resolvedBrain.description.components.configured.map(
             (component) => component.id,
           ),
         )
-        const hostInputs = [
-          ...(
-            requiresHostInput(PRIVATE_IDENTITY_INPUT)
-            && privateIdentity
-              ? [{
-                  input: PRIVATE_IDENTITY_INPUT,
-                  value: privateIdentity,
-                }]
-              : []
-          ),
-          ...(
-            requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)
-            && publicObserver
-              ? [{
-                  input: PRIVATE_PUBLIC_OBSERVER_INPUT,
-                  value: publicObserver,
-                }]
-              : []
-          ),
-          ...(
-            requiresHostInput(PRIVATE_BELIEF_INPUT)
-              ? [{
-                  input: PRIVATE_BELIEF_INPUT,
-                  value: cognition.belief,
-                }]
-              : []
-          ),
-          ...(
-            requiresHostInput(PRIVATE_SITUATION_INPUT)
-              ? [{
-                  input: PRIVATE_SITUATION_INPUT,
-                  value: analysis,
-                }]
-              : []
-          ),
-          ...(
-            requiresHostInput(PRIVATE_FORCED_POLICY_INPUT)
-              ? [{
-                  input: PRIVATE_FORCED_POLICY_INPUT,
-                  value: universalForced,
-                }]
-              : []
-          ),
-          ...(
-            requiresHostInput(PRIVATE_DETERMINISTIC_SEED_INPUT)
-              ? [{
-                  input: PRIVATE_DETERMINISTIC_SEED_INPUT,
-                  value: seed,
-                }]
-              : []
-          ),
-        ]
+        const trustedHostInputProviders:
+        DecisionComponentTrustedHostInputProvider<unknown>[] = []
+        if (requiresHostInput(PRIVATE_IDENTITY_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_IDENTITY_INPUT,
+            provide: () => privateIdentity,
+          })
+        }
+        if (requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_PUBLIC_OBSERVER_INPUT,
+            provide: providePublicObserver,
+          })
+        }
+        if (requiresHostInput(PRIVATE_BELIEF_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_BELIEF_INPUT,
+            provide: () => beliefRoot,
+          })
+        }
+        if (requiresHostInput(PRIVATE_SITUATION_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_SITUATION_INPUT,
+            provide: () => analysis,
+          })
+        }
+        if (requiresHostInput(PRIVATE_FORCED_POLICY_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_FORCED_POLICY_INPUT,
+            provide: () => universalForced,
+          })
+        }
+        if (requiresHostInput(PRIVATE_DETERMINISTIC_SEED_INPUT)) {
+          trustedHostInputProviders.push({
+            input: PRIVATE_DETERMINISTIC_SEED_INPUT,
+            provide: () => seed,
+          })
+        }
         let decisionComponents = await runDecisionComponents(
           resolvedBrain,
           req,
           view,
-          hostInputs.length ? { hostInputs } : undefined,
+          undefined,
+          trustedHostInputProviders.length
+            ? { providers: trustedHostInputProviders }
+            : undefined,
         )
         const genericPublicObserverApplicable =
           decisionComponents.entries.some(

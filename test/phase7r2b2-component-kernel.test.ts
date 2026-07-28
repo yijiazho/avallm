@@ -10,6 +10,7 @@ import {
   publicDecisionComponentRun,
   runDecisionComponents,
   type DecisionComponentRun,
+  type DecisionComponentTrustedHostInputProvider,
   validateDecisionComponentRunHostJoin,
 } from '../server/agents/components/kernel.ts'
 import {
@@ -723,6 +724,399 @@ test('missing or invalid roots degrade only applicable consumers', async () => {
     assert.equal(byId[irrelevant.id].status, 'inapplicable')
     assert.equal(executions, 1)
   }
+})
+
+test('trusted root providers stay dormant before execution eligibility', async () => {
+  const cases = [
+    {
+      id: 'lazy-root.inapplicable',
+      applies: () => false as ComponentApplicability,
+      hostRequirements: [] as string[],
+      dependencies: [] as ComponentRef[],
+      failingDependency: false,
+      expected: 'inapplicable',
+    },
+    {
+      id: 'lazy-root.suppressed',
+      applies: () => ({
+        status: 'suppressed' as const,
+        reasonCode: 'already-decided',
+      }),
+      hostRequirements: [] as string[],
+      dependencies: [] as ComponentRef[],
+      failingDependency: false,
+      expected: 'suppressed',
+    },
+    {
+      id: 'lazy-root.construction-ineligible',
+      applies: () => true as ComponentApplicability,
+      hostRequirements: ['missing-capability'],
+      dependencies: [] as ComponentRef[],
+      failingDependency: false,
+      expected: 'construction-ineligible',
+    },
+    {
+      id: 'lazy-root.dependency-degraded',
+      applies: () => true as ComponentApplicability,
+      hostRequirements: [] as string[],
+      dependencies: [SIGNAL_TOKEN] as ComponentRef[],
+      failingDependency: true,
+      expected: 'dependency-unavailable',
+    },
+  ] as const
+  const { request, view } = fixture()
+
+  for (const candidate of cases) {
+    let providerCalls = 0
+    const token: ComponentToken<null> = {
+      id: candidate.id,
+      version: 'v1',
+      kind: 'projection',
+      privacy: 'private',
+    }
+    const consumer = definition({
+      token,
+      requiredHostInputs: [SEED_INPUT],
+      dependencies: candidate.dependencies,
+      hostRequirements: candidate.hostRequirements,
+      applies: candidate.applies,
+      execute: () => assert.fail('ineligible component executed'),
+    })
+    const definitions = candidate.failingDependency
+      ? [
+          definition({
+            token: SIGNAL_TOKEN,
+            execute() {
+              throw new Error('expected dependency failure')
+            },
+          }),
+          consumer,
+        ]
+      : [consumer]
+    const brain = resolve(
+      definitions,
+      [token],
+      [],
+      [SEED_INPUT_DEFINITION],
+    )
+    const run = await runDecisionComponents(
+      brain,
+      request,
+      view,
+      undefined,
+      {
+        providers: [{
+          input: SEED_INPUT,
+          provide() {
+            providerCalls++
+            return { seed: 'must-stay-unread' }
+          },
+        }],
+      },
+    )
+
+    assert.equal(providerCalls, 0, candidate.id)
+    const entry = run.entries.at(-1)!
+    assert.equal(
+      entry.status === 'degraded'
+        ? entry.failureCode
+        : entry.status,
+      candidate.expected,
+      candidate.id,
+    )
+  }
+})
+
+test('trusted roots resolve once and preserve unavailable before invalid', async () => {
+  const otherInput: ComponentHostInputToken<{ label: string }> = {
+    id: 'runtime.other-root',
+    version: 'v1',
+    privacy: 'private',
+  }
+  const otherDefinition = hostInputDefinition(
+    otherInput,
+    (value) => {
+      const record = value as Record<string, unknown>
+      return record
+        && typeof record.label === 'string'
+        && Object.keys(record).length === 1
+        ? { valid: true, value: { label: record.label } }
+        : { valid: false, degradationCode: 'invalid-other-root' }
+    },
+  )
+  const firstToken: ComponentToken<{ seed: string }> = {
+    id: 'lazy-root.first-consumer',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  }
+  const secondToken: ComponentToken<{ seed: string }> = {
+    id: 'lazy-root.second-consumer',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  }
+  const consumers = [firstToken, secondToken].map((token) =>
+    definition({
+      token,
+      requiredHostInputs: [SEED_INPUT],
+      execute(context) {
+        return {
+          status: 'produced',
+          envelope: componentEnvelope(token, {
+            seed: context.hostInputs.require(SEED_INPUT).seed,
+          }),
+        }
+      },
+    }))
+  let validationCalls = 0
+  const countingSeedDefinition = hostInputDefinition(
+    SEED_INPUT,
+    (value) => {
+      validationCalls++
+      return SEED_INPUT_DEFINITION.validate(value)
+    },
+  )
+  const sharedBrain = resolve(
+    consumers,
+    consumers.map((component) => component.token),
+    [],
+    [countingSeedDefinition],
+  )
+  const { request, view } = fixture()
+  let sharedCalls = 0
+  const shared = await runDecisionComponents(
+    sharedBrain,
+    request,
+    view,
+    undefined,
+    {
+      providers: [{
+        input: SEED_INPUT,
+        provide() {
+          sharedCalls++
+          return { seed: 'shared' }
+        },
+      }],
+    },
+  )
+  assert.equal(sharedCalls, 1)
+  assert.equal(validationCalls, 1)
+  assert.deepEqual(
+    shared.entries.map((entry) => entry.status),
+    ['admitted', 'admitted'],
+  )
+
+  let throwingCalls = 0
+  const throwing = await runDecisionComponents(
+    sharedBrain,
+    request,
+    view,
+    undefined,
+    {
+      providers: [{
+        input: SEED_INPUT,
+        provide() {
+          throwingCalls++
+          throw new Error('private provider failure')
+        },
+      }],
+    },
+  )
+  assert.equal(throwingCalls, 1)
+  assert.deepEqual(
+    throwing.entries.map((entry) =>
+      entry.status === 'degraded'
+        ? entry.failureCode
+        : entry.status),
+    ['host-input-invalid', 'host-input-invalid'],
+  )
+  assert.doesNotMatch(JSON.stringify(throwing), /private provider failure/)
+
+  let undefinedCalls = 0
+  const unavailable = await runDecisionComponents(
+    sharedBrain,
+    request,
+    view,
+    undefined,
+    {
+      providers: [{
+        input: SEED_INPUT,
+        provide() {
+          undefinedCalls++
+          return undefined
+        },
+      }],
+    },
+  )
+  assert.equal(undefinedCalls, 1)
+  assert.deepEqual(
+    unavailable.entries.map((entry) =>
+      entry.status === 'degraded'
+        ? entry.failureCode
+        : entry.status),
+    ['host-input-unavailable', 'host-input-unavailable'],
+  )
+
+  const precedenceToken: ComponentToken<null> = {
+    id: 'lazy-root.precedence',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  }
+  const precedenceBrain = resolve([
+    definition({
+      token: precedenceToken,
+      requiredHostInputs: [SEED_INPUT, otherInput],
+      execute: () => assert.fail('unavailable roots reached execution'),
+    }),
+  ], [precedenceToken], [], [
+    SEED_INPUT_DEFINITION,
+    otherDefinition,
+  ])
+  let missingCalls = 0
+  let invalidCalls = 0
+  const precedence = await runDecisionComponents(
+    precedenceBrain,
+    request,
+    view,
+    undefined,
+    {
+      providers: [
+        {
+          input: SEED_INPUT,
+          provide() {
+            missingCalls++
+            return undefined
+          },
+        },
+        {
+          input: otherInput,
+          provide() {
+            invalidCalls++
+            throw new Error('private provider failure')
+          },
+        },
+      ],
+    },
+  )
+  assert.equal(missingCalls, 1)
+  assert.equal(invalidCalls, 1)
+  assert.equal(
+    precedence.entries[0].status === 'degraded'
+      ? precedence.entries[0].failureCode
+      : undefined,
+    'host-input-unavailable',
+  )
+  assert.doesNotMatch(
+    JSON.stringify(precedence),
+    /private provider failure/,
+  )
+})
+
+test('trusted and detached root bindings produce the same exact run', async () => {
+  const token: ComponentToken<{ seed: string }> = {
+    id: 'lazy-root.detached-equivalence',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  }
+  const component = definition({
+    token,
+    requiredHostInputs: [SEED_INPUT],
+    execute(context) {
+      return {
+        status: 'produced',
+        envelope: componentEnvelope(token, {
+          seed: context.hostInputs.require(SEED_INPUT).seed,
+        }),
+      }
+    },
+  })
+  const brain = resolve(
+    [component],
+    [token],
+    [],
+    [SEED_INPUT_DEFINITION],
+  )
+  const { request, view } = fixture()
+  const detached = await runDecisionComponents(
+    brain,
+    request,
+    view,
+    {
+      hostInputs: [{
+        input: SEED_INPUT,
+        value: { seed: 'same-root' },
+      }],
+    },
+  )
+  let calls = 0
+  const provider:
+  DecisionComponentTrustedHostInputProvider<unknown> = {
+    input: SEED_INPUT,
+    provide() {
+      calls++
+      return { seed: 'same-root' }
+    },
+  }
+  const trusted = await runDecisionComponents(
+    brain,
+    request,
+    view,
+    undefined,
+    { providers: [provider] },
+  )
+
+  assert.equal(calls, 1)
+  assert.deepEqual(trusted, detached)
+  assert.equal(JSON.stringify(trusted), JSON.stringify(detached))
+  assert.doesNotMatch(JSON.stringify(trusted), /provide|runtime\.seed/)
+})
+
+test('host join does not inspect roots of inapplicable components', async () => {
+  const token: ComponentToken<null> = {
+    id: 'lazy-root.unused-host-join',
+    version: 'v1',
+    kind: 'observer',
+    privacy: 'private',
+  }
+  const component = definition({
+    token,
+    requiredHostInputs: [SEED_INPUT],
+    applies: () => false,
+    execute: () => assert.fail('inapplicable component executed'),
+  })
+  const registry = createDecisionComponentRegistry(
+    [component],
+    { hostInputs: [SEED_INPUT_DEFINITION] },
+  )
+  const brain = resolve(
+    [component],
+    [token],
+    [],
+    [SEED_INPUT_DEFINITION],
+  )
+  const { request, view } = fixture()
+  const run = await runDecisionComponents(brain, request, view)
+  const hostileUnusedValue = Object.create(null)
+  Object.defineProperty(hostileUnusedValue, 'seed', {
+    enumerable: true,
+    get() {
+      throw new Error('unused root was inspected')
+    },
+  })
+
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+    hostInputs: [{
+      input: SEED_INPUT,
+      value: hostileUnusedValue,
+    }],
+  }), true)
 })
 
 test('host-input readers reject undeclared and tag-substituted lookup', async () => {
