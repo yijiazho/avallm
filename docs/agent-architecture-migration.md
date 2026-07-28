@@ -1748,7 +1748,10 @@ schemas, versions, exact reconstruction equations, weighted-unverifiable treatme
 configured-but-unresolved suppression join. Dependency tests prevent evaluation from importing
 stdio for admission. The focused API-free gate passed 151 stdio, trace, architecture-report,
 C1/C2, D1/D2/D3, and E1A/E1B cases, including existing hostile mutation and free-bank fixtures.
-Parent review, the completed-chunk bank, and the full API-free suite remain the landing gate.
+Independent review found the 3,659 moved implementation lines byte-identical apart from import
+rebasing, confirmed runtime export identity, and passed 225 focused cases. Parent validation then
+passed all 835 API-free repository tests, including the applicable free architecture banks and
+hostile admission mutations.
 
 **7R2B introduces the generic kernel.** At construction time, a typed resolved brain owns the
 requested and eligible component graph, versions, dependencies, and layer order. Runtime injection
@@ -2094,10 +2097,12 @@ here.
   mutations.
 - Phase 7R2A shared admission owner: mechanically moved composed-trace detached validation, host
   reconstruction, exact cross-field joins, and promotion admission from stdio into the agent
-  boundary. Stdio now consumes that owner and retains transitional join re-exports, while all
-  evaluation sources are structurally barred from importing stdio for admission. Existing valid,
-  degraded, weighted-unverifiable, D3-suppressed, and hostile-mutation outcomes passed 151 focused
-  API-free cases without changing trace or artifact schemas, versions, decisions, or defaults.
+  boundary. Stdio now consumes that owner and retains transitional join re-exports; architecture
+  generation and report replay import the owner directly. Existing valid, degraded,
+  weighted-unverifiable, D3-suppressed, and hostile-mutation outcomes passed 151 implementation
+  and 225 independent-review focused cases without changing trace or artifact schemas, versions,
+  decisions, or defaults. Parent validation passed all 835 API-free tests, including the applicable
+  free architecture banks.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission; 7R2B introduces the resolved brain, generic
   configured requests, admitted per-decision entries, separate causal-policy attribution, private
