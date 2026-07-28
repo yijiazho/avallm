@@ -195,6 +195,14 @@ export type ComponentExecutionResult<Payload> =
 export interface DecisionComponentDefinition<Payload = unknown> {
   readonly token: ComponentToken<Payload>
   readonly source: 'native' | 'legacy-adapter'
+  /**
+   * Optional declarative contribution to the resolved base brain. Ownership
+   * belongs to the component that semantically uses the model, not to a
+   * shared host input that unrelated components may also require.
+   */
+  readonly brainContribution?: Readonly<{
+    observerModel?: string
+  }>
   readonly dependencies: readonly ComponentRef[]
   readonly requiredHostInputs: readonly ComponentHostInputRef[]
   readonly hostRequirements: readonly HostCapability[]
@@ -203,12 +211,21 @@ export interface DecisionComponentDefinition<Payload = unknown> {
   readonly deterministicSeedDomain?: string
   applies(
     context: DecisionComponentApplicabilityContext,
-  ): ComponentApplicability | Promise<ComponentApplicability>
+  ): ComponentApplicability
   execute(
     context: DecisionComponentContext,
   ): ComponentExecutionResult<Payload>
     | Promise<ComponentExecutionResult<Payload>>
   validateDetached(payload: unknown): ComponentAdmissionResult<Payload>
+  /**
+   * Optional exact host proof for an execution-time suppression discovered
+   * after applies() returned applicable. Without this proof, host admission
+   * rejects an applicable entry relabeled as suppressed.
+   */
+  admitSuppressed?(input: Readonly<{
+    reasonCode: string
+    host: DecisionComponentContext
+  }>): boolean
   admitHost(
     input: ComponentHostAdmissionInput<
       Payload,

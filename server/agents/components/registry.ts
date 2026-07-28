@@ -174,6 +174,26 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
       `${identityKey(definition.token)} has an invalid component source`,
     )
   }
+  const contribution = definition.brainContribution
+  if (
+    contribution !== undefined
+    && (
+      !contribution
+      || typeof contribution !== 'object'
+      || Array.isArray(contribution)
+      || Object.getPrototypeOf(contribution) !== Object.prototype
+      || Object.keys(contribution).some((key) => key !== 'observerModel')
+      || (
+        contribution.observerModel !== undefined
+        && !VERSION_PATTERN.test(contribution.observerModel)
+      )
+    )
+  ) {
+    throw new ComponentRegistryError(
+      'invalid-definition',
+      `${identityKey(definition.token)} has invalid brain contribution`,
+    )
+  }
   if (
     !Number.isSafeInteger(definition.maxPayloadBytes)
     || definition.maxPayloadBytes <= 0
@@ -206,6 +226,10 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
     || typeof definition.applies !== 'function'
     || typeof definition.execute !== 'function'
     || typeof definition.validateDetached !== 'function'
+    || (
+      definition.admitSuppressed !== undefined
+      && typeof definition.admitSuppressed !== 'function'
+    )
     || typeof definition.admitHost !== 'function'
   ) {
     throw new ComponentRegistryError(
@@ -273,12 +297,22 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
     privacy: definition.token.privacy,
   })
   const validateDetached = definition.validateDetached.bind(definition)
+  const admitSuppressed = definition.admitSuppressed?.bind(definition)
   const admitHost = definition.admitHost.bind(definition)
   const applies = definition.applies.bind(definition)
   const execute = definition.execute.bind(definition)
   return Object.freeze({
     token,
     source: definition.source,
+    ...(contribution === undefined
+      ? {}
+      : {
+          brainContribution: Object.freeze({
+            ...(contribution.observerModel === undefined
+              ? {}
+              : { observerModel: contribution.observerModel }),
+          }),
+        }),
     dependencies: Object.freeze(dependencies),
     requiredHostInputs: Object.freeze(requiredHostInputs),
     hostRequirements: Object.freeze(hostRequirements),
@@ -290,6 +324,7 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
     applies,
     execute,
     validateDetached,
+    ...(admitSuppressed ? { admitSuppressed } : {}),
     admitHost,
   })
 }

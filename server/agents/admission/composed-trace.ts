@@ -144,9 +144,11 @@ import {
 import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-  createLegacyRoleAdapterRegistry,
   reconstructLegacyRoleAdapterHostInputs,
 } from '../components/legacy-role-adapters.ts'
+import {
+  createProductionComponentRegistry,
+} from '../components/production-registry.ts'
 import {
   EVIL_QUEST_CARD_POLICY_VERSION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
@@ -967,6 +969,20 @@ function validPublicObserverTrace(
   const enabled =
     components?.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   if (!enabled) return value === undefined
+  if (value === undefined) {
+    const run = trace.components as
+      | { entries?: readonly {
+          component: { id: string; version: string }
+          status: string
+        }[] }
+      | undefined
+    const owners = run?.entries?.filter((entry) =>
+      PRODUCTION_COMPONENT_REGISTRY.definition(entry.component)
+        ?.brainContribution?.observerModel
+          === PUBLIC_OBSERVER_MODEL_VERSION)
+    return !!owners?.length
+      && owners.every((entry) => entry.status !== 'admitted')
+  }
   if (!validatePublicObserverSnapshot(value)) return false
   return !isFullPlayerView(hostView)
     || isDeepStrictEqual(
@@ -2972,7 +2988,7 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   return true
 }
 
-const LEGACY_ROLE_COMPONENT_REGISTRY = createLegacyRoleAdapterRegistry({
+const PRODUCTION_COMPONENT_REGISTRY = createProductionComponentRegistry({
   goodObjectiveAllDecisionKinds: true,
 })
 
@@ -3131,7 +3147,7 @@ function validGenericRoleComponents(
       || typeof ref.id !== 'string'
       || typeof ref.version !== 'string'
       || !isDeepStrictEqual(ref, runRef)
-      || !LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)
+      || !PRODUCTION_COMPONENT_REGISTRY.definition(ref)
     ) return false
     configuredKeys.push(componentKey(ref))
   }
@@ -3147,13 +3163,13 @@ function validGenericRoleComponents(
 
   const dependencyKeys = new Set(
     plan.configured.flatMap((ref) =>
-      LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)!.dependencies
+      PRODUCTION_COMPONENT_REGISTRY.definition(ref)!.dependencies
         .map(componentKey)),
   )
   const leaves = plan.configured.filter(
     (ref) => !dependencyKeys.has(componentKey(ref)),
   )
-  const expectedGraph = LEGACY_ROLE_COMPONENT_REGISTRY.resolve({
+  const expectedGraph = PRODUCTION_COMPONENT_REGISTRY.resolve({
     requested: leaves,
   })
   if (!isDeepStrictEqual(expectedGraph.configured, plan.configured)) {
@@ -3174,19 +3190,30 @@ function validGenericRoleComponents(
     run.entries.map((entry) => [componentKey(entry.component), entry]),
   )
   const adapterDegradationCodes = new Set(
-    LEGACY_ROLE_COMPONENT_REGISTRY.definitions()
+    PRODUCTION_COMPONENT_REGISTRY.definitions()
+      .filter((definition) => definition.source === 'legacy-adapter')
       .map((definition) => definition.degradationCode),
   )
+  const nativeDegradationCodes = new Set(
+    PRODUCTION_COMPONENT_REGISTRY.definitions()
+      .filter((definition) => definition.source === 'native')
+      .map((definition) => definition.degradationCode),
+  )
+  // Native failures live only on their generic run entry. Accepting the same
+  // code in the legacy flat degradation array would silently create a second
+  // role-specific write path and ambiguous provenance.
+  if (
+    trace.degradation.some((code) => nativeDegradationCodes.has(code))
+  ) return false
   const degradedCodes = new Set<string>()
   for (let index = 0; index < run.configured.length; index++) {
     const ref = run.configured[index]
     const entry = run.entries[index]
     const use = run.policyUse[index]
-    const definition = LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)!
+    const definition = PRODUCTION_COMPONENT_REGISTRY.definition(ref)!
     const binding = bindingByKey.get(componentKey(ref))
     if (
-      !binding
-      || !exactGenericRecord(entry.component, ['id', 'version'])
+      !exactGenericRecord(entry.component, ['id', 'version'])
       || !isDeepStrictEqual(entry.component, ref)
       || entry.kind !== definition.token.kind
       || entry.privacy !== definition.token.privacy
@@ -3195,17 +3222,19 @@ function validGenericRoleComponents(
       || !isDeepStrictEqual(use.component, ref)
     ) return false
 
-    const projection = binding.payload(trace)
-    const declaredVersion = binding.declaredVersion(trace)
-    const requiresLegacyProjection =
-      binding.legacyProjectionRequired?.(trace, hostView) ?? true
-    const ownsLegacyDegradation =
-      binding.ownsLegacyDegradation !== false
+    const projection = binding?.payload(trace)
+    const declaredVersion = binding?.declaredVersion(trace)
+    const requiresLegacyProjection = binding
+      ? binding.legacyProjectionRequired?.(trace, hostView) ?? true
+      : false
+    const ownsLegacyDegradation = binding
+      ? binding.ownsLegacyDegradation !== false
+      : false
     const degradationCount = trace.degradation.filter(
       (code) => code === definition.degradationCode,
     ).length
     const expectedResolution =
-      binding.expectedResolution?.(trace, hostView)
+      binding?.expectedResolution?.(trace, hostView)
     if (
       expectedResolution === 'inapplicable'
         ? entry.status !== 'inapplicable'
@@ -3303,14 +3332,17 @@ function validGenericRoleComponents(
         || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
     } else if (entry.status === 'suppressed') {
-      const expectedReason = binding.suppressionReason?.(trace)
+      const expectedReason = binding?.suppressionReason?.(trace)
       if (
         !exactGenericRecord(
           entry,
           ['component', 'kind', 'privacy', 'status', 'reasonCode'],
         )
         || typeof entry.reasonCode !== 'string'
-        || entry.reasonCode !== expectedReason
+        || (
+          binding !== undefined
+          && entry.reasonCode !== expectedReason
+        )
         || projection !== undefined
         || declaredVersion !== undefined
         || (ownsLegacyDegradation && degradationCount !== 0)
@@ -3319,7 +3351,7 @@ function validGenericRoleComponents(
       return false
     }
 
-    const expectedStages = entry.status === 'admitted'
+    const expectedStages = entry.status === 'admitted' && binding
       ? binding.policyStages(trace)
       : []
     if (
@@ -3333,7 +3365,7 @@ function validGenericRoleComponents(
   for (const binding of LEGACY_ROLE_ADAPTER_TRACE_BINDINGS) {
     const key = componentKey(binding.token)
     const definition =
-      LEGACY_ROLE_COMPONENT_REGISTRY.definition(binding.token)!
+      PRODUCTION_COMPONENT_REGISTRY.definition(binding.token)!
     const hasLegacy =
       binding.payload(trace) !== undefined
       || binding.declaredVersion(trace) !== undefined
@@ -3361,7 +3393,7 @@ function validGenericRoleComponentsHostJoin(
   if (trace.version === DECISION_TRACE_VERSION) return true
   const plan = trace.componentPlan!
   return validateDecisionComponentRunHostJoin({
-    registry: LEGACY_ROLE_COMPONENT_REGISTRY,
+    registry: PRODUCTION_COMPONENT_REGISTRY,
     run: trace.components!,
     request: req,
     view,
@@ -3371,6 +3403,7 @@ function validGenericRoleComponentsHostJoin(
       req,
       view,
       deterministicSeed,
+      registry: PRODUCTION_COMPONENT_REGISTRY,
     }),
   })
 }

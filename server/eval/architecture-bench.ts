@@ -1276,7 +1276,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             )
             || (
               exactPublicObserver
-                ? !validatePublicObserverSnapshot(trace.publicObserver)
+                ? (
+                    trace.publicObserver === undefined
+                      ? !strictComposedTrace
+                      : !validatePublicObserverSnapshot(trace.publicObserver)
+                  )
                 : trace.publicObserver !== undefined
             )
             || (

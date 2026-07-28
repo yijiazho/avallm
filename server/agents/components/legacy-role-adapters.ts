@@ -1147,6 +1147,11 @@ export function legacyRoleAdapterDefinitions(
           }
         : rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
     },
+    admitSuppressed({ reasonCode, host }) {
+      return host.privacy === 'private'
+        && reasonCode === 'universal-forced-policy'
+        && host.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT).applied
+    },
     admitHost({ payload, host }) {
       if (host.privacy !== 'private') {
         return rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
@@ -1215,7 +1220,11 @@ function root<Value>(
 
 export const LEGACY_ROLE_ADAPTER_HOST_INPUTS = Object.freeze([
   root(PRIVATE_IDENTITY_INPUT, validatePrivateIdentitySnapshot),
-  root(PRIVATE_PUBLIC_OBSERVER_INPUT, validatePublicObserverSnapshot),
+  root(
+    PRIVATE_PUBLIC_OBSERVER_INPUT,
+    validatePublicObserverSnapshot,
+    MAX_ROOT_JSON_BYTES,
+  ),
   root(
     PRIVATE_BELIEF_INPUT,
     (value): value is BeliefSnapshot => {
@@ -1289,6 +1298,11 @@ export function reconstructLegacyRoleAdapterHostInputs(input: {
   readonly req: DecisionRequest
   readonly view: PlayerView
   readonly deterministicSeed: string
+  /**
+   * Optional full registry for native components that reuse the canonical
+   * roots. The legacy default preserves standalone adapter callers.
+   */
+  readonly registry?: DecisionComponentRegistry
 }): readonly ComponentHostInputBinding<unknown>[] {
   const {
     trace,
@@ -1296,8 +1310,9 @@ export function reconstructLegacyRoleAdapterHostInputs(input: {
     req,
     view,
     deterministicSeed,
+    registry: suppliedRegistry,
   } = input
-  const registry = createLegacyRoleAdapterRegistry({
+  const registry = suppliedRegistry ?? createLegacyRoleAdapterRegistry({
     goodObjectiveAllDecisionKinds: true,
   })
   const required = new Set(

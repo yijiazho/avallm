@@ -102,12 +102,15 @@ import {
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
   PRIVATE_SITUATION_INPUT,
-  createLegacyRoleAdapterRegistry,
 } from './components/legacy-role-adapters.ts'
+import {
+  createProductionComponentRegistry,
+} from './components/production-registry.ts'
 import {
   resolveComposedBrain,
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
+import type { ComponentRef } from './components/types.ts'
 import {
   advanceCognition,
   advanceCognitionFromBelief,
@@ -254,6 +257,12 @@ export type ComposedStage =
 
 export interface ComposedAgentOptions {
   seed: string
+  /**
+   * Generic opt-in component roots. Dependencies are resolved by the
+   * production registry; no requested component receives policy authority
+   * unless it is also registered in a later policy layer.
+   */
+  decisionComponents?: readonly ComponentRef[]
   beliefModel?: BeliefModel
   /** Opt-in public-language interpretation. Never configured by the registry. */
   languageInterpreter?: LanguageInterpreter
@@ -770,6 +779,7 @@ function composedTrace(
   factorsVersion = 'off',
   languageTrace?: LanguageTraceAttribution,
   languageEnabled = false,
+  observerModelEnabled = false,
   publicObserver?: PublicObserverSnapshot,
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
@@ -794,7 +804,7 @@ function composedTrace(
     ...(languageEnabled
       ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
       : {}),
-    ...(publicObserver
+    ...(observerModelEnabled
       ? { observerModel: PUBLIC_OBSERVER_MODEL_VERSION }
       : {}),
   }))
@@ -1089,13 +1099,14 @@ export function createComposedAgent(
   if (!planMemoryEnabled && options.coherenceIntent !== undefined) {
     throw new Error('coherenceIntent requires planMemory')
   }
-  const componentRegistry = createLegacyRoleAdapterRegistry(
+  const componentRegistry = createProductionComponentRegistry(
     {
       goodObjectiveAllDecisionKinds:
         roleObjectivesConfigured || roleObjectiveRouterConfigured,
     },
   )
   const requestedComponents = [
+    ...(options.decisionComponents ?? []),
     ...(
       roleObjectivesConfigured
       || roleObjectiveRouterConfigured
@@ -1160,7 +1171,21 @@ export function createComposedAgent(
       scorerVersions: scorerVersions(scorer),
     },
   }, componentRegistry)
+  const componentObserverConfigured =
+    resolvedBrain.configuredDefinitions.some(
+      (definition) =>
+        definition.brainContribution?.observerModel
+          === PUBLIC_OBSERVER_MODEL_VERSION,
+    )
   const configuredComponentPlan = decisionComponentPlan(resolvedBrain)
+  const requiredHostInputKeys = new Set(
+    resolvedBrain.description.requiredHostInputs.map(
+      (input) => `${input.id}@${input.version}`,
+    ),
+  )
+  const requiresHostInput = (
+    input: { readonly id: string; readonly version: string },
+  ): boolean => requiredHostInputKeys.has(`${input.id}@${input.version}`)
   const pendingPlans: {
     decisionId: string
     request: DecisionRequest
@@ -1474,11 +1499,15 @@ export function createComposedAgent(
           }
           stage('identity')
         }
-        const publicObserver = (
+        const legacyPublicObserverApplicable = (
           publicObserverConfigured
           || roleObjectiveRole
           || evilRoleObjectiveApplicable
           || morganaCounterfeitApplicable
+        )
+        const publicObserver = (
+          legacyPublicObserverApplicable
+          || requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)
         )
           ? observePublicRecord(projectPublicRecord(view))
           : undefined
@@ -1546,14 +1575,9 @@ export function createComposedAgent(
             (component) => component.id,
           ),
         )
-        const requiredHostInputIds = new Set(
-          resolvedBrain.description.requiredHostInputs.map(
-            (input) => input.id,
-          ),
-        )
         const hostInputs = [
           ...(
-            requiredHostInputIds.has(PRIVATE_IDENTITY_INPUT.id)
+            requiresHostInput(PRIVATE_IDENTITY_INPUT)
             && privateIdentity
               ? [{
                   input: PRIVATE_IDENTITY_INPUT,
@@ -1562,7 +1586,7 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            requiredHostInputIds.has(PRIVATE_PUBLIC_OBSERVER_INPUT.id)
+            requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)
             && publicObserver
               ? [{
                   input: PRIVATE_PUBLIC_OBSERVER_INPUT,
@@ -1571,7 +1595,7 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            requiredHostInputIds.has(PRIVATE_BELIEF_INPUT.id)
+            requiresHostInput(PRIVATE_BELIEF_INPUT)
               ? [{
                   input: PRIVATE_BELIEF_INPUT,
                   value: cognition.belief,
@@ -1579,7 +1603,7 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            requiredHostInputIds.has(PRIVATE_SITUATION_INPUT.id)
+            requiresHostInput(PRIVATE_SITUATION_INPUT)
               ? [{
                   input: PRIVATE_SITUATION_INPUT,
                   value: analysis,
@@ -1587,7 +1611,7 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            requiredHostInputIds.has(PRIVATE_FORCED_POLICY_INPUT.id)
+            requiresHostInput(PRIVATE_FORCED_POLICY_INPUT)
               ? [{
                   input: PRIVATE_FORCED_POLICY_INPUT,
                   value: universalForced,
@@ -1595,7 +1619,7 @@ export function createComposedAgent(
               : []
           ),
           ...(
-            requiredHostInputIds.has(PRIVATE_DETERMINISTIC_SEED_INPUT.id)
+            requiresHostInput(PRIVATE_DETERMINISTIC_SEED_INPUT)
               ? [{
                   input: PRIVATE_DETERMINISTIC_SEED_INPUT,
                   value: seed,
@@ -1609,6 +1633,24 @@ export function createComposedAgent(
           view,
           hostInputs.length ? { hostInputs } : undefined,
         )
+        const genericPublicObserverApplicable =
+          decisionComponents.entries.some(
+            (entry) =>
+              entry.status === 'admitted'
+              && componentRegistry.definition(entry.component)
+                ?.requiredHostInputs.some(
+                  (input) =>
+                    input.id === PRIVATE_PUBLIC_OBSERVER_INPUT.id
+                    && input.version
+                      === PRIVATE_PUBLIC_OBSERVER_INPUT.version,
+                ),
+          )
+        const tracePublicObserver = (
+          legacyPublicObserverApplicable
+          || genericPublicObserverApplicable
+        )
+          ? publicObserver
+          : undefined
         if (configuredComponentIds.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)) {
           privateRoleObjective = componentPayload(
             decisionComponents,
@@ -2051,7 +2093,8 @@ export function createComposedAgent(
             : beliefModel.factorsVersion,
           languageTrace,
           !!interpreter,
-          publicObserver,
+          componentObserverConfigured || tracePublicObserver !== undefined,
+          tracePublicObserver,
           privateIdentity,
           !!decisionIdentityScope,
           privateRoleObjective,

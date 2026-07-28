@@ -1047,7 +1047,11 @@ function architectureSafety(
       )
       || (
         declaresPublicObserver
-          ? !validatePublicObserverSnapshot(trace.publicObserver)
+          ? (
+              trace.publicObserver === undefined
+                ? !strictComposedTrace
+                : !validatePublicObserverSnapshot(trace.publicObserver)
+            )
           : trace.publicObserver !== undefined
       )
       || (() => {

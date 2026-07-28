@@ -972,6 +972,61 @@ export function validateDecisionComponentRunHostJoin(
         !definition
         || componentIdentityKey(entry.component) !== key
       ) return false
+      const applicability:
+      DecisionComponentApplicabilityContext =
+        definition.token.privacy === 'public'
+          ? Object.freeze({
+              privacy: 'public' as const,
+              decision: publicDecision,
+              publicRecord,
+            })
+          : Object.freeze({
+              privacy: 'private' as const,
+              request: frozenRequest,
+              view: frozenView,
+            })
+      const reconstructedApplicability = applicabilityKind(
+        definition.applies(applicability),
+      )
+      if (!reconstructedApplicability) return false
+      if (reconstructedApplicability.status === 'inapplicable') {
+        if (entry.status !== 'inapplicable') return false
+        continue
+      }
+      if (reconstructedApplicability.status === 'suppressed') {
+        if (
+          entry.status !== 'suppressed'
+          || entry.reasonCode !== reconstructedApplicability.reasonCode
+        ) return false
+        continue
+      }
+      if (entry.status === 'inapplicable') return false
+      if (entry.status === 'suppressed') {
+        if (
+          !definition.admitSuppressed
+          || !definition.dependencies.every(
+            (dependency) =>
+              admitted.has(componentIdentityKey(dependency)),
+          )
+          || !definition.requiredHostInputs.every(
+            (root) =>
+              hostInputValues.has(componentIdentityKey(root)),
+          )
+        ) return false
+        const context = executionContextFor(
+          applicability,
+          definition,
+          admitted,
+          definitions,
+          hostInputValues,
+          hostInputDefinitions,
+        )
+        if (!definition.admitSuppressed({
+          reasonCode: entry.reasonCode,
+          host: context,
+        })) return false
+        continue
+      }
       if (entry.status !== 'admitted') continue
 
       const detached = parseAdmission(
@@ -1001,19 +1056,6 @@ export function validateDecisionComponentRunHostJoin(
         continue
       }
 
-      const applicability:
-      DecisionComponentApplicabilityContext =
-        definition.token.privacy === 'public'
-          ? Object.freeze({
-              privacy: 'public' as const,
-              decision: publicDecision,
-              publicRecord,
-            })
-          : Object.freeze({
-              privacy: 'private' as const,
-              request: frozenRequest,
-              view: frozenView,
-            })
       const context = executionContextFor(
         applicability,
         definition,
@@ -1131,7 +1173,7 @@ export async function runDecisionComponents(
     let applicability
     try {
       applicability = applicabilityKind(
-        await definition.applies(applicabilityContext),
+        definition.applies(applicabilityContext),
       )
     } catch {
       entries.push(degradation(

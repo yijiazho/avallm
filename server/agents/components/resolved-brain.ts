@@ -232,6 +232,31 @@ export function resolveComposedBrain(
       return definition
     }),
   )
+  const requiredObserverModels = [
+    ...new Set(
+      configuredDefinitions.flatMap((definition) =>
+        definition.brainContribution?.observerModel
+          ? [definition.brainContribution.observerModel]
+          : []),
+    ),
+  ]
+  if (requiredObserverModels.length > 1) {
+    throw new Error(
+      'resolved components declare conflicting observer models',
+    )
+  }
+  if (
+    config.publicObserverConfigured
+    && requiredObserverModels[0] !== undefined
+    && requiredObserverModels[0] !== PUBLIC_OBSERVER_MODEL_VERSION
+  ) {
+    throw new Error(
+      'explicit observer model conflicts with configured component',
+    )
+  }
+  const resolvedObserverModel = config.publicObserverConfigured
+    ? PUBLIC_OBSERVER_MODEL_VERSION
+    : requiredObserverModels[0]
   const scoreLayerOrder = freezeLayerOrder(
     'scoreLayerOrder',
     config.scoreLayerOrder,
@@ -247,8 +272,8 @@ export function resolveComposedBrain(
     ...(config.languageEvidenceEnabled
       ? { languageEvidence: LANGUAGE_FACTOR_BUNDLE_VERSION }
       : {}),
-    ...(config.publicObserverConfigured
-      ? { observerModel: PUBLIC_OBSERVER_MODEL_VERSION }
+    ...(resolvedObserverModel
+      ? { observerModel: resolvedObserverModel }
       : {}),
   }))
   const compatibility = freezeCompatibilityValue(

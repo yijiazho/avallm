@@ -2,7 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E2A Mordred substrate, the first production native component.
+**Current target phase:** Phase 7R2C development-leverage checkpoint. Phase 7E2A is complete and
+approved: the first production-native graph adds a reusable actor-target treatment read plus a
+private Mordred blindness objective without policy authority. Before ordered policy layers, 7R2C
+must shorten the feedback loop, establish strict server typechecking, centralize parse-once
+canonicalization, automate generic component conformance, derive architecture metadata from one
+descriptor, and extract the typed policy-pipeline seam.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1303,17 +1308,36 @@ reviewable and ablatable:
     generic component, modeling
     Merlin-blindness opportunity and anomalous public treatment from exact joint worlds plus
     public-only observations without changing policy or adding any Mordred-specific central field.
-19. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
+    **Complete.**
+19. **Phase 7R2C, development-leverage checkpoint:** make correctness infrastructure reusable
+    before ordered policy work. Implement as four bounded slices:
+    - **7R2C1, fast feedback and static checks:** add strict no-emit server typechecking and
+      fast, contract, evaluation, exhaustive, performance, and complete test lanes. Preserve the
+      complete landing gate; move contested wall-clock assertions out of correctness lanes.
+    - **7R2C2, parse once and component conformance:** centralize hostile JavaScript/JSON handling,
+      structural primitives, canonicalization, and bounded decoding at admission. Downstream code
+      consumes admitted typed values. Add a registry-wide conformance harness and shared
+      rotation, renaming, private-canary, raw-truth, reweighting, and hostile-shape fixtures.
+    - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact,
+      report, and future Inspector metadata from the resolved graph and admitted run. Replace
+      repeated prefix replay with one pass over the event log while preserving exact snapshots.
+    - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
+      canonical request, view, belief, analysis, candidate surface, forced survivors, and component
+      run into ordered score layers, ordered decision layers, and the committed action.
+20. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
     E1 transformations as registered ordered layers with explicit dependencies and fallback.
-20. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
+21. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
     forced policy as a registered strategic layer, remove superseded role-specific write paths
-    after equality is proved, and retain read compatibility for old artifacts.
-21. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
+    after equality is proved, and retain read compatibility for old artifacts. Replace D3's
+    transitional implicit state combinations with a discriminated compatibility read model that
+    represents inapplicable, suppressed, degraded, exact-admitted, and robust-admitted historical
+    states explicitly before deleting the write side.
+22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
-22. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
+23. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
     remains distinct from generic goodness.
-23. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+24. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
     role-specific, and full configurations on a frozen API-free role bank, including virtual
     Assassin guesses derived only from seat-filtered views.
 
@@ -1990,6 +2014,99 @@ E2A does not begin after an intermediate kernel or adapter landing. It begins on
 the complete 7R2B exit gate pass, then must add Mordred through the same seam with **zero
 Mordred-specific central fields**.
 
+### Phase 7E2A implementation record
+
+E2A adds two private production-native components through the generic registry:
+`actor-target-treatment-read@public-actor-target-treatment-read-v1` and
+`mordred-blindness-objective@mordred-blindness-objective-v1`. Callers request the objective; normal
+dependency resolution adds the treatment read first. The actor-target treatment component consumes
+only the canonical public record and exact public-observer root on proposal and vote decisions. The
+objective additionally consumes the exact joint belief, applies only to Mordred when Merlin is in
+the cast, and emits team opportunity assessments for proposals or the current vote team. Neither
+component has policy-use stages or decision authority.
+
+Each complete world supplies its own Merlin coordinate and excludes that world's Mordred from the
+evil seats visible to the hypothesized Merlin. The objective records the Merlin-blind window,
+hidden threshold-crossing probability, and a separate anomalous-public-treatment proxy. Its
+bounded opportunity value is `0.75 * hidden threshold crossing + 0.25 * anomalous blind-window
+proxy`. This value is explicitly a heuristic opportunity measure, not a posterior probability,
+likelihood factor, or approve/reject utility. Every probability term is a direct sum over complete
+joint worlds; no independent suspicion products or Assassin posterior appear.
+
+Constraints-only beliefs and reconstructable public observations are exactly host-admitted and
+promotion-eligible. Weighted beliefs remain structurally attributable and nonpromotable. The
+implementation adds no Mordred-specific trace, cognition, artifact, report, prompt, or policy field; the
+generic component graph is the sole write path. Component-owned observer metadata keeps the
+resolved brain, decision trace, artifact, and report attributable without forcing legacy
+inapplicable role components to run the observer. Execution-time suppression now requires a
+registered exact host proof, and applicability is synchronous so runtime and host reconstruction
+cannot disagree.
+
+Dedicated coverage pins hand-worked one-Fail and two-Fail formulas, joint-world causality,
+public-treatment causality, role/cast/decision applicability, weighted nonpromotion, private
+canaries, name and seat-rotation invariance, deterministic replay, hostile graph and payload
+rewrites, missing roots, artifact/report attribution, and 5-10 player bounds. The 10-player quest
+four surface reaches but does not exceed the 252-assessment cap. Treatment and objective payload
+caps remain 131,072 and 1,048,576 JSON bytes. The focused architecture/privacy/replay matrix passes
+112/112 and the complete API-free suite passes 938/938; the 5-10 player deterministic bound case
+completed in 532 ms total on the development host, with a 2-second runaway guard rather than a CI
+latency SLO. Decisions, scores, prompts, public logs, defaults, forced-policy authority, and engine
+legality remain unchanged. Independent final rereview passes 116/116 and returns READY.
+
+One boundary cleanup is intentionally not folded into E2A. Existing host-root validators establish
+trusted typed values, but `validateBeliefForMordred` still rechecks admitted belief internals and
+the treatment host join rebuilds the canonical public observer for exact comparison. Phase 7R2C
+will make the parse/canonicalize-once boundary explicit before 7R3A, so downstream component
+builders can trust admitted values without allowing raw or merely cast TypeScript objects through.
+
+### Phase 7R2C development-leverage checkpoint
+
+E2A proved the generic component architecture, but it also exposed repeated implementation work
+that should not scale linearly with every role. The frozen candidate brought the complete suite to
+938 tests and about one minute on the development host. Ten agent modules independently define a
+`plainDetachedData` walk, many repeat exact-record and bounded-array primitives, and new role
+coverage still reproduces generic transport, privacy, attribution, and hostile-shape matrices.
+The server uses TypeScript syntax but has no server `tsc --noEmit` gate, so runtime tests currently
+carry work that static checking should reject earlier. High-churn integration files have also
+grown beyond two thousand lines, making parallel edits and causal review increasingly expensive.
+
+7R2C is a bounded architecture investment, not a broad cleanup rewrite:
+
+- **C1 keeps all coverage but separates feedback cadence.** A fast lane should finish in roughly
+  10-15 seconds; contract, evaluation, exhaustive, and performance lanes remain independently
+  runnable; the complete API-free suite remains mandatory before landing. Strict production
+  server typechecking uses development-only tooling and does not change the zero-dependency server
+  runtime. Test typechecking follows incrementally with standard hostile-mutation helpers rather
+  than weakening production types.
+- **C2 establishes one unsafe-input owner.** The component kernel owns strict JSON reconstruction,
+  freezing, clone safety, byte bounds, and canonical form. Each registered component owns one
+  semantic decoder and exact host-admission proof. Builders, scorers, planners, trace consumers,
+  and reports accept only typed admitted values and do not defensively parse them again. Malformed
+  input is rejected or degraded, never repaired by dropping or coercing fields. A registry-wide
+  conformance harness proves the generic contract once for every production token; formula tests
+  remain component-specific.
+- **C3 eliminates metadata and replay mirrors.** One resolved architecture descriptor is projected
+  into runtime trace, artifacts, reports, and the future private Inspector v2 debug snapshot.
+  Evaluation captures every predecision snapshot in one replay pass rather than replaying each log
+  prefix. Inspector v2 consumes the derived private debug projection and never raw `Game`.
+- **C4 extracts only the policy region needed by 7R3.** It must not mechanically split every large
+  module. The typed seam makes forced-survivor monotonicity and voice-after-commit ordering part of
+  the API, then existing C2, D2, E1, and D3 behavior moves behind compatibility adapters before new
+  ordered-layer behavior is added.
+
+C1, the conformance-fixture portion of C2, and single-pass replay may proceed in isolated parallel
+worktrees after E2A lands. Descriptor ownership and C4 are sequential because both define the
+interfaces 7R3 will consume. Bulk conversion of every historical validator, broad file splitting,
+new caching, and third-party schema or property-test dependencies are deferred. New native code
+must use the centralized boundary immediately; D3's optional-field-heavy live payload becomes a
+discriminated native layer in 7R3B, while one quarantined compatibility decoder keeps historical
+artifacts readable.
+
+The 7R2C exit gate requires strict server typechecking, a green fast and complete test matrix, one
+conformance case for every production component token, byte-identical replay snapshots, derived
+metadata equality across runtime/artifact/report surfaces, frozen decisions/prompts/logs/replay,
+and no new role-named central write field.
+
 **7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
 score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
 valid forced-policy survivor surface, declares its dependencies and fallback, and cannot revive a
@@ -2006,9 +2123,9 @@ equality is proved, while retaining the historical read path.
 
 ### Mordred
 
-- [ ] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
+- [x] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
       legal view and the shared public observer.
-- [ ] Do not infer Merlin from privileged role identity or reuse the future Assassin posterior as
+- [x] Do not infer Merlin from privileged role identity or reuse the future Assassin posterior as
       if Mordred possessed it.
 - [ ] Give deep-cover and Merlin-blindness exploitation bounded, opt-in causal policy authority
       while preserving forced policy, legality, and generic evil fallback.
@@ -2352,6 +2469,20 @@ here.
   architecture cases, 96 adjacent role/free-bank cases, and all 911 API-free repository tests.
   Parent validation passes 95/95; independent architecture rereview passes 114/114 and returns
   READY.
+- Phase 7E2A complete: added the first production-native generic graph for
+  Mordred's Merlin-blindness opportunity and anomalous public-treatment read. It is private,
+  policy-inert, joint-world based, exactly host-reconstructable for constraints-only beliefs, and
+  structurally nonpromotable for weighted beliefs. Generic component-owned observer attribution,
+  synchronous applicability, and registered exact suppression proofs close the host-replay gaps
+  found during review. Focused architecture/privacy/replay validation passes 112/112 and all 938
+  API-free repository tests pass. Independent final rereview passes 116/116 and returns READY.
+- Phase 7R2C active prerequisite: add strict server typechecking and tiered test lanes, centralize
+  parse-once canonicalization, automate production-component conformance, derive architecture
+  metadata and Inspector input from one descriptor, replace quadratic evaluation replay, and
+  extract the typed policy seam before ordered layers. This owns the redundant E2A belief recheck,
+  public-observer reconstruction, and eager inapplicable-root work rather than allowing them to
+  accrete inside each component. Phase 7R3B separately owns D3's discriminated historical
+  compatibility read and deletion of its transitional write path after equality.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

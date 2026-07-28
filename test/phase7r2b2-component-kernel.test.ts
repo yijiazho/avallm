@@ -150,7 +150,7 @@ interface DefinitionOptions<Payload> {
   maxPayloadBytes?: number
   applies?: (
     context: DecisionComponentApplicabilityContext,
-  ) => ComponentApplicability | Promise<ComponentApplicability>
+  ) => ComponentApplicability
   execute: (
     context: DecisionComponentContext,
   ) => ComponentExecutionResult<Payload>
@@ -158,6 +158,8 @@ interface DefinitionOptions<Payload> {
   validateDetached?: (
     payload: unknown,
   ) => ComponentAdmissionResult<Payload>
+  admitSuppressed?:
+    DecisionComponentDefinition<Payload>['admitSuppressed']
   admitHost?: DecisionComponentDefinition<Payload>['admitHost']
 }
 
@@ -177,6 +179,9 @@ function definition<Payload>(
     validateDetached: options.validateDetached ?? (
       (payload) => exact(payload as Payload)
     ),
+    ...(options.admitSuppressed
+      ? { admitSuppressed: options.admitSuppressed }
+      : {}),
     admitHost: options.admitHost ?? (
       ({ payload }) => exact(payload)
     ),
@@ -2154,6 +2159,150 @@ test('host admission rejects a structural child of a non-admitted dependency', (
     ],
   }
   const { request, view } = fixture()
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+  }), false)
+})
+
+test('execution-time suppression requires an exact registered host proof', async () => {
+  const forcedInput: ComponentHostInputToken<{ applied: boolean }> = {
+    id: 'runtime.forced-proof',
+    version: 'v1',
+    privacy: 'private',
+  }
+  const forcedDefinition = hostInputDefinition(
+    forcedInput,
+    (value) => {
+      const record = value as Record<string, unknown>
+      return record
+        && typeof record.applied === 'boolean'
+        && Object.keys(record).length === 1
+        ? { valid: true, value: { applied: record.applied } }
+        : { valid: false, degradationCode: 'invalid-forced-proof' }
+    },
+  )
+  const token: ComponentToken<{ selected: true }> = {
+    id: 'suppression.proof',
+    version: 'v1',
+    kind: 'decision-rule',
+    privacy: 'private',
+  }
+  const component = definition({
+    token,
+    requiredHostInputs: [forcedInput],
+    execute(context) {
+      requirePrivateContext(context)
+      return context.hostInputs.require(forcedInput).applied
+        ? {
+            status: 'suppressed',
+            reasonCode: 'forced-policy',
+          }
+        : {
+            status: 'produced',
+            envelope: componentEnvelope(token, { selected: true }),
+          }
+    },
+    admitSuppressed({ reasonCode, host }) {
+      requirePrivateContext(host)
+      return reasonCode === 'forced-policy'
+        && host.hostInputs.require(forcedInput).applied
+    },
+  })
+  const registry = createDecisionComponentRegistry(
+    [component],
+    { hostInputs: [forcedDefinition] },
+  )
+  const brain = resolve(
+    [component],
+    [token],
+    [],
+    [forcedDefinition],
+  )
+  const { request, view } = fixture()
+  const forcedBinding: ComponentHostInputBinding<{ applied: boolean }> = {
+    input: forcedInput,
+    value: { applied: true },
+  }
+  const run = await runDecisionComponents(brain, request, view, {
+    hostInputs: [forcedBinding],
+  })
+  assert.equal(run.entries[0].status, 'suppressed')
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+    hostInputs: [forcedBinding],
+  }), true)
+
+  const forgedReason = structuredClone(run)
+  assert.equal(forgedReason.entries[0].status, 'suppressed')
+  if (forgedReason.entries[0].status === 'suppressed') {
+    forgedReason.entries[0].reasonCode = 'forged-reason'
+  }
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run: forgedReason,
+    request,
+    view,
+    hostInputs: [forcedBinding],
+  }), false)
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+    hostInputs: [{
+      input: forcedInput,
+      value: { applied: false },
+    }],
+  }), false)
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+  }), false)
+  assert.equal(validateDecisionComponentRunHostJoin({
+    registry,
+    run,
+    request,
+    view,
+    hostInputs: [{
+      input: forcedInput,
+      value: { applied: 'yes' } as unknown as { applied: boolean },
+    }],
+  }), false)
+})
+
+test('thenable applicability degrades at runtime and cannot host-admit', async () => {
+  const token: ComponentToken<{ ok: true }> = {
+    id: 'async.applicability',
+    version: 'v1',
+    kind: 'observer',
+    privacy: 'private',
+  }
+  const component = definition({
+    token,
+    applies: (() => Promise.resolve(true)) as unknown as (
+      context: DecisionComponentApplicabilityContext,
+    ) => ComponentApplicability,
+    execute: () => ({
+      status: 'produced',
+      envelope: componentEnvelope(token, { ok: true }),
+    }),
+  })
+  const registry = createDecisionComponentRegistry([component])
+  const brain = resolve([component], [token])
+  const { request, view } = fixture()
+  const run = await runDecisionComponents(brain, request, view)
+  assert.equal(run.entries[0].status, 'degraded')
+  if (run.entries[0].status === 'degraded') {
+    assert.equal(run.entries[0].failureCode, 'applicability-failed')
+  }
   assert.equal(validateDecisionComponentRunHostJoin({
     registry,
     run,
