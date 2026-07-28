@@ -63,6 +63,8 @@ export interface ArtifactStrategyVersions {
   roleObjectiveRouters?: readonly string[]
   /** Added in Phase 7C2; absent when the role scorer input is inactive. */
   roleUtilities?: readonly string[]
+  /** Added in Phase 7D2; distinct from Merlin/Percival roleUtilities. */
+  evilRoleUtilities?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -204,6 +206,10 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.roleUtility,
     ...traces.map((trace) => trace.componentVersions?.roleUtility),
   ])
+  const evilRoleUtilities = sortedUnique([
+    architecture.evilRoleUtility,
+    ...traces.map((trace) => trace.componentVersions?.evilRoleUtility),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -238,6 +244,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(roleObjectives.length ? { roleObjectives } : {}),
     ...(roleObjectiveRouters.length ? { roleObjectiveRouters } : {}),
     ...(roleUtilities.length ? { roleUtilities } : {}),
+    ...(evilRoleUtilities.length ? { evilRoleUtilities } : {}),
   }
 }
 

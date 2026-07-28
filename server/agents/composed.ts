@@ -42,6 +42,13 @@ import {
   type PrivateRoleUtilityProjection,
   validatePrivateRoleUtilityHostJoin,
 } from './analysis/role-utility.ts'
+import {
+  buildEvilRoleUtilityProjection,
+  EVIL_ROLE_UTILITY_DEGRADATION,
+  EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+  type PrivateEvilRoleUtilityProjection,
+  validatePrivateEvilRoleUtilityHostJoin,
+} from './analysis/evil-role-utility.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
@@ -117,6 +124,8 @@ import {
 } from './policy/plan.ts'
 import {
   CANDIDATE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   scoreCandidates,
@@ -433,6 +442,7 @@ function composedTrace(
   resolvedRoleObjective: RoutedRoleObjectiveModel = 'off',
   roleObjectiveRouterEnabled = false,
   privateRoleUtility?: PrivateRoleUtilityProjection,
+  privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -479,6 +489,9 @@ function composedTrace(
         : {}),
       ...(privateRoleUtility
         ? { roleUtility: ROLE_UTILITY_PROJECTION_VERSION }
+        : {}),
+      ...(privateEvilRoleUtility
+        ? { evilRoleUtility: EVIL_ROLE_UTILITY_PROJECTION_VERSION }
         : {}),
       ...(planMemoryEnabled
         ? {
@@ -531,6 +544,9 @@ function composedTrace(
     ...(privateRoleUtility
       ? { privateRoleUtility: structuredClone(privateRoleUtility) }
       : {}),
+    ...(privateEvilRoleUtility
+      ? { privateEvilRoleUtility: structuredClone(privateEvilRoleUtility) }
+      : {}),
   }
 }
 
@@ -538,6 +554,40 @@ function combinedFactorBundle(mechanical: string): string {
   return mechanical === 'off'
     ? LANGUAGE_FACTOR_BUNDLE_VERSION
     : `${mechanical}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`
+}
+
+function resolveRolePolicyScorer(input: {
+  configured: CandidateScorer
+  req: DecisionRequest
+  view: PlayerView
+  routedObjective: RoutedRoleObjectiveModel
+}): CandidateScorer {
+  let current = input.configured
+  const visited = new Set<CandidateScorer>()
+  while (true) {
+    if (visited.has(current)) {
+      throw new Error('candidate scorer fallback chain contains a cycle')
+    }
+    visited.add(current)
+    const roleApplicable =
+      current.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
+      && (input.req.kind === 'propose' || input.req.kind === 'vote')
+      && (input.view.role === 'merlin' || input.view.role === 'percival')
+    const evilApplicable =
+      current.evilRoleUtilityRequirement
+        === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+      && (input.req.kind === 'propose' || input.req.kind === 'vote')
+      && input.routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    if (
+      (current.roleUtilityRequirement && !roleApplicable)
+      || (current.evilRoleUtilityRequirement && !evilApplicable)
+    ) {
+      if (!current.baseScorer) return current
+      current = current.baseScorer
+      continue
+    }
+    return current
+  }
 }
 
 /**
@@ -775,14 +825,22 @@ export function createComposedAgent(
           },
         }
       }
-      const roleScorerApplicable =
-        scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
-        && (req.kind === 'propose' || req.kind === 'vote')
-        && (view.role === 'merlin' || view.role === 'percival')
       const routerConfigured = options.roleObjectiveRouter === true
       const routedObjective = routerConfigured
         ? routedRoleObjectiveModel(view.role)
         : 'off'
+      let resolvedScorer = resolveRolePolicyScorer({
+        configured: scorer,
+        req,
+        view,
+        routedObjective,
+      })
+      const roleScorerApplicable =
+        resolvedScorer.roleUtilityRequirement
+          === ROLE_UTILITY_PROJECTION_VERSION
+      const evilRoleScorerApplicable =
+        resolvedScorer.evilRoleUtilityRequirement
+          === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       const roleObjectiveRole: RoleObjectiveRole | undefined =
         (options.roleObjectives === true || roleScorerApplicable)
         && (view.role === 'merlin' || view.role === 'percival')
@@ -792,11 +850,6 @@ export function createComposedAgent(
             : undefined
       const evilRoleObjectiveApplicable =
         routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      let resolvedScorer: CandidateScorer =
-        scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
-        && !roleScorerApplicable
-          ? scorer.baseScorer ?? scorer
-          : scorer
       const decisionIdentityScope = roleObjectiveRole
         ? mergeIdentityScopes(
             configuredIdentityScope,
@@ -847,6 +900,8 @@ export function createComposedAgent(
       let privateEvilRoleObjective:
         PrivateEvilRoleObjectiveSnapshot | undefined
       let privateRoleUtility: PrivateRoleUtilityProjection | undefined
+      let privateEvilRoleUtility:
+        PrivateEvilRoleUtilityProjection | undefined
       if (roleObjectiveRole) {
         try {
           if (!privateIdentity || !publicObserver) {
@@ -922,7 +977,78 @@ export function createComposedAgent(
           }
         } catch {
           degradation.push(ROLE_UTILITY_DEGRADATION)
-          resolvedScorer = scorer.baseScorer ?? scorer
+          resolvedScorer = resolveRolePolicyScorer({
+            configured: resolvedScorer.baseScorer ?? resolvedScorer,
+            req,
+            view,
+            routedObjective,
+          })
+        }
+      }
+      if (evilRoleScorerApplicable) {
+        try {
+          if (
+            !privateEvilRoleObjective
+            || !privateIdentity
+            || !publicObserver
+          ) {
+            throw new Error('evil role utility dependencies unavailable')
+          }
+          privateEvilRoleUtility = buildEvilRoleUtilityProjection({
+            req,
+            view,
+            objective: privateEvilRoleObjective,
+            candidates,
+            ...(req.kind === 'vote'
+              ? {
+                  alternativeObjective: buildEvilRoleObjectiveSnapshot({
+                    req: { ...req, kind: 'propose' },
+                    view,
+                    identity: privateIdentity,
+                    observer: publicObserver,
+                    candidates: hypotheticalProposalCandidates(view),
+                  }),
+                }
+              : {}),
+          })
+          if (!validatePrivateEvilRoleUtilityHostJoin(
+            privateEvilRoleUtility,
+            {
+              req,
+              view,
+              objective: privateEvilRoleObjective,
+              identity: privateIdentity,
+              observer: publicObserver,
+              candidates,
+              ...(req.kind === 'vote'
+                ? {
+                    alternativeObjective:
+                      buildEvilRoleObjectiveSnapshot({
+                        req: { ...req, kind: 'propose' },
+                        view,
+                        identity: privateIdentity,
+                        observer: publicObserver,
+                        candidates: hypotheticalProposalCandidates(view),
+                      }),
+                    alternativeCandidates:
+                      hypotheticalProposalCandidates(view),
+                  }
+                : {}),
+            },
+          )) {
+            throw new Error(
+              'evil role utility failed its authoritative host join',
+            )
+          }
+        } catch {
+          privateEvilRoleUtility = undefined
+          degradation.push(EVIL_ROLE_UTILITY_DEGRADATION)
+          resolvedScorer = resolveRolePolicyScorer({
+            configured: resolvedScorer.baseScorer ?? resolvedScorer,
+            req,
+            view,
+            routedObjective,
+          })
         }
       }
       const policyTeams = candidateTeams(candidates, view)
@@ -974,6 +1100,9 @@ export function createComposedAgent(
           ? { hypotheticalTeamCandidates }
           : {}),
         ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
+        ...(privateEvilRoleUtility
+          ? { evilRoleUtility: privateEvilRoleUtility }
+          : {}),
         forced,
         compatibilityCandidateId,
       }
@@ -989,11 +1118,25 @@ export function createComposedAgent(
         const roleScorerFailed =
           resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
           || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+          || resolvedScorer.version
+            === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
         const baseScorer = roleScorerFailed
-          ? scorer.baseScorer
+          ? resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+              req,
+              view,
+              routedObjective,
+            })
           : undefined
         if (baseScorer) {
-          degradation.push('role-objective-scorer-failed')
+          degradation.push(
+            resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+            || resolvedScorer.version
+              === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+              ? 'evil-role-objective-scorer-failed'
+              : 'role-objective-scorer-failed',
+          )
           try {
             const suppliedBase =
               baseScorer.score(structuredClone(scoringContext))
@@ -1209,6 +1352,7 @@ export function createComposedAgent(
             : 'off',
         routerConfigured,
         privateRoleUtility,
+        privateEvilRoleUtility,
         planMemoryEnabled,
         coherenceIntent,
       )

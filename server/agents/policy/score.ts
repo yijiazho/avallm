@@ -12,6 +12,12 @@ import {
   type RoleUtilityAssessment,
 } from '../analysis/role-utility.ts'
 import { ROLE_OBJECTIVE_MODEL_VERSION } from '../analysis/role-objective-types.ts'
+import {
+  EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+  type EvilRoleUtilityAssessment,
+  type PrivateEvilRoleUtilityProjection,
+} from '../analysis/evil-role-utility.ts'
+import { EVIL_ROLE_OBJECTIVE_MODEL_VERSION } from '../analysis/evil-objective-types.ts'
 
 export const CANDIDATE_SCORER_VERSION = 'compatibility-scorer-v1'
 export const CALIBRATION_COMPATIBILITY_SCORER_VERSION =
@@ -32,9 +38,21 @@ export const ROLE_OBJECTIVE_SCORE_FEATURE_VERSION =
   'merlin-percival-role-score-features-v1'
 export const ROLE_OBJECTIVE_UTILITY_VERSION =
   'merlin-percival-role-score-utility-v1'
+export const EVIL_ROLE_OBJECTIVE_SCORER_VERSION =
+  'evil-oberon-role-scorer-v1'
+export const EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION =
+  'evil-oberon-role-seeded-band-v1'
+export const EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION =
+  'evil-oberon-role-score-features-v1'
+export const EVIL_ROLE_OBJECTIVE_UTILITY_VERSION =
+  'evil-oberon-role-score-utility-v1'
 
 export const ROLE_OBJECTIVE_UTILITY_CONSTANTS = Object.freeze({
   centeredAdjustmentScale: 0.20,
+  viableBand: 0.04,
+})
+
+export const EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS = Object.freeze({
   viableBand: 0.04,
 })
 
@@ -127,6 +145,8 @@ export interface CandidateScore {
   features?: GoodProposalFeatures | GoodVoteFeatures
   /** Private role-policy attribution. Never projected into public speech. */
   roleObjectiveFeatures?: RoleObjectiveScoreFeatures
+  /** Private evil/Oberon role-policy attribution. Never enters speech. */
+  evilRoleObjectiveFeatures?: EvilRoleObjectiveScoreFeatures
 }
 
 export type ScorerAnalysisRequirement =
@@ -138,6 +158,8 @@ export interface CandidateScorer {
   analysisRequirement?: ScorerAnalysisRequirement
   /** Activates the private C1 objective and the versioned C2 scorer input. */
   roleUtilityRequirement?: typeof ROLE_UTILITY_PROJECTION_VERSION
+  /** Activates the private D1 objective and versioned D2 scorer input. */
+  evilRoleUtilityRequirement?: typeof EVIL_ROLE_UTILITY_PROJECTION_VERSION
   /** Truthful fallback used when this opt-in scorer is inapplicable/degraded. */
   baseScorer?: CandidateScorer
   score(context: CandidateScoringContext): readonly CandidateScore[]
@@ -171,6 +193,27 @@ export interface RoleObjectiveScoreFeatures {
   seedBucket?: 0 | 1
   /** Exact/proxy inputs copied from the host-validated private projection. */
   utility: RoleUtilityAssessment
+}
+
+export type EvilRoleObjectiveSelectionMode =
+  | 'top-role-utility'
+  | 'seeded-role-utility-band'
+
+export interface EvilRoleObjectiveScoreFeatures {
+  version: typeof EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION
+  utilityVersion: typeof EVIL_ROLE_OBJECTIVE_UTILITY_VERSION
+  utilityProjectionVersion: typeof EVIL_ROLE_UTILITY_PROJECTION_VERSION
+  sourceObjectiveVersion: typeof EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+  role: EvilRoleUtilityAssessment['role']
+  candidateId: string
+  kind: 'propose' | 'vote'
+  roleValue: number
+  selectionMode: EvilRoleObjectiveSelectionMode
+  viableBand: number
+  inViableBand: boolean
+  selectionAdjustment: number
+  seedBucket?: 0 | 1
+  utility: EvilRoleUtilityAssessment
 }
 
 function plainDetachedData(
@@ -554,6 +597,8 @@ export function validateCandidateScores(
       (
         scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
         || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        || scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+        || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
       )
       && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
     )
@@ -575,6 +620,21 @@ export function validateCandidateScores(
     })
     if (!isDeepStrictEqual(scores, expected)) {
       throw new Error('invalid role-objective candidate score surface')
+    }
+    return
+  }
+  if (
+    scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+    || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+  ) {
+    const expected = scoreEvilRoleObjectiveCandidates(context, {
+      selectionMode:
+        scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          ? 'seeded-role-utility-band'
+          : 'top-role-utility',
+    })
+    if (!isDeepStrictEqual(scores, expected)) {
+      throw new Error('invalid evil role-objective candidate score surface')
     }
     return
   }
@@ -641,6 +701,7 @@ export function validateCandidateScores(
       || !Array.isArray(score.reasonCodes)
       || score.reasonCodes.some((reason) => typeof reason !== 'string')
       || score.roleObjectiveFeatures !== undefined
+      || score.evilRoleObjectiveFeatures !== undefined
       || !validFeatures
       || !validGoodSemantics
       || !validVoteSemantics
@@ -779,6 +840,8 @@ export interface CandidateScoringContext {
   hypotheticalTeamCandidates?: readonly PolicyCandidate[]
   /** Private, host-derived C2 scorer input. Absent outside eligible role play. */
   roleUtility?: PrivateRoleUtilityProjection
+  /** Private, host-derived D2 scorer input. */
+  evilRoleUtility?: PrivateEvilRoleUtilityProjection
   forced: ForcedPolicyResult
   compatibilityCandidateId?: string
 }
@@ -1380,3 +1443,196 @@ export const roleObjectiveScorer = createRoleObjectiveScorer({
 export const seededRoleObjectiveScorer = createRoleObjectiveScorer({
   selectionMode: 'seeded-composite-band',
 })
+
+export interface EvilRoleObjectiveScorerOptions {
+  selectionMode: EvilRoleObjectiveSelectionMode
+}
+
+function scoreEvilRoleObjectiveCandidates(
+  context: CandidateScoringContext,
+  options: EvilRoleObjectiveScorerOptions,
+): readonly CandidateScore[] {
+  const projection = context.evilRoleUtility
+  if (
+    !projection
+    || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+    || (context.request.kind !== 'propose' && context.request.kind !== 'vote')
+    || context.view.alignment !== 'evil'
+    || projection.role !== context.view.role
+    || projection.request.kind !== context.request.kind
+    || projection.request.seat !== context.request.seat
+    || projection.request.round !== context.request.round
+    || projection.request.proposalNum !== context.request.proposalNum
+    || projection.source.beliefThroughSeq !== context.analysis.throughSeq
+  ) {
+    throw new Error(
+      'evil role-objective scorer requires an eligible bound utility',
+    )
+  }
+  const version =
+    options.selectionMode === 'seeded-role-utility-band'
+      ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      : EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+  const utilityById = new Map(
+    projection.assessments.map((assessment) => [
+      assessment.candidateId,
+      assessment,
+    ]),
+  )
+  if (
+    utilityById.size !== projection.assessments.length
+    || utilityById.size !== context.candidates.length
+  ) {
+    throw new Error(
+      'evil role-objective scorer requires a complete utility surface',
+    )
+  }
+  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowedRows = context.candidates.map((candidate) => {
+    const utility = utilityById.get(candidate.id)
+    if (
+      !utility
+      || utility.kind !== context.request.kind
+      || utility.role !== context.view.role
+    ) {
+      throw new Error(
+        `evil role-objective scorer join mismatch for ${candidate.id}`,
+      )
+    }
+    return { candidate, utility }
+  }).filter(({ candidate }) => allowed.has(candidate.id))
+  if (!allowedRows.length) {
+    throw new Error(
+      'evil role-objective scorer received no forced survivors',
+    )
+  }
+  const maxValue = Math.max(
+    ...allowedRows.map(({ utility }) => utility.roleValue),
+  )
+  const canonicalTopId = allowedRows
+    .filter(({ utility }) => utility.roleValue === maxValue)
+    .map(({ candidate }) => candidate.id)
+    .sort()[0]
+  const forcedSelection = context.forced.selectedCandidateId
+  if (forcedSelection && !allowed.has(forcedSelection)) {
+    throw new Error(
+      'evil role-objective scorer received invalid forced selection',
+    )
+  }
+  const voteRows = context.request.kind === 'vote' ? allowedRows : []
+  const inViableBand =
+    voteRows.length === 2
+    && Math.abs(
+      voteRows[0].utility.roleValue - voteRows[1].utility.roleValue,
+    ) <= EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
+  const bandActive =
+    !forcedSelection
+    && options.selectionMode === 'seeded-role-utility-band'
+    && inViableBand
+  if (
+    options.selectionMode === 'seeded-role-utility-band'
+    && (
+      typeof context.deterministicSeed !== 'string'
+      || !context.deterministicSeed.trim()
+    )
+  ) {
+    throw new Error('seeded evil role-objective scorer requires the game seed')
+  }
+  const seedBucket = bandActive
+    ? stablePolicyBucket([
+        context.deterministicSeed,
+        context.request.seat,
+        context.request.kind,
+        context.request.round,
+        context.request.proposalNum,
+        context.analysis.throughSeq,
+        EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+      ].join(':'))
+    : undefined
+  const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+
+  return context.candidates.map((candidate): CandidateScore => {
+    const utility = utilityById.get(candidate.id)
+    if (!utility) {
+      throw new Error(
+        `evil role-objective utility join mismatch for ${candidate.id}`,
+      )
+    }
+    const forcedAllowed = allowed.has(candidate.id)
+    const selectedBySeed =
+      bandActive
+      && candidate.decision.kind === 'vote'
+      && candidate.decision.vote === seededVote
+    const selectionAdjustment = selectedBySeed
+      ? maxValue - utility.roleValue + 1e-9
+      : 0
+    const viable = forcedAllowed && (
+      forcedSelection
+        ? candidate.id === forcedSelection
+        : bandActive || candidate.id === canonicalTopId
+    )
+    return {
+      version,
+      candidateId: candidate.id,
+      value: forcedAllowed
+        ? utility.roleValue + selectionAdjustment
+        : -Number.MAX_SAFE_INTEGER,
+      viable,
+      reasonCodes: [
+        ...(forcedAllowed ? ['FORCED_POLICY_ALLOWED'] : ['FORCED_POLICY_REMOVED']),
+        'EVIL_ROLE_FAILURE_CAPACITY',
+        'EVIL_ROLE_PUBLIC_COVER',
+        'EVIL_ROLE_FUTURE_OPPORTUNITY',
+        ...(viable ? ['EVIL_ROLE_OBJECTIVE_SELECTED_SET'] : []),
+        ...(bandActive ? ['EVIL_ROLE_OBJECTIVE_SEEDED_BAND'] : []),
+      ],
+      evilRoleObjectiveFeatures: {
+        version: EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
+        utilityVersion: EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
+        utilityProjectionVersion: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+        sourceObjectiveVersion: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+        role: projection.role,
+        candidateId: candidate.id,
+        kind: context.request.kind,
+        roleValue: utility.roleValue,
+        selectionMode: options.selectionMode,
+        viableBand: EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,
+        inViableBand,
+        selectionAdjustment,
+        ...(seedBucket === undefined ? {} : { seedBucket }),
+        utility: structuredClone(utility),
+      },
+    }
+  })
+}
+
+/** Opt-in Phase 7D2 scorer. Ineligible roles/kinds resolve via baseScorer. */
+export function createEvilRoleObjectiveScorer(
+  options: EvilRoleObjectiveScorerOptions,
+): CandidateScorer {
+  const selectionMode = options.selectionMode
+  return Object.freeze({
+    version:
+      selectionMode === 'seeded-role-utility-band'
+        ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        : EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+    evilRoleUtilityRequirement: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+    // The nested chain lets one configured Phase 7 policy resolve D2 for evil,
+    // C2 for Merlin/Percival, and Phase 4 for Servant/ineligible decisions.
+    baseScorer:
+      selectionMode === 'seeded-role-utility-band'
+        ? seededRoleObjectiveScorer
+        : roleObjectiveScorer,
+    score: (context: CandidateScoringContext) =>
+      scoreEvilRoleObjectiveCandidates(context, { selectionMode }),
+  })
+}
+
+export const evilRoleObjectiveScorer = createEvilRoleObjectiveScorer({
+  selectionMode: 'top-role-utility',
+})
+
+export const seededEvilRoleObjectiveScorer =
+  createEvilRoleObjectiveScorer({
+    selectionMode: 'seeded-role-utility-band',
+  })

@@ -2,10 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7D2 opt-in evil and Oberon proposal and vote policy. Phase 7D1
-landed the mechanically inert `role-objective-router-v1` and exact visible-evil/Oberon objective
-substrate over the resolved joint identity posterior. Phase 7D remains split into independently
-reviewable landings: completed objective substrate and routing, proposal/vote policy, then
+**Current target phase:** Phase 7D3 opt-in evil quest-card coordination and forced-policy
+ablations. Phase 7D2 landed bounded visible-evil and Oberon proposal and vote authority over the
+exact Phase 7D1 objective substrate. Phase 7D remains split into independently reviewable
+landings: completed objective substrate and routing, completed proposal/vote policy, then
 quest-card coordination and forced-policy ablations. The Phase 5C population sign flip remains
 recorded, and win-rate tuning is still intentionally deferred until the architecture is complete
 enough to evaluate as a whole.
@@ -193,7 +193,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7D1 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
+| 7. Role-specific observer and identity models | In progress; Phase 7D2 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1214,7 +1214,7 @@ reviewable and ablatable:
    cover and burn proxies without changing policy. **Complete.**
 7. **Phase 7D2, evil/Oberon proposal and vote policy:** add bounded opt-in failure-capacity,
    cover, and future-opportunity utility while keeping Oberon separate from visible-partner
-   coordination.
+   coordination. **Complete.**
 8. **Phase 7D3, evil quest-card coordination:** add an exact-quota visible-partner convention and
    retain the robust all-Fail policy as a separately attributable ablation for mixed-agent tables.
 9. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
@@ -1463,7 +1463,49 @@ identical event logs for every bank case. The 10-player quest-four surface retai
 team candidates within the payload bound. Phase 7D2, not this substrate, owns the first evil and
 Oberon proposal or vote authority.
 
-- [ ] Give proposal and vote candidates bounded failure-capacity-first utility. Failure capacity
+### Phase 7D2 implementation record
+
+`evil-oberon-role-utility-v1` gives Assassin, Morgana, Mordred, Minion, and Oberon opt-in proposal
+and vote authority without changing quest-card policy. Candidate utility is fixed at 70 percent
+exact failure capacity, 20 percent explicitly non-probabilistic public cover, and 10 percent
+explicitly non-probabilistic future opportunity. Failure capacity sums complete-world mass at or
+above the current quest threshold, including the two-Fail quest; it is not an independent
+suspicion product or a model of card-choice coordination. Vote rejection compares the current
+team with the canonical best Phase 7D1 alternative and a bounded public proposal-runway factor.
+Visible evil use only known visible partners, while Oberon remains self-only and reasons about
+unseen placement probability rather than coordination.
+
+`evil-oberon-role-scorer-v1` composes over the Phase 7C2 scorer, which composes over the matching
+seeded or deterministic Phase 4 scorer and then compatibility. This gives evil and Oberon the D2
+policy, Merlin and Percival the C2 policy, and ineligible roles or decision kinds the matching
+Phase 4 policy without misreporting the configured scorer. Proposals select the deterministic
+maximum. Votes use the game seed and stable event sequence only within a 0.04 viable-candidate
+band. Forced policy remains authoritative, engine legality remains final, and malformed or
+unavailable role output falls through the nested scorer chain with explicit attribution.
+
+The utility request carries host-derived completed-good and completed-evil quest counts. Strict
+validation binds their sum to the current round, derives the two-Fail threshold from player count
+and quest number, and distinguishes ordinary reserve, decisive-board, and true final-quest states.
+Cross-field joins also bind visible coordination totals and reserve arithmetic, Oberon unseen
+probability and self membership, rejection runway, alternative realization, score equations,
+seeded selection, and selected and applied actions. The private D2 payload and component version
+remain absent from public cognition, prompts, voice, and client data.
+
+Stdio, generation-time architecture admission, and stored-report replay admit the weighted
+external dependency boundary in exactly two states: a complete identity, D1, and D2 chain with no
+dependency degradation; or simultaneous absence of all three private payloads with exactly the
+three canonical degradation labels and truthful Phase 4 fallback attribution. Exact paths always
+require the complete chain. Partial payloads, missing or extra labels, fake configured or resolved
+scorers, zero-trace artifacts, detached coordinates, and coherent equation forgeries are rejected.
+
+Independent review passed 36 focused C2/D1/D2 tests and 19 adjacent stdio, trace, architecture,
+knowledge, and leak tests. The complete API-free suite passed 781 tests. The free architecture
+bank, weighted generation and report fixtures, 10-player 252-team bound, deterministic replay,
+two-Fail semantics, privacy checks, and hostile mutation matrices all passed with no paid calls.
+This establishes Phase 7D2 architecture and safety correctness, not playing-strength promotion.
+Phase 7D3 owns visible-partner quest-card coordination and the robust all-Fail ablation.
+
+- [x] Give proposal and vote candidates bounded failure-capacity-first utility. Failure capacity
       owns at least 70 percent of normalized value; cover and future opportunity together own at
       most 30 percent.
 - [ ] Add a visible-partner exact-quota Fail convention with a public common designation and
@@ -1717,6 +1759,16 @@ here.
   objective attribution across stdio, architecture capture, and stored reporting. Independent
   review passed 769 API-free tests and a 103-trace free bank; all router-on/off event logs matched.
   Phase 7D2 owns proposal and vote authority.
+- Phase 7D2 evil and Oberon policy: added opt-in 70/20/10 failure-capacity, cover, and future
+  opportunity utility for proposals and votes, with exact joint threshold mass, canonical vote
+  alternatives, deterministic proposals, a 0.04 seeded vote band, and separate visible-evil and
+  Oberon semantics. The nested D2 to C2 to Phase 4 to compatibility chain preserves forced policy
+  and truthful fallback attribution. Strict standalone and host-replay joins bind public board
+  coordinates, two-Fail rules, role coordination, equations, seeds, selections, actions, and the
+  exact weighted complete-or-triple-absence boundary. Independent review approved 781 API-free
+  tests, the free bank, weighted generation/report fixtures, privacy, bounds, deterministic
+  replay, and hostile mutations. Phase 7D3 owns quest-card coordination and forced-policy
+  ablations.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

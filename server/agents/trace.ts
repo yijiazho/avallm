@@ -21,6 +21,7 @@ import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-types.ts'
 import type { PrivateEvilRoleObjectiveSnapshot } from './analysis/evil-objective-types.ts'
 import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
+import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-utility.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -90,6 +91,8 @@ export interface DecisionTrace {
     roleObjectiveRouter?: string
     /** Absent unless the C2 decision-ready role projection was built. */
     roleUtility?: string
+    /** Absent unless the D2 evil/Oberon projection was built. */
+    evilRoleUtility?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -129,6 +132,8 @@ export interface DecisionTrace {
   privateEvilRoleObjective?: PrivateEvilRoleObjectiveSnapshot
   /** Private decision-ready role utility, absent off/inapplicable/degraded. */
   privateRoleUtility?: PrivateRoleUtilityProjection
+  /** Private D2 evil/Oberon utility, absent off/inapplicable/degraded. */
+  privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */

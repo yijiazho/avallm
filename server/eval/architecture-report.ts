@@ -56,12 +56,23 @@ import {
   validatePrivateRoleUtilityHostJoin,
 } from '../agents/analysis/role-utility.ts'
 import {
+  EVIL_ROLE_UTILITY_DEGRADATION,
+  EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+  buildEvilRoleUtilityProjection,
+  validatePrivateEvilRoleUtilityHostJoin,
+} from '../agents/analysis/evil-role-utility.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 } from '../agents/policy/score.ts'
-import { legalCandidates } from '../agents/policy/candidates.ts'
+import {
+  hypotheticalProposalCandidates,
+  legalCandidates,
+} from '../agents/policy/candidates.ts'
 import type { DecisionSnapshot } from './replay.ts'
 import {
   authoritativeDecisionSnapshots,
@@ -295,7 +306,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|roleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -326,6 +337,11 @@ function architectureSafety(
   const declaresRoleUtility =
     meta.components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
   const roleUtilityApplicable = declaresRoleUtility && roleObjectiveApplicable
+  const declaresEvilRoleUtility =
+    meta.components.evilRoleUtility
+      === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+  const evilRoleUtilityApplicable =
+    declaresEvilRoleUtility && evilRoleObjectiveApplicable
   const declaredCoherenceIntent = meta.components.coherenceIntent
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
@@ -372,6 +388,8 @@ function architectureSafety(
         || ![
           ROLE_OBJECTIVE_SCORER_VERSION,
           ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+          EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+          EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
         ].includes(
           meta.components.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION,
         )
@@ -384,6 +402,23 @@ function architectureSafety(
         || !declaresPublicObserver
       )
     )
+  const invalidEvilRoleUtilityDeclaration =
+    (
+      meta.components.evilRoleUtility !== undefined
+      && !declaresEvilRoleUtility
+    )
+    || (
+      declaresEvilRoleUtility
+      && (
+        !declaresRoleObjectiveRouter
+        || ![
+          EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+          EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+        ].includes(
+          meta.components.scorer as typeof EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+        )
+      )
+    )
   const coverageRequired =
     traces.length > 0
     || declaresBoundedLanguage
@@ -393,10 +428,12 @@ function architectureSafety(
     || declaresRoleObjective
     || declaresRoleObjectiveRouter
     || declaresRoleUtility
+    || declaresEvilRoleUtility
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
     || invalidRoleObjectiveDeclaration
     || invalidRoleUtilityDeclaration
+    || invalidEvilRoleUtilityDeclaration
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -463,6 +500,15 @@ function architectureSafety(
         || artifactRoleUtilities[0] !== ROLE_UTILITY_PROJECTION_VERSION
       )
     : (artifactRoleUtilities?.length ?? 0) > 0
+  const artifactEvilRoleUtilities =
+    artifact.strategyVersions?.evilRoleUtilities
+  const invalidEvilRoleUtilityManifest = declaresEvilRoleUtility
+    ? (
+        artifactEvilRoleUtilities?.length !== 1
+        || artifactEvilRoleUtilities[0]
+          !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+      )
+    : (artifactEvilRoleUtilities?.length ?? 0) > 0
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
@@ -480,6 +526,10 @@ function architectureSafety(
     traceAttributionViolations++
   }
   if (invalidRoleUtilityManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidEvilRoleUtilityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -571,6 +621,7 @@ function architectureSafety(
       || invalidPlanDeclaration
       || invalidRoleObjectiveDeclaration
       || invalidRoleUtilityDeclaration
+      || invalidEvilRoleUtilityDeclaration
       || invalidTraceShape
       || (
         declaresPublicObserver
@@ -588,13 +639,42 @@ function architectureSafety(
           applicable
           && trace.privateRoleUtility !== undefined
           && !trace.degradation.includes('role-objective-scorer-failed')
-        const expectedScorer = applied
+        const evilApplicable =
+          evilRoleUtilityApplicable
+          && (
+            trace.request.kind === 'propose'
+            || trace.request.kind === 'vote'
+          )
+        const evilApplied =
+          evilApplicable
+          && trace.privateEvilRoleUtility !== undefined
+          && !trace.degradation.includes(
+            'evil-role-objective-scorer-failed',
+          )
+        const seeded =
+          meta.components.scorer
+            === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          || meta.components.scorer
+            === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        const expectedScorer = evilApplied
           ? meta.components.scorer
-          : meta.components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-            ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-            : meta.components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
-              ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
+          : applied
+            ? meta.components.scorer
+                === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+              ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
               : meta.components.scorer
+                  === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+                ? ROLE_OBJECTIVE_SCORER_VERSION
+                : meta.components.scorer
+            : seeded
+              ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+              : (
+                  meta.components.scorer
+                    === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+                  || meta.components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
+                )
+                ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
+                : meta.components.scorer
         return versions.scorer !== expectedScorer
           || versions.configuredScorer !== (
             expectedScorer === meta.components.scorer
@@ -695,6 +775,125 @@ function architectureSafety(
               trace.privateRoleUtility !== undefined
               || versions.roleUtility !== undefined
               || trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
+            )
+      )
+      || (
+        evilRoleUtilityApplicable
+        && (
+          trace.request.kind === 'propose'
+          || trace.request.kind === 'vote'
+        )
+          ? (() => {
+              const snapshot = targetSnapshots.get(trace.decisionId)
+              const dependencyDegradation = [
+                'identity-projection-failed',
+                EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                EVIL_ROLE_UTILITY_DEGRADATION,
+              ]
+              const expectedBaseScorer =
+                meta.components.scorer
+                  === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                  ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+                  : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+              const atomicWeightedDependencyFailure =
+                trace.quality === 'weighted'
+                && trace.privateIdentity === undefined
+                && trace.privateEvilRoleObjective === undefined
+                && trace.privateEvilRoleUtility === undefined
+                && versions.evilRoleUtility === undefined
+                && versions.scorer === expectedBaseScorer
+                && versions.configuredScorer === meta.components.scorer
+                && trace.degradation.length
+                  === dependencyDegradation.length
+                && dependencyDegradation.every((code) =>
+                  trace.degradation.includes(code))
+              if (atomicWeightedDependencyFailure) return false
+              if (
+                dependencyDegradation.some((code) =>
+                  trace.degradation.includes(code))
+              ) return true
+              if (
+                !snapshot
+                || !trace.privateEvilRoleObjective
+                || !trace.privateIdentity
+                || !trace.publicObserver
+              ) return true
+              const alternativeObjective =
+                trace.request.kind === 'vote'
+                  ? buildEvilRoleObjectiveSnapshot({
+                      req: { ...trace.request, kind: 'propose' },
+                      view: snapshot.view,
+                      identity: trace.privateIdentity,
+                      observer: trace.publicObserver,
+                      candidates:
+                        hypotheticalProposalCandidates(snapshot.view),
+                    })
+                  : undefined
+              if (trace.privateEvilRoleUtility === undefined) {
+                if (
+                  versions.evilRoleUtility !== undefined
+                  || !trace.degradation.includes(
+                    EVIL_ROLE_UTILITY_DEGRADATION,
+                  )
+                ) return true
+                try {
+                  buildEvilRoleUtilityProjection({
+                    req: snapshot.req,
+                    view: snapshot.view,
+                    objective: trace.privateEvilRoleObjective,
+                    candidates: legalCandidates(
+                      snapshot.req,
+                      snapshot.view,
+                    ),
+                    ...(alternativeObjective
+                      ? { alternativeObjective }
+                      : {}),
+                    ...(alternativeObjective
+                      ? {
+                          alternativeCandidates:
+                            hypotheticalProposalCandidates(snapshot.view),
+                        }
+                      : {}),
+                  })
+                  return true
+                } catch {
+                  return false
+                }
+              }
+              return (
+                versions.evilRoleUtility
+                  !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+                || !validatePrivateEvilRoleUtilityHostJoin(
+                  trace.privateEvilRoleUtility,
+                  {
+                    req: snapshot.req,
+                    view: snapshot.view,
+                    objective: trace.privateEvilRoleObjective,
+                    identity: trace.privateIdentity,
+                    observer: trace.publicObserver,
+                    candidates: legalCandidates(
+                      snapshot.req,
+                      snapshot.view,
+                    ),
+                    ...(alternativeObjective
+                      ? { alternativeObjective }
+                      : {}),
+                    ...(alternativeObjective
+                      ? {
+                          alternativeCandidates:
+                            hypotheticalProposalCandidates(snapshot.view),
+                        }
+                      : {}),
+                  },
+                )
+              )
+            })()
+          : (
+              trace.privateEvilRoleUtility !== undefined
+              || versions.evilRoleUtility !== undefined
+              || trace.degradation.includes(
+                EVIL_ROLE_UTILITY_DEGRADATION,
+              )
             )
       )
       || (
