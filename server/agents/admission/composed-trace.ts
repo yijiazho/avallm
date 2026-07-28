@@ -3,6 +3,7 @@
 // this module; neither owns or mirrors these equations.
 
 import { isDeepStrictEqual } from 'node:util'
+import { isProxy } from 'node:util/types'
 import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../../engine/types.ts'
 import {
@@ -47,6 +48,7 @@ import {
 import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
+  COMPONENT_DECISION_TRACE_VERSION,
   DECISION_TRACE_VERSION,
   decisionTraceIdForRequest,
   type DecisionTrace,
@@ -131,6 +133,16 @@ import {
 } from '../policy/candidates.ts'
 import { analyzeSituation } from '../analysis/situation.ts'
 import { applyForcedPolicy } from '../policy/forced.ts'
+import {
+  DECISION_COMPONENT_PLAN_VERSION,
+  DECISION_COMPONENT_RUN_VERSION,
+  MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
+  MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
+} from '../components/kernel.ts'
+import {
+  LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
+  createLegacyRoleAdapterRegistry,
+} from '../components/legacy-role-adapters.ts'
 import {
   EVIL_QUEST_CARD_POLICY_VERSION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
@@ -241,6 +253,10 @@ function validComponentVersions(value: unknown): boolean {
     && (
       versions.coherence === undefined
       || versions.coherence === COHERENCE_MODEL_VERSION
+    )
+    && (
+      versions.decisionComponents === undefined
+      || versions.decisionComponents === DECISION_COMPONENT_RUN_VERSION
     )
     && (
       versions.roleObjective === undefined
@@ -992,7 +1008,10 @@ function validPrivateRoleObjectiveTrace(
     | Record<string, unknown>
     | undefined
   const declared = components?.roleObjective
-  if (declared !== ROLE_OBJECTIVE_MODEL_VERSION) {
+  if (
+    declared !== undefined
+    && declared !== ROLE_OBJECTIVE_MODEL_VERSION
+  ) {
     return value === undefined
       && !(
         Array.isArray(trace.degradation)
@@ -1011,13 +1030,16 @@ function validPrivateRoleObjectiveTrace(
       && value === undefined
       && !roleDegraded
   }
-  if (declared !== ROLE_OBJECTIVE_MODEL_VERSION) return false
   if (
     components?.identityModel !== JOINT_IDENTITY_MODEL_VERSION
     || components.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
   ) return false
   if (value === undefined) {
-    if (!roleDegraded) return false
+    const degradedDeclaration =
+      trace.version === DECISION_TRACE_VERSION
+        ? declared === ROLE_OBJECTIVE_MODEL_VERSION
+        : declared === undefined
+    if (!degradedDeclaration || !roleDegraded) return false
     if (!trace.privateIdentity) {
       return degradation.includes('identity-projection-failed')
     }
@@ -1035,7 +1057,12 @@ function validPrivateRoleObjectiveTrace(
       return true
     }
   }
-  if (roleDegraded || !trace.privateIdentity || !trace.publicObserver) {
+  if (
+    declared !== ROLE_OBJECTIVE_MODEL_VERSION
+    || roleDegraded
+    || !trace.privateIdentity
+    || !trace.publicObserver
+  ) {
     return false
   }
   try {
@@ -1079,14 +1106,17 @@ function validPrivateEvilRoleObjectiveTrace(
     return value === undefined && !roleDegraded
   }
   if (
-    declared !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-    || components?.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+    components?.identityModel !== JOINT_IDENTITY_MODEL_VERSION
     || components?.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
   ) return false
   const observer = observePublicRecord(projectPublicRecord(hostView))
   const candidates = legalCandidates(req, hostView)
   if (value === undefined) {
-    if (!roleDegraded) return false
+    const degradedDeclaration =
+      trace.version === DECISION_TRACE_VERSION
+        ? declared === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+        : declared === undefined
+    if (!degradedDeclaration || !roleDegraded) return false
     if (trace.privateIdentity) {
       try {
         buildEvilRoleObjectiveSnapshot({
@@ -1125,7 +1155,8 @@ function validPrivateEvilRoleObjectiveTrace(
       return true
     }
   }
-  return !roleDegraded
+  return declared === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    && !roleDegraded
     && !!trace.privateIdentity
     && validatePrivateEvilRoleObjectiveHostJoin(value, {
       req,
@@ -2929,6 +2960,379 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
   return true
 }
 
+const LEGACY_ROLE_COMPONENT_REGISTRY = createLegacyRoleAdapterRegistry({
+  goodObjectiveAllDecisionKinds: true,
+})
+
+const COMPONENT_FAILURE_CODES = new Set([
+  'construction-ineligible',
+  'applicability-failed',
+  'dependency-unavailable',
+  'host-input-unavailable',
+  'host-input-invalid',
+  'execution-failed',
+  'malformed-result',
+  'tag-mismatch',
+  'payload-json-unsafe',
+  'payload-too-large',
+  'detached-validation-failed',
+  'host-admission-failed',
+])
+
+function componentKey(value: { id: string; version: string }): string {
+  return `${value.id}@${value.version}`
+}
+
+function exactGenericRecord(
+  value: unknown,
+  keys: readonly string[],
+): value is Record<string, unknown> {
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || isProxy(value)
+  ) return false
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) return false
+  const ownKeys = Reflect.ownKeys(value)
+  if (
+    ownKeys.some((key) => typeof key !== 'string')
+    || !isDeepStrictEqual(
+      [...ownKeys as string[]].sort(),
+      [...keys].sort(),
+    )
+  ) return false
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  return keys.every((key) => {
+    const descriptor = descriptors[key]
+    return !!descriptor
+      && descriptor.enumerable === true
+      && 'value' in descriptor
+      && descriptor.get === undefined
+      && descriptor.set === undefined
+  })
+}
+
+function exactGenericArray(value: unknown): value is unknown[] {
+  if (
+    !Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+  ) return false
+  const expectedKeys = [
+    ...Array.from({ length: value.length }, (_, index) => String(index)),
+    'length',
+  ]
+  const ownKeys = Reflect.ownKeys(value)
+  if (
+    ownKeys.some((key) => typeof key !== 'string')
+    || !isDeepStrictEqual(
+      [...ownKeys as string[]].sort(),
+      [...expectedKeys].sort(),
+    )
+  ) return false
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const length = descriptors.length
+  if (
+    !length
+    || !('value' in length)
+    || length.value !== value.length
+    || length.enumerable !== false
+    || length.get !== undefined
+    || length.set !== undefined
+  ) return false
+  for (let index = 0; index < value.length; index++) {
+    const descriptor = descriptors[String(index)]
+    if (!(
+      !!descriptor
+      && descriptor.enumerable === true
+      && 'value' in descriptor
+      && descriptor.get === undefined
+      && descriptor.set === undefined
+    )) return false
+  }
+  return true
+}
+
+function jsonBytes(value: unknown): number {
+  try {
+    const serialized = JSON.stringify(value)
+    return serialized === undefined
+      ? -1
+      : Buffer.byteLength(serialized, 'utf8')
+  } catch {
+    return -1
+  }
+}
+
+function validDecisionTraceProvenance(trace: DecisionTrace): boolean {
+  const marked =
+    trace.componentVersions?.decisionComponents
+      === DECISION_COMPONENT_RUN_VERSION
+  if (trace.version === DECISION_TRACE_VERSION) {
+    return (
+      trace.componentPlan === undefined
+      && trace.components === undefined
+      && !marked
+    )
+  }
+  if (trace.version === COMPONENT_DECISION_TRACE_VERSION) {
+    return (
+      trace.componentPlan !== undefined
+      && trace.components !== undefined
+      && marked
+    )
+  }
+  return false
+}
+
+function rolePolicyFamilyConsumption(
+  trace: DecisionTrace,
+): Readonly<Record<'good-role' | 'evil-role', boolean>> {
+  const scorer = trace.componentVersions?.scorer
+  const scores = trace.candidateScores ?? []
+  return {
+    'good-role':
+      (
+        scorer === ROLE_OBJECTIVE_SCORER_VERSION
+        || scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      )
+      && scores.length > 0
+      && scores.every((score) => score.roleObjectiveFeatures !== undefined),
+    'evil-role':
+      (
+        scorer === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+        || scorer === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        || scorer === MORGANA_ROLE_SCORER_VERSION
+        || scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
+      )
+      && scores.length > 0
+      && scores.every((score) =>
+        score.evilRoleObjectiveFeatures !== undefined
+        || (
+          (
+            scorer === MORGANA_ROLE_SCORER_VERSION
+            || scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
+          )
+          && score.morganaRoleObjectiveFeatures !== undefined
+        )),
+  }
+}
+
+function rolePolicyActionSelectionSurvived(trace: DecisionTrace): boolean {
+  const plannerSelectionAccepted =
+    trace.plannerCandidateId !== undefined
+    && trace.plannerCandidateId === trace.chosenCandidateId
+    && !trace.degradation.some((code) => code.startsWith('planner-'))
+  return (
+    trace.structuredCandidateId !== undefined
+    && trace.chosenCandidateId === trace.structuredCandidateId
+    && trace.forcedPolicyResult?.selectedCandidateId === undefined
+    && trace.privateEvilQuestCardPolicy?.selectedCard === undefined
+    && !plannerSelectionAccepted
+  )
+}
+
+function validGenericRoleComponents(trace: DecisionTrace): boolean {
+  if (!validDecisionTraceProvenance(trace)) return false
+  if (trace.version === DECISION_TRACE_VERSION) return true
+  const plan = trace.componentPlan!
+  const run = trace.components!
+  if (
+    !exactGenericRecord(plan, ['version', 'configured'])
+    || plan.version !== DECISION_COMPONENT_PLAN_VERSION
+    || !exactGenericArray(plan.configured)
+    || !exactGenericRecord(
+      run,
+      ['version', 'configured', 'entries', 'policyUse'],
+    )
+    || run.version !== DECISION_COMPONENT_RUN_VERSION
+    || !exactGenericArray(run.configured)
+    || !exactGenericArray(run.entries)
+    || !exactGenericArray(run.policyUse)
+    || plan.configured.length !== run.configured.length
+  ) return false
+  const configuredKeys: string[] = []
+  for (let index = 0; index < plan.configured.length; index++) {
+    const ref = plan.configured[index]
+    const runRef = run.configured[index]
+    if (
+      !exactGenericRecord(ref, ['id', 'version'])
+      || !exactGenericRecord(runRef, ['id', 'version'])
+      || typeof ref.id !== 'string'
+      || typeof ref.version !== 'string'
+      || !isDeepStrictEqual(ref, runRef)
+      || !LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)
+    ) return false
+    configuredKeys.push(componentKey(ref))
+  }
+  if (new Set(configuredKeys).size !== configuredKeys.length) return false
+  const planBytes = jsonBytes(plan)
+  const runBytes = jsonBytes(run)
+  if (
+    planBytes < 0
+    || planBytes > MAX_DECISION_COMPONENT_PLAN_JSON_BYTES
+    || runBytes < 0
+    || runBytes > MAX_DECISION_COMPONENT_RUN_JSON_BYTES
+  ) return false
+
+  const dependencyKeys = new Set(
+    plan.configured.flatMap((ref) =>
+      LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)!.dependencies
+        .map(componentKey)),
+  )
+  const leaves = plan.configured.filter(
+    (ref) => !dependencyKeys.has(componentKey(ref)),
+  )
+  const expectedGraph = LEGACY_ROLE_COMPONENT_REGISTRY.resolve({
+    requested: leaves,
+  })
+  if (!isDeepStrictEqual(expectedGraph.configured, plan.configured)) {
+    return false
+  }
+  if (
+    run.entries.length !== run.configured.length
+    || run.policyUse.length !== run.configured.length
+  ) return false
+
+  const bindingByKey = new Map(
+    LEGACY_ROLE_ADAPTER_TRACE_BINDINGS.map((binding) => [
+      componentKey(binding.token),
+      binding,
+    ]),
+  )
+  const entryByKey = new Map(
+    run.entries.map((entry) => [componentKey(entry.component), entry]),
+  )
+  const adapterDegradationCodes = new Set(
+    LEGACY_ROLE_COMPONENT_REGISTRY.definitions()
+      .map((definition) => definition.degradationCode),
+  )
+  const degradedCodes = new Set<string>()
+  const activeRoleAdapter = run.entries.some(
+    (entry) => entry.status !== 'inapplicable',
+  )
+  if (
+    activeRoleAdapter
+    && (
+      trace.componentVersions?.identityModel
+        !== JOINT_IDENTITY_MODEL_VERSION
+      || trace.componentVersions?.observerModel
+        !== PUBLIC_OBSERVER_MODEL_VERSION
+    )
+  ) return false
+
+  for (let index = 0; index < run.configured.length; index++) {
+    const ref = run.configured[index]
+    const entry = run.entries[index]
+    const use = run.policyUse[index]
+    const definition = LEGACY_ROLE_COMPONENT_REGISTRY.definition(ref)!
+    const binding = bindingByKey.get(componentKey(ref))
+    if (
+      !binding
+      || !exactGenericRecord(entry.component, ['id', 'version'])
+      || !isDeepStrictEqual(entry.component, ref)
+      || entry.kind !== definition.token.kind
+      || entry.privacy !== definition.token.privacy
+      || !exactGenericRecord(use, ['component', 'used', 'stages'])
+      || !exactGenericRecord(use.component, ['id', 'version'])
+      || !isDeepStrictEqual(use.component, ref)
+    ) return false
+
+    const projection = binding.payload(trace)
+    const declaredVersion = binding.declaredVersion(trace)
+    const degradationCount = trace.degradation.filter(
+      (code) => code === definition.degradationCode,
+    ).length
+    if (entry.status === 'admitted') {
+      if (
+        !exactGenericRecord(entry, [
+          'component', 'kind', 'privacy', 'status', 'envelope',
+          'verification', 'promotionEligible', 'payloadBytes',
+        ])
+        || !exactGenericRecord(entry.envelope, [
+          'component', 'kind', 'privacy', 'payload',
+        ])
+        || !exactGenericRecord(entry.envelope.component, ['id', 'version'])
+        || !isDeepStrictEqual(entry.envelope.component, ref)
+        || entry.envelope.kind !== definition.token.kind
+        || entry.envelope.privacy !== definition.token.privacy
+        || !Number.isSafeInteger(entry.payloadBytes)
+        || entry.payloadBytes < 0
+        || entry.payloadBytes > definition.maxPayloadBytes
+        || entry.payloadBytes !== jsonBytes(entry.envelope.payload)
+        || projection === undefined
+        || declaredVersion !== ref.version
+        || !isDeepStrictEqual(projection, entry.envelope.payload)
+        || degradationCount !== 0
+      ) return false
+      const exactBelief = trace.quality === 'constraints-only'
+      if (
+        entry.verification !== (exactBelief ? 'exact' : 'structural')
+        || entry.promotionEligible !== exactBelief
+      ) return false
+    } else if (entry.status === 'degraded') {
+      if (
+        !exactGenericRecord(entry, [
+          'component', 'kind', 'privacy', 'status',
+          'degradationCode', 'failureCode',
+        ])
+        || projection !== undefined
+        || declaredVersion !== undefined
+        || degradationCount !== 1
+        || entry.degradationCode !== definition.degradationCode
+        || !COMPONENT_FAILURE_CODES.has(entry.failureCode)
+      ) return false
+      degradedCodes.add(entry.degradationCode)
+    } else if (entry.status === 'inapplicable') {
+      if (
+        !exactGenericRecord(
+          entry,
+          ['component', 'kind', 'privacy', 'status'],
+        )
+        || projection !== undefined
+        || declaredVersion !== undefined
+        || degradationCount !== 0
+      ) return false
+    } else {
+      return false
+    }
+
+    const familyConsumed =
+      rolePolicyFamilyConsumption(trace)[binding.policyFamily]
+      && entry.status === 'admitted'
+    const expectedStages = familyConsumed
+      ? rolePolicyActionSelectionSurvived(trace)
+        ? ['candidate-score', 'action-selection']
+        : ['candidate-score']
+      : []
+    if (
+      typeof use.used !== 'boolean'
+      || !exactGenericArray(use.stages)
+      || !isDeepStrictEqual(use.stages, expectedStages)
+      || use.used !== (expectedStages.length > 0)
+    ) return false
+  }
+
+  for (const binding of LEGACY_ROLE_ADAPTER_TRACE_BINDINGS) {
+    const key = componentKey(binding.token)
+    const definition =
+      LEGACY_ROLE_COMPONENT_REGISTRY.definition(binding.token)!
+    const hasLegacy =
+      binding.payload(trace) !== undefined
+      || binding.declaredVersion(trace) !== undefined
+      || trace.degradation.includes(definition.degradationCode)
+    if (hasLegacy && !entryByKey.has(key)) return false
+  }
+  for (const code of trace.degradation) {
+    if (adapterDegradationCodes.has(code) && !degradedCodes.has(code)) {
+      return false
+    }
+  }
+  return true
+}
+
 function validDecisionTrace(
   req: DecisionRequest,
   decision: Decision,
@@ -2949,7 +3353,10 @@ function validDecisionTrace(
     'hybrid',
   ]
   return (
-    trace.version === DECISION_TRACE_VERSION
+    (
+      trace.version === DECISION_TRACE_VERSION
+      || trace.version === COMPONENT_DECISION_TRACE_VERSION
+    )
     && typeof throughSeq === 'number'
     && Number.isInteger(throughSeq)
     && throughSeq >= 0
@@ -2991,6 +3398,7 @@ function validDecisionTrace(
       || typeof trace.statedReasoning === 'string'
     )
     && validComponentVersions(trace.componentVersions)
+    && validGenericRoleComponents(trace as unknown as DecisionTrace)
     && validRoleObjectiveRoute(trace, hostView)
     && validLanguageTrace(trace.languageEvidence, trace)
     && validPublicObserverTrace(trace.publicObserver, trace, hostView)
@@ -3094,9 +3502,11 @@ export function validateComposedTraceHostJoin(input: {
       || selectedDecision.kind !== req.kind
       || authoritativeAction.kind !== req.kind
       || trace.viewerSeat !== req.seat
+      || !validDecisionTraceProvenance(trace)
       || !isDeepStrictEqual(trace.request, req)
       || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
+      || !validGenericRoleComponents(trace)
       || !validRoleObjectiveRoute(
         trace as unknown as Record<string, unknown>,
         view,

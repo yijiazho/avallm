@@ -18,13 +18,9 @@ import {
   type RoleObjectiveRole,
 } from './analysis/role-objective-types.ts'
 import {
-  buildRoleObjectiveSnapshot,
   mergeIdentityScopes,
   roleObjectiveIdentityScope,
 } from './analysis/role-objectives.ts'
-import {
-  buildEvilRoleObjectiveSnapshot,
-} from './analysis/evil-objectives.ts'
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
@@ -47,18 +43,14 @@ import {
   type PublicCounterfeitMerlinReadSnapshot,
 } from './analysis/morgana-counterfeit-types.ts'
 import {
-  buildRoleUtilityProjection,
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
-  validatePrivateRoleUtilityHostJoin,
 } from './analysis/role-utility.ts'
 import {
-  buildEvilRoleUtilityProjection,
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateEvilRoleUtilityProjection,
-  validatePrivateEvilRoleUtilityHostJoin,
 } from './analysis/evil-role-utility.ts'
 import {
   buildMorganaRoleUtilityProjection,
@@ -92,8 +84,23 @@ import {
   type AgentExecutionMode,
 } from './brain.ts'
 import {
-  createDecisionComponentRegistry,
-} from './components/registry.ts'
+  DECISION_COMPONENT_RUN_VERSION,
+  attributeComponentPolicyUse,
+  componentPayload,
+  decisionComponentPlan,
+  runDecisionComponents,
+  type DecisionComponentPlan,
+  type DecisionComponentRun,
+} from './components/kernel.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  EVIL_ROLE_UTILITY_COMPONENT,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+  PRIVATE_IDENTITY_INPUT,
+  PRIVATE_PUBLIC_OBSERVER_INPUT,
+  createLegacyRoleAdapterRegistry,
+} from './components/legacy-role-adapters.ts'
 import {
   resolveComposedBrain,
   type ResolvedComposedBrain,
@@ -178,7 +185,11 @@ import {
   type ForcedPolicyResult,
   type PolicyCandidate,
 } from './policy/types.ts'
-import { createDecisionTrace, type DecisionTrace } from './trace.ts'
+import {
+  COMPONENT_DECISION_TRACE_VERSION,
+  createDecisionTrace,
+  type DecisionTrace,
+} from './trace.ts'
 import type {
   AgentDecision,
   AppliedDecisionOutcome,
@@ -300,8 +311,6 @@ export interface ComposedAvalonAgent extends AvalonAgent {
   planMemorySnapshot(): PrivatePlanMemory | undefined
 }
 
-const EMPTY_COMPONENT_REGISTRY = createDecisionComponentRegistry([])
-
 function snapshotPlanner(
   source: CandidatePlanner | undefined,
 ): CandidatePlanner | undefined {
@@ -418,6 +427,120 @@ function scorerVersions(source: CandidateScorer): readonly string[] {
     current = current.baseScorer
   }
   return Object.freeze(versions)
+}
+
+function scorerRequires(
+  source: CandidateScorer,
+  requirement:
+    | 'roleUtilityRequirement'
+    | 'evilRoleUtilityRequirement',
+): boolean {
+  const seen = new Set<CandidateScorer>()
+  let current: CandidateScorer | undefined = source
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    if (current[requirement] !== undefined) return true
+    current = current.baseScorer
+  }
+  return false
+}
+
+function attributeLegacyRolePolicyUse(
+  run: DecisionComponentRun,
+  appliedScorer: CandidateScorer,
+  scores: readonly CandidateScore[],
+): DecisionComponentRun {
+  const goodUsed =
+    appliedScorer.roleUtilityRequirement
+      === ROLE_UTILITY_PROJECTION_VERSION
+    && scores.every((score) => score.roleObjectiveFeatures !== undefined)
+  const evilUsed =
+    appliedScorer.evilRoleUtilityRequirement
+      === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+    && scores.every((score) =>
+      score.evilRoleObjectiveFeatures !== undefined
+      || (
+        (
+          appliedScorer.morganaRoleUtilityRequirement
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+        )
+        && score.morganaRoleObjectiveFeatures !== undefined
+      ))
+  let attributed = run
+  if (goodUsed) {
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      GOOD_ROLE_OBJECTIVE_COMPONENT,
+      'candidate-score',
+    )
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      GOOD_ROLE_UTILITY_COMPONENT,
+      'candidate-score',
+    )
+  }
+  if (evilUsed) {
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      EVIL_ROLE_OBJECTIVE_COMPONENT,
+      'candidate-score',
+    )
+    attributed = attributeComponentPolicyUse(
+      attributed,
+      EVIL_ROLE_UTILITY_COMPONENT,
+      'candidate-score',
+    )
+  }
+  const used = new Map(
+    attributed.policyUse.map((entry) => [entry.component.id, entry.used]),
+  )
+  if (
+    (
+      used.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)
+      && used.get(GOOD_ROLE_OBJECTIVE_COMPONENT.id) !== goodUsed
+    )
+    || (
+      used.has(GOOD_ROLE_UTILITY_COMPONENT.id)
+      && used.get(GOOD_ROLE_UTILITY_COMPONENT.id) !== goodUsed
+    )
+    || (
+      used.has(EVIL_ROLE_OBJECTIVE_COMPONENT.id)
+      && used.get(EVIL_ROLE_OBJECTIVE_COMPONENT.id) !== evilUsed
+    )
+    || (
+      used.has(EVIL_ROLE_UTILITY_COMPONENT.id)
+      && used.get(EVIL_ROLE_UTILITY_COMPONENT.id) !== evilUsed
+    )
+  ) {
+    throw new Error('generic adapter causal policy-use mismatch')
+  }
+  return attributed
+}
+
+function attributeRoleActionSelection(
+  run: DecisionComponentRun,
+): DecisionComponentRun {
+  let attributed = run
+  for (const token of [
+    GOOD_ROLE_OBJECTIVE_COMPONENT,
+    GOOD_ROLE_UTILITY_COMPONENT,
+    EVIL_ROLE_OBJECTIVE_COMPONENT,
+    EVIL_ROLE_UTILITY_COMPONENT,
+  ]) {
+    const use = attributed.policyUse.find(
+      (entry) =>
+        entry.component.id === token.id
+        && entry.component.version === token.version,
+    )
+    if (use?.used) {
+      attributed = attributeComponentPolicyUse(
+        attributed,
+        token,
+        'action-selection',
+      )
+    }
+  }
+  return attributed
 }
 
 function byId(
@@ -598,6 +721,8 @@ function composedTrace(
   scorerVersion: string,
   configuredScorerVersion: string,
   degradation: readonly string[],
+  componentPlan: DecisionComponentPlan,
+  decisionComponents: DecisionComponentRun,
   agentMode: AgentExecutionMode,
   communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
@@ -642,6 +767,7 @@ function composedTrace(
       action,
       degradation,
     ),
+    version: COMPONENT_DECISION_TRACE_VERSION,
     reasonCodes: [
       ...new Set([
         ...analysis.forcedPlayReasonCodes,
@@ -713,6 +839,7 @@ function composedTrace(
             coherence: COHERENCE_MODEL_VERSION,
           }
         : {}),
+      decisionComponents: DECISION_COMPONENT_RUN_VERSION,
       analysis: SITUATION_ANALYSIS_VERSION,
       candidates: LEGAL_CANDIDATE_VERSION,
       forcedPolicy: FORCED_POLICY_VERSION,
@@ -728,6 +855,8 @@ function composedTrace(
       voice: voiceVersion,
     },
     ...(planMemoryEnabled ? { coherenceIntent } : {}),
+    componentPlan: structuredClone(componentPlan),
+    components: structuredClone(decisionComponents),
     candidateScores: scores,
     structuredCandidateId,
     chosenCandidateId,
@@ -859,6 +988,14 @@ export function createComposedAgent(
     version: CANDIDATE_SCORER_VERSION,
     score: scoreCandidates,
   })
+  const goodRoleUtilityConfigured = scorerRequires(
+    scorer,
+    'roleUtilityRequirement',
+  )
+  const evilRoleUtilityConfigured = scorerRequires(
+    scorer,
+    'evilRoleUtilityRequirement',
+  )
   const stage = (value: ComposedStage): void => onStage?.(value)
   const beliefModel = snapshotBeliefModel(
     options.beliefModel ?? exactWorldBeliefModel,
@@ -896,8 +1033,32 @@ export function createComposedAgent(
   if (!planMemoryEnabled && options.coherenceIntent !== undefined) {
     throw new Error('coherenceIntent requires planMemory')
   }
+  const componentRegistry = createLegacyRoleAdapterRegistry(
+    {
+      goodObjectiveAllDecisionKinds:
+        roleObjectivesConfigured || roleObjectiveRouterConfigured,
+    },
+  )
+  const requestedComponents = [
+    ...(
+      roleObjectivesConfigured
+      || roleObjectiveRouterConfigured
+      || goodRoleUtilityConfigured
+        ? [GOOD_ROLE_OBJECTIVE_COMPONENT]
+        : []
+    ),
+    ...(goodRoleUtilityConfigured ? [GOOD_ROLE_UTILITY_COMPONENT] : []),
+    ...(roleObjectiveRouterConfigured
+      ? [EVIL_ROLE_OBJECTIVE_COMPONENT]
+      : []),
+    ...(
+      roleObjectiveRouterConfigured && evilRoleUtilityConfigured
+        ? [EVIL_ROLE_UTILITY_COMPONENT]
+        : []
+    ),
+  ]
   const resolvedBrain = resolveComposedBrain({
-    requestedComponents: [],
+    requestedComponents,
     hostCapabilities: [],
     scoreLayerOrder: [],
     decisionLayerOrder: [],
@@ -931,13 +1092,16 @@ export function createComposedAgent(
       languageFactorVersion: languageFactor.version,
       scorerVersions: scorerVersions(scorer),
     },
-  }, EMPTY_COMPONENT_REGISTRY)
-  let pendingPlan: {
+  }, componentRegistry)
+  const configuredComponentPlan = decisionComponentPlan(resolvedBrain)
+  const pendingPlans: {
+    decisionId: string
     request: DecisionRequest
     selectedDecision: Decision
     plan: DecisionPlan
-  } | undefined
+  }[] = []
   let appliedPlanMemory: PrivatePlanMemory | undefined
+  let decisionTail: Promise<void> = Promise.resolve()
 
   return {
     setPlanner(next) {
@@ -981,20 +1145,44 @@ export function createComposedAgent(
       if (outcome.request.seat !== outcome.view.seat) {
         throw new Error('applied outcome view seat does not match request')
       }
-      const matchingPending = pendingPlan
-        && isDeepStrictEqual(pendingPlan.request, outcome.request)
-        && outcome.selectedDecision !== undefined
-        && isDeepStrictEqual(
-          pendingPlan.selectedDecision,
-          outcome.selectedDecision,
+      const decisionId = outcome.provisionalTrace?.decisionId
+      const matchesAcknowledgment = (
+        pending: (typeof pendingPlans)[number],
+      ): boolean =>
+        isDeepStrictEqual(pending.request, outcome.request)
+        && (
+          outcome.selectedDecision === undefined
+            ? outcome.resolution === 'fallback-after-agent-error'
+            : isDeepStrictEqual(
+                pending.selectedDecision,
+                outcome.selectedDecision,
+              )
         )
-        ? pendingPlan
-        : undefined
+      let pendingIndex = decisionId === undefined
+        ? -1
+        : pendingPlans.findIndex(
+            (pending) =>
+              pending.decisionId === decisionId
+              && matchesAcknowledgment(pending),
+          )
+      if (
+        decisionId === undefined
+        && outcome.selectedDecision !== undefined
+      ) {
+        const legacyMatches = pendingPlans
+          .map((pending, index) => ({ pending, index }))
+          .filter(({ pending }) => matchesAcknowledgment(pending))
+        pendingIndex = legacyMatches.length === 1
+          ? legacyMatches[0].index
+          : -1
+      }
+      const matchingPending = pendingIndex < 0
+        ? undefined
+        : pendingPlans[pendingIndex]
       if (
         outcome.resolution !== 'fallback-after-agent-error'
         && !matchingPending
       ) {
-        pendingPlan = undefined
         throw new Error('applied outcome does not match the pending selected plan')
       }
       let memory: PrivatePlanMemory
@@ -1011,7 +1199,7 @@ export function createComposedAgent(
           intent: coherenceIntent,
         })
       } finally {
-        pendingPlan = undefined
+        if (pendingIndex >= 0) pendingPlans.splice(pendingIndex, 1)
       }
       appliedPlanMemory = memory
       if (cognition) {
@@ -1045,203 +1233,320 @@ export function createComposedAgent(
       return finalized
     },
     async decide(
-      req: DecisionRequest,
-      view: PlayerView,
+      inputRequest: DecisionRequest,
+      inputView: PlayerView,
     ): Promise<AgentDecision> {
-      const degradation: string[] = []
-      const activePlanner = planner && validComponentVersion(planner.version)
-        ? planner
-        : undefined
-      const activeVoice = voice && validComponentVersion(voice.version)
-        ? voice
-        : undefined
-      const plannerVersion =
-        activePlanner?.version ?? NO_PLANNER_VERSION
-      const voiceVersion = activeVoice?.version ?? NO_VOICE_VERSION
-      if (planner && !activePlanner) degradation.push('planner-invalid-version')
-      if (voice && !activeVoice) degradation.push('voice-invalid-version')
-      const interpreter = configuredLanguageInterpreter
-      let languageTrace: LanguageTraceAttribution | undefined
-      if (interpreter) {
-        const interpreterVersion = interpreter.interpreterVersion
-        const interpret = interpreter.interpret.bind(interpreter)
-        const interpreterSnapshot: LanguageInterpreter = {
-          interpreterVersion,
-          interpret(input: LanguageInterpreterInput) {
-            return interpret(input)
-          },
-        }
-        const language = await orchestrateLanguageEvidence(
-          view,
-          cognition,
-          interpreterSnapshot,
-          configuredLanguageVersion,
-        )
-        stage('language')
-        degradation.push(...language.degradation)
-
-        const mechanicalBelief = beliefModel.infer(view)
-        if (mechanicalBelief.modelVersion !== beliefModel.version) {
-          throw new Error(
-            `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
-          )
-        }
-        const resolvedBelief = language.applyEvidence
-          && language.inferenceContext
-          ? applyBoundedLanguageEvidence(
-              view,
-              mechanicalBelief,
-              language.inferenceContext,
-              {
-                evidence: language.reads,
-                cursor: language.cursor,
-              },
-              languageFactor,
-            )
-          : mechanicalBelief
-        const nextCognition = advanceCognitionFromBelief(
-          cognition,
-          view,
-          {
-            belief: resolvedBelief,
-            mechanicalBelief: beliefModel.version,
-            beliefPipeline:
-              `${beliefModel.version}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`,
-            languageEvidence: language.trace.interpreterVersion,
-            languageReads: language.reads,
-            languageCursor: language.cursor,
-          },
-        )
-        cognition = nextCognition
-        languageTrace = language.trace
-      } else {
-        cognition = advanceCognition(cognition, view, beliefModel)
-      }
-      stage('cognition')
-      if (roleObjectiveRouterConfigured) {
-        cognition = {
-          ...cognition,
-          versions: {
-            ...cognition.versions,
-            roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
-          },
-        }
-      }
-      if (planMemoryEnabled && appliedPlanMemory) {
-        cognition = {
-          ...cognition,
-          planMemory: appliedPlanMemory,
-          versions: {
-            ...cognition.versions,
-            planMemory: PLAN_MEMORY_VERSION,
-            coherence: COHERENCE_MODEL_VERSION,
-          },
-        }
-      }
-      const routerConfigured = roleObjectiveRouterConfigured
-      const routedObjective = routerConfigured
-        ? routedRoleObjectiveModel(view.role)
-        : 'off'
-      let resolvedScorer = resolveRolePolicyScorer({
-        configured: scorer,
-        req,
-        view,
-        routedObjective,
+      const req = structuredClone(inputRequest)
+      const view = structuredClone(inputView)
+      const invocationPlanner = planner
+      const invocationVoice = voice
+      const predecessor = decisionTail
+      let release!: () => void
+      decisionTail = new Promise<void>((resolve) => {
+        release = resolve
       })
-      const roleScorerApplicable =
-        resolvedScorer.roleUtilityRequirement
-          === ROLE_UTILITY_PROJECTION_VERSION
-      const evilRoleScorerApplicable =
-        resolvedScorer.evilRoleUtilityRequirement
-          === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-      const roleObjectiveRole: RoleObjectiveRole | undefined =
-        (roleObjectivesConfigured || roleScorerApplicable)
-        && (view.role === 'merlin' || view.role === 'percival')
-          ? view.role
-          : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
-            ? view.role as RoleObjectiveRole
-            : undefined
-      const evilRoleObjectiveApplicable =
-        routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      const morganaCounterfeitApplicable =
-        (
-          morganaCounterfeitConfigured
-          || resolvedScorer.morganaRoleUtilityRequirement
-            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-        )
-        && view.role === 'morgana'
-        && (req.kind === 'propose' || req.kind === 'vote')
-      const decisionIdentityScope = roleObjectiveRole
-        ? mergeIdentityScopes(
-            configuredIdentityScope,
-            roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
-          )
-        : evilRoleObjectiveApplicable
-          ? mergeIdentityScopes(
-              configuredIdentityScope,
-              { roleQueries: [], hiddenTeam: true },
-            )
-          : configuredIdentityScope
-      let privateIdentity: PrivateIdentitySnapshot | undefined
-      if (decisionIdentityScope) {
-        try {
-          privateIdentity = projectJointIdentity(
-            cognition.belief,
-            decisionIdentityScope,
-          )
-          cognition = {
-            ...cognition,
-            identity: privateIdentity,
-            versions: {
-              ...cognition.versions,
-              identityModel: JOINT_IDENTITY_MODEL_VERSION,
+      await predecessor
+      try {
+        const degradation: string[] = []
+        const activePlanner =
+          invocationPlanner && validComponentVersion(invocationPlanner.version)
+          ? invocationPlanner
+          : undefined
+        const activeVoice =
+          invocationVoice && validComponentVersion(invocationVoice.version)
+          ? invocationVoice
+          : undefined
+        const plannerVersion =
+          activePlanner?.version ?? NO_PLANNER_VERSION
+        const voiceVersion = activeVoice?.version ?? NO_VOICE_VERSION
+        if (invocationPlanner && !activePlanner) {
+          degradation.push('planner-invalid-version')
+        }
+        if (invocationVoice && !activeVoice) {
+          degradation.push('voice-invalid-version')
+        }
+        const interpreter = configuredLanguageInterpreter
+        let languageTrace: LanguageTraceAttribution | undefined
+        if (interpreter) {
+          const interpreterVersion = interpreter.interpreterVersion
+          const interpret = interpreter.interpret.bind(interpreter)
+          const interpreterSnapshot: LanguageInterpreter = {
+            interpreterVersion,
+            interpret(input: LanguageInterpreterInput) {
+              return interpret(input)
             },
           }
-        } catch {
-          degradation.push('identity-projection-failed')
-        }
-        stage('identity')
-      }
-      const publicObserver = (
-        publicObserverConfigured
-        || roleObjectiveRole
-        || evilRoleObjectiveApplicable
-        || morganaCounterfeitApplicable
-      )
-        ? observePublicRecord(projectPublicRecord(view))
-        : undefined
-      if (publicObserver) stage('observer')
-      let analysis = analyzeSituation(view, {
-        belief: cognition.belief,
-        evidence: cognition.evidence,
-      })
-      stage('analysis')
-      const candidates = legalCandidates(req, view)
-      stage('candidates')
-      let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
-      let privateEvilRoleObjective:
-        PrivateEvilRoleObjectiveSnapshot | undefined
-      let privateRoleUtility: PrivateRoleUtilityProjection | undefined
-      let privateEvilRoleUtility:
-        PrivateEvilRoleUtilityProjection | undefined
-      let publicMorganaCounterfeitRead:
-        PublicCounterfeitMerlinReadSnapshot | undefined
-      let privateMorganaCounterfeitObjective:
-        PrivateMorganaCounterfeitObjective | undefined
-      let privateMorganaRoleUtility:
-        PrivateMorganaRoleUtilityProjection | undefined
-      if (roleObjectiveRole) {
-        try {
-          if (!privateIdentity || !publicObserver) {
-            throw new Error('role objective dependencies unavailable')
-          }
-          privateRoleObjective = buildRoleObjectiveSnapshot({
-            req,
+          const language = await orchestrateLanguageEvidence(
             view,
-            identity: privateIdentity,
-            observer: publicObserver,
-            candidates,
-          })
+            cognition,
+            interpreterSnapshot,
+            configuredLanguageVersion,
+          )
+          stage('language')
+          degradation.push(...language.degradation)
+
+          const mechanicalBelief = beliefModel.infer(view)
+          if (mechanicalBelief.modelVersion !== beliefModel.version) {
+            throw new Error(
+              `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
+            )
+          }
+          const resolvedBelief = language.applyEvidence
+            && language.inferenceContext
+            ? applyBoundedLanguageEvidence(
+                view,
+                mechanicalBelief,
+                language.inferenceContext,
+                {
+                  evidence: language.reads,
+                  cursor: language.cursor,
+                },
+                languageFactor,
+              )
+            : mechanicalBelief
+          const nextCognition = advanceCognitionFromBelief(
+            cognition,
+            view,
+            {
+              belief: resolvedBelief,
+              mechanicalBelief: beliefModel.version,
+              beliefPipeline:
+                `${beliefModel.version}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`,
+              languageEvidence: language.trace.interpreterVersion,
+              languageReads: language.reads,
+              languageCursor: language.cursor,
+            },
+          )
+          cognition = nextCognition
+          languageTrace = language.trace
+        } else {
+          cognition = advanceCognition(cognition, view, beliefModel)
+        }
+        stage('cognition')
+        if (roleObjectiveRouterConfigured) {
+          cognition = {
+            ...cognition,
+            versions: {
+              ...cognition.versions,
+              roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
+            },
+          }
+        }
+        if (planMemoryEnabled && appliedPlanMemory) {
+          cognition = {
+            ...cognition,
+            planMemory: appliedPlanMemory,
+            versions: {
+              ...cognition.versions,
+              planMemory: PLAN_MEMORY_VERSION,
+              coherence: COHERENCE_MODEL_VERSION,
+            },
+          }
+        }
+        const routerConfigured = roleObjectiveRouterConfigured
+        const routedObjective = routerConfigured
+          ? routedRoleObjectiveModel(view.role)
+          : 'off'
+        let resolvedScorer = resolveRolePolicyScorer({
+          configured: scorer,
+          req,
+          view,
+          routedObjective,
+        })
+        const roleScorerApplicable =
+          resolvedScorer.roleUtilityRequirement
+            === ROLE_UTILITY_PROJECTION_VERSION
+        const evilRoleScorerApplicable =
+          resolvedScorer.evilRoleUtilityRequirement
+            === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+        const roleObjectiveRole: RoleObjectiveRole | undefined =
+          (roleObjectivesConfigured || roleScorerApplicable)
+          && (view.role === 'merlin' || view.role === 'percival')
+            ? view.role
+            : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
+              ? view.role as RoleObjectiveRole
+              : undefined
+        const evilRoleObjectiveApplicable =
+          routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+        const morganaCounterfeitApplicable =
+          (
+            morganaCounterfeitConfigured
+            || resolvedScorer.morganaRoleUtilityRequirement
+              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+          )
+          && view.role === 'morgana'
+          && (req.kind === 'propose' || req.kind === 'vote')
+        const decisionIdentityScope = roleObjectiveRole
+          ? mergeIdentityScopes(
+              configuredIdentityScope,
+              roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
+            )
+          : evilRoleObjectiveApplicable
+            ? mergeIdentityScopes(
+                configuredIdentityScope,
+                { roleQueries: [], hiddenTeam: true },
+              )
+            : configuredIdentityScope
+        let privateIdentity: PrivateIdentitySnapshot | undefined
+        if (decisionIdentityScope) {
+          try {
+            privateIdentity = projectJointIdentity(
+              cognition.belief,
+              decisionIdentityScope,
+            )
+            cognition = {
+              ...cognition,
+              identity: privateIdentity,
+              versions: {
+                ...cognition.versions,
+                identityModel: JOINT_IDENTITY_MODEL_VERSION,
+              },
+            }
+          } catch {
+            degradation.push('identity-projection-failed')
+          }
+          stage('identity')
+        }
+        const publicObserver = (
+          publicObserverConfigured
+          || roleObjectiveRole
+          || evilRoleObjectiveApplicable
+          || morganaCounterfeitApplicable
+        )
+          ? observePublicRecord(projectPublicRecord(view))
+          : undefined
+        if (publicObserver) stage('observer')
+        let analysis = analyzeSituation(view, {
+          belief: cognition.belief,
+          evidence: cognition.evidence,
+        })
+        stage('analysis')
+        const candidates = legalCandidates(req, view)
+        stage('candidates')
+        let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
+        let privateEvilRoleObjective:
+          PrivateEvilRoleObjectiveSnapshot | undefined
+        let privateRoleUtility: PrivateRoleUtilityProjection | undefined
+        let privateEvilRoleUtility:
+          PrivateEvilRoleUtilityProjection | undefined
+        let publicMorganaCounterfeitRead:
+          PublicCounterfeitMerlinReadSnapshot | undefined
+        let privateMorganaCounterfeitObjective:
+          PrivateMorganaCounterfeitObjective | undefined
+        let privateMorganaRoleUtility:
+          PrivateMorganaRoleUtilityProjection | undefined
+        if (morganaCounterfeitApplicable) {
+          try {
+            if (!publicObserver) {
+              throw new Error('Morgana counterfeit observer unavailable')
+            }
+            publicMorganaCounterfeitRead =
+              buildPublicCounterfeitMerlinRead(
+                projectPublicRecord(view),
+                publicObserver,
+              )
+            privateMorganaCounterfeitObjective =
+              buildMorganaCounterfeitObjective({
+                req,
+                view,
+                belief: cognition.belief,
+                publicRead: publicMorganaCounterfeitRead,
+                candidates,
+              })
+          } catch {
+            publicMorganaCounterfeitRead = undefined
+            privateMorganaCounterfeitObjective = undefined
+            degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
+          }
+          stage('morgana-counterfeit')
+        }
+        const configuredComponentIds = new Set(
+          resolvedBrain.description.components.configured.map(
+            (component) => component.id,
+          ),
+        )
+        const hostInputs = [
+          ...(
+            resolvedBrain.description.requiredHostInputs.some(
+              (input) => input.id === PRIVATE_IDENTITY_INPUT.id,
+            )
+            && privateIdentity
+              ? [{
+                  input: PRIVATE_IDENTITY_INPUT,
+                  value: privateIdentity,
+                }]
+              : []
+          ),
+          ...(
+            resolvedBrain.description.requiredHostInputs.some(
+              (input) => input.id === PRIVATE_PUBLIC_OBSERVER_INPUT.id,
+            )
+            && publicObserver
+              ? [{
+                  input: PRIVATE_PUBLIC_OBSERVER_INPUT,
+                  value: publicObserver,
+                }]
+              : []
+          ),
+        ]
+        let decisionComponents = await runDecisionComponents(
+          resolvedBrain,
+          req,
+          view,
+          hostInputs.length ? { hostInputs } : undefined,
+        )
+        if (configuredComponentIds.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)) {
+          privateRoleObjective = componentPayload(
+            decisionComponents,
+            GOOD_ROLE_OBJECTIVE_COMPONENT,
+          )
+          if (roleObjectiveRole && !privateRoleObjective) {
+            degradation.push(ROLE_OBJECTIVE_DEGRADATION)
+          }
+        }
+        if (configuredComponentIds.has(GOOD_ROLE_UTILITY_COMPONENT.id)) {
+          privateRoleUtility = componentPayload(
+            decisionComponents,
+            GOOD_ROLE_UTILITY_COMPONENT,
+          )
+          if (roleScorerApplicable && !privateRoleUtility) {
+            degradation.push(ROLE_UTILITY_DEGRADATION)
+            resolvedScorer = resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+              req,
+              view,
+              routedObjective,
+            })
+          }
+        }
+        if (configuredComponentIds.has(EVIL_ROLE_OBJECTIVE_COMPONENT.id)) {
+          privateEvilRoleObjective = componentPayload(
+            decisionComponents,
+            EVIL_ROLE_OBJECTIVE_COMPONENT,
+          )
+          if (evilRoleObjectiveApplicable && !privateEvilRoleObjective) {
+            degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
+          }
+        }
+        if (configuredComponentIds.has(EVIL_ROLE_UTILITY_COMPONENT.id)) {
+          privateEvilRoleUtility = componentPayload(
+            decisionComponents,
+            EVIL_ROLE_UTILITY_COMPONENT,
+          )
+          if (evilRoleScorerApplicable && !privateEvilRoleUtility) {
+            degradation.push(EVIL_ROLE_UTILITY_DEGRADATION)
+            resolvedScorer = resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+              req,
+              view,
+              routedObjective,
+            })
+          }
+        }
+        if (roleObjectiveRole || evilRoleObjectiveApplicable) {
+          stage('role-objective')
+        }
+        if (privateRoleObjective) {
           cognition = {
             ...cognition,
             roleObjective: privateRoleObjective,
@@ -1250,23 +1555,8 @@ export function createComposedAgent(
               roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
             },
           }
-        } catch {
-          degradation.push(ROLE_OBJECTIVE_DEGRADATION)
         }
-        stage('role-objective')
-      }
-      if (evilRoleObjectiveApplicable) {
-        try {
-          if (!privateIdentity || !publicObserver) {
-            throw new Error('evil role objective dependencies unavailable')
-          }
-          privateEvilRoleObjective = buildEvilRoleObjectiveSnapshot({
-            req,
-            view,
-            identity: privateIdentity,
-            observer: publicObserver,
-            candidates,
-          })
+        if (privateEvilRoleObjective) {
           cognition = {
             ...cognition,
             evilRoleObjective: privateEvilRoleObjective,
@@ -1276,571 +1566,481 @@ export function createComposedAgent(
               roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
             },
           }
-        } catch {
-          degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
         }
-        stage('role-objective')
-      }
-      if (morganaCounterfeitApplicable) {
-        try {
-          if (!publicObserver) {
-            throw new Error('Morgana counterfeit observer unavailable')
-          }
-          publicMorganaCounterfeitRead =
-            buildPublicCounterfeitMerlinRead(
-              projectPublicRecord(view),
-              publicObserver,
-            )
-          privateMorganaCounterfeitObjective =
-            buildMorganaCounterfeitObjective({
-              req,
-              view,
-              belief: cognition.belief,
-              publicRead: publicMorganaCounterfeitRead,
-              candidates,
-            })
-        } catch {
-          publicMorganaCounterfeitRead = undefined
-          privateMorganaCounterfeitObjective = undefined
-          degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
-        }
-        stage('morgana-counterfeit')
-      }
-      if (roleScorerApplicable) {
-        try {
-          if (!privateRoleObjective || !publicObserver) {
-            throw new Error('role utility dependencies unavailable')
-          }
-          privateRoleUtility = buildRoleUtilityProjection({
-            req,
-            view,
-            objective: privateRoleObjective,
-            observer: publicObserver,
-            candidates,
-          })
-          if (!validatePrivateRoleUtilityHostJoin(privateRoleUtility, {
-            req,
-            view,
-            objective: privateRoleObjective,
-            identity: privateIdentity,
-            observer: publicObserver,
-            candidates,
-          })) {
-            throw new Error('role utility failed its authoritative host join')
-          }
-        } catch {
-          degradation.push(ROLE_UTILITY_DEGRADATION)
-          resolvedScorer = resolveRolePolicyScorer({
-            configured: resolvedScorer.baseScorer ?? resolvedScorer,
-            req,
-            view,
-            routedObjective,
-          })
-        }
-      }
-      if (evilRoleScorerApplicable) {
-        try {
-          if (
-            !privateEvilRoleObjective
-            || !privateIdentity
-            || !publicObserver
-          ) {
-            throw new Error('evil role utility dependencies unavailable')
-          }
-          privateEvilRoleUtility = buildEvilRoleUtilityProjection({
-            req,
-            view,
-            objective: privateEvilRoleObjective,
-            candidates,
-            ...(req.kind === 'vote'
-              ? {
-                  alternativeObjective: buildEvilRoleObjectiveSnapshot({
-                    req: { ...req, kind: 'propose' },
-                    view,
-                    identity: privateIdentity,
-                    observer: publicObserver,
-                    candidates: hypotheticalProposalCandidates(view),
-                  }),
-                }
-              : {}),
-          })
-          if (!validatePrivateEvilRoleUtilityHostJoin(
-            privateEvilRoleUtility,
-            {
-              req,
-              view,
-              objective: privateEvilRoleObjective,
-              identity: privateIdentity,
-              observer: publicObserver,
-              candidates,
-              ...(req.kind === 'vote'
-                ? {
-                    alternativeObjective:
-                      buildEvilRoleObjectiveSnapshot({
-                        req: { ...req, kind: 'propose' },
-                        view,
-                        identity: privateIdentity,
-                        observer: publicObserver,
-                        candidates: hypotheticalProposalCandidates(view),
-                      }),
-                    alternativeCandidates:
-                      hypotheticalProposalCandidates(view),
-                  }
-                : {}),
-            },
-          )) {
-            throw new Error(
-              'evil role utility failed its authoritative host join',
-            )
-          }
-        } catch {
-          privateEvilRoleUtility = undefined
-          degradation.push(EVIL_ROLE_UTILITY_DEGRADATION)
-          resolvedScorer = resolveRolePolicyScorer({
-            configured: resolvedScorer.baseScorer ?? resolvedScorer,
-            req,
-            view,
-            routedObjective,
-          })
-        }
-      }
-      const policyTeams = candidateTeams(candidates, view)
-      const wantsJointProposalAssessments =
-        (
-          resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
-          || resolvedScorer.analysisRequirement
+        const policyTeams = candidateTeams(candidates, view)
+        const wantsJointProposalAssessments =
+          (
+            resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
+            || resolvedScorer.analysisRequirement
+              === 'joint-proposal-vote-team-assessments'
+          )
+          && req.kind === 'propose'
+          && view.alignment === 'good'
+        const wantsJointVoteAssessments =
+          resolvedScorer.analysisRequirement
             === 'joint-proposal-vote-team-assessments'
-        )
-        && req.kind === 'propose'
-        && view.alignment === 'good'
-      const wantsJointVoteAssessments =
-        resolvedScorer.analysisRequirement
-          === 'joint-proposal-vote-team-assessments'
-        && req.kind === 'vote'
-        && view.alignment === 'good'
-      const hypotheticalTeamCandidates = wantsJointVoteAssessments
-        ? hypotheticalProposalCandidates(view)
-        : undefined
-      const hypotheticalTeams = hypotheticalTeamCandidates
-        ? candidateTeams(hypotheticalTeamCandidates, view)
-        : undefined
-      analysis = analyzeSituation(view, {
-        belief: cognition.belief,
-        evidence: cognition.evidence,
-        policyCandidateTeams: policyTeams,
-        ...(wantsJointProposalAssessments
-          ? { policyCandidateAssessments: policyTeams }
-          : {}),
-        ...(hypotheticalTeams
-          ? {
-              policyCandidateAssessments: hypotheticalTeams,
-              goodVote: true,
-            }
-          : {}),
-      })
-      let privateEvilQuestCardPolicy:
-        PrivateEvilQuestCardPolicy | undefined
-      let forced = applyForcedPolicy(req, view, analysis, candidates)
-      if (
-        !forced.applied
-        && evilQuestCardPolicyMode
-        && req.kind === 'quest'
-        && view.alignment === 'evil'
-        && view.role !== 'oberon'
-      ) {
-        privateEvilQuestCardPolicy = buildPrivateEvilQuestCardPolicy({
-          req,
-          view,
-          analysis,
-          mode: evilQuestCardPolicyMode,
+          && req.kind === 'vote'
+          && view.alignment === 'good'
+        const hypotheticalTeamCandidates = wantsJointVoteAssessments
+          ? hypotheticalProposalCandidates(view)
+          : undefined
+        const hypotheticalTeams = hypotheticalTeamCandidates
+          ? candidateTeams(hypotheticalTeamCandidates, view)
+          : undefined
+        analysis = analyzeSituation(view, {
+          belief: cognition.belief,
+          evidence: cognition.evidence,
+          policyCandidateTeams: policyTeams,
+          ...(wantsJointProposalAssessments
+            ? { policyCandidateAssessments: policyTeams }
+            : {}),
+          ...(hypotheticalTeams
+            ? {
+                policyCandidateAssessments: hypotheticalTeams,
+                goodVote: true,
+              }
+            : {}),
         })
-        if (!validatePrivateEvilQuestCardPolicyHostJoin(
-          privateEvilQuestCardPolicy,
-          {
+        let privateEvilQuestCardPolicy:
+          PrivateEvilQuestCardPolicy | undefined
+        let forced = applyForcedPolicy(req, view, analysis, candidates)
+        if (
+          !forced.applied
+          && evilQuestCardPolicyMode
+          && req.kind === 'quest'
+          && view.alignment === 'evil'
+          && view.role !== 'oberon'
+        ) {
+          privateEvilQuestCardPolicy = buildPrivateEvilQuestCardPolicy({
             req,
             view,
             analysis,
             mode: evilQuestCardPolicyMode,
-          },
-        )) {
-          throw new Error('evil quest-card policy failed its host join')
-        }
-        stage('quest-card-policy')
-        forced = applyForcedPolicy(req, view, analysis, candidates, {
-          evilQuestCardPolicy: privateEvilQuestCardPolicy,
-        })
-      }
-      stage('forced-policy')
-
-      if (
-        resolvedScorer.morganaRoleUtilityRequirement
-          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-      ) {
-        try {
-          if (
-            !privateMorganaCounterfeitObjective
-            || !privateEvilRoleUtility
-          ) {
-            throw new Error('Morgana policy dependencies unavailable')
-          }
-          const selectionMode: MorganaRoleSelectionMode =
-            resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-              ? 'seeded-near-equal-vote-within-d2-band'
-              : 'top-counterfeit-within-d2-band'
-          privateMorganaRoleUtility =
-            buildMorganaRoleUtilityProjection({
-              req,
-              view,
-              candidates,
-              forced,
-              counterfeitObjective: privateMorganaCounterfeitObjective,
-              evilRoleUtility: privateEvilRoleUtility,
-              selectionMode,
-              deterministicSeed: seed,
-            })
-          if (!validatePrivateMorganaRoleUtilityHostJoin(
-            privateMorganaRoleUtility,
+          })
+          if (!validatePrivateEvilQuestCardPolicyHostJoin(
+            privateEvilQuestCardPolicy,
             {
               req,
               view,
-              candidates,
-              forced,
-              counterfeitObjective: privateMorganaCounterfeitObjective,
-              evilRoleUtility: privateEvilRoleUtility,
-              selectionMode,
-              deterministicSeed: seed,
+              analysis,
+              mode: evilQuestCardPolicyMode,
             },
           )) {
-            throw new Error('Morgana role utility failed its host join')
+            throw new Error('evil quest-card policy failed its host join')
           }
-        } catch {
-          privateMorganaRoleUtility = undefined
-          degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
-          resolvedScorer = resolveRolePolicyScorer({
-            configured: resolvedScorer.baseScorer ?? resolvedScorer,
-            req,
-            view,
-            routedObjective,
+          stage('quest-card-policy')
+          forced = applyForcedPolicy(req, view, analysis, candidates, {
+            evilQuestCardPolicy: privateEvilQuestCardPolicy,
           })
         }
-      }
+        stage('forced-policy')
 
-      const compatibility = compatibilityDecision(req, view, seed)
-      const compatibilityCandidateId = candidateIdForDecision(compatibility)
-      const scoringContext = {
-        deterministicSeed: seed,
-        request: req,
-        view,
-        analysis,
-        candidates,
-        ...(hypotheticalTeamCandidates
-          ? { hypotheticalTeamCandidates }
-          : {}),
-        ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
-        ...(privateEvilRoleUtility
-          ? { evilRoleUtility: privateEvilRoleUtility }
-          : {}),
-        ...(privateMorganaRoleUtility
-          ? { morganaRoleUtility: privateMorganaRoleUtility }
-          : {}),
-        forced,
-        compatibilityCandidateId,
-      }
-      let scorerVersion = resolvedScorer.version
-      let scores: readonly CandidateScore[]
-      try {
-        const suppliedScores =
-          resolvedScorer.score(structuredClone(scoringContext))
-        validateCandidateScores(scoringContext, suppliedScores, scorerVersion)
-        scores = structuredClone(suppliedScores)
-      } catch {
-        degradation.push('scorer-invalid-output')
-        const roleScorerFailed =
-          resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
-          || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-          || resolvedScorer.version
-            === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-          || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-        const baseScorer = roleScorerFailed
-          ? resolveRolePolicyScorer({
+        if (
+          resolvedScorer.morganaRoleUtilityRequirement
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+        ) {
+          try {
+            if (
+              !privateMorganaCounterfeitObjective
+              || !privateEvilRoleUtility
+            ) {
+              throw new Error('Morgana policy dependencies unavailable')
+            }
+            const selectionMode: MorganaRoleSelectionMode =
+              resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+                ? 'seeded-near-equal-vote-within-d2-band'
+                : 'top-counterfeit-within-d2-band'
+            privateMorganaRoleUtility =
+              buildMorganaRoleUtilityProjection({
+                req,
+                view,
+                candidates,
+                forced,
+                counterfeitObjective: privateMorganaCounterfeitObjective,
+                evilRoleUtility: privateEvilRoleUtility,
+                selectionMode,
+                deterministicSeed: seed,
+              })
+            if (!validatePrivateMorganaRoleUtilityHostJoin(
+              privateMorganaRoleUtility,
+              {
+                req,
+                view,
+                candidates,
+                forced,
+                counterfeitObjective: privateMorganaCounterfeitObjective,
+                evilRoleUtility: privateEvilRoleUtility,
+                selectionMode,
+                deterministicSeed: seed,
+              },
+            )) {
+              throw new Error('Morgana role utility failed its host join')
+            }
+          } catch {
+            privateMorganaRoleUtility = undefined
+            degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
+            resolvedScorer = resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
               req,
               view,
               routedObjective,
             })
-          : undefined
-        if (baseScorer) {
-          degradation.push(
-            resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-            || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-              ? MORGANA_ROLE_SCORER_DEGRADATION
-              : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+          }
+        }
+
+        const compatibility = compatibilityDecision(req, view, seed)
+        const compatibilityCandidateId = candidateIdForDecision(compatibility)
+        const scoringContext = {
+          deterministicSeed: seed,
+          request: req,
+          view,
+          analysis,
+          candidates,
+          ...(hypotheticalTeamCandidates
+            ? { hypotheticalTeamCandidates }
+            : {}),
+          ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
+          ...(privateEvilRoleUtility
+            ? { evilRoleUtility: privateEvilRoleUtility }
+            : {}),
+          ...(privateMorganaRoleUtility
+            ? { morganaRoleUtility: privateMorganaRoleUtility }
+            : {}),
+          forced,
+          compatibilityCandidateId,
+        }
+        let scorerVersion = resolvedScorer.version
+        let scores: readonly CandidateScore[]
+        let appliedScorer: CandidateScorer
+        try {
+          const suppliedScores =
+            resolvedScorer.score(structuredClone(scoringContext))
+          validateCandidateScores(scoringContext, suppliedScores, scorerVersion)
+          scores = structuredClone(suppliedScores)
+          appliedScorer = resolvedScorer
+        } catch {
+          degradation.push('scorer-invalid-output')
+          const roleScorerFailed =
+            resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
+            || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+            || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
             || resolvedScorer.version
               === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              ? 'evil-role-objective-scorer-failed'
-              : 'role-objective-scorer-failed',
-          )
-          try {
-            const suppliedBase =
-              baseScorer.score(structuredClone(scoringContext))
-            validateCandidateScores(
-              scoringContext,
-              suppliedBase,
-              baseScorer.version,
+            || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+            || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+          const baseScorer = roleScorerFailed
+            ? resolveRolePolicyScorer({
+                configured: resolvedScorer.baseScorer ?? resolvedScorer,
+                req,
+                view,
+                routedObjective,
+              })
+            : undefined
+          if (baseScorer) {
+            degradation.push(
+              resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+              || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+                ? MORGANA_ROLE_SCORER_DEGRADATION
+                : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+              || resolvedScorer.version
+                === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                ? 'evil-role-objective-scorer-failed'
+                : 'role-objective-scorer-failed',
             )
-            scorerVersion = baseScorer.version
-            scores = structuredClone(suppliedBase)
-          } catch {
-            degradation.push('base-scorer-invalid-output')
+            try {
+              const suppliedBase =
+                baseScorer.score(structuredClone(scoringContext))
+              validateCandidateScores(
+                scoringContext,
+                suppliedBase,
+                baseScorer.version,
+              )
+              scorerVersion = baseScorer.version
+              scores = structuredClone(suppliedBase)
+              appliedScorer = baseScorer
+            } catch {
+              degradation.push('base-scorer-invalid-output')
+              scorerVersion = CANDIDATE_SCORER_VERSION
+              scores = scoreCandidates(scoringContext)
+              appliedScorer = {
+                version: CANDIDATE_SCORER_VERSION,
+                score: scoreCandidates,
+              }
+              validateCandidateScores(
+                scoringContext,
+                scores,
+                CANDIDATE_SCORER_VERSION,
+              )
+            }
+          } else {
             scorerVersion = CANDIDATE_SCORER_VERSION
             scores = scoreCandidates(scoringContext)
+            appliedScorer = {
+              version: CANDIDATE_SCORER_VERSION,
+              score: scoreCandidates,
+            }
             validateCandidateScores(
               scoringContext,
               scores,
               CANDIDATE_SCORER_VERSION,
             )
           }
-        } else {
-          scorerVersion = CANDIDATE_SCORER_VERSION
-          scores = scoreCandidates(scoringContext)
-          validateCandidateScores(
-            scoringContext,
-            scores,
-            CANDIDATE_SCORER_VERSION,
-          )
         }
-      }
-      const questCardPolicyCandidateId =
-        privateEvilQuestCardPolicy?.selectedCard
-          ? candidateIdForDecision({
-              kind: 'quest',
-              card: privateEvilQuestCardPolicy.selectedCard,
-            })
-          : undefined
-      const structured = forced.selectedCandidateId
-        ? scores.find((score) => score.candidateId === forced.selectedCandidateId)
-        : questCardPolicyCandidateId
-          ? scores.find((score) => score.candidateId === questCardPolicyCandidateId)
-          : structuredChoice(scores)
-      if (!structured || !structured.viable) {
-        throw new Error('forced policy selected a non-viable candidate')
-      }
-      stage('scoring')
+        decisionComponents = attributeLegacyRolePolicyUse(
+          decisionComponents,
+          appliedScorer,
+          scores,
+        )
+        const questCardPolicyCandidateId =
+          privateEvilQuestCardPolicy?.selectedCard
+            ? candidateIdForDecision({
+                kind: 'quest',
+                card: privateEvilQuestCardPolicy.selectedCard,
+              })
+            : undefined
+        const structured = forced.selectedCandidateId
+          ? scores.find((score) => score.candidateId === forced.selectedCandidateId)
+          : questCardPolicyCandidateId
+            ? scores.find((score) => score.candidateId === questCardPolicyCandidateId)
+            : structuredChoice(scores)
+        if (!structured || !structured.viable) {
+          throw new Error('forced policy selected a non-viable candidate')
+        }
+        stage('scoring')
 
-      const context = composedPolicyContext(
-        view,
-        analysis,
-        candidates,
-        forced,
-        scores,
-        structured.candidateId,
-      )
-      const viableIds = new Set(
-        context.viableCandidates.map((candidate) => candidate.id),
-      )
-      let chosenCandidateId = structured.candidateId
-      let plannerCandidateId: string | undefined
-      let plannerCommunication: PlannerCommunicationDirection | undefined
-      let plannerReasonCodes: readonly string[] | undefined
-      if (
-        activePlanner
-        && !forced.selectedCandidateId
-        && !questCardPolicyCandidateId
-      ) {
-        stage('planner')
-        try {
-          const suppliedPlan = await activePlanner.choose({
-            context: structuredClone(context),
-            renderedContext: renderComposedPolicyContext(context),
-            structuredCandidateId: structured.candidateId,
-          })
-          const planned = suppliedPlan === undefined
-            ? undefined
-            : structuredClone(suppliedPlan)
-          if (!planned) {
-            degradation.push('planner-no-choice')
-          } else {
-            plannerCandidateId = planned.candidateId
-            const plannedScore = scores.find(
-              (score) => score.candidateId === planned.candidateId,
-            )
-            if (!viableIds.has(planned.candidateId) || !plannedScore) {
-              degradation.push('planner-invalid-candidate')
-            } else if (!validPlannerReasons(
-              planned.reasonCodes,
-              plannedScore,
-              scores,
-              structured.candidateId,
-            )) {
-              degradation.push('planner-invalid-reason')
+        const context = composedPolicyContext(
+          view,
+          analysis,
+          candidates,
+          forced,
+          scores,
+          structured.candidateId,
+        )
+        const viableIds = new Set(
+          context.viableCandidates.map((candidate) => candidate.id),
+        )
+        let chosenCandidateId = structured.candidateId
+        let plannerCandidateId: string | undefined
+        let plannerCommunication: PlannerCommunicationDirection | undefined
+        let plannerReasonCodes: readonly string[] | undefined
+        let acceptedPlannerSelection = false
+        if (
+          activePlanner
+          && !forced.selectedCandidateId
+          && !questCardPolicyCandidateId
+        ) {
+          stage('planner')
+          try {
+            const suppliedPlan = await activePlanner.choose({
+              context: structuredClone(context),
+              renderedContext: renderComposedPolicyContext(context),
+              structuredCandidateId: structured.candidateId,
+            })
+            const planned = suppliedPlan === undefined
+              ? undefined
+              : structuredClone(suppliedPlan)
+            if (!planned) {
+              degradation.push('planner-no-choice')
             } else {
-              chosenCandidateId = planned.candidateId
-              plannerReasonCodes = planned.reasonCodes === undefined
-                ? undefined
-                : [...planned.reasonCodes]
-              if (planned.communication !== undefined) {
-                if (validPlannerCommunication(
-                  planned.communication,
-                  byId(candidates, planned.candidateId).decision,
-                  view,
-                )) {
-                  plannerCommunication = structuredClone(
+              plannerCandidateId = planned.candidateId
+              const plannedScore = scores.find(
+                (score) => score.candidateId === planned.candidateId,
+              )
+              if (!viableIds.has(planned.candidateId) || !plannedScore) {
+                degradation.push('planner-invalid-candidate')
+              } else if (!validPlannerReasons(
+                planned.reasonCodes,
+                plannedScore,
+                scores,
+                structured.candidateId,
+              )) {
+                degradation.push('planner-invalid-reason')
+              } else {
+                acceptedPlannerSelection = true
+                chosenCandidateId = planned.candidateId
+                plannerReasonCodes = planned.reasonCodes === undefined
+                  ? undefined
+                  : [...planned.reasonCodes]
+                if (planned.communication !== undefined) {
+                  if (validPlannerCommunication(
                     planned.communication,
-                  )
-                } else {
-                  degradation.push('planner-invalid-communication')
+                    byId(candidates, planned.candidateId).decision,
+                    view,
+                  )) {
+                    plannerCommunication = structuredClone(
+                      planned.communication,
+                    )
+                  } else {
+                    degradation.push('planner-invalid-communication')
+                  }
                 }
               }
             }
+          } catch {
+            degradation.push('planner-failed')
           }
-        } catch {
-          degradation.push('planner-failed')
         }
-      }
 
-      const candidate = byId(candidates, chosenCandidateId)
-      const chosenScore = scores.find(
-        (score) => score.candidateId === chosenCandidateId,
-      )
-      if (!chosenScore) {
-        throw new Error('composed policy selected candidate without a score')
-      }
-      const mechanicalDecision = silenceMechanicalCommunication(candidate.decision)
-      const communication = defaultCommunicationIntent(
-        mechanicalDecision,
-        analysis.factCodes,
-        chosenScore,
-        scores,
-        plannerCommunication,
-        plannerReasonCodes,
-      )
-      const planStrategicReasons = plannerReasonCodes
-        ?? selectedStrategicReasonCodes(chosenScore, scores)
-      const plan: DecisionPlan = {
-        version: DECISION_PLAN_VERSION,
-        request: { ...req },
-        decision: structuredClone(mechanicalDecision),
-        candidateId: chosenCandidateId,
-        policyId: COMPOSED_POLICY_VERSION,
-        reasons: [
-          ...forced.reasonCodes,
-          ...planStrategicReasons,
-        ],
-        beliefThroughSeq: cognition.throughSeq,
-        candidateScores: scores,
-        ...(communication ? { communication } : {}),
-      }
-      stage('plan-committed')
-
-      let action = structuredClone(plan.decision)
-      if (activeVoice && plan.communication) {
-        stage('voice')
-        try {
-          const voicePlan = committedVoicePlan(plan)
-          const output = await activeVoice.speak({
-            plan: structuredClone(voicePlan),
-            renderedPlan: renderCommittedVoicePlan(voicePlan),
-          })
-          if (!output) {
-            degradation.push('voice-no-output')
-          } else {
-            action = withVoice(plan.decision, output)
-          }
-        } catch {
-          degradation.push('voice-failed')
-          action = structuredClone(plan.decision)
+        const candidate = byId(candidates, chosenCandidateId)
+        if (
+          !forced.selectedCandidateId
+          && !questCardPolicyCandidateId
+          && !acceptedPlannerSelection
+          && chosenCandidateId === structured.candidateId
+        ) {
+          decisionComponents = attributeRoleActionSelection(
+            decisionComponents,
+          )
         }
-      }
-
-      const chosenTeamAnalysis = (
-        action.kind === 'propose'
-        || (action.kind === 'finalize' && !action.stick)
-      )
-        ? analyzeSituation(view, {
-            belief: cognition.belief,
-            evidence: cognition.evidence,
-            candidateTeams: [action.team],
-          })
-        : undefined
-      const traceAnalysis = chosenTeamAnalysis
-        ? {
-            ...analysis,
-            candidateTeams: chosenTeamAnalysis.candidateTeams,
-          }
-        : analysis
-      const trace = composedTrace(
-        req,
-        view,
-        cognition,
-        traceAnalysis,
-        action,
-        scores,
-        structured.candidateId,
-        chosenCandidateId,
-        forced,
-        plannerVersion,
-        voiceVersion,
-        scorerVersion,
-        scorer.version,
-        degradation,
-        activePlanner
-          ? 'hybrid'
-          : scorerVersion === CANDIDATE_SCORER_VERSION
-            ? 'compatibility'
-            : 'structured-only',
-        plan.communication,
-        plannerCandidateId,
-        plannerReasonCodes,
-        interpreter
-          ? combinedFactorBundle(beliefModel.factorsVersion)
-          : beliefModel.factorsVersion,
-        languageTrace,
-        !!interpreter,
-        publicObserver,
-        privateIdentity,
-        !!decisionIdentityScope,
-        privateRoleObjective,
-        privateEvilRoleObjective,
-        roleObjectiveRole
-          ? ROLE_OBJECTIVE_MODEL_VERSION
-          : evilRoleObjectiveApplicable
-            ? EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-            : 'off',
-        routerConfigured,
-        privateRoleUtility,
-        privateEvilRoleUtility,
-        configuredEvilQuestCardPolicy,
-        privateEvilQuestCardPolicy,
-        (
-          morganaCounterfeitConfigured
-          || scorer.morganaRoleUtilityRequirement
-            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+        const chosenScore = scores.find(
+          (score) => score.candidateId === chosenCandidateId,
         )
-          ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
-          : undefined,
-        publicMorganaCounterfeitRead,
-        privateMorganaCounterfeitObjective,
-        scorer.morganaRoleUtilityRequirement
-          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-          ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-          : undefined,
-        privateMorganaRoleUtility,
-        planMemoryEnabled,
-        coherenceIntent,
-      )
-      if (planMemoryEnabled) {
-        pendingPlan = {
-          request: { ...req },
-          selectedDecision: structuredClone(action),
-          plan: structuredClone({
-            ...plan,
-            decision: action,
-          }),
+        if (!chosenScore) {
+          throw new Error('composed policy selected candidate without a score')
         }
+        const mechanicalDecision = silenceMechanicalCommunication(candidate.decision)
+        const communication = defaultCommunicationIntent(
+          mechanicalDecision,
+          analysis.factCodes,
+          chosenScore,
+          scores,
+          plannerCommunication,
+          plannerReasonCodes,
+        )
+        const planStrategicReasons = plannerReasonCodes
+          ?? selectedStrategicReasonCodes(chosenScore, scores)
+        const plan: DecisionPlan = {
+          version: DECISION_PLAN_VERSION,
+          request: { ...req },
+          decision: structuredClone(mechanicalDecision),
+          candidateId: chosenCandidateId,
+          policyId: COMPOSED_POLICY_VERSION,
+          reasons: [
+            ...forced.reasonCodes,
+            ...planStrategicReasons,
+          ],
+          beliefThroughSeq: cognition.throughSeq,
+          candidateScores: scores,
+          ...(communication ? { communication } : {}),
+        }
+        stage('plan-committed')
+
+        let action = structuredClone(plan.decision)
+        if (activeVoice && plan.communication) {
+          stage('voice')
+          try {
+            const voicePlan = committedVoicePlan(plan)
+            const output = await activeVoice.speak({
+              plan: structuredClone(voicePlan),
+              renderedPlan: renderCommittedVoicePlan(voicePlan),
+            })
+            if (!output) {
+              degradation.push('voice-no-output')
+            } else {
+              action = withVoice(plan.decision, output)
+            }
+          } catch {
+            degradation.push('voice-failed')
+            action = structuredClone(plan.decision)
+          }
+        }
+
+        const chosenTeamAnalysis = (
+          action.kind === 'propose'
+          || (action.kind === 'finalize' && !action.stick)
+        )
+          ? analyzeSituation(view, {
+              belief: cognition.belief,
+              evidence: cognition.evidence,
+              candidateTeams: [action.team],
+            })
+          : undefined
+        const traceAnalysis = chosenTeamAnalysis
+          ? {
+              ...analysis,
+              candidateTeams: chosenTeamAnalysis.candidateTeams,
+            }
+          : analysis
+        const trace = composedTrace(
+          req,
+          view,
+          cognition,
+          traceAnalysis,
+          action,
+          scores,
+          structured.candidateId,
+          chosenCandidateId,
+          forced,
+          plannerVersion,
+          voiceVersion,
+          scorerVersion,
+          scorer.version,
+          degradation,
+          configuredComponentPlan,
+          decisionComponents,
+          activePlanner
+            ? 'hybrid'
+            : scorerVersion === CANDIDATE_SCORER_VERSION
+              ? 'compatibility'
+              : 'structured-only',
+          plan.communication,
+          plannerCandidateId,
+          plannerReasonCodes,
+          interpreter
+            ? combinedFactorBundle(beliefModel.factorsVersion)
+            : beliefModel.factorsVersion,
+          languageTrace,
+          !!interpreter,
+          publicObserver,
+          privateIdentity,
+          !!decisionIdentityScope,
+          privateRoleObjective,
+          privateEvilRoleObjective,
+          privateRoleObjective
+            ? ROLE_OBJECTIVE_MODEL_VERSION
+            : privateEvilRoleObjective
+              ? EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+              : 'off',
+          routerConfigured,
+          privateRoleUtility,
+          privateEvilRoleUtility,
+          configuredEvilQuestCardPolicy,
+          privateEvilQuestCardPolicy,
+          (
+            morganaCounterfeitConfigured
+            || scorer.morganaRoleUtilityRequirement
+              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+          )
+            ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+            : undefined,
+          publicMorganaCounterfeitRead,
+          privateMorganaCounterfeitObjective,
+          scorer.morganaRoleUtilityRequirement
+            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+            ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+            : undefined,
+          privateMorganaRoleUtility,
+          planMemoryEnabled,
+          coherenceIntent,
+        )
+        if (planMemoryEnabled) {
+          if (pendingPlans.length >= 32) {
+            throw new Error('pending plan acknowledgment bound exceeded')
+          }
+          pendingPlans.push({
+            decisionId: trace.decisionId,
+            request: { ...req },
+            selectedDecision: structuredClone(action),
+            plan: structuredClone({
+              ...plan,
+              decision: action,
+            }),
+          })
+        }
+        return { decision: action, trace }
+      } finally {
+        release()
       }
-      return { decision: action, trace }
     },
   }
 }

@@ -35,6 +35,15 @@ const CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 
 export const DECISION_COMPONENT_RUN_VERSION =
   'decision-component-run-v1'
+export const MAX_DECISION_COMPONENT_RUN_JSON_BYTES = 2_097_152
+export const DECISION_COMPONENT_PLAN_VERSION =
+  'decision-component-plan-v1'
+export const MAX_DECISION_COMPONENT_PLAN_JSON_BYTES = 65_536
+
+export interface DecisionComponentPlan {
+  readonly version: typeof DECISION_COMPONENT_PLAN_VERSION
+  readonly configured: readonly ComponentRef[]
+}
 
 export type DecisionComponentStatus =
   | 'inapplicable'
@@ -148,6 +157,17 @@ const EMPTY_COMPONENT_RUN: DecisionComponentRun = Object.freeze({
   entries: Object.freeze([]),
   policyUse: Object.freeze([]),
 })
+
+export function decisionComponentPlan(
+  brain: ResolvedComposedBrain,
+): DecisionComponentPlan {
+  return Object.freeze({
+    version: DECISION_COMPONENT_PLAN_VERSION,
+    configured: Object.freeze(
+      brain.description.components.configured.map(frozenRef),
+    ),
+  })
+}
 
 function frozenRef(ref: ComponentRef): ComponentRef {
   return Object.freeze({ id: ref.id, version: ref.version })

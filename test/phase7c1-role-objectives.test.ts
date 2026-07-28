@@ -340,7 +340,17 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
 
   const offServant = await roleOutput(servantFixture, false)
   const optedServant = await roleOutput(servantFixture, true)
-  assert.deepEqual(optedServant, offServant)
+  const offLegacy = structuredClone(offServant)
+  const optedLegacy = structuredClone(optedServant)
+  delete offLegacy.trace!.components
+  delete optedLegacy.trace!.components
+  delete offLegacy.trace!.componentPlan
+  delete optedLegacy.trace!.componentPlan
+  delete offLegacy.trace!.componentVersions!.decisionComponents
+  delete optedLegacy.trace!.componentVersions!.decisionComponents
+  offLegacy.trace!.version = 'decision-trace-v1'
+  optedLegacy.trace!.version = 'decision-trace-v1'
+  assert.deepEqual(optedLegacy, offLegacy)
   assert.equal(optedServant.trace!.privateRoleObjective, undefined)
   assert.equal(optedServant.trace!.componentVersions!.roleObjective, undefined)
 
@@ -575,7 +585,7 @@ test('role objective degradation is typed and stale cognition is dropped before 
   }).decide(merlinFixture.req, merlinFixture.view)
   assert.equal(
     degraded.trace!.componentVersions!.roleObjective,
-    ROLE_OBJECTIVE_MODEL_VERSION,
+    undefined,
   )
   assert.equal(degraded.trace!.privateRoleObjective, undefined)
   assert.ok(degraded.trace!.degradation.includes('identity-projection-failed'))

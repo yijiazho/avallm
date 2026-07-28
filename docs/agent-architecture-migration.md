@@ -1847,6 +1847,53 @@ not bypass or redesign them at a role-specific call site.
    payload size, and latency. Independent architecture review must confirm that the native fixture
    needed no component-named central field.
 
+**7R2B3A verified implementation.** The C1/C2 good-role and D1/D2
+generic-evil paths now execute generic-first through four private, stateless legacy adapters.
+Invocation-local private identity and the same seat's already-derived public-observer snapshot are
+the only adapter roots. C1 and D1 build their objective once; C2 and D2 consume the admitted
+objective dependency and build their utility once. The unchanged cognition, flat trace, scorer
+context, score features, and component-version fields are compatibility projections of admitted
+generic payloads rather than a second production path. Admission still independently reconstructs
+the existing structural and host joins when the required inputs are available; that verification
+does not create or substitute a second authoritative output. A degraded generic entry yields no
+legacy payload or resolved flat version and contributes its existing typed degradation exactly
+once.
+
+New traces carry the full private `DecisionTrace.components` run plus the generic
+`decision-component-run-v1` discriminator under composed-only `decision-trace-v2`; raw LLM and
+other flat producers remain on `decision-trace-v1`. A separate private
+`decision-component-plan-v1` witness is copied directly from the resolved brain's configured graph
+before execution. Shared trace admission requires the v2 plan, discriminator, and run together;
+exact plan/run configured equality; registry-resolved graph completeness and canonical order;
+plain dense non-proxy arrays; exact generic/legacy payload equality; bounded per-component, plan,
+and aggregate-run bytes; unique configured/entry/use records; and causally reconstructed
+`candidate-score` then optional `action-selection` stages. Historical `decision-trace-v1` flat
+traces remain readable only when the plan, discriminator, and run are all absent. Weighted or
+active-language payloads retain structural, nonpromotable generic admission while the unchanged
+legacy validators still run. The measured ten-player C2 maximum is 398,524 bytes for the generic
+run and 1,432,428 bytes for the complete dual-written trace, against a 2,097,152-byte aggregate
+run bound. B4 owns broader artifact-cost measurement before legacy write-side cleanup.
+
+The plan witness closes accidental or partial transport erasure, including configured but
+inapplicable components. It is not cryptographic provenance: self-contained transport admission
+cannot detect a coherent malicious rewrite of both plan and run, or a coherent rewrite from v2 to
+the historical v1 shape. Binding a trace to the producer's independently expected resolved plan
+belongs at the trusted producer or architecture-manifest boundary in B3B/B4 unless an existing
+call site already holds that resolved brain. This checkpoint does not claim that stronger trust
+join.
+
+The stateful composed host now queues decisions FIFO while capturing planner and voice at
+invocation time. Pending plan acknowledgments are bounded and retained by stable decision id, with
+FIFO handling for duplicate identical ids, so an overlapping decision cannot replace an earlier
+unacknowledged plan. The B2 kernel itself remains reentrant and no invocation root is stored on
+the brain, component definitions, or agent.
+
+Independent rereview passes 141/141 and parent-focused API-free validation passes 155/155
+C1/C2, D1/D2, E1 adjacency, active-language, stdio, artifact/report, weighted-degradation,
+privacy, hostile-admission, replay, and concurrency cases, including 12/12 dedicated B3A adapter
+cases. Parent full-suite validation passes 888/888. The rereview verdict is READY; B3A is complete
+while the independently expected-plan join remains an explicit B3B/B4 follow-up.
+
 E2A does not begin after an intermediate kernel or adapter landing. It begins only after 7R2B4 and
 the complete 7R2B exit gate pass, then must add Mordred through the same seam with **zero
 Mordred-specific central fields**.

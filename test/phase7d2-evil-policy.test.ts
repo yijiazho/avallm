@@ -1164,6 +1164,13 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     view: PlayerView,
   ) => {
     const trace = structuredClone(source)
+    // Exercise the historical role-specific transport shape. New traces carry
+    // a generic component projection whose equality cannot be retained after
+    // this synthetic dependency rewrite.
+    delete trace.components
+    delete trace.componentPlan
+    delete trace.componentVersions!.decisionComponents
+    trace.version = 'decision-trace-v1'
     trace.beliefModelVersion = 'phase7d2-external-weighted-v1'
     trace.quality = 'weighted'
     trace.componentVersions!.belief = trace.beliefModelVersion

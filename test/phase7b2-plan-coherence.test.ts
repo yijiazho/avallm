@@ -736,6 +736,20 @@ test('finalized traces cannot mutate provisional stable telemetry', async () => 
     }
     const supplied = structuredClone(hostOutcome)
     probe.mutate(supplied.provisionalTrace)
+    if (probe.name === 'decision identity') {
+      assert.throws(
+        () => agent.recordAppliedDecisionOutcome!(supplied),
+        /does not match the pending selected plan/,
+      )
+      const recovered = agent.recordAppliedDecisionOutcome!(
+        structuredClone(hostOutcome),
+      )!
+      assert.equal(
+        validateFinalizedAppliedTraceHostJoin(recovered, hostOutcome),
+        true,
+      )
+      continue
+    }
     const finalized = agent.recordAppliedDecisionOutcome!(supplied)!
     assert.equal(
       validateFinalizedAppliedTraceHostJoin(finalized, hostOutcome),

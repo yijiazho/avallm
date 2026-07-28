@@ -43,8 +43,13 @@ import {
   type CoherenceIntent,
 } from './cognition/coherence.ts'
 import type { AppliedDecisionOutcome } from './types.ts'
+import type {
+  DecisionComponentPlan,
+  DecisionComponentRun,
+} from './components/kernel.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
+export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
 export const APPLIED_OUTCOME_DEGRADATION =
   'applied-outcome-acknowledgment-failed'
 
@@ -55,7 +60,9 @@ export interface TraceHypothesis {
 }
 
 export interface DecisionTrace {
-  version: typeof DECISION_TRACE_VERSION
+  version:
+    | typeof DECISION_TRACE_VERSION
+    | typeof COMPONENT_DECISION_TRACE_VERSION
   decisionId: string
   viewerSeat: Seat
   request: DecisionRequest
@@ -95,6 +102,8 @@ export interface DecisionTrace {
     planMemory?: string
     /** Absent means literal commitment coherence is off. */
     coherence?: string
+    /** Additive discriminator for the private generic component run. */
+    decisionComponents?: string
     /** Absent means Merlin/Percival role-objective analysis is off. */
     roleObjective?: string
     /** Configured role router; concrete roleObjective remains separately named. */
@@ -130,6 +139,10 @@ export interface DecisionTrace {
     communication: string
     voice: string
   }>
+  /** Private generic component execution and causal-use attribution. */
+  components?: DecisionComponentRun
+  /** Independent configured-graph witness for composed v2 traces. */
+  componentPlan?: DecisionComponentPlan
   candidateScores?: readonly CandidateScore[]
   /** Structured scorer choice before any admitted planner selection. */
   structuredCandidateId?: string

@@ -13,6 +13,7 @@ import {
 import { createAgent } from '../server/agents/registry.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { decisionTraceIdForRequest } from '../server/agents/trace.ts'
+import { DECISION_COMPONENT_RUN_VERSION } from '../server/agents/components/kernel.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
@@ -85,6 +86,7 @@ test('composed engine runs in ownership order and attributes every component', a
     renderer: 'composed-policy-renderer-v2',
     communication: 'plan-voice-v2',
     voice: 'fake-voice-v1',
+    decisionComponents: DECISION_COMPONENT_RUN_VERSION,
   })
   assert.ok(output.trace!.candidateScores?.length)
   assert.ok(output.trace!.chosenCandidateId)
@@ -488,6 +490,7 @@ test('sim runner unwraps composed decisions, records private traces, and keeps l
   assert.equal(result.game.phase, 'gameOver')
   assert.ok(traces.length)
   assert.ok(!JSON.stringify(result.game).includes('componentVersions'))
+  assert.ok(!JSON.stringify(result.game).includes('componentPlan'))
 })
 
 test('sim records an envelope trace only after its action passes engine legality', async () => {

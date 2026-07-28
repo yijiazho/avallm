@@ -20,6 +20,9 @@ import {
 } from '../server/agents/belief/identity.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
+  MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
+} from '../server/agents/components/kernel.ts'
+import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
@@ -806,7 +809,16 @@ test('role scorer remains bounded at ten players', async () => {
   const elapsed = performance.now() - started
   assert.equal(output.trace!.candidateScores!.length, 252)
   assert.equal(output.trace!.privateRoleUtility!.assessments.length, 252)
-  assert.ok(JSON.stringify(output.trace).length < 1_048_576)
+  // B3 dual-write temporarily retains the full generic payload and unchanged
+  // legacy projection. B4 measures the additive artifact cost before cleanup.
+  const componentRunBytes = Buffer.byteLength(
+    JSON.stringify(output.trace!.components),
+    'utf8',
+  )
+  assert.ok(componentRunBytes <= MAX_DECISION_COMPONENT_RUN_JSON_BYTES)
+  assert.ok(
+    Buffer.byteLength(JSON.stringify(output.trace), 'utf8') < 2_097_152,
+  )
   assert.ok(elapsed < 2_500, `10p role decision took ${elapsed}ms`)
 })
 

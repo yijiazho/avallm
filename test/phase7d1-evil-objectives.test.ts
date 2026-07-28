@@ -120,6 +120,10 @@ function forgeUnverifiableWeightedDeletion(
     maxLogLikelihood: 0,
   }]
   forged.beliefTeamAssessments = undefined
+  delete forged.components
+  delete forged.componentPlan
+  delete forged.componentVersions!.decisionComponents
+  forged.version = 'decision-trace-v1'
   delete forged.privateIdentity
   delete forged.privateEvilRoleObjective
   forged.degradation.push(
@@ -148,6 +152,10 @@ function forgeWeightedComplete(
     maxLogLikelihood: 0,
   }]
   forged.beliefTeamAssessments = undefined
+  delete forged.components
+  delete forged.componentPlan
+  delete forged.componentVersions!.decisionComponents
+  forged.version = 'decision-trace-v1'
   forged.privateIdentity!.sourceBelief.modelVersion =
     forged.beliefModelVersion
   forged.privateIdentity!.sourceBelief.quality = 'weighted'
