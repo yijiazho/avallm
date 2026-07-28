@@ -4,11 +4,6 @@ import {
   canonicalizeJson,
 } from '../server/agents/components/canonical-json.ts'
 import {
-  publicDecisionComponentRun,
-  runDecisionComponents,
-  validateDecisionComponentRunHostJoin,
-} from '../server/agents/components/kernel.ts'
-import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
   MORDRED_BLINDNESS_COMPONENT,
 } from '../server/agents/components/native-role-components.ts'
@@ -47,34 +42,37 @@ import {
 } from '../server/agents/communication/public-record.ts'
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
-import { structurallyHostileRecords } from './support/hostile-data.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
+import {
+  assertNativeCodecContract,
+  assertNativeExecutionContract,
+} from './support/component-contract.ts'
 
 const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'actor-target-treatment-read':
     { fixture: 'mordred-late-vote' },
   'evil-quest-card-exact-quota':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3B native retirement pending' },
   'evil-quest-card-robust':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3B native retirement pending' },
   'evil-role-objective':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'evil-role-utility':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'good-role-objective':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'good-role-utility':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'mordred-blindness-objective':
     { fixture: 'mordred-late-vote' },
   'morgana-counterfeit-public-read':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'morgana-counterfeit-objective':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'morgana-role-utility-seeded':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
   'morgana-role-utility':
-    { legacyExemption: 'C2B/7R3 native migration pending' },
+    { legacyExemption: '7R3A native retirement pending' },
 })
 
 function nativeFixture() {
@@ -165,46 +163,25 @@ test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
 
 test('native decoders preserve raw-validator semantics after one boundary', () => {
   const { treatment, objective } = nativeFixture()
-  const cases = [
+  const fixtures = [
     {
+      label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
       value: treatment,
       maxBytes: MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
-      raw: validatePrivateActorTargetTreatmentRead,
+      validate: validatePrivateActorTargetTreatmentRead,
       decode: decodeCanonicalPrivateActorTargetTreatmentRead,
-      mutate(value: any) {
-        value.matrixSemantics = 'forged'
-      },
+      invalidValue: { ...treatment, matrixSemantics: 'forged' },
     },
     {
+      label: MORDRED_BLINDNESS_COMPONENT.id,
       value: objective,
       maxBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
-      raw: validatePrivateMordredBlindnessObjective,
+      validate: validatePrivateMordredBlindnessObjective,
       decode: decodeCanonicalPrivateMordredBlindnessObjective,
-      mutate(value: any) {
-        value.role = 'merlin'
-      },
+      invalidValue: { ...objective, role: 'merlin' },
     },
   ] as const
-  for (const entry of cases) {
-    const canonical = canonicalizeJson(entry.value, entry.maxBytes)
-    assert.equal(canonical.ok, true)
-    if (!canonical.ok) continue
-    assert.equal(entry.raw(entry.value), true)
-    assert.ok(entry.decode(canonical.payload))
-
-    const forged = structuredClone(entry.value)
-    entry.mutate(forged)
-    const forgedCanonical = canonicalizeJson(forged, entry.maxBytes)
-    assert.equal(forgedCanonical.ok, true)
-    if (!forgedCanonical.ok) continue
-    assert.equal(entry.raw(forged), false)
-    assert.equal(entry.decode(forgedCanonical.payload), undefined)
-
-    for (const hostile of structurallyHostileRecords(entry.value)) {
-      assert.equal(entry.raw(hostile), false)
-      assert.equal(canonicalizeJson(hostile, entry.maxBytes).ok, false)
-    }
-  }
+  for (const fixture of fixtures) assertNativeCodecContract(fixture)
 })
 
 test('production registry has a fail-closed conformance inventory', () => {
@@ -244,120 +221,29 @@ test('native production family conforms through execution and host join', async 
       MORDRED_BLINDNESS_COMPONENT.id,
     ],
   )
-  const invocation = {
+  await assertNativeExecutionContract({
+    label: 'mordred native family',
+    registry,
+    request: fixture.req,
+    view: fixture.view,
+    brain,
     hostInputs: [
       { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: observer },
       { input: PRIVATE_BELIEF_INPUT, value: belief },
     ],
-  }
-  const first = await runDecisionComponents(
-    brain,
-    structuredClone(fixture.req),
-    structuredClone(fixture.view),
-    structuredClone(invocation),
-  )
-  const second = await runDecisionComponents(
-    brain,
-    structuredClone(fixture.req),
-    structuredClone(fixture.view),
-    structuredClone(invocation),
-  )
-  assert.deepEqual(first, second)
-  assert.deepEqual(first.entries.map((entry) => ({
-    id: entry.component.id,
-    kind: entry.kind,
-    privacy: entry.privacy,
-    status: entry.status,
-    ...(entry.status === 'admitted'
-      ? {
-          verification: entry.verification,
-          promotionEligible: entry.promotionEligible,
-        }
-      : {}),
-  })), [
-    {
-      id: ACTOR_TARGET_TREATMENT_COMPONENT.id,
-      kind: 'observer',
-      privacy: 'private',
-      status: 'admitted',
-      verification: 'exact',
-      promotionEligible: true,
-    },
-    {
-      id: MORDRED_BLINDNESS_COMPONENT.id,
-      kind: 'objective',
-      privacy: 'private',
-      status: 'admitted',
-      verification: 'exact',
-      promotionEligible: true,
-    },
-  ])
-  for (const entry of first.entries) {
-    assert.equal(entry.status, 'admitted')
-    if (entry.status !== 'admitted') continue
-    assert.ok(entry.payloadBytes <= (
-      registry.definition(entry.component)?.maxPayloadBytes ?? 0
-    ))
-    assert.ok(Object.isFrozen(entry.envelope.payload))
-  }
-  assert.deepEqual(publicDecisionComponentRun(first), {
-    version: first.version,
-    configured: [],
-    entries: [],
-    policyUse: [],
-  })
-  assert.equal(validateDecisionComponentRunHostJoin({
-    registry,
-    run: first,
-    request: fixture.req,
-    view: fixture.view,
-    hostInputs: invocation.hostInputs,
-  }), true)
-  assert.equal(validateDecisionComponentRunHostJoin({
-    registry,
-    run: first,
-    request: fixture.req,
-    view: fixture.view,
-    hostInputs: invocation.hostInputs.slice(0, 1),
-  }), false)
-  for (const mutate of [
-    (run: any) => {
-      run.entries[0].component.version = 'forged'
-    },
-    (run: any) => {
-      run.entries[0].privacy = 'public'
-    },
-    (run: any) => {
-      run.entries[0].envelope.component.id = 'forged'
-    },
-    (run: any) => {
-      run.entries[1].envelope.payload.role = 'merlin'
-    },
-  ]) {
-    const forged = structuredClone(first)
-    mutate(forged)
-    assert.equal(validateDecisionComponentRunHostJoin({
-      registry,
-      run: forged,
-      request: fixture.req,
-      view: fixture.view,
-      hostInputs: invocation.hostInputs,
-    }), false)
-  }
-
-  const missingRoots = await runDecisionComponents(
-    brain,
-    fixture.req,
-    fixture.view,
-  )
-  assert.deepEqual(
-    missingRoots.entries.map((entry) =>
-      entry.status === 'degraded'
-        ? [entry.component.id, entry.failureCode]
-        : [entry.component.id, entry.status]),
-    [
-      [ACTOR_TARGET_TREATMENT_COMPONENT.id, 'host-input-unavailable'],
-      [MORDRED_BLINDNESS_COMPONENT.id, 'dependency-unavailable'],
+    entries: [
+      {
+        token: ACTOR_TARGET_TREATMENT_COMPONENT,
+        verification: 'exact',
+        promotionEligible: true,
+        missingRootFailure: 'host-input-unavailable',
+      },
+      {
+        token: MORDRED_BLINDNESS_COMPONENT,
+        verification: 'exact',
+        promotionEligible: true,
+        missingRootFailure: 'dependency-unavailable',
+      },
     ],
-  )
+  })
 })
