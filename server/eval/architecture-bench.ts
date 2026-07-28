@@ -70,6 +70,18 @@ import {
   buildRoleObjectiveSnapshot,
   validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
+import {
+  ROLE_UTILITY_DEGRADATION,
+  ROLE_UTILITY_PROJECTION_VERSION,
+  buildRoleUtilityProjection,
+  validatePrivateRoleUtilityHostJoin,
+} from '../agents/analysis/role-utility.ts'
+import {
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+} from '../agents/policy/score.ts'
 import { legalCandidates } from '../agents/policy/candidates.ts'
 import {
   authoritativeDecisionSnapshots,
@@ -77,6 +89,7 @@ import {
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
+import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -322,6 +335,30 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} roleObjective requires exact observer and identity models`,
       )
     }
+    if (
+      variant.components.roleUtility !== undefined
+      && variant.components.roleUtility !== ROLE_UTILITY_PROJECTION_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid roleUtility`,
+      )
+    }
+    if (
+      variant.components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
+      && (
+        variant.components.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+        || ![
+          ROLE_OBJECTIVE_SCORER_VERSION,
+          ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+        ].includes(
+          variant.components.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION,
+        )
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} roleUtility requires role objectives and a role scorer`,
+      )
+    }
     const planMemoryEnabled =
       variant.components.planMemory === PLAN_MEMORY_VERSION
       && variant.components.coherence === COHERENCE_MODEL_VERSION
@@ -515,7 +552,6 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           'languageEvidence',
           'observerModel',
           'policy',
-          'scorer',
           'planner',
           'voice',
         ]
@@ -528,6 +564,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           roleObjectiveConfigured
           && (c.targetRole === 'merlin' || c.targetRole === 'percival')
         if (roleObjectiveApplicable) tracedComponents.push('roleObjective')
+        const roleUtilityConfigured =
+          expectedComponents.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
         const planMemory =
           expectedComponents.planMemory === PLAN_MEMORY_VERSION
           && expectedComponents.coherence === COHERENCE_MODEL_VERSION
@@ -552,9 +590,30 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           const exactPublicObserver =
             expectedComponents.observerModel
             === PUBLIC_OBSERVER_MODEL_VERSION
+          const selectedDecision =
+            trace.privatePlanOutcome?.selected?.decision
+            ?? snapshot?.original
+          const strictComposedTrace = (
+            trace.agentMode === 'compatibility'
+            || trace.agentMode === 'structured-only'
+            || trace.agentMode === 'hybrid'
+          )
           return (
             trace.agentMode !== expectedComponents.mode
             || !traceVersions
+            || !snapshot
+            || !selectedDecision
+            || (
+              strictComposedTrace
+              && !validateComposedTraceHostJoin({
+                trace,
+                req: snapshot.req,
+                view: snapshot.view,
+                authoritativeAction: snapshot.original,
+                selectedDecision,
+                deterministicSeed: c.seed,
+              })
+            )
             || traceVersions.belief !== trace.beliefModelVersion
             || (
               !boundedLanguage
@@ -563,6 +622,38 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 || traceVersions.beliefPipeline !== undefined
               )
             )
+            || (() => {
+              const rolePolicyApplicable =
+                roleUtilityConfigured
+                && roleObjectiveApplicable
+                && (
+                  trace.request.kind === 'propose'
+                  || trace.request.kind === 'vote'
+                )
+              const rolePolicyApplied =
+                rolePolicyApplicable
+                && trace.privateRoleUtility !== undefined
+                && !trace.degradation.includes(
+                  'role-objective-scorer-failed',
+                )
+              const expectedResolvedScorer = rolePolicyApplied
+                ? expectedComponents.scorer
+                : expectedComponents.scorer
+                    === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                  ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+                  : expectedComponents.scorer === ROLE_OBJECTIVE_SCORER_VERSION
+                    ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
+                    : expectedComponents.scorer
+              return traceVersions.scorer !== expectedResolvedScorer
+                || (
+                  traceVersions.configuredScorer
+                  !== (
+                    expectedResolvedScorer === expectedComponents.scorer
+                      ? undefined
+                      : expectedComponents.scorer
+                  )
+                )
+            })()
             || (
               planMemory
                 ? (
@@ -603,6 +694,72 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                     || trace.degradation.includes(
                       APPLIED_OUTCOME_DEGRADATION,
                     )
+                  )
+            )
+            || (
+              roleUtilityConfigured
+              && roleObjectiveApplicable
+              && (
+                trace.request.kind === 'propose'
+                || trace.request.kind === 'vote'
+              )
+                ? (
+                    trace.privateRoleUtility === undefined
+                      ? (
+                          !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
+                          || traceVersions.roleUtility !== undefined
+                          || (
+                            trace.privateRoleObjective !== undefined
+                            && trace.publicObserver !== undefined
+                            && (
+                              !snapshot
+                              || (() => {
+                              try {
+                                buildRoleUtilityProjection({
+                                  req: trace.request,
+                                  view: snapshot!.view,
+                                  objective: trace.privateRoleObjective!,
+                                  observer: trace.publicObserver!,
+                                  candidates: legalCandidates(
+                                    trace.request,
+                                    snapshot!.view,
+                                  ),
+                                })
+                                return true
+                              } catch {
+                                return false
+                              }
+                              })()
+                            )
+                          )
+                        )
+                      : (
+                          !snapshot
+                          || traceVersions.roleUtility
+                            !== ROLE_UTILITY_PROJECTION_VERSION
+                          || !trace.privateRoleObjective
+                          || !trace.privateIdentity
+                          || !trace.publicObserver
+                          || !validatePrivateRoleUtilityHostJoin(
+                            trace.privateRoleUtility,
+                            {
+                              req: snapshot.req,
+                              view: snapshot.view,
+                              objective: trace.privateRoleObjective,
+                              identity: trace.privateIdentity,
+                              observer: trace.publicObserver,
+                              candidates: legalCandidates(
+                                snapshot.req,
+                                snapshot.view,
+                              ),
+                            },
+                          )
+                        )
+                  )
+                : (
+                    trace.privateRoleUtility !== undefined
+                    || traceVersions.roleUtility !== undefined
+                    || trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
                   )
             )
             || (

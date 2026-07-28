@@ -2,12 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7C2 Merlin and Percival policy integration. Phase 7C1 landed the
-opt-in, mechanically inert role-objective substrate: exact private Merlin influence, exact public
-joint-team context, a complete-world Percival Merlin/Morgana pair posterior, and explicitly
-non-probabilistic exposure, mimicry, and decoy-opportunity proxies. Phase 7C2 can now give those
-features bounded proposal and vote authority without weakening forced policy or the base good-side
-scorer. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
+**Current target phase:** Phase 7D1 visible-evil and Oberon objective substrate plus the
+role-objective router. Phase 7C2 landed bounded, opt-in Merlin and Percival proposal and vote
+authority over the exact Phase 7C1 substrate, with host-replayed scoring, fallback attribution,
+and role-neutral voice projection. Phase 7D is split into three independently reviewable landings:
+objective substrate and routing, proposal/vote policy, then quest-card coordination and forced
+policy ablations. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
 intentionally deferred until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
@@ -1208,12 +1208,18 @@ reviewable and ablatable:
    policy. **Complete.**
 5. **Phase 7C2, Merlin and Percival policy:** give the role-objective features bounded opt-in
    proposal and vote scoring authority without weakening forced policy, legality, or the base
-   good-side scorer.
-6. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
-   coordination, and Oberon's joint posterior over unseen evil seats.
-7. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
+   good-side scorer. **Complete.**
+6. **Phase 7D1, evil/Oberon substrate and routing:** add a role-objective router, exact private
+   visible-team or unseen-team projections, public standing, and explicitly non-probabilistic
+   cover and burn proxies without changing policy.
+7. **Phase 7D2, evil/Oberon proposal and vote policy:** add bounded opt-in failure-capacity,
+   cover, and future-opportunity utility while keeping Oberon separate from visible-partner
+   coordination.
+8. **Phase 7D3, evil quest-card coordination:** add an exact-quota visible-partner convention and
+   retain the robust all-Fail policy as a separately attributable ablation for mixed-agent tables.
+9. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
    generic goodness.
-8. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+10. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1326,8 +1332,8 @@ default-policy, search, learned-factor, or factor-graph change was included.
 - [x] Add exact Merlin influence and bounded public conspicuousness and exposure proxies.
 - [x] Add a Merlin/Morgana pair posterior for Percival.
 - [x] Add candidate-conditioned pair-knowledge, Merlin-mimicry, and self-decoy-opportunity proxies.
-- [ ] Give proposal and vote candidates bounded role-objective scoring authority.
-- [ ] Prove causal score and action changes while forced policy and base-scorer degradation remain
+- [x] Give proposal and vote candidates bounded role-objective scoring authority.
+- [x] Prove causal score and action changes while forced policy and base-scorer degradation remain
       authoritative.
 
 ### Phase 7C1 implementation record
@@ -1365,12 +1371,69 @@ candidate-varying decoy features, serialization tricks, forged degradation and d
 declarations, role applicability, full-bank attribution, privacy, replay, and policy inertia.
 Focused validation passed 64 tests and the complete API-free suite passed 745 tests.
 
+### Phase 7C2 implementation record
+
+`merlin-percival-role-utility-v1` is a private scorer-input projection layered over the unchanged
+Phase 7C1 objective. Merlin's public failure capability is the exact public joint evil-count mass
+at or above the current quest's failure threshold, so one evil on the 7-or-more-player fourth quest
+is not mislabeled as able to fail it. Private influence, public influence, directional knowledge
+tell, public ambiguity, and vote-gated own salience produce a bounded concealment proxy. Percival
+combines the exact Merlin/Morgana pair influence with the explicitly non-probabilistic self-decoy
+opportunity proxy. Neither role value is represented as a calibrated probability.
+
+`merlin-percival-role-scorer-v1` and
+`merlin-percival-role-seeded-band-v1` add a centered role adjustment equal to 0.20 times the
+candidate role value minus the mean role value of the forced-policy survivors. The base value
+remains the exact Phase 4 proposal clean probability or unadjusted vote utility. Proposals retain
+only the canonical maximum combined value. Seeded variation is limited to the existing 0.04
+combined-utility vote band and uses the game seed plus stable decision coordinates. Forced policy
+remains authoritative, and engine legality remains final.
+
+The scorer is opt-in. Ineligible seats and decision kinds resolve to the matching deterministic or
+seeded Phase 4 good-side scorer without activating the Phase 7C1 payload. A failed role dependency
+or malformed role score also resolves to that matching base; compatibility is used only if the
+base fails. Traces distinguish the configured scorer from the scorer actually resolved. Role
+reasons and exact composite uncertainty remain private to planning; voice receives only a
+role-neutral qualitative confidence label and cannot change the committed mechanical decision.
+
+Stdio, generation-time benchmark admission, and stored-report replay share a strict host join.
+For the exact API-free role path it reconstructs the authoritative belief, identity scope, public
+observer, Phase 7C1 objective, Phase 7C2 utility, legal candidates, Phase 4 analysis, forced-policy
+surface, configured or fallback scorer output, seed bucket, and structured selection. Selected
+pre-fallback decisions and authoritative applied decisions are joined separately, preserving
+engine normalization and fallback semantics while rejecting score, selection, action, seed,
+dependency-deletion, and fake-degradation forgeries. Zero-trace artifacts and public speech that
+echoes the private role-policy marker are rejected.
+
+Independent review covered the two-Fail threshold, exact complete-world sums, centered equations,
+forced dominance, deterministic replay, configured-versus-resolved attribution, ineligible
+fallback, plan-memory normalization, a legitimate hybrid in-band override, full dependency-chain
+deletion, consistent base-posterior mutation, stored and generation-time action mutation, stdio,
+voice privacy, and 10-player bounds. Focused validation passed 66 tests and the complete API-free
+suite passed 758 tests. A free 10-case architecture bank admitted 102 of 102 target traces with
+zero attribution, hidden-information, forced-policy, degradation, API-call, or cost findings. A
+252-candidate 10-player role decision completed in roughly 144 ms in independent review. This
+establishes architecture and safety correctness, not playing-strength promotion.
+
 ### Evil and Oberon
 
-- [ ] Add public trust and burned-teammate assessments.
-- [ ] Add coordinated Fail-card policy using only visible partners.
-- [ ] Add Oberon's posterior over unseen evil teammates.
-- [ ] Add cover value and future quest opportunity to candidate scoring.
+- [ ] Add `role-objective-router-v1` so each actual role resolves to one attributable objective
+      model while preserving historical Merlin/Percival artifacts and preparing Assassin routing.
+- [ ] Add exact public standing and explicit public burn and cover proxies with observation
+      numerators and denominators; missing observations are not evidence of innocence.
+- [ ] Add visible-evil objectives using only `{self, ...privateInfo.evilPartners}`. Never infer a
+      partner seat or special-role identity, and never include Oberon in coordination.
+- [ ] Add an Oberon joint posterior over unseen evil-seat sets by summing complete worlds. Keep
+      unseen-evil-on-team probability distinct from coordination or Fail probability.
+- [ ] Represent Assassin shot preservation, Morgana counterfeit cover, Mordred deep cover, Minion
+      failure banking, and Oberon uncoordinated disruption as explicit attributable postures.
+- [ ] Give proposal and vote candidates bounded failure-capacity-first utility. Failure capacity
+      owns at least 70 percent of normalized value; cover and future opportunity together own at
+      most 30 percent.
+- [ ] Add a visible-partner exact-quota Fail convention with a public common designation and
+      deterministic tie-breaking. Non-Oberon visible evil below the required quota still succeeds.
+- [ ] Preserve the current robust all-Fail decisive policy as an opt-in ablation until Phase 7F
+      measures exact-quota convention compliance on mixed-agent tables.
 
 ### Assassin
 
@@ -1602,6 +1665,15 @@ here.
   products. Strict host recomputation, role-applicability, dependency, degradation, serialization,
   privacy, and full-bank attribution checks keep the component opt-in and mechanically inert;
   Phase 7C2 owns proposal and vote scoring authority.
+- Phase 7C2 Merlin and Percival policy: added threshold-correct private role utility and bounded
+  centered role adjustments over the exact Phase 4 proposal and vote values. Deterministic
+  proposals use the canonical combined maximum; seeded votes vary only inside the 0.04 combined
+  band. Forced policy, legality, matching base-scorer fallback, compatibility fallback, and
+  configured-versus-resolved attribution remain explicit. Shared host replay reconstructs the
+  exact dependency and score surface and separately binds selected and applied actions, rejecting
+  score, seed, action, deletion, degradation, and speech-leak forgeries. The component remains
+  opt-in, API-free, and absent from production defaults; Phase 7D is split into substrate/routing,
+  proposal/vote policy, and quest-card coordination landings.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

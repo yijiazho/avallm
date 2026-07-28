@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
@@ -5,6 +6,12 @@ import {
   type SituationAnalysis,
 } from '../analysis/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
+import {
+  ROLE_UTILITY_PROJECTION_VERSION,
+  type PrivateRoleUtilityProjection,
+  type RoleUtilityAssessment,
+} from '../analysis/role-utility.ts'
+import { ROLE_OBJECTIVE_MODEL_VERSION } from '../analysis/role-objective-types.ts'
 
 export const CANDIDATE_SCORER_VERSION = 'compatibility-scorer-v1'
 export const CALIBRATION_COMPATIBILITY_SCORER_VERSION =
@@ -17,6 +24,19 @@ export const GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION =
   'good-proposal-vote-seeded-band-v1'
 export const GOOD_VOTE_FEATURE_VERSION = 'good-vote-features-v1'
 export const GOOD_VOTE_UTILITY_VERSION = 'good-vote-utility-v1'
+export const ROLE_OBJECTIVE_SCORER_VERSION =
+  'merlin-percival-role-scorer-v1'
+export const ROLE_OBJECTIVE_SEEDED_SCORER_VERSION =
+  'merlin-percival-role-seeded-band-v1'
+export const ROLE_OBJECTIVE_SCORE_FEATURE_VERSION =
+  'merlin-percival-role-score-features-v1'
+export const ROLE_OBJECTIVE_UTILITY_VERSION =
+  'merlin-percival-role-score-utility-v1'
+
+export const ROLE_OBJECTIVE_UTILITY_CONSTANTS = Object.freeze({
+  centeredAdjustmentScale: 0.20,
+  viableBand: 0.04,
+})
 
 export const GOOD_VOTE_UTILITY_CONSTANTS = Object.freeze({
   matchPointStakeBonus: 0.5,
@@ -105,6 +125,8 @@ export interface CandidateScore {
   viable: boolean
   reasonCodes: readonly string[]
   features?: GoodProposalFeatures | GoodVoteFeatures
+  /** Private role-policy attribution. Never projected into public speech. */
+  roleObjectiveFeatures?: RoleObjectiveScoreFeatures
 }
 
 export type ScorerAnalysisRequirement =
@@ -114,7 +136,81 @@ export type ScorerAnalysisRequirement =
 export interface CandidateScorer {
   version: string
   analysisRequirement?: ScorerAnalysisRequirement
+  /** Activates the private C1 objective and the versioned C2 scorer input. */
+  roleUtilityRequirement?: typeof ROLE_UTILITY_PROJECTION_VERSION
+  /** Truthful fallback used when this opt-in scorer is inapplicable/degraded. */
+  baseScorer?: CandidateScorer
   score(context: CandidateScoringContext): readonly CandidateScore[]
+}
+
+export type RoleObjectiveSelectionMode =
+  | 'top-composite'
+  | 'seeded-composite-band'
+
+export interface RoleObjectiveScoreFeatures {
+  version: typeof ROLE_OBJECTIVE_SCORE_FEATURE_VERSION
+  utilityVersion: typeof ROLE_OBJECTIVE_UTILITY_VERSION
+  utilityProjectionVersion: typeof ROLE_UTILITY_PROJECTION_VERSION
+  sourceObjectiveVersion: typeof ROLE_OBJECTIVE_MODEL_VERSION
+  role: 'merlin' | 'percival'
+  candidateId: string
+  kind: 'propose' | 'vote'
+  baseScorerVersion: typeof GOOD_PROPOSAL_VOTE_SCORER_VERSION
+  baseFeatureVersion:
+    | typeof GOOD_PROPOSAL_FEATURE_VERSION
+    | typeof GOOD_VOTE_FEATURE_VERSION
+  baseValue: number
+  roleValue: number
+  survivorMeanRoleValue: number
+  roleAdjustment: number
+  combinedValue: number
+  selectionMode: RoleObjectiveSelectionMode
+  viableBand: number
+  inViableBand: boolean
+  selectionAdjustment: number
+  seedBucket?: 0 | 1
+  /** Exact/proxy inputs copied from the host-validated private projection. */
+  utility: RoleUtilityAssessment
+}
+
+function plainDetachedData(
+  value: unknown,
+  seen = new Set<object>(),
+): boolean {
+  if (
+    value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+  ) return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object' || seen.has(value)) return false
+  seen.add(value)
+  const array = Array.isArray(value)
+  if (
+    array
+      ? (
+          Object.keys(value).length !== value.length
+          || Array.from(
+            { length: value.length },
+            (_, index) => Object.hasOwn(value, index),
+          ).some((present) => !present)
+        )
+      : Object.getPrototypeOf(value) !== Object.prototype
+  ) return false
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  for (const key of Reflect.ownKeys(value)) {
+    if (array && key === 'length') continue
+    if (typeof key !== 'string') return false
+    const descriptor = descriptors[key]
+    if (
+      !descriptor
+      || !descriptor.enumerable
+      || !('value' in descriptor)
+      || !plainDetachedData(descriptor.value, seen)
+    ) return false
+  }
+  seen.delete(value)
+  return true
 }
 
 function validProbability(value: unknown): value is number {
@@ -452,8 +548,35 @@ export function validateCandidateScores(
   if (typeof scorerVersion !== 'string' || !scorerVersion.trim()) {
     throw new Error('candidate scorer must have a non-empty version')
   }
+  if (
+    !plainDetachedData(scores)
+    || (
+      (
+        scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
+        || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      )
+      && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
+    )
+  ) {
+    throw new Error('invalid candidate score surface: unsafe detached data')
+  }
   if (scores.length !== context.candidates.length) {
     throw new Error('candidate scorer did not score the complete legal surface')
+  }
+  if (
+    scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
+    || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+  ) {
+    const expected = scoreRoleObjectiveCandidates(context, {
+      selectionMode:
+        scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          ? 'seeded-composite-band'
+          : 'top-composite',
+    })
+    if (!isDeepStrictEqual(scores, expected)) {
+      throw new Error('invalid role-objective candidate score surface')
+    }
+    return
   }
   const candidateIds = new Set(
     context.candidates.map((candidate) => candidate.id),
@@ -517,6 +640,7 @@ export function validateCandidateScores(
       || typeof score.viable !== 'boolean'
       || !Array.isArray(score.reasonCodes)
       || score.reasonCodes.some((reason) => typeof reason !== 'string')
+      || score.roleObjectiveFeatures !== undefined
       || !validFeatures
       || !validGoodSemantics
       || !validVoteSemantics
@@ -572,7 +696,7 @@ export function validateCandidateScores(
       && allowedVoteScores.length > 1
       && allowedVoteScores.every(({ features }) => features.inViableBand)
     const expectedSeedBucket = bandActive
-      ? stableBucket([
+      ? stablePolicyBucket([
           context.deterministicSeed,
           context.request.seat,
           context.request.kind,
@@ -653,6 +777,8 @@ export interface CandidateScoringContext {
   candidates: readonly PolicyCandidate[]
   /** Candidate-generation-owned legal proposal surface used by good votes. */
   hypotheticalTeamCandidates?: readonly PolicyCandidate[]
+  /** Private, host-derived C2 scorer input. Absent outside eligible role play. */
+  roleUtility?: PrivateRoleUtilityProjection
   forced: ForcedPolicyResult
   compatibilityCandidateId?: string
 }
@@ -824,7 +950,7 @@ export const calibrationCompatibilityScorer: CandidateScorer = Object.freeze({
   },
 })
 
-function stableBucket(value: string): 0 | 1 {
+export function stablePolicyBucket(value: string): 0 | 1 {
   let hash = 0x811c9dc5
   for (let index = 0; index < value.length; index++) {
     hash ^= value.charCodeAt(index)
@@ -915,7 +1041,7 @@ function scoreGoodProposalVoteCandidates(
     throw new Error('seeded good vote scorer requires the game seed')
   }
   const seedBucket = bandActive
-    ? stableBucket([
+      ? stablePolicyBucket([
         context.deterministicSeed,
         context.request.seat,
         context.request.kind,
@@ -1023,4 +1149,234 @@ export function createGoodProposalVoteScorer(
 /** Deterministic Phase 4B ablation. Compatibility remains the default. */
 export const goodProposalVoteScorer = createGoodProposalVoteScorer({
   selectionMode: 'top-utility',
+})
+
+/** Seeded Phase 4B base used by matching opt-in fallback paths. */
+export const seededGoodProposalVoteScorer = createGoodProposalVoteScorer({
+  selectionMode: 'seeded-band',
+})
+
+export interface RoleObjectiveScorerOptions {
+  selectionMode: RoleObjectiveSelectionMode
+}
+
+function scoreRoleObjectiveCandidates(
+  context: CandidateScoringContext,
+  options: RoleObjectiveScorerOptions,
+): readonly CandidateScore[] {
+  const projection = context.roleUtility
+  if (
+    !projection
+    || projection.version !== ROLE_UTILITY_PROJECTION_VERSION
+    || (context.request.kind !== 'propose' && context.request.kind !== 'vote')
+    || (context.view.role !== 'merlin' && context.view.role !== 'percival')
+    || projection.role !== context.view.role
+    || projection.request.kind !== context.request.kind
+    || projection.request.seat !== context.request.seat
+    || projection.request.round !== context.request.round
+    || projection.request.proposalNum !== context.request.proposalNum
+    || projection.source.beliefThroughSeq !== context.analysis.throughSeq
+    || context.analysis.policyCandidateAssessments.some(
+      (assessment) =>
+        assessment.beliefModelVersion
+          !== projection.source.beliefModelVersion,
+    )
+  ) {
+    throw new Error('role-objective scorer requires an eligible bound utility')
+  }
+  const version = options.selectionMode === 'seeded-composite-band'
+    ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+    : ROLE_OBJECTIVE_SCORER_VERSION
+  const utilityById = new Map(
+    projection.assessments.map((assessment) => [
+      assessment.candidateId,
+      assessment,
+    ]),
+  )
+  if (
+    utilityById.size !== projection.assessments.length
+    || utilityById.size !== context.candidates.length
+  ) {
+    throw new Error('role-objective scorer requires a complete utility surface')
+  }
+
+  // The role layer always starts from Phase 4's deterministic, unadjusted
+  // values. Its own seeded variant is the only allowed source of variation.
+  const baseScores = scoreGoodProposalVoteCandidates(context, {
+    selectionMode: 'top-utility',
+  })
+  const baseById = new Map(baseScores.map((score) => [score.candidateId, score]))
+  const allowed = new Set(context.forced.allowedCandidateIds)
+  const survivors = context.candidates.filter((candidate) =>
+    allowed.has(candidate.id))
+  if (!survivors.length) {
+    throw new Error('role-objective scorer received no forced survivors')
+  }
+  const survivorMean = survivors.reduce((sum, candidate) => {
+    const utility = utilityById.get(candidate.id)
+    if (!utility) throw new Error('role-objective utility join mismatch')
+    return sum + utility.roleValue
+  }, 0) / survivors.length
+  const preliminary = context.candidates.map((candidate) => {
+    const utility = utilityById.get(candidate.id)
+    const base = baseById.get(candidate.id)
+    if (
+      !utility
+      || !base
+      || !base.features
+      || utility.kind !== context.request.kind
+      || utility.role !== context.view.role
+      || base.version !== GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      || (
+        base.features.version !== GOOD_PROPOSAL_FEATURE_VERSION
+        && base.features.version !== GOOD_VOTE_FEATURE_VERSION
+      )
+    ) {
+      throw new Error(`role-objective scorer join mismatch for ${candidate.id}`)
+    }
+    const baseValue = base.features.version === GOOD_PROPOSAL_FEATURE_VERSION
+      ? base.features.cleanProbability
+      : base.features.baseUtility
+    const roleAdjustment =
+      ROLE_OBJECTIVE_UTILITY_CONSTANTS.centeredAdjustmentScale
+      * (utility.roleValue - survivorMean)
+    return {
+      candidate,
+      base,
+      utility,
+      baseValue,
+      roleAdjustment,
+      combinedValue: baseValue + roleAdjustment,
+    }
+  })
+  const allowedRows = preliminary.filter(({ candidate }) =>
+    allowed.has(candidate.id))
+  const maxCombined = Math.max(
+    ...allowedRows.map(({ combinedValue }) => combinedValue),
+  )
+  const canonicalTopId = allowedRows
+    .filter(({ combinedValue }) => combinedValue === maxCombined)
+    .map(({ candidate }) => candidate.id)
+    .sort()[0]
+  const forcedSelection = context.forced.selectedCandidateId
+  if (forcedSelection && !allowed.has(forcedSelection)) {
+    throw new Error('role-objective scorer received invalid forced selection')
+  }
+
+  const voteRows = context.request.kind === 'vote' ? allowedRows : []
+  const inViableBand =
+    voteRows.length === 2
+    && Math.abs(voteRows[0].combinedValue - voteRows[1].combinedValue)
+      <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
+  const bandActive =
+    !forcedSelection
+    && options.selectionMode === 'seeded-composite-band'
+    && inViableBand
+  if (
+    options.selectionMode === 'seeded-composite-band'
+    && (
+      typeof context.deterministicSeed !== 'string'
+      || !context.deterministicSeed.trim()
+    )
+  ) {
+    throw new Error('seeded role-objective scorer requires the game seed')
+  }
+  const seedBucket = bandActive
+    ? stablePolicyBucket([
+        context.deterministicSeed,
+        context.request.seat,
+        context.request.kind,
+        context.request.round,
+        context.request.proposalNum,
+        context.analysis.throughSeq,
+      ].join(':'))
+    : undefined
+  const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+
+  return preliminary.map((row): CandidateScore => {
+    const forcedAllowed = allowed.has(row.candidate.id)
+    const selectedBySeed =
+      bandActive
+      && row.candidate.decision.kind === 'vote'
+      && row.candidate.decision.vote === seededVote
+    const selectionAdjustment = selectedBySeed
+      ? maxCombined - row.combinedValue + 1e-9
+      : 0
+    const viable = forcedAllowed && (
+      forcedSelection
+        ? row.candidate.id === forcedSelection
+        : bandActive || row.candidate.id === canonicalTopId
+    )
+    return {
+      version,
+      candidateId: row.candidate.id,
+      value: forcedAllowed
+        ? row.combinedValue + selectionAdjustment
+        : -Number.MAX_SAFE_INTEGER,
+      viable,
+      reasonCodes: [
+        ...(forcedAllowed ? ['FORCED_POLICY_ALLOWED'] : ['FORCED_POLICY_REMOVED']),
+        ...row.base.reasonCodes.filter((reason) =>
+          reason !== 'GOOD_VOTE_TOP_UTILITY'
+          && reason !== 'GOOD_VOTE_SEEDED_VIABLE_BAND'
+          && reason !== 'GOOD_PROPOSAL_MAX_TEAM_CLEAN'
+          && reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK'),
+        'PRIVATE_ROLE_OBJECTIVE_COMPOSITE',
+        ...(viable ? ['PRIVATE_ROLE_OBJECTIVE_SELECTED_SET'] : []),
+        ...(bandActive ? ['PRIVATE_ROLE_OBJECTIVE_SEEDED_BAND'] : []),
+      ],
+      features: structuredClone(row.base.features),
+      roleObjectiveFeatures: {
+        version: ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
+        utilityVersion: ROLE_OBJECTIVE_UTILITY_VERSION,
+        utilityProjectionVersion: ROLE_UTILITY_PROJECTION_VERSION,
+        sourceObjectiveVersion: ROLE_OBJECTIVE_MODEL_VERSION,
+        role: projection.role,
+        candidateId: row.candidate.id,
+        kind: context.request.kind,
+        baseScorerVersion: GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+        baseFeatureVersion: row.base.features.version,
+        baseValue: row.baseValue,
+        roleValue: row.utility.roleValue,
+        survivorMeanRoleValue: survivorMean,
+        roleAdjustment: row.roleAdjustment,
+        combinedValue: row.combinedValue,
+        selectionMode: options.selectionMode,
+        viableBand: ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,
+        inViableBand,
+        selectionAdjustment,
+        ...(seedBucket === undefined ? {} : { seedBucket }),
+        utility: structuredClone(row.utility),
+      },
+    }
+  })
+}
+
+/** Opt-in Phase 7C2 scorer factory. Compatibility/default policy is unchanged. */
+export function createRoleObjectiveScorer(
+  options: RoleObjectiveScorerOptions,
+): CandidateScorer {
+  const selectionMode = options.selectionMode
+  return Object.freeze({
+    version: selectionMode === 'seeded-composite-band'
+      ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      : ROLE_OBJECTIVE_SCORER_VERSION,
+    analysisRequirement: 'joint-proposal-vote-team-assessments' as const,
+    roleUtilityRequirement: ROLE_UTILITY_PROJECTION_VERSION,
+    baseScorer: selectionMode === 'seeded-composite-band'
+      ? seededGoodProposalVoteScorer
+      : goodProposalVoteScorer,
+    score: (context: CandidateScoringContext) =>
+      scoreRoleObjectiveCandidates(context, { selectionMode }),
+  })
+}
+
+/** Deterministic role-policy ablation. */
+export const roleObjectiveScorer = createRoleObjectiveScorer({
+  selectionMode: 'top-composite',
+})
+
+/** Recommended opt-in role policy; variation remains confined to vote bands. */
+export const seededRoleObjectiveScorer = createRoleObjectiveScorer({
+  selectionMode: 'seeded-composite-band',
 })

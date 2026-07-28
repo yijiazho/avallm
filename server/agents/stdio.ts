@@ -30,6 +30,17 @@ import {
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  ROLE_OBJECTIVE_UTILITY_CONSTANTS,
+  ROLE_OBJECTIVE_UTILITY_VERSION,
+  goodProposalVoteScorer,
+  seededGoodProposalVoteScorer,
+  roleObjectiveScorer,
+  seededRoleObjectiveScorer,
+  stablePolicyBucket,
+  structuredChoice,
   type CandidateScore,
 } from './policy/score.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from './analysis/types.ts'
@@ -64,12 +75,16 @@ import {
 } from './policy/plan.ts'
 import {
   validatePublicObserverSnapshot,
+  observePublicRecord,
 } from './analysis/observer.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './analysis/observer-types.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
+  projectJointIdentity,
   validatePrivateIdentityHostJoin,
 } from './belief/identity.ts'
+import { exactBelief } from './belief/exact.ts'
+import { EXACT_BELIEF_MODEL_VERSION } from './belief/types.ts'
 import {
   PLAN_MEMORY_VERSION,
 } from './cognition/plan-memory.ts'
@@ -79,10 +94,26 @@ import {
   ROLE_OBJECTIVE_MODEL_VERSION,
 } from './analysis/role-objective-types.ts'
 import {
+  ROLE_UTILITY_DEGRADATION,
+  ROLE_UTILITY_PROJECTION_VERSION,
+  buildRoleUtilityProjection,
+  validatePrivateRoleUtilityHostJoin,
+  validatePrivateRoleUtilityProjection,
+} from './analysis/role-utility.ts'
+import {
   buildRoleObjectiveSnapshot,
+  roleObjectiveIdentityScope,
   validatePrivateRoleObjectiveHostJoin,
 } from './analysis/role-objectives.ts'
-import { legalCandidates } from './policy/candidates.ts'
+import { projectPublicRecord } from './communication/public-record.ts'
+import {
+  candidateIdForDecision,
+  candidateTeams,
+  hypotheticalProposalCandidates,
+  legalCandidates,
+} from './policy/candidates.ts'
+import { analyzeSituation } from './analysis/situation.ts'
+import { applyForcedPolicy } from './policy/forced.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -176,6 +207,22 @@ function validComponentVersions(value: unknown): boolean {
     )
     && (
       versions.roleObjective === undefined
+      || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+    )
+    && (
+      versions.roleUtility === undefined
+      || versions.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
+    )
+    && (
+      versions.configuredScorer === undefined
+      || (
+        typeof versions.configuredScorer === 'string'
+        && versions.configuredScorer.length > 0
+        && versions.configuredScorer !== versions.scorer
+      )
+    )
+    && (
+      versions.roleUtility === undefined
       || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
     )
     && (
@@ -475,6 +522,84 @@ function validPrivateRoleObjectiveTrace(
   }
 }
 
+function validPrivateRoleUtilityTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const declared = components?.roleUtility
+  const configured = components?.configuredScorer ?? components?.scorer
+  const configuredForRole = (
+    configured === ROLE_OBJECTIVE_SCORER_VERSION
+    || configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+  )
+  const applicable =
+    configuredForRole
+    && (req.kind === 'propose' || req.kind === 'vote')
+    && (hostView?.role === 'merlin' || hostView?.role === 'percival')
+  const degradation = Array.isArray(trace.degradation)
+    ? trace.degradation as unknown[]
+    : []
+  if (!applicable) {
+    return declared === undefined
+      && value === undefined
+      && !degradation.includes(ROLE_UTILITY_DEGRADATION)
+  }
+  if (value === undefined) {
+    if (
+      declared !== undefined
+      || !degradation.includes(ROLE_UTILITY_DEGRADATION)
+      || (
+        components?.scorer !== GOOD_PROPOSAL_VOTE_SCORER_VERSION
+        && components?.scorer !== GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+      )
+    ) return false
+    if (
+      hostView
+      && trace.privateRoleObjective
+      && trace.publicObserver
+    ) {
+      try {
+        buildRoleUtilityProjection({
+          req,
+          view: hostView,
+          objective: trace.privateRoleObjective as never,
+          observer: trace.publicObserver as never,
+          candidates: legalCandidates(req, hostView),
+        })
+        return false
+      } catch {
+        return true
+      }
+    }
+    return true
+  }
+  if (
+    declared !== ROLE_UTILITY_PROJECTION_VERSION
+    || !hostView
+    || !trace.privateRoleObjective
+    || !trace.privateIdentity
+    || !trace.publicObserver
+    || !validatePrivateRoleUtilityProjection(value)
+  ) return false
+  try {
+    return validatePrivateRoleUtilityHostJoin(value, {
+      req,
+      view: hostView,
+      objective: trace.privateRoleObjective as never,
+      identity: trace.privateIdentity as never,
+      observer: trace.publicObserver as never,
+      candidates: legalCandidates(req, hostView),
+    })
+  } catch {
+    return false
+  }
+}
+
 function validBeliefProvenance(value: unknown): boolean {
   if (value === undefined) return true
   return Array.isArray(value) && value.every((entry) => {
@@ -750,6 +875,83 @@ function validCandidateScores(value: unknown): boolean {
     const validFeatures = features === undefined
       || validProposalFeatures
       || validVoteFeatures
+    const role = score?.roleObjectiveFeatures as
+      | Record<string, unknown>
+      | undefined
+    const roleKeys = [
+      'version',
+      'utilityVersion',
+      'utilityProjectionVersion',
+      'sourceObjectiveVersion',
+      'role',
+      'candidateId',
+      'kind',
+      'baseScorerVersion',
+      'baseFeatureVersion',
+      'baseValue',
+      'roleValue',
+      'survivorMeanRoleValue',
+      'roleAdjustment',
+      'combinedValue',
+      'selectionMode',
+      'viableBand',
+      'inViableBand',
+      'selectionAdjustment',
+      ...(role?.seedBucket === undefined ? [] : ['seedBucket']),
+      'utility',
+    ]
+    const validRole = role === undefined || (
+      exactKeys(role, roleKeys)
+      && role.version === ROLE_OBJECTIVE_SCORE_FEATURE_VERSION
+      && role.utilityVersion === ROLE_OBJECTIVE_UTILITY_VERSION
+      && role.utilityProjectionVersion === ROLE_UTILITY_PROJECTION_VERSION
+      && role.sourceObjectiveVersion === ROLE_OBJECTIVE_MODEL_VERSION
+      && ['merlin', 'percival'].includes(role.role as string)
+      && role.candidateId === score.candidateId
+      && ['propose', 'vote'].includes(role.kind as string)
+      && role.baseScorerVersion === GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      && (
+        role.baseFeatureVersion === GOOD_PROPOSAL_FEATURE_VERSION
+        || role.baseFeatureVersion === GOOD_VOTE_FEATURE_VERSION
+      )
+      && typeof role.baseValue === 'number'
+      && Number.isFinite(role.baseValue)
+      && finiteProbability(role.roleValue)
+      && finiteProbability(role.survivorMeanRoleValue)
+      && typeof role.roleAdjustment === 'number'
+      && Number.isFinite(role.roleAdjustment)
+      && Math.abs(
+        Number(role.roleAdjustment)
+        - ROLE_OBJECTIVE_UTILITY_CONSTANTS.centeredAdjustmentScale
+          * (
+            Number(role.roleValue)
+            - Number(role.survivorMeanRoleValue)
+          ),
+      ) <= 1e-12
+      && typeof role.combinedValue === 'number'
+      && Number.isFinite(role.combinedValue)
+      && Math.abs(
+        Number(role.combinedValue)
+        - Number(role.baseValue)
+        - Number(role.roleAdjustment),
+      ) <= 1e-12
+      && (
+        role.selectionMode === 'top-composite'
+        || role.selectionMode === 'seeded-composite-band'
+      )
+      && role.viableBand === ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
+      && typeof role.inViableBand === 'boolean'
+      && typeof role.selectionAdjustment === 'number'
+      && Number.isFinite(role.selectionAdjustment)
+      && (
+        role.seedBucket === undefined
+        || role.seedBucket === 0
+        || role.seedBucket === 1
+      )
+      && !!role.utility
+      && typeof role.utility === 'object'
+      && !Array.isArray(role.utility)
+    )
     return !!score
       && typeof score === 'object'
       && typeof score.version === 'string'
@@ -761,6 +963,7 @@ function validCandidateScores(value: unknown): boolean {
       && typeof score.viable === 'boolean'
       && stringArray(score.reasonCodes)
       && validFeatures
+      && validRole
   })
 }
 
@@ -905,24 +1108,39 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
         return true
       }
       if (features.version === GOOD_PROPOSAL_FEATURE_VERSION) {
+        const role = score.roleObjectiveFeatures as
+          | Record<string, unknown>
+          | undefined
         return (
           ![
             GOOD_PROPOSAL_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+            ROLE_OBJECTIVE_SCORER_VERSION,
+            ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
           ].includes(score.version as typeof GOOD_PROPOSAL_SCORER_VERSION)
           || score.candidateId !== (
             `${LEGAL_CANDIDATE_VERSION}:propose:`
             + (features.team as number[]).join(',')
           )
           || score.value !== (
-            score.viable
-              ? features.cleanProbability
-              : -Number.MAX_SAFE_INTEGER
+            role
+              ? (
+                  score.value === -Number.MAX_SAFE_INTEGER
+                    ? -Number.MAX_SAFE_INTEGER
+                    : Number(role.combinedValue)
+                      + Number(role.selectionAdjustment)
+                )
+              : score.viable
+                ? features.cleanProbability
+                : -Number.MAX_SAFE_INTEGER
           )
         )
       }
       if (features.version === GOOD_VOTE_FEATURE_VERSION) {
+        const role = score.roleObjectiveFeatures as
+          | Record<string, unknown>
+          | undefined
         const vote = String(score.candidateId).split(':').at(-1)
         const base = vote === 'approve'
           ? features.approveUtility
@@ -931,13 +1149,18 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
           ![
             GOOD_PROPOSAL_VOTE_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+            ROLE_OBJECTIVE_SCORER_VERSION,
+            ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
           ].includes(score.version as typeof GOOD_PROPOSAL_VOTE_SCORER_VERSION)
           || base === undefined
           || features.baseUtility !== base
           || (
             score.value !== -Number.MAX_SAFE_INTEGER
             && score.value !== (
-              (base as number) + (features.selectionAdjustment as number)
+              role
+                ? Number(role.combinedValue)
+                  + Number(role.selectionAdjustment)
+                : (base as number) + (features.selectionAdjustment as number)
             )
           )
         )
@@ -1011,11 +1234,18 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
               || trace.plannerCandidateId !== chosen
               || !chosenScore
               || plannerReasons.some(
-                (reason) =>
-                  !selectedStrategicReasonCodes(
-                    chosenScore as unknown as CandidateScore,
-                    scores as unknown as CandidateScore[],
-                  ).includes(reason),
+                (reason) => !(
+                  trace.agentMode === 'hybrid'
+                  && chosen !== structured
+                    ? plannerOverrideReasonCodes(
+                        chosenScore as unknown as CandidateScore,
+                        scores as unknown as CandidateScore[],
+                      )
+                    : selectedStrategicReasonCodes(
+                        chosenScore as unknown as CandidateScore,
+                        scores as unknown as CandidateScore[],
+                      )
+                ).includes(reason),
               )
             )
           )
@@ -1123,10 +1353,23 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       return false
     }
     if (uncertainty !== undefined) {
+      const chosenRole = chosenScore?.roleObjectiveFeatures as
+        | Record<string, unknown>
+        | undefined
       if (
         !exactKeys(
           uncertainty,
-          uncertainty.kind === 'selected-team-clean'
+          uncertainty.kind === 'role-composite-decision'
+            ? [
+                'version',
+                'kind',
+                'semantics',
+                'beliefModelVersion',
+                'beliefThroughSeq',
+                'baseKind',
+                'compositeUtilityGap',
+              ]
+            : uncertainty.kind === 'selected-team-clean'
             ? [
                 'version',
                 'kind',
@@ -1149,7 +1392,7 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
         )
         ||
         uncertainty.version !== POSTERIOR_UNCERTAINTY_VERSION
-        || uncertainty.semantics !== 'uniform-feasible-joint'
+        || uncertainty.semantics !== chosenFeatures?.semantics
         || !chosenFeatures
         || uncertainty.beliefModelVersion
           !== chosenFeatures.beliefModelVersion
@@ -1157,7 +1400,38 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       ) {
         return false
       }
-      if (chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION) {
+      if (chosenRole) {
+        const alternatives = scores.filter(
+          (score) =>
+            score.candidateId !== chosen
+            && score.value !== -Number.MAX_SAFE_INTEGER
+            && score.roleObjectiveFeatures !== undefined,
+        )
+        const expectedGap = alternatives.length
+          ? Math.min(...alternatives.map((score) =>
+              Math.abs(
+                Number(chosenRole.combinedValue)
+                - Number(
+                  (
+                    score.roleObjectiveFeatures as Record<string, unknown>
+                  ).combinedValue,
+                ),
+              )))
+          : 1
+        if (
+          uncertainty.kind !== 'role-composite-decision'
+          || uncertainty.baseKind !== (
+            chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION
+              ? 'proposal-team-clean'
+              : 'vote-current-versus-alternative'
+          )
+          || typeof uncertainty.compositeUtilityGap !== 'number'
+          || !Number.isFinite(uncertainty.compositeUtilityGap)
+          || Math.abs(
+            Number(uncertainty.compositeUtilityGap) - expectedGap,
+          ) > 1e-12
+        ) return false
+      } else if (chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION) {
         if (
           uncertainty.kind !== 'selected-team-clean'
           || !finiteProbability(uncertainty.cleanProbability)
@@ -1210,6 +1484,178 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       (score.features as Record<string, unknown>).version
       === GOOD_VOTE_FEATURE_VERSION,
   )
+  const roleFeatureScores = scores.filter(
+    (score) => score.roleObjectiveFeatures !== undefined,
+  )
+  if (roleFeatureScores.length > 0) {
+    const roleProjection = trace.privateRoleUtility as
+      | Record<string, unknown>
+      | undefined
+    const forced = trace.forcedPolicyResult as
+      | Record<string, unknown>
+      | undefined
+    if (
+      roleFeatureScores.length !== scores.length
+      || !roleProjection
+      || !forced
+      || !Array.isArray(roleProjection.assessments)
+      || components?.roleUtility !== ROLE_UTILITY_PROJECTION_VERSION
+      || ![
+        ROLE_OBJECTIVE_SCORER_VERSION,
+        ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+      ].includes(components?.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION)
+    ) return false
+    const utilities = new Map(
+      (roleProjection.assessments as Array<Record<string, unknown>>)
+        .map((assessment) => [assessment.candidateId, assessment]),
+    )
+    const allowed = new Set(forced.allowedCandidateIds as string[])
+    const allowedRole = roleFeatureScores.filter((score) =>
+      allowed.has(score.candidateId as string))
+    if (!allowedRole.length) return false
+    const mean = allowedRole.reduce(
+      (sum, score) =>
+        sum + Number(
+          (score.roleObjectiveFeatures as Record<string, unknown>).roleValue,
+        ),
+      0,
+    ) / allowedRole.length
+    for (const score of roleFeatureScores) {
+      const role = score.roleObjectiveFeatures as Record<string, unknown>
+      const utility = utilities.get(score.candidateId)
+      const base = score.features as Record<string, unknown>
+      const expectedBase = base.version === GOOD_PROPOSAL_FEATURE_VERSION
+        ? base.cleanProbability
+        : base.baseUtility
+      if (
+        !utility
+        || !isDeepStrictEqual(role.utility, utility)
+        || role.role !== roleProjection.role
+        || role.kind !== (trace.request as DecisionRequest).kind
+        || role.baseValue !== expectedBase
+        || Math.abs(Number(role.survivorMeanRoleValue) - mean) > 1e-12
+      ) return false
+    }
+    const mode = (
+      roleFeatureScores[0].roleObjectiveFeatures as Record<string, unknown>
+    ).selectionMode
+    const expectedScorer = mode === 'seeded-composite-band'
+      ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      : ROLE_OBJECTIVE_SCORER_VERSION
+    const maxCombined = Math.max(...allowedRole.map((score) =>
+      Number(
+        (score.roleObjectiveFeatures as Record<string, unknown>).combinedValue,
+      )))
+    const canonicalTop = allowedRole
+      .filter((score) =>
+        (score.roleObjectiveFeatures as Record<string, unknown>)
+          .combinedValue === maxCombined)
+      .map((score) => score.candidateId as string)
+      .sort()[0]
+    const viable = roleFeatureScores.filter((score) => score.viable === true)
+    const selectedByValue = viable.slice().sort((left, right) =>
+      Number(right.value) - Number(left.value)
+      || String(left.candidateId).localeCompare(String(right.candidateId)))[0]
+    const forcedSelected = forced.selectedCandidateId as string | undefined
+    const bandActive =
+      !forcedSelected
+      && mode === 'seeded-composite-band'
+      && (trace.request as DecisionRequest).kind === 'vote'
+      && allowedRole.length === 2
+      && Math.abs(
+        Number(
+          (allowedRole[0].roleObjectiveFeatures as Record<string, unknown>)
+            .combinedValue,
+        )
+        - Number(
+          (allowedRole[1].roleObjectiveFeatures as Record<string, unknown>)
+            .combinedValue,
+        ),
+      ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
+    const firstRole =
+      roleFeatureScores[0].roleObjectiveFeatures as Record<string, unknown>
+    if (
+      components?.scorer !== expectedScorer
+      || !selectedByValue
+      || selectedByValue.candidateId !== structured
+      || roleFeatureScores.some((score) => {
+        const role = score.roleObjectiveFeatures as Record<string, unknown>
+        return role.selectionMode !== mode
+          || role.inViableBand !== (
+            (trace.request as DecisionRequest).kind === 'vote'
+            && allowedRole.length === 2
+            && Math.abs(
+              Number(
+                (allowedRole[0].roleObjectiveFeatures as Record<string, unknown>)
+                  .combinedValue,
+              )
+              - Number(
+                (allowedRole[1].roleObjectiveFeatures as Record<string, unknown>)
+                  .combinedValue,
+              ),
+            ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
+          )
+          || (
+            !allowed.has(score.candidateId as string)
+            && (
+              score.value !== -Number.MAX_SAFE_INTEGER
+              || score.viable === true
+            )
+          )
+      })
+      || (
+        forcedSelected
+          ? (
+              viable.length !== 1
+              || viable[0].candidateId !== forcedSelected
+              || roleFeatureScores.some((score) =>
+                (score.roleObjectiveFeatures as Record<string, unknown>)
+                  .selectionAdjustment !== 0
+                || (score.roleObjectiveFeatures as Record<string, unknown>)
+                  .seedBucket !== undefined)
+            )
+          : bandActive
+            ? (
+                viable.length !== 2
+                || ![0, 1].includes(firstRole.seedBucket as number)
+                || roleFeatureScores.some((score) =>
+                  (
+                    score.roleObjectiveFeatures as Record<string, unknown>
+                  ).seedBucket !== firstRole.seedBucket
+                  || Math.abs(
+                    Number(
+                      (
+                        score.roleObjectiveFeatures as Record<string, unknown>
+                      ).selectionAdjustment,
+                    )
+                    - (
+                      score.candidateId === (
+                        firstRole.seedBucket === 0
+                          ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
+                          : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
+                      )
+                        ? maxCombined - Number(
+                            (
+                              score.roleObjectiveFeatures as
+                                Record<string, unknown>
+                            ).combinedValue,
+                          ) + 1e-9
+                        : 0
+                    ),
+                  ) > 1e-15)
+              )
+            : (
+                viable.length !== 1
+                || viable[0].candidateId !== canonicalTop
+                || roleFeatureScores.some((score) =>
+                  (score.roleObjectiveFeatures as Record<string, unknown>)
+                    .selectionAdjustment !== 0
+                  || (score.roleObjectiveFeatures as Record<string, unknown>)
+                    .seedBucket !== undefined)
+              )
+      )
+    ) return false
+  }
   if (
     proposalFeatureScores.length > 0
     && (
@@ -1293,6 +1739,10 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
     ) {
       return false
     }
+    if (roleFeatureScores.length > 0) {
+      // Role-composite viability was host-recomputed above. The preserved
+      // Phase-4 vote features remain attributable but do not own selection.
+    } else {
     const mode = first.selectionMode
     const expectedScorer = mode === 'seeded-band'
       ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
@@ -1330,7 +1780,7 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       components?.scorer !== expectedScorer
       || !available.length
       || !selectedByValue
-      || selectedByValue.candidateId !== chosen
+      || selectedByValue.candidateId !== structured
       || (
         bandActive
           ? (
@@ -1365,6 +1815,7 @@ function validComposedTraceRelations(trace: Record<string, unknown>): boolean {
       )
     ) {
       return false
+    }
     }
   }
   const forced = trace.forcedPolicyResult as Record<string, unknown> | undefined
@@ -1480,6 +1931,12 @@ function validDecisionTrace(
       req,
       hostView,
     )
+    && validPrivateRoleUtilityTrace(
+      trace.privateRoleUtility,
+      trace,
+      req,
+      hostView,
+    )
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
@@ -1513,6 +1970,306 @@ function validDecisionTrace(
   )
 }
 
+/**
+ * Shared strict composed-trace admission for persisted artifacts and
+ * generation-time benchmark capture. Unlike the stdio envelope validator,
+ * this accepts finalized applied-outcome telemetry and validates score/action
+ * relations against the selected decision supplied by replay.
+ */
+export function validateComposedTraceHostJoin(input: {
+  trace: DecisionTrace
+  req: DecisionRequest
+  view: PlayerView
+  /** Authoritative applied/replayed action, including normalized communication. */
+  authoritativeAction: Decision
+  /** Selected mechanical decision, before any engine fallback replacement. */
+  selectedDecision: Decision
+  deterministicSeed: string
+}): boolean {
+  try {
+    const {
+      trace,
+      req,
+      view,
+      authoritativeAction,
+      selectedDecision,
+      deterministicSeed,
+    } = input
+    if (
+      req.seat !== view.seat
+      || selectedDecision.kind !== req.kind
+      || authoritativeAction.kind !== req.kind
+      || trace.viewerSeat !== req.seat
+      || !isDeepStrictEqual(trace.request, req)
+      || !isDeepStrictEqual(trace.action, authoritativeAction)
+      || !validComponentVersions(trace.componentVersions)
+      || !validCandidateScores(trace.candidateScores)
+      || !validForcedPolicyResult(trace.forcedPolicyResult)
+      || !validPublicObserverTrace(trace.publicObserver, trace)
+      || !validPrivateIdentityTrace(
+        trace.privateIdentity,
+        trace as unknown as Record<string, unknown>,
+        view.rolesInPlay,
+      )
+    ) return false
+    const components = trace.componentVersions!
+    if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false
+    const hasRoleObjective =
+      components.roleObjective !== undefined
+      || trace.privateRoleObjective !== undefined
+      || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+    if (
+      hasRoleObjective
+      && !validPrivateRoleObjectiveTrace(
+        trace.privateRoleObjective,
+        trace as unknown as Record<string, unknown>,
+        req,
+        view,
+      )
+    ) return false
+    if (!validPrivateRoleUtilityTrace(
+      trace.privateRoleUtility,
+      trace as unknown as Record<string, unknown>,
+      req,
+      view,
+    )) return false
+
+    const legal = legalCandidates(req, view)
+    const scores = trace.candidateScores ?? []
+    if (
+      scores.length !== legal.length
+      || scores.some(
+        (score, index) => score.candidateId !== legal[index].id,
+      )
+      || trace.chosenCandidateId !== candidateIdForDecision(selectedDecision)
+    ) return false
+
+    const configured = components.configuredScorer ?? components.scorer
+    const roleConfigured =
+      configured === ROLE_OBJECTIVE_SCORER_VERSION
+      || configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+    if (roleConfigured) {
+      const applicable =
+        (req.kind === 'propose' || req.kind === 'vote')
+        && (view.role === 'merlin' || view.role === 'percival')
+      const roleApplied =
+        applicable
+        && trace.privateRoleUtility !== undefined
+        && !trace.degradation.includes('role-objective-scorer-failed')
+      const base = configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+        : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      const expectedResolved = roleApplied ? configured : base
+      if (
+        components.scorer !== expectedResolved
+        || components.configuredScorer !== (
+          expectedResolved === configured ? undefined : configured
+        )
+      ) return false
+      if (
+        (req.kind === 'propose' || req.kind === 'vote')
+        && view.alignment === 'good'
+        && components.belief === EXACT_BELIEF_MODEL_VERSION
+        && components.languageEvidence === 'off'
+        && components.factors === 'off'
+        && !validateExactRolePolicySurface(
+          trace,
+          req,
+          view,
+          deterministicSeed,
+        )
+      ) return false
+    }
+
+    const expectedBucket = stablePolicyBucket([
+      deterministicSeed,
+      req.seat,
+      req.kind,
+      req.round,
+      req.proposalNum,
+      trace.beliefThroughSeq,
+    ].join(':'))
+    if (scores.some((score) => {
+      const baseBucket = score.features?.version === GOOD_VOTE_FEATURE_VERSION
+        ? score.features.seedBucket
+        : undefined
+      const roleBucket = score.roleObjectiveFeatures?.seedBucket
+      return (
+        baseBucket !== undefined && baseBucket !== expectedBucket
+      ) || (
+        roleBucket !== undefined && roleBucket !== expectedBucket
+      )
+    })) return false
+
+    const relationTrace = structuredClone(trace) as unknown as
+      Record<string, unknown>
+    relationTrace.action = structuredClone(selectedDecision)
+    return validComposedTraceRelations(relationTrace)
+  } catch {
+    return false
+  }
+}
+
+function validateExactRolePolicySurface(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+  deterministicSeed: string,
+): boolean {
+  try {
+    const components = trace.componentVersions!
+    const candidates = legalCandidates(req, view)
+    const policyTeams = candidateTeams(candidates, view)
+    const hypotheticalTeamCandidates = req.kind === 'vote'
+      ? hypotheticalProposalCandidates(view)
+      : undefined
+    const hypotheticalTeams = hypotheticalTeamCandidates
+      ? candidateTeams(hypotheticalTeamCandidates, view)
+      : undefined
+    const analysis = analyzeSituation(view, {
+      belief: exactBelief(view),
+      policyCandidateTeams: policyTeams,
+      ...(req.kind === 'propose'
+        ? { policyCandidateAssessments: policyTeams }
+        : {}),
+      ...(hypotheticalTeams
+        ? {
+            policyCandidateAssessments: hypotheticalTeams,
+            goodVote: true,
+          }
+        : {}),
+    })
+    const forced = applyForcedPolicy(req, view, analysis, candidates)
+    const scorer =
+      components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        ? seededRoleObjectiveScorer
+        : components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
+          ? roleObjectiveScorer
+          : components.scorer === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+            ? seededGoodProposalVoteScorer
+            : components.scorer === GOOD_PROPOSAL_VOTE_SCORER_VERSION
+              ? goodProposalVoteScorer
+              : undefined
+    if (!scorer) return false
+    const expectedScores = scorer.score({
+      deterministicSeed,
+      request: req,
+      view,
+      analysis,
+      candidates,
+      ...(hypotheticalTeamCandidates
+        ? { hypotheticalTeamCandidates }
+        : {}),
+      ...(trace.privateRoleUtility
+        ? { roleUtility: trace.privateRoleUtility }
+        : {}),
+      forced,
+    })
+    return (
+      isDeepStrictEqual(trace.forcedPolicyResult, forced)
+      && isDeepStrictEqual(trace.candidateScores, expectedScores)
+      && trace.structuredCandidateId
+        === structuredChoice(expectedScores).candidateId
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * For the exact, API-free role architecture, dependency failures are
+ * host-recomputable from the authoritative PlayerView. Do not admit a trace
+ * that hides a recoverable identity/objective/utility chain behind forged
+ * degradation labels. Language-weighted variants are deliberately excluded:
+ * their bounded external evidence must be validated by its own attribution
+ * path rather than reconstructed as exact cognition.
+ */
+function validateExactRoleDependencyHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+): boolean {
+  const components = trace.componentVersions
+  if (!components) return false
+  const configured = components.configuredScorer ?? components.scorer
+  const roleConfigured =
+    configured === ROLE_OBJECTIVE_SCORER_VERSION
+    || configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+  const applicable =
+    roleConfigured
+    && (req.kind === 'propose' || req.kind === 'vote')
+    && (view.role === 'merlin' || view.role === 'percival')
+  const exactNonLanguage =
+    components.belief === EXACT_BELIEF_MODEL_VERSION
+    && components.languageEvidence === 'off'
+    && components.factors === 'off'
+  if (!applicable || !exactNonLanguage) return true
+
+  try {
+    const belief = exactBelief(view)
+    if (
+      trace.beliefModelVersion !== belief.modelVersion
+      || trace.beliefThroughSeq !== belief.throughSeq
+      || trace.quality !== belief.quality
+      || !isDeepStrictEqual(
+        trace.beliefPlayerMarginals,
+        belief.playerMarginals,
+      )
+    ) return false
+
+    const scope = trace.privateIdentity
+      ? {
+          roleQueries: trace.privateIdentity.scope.roleQueries.map(
+            (query) => ({ roles: [...query.queriedRoles] }),
+          ),
+          hiddenTeam: trace.privateIdentity.scope.hiddenTeam,
+        }
+      : roleObjectiveIdentityScope(view.role, view.rolesInPlay)
+    const identity = projectJointIdentity(belief, scope)
+    const observer = observePublicRecord(projectPublicRecord(view))
+    const candidates = legalCandidates(req, view)
+    const objective = buildRoleObjectiveSnapshot({
+      req,
+      view,
+      identity,
+      observer,
+      candidates,
+    })
+    const utility = buildRoleUtilityProjection({
+      req,
+      view,
+      objective,
+      observer,
+      candidates,
+    })
+    return (
+      components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+      && components.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+      && components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
+      && !trace.degradation.includes('identity-projection-failed')
+      && !trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+      && !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
+      && isDeepStrictEqual(trace.privateIdentity, identity)
+      && isDeepStrictEqual(trace.publicObserver, observer)
+      && isDeepStrictEqual(trace.privateRoleObjective, objective)
+      && isDeepStrictEqual(trace.privateRoleUtility, utility)
+    )
+  } catch {
+    return false
+  }
+}
+
+function isFullPlayerView(
+  value: Pick<PlayerView, 'rolesInPlay'> | undefined,
+): value is PlayerView {
+  return !!value
+    && 'events' in value
+    && 'privateInfo' in value
+    && 'quests' in value
+    && 'players' in value
+    && 'seat' in value
+}
+
 /** Optional protocol extension: external agents may return a private trace. */
 export function parseStdioDecisionReply(
   req: DecisionRequest,
@@ -1532,6 +2289,14 @@ export function parseStdioDecisionReply(
       decision,
       record.trace,
       hostView,
+    )
+    || (
+      isFullPlayerView(hostView)
+      && !validateExactRoleDependencyHostJoin(
+        record.trace as DecisionTrace,
+        req,
+        hostView,
+      )
     )
   ) {
     throw new Error(`${label} returned invalid decision trace for ${req.kind}`)

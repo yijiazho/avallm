@@ -37,6 +37,18 @@ import {
   buildRoleObjectiveSnapshot,
   validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
+import {
+  ROLE_UTILITY_DEGRADATION,
+  ROLE_UTILITY_PROJECTION_VERSION,
+  buildRoleUtilityProjection,
+  validatePrivateRoleUtilityHostJoin,
+} from '../agents/analysis/role-utility.ts'
+import {
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+} from '../agents/policy/score.ts'
 import { legalCandidates } from '../agents/policy/candidates.ts'
 import type { DecisionSnapshot } from './replay.ts'
 import {
@@ -45,6 +57,7 @@ import {
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
+import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -270,7 +283,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|roleObjective|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|roleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|roleObjective|privateRoleUtility|roleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -288,6 +301,9 @@ function architectureSafety(
   const roleObjectiveApplicable =
     declaresRoleObjective
     && (meta.targetRole === 'merlin' || meta.targetRole === 'percival')
+  const declaresRoleUtility =
+    meta.components.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
+  const roleUtilityApplicable = declaresRoleUtility && roleObjectiveApplicable
   const declaredCoherenceIntent = meta.components.coherenceIntent
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
@@ -310,6 +326,23 @@ function architectureSafety(
       meta.components.roleObjective !== undefined
       && !declaresRoleObjective
     )
+  const invalidRoleUtilityDeclaration =
+    (
+      meta.components.roleUtility !== undefined
+      && !declaresRoleUtility
+    )
+    || (
+      declaresRoleUtility
+      && (
+        !declaresRoleObjective
+        || ![
+          ROLE_OBJECTIVE_SCORER_VERSION,
+          ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+        ].includes(
+          meta.components.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION,
+        )
+      )
+    )
     || (
       declaresRoleObjective
       && (
@@ -324,9 +357,11 @@ function architectureSafety(
     || declaresJointIdentity
     || declaresPlanMemory
     || declaresRoleObjective
+    || declaresRoleUtility
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
     || invalidRoleObjectiveDeclaration
+    || invalidRoleUtilityDeclaration
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -375,6 +410,13 @@ function architectureSafety(
         || artifactRoleObjectives[0] !== ROLE_OBJECTIVE_MODEL_VERSION
       )
     : (artifactRoleObjectives?.length ?? 0) > 0
+  const artifactRoleUtilities = artifact.strategyVersions?.roleUtilities
+  const invalidRoleUtilityManifest = declaresRoleUtility
+    ? (
+        artifactRoleUtilities?.length !== 1
+        || artifactRoleUtilities[0] !== ROLE_UTILITY_PROJECTION_VERSION
+      )
+    : (artifactRoleUtilities?.length ?? 0) > 0
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
@@ -384,6 +426,10 @@ function architectureSafety(
     traceAttributionViolations++
   }
   if (invalidRoleObjectiveManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidRoleUtilityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -406,7 +452,6 @@ function architectureSafety(
       ...(declaresPlanMemory ? ['planMemory', 'coherence'] : []),
       ...(roleObjectiveApplicable ? ['roleObjective'] : []),
       'policy',
-      'scorer',
       'planner',
       'voice',
       ...(languageEnabled
@@ -432,21 +477,69 @@ function architectureSafety(
           versions?.mechanicalBelief !== undefined
           || versions?.beliefPipeline !== undefined
         )
+    const hostSnapshot = targetSnapshots.get(trace.decisionId)
+    const selectedDecision =
+      trace.privatePlanOutcome?.selected?.decision
+      ?? hostSnapshot?.original
+    const strictComposedTrace = (
+      trace.agentMode === 'compatibility'
+      || trace.agentMode === 'structured-only'
+      || trace.agentMode === 'hybrid'
+    )
     if (
       trace.viewerSeat !== meta.targetSeat
       || trace.agentMode !== meta.components.mode
       || !versions
+      || !hostSnapshot
+      || !selectedDecision
+      || (
+        strictComposedTrace
+        && !validateComposedTraceHostJoin({
+          trace,
+          req: hostSnapshot.req,
+          view: hostSnapshot.view,
+          authoritativeAction: hostSnapshot.original,
+          selectedDecision,
+          deterministicSeed: artifact.seed,
+        })
+      )
       || versions.belief !== trace.beliefModelVersion
       || invalidDeclaration
       || invalidIdentityDeclaration
       || invalidPlanDeclaration
       || invalidRoleObjectiveDeclaration
+      || invalidRoleUtilityDeclaration
       || invalidTraceShape
       || (
         declaresPublicObserver
           ? !validatePublicObserverSnapshot(trace.publicObserver)
           : trace.publicObserver !== undefined
       )
+      || (() => {
+        const applicable =
+          roleUtilityApplicable
+          && (
+            trace.request.kind === 'propose'
+            || trace.request.kind === 'vote'
+          )
+        const applied =
+          applicable
+          && trace.privateRoleUtility !== undefined
+          && !trace.degradation.includes('role-objective-scorer-failed')
+        const expectedScorer = applied
+          ? meta.components.scorer
+          : meta.components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+            ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+            : meta.components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
+              ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
+              : meta.components.scorer
+        return versions.scorer !== expectedScorer
+          || versions.configuredScorer !== (
+            expectedScorer === meta.components.scorer
+              ? undefined
+              : meta.components.scorer
+          )
+      })()
       || (
         declaresPlanMemory
           ? (
@@ -482,6 +575,64 @@ function architectureSafety(
               || versions.coherence !== undefined
               || trace.coherenceIntent !== undefined
               || trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+            )
+      )
+      || (
+        roleUtilityApplicable
+        && (
+          trace.request.kind === 'propose'
+          || trace.request.kind === 'vote'
+        )
+          ? (() => {
+              const snapshot = targetSnapshots.get(trace.decisionId)
+              if (trace.privateRoleUtility === undefined) {
+                if (
+                  versions.roleUtility !== undefined
+                  || !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
+                ) return true
+                if (
+                  snapshot
+                  && trace.privateRoleObjective
+                  && trace.publicObserver
+                ) {
+                  try {
+                    buildRoleUtilityProjection({
+                      req: snapshot.req,
+                      view: snapshot.view,
+                      objective: trace.privateRoleObjective,
+                      observer: trace.publicObserver,
+                      candidates: legalCandidates(snapshot.req, snapshot.view),
+                    })
+                    return true
+                  } catch {
+                    return false
+                  }
+                }
+                return false
+              }
+              return (
+                versions.roleUtility !== ROLE_UTILITY_PROJECTION_VERSION
+                || !snapshot
+                || !trace.privateRoleObjective
+                || !trace.privateIdentity
+                || !trace.publicObserver
+                || !validatePrivateRoleUtilityHostJoin(
+                  trace.privateRoleUtility,
+                  {
+                    req: snapshot.req,
+                    view: snapshot.view,
+                    objective: trace.privateRoleObjective,
+                    identity: trace.privateIdentity,
+                    observer: trace.publicObserver,
+                    candidates: legalCandidates(snapshot.req, snapshot.view),
+                  },
+                )
+              )
+            })()
+          : (
+              trace.privateRoleUtility !== undefined
+              || versions.roleUtility !== undefined
+              || trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
             )
       )
       || (
@@ -605,6 +756,7 @@ function architectureSafety(
     ]
     const forbidden = [
       trace.beliefModelVersion,
+      'role-composite-decision',
       ...trace.topHypotheses.map((hypothesis) => hypothesis.worldKey),
       ...(intent?.conceal ?? []),
       ...numericSecrets,

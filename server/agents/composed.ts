@@ -22,6 +22,13 @@ import {
   mergeIdentityScopes,
   roleObjectiveIdentityScope,
 } from './analysis/role-objectives.ts'
+import {
+  buildRoleUtilityProjection,
+  ROLE_UTILITY_DEGRADATION,
+  ROLE_UTILITY_PROJECTION_VERSION,
+  type PrivateRoleUtilityProjection,
+  validatePrivateRoleUtilityHostJoin,
+} from './analysis/role-utility.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
@@ -97,6 +104,8 @@ import {
 } from './policy/plan.ts'
 import {
   CANDIDATE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   scoreCandidates,
   structuredChoice,
   validateCandidateScores,
@@ -389,6 +398,7 @@ function composedTrace(
   plannerVersion: string,
   voiceVersion: string,
   scorerVersion: string,
+  configuredScorerVersion: string,
   degradation: readonly string[],
   agentMode: AgentExecutionMode,
   communication: DecisionPlan['communication'],
@@ -402,6 +412,7 @@ function composedTrace(
   identityEnabled = false,
   privateRoleObjective?: PrivateRoleObjectiveSnapshot,
   roleObjectiveEnabled = false,
+  privateRoleUtility?: PrivateRoleUtilityProjection,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -443,6 +454,9 @@ function composedTrace(
       ...(roleObjectiveEnabled
         ? { roleObjective: ROLE_OBJECTIVE_MODEL_VERSION }
         : {}),
+      ...(privateRoleUtility
+        ? { roleUtility: ROLE_UTILITY_PROJECTION_VERSION }
+        : {}),
       ...(planMemoryEnabled
         ? {
             planMemory: PLAN_MEMORY_VERSION,
@@ -454,6 +468,9 @@ function composedTrace(
       forcedPolicy: FORCED_POLICY_VERSION,
       policy: brain.policy,
       scorer: scorerVersion,
+      ...(configuredScorerVersion !== scorerVersion
+        ? { configuredScorer: configuredScorerVersion }
+        : {}),
       planner: plannerVersion,
       prompt: COMPOSED_PROMPT_VERSION,
       renderer: COMPOSED_RENDERER_VERSION,
@@ -484,6 +501,9 @@ function composedTrace(
       : {}),
     ...(privateRoleObjective
       ? { privateRoleObjective: structuredClone(privateRoleObjective) }
+      : {}),
+    ...(privateRoleUtility
+      ? { privateRoleUtility: structuredClone(privateRoleUtility) }
       : {}),
   }
 }
@@ -720,11 +740,20 @@ export function createComposedAgent(
           },
         }
       }
+      const roleScorerApplicable =
+        scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
+        && (req.kind === 'propose' || req.kind === 'vote')
+        && (view.role === 'merlin' || view.role === 'percival')
       const roleObjectiveRole: RoleObjectiveRole | undefined =
-        options.roleObjectives === true
+        (options.roleObjectives === true || roleScorerApplicable)
         && (view.role === 'merlin' || view.role === 'percival')
           ? view.role
           : undefined
+      let resolvedScorer: CandidateScorer =
+        scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
+        && !roleScorerApplicable
+          ? scorer.baseScorer ?? scorer
+          : scorer
       const decisionIdentityScope = roleObjectiveRole
         ? mergeIdentityScopes(
             configuredIdentityScope,
@@ -763,6 +792,7 @@ export function createComposedAgent(
       const candidates = legalCandidates(req, view)
       stage('candidates')
       let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
+      let privateRoleUtility: PrivateRoleUtilityProjection | undefined
       if (roleObjectiveRole) {
         try {
           if (!privateIdentity || !publicObserver) {
@@ -788,17 +818,44 @@ export function createComposedAgent(
         }
         stage('role-objective')
       }
+      if (roleScorerApplicable) {
+        try {
+          if (!privateRoleObjective || !publicObserver) {
+            throw new Error('role utility dependencies unavailable')
+          }
+          privateRoleUtility = buildRoleUtilityProjection({
+            req,
+            view,
+            objective: privateRoleObjective,
+            observer: publicObserver,
+            candidates,
+          })
+          if (!validatePrivateRoleUtilityHostJoin(privateRoleUtility, {
+            req,
+            view,
+            objective: privateRoleObjective,
+            identity: privateIdentity,
+            observer: publicObserver,
+            candidates,
+          })) {
+            throw new Error('role utility failed its authoritative host join')
+          }
+        } catch {
+          degradation.push(ROLE_UTILITY_DEGRADATION)
+          resolvedScorer = scorer.baseScorer ?? scorer
+        }
+      }
       const policyTeams = candidateTeams(candidates, view)
       const wantsJointProposalAssessments =
         (
-          scorer.analysisRequirement === 'joint-proposal-team-assessments'
-          || scorer.analysisRequirement
+          resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
+          || resolvedScorer.analysisRequirement
             === 'joint-proposal-vote-team-assessments'
         )
         && req.kind === 'propose'
         && view.alignment === 'good'
       const wantsJointVoteAssessments =
-        scorer.analysisRequirement
+        resolvedScorer.analysisRequirement
           === 'joint-proposal-vote-team-assessments'
         && req.kind === 'vote'
         && view.alignment === 'good'
@@ -836,24 +893,56 @@ export function createComposedAgent(
         ...(hypotheticalTeamCandidates
           ? { hypotheticalTeamCandidates }
           : {}),
+        ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
         forced,
         compatibilityCandidateId,
       }
-      let scorerVersion = scorer.version
+      let scorerVersion = resolvedScorer.version
       let scores: readonly CandidateScore[]
       try {
-        const suppliedScores = scorer.score(structuredClone(scoringContext))
+        const suppliedScores =
+          resolvedScorer.score(structuredClone(scoringContext))
         validateCandidateScores(scoringContext, suppliedScores, scorerVersion)
         scores = structuredClone(suppliedScores)
       } catch {
         degradation.push('scorer-invalid-output')
-        scorerVersion = CANDIDATE_SCORER_VERSION
-        scores = scoreCandidates(scoringContext)
-        validateCandidateScores(
-          scoringContext,
-          scores,
-          CANDIDATE_SCORER_VERSION,
-        )
+        const roleScorerFailed =
+          resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
+          || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+        const baseScorer = roleScorerFailed
+          ? scorer.baseScorer
+          : undefined
+        if (baseScorer) {
+          degradation.push('role-objective-scorer-failed')
+          try {
+            const suppliedBase =
+              baseScorer.score(structuredClone(scoringContext))
+            validateCandidateScores(
+              scoringContext,
+              suppliedBase,
+              baseScorer.version,
+            )
+            scorerVersion = baseScorer.version
+            scores = structuredClone(suppliedBase)
+          } catch {
+            degradation.push('base-scorer-invalid-output')
+            scorerVersion = CANDIDATE_SCORER_VERSION
+            scores = scoreCandidates(scoringContext)
+            validateCandidateScores(
+              scoringContext,
+              scores,
+              CANDIDATE_SCORER_VERSION,
+            )
+          }
+        } else {
+          scorerVersion = CANDIDATE_SCORER_VERSION
+          scores = scoreCandidates(scoringContext)
+          validateCandidateScores(
+            scoringContext,
+            scores,
+            CANDIDATE_SCORER_VERSION,
+          )
+        }
       }
       const structured = forced.selectedCandidateId
         ? scores.find((score) => score.candidateId === forced.selectedCandidateId)
@@ -1013,6 +1102,7 @@ export function createComposedAgent(
         plannerVersion,
         voiceVersion,
         scorerVersion,
+        scorer.version,
         degradation,
         activePlanner
           ? 'hybrid'
@@ -1032,6 +1122,7 @@ export function createComposedAgent(
         !!decisionIdentityScope,
         privateRoleObjective,
         !!roleObjectiveRole,
+        privateRoleUtility,
         planMemoryEnabled,
         coherenceIntent,
       )

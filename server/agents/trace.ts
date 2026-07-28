@@ -19,6 +19,7 @@ import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-types.ts'
+import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -84,10 +85,14 @@ export interface DecisionTrace {
     coherence?: string
     /** Absent means Merlin/Percival role-objective analysis is off. */
     roleObjective?: string
+    /** Absent unless the C2 decision-ready role projection was built. */
+    roleUtility?: string
     analysis: string
     candidates: string
     forcedPolicy: string
     policy: string
+    /** Configured scorer when applicability/degradation resolved to another. */
+    configuredScorer?: string
     scorer: string
     planner: string
     prompt: string
@@ -117,6 +122,8 @@ export interface DecisionTrace {
   privateIdentity?: PrivateIdentitySnapshot
   /** Private mechanically inert Merlin/Percival objective output. */
   privateRoleObjective?: PrivateRoleObjectiveSnapshot
+  /** Private decision-ready role utility, absent off/inapplicable/degraded. */
+  privateRoleUtility?: PrivateRoleUtilityProjection
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */

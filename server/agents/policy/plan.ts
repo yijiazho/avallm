@@ -45,6 +45,15 @@ export type PosteriorUncertainty =
       bestAlternativeCleanProbability: number
       utilityGap: number
     }
+  | {
+      version: typeof POSTERIOR_UNCERTAINTY_VERSION
+      kind: 'role-composite-decision'
+      semantics: GoodProposalFeatures['semantics'] | GoodVoteFeatures['semantics']
+      beliefModelVersion: string
+      beliefThroughSeq: number
+      baseKind: 'proposal-team-clean' | 'vote-current-versus-alternative'
+      compositeUtilityGap: number
+    }
 
 export interface PlannerCommunicationDirection {
   version: typeof COMMUNICATION_INTENT_VERSION
@@ -84,7 +93,10 @@ export interface CommittedVoicePlan {
   > & {
     uncertainty?: {
       version: 'voice-uncertainty-v1'
-      kind: PosteriorUncertainty['kind']
+      kind:
+        | 'selected-team-clean'
+        | 'current-versus-alternative-team-clean'
+        | 'decision-confidence'
       confidence: 'certain' | 'high' | 'moderate' | 'close'
     }
   }
@@ -108,6 +120,27 @@ export function selectedStrategicReasonCodes(
   surface: readonly CandidateScore[] = [],
 ): readonly string[] {
   const features = score.features
+  if (score.roleObjectiveFeatures) {
+    if (features?.version === 'good-proposal-features-v1') {
+      // Role utility may deliberately select a team below the base posterior
+      // maximum. Public communication may name the joint basis, never the
+      // private role adjustment or a false clean-probability maximum.
+      return ['GOOD_PROPOSAL_JOINT_TEAM_CLEAN']
+    }
+    if (features?.version === 'good-vote-features-v1') {
+      return [
+        'GOOD_VOTE_CURRENT_TEAM_JOINT_CLEAN',
+        'GOOD_VOTE_BEST_ALTERNATIVE_JOINT_CLEAN',
+        'GOOD_VOTE_BOARD_STAKES',
+        'GOOD_VOTE_PROPOSAL_RUNWAY',
+        'GOOD_VOTE_HAMMER_RISK',
+        ...(features.informationBonus > 0
+          ? ['GOOD_VOTE_INFORMATION_FUTURE_QUEST']
+          : []),
+      ]
+    }
+    return []
+  }
   if (features?.version === 'good-proposal-features-v1') {
     const reasons = ['GOOD_PROPOSAL_JOINT_TEAM_CLEAN']
     const comparable = surface.filter(
@@ -162,6 +195,13 @@ export function plannerOverrideReasonCodes(
   score: CandidateScore,
   surface: readonly CandidateScore[],
 ): readonly string[] {
+  if (
+    score.roleObjectiveFeatures?.selectionMode === 'seeded-composite-band'
+    && score.roleObjectiveFeatures.inViableBand
+    && score.viable
+  ) {
+    return ['PRIVATE_ROLE_OBJECTIVE_SEEDED_BAND']
+  }
   return selectedStrategicReasonCodes(score, surface).filter(
     (reason) =>
       reason === 'GOOD_PROPOSAL_MAX_TEAM_CLEAN'
@@ -180,7 +220,9 @@ export function materialPosteriorUncertainty(
   if (!uncertainty) return false
   return uncertainty.kind === 'selected-team-clean'
     ? uncertainty.residualProbability > 1e-12
-    : uncertainty.utilityGap <= 0.04
+    : uncertainty.kind === 'current-versus-alternative-team-clean'
+      ? uncertainty.utilityGap <= 0.04
+      : uncertainty.compositeUtilityGap <= 0.04
 }
 
 export function voiceUncertainty(
@@ -200,6 +242,18 @@ export function voiceUncertainty(
               : 'close',
     }
   }
+  if (uncertainty.kind === 'role-composite-decision') {
+    return {
+      version: 'voice-uncertainty-v1',
+      // The private planner trace retains the composite role-policy marker and
+      // exact utility gap. Voice gets only a role-neutral qualitative signal.
+      kind: 'decision-confidence',
+      confidence:
+        uncertainty.compositeUtilityGap > 0.25 ? 'high'
+          : uncertainty.compositeUtilityGap > 0.04 ? 'moderate'
+            : 'close',
+    }
+  }
   return {
     version: 'voice-uncertainty-v1',
     kind: uncertainty.kind,
@@ -212,8 +266,36 @@ export function voiceUncertainty(
 
 export function posteriorUncertainty(
   score: CandidateScore,
+  surface: readonly CandidateScore[] = [],
 ): PosteriorUncertainty | undefined {
   const features = score.features
+  const role = score.roleObjectiveFeatures
+  if (role && features) {
+    const alternatives = surface.filter(
+      (candidate) =>
+        candidate.candidateId !== score.candidateId
+        && candidate.value !== -Number.MAX_SAFE_INTEGER
+        && candidate.roleObjectiveFeatures?.version === role.version,
+    )
+    const nearest = alternatives.length
+      ? Math.min(...alternatives.map((candidate) =>
+          Math.abs(
+            role.combinedValue
+            - candidate.roleObjectiveFeatures!.combinedValue,
+          )))
+      : 1
+    return {
+      version: POSTERIOR_UNCERTAINTY_VERSION,
+      kind: 'role-composite-decision',
+      semantics: features.semantics,
+      beliefModelVersion: features.beliefModelVersion,
+      beliefThroughSeq: features.beliefThroughSeq,
+      baseKind: features.version === 'good-proposal-features-v1'
+        ? 'proposal-team-clean'
+        : 'vote-current-versus-alternative',
+      compositeUtilityGap: nearest,
+    }
+  }
   if (features?.version === 'good-proposal-features-v1') {
     const cleanProbability = probability(features.cleanProbability)
     return {
@@ -273,7 +355,7 @@ export function defaultCommunicationIntent(
     ? availableReasons
     : selectedReasons.filter((reason) => availableReasons.includes(reason))
   const uncertainty = selectedScore
-    ? posteriorUncertainty(selectedScore)
+    ? posteriorUncertainty(selectedScore, scoreSurface)
     : undefined
   const enrich = (
     base: PlannerCommunicationDirection,
