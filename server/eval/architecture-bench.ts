@@ -1473,6 +1473,14 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         },
         telemetry,
         decisionTraces,
+        ...(expectedComponentPlan
+          ? {
+              trustedComponentPlans: [{
+                seat: target.seat,
+                plan: expectedComponentPlan,
+              }],
+            }
+          : {}),
       })
       if (opts.out) appendArtifact(opts.out, artifact)
       artifacts.push(artifact)

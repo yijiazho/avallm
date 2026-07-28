@@ -186,6 +186,45 @@ export function decisionComponentPlan(
   })
 }
 
+/**
+ * Validate the data-only plan shape used by traces and trusted artifact
+ * manifests. Registry completeness and dependency order are checked when the
+ * plan is joined to a component run; this helper owns the transport bounds and
+ * canonical token shape.
+ */
+export function validateDecisionComponentPlan(
+  value: unknown,
+): value is DecisionComponentPlan {
+  const safe = safePayload(
+    value,
+    MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
+  )
+  if (!safe.ok) return false
+  const plan = exactDataRecord(safe.payload, ['version', 'configured'])
+  if (
+    !plan
+    || plan.version !== DECISION_COMPONENT_PLAN_VERSION
+    || !Array.isArray(plan.configured)
+  ) {
+    return false
+  }
+  const keys = new Set<string>()
+  for (const candidate of plan.configured) {
+    const ref = exactDataRecord(candidate, ['id', 'version'])
+    if (
+      !ref
+      || !canonicalCode(ref.id)
+      || !canonicalCode(ref.version)
+    ) {
+      return false
+    }
+    const key = `${ref.id}@${ref.version}`
+    if (keys.has(key)) return false
+    keys.add(key)
+  }
+  return true
+}
+
 function frozenRef(ref: ComponentRef): ComponentRef {
   return Object.freeze({ id: ref.id, version: ref.version })
 }

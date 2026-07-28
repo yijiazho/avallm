@@ -7,8 +7,12 @@
 import fs from 'node:fs'
 import { parseArgs } from 'node:util'
 import { isDeepStrictEqual } from 'node:util'
+import { isProxy } from 'node:util/types'
 import { pathToFileURL } from 'node:url'
-import { readArtifacts } from './artifact.ts'
+import {
+  MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES,
+  readArtifacts,
+} from './artifact.ts'
 import { computeMetrics } from './metrics.ts'
 import type { ArchitectureRunMetadata, GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role } from '../engine/types.ts'
@@ -16,7 +20,10 @@ import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor
 import {
   validatePublicObserverSnapshot,
 } from '../agents/analysis/observer.ts'
-import { APPLIED_OUTCOME_DEGRADATION } from '../agents/trace.ts'
+import {
+  APPLIED_OUTCOME_DEGRADATION,
+  COMPONENT_DECISION_TRACE_VERSION,
+} from '../agents/trace.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../agents/analysis/observer-types.ts'
@@ -98,6 +105,10 @@ import {
   MORGANA_ROLE_UTILITY_DEGRADATION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
 } from '../agents/analysis/morgana-role-utility.ts'
+import {
+  validateDecisionComponentPlan,
+  type DecisionComponentPlan,
+} from '../agents/components/kernel.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -137,6 +148,27 @@ export interface ArchitectureSafetySummary {
   hiddenInformationViolations: number
   traceAttributionChecks: number
   traceAttributionViolations: number
+  /** Trusted, exact generic component evidence suitable for promotion gates. */
+  promotionEvidenceEligible?: boolean
+}
+
+export interface ArchitectureComponentEvidenceSummary {
+  trust:
+    | 'trusted-host-manifest'
+    | 'unverified-composed'
+    | 'not-applicable'
+  promotionEvidenceEligible: boolean
+  decisions: number
+  configured: number
+  admitted: number
+  inapplicable: number
+  suppressed: number
+  degraded: number
+  exact: number
+  structural: number
+  promotable: number
+  policyUses: number
+  policyStages: number
 }
 
 export interface ArchitectureRoleSummary {
@@ -174,6 +206,9 @@ export interface ArchitectureModelSummary {
 export interface ArchitectureVariantSummary {
   id: string
   components: Record<string, string>
+  /** Generic configured graph from the trusted producer manifest. */
+  decisionComponents?: readonly string[]
+  componentEvidence?: ArchitectureComponentEvidenceSummary
   games: number
   wins: number
   forcedViolations: number
@@ -196,6 +231,7 @@ export interface ArchitectureComparison {
   forcedViolations: number
   degraded: number
   cost: number
+  promotionEvidenceEligible: boolean
   targetWinRateDelta: RateDeltaEstimate
   cleanInitialProposalRateDelta: RateDeltaEstimate
   voteTruthAccuracyDelta: RateDeltaEstimate
@@ -207,6 +243,14 @@ export interface ArchitectureBenchmarkReport {
   cases: string[]
   variants: ArchitectureVariantSummary[]
   comparisons: ArchitectureComparison[]
+}
+
+function isComposedArchitectureMode(value: unknown): boolean {
+  return (
+    value === 'compatibility'
+    || value === 'structured-only'
+    || value === 'hybrid'
+  )
 }
 
 interface GameObservation {
@@ -311,6 +355,155 @@ function planOutcomeHostJoin(
   )
 }
 
+function exactOwnDataRecord(
+  value: unknown,
+  expectedKeys: readonly string[],
+): Readonly<Record<string, unknown>> | undefined {
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    return undefined
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  if (!isDeepStrictEqual(Object.keys(descriptors).sort(), [...expectedKeys].sort())) {
+    return undefined
+  }
+  const record: Record<string, unknown> = {}
+  for (const key of expectedKeys) {
+    const descriptor = descriptors[key]
+    if (
+      !descriptor
+      || descriptor.enumerable !== true
+      || !Object.hasOwn(descriptor, 'value')
+      || descriptor.get !== undefined
+      || descriptor.set !== undefined
+    ) {
+      return undefined
+    }
+    record[key] = descriptor.value
+  }
+  return record
+}
+
+function denseOwnDataArray(value: unknown): readonly unknown[] | undefined {
+  if (
+    !Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return undefined
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const expected = Array.from(
+    { length: value.length },
+    (_, index) => `${index}`,
+  )
+  if (
+    !isDeepStrictEqual(
+      Object.keys(descriptors).filter((key) => key !== 'length').sort(),
+      expected,
+    )
+    || expected.some((key) => {
+      const descriptor = descriptors[key]
+      return (
+        !descriptor
+        || descriptor.enumerable !== true
+        || !Object.hasOwn(descriptor, 'value')
+        || descriptor.get !== undefined
+        || descriptor.set !== undefined
+      )
+    })
+  ) {
+    return undefined
+  }
+  return expected.map((key) => descriptors[key].value)
+}
+
+function artifactComponentPlans(
+  artifact: GameArtifact,
+): ReadonlyMap<number, DecisionComponentPlan> | undefined {
+  try {
+    const strategy = artifact.strategyVersions
+    const manifestDescriptor = strategy
+      ? Object.getOwnPropertyDescriptor(strategy, 'decisionComponents')
+      : undefined
+    const manifest = manifestDescriptor
+      && Object.hasOwn(manifestDescriptor, 'value')
+      ? manifestDescriptor.value
+      : undefined
+    const record = exactOwnDataRecord(manifest, ['schema', 'seats'])
+    const seats = denseOwnDataArray(record?.seats)
+    if (
+      !record
+      || record.schema !== 1
+      || !seats
+      || !seats.length
+      || seats.length > artifact.playerCount
+    ) {
+      return undefined
+    }
+    const plans = new Map<number, DecisionComponentPlan>()
+    const normalizedSeats: Array<{
+      seat: number
+      plan: DecisionComponentPlan
+    }> = []
+    let previousSeat = -1
+    for (const candidate of seats) {
+      const entry = exactOwnDataRecord(candidate, ['plan', 'seat'])
+      if (
+        !entry
+        || !Number.isInteger(entry.seat)
+        || (entry.seat as number) < 0
+        || (entry.seat as number) >= artifact.playerCount
+        || (entry.seat as number) <= previousSeat
+        || !validateDecisionComponentPlan(entry.plan)
+      ) {
+        return undefined
+      }
+      previousSeat = entry.seat as number
+      plans.set(
+        entry.seat as number,
+        entry.plan as DecisionComponentPlan,
+      )
+      normalizedSeats.push({
+        seat: entry.seat as number,
+        plan: entry.plan as DecisionComponentPlan,
+      })
+    }
+    if (
+      Buffer.byteLength(
+        JSON.stringify({ schema: 1, seats: normalizedSeats }),
+        'utf8',
+      ) > MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES
+    ) {
+      return undefined
+    }
+    return plans
+  } catch {
+    return undefined
+  }
+}
+
+function hasComponentManifestClaim(artifact: GameArtifact): boolean {
+  try {
+    const strategy = artifact.strategyVersions
+    if (!strategy) return false
+    const descriptor = Object.getOwnPropertyDescriptor(
+      strategy,
+      'decisionComponents',
+    )
+    if (!descriptor) return false
+    if (!Object.hasOwn(descriptor, 'value')) return true
+    return descriptor.value !== undefined
+  } catch {
+    return true
+  }
+}
+
 function architectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
@@ -323,13 +516,35 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
     hiddenInformationViolations++
   }
   const traces = artifact.decisionTraces ?? []
+  const componentManifestClaim = hasComponentManifestClaim(artifact)
+  const hostRequiresComponentEvidence = isComposedArchitectureMode(
+    meta.components.mode,
+  )
+  const componentPlans = artifactComponentPlans(artifact)
+  const validComponentManifest = componentPlans !== undefined
+  const expectedComponentPlan: DecisionComponentPlan | undefined =
+    componentPlans?.get(meta.targetSeat)
+  const genericComponentClaim = traces.some((trace) =>
+    trace.version === COMPONENT_DECISION_TRACE_VERSION
+    || trace.componentPlan !== undefined
+    || trace.components !== undefined
+    || trace.componentVersions?.decisionComponents !== undefined)
+  if (componentManifestClaim && genericComponentClaim) {
+    traceAttributionChecks++
+    if (
+      !validComponentManifest
+      || !expectedComponentPlan
+    ) {
+      traceAttributionViolations++
+    }
+  }
   const declaresBoundedLanguage =
     meta.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
   const declaresPublicObserver =
@@ -490,6 +705,8 @@ function architectureSafety(
     )
   const coverageRequired =
     traces.length > 0
+    || hostRequiresComponentEvidence
+    || componentManifestClaim
     || declaresBoundedLanguage
     || declaresPublicObserver
     || declaresJointIdentity
@@ -509,6 +726,13 @@ function architectureSafety(
     || invalidEvilQuestCardPolicyDeclaration
     || invalidMorganaCounterfeitDeclaration
     || invalidMorganaRoleUtilityDeclaration
+  const componentEvidenceApplicable = (
+    hostRequiresComponentEvidence
+    || componentManifestClaim
+    || genericComponentClaim
+    || traces.some((trace) =>
+      isComposedArchitectureMode(trace.agentMode))
+  )
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -720,7 +944,17 @@ function architectureSafety(
           authoritativeAction: hostSnapshot.original,
           selectedDecision,
           deterministicSeed: artifact.seed,
+          ...(expectedComponentPlan
+            ? {
+                expectComponentTrace: true,
+                expectedComponentPlan,
+              }
+            : {}),
         })
+      )
+      || (
+        expectedComponentPlan !== undefined
+        && trace.version !== COMPONENT_DECISION_TRACE_VERSION
       )
       || versions.belief !== trace.beliefModelVersion
       || versions.roleObjective !== (
@@ -1300,6 +1534,24 @@ function architectureSafety(
     hiddenInformationViolations,
     traceAttributionChecks,
     traceAttributionViolations,
+    ...(componentEvidenceApplicable
+      ? {
+          promotionEvidenceEligible: (
+            expectedComponentPlan !== undefined
+            && genericComponentClaim
+            && traces.every((trace) =>
+              trace.version === COMPONENT_DECISION_TRACE_VERSION
+              && trace.components?.entries.every((entry) =>
+                entry.status !== 'degraded'
+                && (
+                  entry.status !== 'admitted'
+                  || entry.promotionEligible
+                )) === true)
+            && hiddenInformationViolations === 0
+            && traceAttributionViolations === 0
+          ),
+        }
+      : {}),
   }
 }
 
@@ -1653,19 +1905,19 @@ function decisionQuality(
 function safety(
   games: readonly GameObservation[],
 ): ArchitectureSafetySummary {
-  return games.reduce<ArchitectureSafetySummary>(
-    (summary, game) => ({
+  const summary = games.reduce<ArchitectureSafetySummary>(
+    (current, game) => ({
       hiddenInformationChecks:
-        summary.hiddenInformationChecks
+        current.hiddenInformationChecks
         + game.safety.hiddenInformationChecks,
       hiddenInformationViolations:
-        summary.hiddenInformationViolations
+        current.hiddenInformationViolations
         + game.safety.hiddenInformationViolations,
       traceAttributionChecks:
-        summary.traceAttributionChecks
+        current.traceAttributionChecks
         + game.safety.traceAttributionChecks,
       traceAttributionViolations:
-        summary.traceAttributionViolations
+        current.traceAttributionViolations
         + game.safety.traceAttributionViolations,
     }),
     {
@@ -1675,6 +1927,98 @@ function safety(
       traceAttributionViolations: 0,
     },
   )
+  const eligibility = games.map(
+    (game) => game.safety.promotionEvidenceEligible,
+  )
+  return eligibility.some((value) => value !== undefined)
+    ? {
+        ...summary,
+        promotionEvidenceEligible: eligibility.every(
+          (value) => value === true,
+        ),
+      }
+    : summary
+}
+
+function componentEvidence(
+  games: readonly GameObservation[],
+): ArchitectureComponentEvidenceSummary {
+  const trusted = games.every((game) =>
+    artifactComponentPlans(game.artifact)?.has(game.meta.targetSeat) === true)
+  const hasComposedClaim = games.some((game) =>
+    isComposedArchitectureMode(game.meta.components.mode)
+    || hasComponentManifestClaim(game.artifact)
+    || (game.artifact.decisionTraces ?? []).some((trace) =>
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      || trace.componentPlan !== undefined
+      || trace.components !== undefined
+      || isComposedArchitectureMode(trace.agentMode)))
+  const traces = games.flatMap((game) =>
+    (game.artifact.decisionTraces ?? []).filter(
+      (trace) => trace.viewerSeat === game.meta.targetSeat,
+    ))
+  const entries = traces.flatMap((trace) =>
+    trace.components?.entries ?? [])
+  const policyUses = traces.flatMap((trace) =>
+    trace.components?.policyUse ?? [])
+  return {
+    trust: trusted
+      ? 'trusted-host-manifest'
+      : hasComposedClaim
+        ? 'unverified-composed'
+        : 'not-applicable',
+    promotionEvidenceEligible: games.every(
+      (game) => game.safety.promotionEvidenceEligible === true,
+    ),
+    decisions: traces.filter((trace) => trace.components !== undefined).length,
+    configured: artifactComponentPlans(
+      games[0].artifact,
+    )?.get(games[0].meta.targetSeat)?.configured.length ?? 0,
+    admitted: entries.filter((entry) => entry.status === 'admitted').length,
+    inapplicable: entries.filter(
+      (entry) => entry.status === 'inapplicable',
+    ).length,
+    suppressed: entries.filter((entry) => entry.status === 'suppressed').length,
+    degraded: entries.filter((entry) => entry.status === 'degraded').length,
+    exact: entries.filter(
+      (entry) => entry.status === 'admitted' && entry.verification === 'exact',
+    ).length,
+    structural: entries.filter(
+      (entry) =>
+        entry.status === 'admitted' && entry.verification === 'structural',
+    ).length,
+    promotable: entries.filter(
+      (entry) => entry.status === 'admitted' && entry.promotionEligible,
+    ).length,
+    policyUses: policyUses.filter((use) => use.used).length,
+    policyStages: policyUses.reduce(
+      (total, use) => total + use.stages.length,
+      0,
+    ),
+  }
+}
+
+function observationPromotionEvidenceEligible(
+  game: GameObservation,
+): boolean {
+  if (
+    game.safety.hiddenInformationViolations !== 0
+    || game.safety.traceAttributionViolations !== 0
+  ) {
+    return false
+  }
+  if (isComposedArchitectureMode(game.meta.components.mode)) {
+    return game.safety.promotionEvidenceEligible === true
+  }
+  if (
+    game.meta.components.mode === 'raw-llm'
+    || game.meta.components.mode === 'heuristic'
+    || game.meta.components.mode === 'random'
+    || game.meta.components.mode === 'external'
+  ) {
+    return game.safety.promotionEvidenceEligible !== false
+  }
+  return false
 }
 
 function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVariantSummary {
@@ -1682,6 +2026,27 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
   if (new Set(componentKeys).size !== 1) {
     throw new Error(`variant ${id} has inconsistent component versions`)
   }
+  const decisionComponentPlans = games.map(
+    (game) => JSON.stringify(
+      artifactComponentPlans(game.artifact)?.get(game.meta.targetSeat),
+    ),
+  )
+  if (new Set(decisionComponentPlans).size !== 1) {
+    throw new Error(
+      `variant ${id} has inconsistent decision component manifests`,
+    )
+  }
+  const decisionComponentPlan = artifactComponentPlans(
+    games[0].artifact,
+  )?.get(games[0].meta.targetSeat)
+  const hasComponentEvidence = games.some((game) =>
+    isComposedArchitectureMode(game.meta.components.mode)
+    || hasComponentManifestClaim(game.artifact)
+    || (game.artifact.decisionTraces ?? []).some((trace) =>
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      || trace.componentPlan !== undefined
+      || trace.components !== undefined
+      || isComposedArchitectureMode(trace.agentMode)))
   const roles = [...new Set(games.map((g) => g.meta.targetRole))].sort()
   const kinds = [...new Set(games.flatMap((g) => [
     ...g.decisions.keys(),
@@ -1695,6 +2060,16 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
   return {
     id,
     components: { ...games[0].meta.components },
+    ...(decisionComponentPlan
+      ? {
+          decisionComponents: decisionComponentPlan.configured.map(
+            (component) => `${component.id}@${component.version}`,
+          ),
+        }
+      : {}),
+    ...(hasComponentEvidence
+      ? { componentEvidence: componentEvidence(games) }
+      : {}),
     games: games.length,
     wins: games.filter((g) => g.won).length,
     forcedViolations: games.reduce((sum, g) => sum + g.forced, 0),
@@ -1827,6 +2202,11 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
         forcedViolations: deltas.reduce((sum, delta) => sum + delta.forced, 0),
         degraded: deltas.reduce((sum, delta) => sum + delta.degraded, 0),
         cost: deltas.reduce((sum, delta) => sum + delta.cost, 0),
+        promotionEvidenceEligible: pairs.every(
+          ({ baseline: base, candidate: next }) =>
+            observationPromotionEvidenceEligible(base)
+            && observationPromotionEvidenceEligible(next),
+        ),
         targetWinRateDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => ({
@@ -1890,6 +2270,30 @@ export function renderArchitectureReport(report: ArchitectureBenchmarkReport): s
       + `${variant.calls} calls, $${fixed(variant.cost)}`,
     )
     lines.push(`  components ${Object.entries(variant.components).map(([k, v]) => `${k}=${v}`).join(' ')}`)
+    if (variant.decisionComponents) {
+      lines.push(
+        `  decision-components ${
+          variant.decisionComponents.length
+            ? variant.decisionComponents.join(' ')
+            : '(empty)'
+        }`,
+      )
+    }
+    if (variant.componentEvidence) {
+      lines.push(
+        `  component-evidence ${variant.componentEvidence.trust}, `
+        + `${variant.componentEvidence.promotionEvidenceEligible
+          ? 'promotion-eligible'
+          : 'promotion-ineligible'}, `
+        + `${variant.componentEvidence.decisions} decisions, `
+        + `${variant.componentEvidence.admitted} admitted `
+        + `(${variant.componentEvidence.exact} exact, `
+        + `${variant.componentEvidence.structural} structural), `
+        + `${variant.componentEvidence.degraded} degraded, `
+        + `${variant.componentEvidence.policyUses} causal uses/`
+        + `${variant.componentEvidence.policyStages} stages`,
+      )
+    }
     lines.push(`  roles ${variant.byRole.map((r) =>
       `${r.role}:${r.wins}/${r.games},d${r.degraded},$${fixed(r.cost)}`).join(' ')}`)
     lines.push(
@@ -1929,7 +2333,16 @@ export function renderArchitectureReport(report: ArchitectureBenchmarkReport): s
       `  safety hidden ${variant.safety.hiddenInformationViolations}/`
       + `${variant.safety.hiddenInformationChecks}, attribution `
       + `${variant.safety.traceAttributionViolations}/`
-      + variant.safety.traceAttributionChecks,
+      + variant.safety.traceAttributionChecks
+      + (
+        variant.safety.promotionEvidenceEligible === undefined
+          ? ''
+          : `, component-evidence ${
+              variant.safety.promotionEvidenceEligible
+                ? 'promotion-eligible'
+                : 'promotion-ineligible'
+            }`
+      ),
     )
     lines.push(`  kinds ${variant.byKind.map((k) =>
       `${k.kind}:${k.decisions}d/${k.calls}c/${k.degraded}x/$${fixed(k.cost)}`).join(' ')}`)
@@ -1945,6 +2358,11 @@ export function renderArchitectureReport(report: ArchitectureBenchmarkReport): s
       + `forced ${comparison.forcedViolations >= 0 ? '+' : ''}${comparison.forcedViolations}, `
       + `degraded ${comparison.degraded >= 0 ? '+' : ''}${comparison.degraded}, `
       + `cost ${comparison.cost >= 0 ? '+' : ''}$${fixed(comparison.cost)}`,
+    )
+    lines.push(
+      `  promotion-evidence ${
+        comparison.promotionEvidenceEligible ? 'eligible' : 'ineligible'
+      }`,
     )
     lines.push(
       `  rate deltas win ${renderDelta(comparison.targetWinRateDelta)}; `

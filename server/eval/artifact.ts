@@ -7,10 +7,20 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import type { DegradedDecision } from '../sim/runner.ts'
 import type { SpendEntry } from '../llm/openrouter.ts'
 import type { Alignment, Game, GameEvent, Role, Seat, TalkConfig } from '../engine/types.ts'
-import type { DecisionTrace } from '../agents/trace.ts'
+import {
+  COMPONENT_DECISION_TRACE_VERSION,
+  type DecisionTrace,
+} from '../agents/trace.ts'
+import {
+  DECISION_COMPONENT_PLAN_VERSION,
+  DECISION_COMPONENT_RUN_VERSION,
+  validateDecisionComponentPlan,
+  type DecisionComponentPlan,
+} from '../agents/components/kernel.ts'
 
 // Bump on any BREAKING artifact-shape change. Additive fields (like `roles`,
 // added in v2) don't require a bump for readers that tolerate their absence —
@@ -22,6 +32,8 @@ import type { DecisionTrace } from '../agents/trace.ts'
 // remain readable as data but are NOT replayable — the engine that produced
 // their logs no longer exists (replayGame refuses them).
 export const ARTIFACT_SCHEMA = 3
+export const MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES =
+  720_896
 
 export interface ArtifactPlayer {
   seat: Seat
@@ -71,6 +83,21 @@ export interface ArtifactStrategyVersions {
   morganaCounterfeitObjectives?: readonly string[]
   /** Added in Phase 7E1B; bounded causal Morgana policy projections. */
   morganaRoleUtilities?: readonly string[]
+  /**
+   * Generic component manifest captured independently from the trusted
+   * producer's resolved brain. It is never inferred from a returned trace.
+   */
+  decisionComponents?: ArtifactDecisionComponentManifest
+}
+
+export interface ArtifactDecisionComponentManifest {
+  schema: 1
+  seats: readonly ArtifactDecisionComponentSeatManifest[]
+}
+
+export interface ArtifactDecisionComponentSeatManifest {
+  seat: Seat
+  plan: DecisionComponentPlan
 }
 
 export interface ArtifactTelemetry {
@@ -175,6 +202,11 @@ export interface ToArtifactOpts {
   architecture?: ArchitectureRunMetadata
   telemetry?: ArtifactTelemetry
   decisionTraces?: DecisionTrace[]
+  /**
+   * Host-assigned producer provenance for generic composed traces. External
+   * agents cannot mint this by returning a self-described component plan.
+   */
+  trustedComponentPlans?: readonly ArtifactDecisionComponentSeatManifest[]
 }
 
 function sortedUnique(values: readonly (string | undefined)[]): string[] {
@@ -244,6 +276,13 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       (trace) => trace.componentVersions?.morganaRoleUtility,
     ),
   ])
+  const decisionComponents = opts.trustedComponentPlans === undefined
+    ? undefined
+    : trustedDecisionComponentManifest(
+        opts.trustedComponentPlans,
+        traces,
+        opts.agents.length,
+      )
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -284,7 +323,72 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       ? { morganaCounterfeitObjectives }
       : {}),
     ...(morganaRoleUtilities.length ? { morganaRoleUtilities } : {}),
+    ...(decisionComponents ? { decisionComponents } : {}),
   }
+}
+
+function trustedDecisionComponentManifest(
+  seats: readonly ArtifactDecisionComponentSeatManifest[],
+  traces: readonly DecisionTrace[],
+  playerCount: number,
+): ArtifactDecisionComponentManifest {
+  if (!seats.length) {
+    throw new Error('trusted component manifest requires at least one seat')
+  }
+  const seen = new Set<Seat>()
+  const normalized = [...seats].sort((left, right) => left.seat - right.seat)
+  for (const entry of normalized) {
+    if (
+      !Number.isInteger(entry.seat)
+      || entry.seat < 0
+      || entry.seat >= playerCount
+      || seen.has(entry.seat)
+      || !validateDecisionComponentPlan(entry.plan)
+    ) {
+      throw new Error(
+        'trusted component manifest has an invalid seat or plan',
+      )
+    }
+    seen.add(entry.seat)
+    const seatTraces = traces.filter((trace) =>
+      trace.viewerSeat === entry.seat)
+    if (!seatTraces.length) {
+      throw new Error(
+        `trusted component manifest has no traces for seat ${entry.seat}`,
+      )
+    }
+    if (seatTraces.some((trace) =>
+      trace.version !== COMPONENT_DECISION_TRACE_VERSION
+      || trace.componentVersions?.decisionComponents
+        !== DECISION_COMPONENT_RUN_VERSION
+      || !trace.componentPlan
+      || !trace.components
+      || !isDeepStrictEqual(trace.componentPlan, entry.plan))) {
+      throw new Error(
+        `trusted component plan does not match traces for seat ${entry.seat}`,
+      )
+    }
+  }
+  const manifest: ArtifactDecisionComponentManifest = {
+    schema: 1,
+    seats: normalized.map((entry) => ({
+      seat: entry.seat,
+      plan: {
+        version: DECISION_COMPONENT_PLAN_VERSION,
+        configured: entry.plan.configured.map((component) => ({
+          id: component.id,
+          version: component.version,
+        })),
+      },
+    })),
+  }
+  if (
+    Buffer.byteLength(JSON.stringify(manifest), 'utf8')
+      > MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES
+  ) {
+    throw new Error('trusted component manifest exceeds artifact bound')
+  }
+  return manifest
 }
 
 export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
@@ -293,6 +397,19 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
   }
   if (opts.agents.length !== game.config.playerCount) {
     throw new Error(`agents length ${opts.agents.length} !== playerCount ${game.config.playerCount}`)
+  }
+  if (
+    opts.trustedComponentPlans !== undefined
+    && (
+      !opts.architecture
+      || opts.trustedComponentPlans.length !== 1
+      || opts.trustedComponentPlans[0].seat
+        !== opts.architecture.targetSeat
+    )
+  ) {
+    throw new Error(
+      'trusted component plans require the architecture target seat',
+    )
   }
   return {
     schema: ARTIFACT_SCHEMA,

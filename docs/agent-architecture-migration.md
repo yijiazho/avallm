@@ -2,15 +2,14 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2B4 artifact and exit-gate integration. Phase 7R1 restored
-universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A moved admission behind
-an agent-owned boundary, and Phase 7R2B1 through B3B landed the generic contracts, per-decision
-kernel, compatibility adapters, transport admission, and trusted generation-time plan join.
-Mordred E2A cannot begin until the complete 7R2B4 exit gate passes; it then becomes the first
-production native component rather than another role-specific central field. Mordred policy,
-Assassin specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population
-sign flip remains recorded, and win-rate tuning is still intentionally deferred until the
-architecture is complete enough to evaluate as a whole.
+**Current target phase:** Phase 7E2A Mordred substrate, the first production native component.
+Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
+moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
+per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
+report joins, and the complete generic-component exit gate. Mordred policy, Assassin
+specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population sign flip
+remains recorded, and win-rate tuning is still intentionally deferred until the architecture is
+complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1299,7 +1298,7 @@ reviewable and ablatable:
     policy. **Complete.**
 17. **Phase 7R2B4, artifacts and exit gate:** derive generic manifests and evaluation views,
     retain reads of historical legacy-only artifacts, and complete the frozen behavior,
-    reconstruction, privacy, replay, bank, size, and latency gates.
+    reconstruction, privacy, replay, bank, size, and latency gates. **Complete.**
 18. **Phase 7E2A, Mordred substrate:** only after 7R2B4 passes, add the first production native
     generic component, modeling
     Merlin-blindness opportunity and anomalous public treatment from exact joint worlds plus
@@ -1945,6 +1944,48 @@ degradation surfaces. All 897 API-free repository tests pass. Independent review
 36/36 dedicated kernel/B3B and 132/132 adjacent architecture, admission, D3, E1, privacy, replay,
 prompt, and compatibility matrices and returns READY. This checkpoint is complete.
 
+**7R2B4 verified implementation.** Architecture artifacts now carry one additive, generic,
+seat-keyed `decisionComponents` manifest under the strategy-version bundle. The host derives the
+manifest only from a built-in composed agent's independently captured resolved plan; it is never
+inferred from a returned trace, and a self-described stdio or wrapper-hidden external graph cannot
+mint trusted provenance. The current architecture-bank producer binds exactly the evaluated target
+seat, while the data-only shape remains ready for multiple seats without adding a role-named
+artifact field. Plans retain the kernel's strict plain/dense JSON validation, canonical component
+identity, uniqueness, per-plan 65,536-byte bound, and a 720,896-byte aggregate manifest bound.
+
+Stored-report replay selects the target seat's trusted plan and requires component-bearing v2
+traces to match it through `expectComponentTrace + expectedComponentPlan`. A fixed host manifest
+therefore rejects coherent graph erasure or relabeling, dependency or causal-stage deletion, and
+v2-to-v1 downgrade. Historical v1 and pre-B4 v2 artifacts remain readable for diagnostics, but
+composed evidence without a trusted manifest is explicitly promotion-ineligible. Raw, heuristic,
+random, and genuine external baselines require no manifest. This boundary is provenance, not a
+signature: a party able to coherently rewrite the stored manifest, trace, and architecture metadata
+after persistence remains outside the threat claim.
+
+The report exposes a generic component view derived from admitted run entries: configured,
+admitted, inapplicable, suppressed, degraded, exact, structural, promotable, causal-use, and
+causal-stage counts. Variant and comparison output carries an explicit promotion-evidence verdict,
+so quality deltas remain diagnostically visible without being mistaken for promotion evidence.
+Weighted or otherwise structurally admitted entries keep the whole component evidence cell
+nonpromotable, as does any generic component degradation. Trusted architecture mode is authoritative
+for whether evidence is required: deleting both traces and the manifest cannot turn a composed
+candidate into a not-applicable cell or an eligible comparison. No component payload, invocation
+root, private policy-use record, or manifest data enters the public log, `PlayerView`, prompt,
+voice, or client.
+
+The dedicated B4 matrices pass 4/4 producer/report/privacy/replay cases and 10/10 hostile
+manifest/trace/bounds/backward-compatibility cases. Focused architecture, replay, stdio, and
+composed-agent validation passes 56/56, and the adjacent role-policy/free-bank matrix passes 96/96,
+including the frozen 5-10 player architecture banks. The implementation full API-free suite passes
+911/911. Phase 0 report fixtures, frozen prompt bytes, decisions, event logs, deterministic replay,
+typed degradation, component versions, exact reconstruction, and weighted-unverifiable behavior
+remain unchanged apart from the new optional generic report view. Manifest construction and report
+validation happen after gameplay, so the decision path and its recorded latency samples are
+unchanged. A one-case exact Merlin boundary probe produced a 167-byte manifest inside a
+72,183-byte artifact and a 3,153-byte report; its six recorded decision samples had an 11.49 ms
+maximum on the development host. Parent-focused validation passes 95/95, and independent
+architecture rereview passes 114/114 and returns READY. The complete 7R2B exit gate is approved.
+
 E2A does not begin after an intermediate kernel or adapter landing. It begins only after 7R2B4 and
 the complete 7R2B exit gate pass, then must add Mordred through the same seam with **zero
 Mordred-specific central fields**.
@@ -2301,6 +2342,16 @@ here.
   resolved plan, while external self-contained traces remain unauthenticated. Eight dedicated
   cases, 65 adjacent kernel, adapter, and role-policy cases, and all 897 API-free repository tests
   pass. Independent review returned READY after 36/36 dedicated and 132/132 adjacent cases.
+- Phase 7R2B4 complete: added a host-assigned, seat-keyed generic component
+  manifest and bound stored-report replay to the independently expected target-seat plan. Reports
+  now expose generic component status, verification, promotion, and causal-use counts plus an
+  explicit promotion-evidence verdict; historical and external artifacts remain readable without
+  gaining trust. Coherent graph, dependency, stage, and downgrade rewrites; malformed, duplicate,
+  sparse, proxy, accessor, wrong-seat, wrong-version, and oversized manifests; weighted
+  nonpromotion; privacy; replay; free-bank coverage; and bounds pass 14 dedicated cases, 56 focused
+  architecture cases, 96 adjacent role/free-bank cases, and all 911 API-free repository tests.
+  Parent validation passes 95/95; independent architecture rereview passes 114/114 and returns
+  READY.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
