@@ -78,6 +78,26 @@ function request(view: PlayerView): DecisionRequest {
   }
 }
 
+function onNondecisiveBoard(view: PlayerView): PlayerView {
+  const result = structuredClone(view)
+  result.quests[0] = {
+    ...result.quests[0],
+    result: 'success',
+    failCount: 0,
+  }
+  result.quests[1] = {
+    ...result.quests[1],
+    result: 'fail',
+    failCount: 1,
+  }
+  result.quests[2] = {
+    ...result.quests[2],
+    result: undefined,
+    failCount: undefined,
+  }
+  return result
+}
+
 function snapshot(
   view: PlayerView,
   mode: EvilQuestCardPolicyMode,
@@ -361,7 +381,7 @@ test('robust nondecisive play is seat-local and makes no quota guarantee', () =>
 
 test('composed exact policy is seed-invariant and forced policy stays final', async () => {
   const visible = [4, 5]
-  const view = coordinatedView(4, visible)
+  const view = onNondecisiveBoard(coordinatedView(4, visible))
   const req = request(view)
   const first = await createComposedAgent({
     seed: 'hidden-seed-a',
@@ -419,8 +439,67 @@ test('composed exact policy is seed-invariant and forced policy stays final', as
   )
 })
 
+test('universal decisive Fail suppresses a conflicting exact-quota resolution', async () => {
+  const visible = [1, 4, 5]
+  const undesignated = visible.find((seat) => {
+    const policy = snapshot(
+      {
+        ...coordinatedView(seat, visible),
+        rolesInPlay: coordinatedView(seat, visible).rolesInPlay.map((role) =>
+          role === 'oberon' ? 'minion' : role),
+      },
+      'visible-exact-quota',
+    )
+    return policy.selectedCard === 'success'
+  })!
+  const coordinated = coordinatedView(undesignated, visible)
+  const view = {
+    ...coordinated,
+    rolesInPlay: coordinated.rolesInPlay.map((role) =>
+      role === 'oberon' ? 'minion' : role),
+  }
+  const req = request(view)
+  const conflictingPolicy = snapshot(view, 'visible-exact-quota')
+  assert.equal(conflictingPolicy.selectedCard, 'success')
+
+  const output = await createComposedAgent({
+    seed: 'universal-before-exact-quota',
+    evilQuestCardPolicy: 'visible-exact-quota',
+  }).decide(req, view)
+  assert.deepEqual(output.decision, { kind: 'quest', card: 'fail' })
+  assert.equal(
+    output.trace!.componentVersions!.configuredEvilQuestCardPolicy,
+    EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
+  )
+  assert.equal(
+    output.trace!.componentVersions!.evilQuestCardPolicy,
+    undefined,
+  )
+  assert.equal(output.trace!.privateEvilQuestCardPolicy, undefined)
+  assert.deepEqual(output.trace!.forcedPolicyResult!.reasonCodes, [
+    'GOOD_MATCH_POINT_FAIL_REQUIRED',
+  ])
+  assert.ok(validateComposedTraceHostJoin({
+    trace: output.trace!,
+    req,
+    view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: 'universal-before-exact-quota',
+  }))
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      req,
+      { decision: output.decision, trace: output.trace },
+      'universal exact-quota conflict',
+      view,
+    ),
+    output,
+  )
+})
+
 test('D3 traces are host-reconstructed and mutation resistant', async () => {
-  const view = coordinatedView(4, [4, 5])
+  const view = onNondecisiveBoard(coordinatedView(4, [4, 5]))
   const req = request(view)
   const output = await createComposedAgent({
     seed: 'host-only-seed',
@@ -469,6 +548,10 @@ test('D3 traces are host-reconstructed and mutation resistant', async () => {
     },
     (copy: typeof trace) => {
       delete copy.privateEvilQuestCardPolicy
+    },
+    (copy: typeof trace) => {
+      delete copy.privateEvilQuestCardPolicy
+      delete copy.componentVersions!.evilQuestCardPolicy
     },
   ]) {
     const forged = structuredClone(trace)
@@ -541,17 +624,15 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
         trace.componentVersions!.configuredEvilQuestCardPolicy,
         EVIL_QUEST_ROBUST_POLICY_VERSION,
       )
-      const applicable =
-        trace.request.kind === 'quest'
-        && !['merlin', 'percival', 'servant', 'oberon']
-          .includes(artifact.architecture!.targetRole)
-      assert.equal(
-        trace.componentVersions!.evilQuestCardPolicy,
-        applicable ? EVIL_QUEST_ROBUST_POLICY_VERSION : undefined,
+      const resolved =
+        trace.componentVersions!.evilQuestCardPolicy
+      assert.ok(
+        resolved === undefined
+        || resolved === EVIL_QUEST_ROBUST_POLICY_VERSION,
       )
       assert.equal(
-        trace.privateEvilQuestCardPolicy !== undefined,
-        applicable,
+        trace.privateEvilQuestCardPolicy?.policyVersion,
+        resolved,
       )
     }
   }
@@ -580,6 +661,13 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
       delete copy.decisionTraces!.find(
         (trace) => trace.privateEvilQuestCardPolicy,
       )!.privateEvilQuestCardPolicy
+    },
+    (copy: typeof evilArtifact) => {
+      const trace = copy.decisionTraces!.find(
+        (candidate) => candidate.privateEvilQuestCardPolicy,
+      )!
+      delete trace.privateEvilQuestCardPolicy
+      delete trace.componentVersions!.evilQuestCardPolicy
     },
     (copy: typeof evilArtifact) => {
       const policy = copy.decisionTraces!.find(

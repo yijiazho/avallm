@@ -113,7 +113,10 @@ import {
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
-import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+  validateSuppressedEvilQuestCardPolicyHostJoin,
+} from '../agents/stdio.ts'
 import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
@@ -839,14 +842,29 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               && !['merlin', 'percival', 'servant', 'oberon']
                 .includes(c.targetRole)
                 ? (
-                    traceVersions.evilQuestCardPolicy
-                      !== expectedComponents.evilQuestCardPolicy
-                    || (
-                      expectedComponents.evilQuestCardPolicy === undefined
-                        ? trace.privateEvilQuestCardPolicy !== undefined
-                        : trace.privateEvilQuestCardPolicy?.policyVersion
-                          !== expectedComponents.evilQuestCardPolicy
-                    )
+                    expectedComponents.evilQuestCardPolicy === undefined
+                      ? (
+                          traceVersions.evilQuestCardPolicy !== undefined
+                          || trace.privateEvilQuestCardPolicy !== undefined
+                        )
+                      : !(
+                          (
+                            traceVersions.evilQuestCardPolicy
+                              === expectedComponents.evilQuestCardPolicy
+                            && trace.privateEvilQuestCardPolicy?.policyVersion
+                              === expectedComponents.evilQuestCardPolicy
+                          )
+                          || (
+                            traceVersions.evilQuestCardPolicy === undefined
+                            && trace.privateEvilQuestCardPolicy === undefined
+                            && snapshot !== undefined
+                            && validateSuppressedEvilQuestCardPolicyHostJoin(
+                              trace,
+                              snapshot.req,
+                              snapshot.view,
+                            )
+                          )
+                        )
                   )
                 : (
                     traceVersions.evilQuestCardPolicy !== undefined

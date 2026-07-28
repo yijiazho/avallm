@@ -3740,6 +3740,42 @@ function validateRoutedEvilDependencyHostJoin(
   }
 }
 
+export function validateSuppressedEvilQuestCardPolicyHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+): boolean {
+  const configured =
+    trace.componentVersions?.configuredEvilQuestCardPolicy
+  const applicable =
+    req.kind === 'quest'
+    && view.alignment === 'evil'
+    && view.role !== 'oberon'
+  if (
+    (
+      configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      && configured !== EVIL_QUEST_ROBUST_POLICY_VERSION
+    )
+    || !applicable
+    || trace.componentVersions?.evilQuestCardPolicy !== undefined
+    || trace.privateEvilQuestCardPolicy !== undefined
+  ) return false
+  try {
+    const candidates = legalCandidates(req, view)
+    const analysis = analyzeSituation(view, {
+      belief: exactBelief(view),
+      policyCandidateTeams: candidateTeams(candidates, view),
+    })
+    const forced = applyForcedPolicy(req, view, analysis, candidates)
+    return (
+      forced.applied
+      && isDeepStrictEqual(trace.forcedPolicyResult, forced)
+    )
+  } catch {
+    return false
+  }
+}
+
 function validateEvilQuestCardPolicyHostJoin(
   trace: DecisionTrace,
   req: DecisionRequest,
@@ -3755,6 +3791,7 @@ function validateEvilQuestCardPolicyHostJoin(
     && view.role !== 'oberon'
   if (!policy && component === undefined) {
     return !(configured && applicable)
+      || validateSuppressedEvilQuestCardPolicyHostJoin(trace, req, view)
   }
   if (
     !policy
@@ -3773,6 +3810,9 @@ function validateEvilQuestCardPolicyHostJoin(
       analysis,
       mode: policy.mode,
     })) return false
+    if (applyForcedPolicy(req, view, analysis, candidates).applied) {
+      return false
+    }
     const forced = applyForcedPolicy(req, view, analysis, candidates, {
       evilQuestCardPolicy: policy,
     })

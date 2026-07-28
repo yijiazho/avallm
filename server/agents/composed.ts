@@ -1256,8 +1256,10 @@ export function createComposedAgent(
       })
       let privateEvilQuestCardPolicy:
         PrivateEvilQuestCardPolicy | undefined
+      let forced = applyForcedPolicy(req, view, analysis, candidates)
       if (
-        evilQuestCardPolicyMode
+        !forced.applied
+        && evilQuestCardPolicyMode
         && req.kind === 'quest'
         && view.alignment === 'evil'
         && view.role !== 'oberon'
@@ -1280,10 +1282,10 @@ export function createComposedAgent(
           throw new Error('evil quest-card policy failed its host join')
         }
         stage('quest-card-policy')
+        forced = applyForcedPolicy(req, view, analysis, candidates, {
+          evilQuestCardPolicy: privateEvilQuestCardPolicy,
+        })
       }
-      const forced = applyForcedPolicy(req, view, analysis, candidates, {
-        evilQuestCardPolicy: privateEvilQuestCardPolicy,
-      })
       stage('forced-policy')
 
       if (

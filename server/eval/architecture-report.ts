@@ -80,7 +80,10 @@ import {
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
-import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+  validateSuppressedEvilQuestCardPolicyHostJoin,
+} from '../agents/stdio.ts'
 import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
@@ -743,11 +746,23 @@ function architectureSafety(
           .includes(meta.targetRole)
           ? (
               declaresEvilQuestCardPolicy
-                ? (
-                    versions.evilQuestCardPolicy
-                      !== declaredEvilQuestCardPolicy
-                    || trace.privateEvilQuestCardPolicy?.policyVersion
-                      !== declaredEvilQuestCardPolicy
+                ? !(
+                    (
+                      versions.evilQuestCardPolicy
+                        === declaredEvilQuestCardPolicy
+                      && trace.privateEvilQuestCardPolicy?.policyVersion
+                        === declaredEvilQuestCardPolicy
+                    )
+                    || (
+                      versions.evilQuestCardPolicy === undefined
+                      && trace.privateEvilQuestCardPolicy === undefined
+                      && hostSnapshot !== undefined
+                      && validateSuppressedEvilQuestCardPolicyHostJoin(
+                        trace,
+                        hostSnapshot.req,
+                        hostSnapshot.view,
+                      )
+                    )
                   )
                 : (
                     versions.evilQuestCardPolicy !== undefined
