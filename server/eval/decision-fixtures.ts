@@ -14,7 +14,11 @@ import { createGame } from '../engine/game.ts'
 import { createAgent } from '../agents/registry.ts'
 import { runGame } from '../sim/runner.ts'
 import { toArtifact } from './artifact.ts'
-import { snapshotAt } from './replay.ts'
+import {
+  decisionReplayTimeline,
+  type DecisionReplayTimeline,
+  type DecisionSnapshot,
+} from './replay.ts'
 import { ARCHITECTURE_BANK, ARCHITECTURE_BANK_ID } from './architecture-bank.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
 import type { GameArtifact } from './artifact.ts'
@@ -131,38 +135,15 @@ export interface FrozenDecisionFixture {
   baselineDecision: Decision
 }
 
-function decisionEvent(
-  artifact: GameArtifact,
+function fixtureSnapshot(
+  timeline: DecisionReplayTimeline,
   spec: FixtureSpec,
-): number | undefined {
-  for (const event of artifact.log) {
-    const p = event.payload
-    let kind: DecisionKind | undefined
-    let seat: Seat | undefined
-    switch (event.type) {
-      case 'utterance': kind = 'discuss'; seat = p.seat as Seat; break
-      case 'proposal': kind = 'propose'; seat = p.leader as Seat; break
-      case 'proposalLocked':
-      case 'proposalRevised': kind = 'finalize'; seat = p.leader as Seat; break
-      case 'voteCast': kind = 'vote'; seat = p.seat as Seat; break
-      case 'questCard': kind = 'quest'; seat = p.seat as Seat; break
-      case 'assassination': kind = 'assassinate'; seat = p.assassin as Seat; break
-    }
-    if (
-      kind === spec.kind
-      && seat !== undefined
-      && artifact.players[seat].role === spec.role
-    ) {
-      const snapshot = snapshotAt(artifact, event.seq)
-      if (
-        snapshot.req.round === spec.round
-        && snapshot.req.proposalNum === spec.proposalNum
-      ) {
-        return event.seq
-      }
-    }
-  }
-  return undefined
+): DecisionSnapshot | undefined {
+  return timeline.snapshots.find((snapshot) =>
+    snapshot.kind === spec.kind
+    && snapshot.role === spec.role
+    && snapshot.req.round === spec.round
+    && snapshot.req.proposalNum === spec.proposalNum)
 }
 
 async function playFixtureSource(c: ArchitectureBankCase): Promise<GameArtifact> {
@@ -190,20 +171,25 @@ async function playFixtureSource(c: ArchitectureBankCase): Promise<GameArtifact>
 export async function buildDecisionFixtures(): Promise<FrozenDecisionFixture[]> {
   const neededCases = new Set(FIXTURE_SPECS.map((spec) => spec.caseId))
   const artifacts = new Map<string, GameArtifact>()
+  const timelines = new Map<string, DecisionReplayTimeline>()
   for (const c of ARCHITECTURE_BANK) {
-    if (neededCases.has(c.id)) artifacts.set(c.id, await playFixtureSource(c))
+    if (!neededCases.has(c.id)) continue
+    const artifact = await playFixtureSource(c)
+    artifacts.set(c.id, artifact)
+    timelines.set(c.id, decisionReplayTimeline(artifact))
   }
 
   return FIXTURE_SPECS.map((spec) => {
     const artifact = artifacts.get(spec.caseId)
+    const timeline = timelines.get(spec.caseId)
     if (!artifact) throw new Error(`fixture ${spec.id}: unknown architecture case ${spec.caseId}`)
-    const seq = decisionEvent(artifact, spec)
-    if (seq === undefined) {
+    if (!timeline) throw new Error(`fixture ${spec.id}: missing replay timeline`)
+    const snapshot = fixtureSnapshot(timeline, spec)
+    if (!snapshot) {
       throw new Error(
         `fixture ${spec.id}: no ${spec.role} ${spec.kind} at Q${spec.round}.${spec.proposalNum}`,
       )
     }
-    const snapshot = snapshotAt(artifact, seq)
     const fixture: FrozenDecisionFixture = {
       schema: DECISION_FIXTURE_SCHEMA,
       id: spec.id,
@@ -211,7 +197,7 @@ export async function buildDecisionFixtures(): Promise<FrozenDecisionFixture[]> 
         bank: ARCHITECTURE_BANK_ID,
         caseId: spec.caseId,
         seed: artifact.seed,
-        seq,
+        seq: snapshot.seq,
       },
       req: snapshot.req,
       view: snapshot.view,

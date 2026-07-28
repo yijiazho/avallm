@@ -12,8 +12,17 @@
 // (DecisionRequest, PlayerView, scratchpad) the deciding agent faced, which
 // any prompt version can then replay as a single LLM call.
 
-import { createGame, applyDecision, renamePlayer } from '../engine/game.ts'
-import { viewFor } from '../engine/view.ts'
+import { isDeepStrictEqual } from 'node:util'
+import {
+  applyDecision,
+  applyDecisionWithOutcome,
+  createGame,
+  renamePlayer,
+} from '../engine/game.ts'
+import {
+  createIncrementalPlayerViewProjection,
+  viewFor,
+} from '../engine/view.ts'
 import type { GameArtifact } from './artifact.ts'
 import type {
   Decision, DecisionRequest, Game, GameEvent, PlayerView, Seat,
@@ -25,23 +34,86 @@ interface ReplayStep {
   actionSeq: number
   seat: Seat
   action: Decision | { kind: 'rename'; to: string }
+  scratchpad: string
+}
+
+export type ReplayOperationKind =
+  | 'log-event-scanned'
+  | 'seat-view-event-projected'
+  | 'authoritative-action-applied'
+  | 'selected-action-probed'
+
+export interface ReplayOperationCounts {
+  logEventsScanned: number
+  seatViewEventsProjected: number
+  snapshotBytesEmitted: number
+  authoritativeActionsApplied: number
+  authoritativeDecisionsCaptured: number
+  selectedActionsProbed: number
+}
+
+export interface SelectedDecisionProbe {
+  targetSeat: Seat
+  decisionId: string
+  decision: Decision
+}
+
+export type SelectedDecisionReplay =
+  | Readonly<{
+      targetSeat: Seat
+      status: 'applied'
+      appliedDecision: Decision
+    }>
+  | Readonly<{
+      targetSeat: Seat
+      status: 'rejected'
+      stateUnchanged: boolean
+    }>
+
+export interface DecisionReplayTimeline {
+  snapshots: readonly DecisionSnapshot[]
+  selectedDecisions: ReadonlyMap<string, SelectedDecisionReplay>
+  operations: ReplayOperationCounts
+}
+
+export interface DecisionReplayTimelineOptions {
+  selectedDecisions?: readonly SelectedDecisionProbe[]
+  onOperation?: (kind: ReplayOperationKind) => void
 }
 
 // Reconstruct the decision stream from the log. thinking/scratchpad events are
 // folded into the decision that emitted them so the replayed log reproduces
 // the original seq-for-seq.
-function extractSteps(log: GameEvent[]): ReplayStep[] {
+function extractSteps(
+  log: GameEvent[],
+  onOperation?: (kind: ReplayOperationKind) => void,
+  serializedEvents?: string[],
+): ReplayStep[] {
   const steps: ReplayStep[] = []
   // seat -> pending private preamble (thinking/notes emitted just before the action)
   const pending = new Map<Seat, { thinking?: string; notes?: string; firstSeq: number }>()
+  const lastScratchpad = new Map<Seat, string>()
 
-  const take = (seat: Seat, actionSeq: number): { thinking?: string; notes?: string; firstSeq: number } => {
+  const take = (
+    seat: Seat,
+    actionSeq: number,
+  ): {
+    thinking?: string
+    notes?: string
+    firstSeq: number
+    scratchpad: string
+  } => {
     const p = pending.get(seat) ?? { firstSeq: actionSeq }
     pending.delete(seat)
-    return p
+    return {
+      ...p,
+      scratchpad: p.notes ?? lastScratchpad.get(seat) ?? '',
+    }
   }
 
   for (const ev of log) {
+    onOperation?.('log-event-scanned')
+    serializedEvents?.push(JSON.stringify(ev))
     const p = ev.payload
     switch (ev.type) {
       case 'thinking': {
@@ -56,6 +128,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
         const cur = pending.get(seat) ?? { firstSeq: ev.seq }
         cur.notes = p.text as string
         pending.set(seat, cur)
+        lastScratchpad.set(seat, p.text as string)
         break
       }
       case 'utterance': {
@@ -69,6 +142,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -83,6 +157,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -96,6 +171,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -109,6 +185,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -122,6 +199,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -135,6 +213,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -149,6 +228,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
+          scratchpad: pre.scratchpad,
         })
         break
       }
@@ -156,6 +236,7 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
         steps.push({
           firstSeq: ev.seq, actionSeq: ev.seq, seat: p.seat as Seat,
           action: { kind: 'rename', to: p.to as string },
+          scratchpad: '',
         })
         break
       // Engine-emitted events (voteReveal, questResult, leadChange, gameOver,
@@ -165,11 +246,85 @@ function extractSteps(log: GameEvent[]): ReplayStep[] {
   return steps
 }
 
+function createReplayGame(a: GameArtifact): Game {
+  if (a.schema < 3) {
+    throw new Error(
+      `artifact ${a.id} is schema ${a.schema} (pre proposal-flow redesign): `
+      + `readable as data, but the engine that produced its log no longer exists, so it cannot be replayed`,
+    )
+  }
+  const created = a.log[0]
+  if (created?.type !== 'gameCreated') {
+    throw new Error('artifact log must start with gameCreated')
+  }
+  const game = createGame({
+    seed: a.seed,
+    playerCount: a.playerCount,
+    ...(a.roles ? { roles: a.roles.slice() } : {}),
+    names: initialReplayNames(a),
+    talk: a.talk,
+    id: a.id,
+  })
+  for (const p of game.players) {
+    if (p.role !== a.players[p.seat].role) {
+      throw new Error(
+        `replay deal mismatch at seat ${p.seat}: dealt ${p.role}, archived ${a.players[p.seat].role}`
+        + (a.roles ? '' : ' — pre-v2 artifact with no stored roles and a non-default deal'),
+      )
+    }
+  }
+  return game
+}
+
+function initialReplayNames(a: GameArtifact): string[] {
+  const created = a.log[0]
+  if (created?.type !== 'gameCreated') {
+    throw new Error('artifact log must start with gameCreated')
+  }
+  const names = (created.payload.names as string[]).slice()
+  for (let index = a.log.length - 1; index >= 0; index--) {
+    const event = a.log[index]
+    if (event.type !== 'rename') continue
+    const seat = event.payload.seat as Seat
+    const from = event.payload.from
+    const to = event.payload.to
+    if (
+      Number.isInteger(seat)
+      && typeof from === 'string'
+      && typeof to === 'string'
+      && names[seat] === to
+    ) {
+      names[seat] = from
+    }
+  }
+  return names
+}
+
+function serializedArtifactEventForReplay(
+  a: GameArtifact,
+  index: number,
+): string {
+  const event = a.log[index]
+  if (index !== 0 || event?.type !== 'gameCreated') {
+    return JSON.stringify(event)
+  }
+  return JSON.stringify({
+    seq: event.seq,
+    type: event.type,
+    payload: {
+      ...event.payload,
+      names: initialReplayNames(a),
+    },
+    visibility: event.visibility,
+  })
+}
+
 function verifyPrefix(a: GameArtifact, game: Game): void {
   for (let i = 0; i < game.log.length; i++) {
-    if (JSON.stringify(game.log[i]) !== JSON.stringify(a.log[i])) {
+    const archived = serializedArtifactEventForReplay(a, i)
+    if (JSON.stringify(game.log[i]) !== archived) {
       throw new Error(
-        `replay drift at seq ${i}: replayed ${JSON.stringify(game.log[i])} !== archived ${JSON.stringify(a.log[i])}`,
+        `replay drift at seq ${i}: replayed ${JSON.stringify(game.log[i])} !== archived ${archived}`,
       )
     }
   }
@@ -195,7 +350,7 @@ export function replayGame(a: GameArtifact, untilSeq?: number): Game {
     // artifacts lack `roles`; omitting it falls back to the default set, which
     // is what those games used, and the check below still guards against drift.
     ...(a.roles ? { roles: a.roles.slice() } : {}),
-    names: (created.payload.names as string[]).slice(),
+    names: initialReplayNames(a),
     talk: a.talk,
     id: a.id,
   })
@@ -232,6 +387,207 @@ export interface DecisionSnapshot {
   scratchpad: string // the agent's private notes at that moment ('' if none)
   original: Decision // what actually happened, including private thinking
   trace?: DecisionTrace
+}
+
+function snapshotForStep(
+  a: GameArtifact,
+  game: Game,
+  step: ReplayStep,
+  traces: ReadonlyMap<string, DecisionTrace>,
+  view: PlayerView,
+): DecisionSnapshot {
+  if (step.action.kind === 'rename') {
+    throw new Error('rename steps do not have decision snapshots')
+  }
+  const original = step.action
+  const req: DecisionRequest = {
+    kind: original.kind,
+    seat: step.seat,
+    round: game.round,
+    proposalNum: game.proposalNum,
+  }
+  const traceId = decisionTraceId(
+    req,
+    view,
+    view.events.reduce(
+      (cursor, event) => Math.max(cursor, event.seq),
+      -1,
+    ),
+  )
+  const trace = traces.get(traceId)
+  return {
+    artifactId: a.id,
+    seed: a.seed,
+    seq: step.actionSeq,
+    firstSeq: step.firstSeq,
+    seat: step.seat,
+    kind: original.kind,
+    role: a.players[step.seat].role,
+    req,
+    view,
+    scratchpad: step.scratchpad,
+    original,
+    ...(trace ? { trace } : {}),
+  }
+}
+
+function verifySerializedEvents(
+  expected: readonly string[],
+  game: Game,
+  from: number,
+): number {
+  for (let index = from; index < game.log.length; index++) {
+    const replayed = JSON.stringify(game.log[index])
+    if (replayed !== expected[index]) {
+      throw new Error(
+        `replay drift at seq ${index}: replayed ${replayed} !== archived ${expected[index]}`,
+      )
+    }
+  }
+  return game.log.length
+}
+
+/**
+ * Replay a complete artifact once and capture every predecision seat view.
+ *
+ * Optional selected-decision probes run against a clone of the current
+ * predecision state. Only normalized actions or rejection nonmutation
+ * evidence leave this module; raw Game state never does.
+ */
+export function decisionReplayTimeline(
+  a: GameArtifact,
+  options: DecisionReplayTimelineOptions = {},
+): DecisionReplayTimeline {
+  const counts = {
+    logEventsScanned: 0,
+    seatViewEventsProjected: 0,
+    snapshotBytesEmitted: 0,
+    authoritativeActionsApplied: 0,
+    authoritativeDecisionsCaptured: 0,
+    selectedActionsProbed: 0,
+  }
+  const operation = (kind: ReplayOperationKind): void => {
+    if (kind === 'log-event-scanned') {
+      counts.logEventsScanned++
+    } else if (kind === 'seat-view-event-projected') {
+      counts.seatViewEventsProjected++
+    } else if (kind === 'authoritative-action-applied') {
+      counts.authoritativeActionsApplied++
+    } else {
+      counts.selectedActionsProbed++
+    }
+    options.onOperation?.(kind)
+  }
+  const probes = new Map<string, SelectedDecisionProbe>()
+  for (const probe of options.selectedDecisions ?? []) {
+    if (probes.has(probe.decisionId)) {
+      throw new Error(
+        `duplicate selected-decision probe ${probe.decisionId}`,
+      )
+    }
+    probes.set(probe.decisionId, {
+      targetSeat: probe.targetSeat,
+      decisionId: probe.decisionId,
+      decision: structuredClone(probe.decision),
+    })
+  }
+  const traces = new Map<string, DecisionTrace>()
+  for (const trace of a.decisionTraces ?? []) {
+    if (!traces.has(trace.decisionId)) {
+      traces.set(trace.decisionId, trace)
+    }
+  }
+
+  const game = createReplayGame(a)
+  const serializedEvents: string[] = []
+  const snapshots: DecisionSnapshot[] = []
+  const selectedDecisions = new Map<string, SelectedDecisionReplay>()
+  const steps = extractSteps(a.log, operation, serializedEvents)
+  serializedEvents[0] = serializedArtifactEventForReplay(a, 0)
+  const viewProjection = createIncrementalPlayerViewProjection(
+    game,
+    () => operation('seat-view-event-projected'),
+  )
+  let verifiedThrough = verifySerializedEvents(
+    serializedEvents,
+    game,
+    0,
+  )
+  for (const step of steps) {
+    if (step.action.kind === 'rename') {
+      operation('authoritative-action-applied')
+      renamePlayer(game, step.seat, step.action.to)
+      viewProjection.sync(game)
+      verifiedThrough = verifySerializedEvents(
+        serializedEvents,
+        game,
+        verifiedThrough,
+      )
+      continue
+    }
+    const snapshot = snapshotForStep(
+      a,
+      game,
+      step,
+      traces,
+      viewProjection.viewFor(game, step.seat),
+    )
+    snapshots.push(snapshot)
+    counts.authoritativeDecisionsCaptured++
+    counts.snapshotBytesEmitted += Buffer.byteLength(
+      JSON.stringify(snapshot.view),
+      'utf8',
+    )
+    const id = decisionTraceId(
+      snapshot.req,
+      snapshot.view,
+      snapshot.view.events.reduce(
+        (cursor, event) => Math.max(cursor, event.seq),
+        -1,
+      ),
+    )
+    const selected = probes.get(id)
+    if (selected && selected.targetSeat === step.seat) {
+      operation('selected-action-probed')
+      const probeGame = structuredClone(game)
+      try {
+        const appliedDecision = applyDecisionWithOutcome(
+          probeGame,
+          step.seat,
+          selected.decision,
+        ).appliedDecision
+        selectedDecisions.set(id, Object.freeze({
+          targetSeat: step.seat,
+          status: 'applied',
+          appliedDecision: structuredClone(appliedDecision),
+        }))
+      } catch {
+        selectedDecisions.set(id, Object.freeze({
+          targetSeat: step.seat,
+          status: 'rejected',
+          stateUnchanged: isDeepStrictEqual(probeGame, game),
+        }))
+      }
+    }
+    operation('authoritative-action-applied')
+    applyDecision(game, step.seat, step.action)
+    viewProjection.sync(game)
+    verifiedThrough = verifySerializedEvents(
+      serializedEvents,
+      game,
+      verifiedThrough,
+    )
+  }
+  if (game.log.length !== serializedEvents.length) {
+    throw new Error(
+      `replay incomplete: ${game.log.length} events vs ${serializedEvents.length} archived`,
+    )
+  }
+  return Object.freeze({
+    snapshots: Object.freeze(snapshots),
+    selectedDecisions,
+    operations: Object.freeze({ ...counts }),
+  })
 }
 
 // The situation-bank extractor: the full decision context at event seq.

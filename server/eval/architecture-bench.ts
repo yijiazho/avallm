@@ -108,7 +108,7 @@ import {
   legalCandidates,
 } from '../agents/policy/candidates.ts'
 import {
-  authoritativeDecisionSnapshots,
+  authoritativeDecisionReplay,
   decisionTraceReplayJoin,
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
@@ -744,10 +744,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           steps: result.steps,
           decisionTraces,
         })
-        const targetSnapshots = authoritativeDecisionSnapshots(
+        const targetReplay = authoritativeDecisionReplay(
           replayArtifact,
           target.seat,
+          decisionTraces,
         )
+        const targetSnapshots = targetReplay.snapshots
         if (!exactTargetTraceCoverage(
           targetSnapshots,
           decisionTraces,
@@ -1041,7 +1043,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                             snapshot.view,
                           )
                           || !selectedDecisionReplayJoin(
-                            replayArtifact,
+                            targetReplay,
                             snapshot,
                             trace.privatePlanOutcome,
                           )

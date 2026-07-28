@@ -82,10 +82,11 @@ import {
 } from '../agents/policy/candidates.ts'
 import type { DecisionSnapshot } from './replay.ts'
 import {
-  authoritativeDecisionSnapshots,
+  authoritativeDecisionReplay,
   decisionTraceReplayJoin,
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
+  type AuthoritativeDecisionReplay,
 } from './trace-replay.ts'
 import {
   validateComposedTraceHostJoin,
@@ -312,10 +313,10 @@ function publicSpeech(trace: NonNullable<GameArtifact['decisionTraces']>[number]
 
 function planOutcomeHostJoin(
   artifact: GameArtifact,
-  snapshots: ReadonlyMap<string, DecisionSnapshot>,
+  replay: AuthoritativeDecisionReplay,
   trace: NonNullable<GameArtifact['decisionTraces']>[number],
 ): boolean {
-  const snapshot = snapshots.get(trace.decisionId)
+  const snapshot = replay.snapshots.get(trace.decisionId)
   if (!snapshot || !trace.privatePlanOutcome) return false
   const outcome = trace.privatePlanOutcome
   const degraded = artifact.degraded.some(
@@ -347,7 +348,7 @@ function planOutcomeHostJoin(
     && outcome.coherence.intent === trace.coherenceIntent
     && selectedPlanMatches
     && resolutionMatches
-    && selectedDecisionReplayJoin(artifact, snapshot, outcome)
+    && selectedDecisionReplayJoin(replay, snapshot, outcome)
     && validateAppliedPlanOutcomeHostJoin(
       outcome,
       snapshot.req,
@@ -735,14 +736,17 @@ function architectureSafety(
     || traces.some((trace) =>
       isComposedArchitectureMode(trace.agentMode))
   )
+  let targetReplay: AuthoritativeDecisionReplay | undefined
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
     try {
-      targetSnapshots = authoritativeDecisionSnapshots(
+      targetReplay = authoritativeDecisionReplay(
         artifact,
         meta.targetSeat,
+        traces,
       )
+      targetSnapshots = targetReplay.snapshots
       invalidTraceCoverage = !exactTargetTraceCoverage(
         targetSnapshots,
         traces,
@@ -1150,7 +1154,14 @@ function architectureSafety(
               || (
                 trace.privatePlanOutcome === undefined
                   ? !trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
-                  : !planOutcomeHostJoin(artifact, planSnapshots, trace)
+                  : (
+                      !targetReplay
+                      || !planOutcomeHostJoin(
+                        artifact,
+                        targetReplay,
+                        trace,
+                      )
+                    )
               )
               || JSON.stringify(trace.privatePlanOutcome?.request)
                 !== (

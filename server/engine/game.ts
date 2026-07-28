@@ -25,8 +25,29 @@ export interface CreateGameOpts {
   id?: string
 }
 
+function freezeEventValue<T>(value: T): T {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
+    return value
+  }
+  for (const nested of Object.values(value)) freezeEventValue(nested)
+  return Object.freeze(value)
+}
+
 function emit(game: Game, type: GameEvent['type'], payload: Record<string, unknown>, visibility: Visibility): void {
-  game.log.push({ seq: game.log.length, type, payload, visibility })
+  const seq = game.log.length
+  const event = freezeEventValue({
+    seq,
+    type,
+    payload: structuredClone(payload),
+    visibility: structuredClone(visibility),
+  } satisfies GameEvent)
+  game.log.push(event)
+  Object.defineProperty(game.log, seq, {
+    value: event,
+    enumerable: true,
+    writable: false,
+    configurable: false,
+  })
 }
 
 export function createGame(opts: CreateGameOpts): Game {
@@ -76,6 +97,12 @@ export function createGame(opts: CreateGameOpts): Game {
     pendingCards: {},
     log: [],
   }
+  Object.defineProperty(game, 'log', {
+    value: game.log,
+    enumerable: true,
+    writable: false,
+    configurable: false,
+  })
 
   emit(game, 'gameCreated', {
     playerCount,

@@ -427,7 +427,7 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     winReason: game.winReason,
     steps: opts.steps,
     degraded: opts.degraded,
-    log: game.log,
+    log: structuredClone(game.log),
     strategyVersions: strategyVersions(opts),
     ...(opts.tags ? { tags: opts.tags } : {}),
     ...(opts.architecture ? { architecture: opts.architecture } : {}),
