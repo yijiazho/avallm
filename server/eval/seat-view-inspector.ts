@@ -37,7 +37,86 @@ export interface InspectedEvent {
   seq: number
   type: GameEvent['type']
   scope: 'public' | 'private-to-viewer'
+  detail: InspectedEventDetail
 }
+
+export type InspectedEventDetail =
+  | {
+      kind: 'gameCreated'
+      playerCount: number
+      names: string[]
+      rolesInPlay: Role[]
+      firstLeader: Seat
+      talk: {
+        maxRounds: number
+        maxRoundsAfterChange: number
+        leaderInDiscussion: 'none' | 'last'
+      }
+    }
+  | { kind: 'roleDealt'; seat: Seat; role: Role; alignment: 'good' | 'evil' }
+  | {
+      kind: 'knowledge'
+      seat: Seat
+      evilPartners?: Seat[]
+      knownEvil?: Seat[]
+      merlinCandidates?: Seat[]
+    }
+  | { kind: 'leadChange'; seat: Seat; round: number; proposalNum: number }
+  | {
+      kind: 'utterance'
+      seat: Seat
+      text: string
+      round: number
+      lean?: Lean
+      postRevision?: boolean
+    }
+  | {
+      kind: 'proposal'
+      round: number
+      proposalNum: number
+      leader: Seat
+      team: Seat[]
+      pitch?: string
+    }
+  | {
+      kind: 'proposalLocked'
+      round: number
+      proposalNum: number
+      leader: Seat
+      team: Seat[]
+    }
+  | {
+      kind: 'proposalRevised'
+      round: number
+      proposalNum: number
+      leader: Seat
+      from: Seat[]
+      to: Seat[]
+      reason?: string
+    }
+  | { kind: 'voteCast'; seat: Seat; vote: 'approve' | 'reject' }
+  | {
+      kind: 'voteReveal'
+      round: number
+      proposalNum: number
+      team: Seat[]
+      votes: { seat: Seat; vote: 'approve' | 'reject' }[]
+      approved: boolean
+      auto?: boolean
+    }
+  | { kind: 'questCard'; seat: Seat; card: 'success' | 'fail' }
+  | {
+      kind: 'questResult'
+      round: number
+      failCount: number
+      result: 'success' | 'fail'
+      failsRequired: number
+    }
+  | { kind: 'assassination'; assassin: Seat; target: Seat; wasMerlin: boolean }
+  | { kind: 'gameOver'; winner: 'good' | 'evil'; reason: string }
+  | { kind: 'thinking'; seat: Seat; decisionKind: DecisionRequest['kind']; text: string }
+  | { kind: 'rename'; seat: Seat; from: string; to: string }
+  | { kind: 'scratchpad'; seat: Seat; round: number; text: string }
 
 export interface InspectedQuest {
   num: number
@@ -245,6 +324,297 @@ function validateTranscriptEntry(value: unknown, playerCount: number, index: num
   }
 }
 
+function projectedSeatArray(value: unknown, playerCount: number, label: string): Seat[] {
+  validateSeatArray(value, playerCount, label)
+  return (value as Seat[]).slice()
+}
+
+function projectedStringArray(value: unknown, label: string): string[] {
+  return asArray(value, label).map((entry, index) => {
+    assertString(entry, `${label}[${index}]`)
+    return entry
+  })
+}
+
+function projectedRoleArray(value: unknown, label: string): Role[] {
+  return asArray(value, label).map((entry, index) => {
+    if (typeof entry !== 'string' || !ROLES.has(entry)) {
+      return fail(`${label}[${index}] is not a playable role`)
+    }
+    return entry as Role
+  })
+}
+
+function projectedVotes(
+  value: unknown,
+  playerCount: number,
+  label: string,
+): { seat: Seat; vote: 'approve' | 'reject' }[] {
+  return asArray(value, label).map((entry, index) => {
+    const vote = asRecord(entry, `${label}[${index}]`)
+    assertSeat(vote.seat, playerCount, `${label}[${index}].seat`)
+    if (vote.vote !== 'approve' && vote.vote !== 'reject') {
+      return fail(`${label}[${index}].vote must be approve or reject`)
+    }
+    return { seat: vote.seat, vote: vote.vote }
+  })
+}
+
+function inspectEventDetail(
+  type: GameEvent['type'],
+  payloadValue: unknown,
+  playerCount: number,
+  payloadLabel = `event ${type} payload`,
+): InspectedEventDetail {
+  const payload = asRecord(payloadValue, payloadLabel)
+  switch (type) {
+    case 'gameCreated': {
+      assertSafeInteger(payload.playerCount, 'event gameCreated payload.playerCount', 1)
+      if (payload.playerCount !== playerCount) {
+        fail('event gameCreated payload.playerCount does not match the view')
+      }
+      assertSeat(payload.firstLeader, playerCount, 'event gameCreated payload.firstLeader')
+      const talk = asRecord(payload.talk, 'event gameCreated payload.talk')
+      assertSafeInteger(talk.maxRounds, 'event gameCreated payload.talk.maxRounds')
+      assertSafeInteger(
+        talk.maxRoundsAfterChange,
+        'event gameCreated payload.talk.maxRoundsAfterChange',
+      )
+      if (talk.leaderInDiscussion !== 'none' && talk.leaderInDiscussion !== 'last') {
+        fail('event gameCreated payload.talk.leaderInDiscussion must be none or last')
+      }
+      return {
+        kind: type,
+        playerCount: payload.playerCount,
+        names: projectedStringArray(payload.names, 'event gameCreated payload.names'),
+        rolesInPlay: projectedRoleArray(
+          payload.rolesInPlay,
+          'event gameCreated payload.rolesInPlay',
+        ),
+        firstLeader: payload.firstLeader,
+        talk: {
+          maxRounds: talk.maxRounds,
+          maxRoundsAfterChange: talk.maxRoundsAfterChange,
+          leaderInDiscussion: talk.leaderInDiscussion,
+        },
+      }
+    }
+    case 'roleDealt':
+      assertSeat(payload.seat, playerCount, 'event roleDealt payload.seat')
+      if (typeof payload.role !== 'string' || !ROLES.has(payload.role)) {
+        fail('event roleDealt payload.role is not a playable role')
+      }
+      if (payload.alignment !== 'good' && payload.alignment !== 'evil') {
+        fail('event roleDealt payload.alignment must be good or evil')
+      }
+      return {
+        kind: type,
+        seat: payload.seat,
+        role: payload.role as Role,
+        alignment: payload.alignment,
+      }
+    case 'knowledge': {
+      assertSeat(payload.seat, playerCount, 'event knowledge payload.seat')
+      const projected = {
+        kind: type,
+        seat: payload.seat,
+        ...(payload.evilPartners === undefined
+          ? {}
+          : {
+              evilPartners: projectedSeatArray(
+                payload.evilPartners,
+                playerCount,
+                'event knowledge payload.evilPartners',
+              ),
+            }),
+        ...(payload.knownEvil === undefined
+          ? {}
+          : {
+              knownEvil: projectedSeatArray(
+                payload.knownEvil,
+                playerCount,
+                'event knowledge payload.knownEvil',
+              ),
+            }),
+        ...(payload.merlinCandidates === undefined
+          ? {}
+          : {
+              merlinCandidates: projectedSeatArray(
+                payload.merlinCandidates,
+                playerCount,
+                'event knowledge payload.merlinCandidates',
+              ),
+            }),
+      }
+      return projected
+    }
+    case 'leadChange':
+      assertSeat(payload.seat, playerCount, 'event leadChange payload.seat')
+      assertSafeInteger(payload.round, 'event leadChange payload.round', 1)
+      assertSafeInteger(payload.proposalNum, 'event leadChange payload.proposalNum', 1)
+      return {
+        kind: type,
+        seat: payload.seat,
+        round: payload.round,
+        proposalNum: payload.proposalNum,
+      }
+    case 'utterance':
+      assertSeat(payload.seat, playerCount, 'event utterance payload.seat')
+      assertString(payload.text, 'event utterance payload.text')
+      assertSafeInteger(payload.round, 'event utterance payload.round', 1)
+      if (payload.lean !== undefined && !LEANS.has(payload.lean as string)) {
+        fail('event utterance payload.lean must be approve, reject, or unsure')
+      }
+      if (payload.postRevision !== undefined) {
+        assertBoolean(payload.postRevision, 'event utterance payload.postRevision')
+      }
+      return {
+        kind: type,
+        seat: payload.seat,
+        text: payload.text,
+        round: payload.round,
+        ...(payload.lean === undefined ? {} : { lean: payload.lean as Lean }),
+        ...(payload.postRevision === undefined
+          ? {}
+          : { postRevision: payload.postRevision }),
+      }
+    case 'proposal':
+      assertSafeInteger(payload.round, 'event proposal payload.round', 1)
+      assertSafeInteger(payload.proposalNum, 'event proposal payload.proposalNum', 1)
+      assertSeat(payload.leader, playerCount, 'event proposal payload.leader')
+      if (payload.pitch !== undefined) assertString(payload.pitch, 'event proposal payload.pitch')
+      return {
+        kind: type,
+        round: payload.round,
+        proposalNum: payload.proposalNum,
+        leader: payload.leader,
+        team: projectedSeatArray(payload.team, playerCount, 'event proposal payload.team'),
+        ...(payload.pitch === undefined ? {} : { pitch: payload.pitch }),
+      }
+    case 'proposalLocked':
+      assertSafeInteger(payload.round, 'event proposalLocked payload.round', 1)
+      assertSafeInteger(payload.proposalNum, 'event proposalLocked payload.proposalNum', 1)
+      assertSeat(payload.leader, playerCount, 'event proposalLocked payload.leader')
+      return {
+        kind: type,
+        round: payload.round,
+        proposalNum: payload.proposalNum,
+        leader: payload.leader,
+        team: projectedSeatArray(
+          payload.team,
+          playerCount,
+          'event proposalLocked payload.team',
+        ),
+      }
+    case 'proposalRevised':
+      assertSafeInteger(payload.round, 'event proposalRevised payload.round', 1)
+      assertSafeInteger(payload.proposalNum, 'event proposalRevised payload.proposalNum', 1)
+      assertSeat(payload.leader, playerCount, 'event proposalRevised payload.leader')
+      if (payload.reason !== undefined) {
+        assertString(payload.reason, 'event proposalRevised payload.reason')
+      }
+      return {
+        kind: type,
+        round: payload.round,
+        proposalNum: payload.proposalNum,
+        leader: payload.leader,
+        from: projectedSeatArray(
+          payload.from,
+          playerCount,
+          'event proposalRevised payload.from',
+        ),
+        to: projectedSeatArray(
+          payload.to,
+          playerCount,
+          'event proposalRevised payload.to',
+        ),
+        ...(payload.reason === undefined ? {} : { reason: payload.reason }),
+      }
+    case 'voteCast':
+      assertSeat(payload.seat, playerCount, 'event voteCast payload.seat')
+      if (payload.vote !== 'approve' && payload.vote !== 'reject') {
+        fail('event voteCast payload.vote must be approve or reject')
+      }
+      return { kind: type, seat: payload.seat, vote: payload.vote }
+    case 'voteReveal':
+      assertSafeInteger(payload.round, 'event voteReveal payload.round', 1)
+      assertSafeInteger(payload.proposalNum, 'event voteReveal payload.proposalNum', 1)
+      assertBoolean(payload.approved, 'event voteReveal payload.approved')
+      if (payload.auto !== undefined) assertBoolean(payload.auto, 'event voteReveal payload.auto')
+      return {
+        kind: type,
+        round: payload.round,
+        proposalNum: payload.proposalNum,
+        team: projectedSeatArray(
+          payload.team,
+          playerCount,
+          'event voteReveal payload.team',
+        ),
+        votes: projectedVotes(payload.votes, playerCount, 'event voteReveal payload.votes'),
+        approved: payload.approved,
+        ...(payload.auto === undefined ? {} : { auto: payload.auto }),
+      }
+    case 'questCard':
+      assertSeat(payload.seat, playerCount, 'event questCard payload.seat')
+      if (payload.card !== 'success' && payload.card !== 'fail') {
+        fail('event questCard payload.card must be success or fail')
+      }
+      return { kind: type, seat: payload.seat, card: payload.card }
+    case 'questResult':
+      assertSafeInteger(payload.round, 'event questResult payload.round', 1)
+      assertSafeInteger(payload.failCount, 'event questResult payload.failCount')
+      if (payload.result !== 'success' && payload.result !== 'fail') {
+        fail('event questResult payload.result must be success or fail')
+      }
+      assertSafeInteger(payload.failsRequired, 'event questResult payload.failsRequired', 1)
+      return {
+        kind: type,
+        round: payload.round,
+        failCount: payload.failCount,
+        result: payload.result,
+        failsRequired: payload.failsRequired,
+      }
+    case 'assassination':
+      assertSeat(payload.assassin, playerCount, 'event assassination payload.assassin')
+      assertSeat(payload.target, playerCount, 'event assassination payload.target')
+      assertBoolean(payload.wasMerlin, 'event assassination payload.wasMerlin')
+      return {
+        kind: type,
+        assassin: payload.assassin,
+        target: payload.target,
+        wasMerlin: payload.wasMerlin,
+      }
+    case 'gameOver':
+      if (payload.winner !== 'good' && payload.winner !== 'evil') {
+        fail('event gameOver payload.winner must be good or evil')
+      }
+      assertString(payload.reason, 'event gameOver payload.reason')
+      return { kind: type, winner: payload.winner, reason: payload.reason }
+    case 'thinking':
+      assertSeat(payload.seat, playerCount, 'event thinking payload.seat')
+      if (typeof payload.kind !== 'string' || !DECISION_KINDS.has(payload.kind)) {
+        fail('event thinking payload.kind is not a known decision kind')
+      }
+      assertString(payload.text, 'event thinking payload.text')
+      return {
+        kind: type,
+        seat: payload.seat,
+        decisionKind: payload.kind as DecisionRequest['kind'],
+        text: payload.text,
+      }
+    case 'rename':
+      assertSeat(payload.seat, playerCount, 'event rename payload.seat')
+      assertString(payload.from, 'event rename payload.from')
+      assertString(payload.to, 'event rename payload.to')
+      return { kind: type, seat: payload.seat, from: payload.from, to: payload.to }
+    case 'scratchpad':
+      assertSeat(payload.seat, playerCount, 'event scratchpad payload.seat')
+      assertSafeInteger(payload.round, 'event scratchpad payload.round', 1)
+      assertString(payload.text, 'event scratchpad payload.text')
+      return { kind: type, seat: payload.seat, round: payload.round, text: payload.text }
+  }
+}
+
 function validateEvent(value: unknown, playerCount: number, viewer: Seat, index: number): void {
   const label = `events[${index}]`
   const event = asRecord(value, label)
@@ -252,7 +622,12 @@ function validateEvent(value: unknown, playerCount: number, viewer: Seat, index:
   if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) {
     fail(`${label}.type is not a known event type`)
   }
-  asRecord(event.payload, `${label}.payload`)
+  inspectEventDetail(
+    event.type as GameEvent['type'],
+    event.payload,
+    playerCount,
+    `${label}.payload`,
+  )
   if (event.visibility !== 'public') {
     const visibility = asRecord(event.visibility, `${label}.visibility`)
     validateSeatArray(visibility.only, playerCount, `${label}.visibility.only`)
@@ -517,13 +892,14 @@ export function inspectSeatView(
         seq: event.seq,
         type: event.type,
         scope: event.visibility === 'public' ? 'public' : 'private-to-viewer',
+        detail: inspectEventDetail(event.type, event.payload, view.playerCount),
       })),
     },
     omissions: [
       'Other seats expose only public seat and name; no role or alignment is inferred.',
       'Unrevealed votes and quest cards are not reconstructed.',
       'Events invisible to the viewing seat are absent.',
-      'Event diagnostics include only sequence, type, and public/private scope; payloads are not copied.',
+      'Event details use a per-type allow-list; unknown payload fields are not copied.',
       'No raw Game, posterior, policy score, component trace, or true deal is consulted.',
     ],
   }
@@ -533,7 +909,7 @@ export function inspectSeatView(
 function seatList(refs: SeatRef[]): string {
   return refs.length === 0
     ? 'none'
-    : refs.map((ref) => `${ref.seat}:${ref.name}`).join(', ')
+    : refs.map((ref) => `${ref.seat}:${JSON.stringify(ref.name)}`).join(', ')
 }
 
 /** Render a compact deterministic text view for terminal debugging. */
@@ -543,14 +919,15 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
     `Source: ${inspection.provenance.source}`,
     `Decision: ${inspection.decisionPoint.kind} by seat ${inspection.decisionPoint.seat}`
       + ` at Q${inspection.decisionPoint.round}.${inspection.decisionPoint.proposalNum}`,
-    `Self: ${inspection.self.seat}:${inspection.self.name}`
+    `Self: ${inspection.self.seat}:${JSON.stringify(inspection.self.name)}`
       + ` (${inspection.self.role}, ${inspection.self.alignment})`,
     `Private knowledge: ${inspection.privateKnowledge.kind}`
       + ` [${seatList(inspection.privateKnowledge.seats)}]`,
     '',
     'Public board',
     `Phase: ${inspection.publicBoard.phase}`,
-    `Leader: ${inspection.publicBoard.leader.seat}:${inspection.publicBoard.leader.name}`,
+    `Leader: ${inspection.publicBoard.leader.seat}`
+      + `:${JSON.stringify(inspection.publicBoard.leader.name)}`,
     `Players: ${seatList(inspection.publicBoard.players)}`,
     `Roles in play: ${inspection.publicBoard.rolesInPlay.join(', ')}`,
     `Current team: ${seatList(inspection.publicBoard.currentTeam ?? [])}`,
@@ -566,7 +943,7 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
     '',
     `Visible events (${inspection.visibleHistory.events.length})`,
     ...inspection.visibleHistory.events.map((event) =>
-      `#${event.seq} [${event.scope}] ${event.type}`),
+      `#${event.seq} [${event.scope}] ${event.type} ${JSON.stringify(event.detail)}`),
     '',
     'Omitted by design',
     ...inspection.omissions.map((omission) => `- ${omission}`),

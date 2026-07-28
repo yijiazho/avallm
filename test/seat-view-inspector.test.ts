@@ -122,7 +122,7 @@ test('explicit nested output allow-lists do not copy hostile extra fields', () =
   )
   assert.deepEqual(
     Object.keys(inspection.visibleHistory.events[0]).sort(),
-    ['scope', 'seq', 'type'],
+    ['detail', 'scope', 'seq', 'type'],
   )
 })
 
@@ -154,7 +154,11 @@ test('rejects a mismatched decision cursor and an event invisible to the viewer'
   invisibleEvent.events.push({
     seq: 999,
     type: 'scratchpad',
-    payload: { seat: (fixture.view.seat + 1) % fixture.view.playerCount, notes: 'hidden' },
+    payload: {
+      seat: (fixture.view.seat + 1) % fixture.view.playerCount,
+      round: fixture.view.round,
+      text: 'hidden',
+    },
     visibility: { only: [(fixture.view.seat + 1) % fixture.view.playerCount] },
   })
   assert.throws(
@@ -189,4 +193,125 @@ test('malformed snapshot structures fail through the controlled boundary error',
       label,
     )
   }
+})
+
+test('visible private reasoning details remain causally distinguishable', () => {
+  const fixture = readDecisionFixtures()[0]
+  const inspectWith = (thinking: string, scratchpad: string) => {
+    const view = structuredClone(fixture.view) as PlayerView
+    view.events.push(
+      {
+        seq: 998,
+        type: 'thinking',
+        payload: {
+          seat: view.seat,
+          kind: fixture.req.kind,
+          text: thinking,
+          ignoredTruth: 'must-not-cross',
+        },
+        visibility: { only: [view.seat] },
+      },
+      {
+        seq: 999,
+        type: 'scratchpad',
+        payload: {
+          seat: view.seat,
+          round: view.round,
+          text: scratchpad,
+          ignoredTruth: 'must-not-cross',
+        },
+        visibility: { only: [view.seat] },
+      },
+    )
+    return inspectSeatView(fixture.req, view)
+  }
+
+  const first = inspectWith('suspect seat one', 'retain team zero')
+  const second = inspectWith('trust seat one', 'replace team zero')
+  assert.notDeepEqual(first.visibleHistory.events, second.visibleHistory.events)
+  assert.equal(first.visibleHistory.events.at(-2)!.detail.kind, 'thinking')
+  assert.equal(first.visibleHistory.events.at(-1)!.detail.kind, 'scratchpad')
+  assert.ok(!JSON.stringify(first).includes('ignoredTruth'))
+  assert.ok(!JSON.stringify(first).includes('must-not-cross'))
+})
+
+test('public proposal, vote, and quest causes remain distinguishable', () => {
+  const fixture = readDecisionFixtures()[0]
+  const inspectWith = (
+    team: number[],
+    approval: 'approve' | 'reject',
+    failCount: number,
+  ) => {
+    const view = structuredClone(fixture.view) as PlayerView
+    view.events.push(
+      {
+        seq: 997,
+        type: 'proposal',
+        payload: {
+          round: view.round,
+          proposalNum: view.proposalNum,
+          leader: view.leaderSeat,
+          team,
+          pitch: approval,
+          ignoredTruth: 'must-not-cross',
+        },
+        visibility: 'public',
+      },
+      {
+        seq: 998,
+        type: 'voteReveal',
+        payload: {
+          round: view.round,
+          proposalNum: view.proposalNum,
+          team,
+          votes: view.players.map(({ seat }) => ({ seat, vote: approval })),
+          approved: approval === 'approve',
+          ignoredTruth: 'must-not-cross',
+        },
+        visibility: 'public',
+      },
+      {
+        seq: 999,
+        type: 'questResult',
+        payload: {
+          round: view.round,
+          failCount,
+          result: failCount === 0 ? 'success' : 'fail',
+          failsRequired: 1,
+          ignoredTruth: 'must-not-cross',
+        },
+        visibility: 'public',
+      },
+    )
+    return inspectSeatView(fixture.req, view)
+  }
+
+  const first = inspectWith([0, 1], 'approve', 0)
+  const second = inspectWith([0, 2], 'reject', 1)
+  assert.notDeepEqual(first.visibleHistory.events, second.visibleHistory.events)
+  assert.deepEqual(
+    first.visibleHistory.events.slice(-3).map(({ detail }) => detail.kind),
+    ['proposal', 'voteReveal', 'questResult'],
+  )
+  assert.ok(!JSON.stringify(first).includes('ignoredTruth'))
+})
+
+test('terminal rendering escapes untrusted names and event text', () => {
+  const fixture = readDecisionFixtures()[0]
+  const view = structuredClone(fixture.view) as PlayerView
+  const hostile = 'Alice\u001b[31m\n#999 forged'
+  view.name = hostile
+  view.players[view.seat].name = hostile
+  view.events.push({
+    seq: 999,
+    type: 'thinking',
+    payload: { seat: view.seat, kind: fixture.req.kind, text: hostile },
+    visibility: { only: [view.seat] },
+  })
+
+  const rendered = renderSeatViewInspection(inspectSeatView(fixture.req, view))
+  assert.ok(!rendered.includes('\u001b'))
+  assert.ok(!rendered.includes('\n#999 forged'))
+  assert.ok(rendered.includes('\\u001b'))
+  assert.ok(rendered.includes('\\n#999 forged'))
 })

@@ -211,6 +211,8 @@ NB-006 is directly discoverable with
 fixtures by ID or one standalone request/view snapshot and emits deterministic text or JSON.
 Review evidence includes hostile extra fields on players, quests, proposals, votes, transcript
 entries, proposal tags, and event payloads; none can cross the explicit diagnostic schemas.
+Discriminated per-event projections retain visible proposal, vote, quest, role-knowledge,
+thinking, and scratchpad causes, and terminal rendering escapes untrusted text.
 
 New entries should use stable IDs, name their source phase, and state whether they are `ready`,
 `active`, `review`, `landed`, `permission-gated`, `data-gated`, or `deferred`. Completing a
