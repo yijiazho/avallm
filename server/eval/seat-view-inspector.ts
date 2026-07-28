@@ -965,13 +965,13 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
   return `${lines.join('\n')}\n`
 }
 
-interface SnapshotFileEntry {
+export interface SeatViewSnapshotFileEntry {
   id?: string
   req: DecisionRequest
   view: PlayerView
 }
 
-function readSnapshotFile(file: string): SnapshotFileEntry[] {
+export function readSeatViewSnapshotFile(file: string): SeatViewSnapshotFileEntry[] {
   let value: unknown
   try {
     value = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown
@@ -998,8 +998,10 @@ export const SEAT_VIEW_INSPECTOR_USAGE = `Usage:
   node server/eval/seat-view-inspector.ts --list [--file <snapshots.json>]
   node server/eval/seat-view-inspector.ts --fixture <id> [--format text|json]
   node server/eval/seat-view-inspector.ts --file <single-snapshot.json> [--format text|json]
+  node server/eval/seat-view-inspector.ts --ui [--file <snapshots.json>] [--fixture <id>] [--port <port>]
 
 The input must be a DecisionRequest + PlayerView snapshot or an array of named snapshots.
+The local UI binds only to 127.0.0.1 and prints its URL without opening a browser.
 `
 
 async function main(): Promise<void> {
@@ -1009,6 +1011,8 @@ async function main(): Promise<void> {
       fixture: { type: 'string' },
       format: { type: 'string', default: 'text' },
       list: { type: 'boolean', default: false },
+      ui: { type: 'boolean', default: false },
+      port: { type: 'string', default: '0' },
       help: { type: 'boolean', default: false },
     },
   })
@@ -1016,7 +1020,24 @@ async function main(): Promise<void> {
     process.stdout.write(SEAT_VIEW_INSPECTOR_USAGE)
     return
   }
-  const entries = readSnapshotFile(values.file)
+  if (values.ui) {
+    const port = Number(values.port)
+    if (!Number.isSafeInteger(port) || port < 0 || port > 65_535) {
+      fail(`invalid UI port "${values.port}"; expected an integer from 0 to 65535`)
+    }
+    const { startSeatViewInspectorUi } = await import('./seat-view-inspector-ui.ts')
+    const running = await startSeatViewInspectorUi({
+      fixtureFile: values.file,
+      initialFixture: values.fixture,
+      port,
+    })
+    process.stdout.write(
+      `Seat decision microscope: ${running.url}\n`
+      + 'Local-only boundary: 127.0.0.1. Press Ctrl+C to stop.\n',
+    )
+    return
+  }
+  const entries = readSeatViewSnapshotFile(values.file)
   if (values.list) {
     for (const entry of entries) console.log(entry.id ?? '(unnamed)')
     return

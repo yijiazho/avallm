@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Seat Decision Microscope · AvaLLM</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#inspection">Skip to inspection</a>
+    <header class="masthead">
+      <div>
+        <p class="instrument-label">Local agent instrument · boundary schema v1</p>
+        <h1>Seat Decision <span>Microscope</span></h1>
+        <p class="deck">Reconstruct what one player could know, and no more.</p>
+      </div>
+      <div class="boundary-seal" aria-label="Security boundary">
+        <span class="seal-mark" aria-hidden="true">◈</span>
+        <span><strong>Seat-filtered</strong>DecisionRequest + PlayerView</span>
+      </div>
+    </header>
+
+    <main id="inspection">
+      <section class="instrument-controls" aria-labelledby="source-heading">
+        <div>
+          <p class="eyebrow" id="source-heading">Observation source</p>
+          <div class="source-row">
+            <label for="fixture-select">Frozen fixture</label>
+            <select id="fixture-select" aria-describedby="source-note"></select>
+            <button id="load-fixture" type="button">Open fixture</button>
+          </div>
+          <p class="microcopy" id="source-note">
+            Fixture metadata contains no deal, seed, baseline action, or other seat’s private view.
+          </p>
+        </div>
+        <aside class="custom-drawer">
+          <p class="eyebrow">Bring your own snapshot</p>
+          <p>
+            Restart with <code>--ui --file path/to/snapshot.json</code>. The local
+            server validates the file before this page loads, so raw input never
+            enters browser JavaScript.
+          </p>
+        </aside>
+        <p class="status" id="status" role="status" aria-live="polite">Loading instrument…</p>
+      </section>
+
+      <section class="decision-plaque" aria-labelledby="decision-heading">
+        <div>
+          <p class="eyebrow">Decision point</p>
+          <h2 id="decision-heading">Awaiting snapshot</h2>
+        </div>
+        <dl class="decision-coordinates" id="decision-coordinates"></dl>
+        <div class="seat-identity" id="seat-identity"></div>
+      </section>
+
+      <section class="knowledge-lens" aria-label="Knowledge available to this seat">
+        <article class="lens-panel public-lens" aria-labelledby="public-heading">
+          <div class="lens-title">
+            <span class="lens-sigil" aria-hidden="true">○</span>
+            <div>
+              <p class="eyebrow">Shared at the table</p>
+              <h2 id="public-heading">Public field</h2>
+            </div>
+          </div>
+          <div id="public-board"></div>
+        </article>
+
+        <div class="lens-convergence" aria-hidden="true">
+          <span>visible evidence</span>
+        </div>
+
+        <article class="lens-panel private-lens" aria-labelledby="private-heading">
+          <div class="lens-title">
+            <span class="lens-sigil" aria-hidden="true">◐</span>
+            <div>
+              <p class="eyebrow">Visible only to this seat</p>
+              <h2 id="private-heading">Private folio</h2>
+            </div>
+          </div>
+          <div id="private-knowledge"></div>
+        </article>
+      </section>
+
+      <section class="causal-section" aria-labelledby="causal-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Causal spine</p>
+            <h2 id="causal-heading">How knowledge could shape play</h2>
+          </div>
+          <p>Only the evidence chamber is populated by this boundary snapshot.</p>
+        </div>
+        <ol class="causal-rail" id="causal-rail">
+          <li class="available">
+            <span class="rail-index">01</span><strong>Visible evidence</strong>
+            <small id="evidence-summary">Awaiting snapshot</small>
+          </li>
+          <li>
+            <span class="rail-index">02</span><strong>Belief state</strong>
+            <small>Unavailable in seat view</small>
+          </li>
+          <li>
+            <span class="rail-index">03</span><strong>Role components</strong>
+            <small>Unavailable in seat view</small>
+          </li>
+          <li>
+            <span class="rail-index">04</span><strong>Candidates</strong>
+            <small>Unavailable in seat view</small>
+          </li>
+          <li>
+            <span class="rail-index">05</span><strong>Policy gate</strong>
+            <small>Forced or strategic, unavailable</small>
+          </li>
+          <li>
+            <span class="rail-index">06</span><strong>Committed action</strong>
+            <small>Not present at request time</small>
+          </li>
+          <li>
+            <span class="rail-index">07</span><strong>Voice</strong>
+            <small>Not present at request time</small>
+          </li>
+        </ol>
+      </section>
+
+      <section class="history-section" aria-labelledby="history-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Observed record</p>
+            <h2 id="history-heading">Visible events</h2>
+          </div>
+          <div class="scope-legend" aria-label="Event scope legend">
+            <span class="public-key">Public</span><span class="private-key">Private to viewer</span>
+          </div>
+        </div>
+        <div class="history-grid">
+          <ol class="event-ledger" id="event-ledger"></ol>
+          <aside class="transcript-panel" aria-labelledby="transcript-heading">
+            <h3 id="transcript-heading">Table transcript</h3>
+            <div id="transcript"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="omission-vault" aria-labelledby="omissions-heading">
+        <div>
+          <p class="eyebrow">Negative space is part of the contract</p>
+          <h2 id="omissions-heading">Omitted by design</h2>
+        </div>
+        <ul id="omissions"></ul>
+      </section>
+    </main>
+    <footer>
+      Local diagnostic only · Bound to 127.0.0.1 · No production route · No LLM calls
+    </footer>
+  </body>
+</html>
