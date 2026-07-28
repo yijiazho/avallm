@@ -12,6 +12,7 @@ const TYPECHECK = [
   '-p',
   'tsconfig.server.json',
 ]
+const ARCHITECTURE = ['tools/architecture-fitness.mjs']
 const INVENTORY = ['tools/test-lanes.mjs', '--check']
 
 test('root verification scripts cannot bypass the funnel', () => {
@@ -39,6 +40,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('quick').map((step) => step.args),
     [
       TYPECHECK,
+      ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
     ],
@@ -47,6 +49,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('contract').map((step) => step.args),
     [
       TYPECHECK,
+      ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
       ['tools/test-lanes.mjs', 'contract'],
@@ -56,6 +59,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('full').map((step) => step.args),
     [
       TYPECHECK,
+      ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'full'],
     ],
@@ -66,23 +70,24 @@ test('verification fails closed before tests when lane inventory fails', () => {
   const calls: string[][] = []
   const status = runVerification('full', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 2 ? 17 : 0 }
+    return { status: calls.length === 3 ? 17 : 0 }
   }, () => true)
 
   assert.equal(status, 17)
-  assert.deepEqual(calls, [TYPECHECK, INVENTORY])
+  assert.deepEqual(calls, [TYPECHECK, ARCHITECTURE, INVENTORY])
 })
 
 test('verification stops at the first failing test lane', () => {
   const calls: string[][] = []
   const status = runVerification('contract', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 3 ? 23 : 0 }
+    return { status: calls.length === 4 ? 23 : 0 }
   }, () => true)
 
   assert.equal(status, 23)
   assert.deepEqual(calls, [
     TYPECHECK,
+    ARCHITECTURE,
     INVENTORY,
     ['tools/test-lanes.mjs', 'fast'],
   ])
@@ -101,12 +106,12 @@ test('verification rejects unknown levels without spawning work', () => {
 })
 
 test('verification explains missing development tooling without spawning', () => {
-  let spawned = false
+  const calls: string[][] = []
   const errors: string[] = []
   const status = runVerification(
     'quick',
-    () => {
-      spawned = true
+    (_command, args) => {
+      calls.push(args)
       return { status: 0 }
     },
     (path) => {
@@ -117,6 +122,21 @@ test('verification explains missing development tooling without spawning', () =>
   )
 
   assert.equal(status, 1)
-  assert.equal(spawned, false)
+  assert.deepEqual(calls, [])
   assert.deepEqual(errors, ['TypeScript dev tooling is missing; run npm ci.'])
+})
+
+test('verification stops before test inventory when architecture fails', () => {
+  const calls: string[][] = []
+  const status = runVerification(
+    'quick',
+    (_command, args) => {
+      calls.push(args)
+      return { status: calls.length === 2 ? 19 : 0 }
+    },
+    () => true,
+  )
+
+  assert.equal(status, 19)
+  assert.deepEqual(calls, [TYPECHECK, ARCHITECTURE])
 })

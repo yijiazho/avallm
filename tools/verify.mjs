@@ -14,6 +14,10 @@ const COMMON_GATES = Object.freeze([
     ]),
   }),
   Object.freeze({
+    label: 'architecture fitness',
+    args: Object.freeze(['tools/architecture-fitness.mjs']),
+  }),
+  Object.freeze({
     label: 'test lane inventory',
     args: Object.freeze(['tools/test-lanes.mjs', '--check']),
   }),

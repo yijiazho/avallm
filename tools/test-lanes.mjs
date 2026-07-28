@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 const LANES = Object.freeze({
   fast: Object.freeze([
     'agent-defs.test.ts',
+    'architecture-fitness.test.ts',
     'belief-fixtures.test.ts',
     'belief-rendering.test.ts',
     'belief.test.ts',
