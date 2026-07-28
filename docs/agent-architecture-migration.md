@@ -62,7 +62,7 @@ compose and difficult to measure independently.
 | Language evidence | Opt-in public interpreter seam, persistent typed reads/cursor, capped joint-world update, and private attribution | Add a real provider adapter and evaluation population only with explicit scope and spend permission |
 | Observer beliefs | Prompt heuristics for Merlin concealment and evil cover | No explicit model of public suspicion |
 | Role-specific posteriors | Some hard candidate lists and assassination prompting | No independent Merlin/Morgana or Assassin distributions |
-| Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Replace role-specific optional fields with configured and resolved component entries plus private tagged payloads |
+| Decision trace | Composed traces include brain, belief/factors and factor provenance, analysis, candidate, forced-policy, policy, scorer, planner, prompt/renderer, communication versions, scores, chosen ID, and degradation | Replace role-specific optional fields with configured requests, admitted per-decision component entries, separate causal-policy attribution, and private tagged payloads |
 | Brain/model/persona separation | Composed cognition persists independently of injected planner and voice identity; explicit mode labels distinguish compatibility, structured-only, hybrid, and raw LLM | Resolve component configuration into a typed immutable brain; keep runtime planner, voice, seed, client, and sink injection separate |
 
 ---
@@ -1740,14 +1740,17 @@ present remain structurally usable where already supported, but are explicitly u
 ineligible for promotion admission. Extraction is complete only when old and new admission results
 are identical over valid fixtures and every hostile mutation.
 
-**7R2B introduces the generic kernel.** A typed resolved brain owns the requested component set,
-versions, dependencies, and order. Runtime injection owns only operational dependencies such as
-seed, planner, voice, clients, and sinks. Traces record configured and successfully resolved
-component entries; private outputs use tagged payloads whose validators and reconstructors come
-from the component registry. Compatibility adapters project the existing C2, D2, E1, and D3 data
-into this representation. During the compatibility window, new traces and manifests carry both
-generic and legacy projections, validation requires exact equality between them, and readers
-continue to accept historical artifacts that have only the old schema.
+**7R2B introduces the generic kernel.** At construction time, a typed resolved brain owns the
+requested and eligible component graph, versions, dependencies, and layer order. Runtime injection
+owns only operational dependencies such as seed, planner, voice, clients, and sinks. Each request
+and seat-filtered view determines per-decision applicability and execution. Traces record
+configured requests, successfully admitted per-decision component entries, and separate causal
+policy use; mechanically inert C1, D1, E1A, and E2A outputs do not need a policy layer to resolve.
+Private outputs use tagged payloads whose validators and reconstructors come from the component
+registry. Compatibility adapters project the existing C2, D2, E1, and D3 data into this
+representation. During the compatibility window, new traces and manifests carry both generic and
+legacy projections, validation requires exact equality between them, and readers continue to
+accept historical artifacts that have only the old schema.
 
 The 7R2B exit gate requires frozen prompt bytes, decisions, event logs, deterministic replay,
 degradation, component versions, and architecture-bank results. Exact and constraints-only host
@@ -2081,9 +2084,10 @@ here.
   mutations.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission; 7R2B introduces the resolved brain, generic
-  configured and resolved entries, private tagged payloads, and legacy adapters; E2A is the first
-  native component; 7R3 then replaces nested role scorers and D3 call-site ordering with registered
-  policy layers before E2B and Assassin specialization.
+  configured requests, admitted per-decision entries, separate causal-policy attribution, private
+  tagged payloads, and legacy adapters; E2A is the first native component; 7R3 then replaces nested
+  role scorers and D3 call-site ordering with registered policy layers before E2B and Assassin
+  specialization.
 - Validation cadence checkpoint: moved adversarial parent and fresh-agent review ahead of expensive
   banks and the complete suite. Normal iteration now uses dedicated low-cost fixtures, then only
   the high-player-count boundary cases required by the contract. The applicable free bank and full

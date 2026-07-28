@@ -388,22 +388,27 @@ time. A component declares:
 - its version, deterministic seed domain, degradation behavior, and admission rules.
 
 The exact interface names are deliberately not fixed here. The durable contract is that a new role
-can be implemented by registering a component and its policy layer without adding a role-named
-field to the composed-agent host, common candidate score, common scorer context, trace envelope,
-stdio transport, artifact manifest, or evaluator.
+can be implemented by registering a component and, when it has decision authority, its policy layer
+without adding a role-named field to the composed-agent host, common candidate score, common scorer
+context, trace envelope, stdio transport, artifact manifest, or evaluator.
 
 Configuration and execution have different representations. Configuration names requested
-components and modes. A typed resolved brain freezes the applicable components, versions,
-dependencies, policy order, and compatibility projections for one agent construction. Runtime
-options supply operational dependencies such as the game seed, planner and voice implementations,
-trace sinks, and clocks or clients where permitted; they do not become a second source of component
-configuration. A resolved brain is immutable for a decision and is recorded before execution.
+components and modes. At construction time, a typed resolved brain freezes the requested and
+eligible component graph, versions, dependencies, layer order, and compatibility projections for
+one agent construction. Runtime options supply operational dependencies such as the game seed,
+planner and voice implementations, trace sinks, and clocks or clients where permitted; they do not
+become a second source of component configuration. The resolved brain remains immutable across its
+decisions.
 
-Traces preserve both requested and actual execution. Configured component entries show intent;
-resolved entries appear only for components whose output was successfully admitted and used.
-Component payloads are tagged by component identity, version, kind, and privacy rather than stored
-in unrelated role-specific fields. Private cognition remains private even when the component
-metadata is included in an artifact manifest.
+Each `DecisionRequest` and seat-filtered `PlayerView` then determines which components are
+applicable and execute for that decision. Traces preserve all three distinctions: configured
+entries show construction-time intent; resolved or admitted decision entries show outputs
+successfully admitted into typed cognition; separate policy attribution records whether an
+admitted output causally transformed candidate scores or selected an action. A mechanically inert
+observer or objective therefore receives a resolved decision entry even though it has no policy
+use. Component payloads are tagged by component identity, version, kind, and privacy rather than
+stored in unrelated role-specific fields. Private cognition remains private even when the
+component metadata is included in an artifact manifest.
 
 Admission belongs to the component boundary. Runtime, stdio, architecture-bank generation, stored
 report replay, and artifact validation invoke the same registered reconstruction and validation
