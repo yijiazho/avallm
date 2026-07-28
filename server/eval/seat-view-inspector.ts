@@ -909,7 +909,21 @@ export function inspectSeatView(
 function seatList(refs: SeatRef[]): string {
   return refs.length === 0
     ? 'none'
-    : refs.map((ref) => `${ref.seat}:${JSON.stringify(ref.name)}`).join(', ')
+    : refs.map((ref) => `${ref.seat}:${terminalSafeJson(ref.name)}`).join(', ')
+}
+
+/**
+ * JSON quoting is almost terminal-safe by itself, but JSON permits DEL/C1
+ * controls and Unicode line/paragraph separators as literal characters.
+ * Escape those after serialization without changing the JSON output mode.
+ */
+export function terminalSafeJson(value: unknown): string {
+  const json = JSON.stringify(value)
+  if (json === undefined) return 'undefined'
+  return json.replace(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  )
 }
 
 /** Render a compact deterministic text view for terminal debugging. */
@@ -919,7 +933,7 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
     `Source: ${inspection.provenance.source}`,
     `Decision: ${inspection.decisionPoint.kind} by seat ${inspection.decisionPoint.seat}`
       + ` at Q${inspection.decisionPoint.round}.${inspection.decisionPoint.proposalNum}`,
-    `Self: ${inspection.self.seat}:${JSON.stringify(inspection.self.name)}`
+    `Self: ${inspection.self.seat}:${terminalSafeJson(inspection.self.name)}`
       + ` (${inspection.self.role}, ${inspection.self.alignment})`,
     `Private knowledge: ${inspection.privateKnowledge.kind}`
       + ` [${seatList(inspection.privateKnowledge.seats)}]`,
@@ -927,7 +941,7 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
     'Public board',
     `Phase: ${inspection.publicBoard.phase}`,
     `Leader: ${inspection.publicBoard.leader.seat}`
-      + `:${JSON.stringify(inspection.publicBoard.leader.name)}`,
+      + `:${terminalSafeJson(inspection.publicBoard.leader.name)}`,
     `Players: ${seatList(inspection.publicBoard.players)}`,
     `Roles in play: ${inspection.publicBoard.rolesInPlay.join(', ')}`,
     `Current team: ${seatList(inspection.publicBoard.currentTeam ?? [])}`,
@@ -943,7 +957,7 @@ export function renderSeatViewInspection(inspection: SeatViewInspection): string
     '',
     `Visible events (${inspection.visibleHistory.events.length})`,
     ...inspection.visibleHistory.events.map((event) =>
-      `#${event.seq} [${event.scope}] ${event.type} ${JSON.stringify(event.detail)}`),
+      `#${event.seq} [${event.scope}] ${event.type} ${terminalSafeJson(event.detail)}`),
     '',
     'Omitted by design',
     ...inspection.omissions.map((omission) => `- ${omission}`),

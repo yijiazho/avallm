@@ -299,7 +299,7 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
 test('terminal rendering escapes untrusted names and event text', () => {
   const fixture = readDecisionFixtures()[0]
   const view = structuredClone(fixture.view) as PlayerView
-  const hostile = 'Alice\u001b[31m\n#999 forged'
+  const hostile = 'Alice\u001b[31m\u007f\u009b31m\u2028split\u2029paragraph\n#999 forged'
   view.name = hostile
   view.players[view.seat].name = hostile
   view.events.push({
@@ -311,7 +311,15 @@ test('terminal rendering escapes untrusted names and event text', () => {
 
   const rendered = renderSeatViewInspection(inspectSeatView(fixture.req, view))
   assert.ok(!rendered.includes('\u001b'))
+  assert.ok(!rendered.includes('\u007f'))
+  assert.ok(!rendered.includes('\u009b'))
+  assert.ok(!rendered.includes('\u2028'))
+  assert.ok(!rendered.includes('\u2029'))
   assert.ok(!rendered.includes('\n#999 forged'))
   assert.ok(rendered.includes('\\u001b'))
+  assert.ok(rendered.includes('\\u007f'))
+  assert.ok(rendered.includes('\\u009b'))
+  assert.ok(rendered.includes('\\u2028'))
+  assert.ok(rendered.includes('\\u2029'))
   assert.ok(rendered.includes('\\n#999 forged'))
 })
