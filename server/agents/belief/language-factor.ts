@@ -49,6 +49,22 @@ export const LANGUAGE_WEIGHTED_BELIEF_VERSION =
   'exact-constraints+bounded-language-v1'
 export const LANGUAGE_HISTORY_LOG_ODDS_CAP = Math.log(1.25)
 
+/** Stable configured identity of the mechanical plus language belief path. */
+export function languageBeliefPipelineVersion(
+  mechanicalBelief: string,
+): string {
+  return `${mechanicalBelief}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`
+}
+
+/** Stable configured identity of all factors available to that path. */
+export function combinedLanguageFactorBundleVersion(
+  mechanicalFactors: string,
+): string {
+  return mechanicalFactors === 'off'
+    ? LANGUAGE_FACTOR_BUNDLE_VERSION
+    : `${mechanicalFactors}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`
+}
+
 const INTERPRETER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 const PUBLIC_RATIONALE_MAX_LENGTH = 500
 

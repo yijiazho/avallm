@@ -86,6 +86,11 @@ export interface DecisionTrace {
   action: Decision
   /** Explicit experiment cell; do not infer it from component versions. */
   agentMode?: AgentExecutionMode
+  /**
+   * Exact configured architecture identity for current composed traces.
+   * Optional at the generic transport boundary for legacy/external traces.
+   */
+  architectureIdentityDigest?: string
   statedReasoning?: string
   /** Complete ownership/version attribution for composed decisions. */
   componentVersions?: Readonly<{

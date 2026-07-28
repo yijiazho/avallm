@@ -12,7 +12,9 @@ import {
 import {
   RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
   RESOLVED_COMPOSED_BRAIN_VERSION,
+  admitResolvedArchitectureIdentity,
   projectPrivateArchitectureDebug,
+  projectResolvedArchitectureIdentity,
   projectResolvedArchitecturePrivate,
   projectPrivateResolvedComposedBrainLegacy,
   resolveComposedBrain,
@@ -113,6 +115,188 @@ function assertDataOnly(value: unknown): void {
     for (const entry of Object.values(value)) assertDataOnly(entry)
   }
 }
+
+test('runtime and persisted identity share one codec and omit migration', () => {
+  const descriptor = createComposedAgent({
+    seed: 'phase7r2c3-identity-codec',
+    decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+  }).resolvedBrain().description
+  const runtime = projectResolvedArchitectureIdentity(descriptor)
+  const persisted = admitResolvedArchitectureIdentity(
+    JSON.parse(JSON.stringify(runtime)),
+  )
+  assert.deepEqual(persisted, runtime)
+  assert.equal(Object.hasOwn(runtime, 'migration'), false)
+  assert.equal(Object.isFrozen(runtime), true)
+
+  const relabelled = structuredClone(runtime) as any
+  relabelled.version = 'forged-architecture-identity-v1'
+  assert.equal(admitResolvedArchitectureIdentity(relabelled), undefined)
+
+  const invalidBaseFields: readonly Readonly<{
+    field: string
+    value: string
+  }>[] = [
+    { field: 'version', value: 'forged-brain-v1' },
+    { field: 'mode', value: 'raw-llm' },
+    { field: 'belief', value: 'forged-belief-v1' },
+    { field: 'beliefVisibility', value: 'external' },
+    { field: 'policy', value: 'forged-policy-v1' },
+    { field: 'communication', value: 'forged-voice-v1' },
+    { field: 'languageEvidence', value: 'external' },
+    { field: 'observerModel', value: 'external' },
+  ]
+  for (const { field, value } of invalidBaseFields) {
+    const candidate = structuredClone(runtime) as any
+    candidate.base[field] = value
+    assert.equal(
+      admitResolvedArchitectureIdentity(candidate),
+      undefined,
+      field,
+    )
+  }
+
+  const leakedMigration = {
+    ...structuredClone(runtime),
+    migration: { compatibility: { secret: true } },
+  }
+  assert.equal(admitResolvedArchitectureIdentity(leakedMigration), undefined)
+
+  let invoked = false
+  const accessor = structuredClone(runtime) as Record<string, unknown>
+  Object.defineProperty(accessor, 'configuredPipeline', {
+    enumerable: true,
+    get() {
+      invoked = true
+      throw new Error('must not execute')
+    },
+  })
+  assert.equal(admitResolvedArchitectureIdentity(accessor), undefined)
+  assert.equal(invoked, false)
+})
+
+test('identity codec rejects impossible component graph partitions', () => {
+  const identity = projectResolvedArchitectureIdentity(
+    createComposedAgent({
+      seed: 'phase7r2c3-identity-graph-codec',
+      decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
+    }).resolvedBrain().description,
+  )
+  const mutations: readonly Readonly<{
+    name: string
+    mutate: (candidate: any) => void
+  }>[] = [
+    {
+      name: 'requested outside configured',
+      mutate(candidate) {
+        candidate.components.requested.push({
+          id: 'forged-request',
+          version: 'forged-request-v1',
+        })
+      },
+    },
+    {
+      name: 'eligible also ineligible',
+      mutate(candidate) {
+        candidate.components.ineligible.push({
+          component: structuredClone(candidate.components.eligible[0]),
+          missingHostRequirements: ['forged-missing-capability'],
+          ineligibleDependencies: [],
+        })
+      },
+    },
+    {
+      name: 'configured left unpartitioned',
+      mutate(candidate) {
+        candidate.components.eligible = []
+      },
+    },
+    {
+      name: 'duplicate ineligible component',
+      mutate(candidate) {
+        const component = structuredClone(
+          candidate.components.eligible[0],
+        )
+        candidate.components.eligible = []
+        const entry = {
+          component,
+          missingHostRequirements: ['missing-capability'],
+          ineligibleDependencies: [],
+        }
+        candidate.components.ineligible = [
+          structuredClone(entry),
+          structuredClone(entry),
+        ]
+      },
+    },
+    {
+      name: 'self ineligible dependency',
+      mutate(candidate) {
+        const component = structuredClone(
+          candidate.components.eligible[0],
+        )
+        candidate.components.eligible = []
+        candidate.components.ineligible = [{
+          component,
+          missingHostRequirements: [],
+          ineligibleDependencies: [structuredClone(component)],
+        }]
+      },
+    },
+    {
+      name: 'duplicate missing host requirement',
+      mutate(candidate) {
+        const component = structuredClone(
+          candidate.components.eligible[0],
+        )
+        candidate.components.eligible = []
+        candidate.components.ineligible = [{
+          component,
+          missingHostRequirements: [
+            'missing-capability',
+            'missing-capability',
+          ],
+          ineligibleDependencies: [],
+        }]
+      },
+    },
+    {
+      name: 'ineligible dependency follows its consumer',
+      mutate(candidate) {
+        const consumer = structuredClone(
+          candidate.components.eligible[0],
+        )
+        const dependency = {
+          id: 'later-dependency',
+          version: 'later-dependency-v1',
+        }
+        candidate.components.configured = [consumer, dependency]
+        candidate.components.eligible = []
+        candidate.components.ineligible = [
+          {
+            component: consumer,
+            missingHostRequirements: [],
+            ineligibleDependencies: [structuredClone(dependency)],
+          },
+          {
+            component: dependency,
+            missingHostRequirements: ['missing-capability'],
+            ineligibleDependencies: [],
+          },
+        ]
+      },
+    },
+  ]
+  for (const { name, mutate } of mutations) {
+    const candidate = structuredClone(identity)
+    mutate(candidate)
+    assert.equal(
+      admitResolvedArchitectureIdentity(candidate),
+      undefined,
+      name,
+    )
+  }
+})
 
 test('resolved architecture descriptor is deterministic across a configuration matrix', () => {
   const matrix: readonly Readonly<{
@@ -248,6 +432,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
   assert.equal(privateProjection, descriptor)
   assert.deepEqual(Object.keys(debug), [
     'version',
+    'executionMode',
     'base',
     'components',
     'componentContributions',
@@ -579,7 +764,7 @@ test('descriptor projection preserves default trace bytes and property order', a
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    '273f6989157c584523b09a354a403eac1193021d11db0a64d560ccf0bae68bda',
+    '745537cd580d889eda9874ca7b50b03fb43ce1100e4e5e75b90c045f0dadb0db',
   )
   assert.deepEqual(Object.keys(output.trace!.componentVersions!), [
     'brain',

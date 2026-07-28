@@ -21,6 +21,16 @@ import {
   validateDecisionComponentPlan,
   type DecisionComponentPlan,
 } from '../agents/components/kernel.ts'
+import {
+  resolvedArchitectureIdentityTraceJoin,
+} from '../agents/components/architecture-metadata.ts'
+import {
+  admitResolvedArchitectureIdentity,
+  projectResolvedArchitectureIdentity,
+  resolvedArchitectureIdentityDigest,
+  type ResolvedArchitectureDescriptor,
+  type ResolvedArchitectureIdentity,
+} from '../agents/components/resolved-brain.ts'
 
 // Bump on any BREAKING artifact-shape change. Additive fields (like `roles`,
 // added in v2) don't require a bump for readers that tolerate their absence —
@@ -88,6 +98,12 @@ export interface ArtifactStrategyVersions {
    * producer's resolved brain. It is never inferred from a returned trace.
    */
   decisionComponents?: ArtifactDecisionComponentManifest
+  /**
+   * Current descriptor-derived identity. Unlike the schema-1 component-plan
+   * manifest, this is the complete stable configuration owner for one target
+   * seat and never contains migration compatibility data.
+   */
+  resolvedArchitecture?: ArtifactResolvedArchitectureManifest
 }
 
 export interface ArtifactDecisionComponentManifest {
@@ -98,6 +114,18 @@ export interface ArtifactDecisionComponentManifest {
 export interface ArtifactDecisionComponentSeatManifest {
   seat: Seat
   plan: DecisionComponentPlan
+}
+
+export interface ArtifactResolvedArchitectureManifest {
+  schema: 1
+  targetSeat: Seat
+  /**
+   * Detects accidental or partial storage relabeling across every identity
+   * field. This is provenance integrity, not a signature against an artifact
+   * author who deliberately rewrites identity, digest, and traces together.
+   */
+  identityDigest: string
+  identity: ResolvedArchitectureIdentity
 }
 
 export interface ArtifactTelemetry {
@@ -207,6 +235,14 @@ export interface ToArtifactOpts {
    * agents cannot mint this by returning a self-described component plan.
    */
   trustedComponentPlans?: readonly ArtifactDecisionComponentSeatManifest[]
+  /**
+   * Current trusted producer input. Only the stable identity is persisted;
+   * the descriptor's migration compatibility projection remains in-process.
+   */
+  trustedArchitecture?: Readonly<{
+    seat: Seat
+    descriptor: ResolvedArchitectureDescriptor
+  }>
 }
 
 function sortedUnique(values: readonly (string | undefined)[]): string[] {
@@ -283,6 +319,13 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
         traces,
         opts.agents.length,
       )
+  const resolvedArchitecture = opts.trustedArchitecture === undefined
+    ? undefined
+    : trustedResolvedArchitectureManifest(
+        opts.trustedArchitecture,
+        traces,
+        opts.agents.length,
+      )
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -324,6 +367,43 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       : {}),
     ...(morganaRoleUtilities.length ? { morganaRoleUtilities } : {}),
     ...(decisionComponents ? { decisionComponents } : {}),
+    ...(resolvedArchitecture ? { resolvedArchitecture } : {}),
+  }
+}
+
+function trustedResolvedArchitectureManifest(
+  trusted: NonNullable<ToArtifactOpts['trustedArchitecture']>,
+  traces: readonly DecisionTrace[],
+  playerCount: number,
+): ArtifactResolvedArchitectureManifest {
+  if (
+    !Number.isInteger(trusted.seat)
+    || trusted.seat < 0
+    || trusted.seat >= playerCount
+  ) {
+    throw new Error('trusted architecture has an invalid target seat')
+  }
+  const identity = projectResolvedArchitectureIdentity(trusted.descriptor)
+  const seatTraces = traces.filter((trace) =>
+    trace.viewerSeat === trusted.seat)
+  if (
+    !seatTraces.length
+    || seatTraces.some((trace) =>
+      !resolvedArchitectureIdentityTraceJoin(identity, trace))
+  ) {
+    throw new Error(
+      `trusted architecture does not match traces for seat ${trusted.seat}`,
+    )
+  }
+  const detached = admitResolvedArchitectureIdentity(identity)
+  if (!detached) {
+    throw new Error('trusted architecture identity is not persistable')
+  }
+  return {
+    schema: 1,
+    targetSeat: trusted.seat,
+    identityDigest: resolvedArchitectureIdentityDigest(detached),
+    identity: detached,
   }
 }
 
@@ -409,6 +489,18 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
   ) {
     throw new Error(
       'trusted component plans require the architecture target seat',
+    )
+  }
+  if (
+    opts.trustedArchitecture !== undefined
+    && (
+      opts.trustedComponentPlans !== undefined
+      || !opts.architecture
+      || opts.trustedArchitecture.seat !== opts.architecture.targetSeat
+    )
+  ) {
+    throw new Error(
+      'trusted architecture requires the architecture target seat and cannot be combined with a legacy component manifest',
     )
   }
   return {

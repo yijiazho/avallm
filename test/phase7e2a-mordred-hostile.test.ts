@@ -993,9 +993,14 @@ test('resolved base, trace, and artifact agree on E2A observer metadata', async 
 
   const forged = structuredClone(artifact)
   forged.architecture!.components.observerModel = 'observer-off'
-  const rejected = architectureReport([forged]).variants[0]
-  assert.ok(rejected.safety.traceAttributionViolations > 0)
-  assert.equal(rejected.componentEvidence.promotionEvidenceEligible, false)
+  const descriptorOwned = architectureReport([forged]).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.components.observerModel,
+    'exact-public-observer-v1')
+  assert.equal(
+    descriptorOwned.componentEvidence.promotionEvidenceEligible,
+    true,
+  )
 
   const rawWithoutObserver = structuredClone(artifact)
   rawWithoutObserver.architecture!.components.mode = 'raw-llm'

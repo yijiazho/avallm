@@ -122,6 +122,7 @@ import {
   type DecisionComponentPlan,
 } from '../agents/components/kernel.ts'
 import type {
+  ResolvedArchitectureDescriptor,
   ResolvedComposedBrain,
 } from '../agents/components/resolved-brain.ts'
 import {
@@ -691,6 +692,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const decisionTraces: DecisionTrace[] = []
       const targetLatencySamples: DecisionLatencySample[] = []
       let expectedComponentPlan: DecisionComponentPlan | undefined
+      let expectedArchitectureDescriptor:
+        ResolvedArchitectureDescriptor | undefined
       let expectComponentTrace = false
       const descriptors: string[] = game.players.map(() => opponentKind)
       for (const player of game.players) {
@@ -712,6 +715,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             resolvedBrain?: () => ResolvedComposedBrain
           }
           if (typeof possibleComposed.resolvedBrain === 'function') {
+            expectedArchitectureDescriptor =
+              possibleComposed.resolvedBrain().description
             expectedComponentPlan = structuredClone(
               decisionComponentPlan(possibleComposed.resolvedBrain()),
             )
@@ -1479,12 +1484,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         },
         telemetry,
         decisionTraces,
-        ...(expectedComponentPlan
+        ...(expectedArchitectureDescriptor
           ? {
-              trustedComponentPlans: [{
+              trustedArchitecture: {
                 seat: target.seat,
-                plan: expectedComponentPlan,
-              }],
+                descriptor: expectedArchitectureDescriptor,
+              },
             }
           : {}),
       })

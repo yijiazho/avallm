@@ -1,10 +1,20 @@
+import { createHash } from 'node:crypto'
 import {
+  BRAIN_SPEC_VERSION,
+  COMPOSED_POLICY_VERSION,
+  PLAN_COMMUNICATION_VERSION,
   brainComponents,
   resolveBrain,
+  type AgentExecutionMode,
   type BrainSource,
   type BrainSpec,
 } from '../brain.ts'
-import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../belief/language-factor.ts'
+import {
+  combinedLanguageFactorBundleVersion,
+  LANGUAGE_FACTOR_BUNDLE_VERSION,
+  languageBeliefPipelineVersion,
+} from '../belief/language-factor.ts'
+import { EXACT_BELIEF_MODEL_VERSION } from '../belief/types.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
 import type {
   ComponentHostInputDefinition,
@@ -25,6 +35,19 @@ export const RESOLVED_COMPOSED_BRAIN_VERSION =
   'resolved-composed-brain-v1'
 export const RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION =
   'resolved-architecture-descriptor-v1'
+export const MAX_RESOLVED_ARCHITECTURE_IDENTITY_JSON_BYTES = 65_536
+
+const ARCHITECTURE_VERSION_PATTERN =
+  /^[a-z0-9][a-z0-9._+-]{0,99}$/
+const ARCHITECTURE_MODES: readonly AgentExecutionMode[] = [
+  'raw-llm',
+  'heuristic',
+  'random',
+  'external',
+  'compatibility',
+  'structured-only',
+  'hybrid',
+]
 
 export interface ResolvedConfiguredPipeline {
   readonly belief: Readonly<{
@@ -88,6 +111,10 @@ export interface ComposedBrainConfig {
   readonly scoreLayerOrder?: readonly ComponentRef[]
   readonly decisionLayerOrder?: readonly ComponentRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
+  readonly executionMode?: Extract<
+    AgentExecutionMode,
+    'compatibility' | 'structured-only' | 'hybrid'
+  >
   /**
    * Temporary, read-only projection of the role-specific configuration that
    * B3 adapters will migrate. It must contain data only, never callbacks.
@@ -103,8 +130,17 @@ export interface ComposedBrainConfig {
  * This is private agent state. Consumers that cannot receive migration data
  * must use projectPrivateArchitectureDebug rather than serializing it.
  */
-export interface ResolvedArchitectureDescriptor {
+/**
+ * Canonical stable identity shared by the in-process descriptor and detached
+ * observability projections. It deliberately excludes migration compatibility
+ * data, implementations, providers, and invocation-local values.
+ */
+export interface ResolvedArchitectureIdentity {
   readonly version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
+  readonly executionMode: Extract<
+    AgentExecutionMode,
+    'compatibility' | 'structured-only' | 'hybrid'
+  >
   readonly base: BrainSpec
   readonly components: ResolvedComponentGraph
   /** Stable contributions declared by the resolved component graph. */
@@ -121,9 +157,84 @@ export interface ResolvedArchitectureDescriptor {
   readonly scoreLayerOrder: readonly ComponentRef[]
   readonly decisionLayerOrder: readonly ComponentRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
+}
+
+export interface ResolvedArchitectureDescriptor
+extends ResolvedArchitectureIdentity {
   readonly migration: Readonly<{
     readonly compatibility: Readonly<Record<string, CompatibilityValue>>
   }>
+}
+
+export function resolvedArchitectureIdentityVersions(
+  identity: ResolvedArchitectureIdentity,
+): Record<string, string> {
+  const pipeline = identity.configuredPipeline
+  const languageEnabled =
+    pipeline.belief.languageInterpreter !== 'off'
+  return {
+    mode: identity.executionMode,
+    brain: identity.base.version,
+    ...(languageEnabled
+      ? {
+          mechanicalBelief: pipeline.belief.model,
+          beliefPipeline: languageBeliefPipelineVersion(
+            pipeline.belief.model,
+          ),
+        }
+      : { belief: pipeline.belief.model }),
+    factors: languageEnabled
+      ? combinedLanguageFactorBundleVersion(pipeline.belief.factors)
+      : pipeline.belief.factors,
+    languageEvidence: identity.base.languageEvidence,
+    languageInterpreter: pipeline.belief.languageInterpreter,
+    languageFactor: pipeline.belief.languageFactor,
+    observerModel: identity.base.observerModel,
+    observerContribution: identity.componentContributions.observerModel,
+    policy: identity.base.policy,
+    communication: identity.base.communication,
+    analysis: pipeline.analysis.situation,
+    candidates: pipeline.candidateGeneration.legalCandidates,
+    forcedPolicy: pipeline.forcedPolicy.policy,
+    scorer: pipeline.scoring.configuredScorer,
+    scorerBaseChain: pipeline.scoring.configuredBaseChain.join(',') || 'none',
+    scorerFallback: pipeline.scoring.invalidOutputFallback,
+    planner: pipeline.planning.protocol,
+    decisionPlan: pipeline.planning.decisionPlan,
+    prompt: pipeline.prompt.prompt,
+    renderer: pipeline.prompt.renderer,
+    communicationIntent: pipeline.communication.intent,
+    voice: pipeline.communication.voiceProtocol,
+    planMemory: pipeline.planCoherence.memory,
+    coherence: pipeline.planCoherence.model,
+    coherenceIntent: pipeline.planCoherence.intent,
+    decisionComponents: identity.components.configured
+      .map((entry) => `${entry.id}@${entry.version}`)
+      .join(',') || 'none',
+  }
+}
+
+function resolvedArchitectureIdentityInvariants(
+  identity: ResolvedArchitectureIdentity,
+): boolean {
+  const pipeline = identity.configuredPipeline
+  return (
+    identity.executionMode === identity.base.mode
+    && (
+      identity.componentContributions.observerModel === 'off'
+      || identity.componentContributions.observerModel
+        === identity.base.observerModel
+    )
+    && (
+      identity.base.languageEvidence === 'off'
+        ? pipeline.belief.languageInterpreter === 'off'
+        : pipeline.belief.languageInterpreter !== 'off'
+    )
+    && (
+      (pipeline.planCoherence.memory === 'off')
+      === (pipeline.planCoherence.model === 'off')
+    )
+  )
 }
 
 /** @deprecated Use ResolvedArchitectureDescriptor. */
@@ -131,7 +242,7 @@ export type ResolvedComposedBrainDescription =
   ResolvedArchitectureDescriptor
 
 export type PrivateArchitectureDebugProjection = Readonly<
-  Omit<ResolvedArchitectureDescriptor, 'migration'>
+  ResolvedArchitectureIdentity
 >
 
 export interface PrivateResolvedComposedBrainLegacyProjection {
@@ -373,6 +484,337 @@ function freezeConfiguredPipeline(
   })
 }
 
+function identityCode(value: unknown): value is string {
+  return typeof value === 'string'
+    && ARCHITECTURE_VERSION_PATTERN.test(value)
+}
+
+function decodeIdentityRefs(
+  value: unknown,
+  label: string,
+): readonly ComponentRef[] {
+  const candidates = denseOwnDataArrayValues(value, 256)
+  if (!candidates) throw new Error(`${label} must be a dense array`)
+  const seen = new Set<string>()
+  return Object.freeze(candidates.map((candidate, index) => {
+    const record = exactOwnDataRecord(candidate, ['id', 'version'])
+    if (!record || !identityCode(record.id) || !identityCode(record.version)) {
+      throw new Error(`${label}[${index}] must be a component reference`)
+    }
+    const ref = freezeRef({
+      id: record.id,
+      version: record.version,
+    })
+    const key = `${ref.id}@${ref.version}`
+    if (seen.has(key)) throw new Error(`${label} contains a duplicate`)
+    seen.add(key)
+    return ref
+  }))
+}
+
+function decodeIdentityHostInputs(
+  value: unknown,
+): readonly ComponentHostInputRef[] {
+  const candidates = denseOwnDataArrayValues(value, 256)
+  if (!candidates) {
+    throw new Error('requiredHostInputs must be a dense array')
+  }
+  const seen = new Set<string>()
+  return Object.freeze(candidates.map((candidate, index) => {
+    const record = exactOwnDataRecord(candidate, [
+      'id',
+      'privacy',
+      'version',
+    ])
+    if (
+      !record
+      || !identityCode(record.id)
+      || !identityCode(record.version)
+      || (record.privacy !== 'public' && record.privacy !== 'private')
+    ) {
+      throw new Error(
+        `requiredHostInputs[${index}] must be a host-input reference`,
+      )
+    }
+    const ref = freezeHostInputRef({
+      id: record.id,
+      version: record.version,
+      privacy: record.privacy,
+    })
+    const key = `${ref.id}@${ref.version}`
+    if (seen.has(key)) {
+      throw new Error('requiredHostInputs contains a duplicate')
+    }
+    seen.add(key)
+    return ref
+  }))
+}
+
+function decodeIdentityBrain(value: unknown): BrainSpec {
+  const record = exactOwnDataRecord(value, [
+    'belief',
+    'beliefVisibility',
+    'communication',
+    'languageEvidence',
+    'mode',
+    'observerModel',
+    'policy',
+    'version',
+  ])
+  if (
+    !record
+    || record.version !== BRAIN_SPEC_VERSION
+    || ![
+      'compatibility',
+      'structured-only',
+      'hybrid',
+    ].includes(record.mode as string)
+    || record.belief !== EXACT_BELIEF_MODEL_VERSION
+    || record.beliefVisibility !== 'none'
+    || record.policy !== COMPOSED_POLICY_VERSION
+    || record.communication !== PLAN_COMMUNICATION_VERSION
+    || ![
+      'off',
+      LANGUAGE_FACTOR_BUNDLE_VERSION,
+    ].includes(record.languageEvidence as string)
+    || ![
+      'off',
+      PUBLIC_OBSERVER_MODEL_VERSION,
+    ].includes(record.observerModel as string)
+  ) {
+    throw new Error('architecture identity has an invalid base brain')
+  }
+  return Object.freeze(record as unknown as BrainSpec)
+}
+
+function decodeIdentityGraph(value: unknown): ResolvedComponentGraph {
+  const record = exactOwnDataRecord(value, [
+    'configured',
+    'eligible',
+    'ineligible',
+    'requested',
+  ])
+  if (!record) throw new Error('architecture identity has an invalid graph')
+  const requested = decodeIdentityRefs(record.requested, 'requested')
+  const configured = decodeIdentityRefs(record.configured, 'configured')
+  const eligible = decodeIdentityRefs(record.eligible, 'eligible')
+  const configuredKeys = new Set(
+    configured.map((entry) => `${entry.id}@${entry.version}`),
+  )
+  if (
+    requested.some((entry) =>
+      !configuredKeys.has(`${entry.id}@${entry.version}`))
+    || eligible.some((entry) =>
+      !configuredKeys.has(`${entry.id}@${entry.version}`))
+  ) {
+    throw new Error('requested and eligible components must be configured')
+  }
+  const ineligibleValues = denseOwnDataArrayValues(record.ineligible, 256)
+  if (!ineligibleValues) {
+    throw new Error('ineligible must be a dense array')
+  }
+  const ineligible = Object.freeze(ineligibleValues.map(
+    (candidate, index) => {
+      const entry = exactOwnDataRecord(candidate, [
+        'component',
+        'ineligibleDependencies',
+        'missingHostRequirements',
+      ])
+      const component = entry
+        ? decodeIdentityRefs([entry.component], `ineligible[${index}]`)[0]
+        : undefined
+      const missing = denseOwnDataArrayValues(
+        entry?.missingHostRequirements,
+        256,
+      )
+      if (
+        !entry
+        || !component
+        || !configuredKeys.has(`${component.id}@${component.version}`)
+        || !missing
+        || !missing.every(identityCode)
+        || new Set(missing).size !== missing.length
+        || (
+          missing.length === 0
+          && Array.isArray(entry.ineligibleDependencies)
+          && entry.ineligibleDependencies.length === 0
+        )
+      ) {
+        throw new Error(`ineligible[${index}] has an invalid shape`)
+      }
+      return Object.freeze({
+        component,
+        missingHostRequirements: Object.freeze(
+          missing as string[],
+        ),
+        ineligibleDependencies: decodeIdentityRefs(
+          entry.ineligibleDependencies,
+          `ineligible[${index}].ineligibleDependencies`,
+        ),
+      })
+    },
+  ))
+  const eligibleKeys = new Set(
+    eligible.map((entry) => `${entry.id}@${entry.version}`),
+  )
+  const ineligibleKeys = new Set(
+    ineligible.map(
+      (entry) => `${entry.component.id}@${entry.component.version}`,
+    ),
+  )
+  const configuredIndex = new Map<string, number>(
+    configured.map(
+      (entry, index) => [`${entry.id}@${entry.version}`, index] as const,
+    ),
+  )
+  if (
+    ineligibleKeys.size !== ineligible.length
+    || [...ineligibleKeys].some((key) => eligibleKeys.has(key))
+    || configuredKeys.size !== eligibleKeys.size + ineligibleKeys.size
+    || [...configuredKeys].some((key) =>
+      !eligibleKeys.has(key) && !ineligibleKeys.has(key))
+    || ineligible.some((entry) => {
+      const ownKey =
+        `${entry.component.id}@${entry.component.version}`
+      const ownIndex = configuredIndex.get(ownKey)
+      return entry.ineligibleDependencies.some((dependency) => {
+        const key = `${dependency.id}@${dependency.version}`
+        const dependencyIndex = configuredIndex.get(key)
+        return (
+          key === ownKey
+          || !ineligibleKeys.has(key)
+          || dependencyIndex === undefined
+          || ownIndex === undefined
+          || dependencyIndex >= ownIndex
+        )
+      })
+    })
+  ) {
+    throw new Error(
+      'eligible and ineligible entries must exactly partition configured components',
+    )
+  }
+  return Object.freeze({ requested, configured, eligible, ineligible })
+}
+
+/**
+ * The sole semantic codec for stable resolved architecture identity. Runtime
+ * construction and persisted hostile input both cross this boundary.
+ */
+export function admitResolvedArchitectureIdentity(
+  value: unknown,
+): ResolvedArchitectureIdentity | undefined {
+  const canonical = canonicalizeJson(
+    value,
+    MAX_RESOLVED_ARCHITECTURE_IDENTITY_JSON_BYTES,
+  )
+  if (!canonical.ok) return undefined
+  try {
+    const root = exactOwnDataRecord(canonical.payload, [
+      'base',
+      'componentContributions',
+      'components',
+      'configuredPipeline',
+      'decisionLayerOrder',
+      'executionMode',
+      'requiredHostInputs',
+      'scoreLayerOrder',
+      'version',
+    ])
+    const contributions = exactOwnDataRecord(
+      root?.componentContributions,
+      ['observerModel'],
+    )
+    if (
+      !root
+      || root.version !== RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
+      || !['compatibility', 'structured-only', 'hybrid'].includes(
+        String(root.executionMode),
+      )
+      || !contributions
+      || (
+        contributions.observerModel !== 'off'
+        && contributions.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+      )
+    ) {
+      return undefined
+    }
+    const components = decodeIdentityGraph(root.components)
+    const eligible = new Set(
+      components.eligible.map(
+        (entry) => `${entry.id}@${entry.version}`,
+      ),
+    )
+    const scoreLayerOrder = decodeIdentityRefs(
+      root.scoreLayerOrder,
+      'scoreLayerOrder',
+    )
+    const decisionLayerOrder = decodeIdentityRefs(
+      root.decisionLayerOrder,
+      'decisionLayerOrder',
+    )
+    if (
+      [...scoreLayerOrder, ...decisionLayerOrder].some((entry) =>
+        !eligible.has(`${entry.id}@${entry.version}`))
+    ) {
+      return undefined
+    }
+    const identity: ResolvedArchitectureIdentity = Object.freeze({
+      version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
+      executionMode: root.executionMode as
+        ResolvedArchitectureIdentity['executionMode'],
+      base: decodeIdentityBrain(root.base),
+      components,
+      componentContributions: Object.freeze({
+        observerModel: contributions.observerModel,
+      }),
+      requiredHostInputs: decodeIdentityHostInputs(
+        root.requiredHostInputs,
+      ),
+      scoreLayerOrder,
+      decisionLayerOrder,
+      configuredPipeline: freezeConfiguredPipeline(
+        root.configuredPipeline as ResolvedConfiguredPipeline,
+      ),
+    })
+    return resolvedArchitectureIdentityInvariants(identity)
+      ? identity
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function resolvedArchitectureIdentityDigest(
+  identity: ResolvedArchitectureIdentity,
+): string {
+  // The typed argument is the product of the architecture identity trust
+  // boundary. Downstream projection, joins, and grouping must not re-admit it.
+  return createHash('sha256')
+    .update(JSON.stringify(identity))
+    .digest('hex')
+}
+
+export function projectResolvedArchitectureIdentity(
+  descriptor: ResolvedArchitectureDescriptor,
+): ResolvedArchitectureIdentity {
+  const admitted = admitResolvedArchitectureIdentity({
+    version: descriptor.version,
+    executionMode: descriptor.executionMode,
+    base: descriptor.base,
+    components: descriptor.components,
+    componentContributions: descriptor.componentContributions,
+    requiredHostInputs: descriptor.requiredHostInputs,
+    scoreLayerOrder: descriptor.scoreLayerOrder,
+    decisionLayerOrder: descriptor.decisionLayerOrder,
+    configuredPipeline: descriptor.configuredPipeline,
+  })
+  if (!admitted) {
+    throw new Error('resolved architecture descriptor has invalid identity')
+  }
+  return admitted
+}
+
 /**
  * Private, data-only construction metadata for trusted diagnostics.
  * Migration-only compatibility configuration is deliberately absent, but
@@ -383,6 +825,7 @@ export function projectPrivateArchitectureDebug(
 ): PrivateArchitectureDebugProjection {
   return Object.freeze({
     version: descriptor.version,
+    executionMode: descriptor.executionMode,
     base: descriptor.base,
     components: descriptor.components,
     componentContributions: descriptor.componentContributions,
@@ -585,7 +1028,11 @@ export function resolveComposedBrain(
   ) {
     throw new Error('resolved component declares an unsupported observer model')
   }
-  const base = Object.freeze(resolveBrain(source))
+  const executionMode = config.executionMode ?? 'compatibility'
+  const base = Object.freeze({
+    ...resolveBrain(source),
+    mode: executionMode,
+  })
   const compatibility = freezeCompatibilityValue(
     config.compatibility ?? {},
     'compatibility',
@@ -620,8 +1067,9 @@ export function resolveComposedBrain(
       }
     }
   }
-  const description: ResolvedArchitectureDescriptor = Object.freeze({
+  const identity = admitResolvedArchitectureIdentity({
     version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
+    executionMode,
     base,
     components,
     componentContributions: Object.freeze({
@@ -634,6 +1082,12 @@ export function resolveComposedBrain(
     scoreLayerOrder,
     decisionLayerOrder,
     configuredPipeline: freezeConfiguredPipeline(config.configuredPipeline),
+  })
+  if (!identity) {
+    throw new Error('resolved architecture identity failed semantic admission')
+  }
+  const description: ResolvedArchitectureDescriptor = Object.freeze({
+    ...identity,
     migration: Object.freeze({ compatibility }),
   })
   return Object.freeze({

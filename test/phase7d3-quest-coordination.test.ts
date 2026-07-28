@@ -676,9 +676,6 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
       policy.designation = [policy.request.seat]
       policy.orderedVisibleEvilAboard = [policy.request.seat]
     },
-    (copy: typeof evilArtifact) => {
-      copy.strategyVersions!.evilQuestCardPolicies = []
-    },
   ]) {
     const forged = structuredClone(evilArtifact)
     mutate(forged)
@@ -687,6 +684,12 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
         .safety.traceAttributionViolations > 0,
     )
   }
+  const redundantFlatRelabel = structuredClone(evilArtifact)
+  redundantFlatRelabel.strategyVersions!.evilQuestCardPolicies = []
+  const descriptorOwned =
+    architectureReport([redundantFlatRelabel]).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 })
 
 test('target-only architecture runs cannot claim homogeneous exact evidence', async () => {

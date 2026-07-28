@@ -107,6 +107,19 @@ import {
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
 } from '../agents/analysis/morgana-role-utility.ts'
 import {
+  architectureIdentityDecisionPlan,
+  architectureIdentityVersions,
+  resolvedArchitectureIdentityTraceJoin,
+} from '../agents/components/architecture-metadata.ts'
+import {
+  exactOwnDataRecord as exactCurrentArchitectureRecord,
+} from '../agents/components/canonical-json.ts'
+import {
+  admitResolvedArchitectureIdentity,
+  resolvedArchitectureIdentityDigest,
+  type ResolvedArchitectureIdentity,
+} from '../agents/components/resolved-brain.ts'
+import {
   validateDecisionComponentPlan,
   type DecisionComponentPlan,
 } from '../agents/components/kernel.ts'
@@ -155,7 +168,8 @@ export interface ArchitectureSafetySummary {
 
 export interface ArchitectureComponentEvidenceSummary {
   trust:
-    | 'trusted-host-manifest'
+    | 'descriptor-host-manifest-admitted'
+    | 'legacy-host-manifest-admitted'
     | 'unverified-composed'
     | 'not-applicable'
   promotionEvidenceEligible: boolean
@@ -257,6 +271,7 @@ function isComposedArchitectureMode(value: unknown): boolean {
 interface GameObservation {
   artifact: GameArtifact
   meta: ArchitectureRunMetadata
+  architectureAdmission: ArtifactArchitectureAdmission
   won: boolean
   voteScore: number | null
   forced: number
@@ -358,7 +373,7 @@ function planOutcomeHostJoin(
   )
 }
 
-function exactOwnDataRecord(
+function legacyExactOwnDataRecord(
   value: unknown,
   expectedKeys: readonly string[],
 ): Readonly<Record<string, unknown>> | undefined {
@@ -426,19 +441,110 @@ function denseOwnDataArray(value: unknown): readonly unknown[] | undefined {
   return expected.map((key) => descriptors[key].value)
 }
 
-function artifactComponentPlans(
+type ArtifactArchitectureAdmission =
+  | Readonly<{
+      provenance: 'descriptor-host-manifest-admitted'
+      plan: DecisionComponentPlan
+      identity: ResolvedArchitectureIdentity
+    }>
+  | Readonly<{
+      provenance: 'legacy-host-manifest-admitted'
+      plan: DecisionComponentPlan
+    }>
+  | Readonly<{
+      provenance: 'historical-absent' | 'legacy-host-manifest-invalid'
+    }>
+  | Readonly<{
+      provenance: 'non-composed-host-metadata-admitted'
+      mode: 'raw-llm' | 'heuristic' | 'random' | 'external'
+    }>
+
+function artifactArchitectureAdmission(
   artifact: GameArtifact,
-): ReadonlyMap<number, DecisionComponentPlan> | undefined {
+): ArtifactArchitectureAdmission {
   try {
     const strategy = artifact.strategyVersions
-    const manifestDescriptor = strategy
+    const currentDescriptor = strategy
+      ? Object.getOwnPropertyDescriptor(strategy, 'resolvedArchitecture')
+      : undefined
+    if (currentDescriptor) {
+      if (
+        !Object.hasOwn(currentDescriptor, 'value')
+        || currentDescriptor.get !== undefined
+        || currentDescriptor.set !== undefined
+      ) {
+        throw new Error('current architecture manifest must be own data')
+      }
+      const current = exactCurrentArchitectureRecord(
+        currentDescriptor.value,
+        [
+        'identity',
+        'identityDigest',
+        'schema',
+        'targetSeat',
+        ],
+      )
+      const identity = admitResolvedArchitectureIdentity(current?.identity)
+      if (
+        !current
+        || current.schema !== 1
+        || current.targetSeat !== artifact.architecture?.targetSeat
+        || !identity
+        || current.identityDigest
+          !== resolvedArchitectureIdentityDigest(identity)
+      ) {
+        throw new Error('current architecture manifest is invalid')
+      }
+      return {
+        provenance: 'descriptor-host-manifest-admitted',
+        plan: architectureIdentityDecisionPlan(identity),
+        identity,
+      }
+    }
+    const legacy = admitLegacyHostComponentManifest(artifact)
+    if (
+      legacy.provenance === 'historical-absent'
+      && (
+        artifact.architecture?.components.mode === 'raw-llm'
+        || artifact.architecture?.components.mode === 'heuristic'
+        || artifact.architecture?.components.mode === 'random'
+        || artifact.architecture?.components.mode === 'external'
+      )
+    ) {
+      return {
+        provenance: 'non-composed-host-metadata-admitted',
+        mode: artifact.architecture.components.mode,
+      }
+    }
+    return legacy
+  } catch (error) {
+    if (
+      error instanceof Error
+      && error.message.startsWith('current architecture manifest')
+    ) {
+      throw error
+    }
+    return { provenance: 'legacy-host-manifest-invalid' }
+  }
+}
+
+/**
+ * Historical schema-1 adapter. Current descriptors never enter this reader
+ * and a current-manifest failure cannot fall back to it.
+ */
+function admitLegacyHostComponentManifest(
+  artifact: GameArtifact,
+): ArtifactArchitectureAdmission {
+  try {
+    const strategy = artifact.strategyVersions
+    const descriptor = strategy
       ? Object.getOwnPropertyDescriptor(strategy, 'decisionComponents')
       : undefined
-    const manifest = manifestDescriptor
-      && Object.hasOwn(manifestDescriptor, 'value')
-      ? manifestDescriptor.value
+    if (!descriptor) return { provenance: 'historical-absent' }
+    const manifest = Object.hasOwn(descriptor, 'value')
+      ? descriptor.value
       : undefined
-    const record = exactOwnDataRecord(manifest, ['schema', 'seats'])
+    const record = legacyExactOwnDataRecord(manifest, ['schema', 'seats'])
     const seats = denseOwnDataArray(record?.seats)
     if (
       !record
@@ -447,7 +553,7 @@ function artifactComponentPlans(
       || !seats.length
       || seats.length > artifact.playerCount
     ) {
-      return undefined
+      return { provenance: 'legacy-host-manifest-invalid' }
     }
     const plans = new Map<number, DecisionComponentPlan>()
     const normalizedSeats: Array<{
@@ -456,7 +562,7 @@ function artifactComponentPlans(
     }> = []
     let previousSeat = -1
     for (const candidate of seats) {
-      const entry = exactOwnDataRecord(candidate, ['plan', 'seat'])
+      const entry = legacyExactOwnDataRecord(candidate, ['plan', 'seat'])
       if (
         !entry
         || !Number.isInteger(entry.seat)
@@ -465,7 +571,7 @@ function artifactComponentPlans(
         || (entry.seat as number) <= previousSeat
         || !validateDecisionComponentPlan(entry.plan)
       ) {
-        return undefined
+        return { provenance: 'legacy-host-manifest-invalid' }
       }
       previousSeat = entry.seat as number
       plans.set(
@@ -483,33 +589,193 @@ function artifactComponentPlans(
         'utf8',
       ) > MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES
     ) {
-      return undefined
+      return { provenance: 'legacy-host-manifest-invalid' }
     }
-    return plans
+    const target = artifact.architecture?.targetSeat
+    const plan = target === undefined ? undefined : plans.get(target)
+    return plan
+      ? { provenance: 'legacy-host-manifest-admitted', plan }
+      : { provenance: 'legacy-host-manifest-invalid' }
   } catch {
-    return undefined
+    return { provenance: 'legacy-host-manifest-invalid' }
   }
 }
 
-function hasComponentManifestClaim(artifact: GameArtifact): boolean {
-  try {
-    const strategy = artifact.strategyVersions
-    if (!strategy) return false
-    const descriptor = Object.getOwnPropertyDescriptor(
-      strategy,
-      'decisionComponents',
-    )
-    if (!descriptor) return false
-    if (!Object.hasOwn(descriptor, 'value')) return true
-    return descriptor.value !== undefined
-  } catch {
-    return true
-  }
+function hasComponentManifestClaim(
+  admission: ArtifactArchitectureAdmission,
+): boolean {
+  return admission.provenance !== 'historical-absent'
+    && admission.provenance !== 'non-composed-host-metadata-admitted'
 }
 
-function architectureSafety(
+const PRIVATE_ARCHITECTURE_TELEMETRY =
+  /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/
+
+function currentArchitectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
+  admission: Extract<
+    ArtifactArchitectureAdmission,
+    { provenance: 'descriptor-host-manifest-admitted' }
+  >,
+): ArchitectureSafetySummary {
+  let hiddenInformationChecks = 1
+  let hiddenInformationViolations = PRIVATE_ARCHITECTURE_TELEMETRY.test(
+    JSON.stringify(
+      artifact.log.filter((event) => event.visibility === 'public'),
+    ),
+  ) ? 1 : 0
+  let traceAttributionChecks = 0
+  let traceAttributionViolations = 0
+  const traces = artifact.decisionTraces ?? []
+  let replay: AuthoritativeDecisionReplay | undefined
+  try {
+    replay = authoritativeDecisionReplay(
+      artifact,
+      meta.targetSeat,
+      traces,
+    )
+    traceAttributionChecks++
+    if (!exactTargetTraceCoverage(
+      replay.snapshots,
+      traces,
+      meta.targetSeat,
+    )) {
+      traceAttributionViolations++
+    }
+  } catch {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  const planCoherenceEnabled =
+    admission.identity.configuredPipeline.planCoherence.memory !== 'off'
+    && admission.identity.configuredPipeline.planCoherence.model !== 'off'
+  for (const trace of traces) {
+    traceAttributionChecks++
+    const snapshot = replay?.snapshots.get(trace.decisionId)
+    const selectedDecision =
+      trace.privatePlanOutcome?.selected?.decision
+      ?? snapshot?.original
+    const planAttributionValid = planCoherenceEnabled
+      ? (
+          trace.componentVersions?.planMemory
+            === admission.identity.configuredPipeline.planCoherence.memory
+          && trace.componentVersions?.coherence
+            === admission.identity.configuredPipeline.planCoherence.model
+          && trace.coherenceIntent
+            === admission.identity.configuredPipeline.planCoherence.intent
+          && !!snapshot
+          && decisionTraceReplayJoin(snapshot, trace)
+          && (
+            trace.privatePlanOutcome === undefined
+              ? trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+              : (
+                  !!replay
+                  && planOutcomeHostJoin(artifact, replay, trace)
+                  && isDeepStrictEqual(
+                    trace.privatePlanOutcome.request,
+                    trace.request,
+                  )
+                  && isDeepStrictEqual(
+                    trace.privatePlanOutcome.appliedDecision,
+                    trace.action,
+                  )
+                )
+          )
+        )
+      : (
+          trace.privatePlanOutcome === undefined
+          && trace.componentVersions?.planMemory === undefined
+          && trace.componentVersions?.coherence === undefined
+          && trace.coherenceIntent === undefined
+          && !trace.degradation.includes(APPLIED_OUTCOME_DEGRADATION)
+        )
+    if (
+      trace.viewerSeat !== meta.targetSeat
+      || !snapshot
+      || !selectedDecision
+      || !planAttributionValid
+      || !resolvedArchitectureIdentityTraceJoin(
+        admission.identity,
+        trace,
+      )
+      || !validateComposedTraceHostJoin({
+        trace,
+        req: snapshot.req,
+        view: snapshot.view,
+        authoritativeAction: snapshot.original,
+        selectedDecision,
+        deterministicSeed: artifact.seed,
+        expectComponentTrace: true,
+        expectedComponentPlan: admission.plan,
+      })
+    ) {
+      traceAttributionViolations++
+    }
+    const speech = publicSpeech(trace)
+    if (!speech) continue
+    hiddenInformationChecks++
+    const intent = trace.communicationIntent
+    const numericSecrets = [
+      ...(intent?.uncertainty
+        ? Object.values(intent.uncertainty)
+            .filter(
+              (value): value is number =>
+                typeof value === 'number'
+                && Number.isFinite(value)
+                && !Number.isInteger(value),
+            )
+            .map(String)
+        : []),
+      ...((trace.beliefPlayerMarginals ?? [])
+        .flatMap((marginal) => [
+          marginal.goodProbability,
+          marginal.evilProbability,
+        ])
+        .filter((value) => !Number.isInteger(value))
+        .map(String)),
+    ]
+    const forbidden = [
+      trace.beliefModelVersion,
+      'role-composite-decision',
+      ...trace.topHypotheses.map((hypothesis) => hypothesis.worldKey),
+      ...(intent?.conceal ?? []),
+      ...numericSecrets,
+    ].filter((value) => value.length > 0)
+    if (forbidden.some((value) => speech.includes(value))) {
+      hiddenInformationViolations++
+    }
+  }
+  const genericEvidence = traces.length > 0 && traces.every((trace) =>
+    trace.components !== undefined)
+  return {
+    hiddenInformationChecks,
+    hiddenInformationViolations,
+    traceAttributionChecks,
+    traceAttributionViolations,
+    promotionEvidenceEligible: (
+      genericEvidence
+      && traces.every((trace) =>
+        trace.components?.entries.every((entry) =>
+          entry.status !== 'degraded'
+          && (
+            entry.status !== 'admitted'
+            || entry.promotionEligible
+          )) === true)
+      && hiddenInformationViolations === 0
+      && traceAttributionViolations === 0
+    ),
+  }
+}
+
+/**
+ * Historical compatibility reader for schema-1 manifests and absent
+ * manifests. Current descriptor evidence never enters this role-aware path.
+ */
+function legacyArchitectureSafety(
+  artifact: GameArtifact,
+  meta: ArchitectureRunMetadata,
+  architectureAdmission: ArtifactArchitectureAdmission,
 ): ArchitectureSafetySummary {
   let hiddenInformationChecks = 1
   let hiddenInformationViolations = 0
@@ -518,22 +784,23 @@ function architectureSafety(
   const publicLog = JSON.stringify(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
-  if (
-    /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
-      publicLog,
-    )
-  ) {
+  if (PRIVATE_ARCHITECTURE_TELEMETRY.test(publicLog)) {
     hiddenInformationViolations++
   }
   const traces = artifact.decisionTraces ?? []
-  const componentManifestClaim = hasComponentManifestClaim(artifact)
+  const componentManifestClaim = hasComponentManifestClaim(
+    architectureAdmission,
+  )
   const hostRequiresComponentEvidence = isComposedArchitectureMode(
     meta.components.mode,
   )
-  const componentPlans = artifactComponentPlans(artifact)
-  const validComponentManifest = componentPlans !== undefined
+  const validComponentManifest =
+    architectureAdmission.provenance
+      === 'descriptor-host-manifest-admitted'
+    || architectureAdmission.provenance
+      === 'legacy-host-manifest-admitted'
   const expectedComponentPlan: DecisionComponentPlan | undefined =
-    componentPlans?.get(meta.targetSeat)
+    validComponentManifest ? architectureAdmission.plan : undefined
   const genericComponentClaim = traces.some((trace) =>
     trace.version === COMPONENT_DECISION_TRACE_VERSION
     || trace.componentPlan !== undefined
@@ -1554,6 +1821,9 @@ function architectureSafety(
     ...(componentEvidenceApplicable
       ? {
           promotionEvidenceEligible: (
+            architectureAdmission.provenance
+              === 'descriptor-host-manifest-admitted'
+            &&
             expectedComponentPlan !== undefined
             && genericComponentClaim
             && traces.every((trace) =>
@@ -1572,9 +1842,20 @@ function architectureSafety(
   }
 }
 
+function architectureSafety(
+  artifact: GameArtifact,
+  meta: ArchitectureRunMetadata,
+  admission: ArtifactArchitectureAdmission,
+): ArchitectureSafetySummary {
+  return admission.provenance === 'descriptor-host-manifest-admitted'
+    ? currentArchitectureSafety(artifact, meta, admission)
+    : legacyArchitectureSafety(artifact, meta, admission)
+}
+
 function observe(a: GameArtifact): GameObservation {
   const meta = a.architecture
   if (!meta) throw new Error(`artifact ${a.id} has no architecture metadata`)
+  const architectureAdmission = artifactArchitectureAdmission(a)
   const player = a.players[meta.targetSeat]
   if (!player || player.role !== meta.targetRole) {
     throw new Error(`${a.id}: architecture target seat/role does not match the archived deal`)
@@ -1722,6 +2003,7 @@ function observe(a: GameArtifact): GameObservation {
   return {
     artifact: a,
     meta,
+    architectureAdmission,
     won: player.alignment === a.winner,
     voteScore: seatMetrics.voteScore,
     forced: seatMetrics.forcedPlayViolations,
@@ -1744,7 +2026,7 @@ function observe(a: GameArtifact): GameObservation {
     proposalPosteriorRegrets,
     voteUtilityRegrets,
     latencyMs,
-    safety: architectureSafety(a, meta),
+    safety: architectureSafety(a, meta, architectureAdmission),
   }
 }
 
@@ -1966,11 +2248,14 @@ function safety(
 function componentEvidence(
   games: readonly GameObservation[],
 ): ArchitectureComponentEvidenceSummary {
-  const trusted = games.every((game) =>
-    artifactComponentPlans(game.artifact)?.has(game.meta.targetSeat) === true)
+  const admissions = games.map((game) => game.architectureAdmission)
+  const current = admissions.every((admission) =>
+    admission.provenance === 'descriptor-host-manifest-admitted')
+  const legacy = admissions.every((admission) =>
+    admission.provenance === 'legacy-host-manifest-admitted')
   const hasComposedClaim = games.some((game) =>
     isComposedArchitectureMode(game.meta.components.mode)
-    || hasComponentManifestClaim(game.artifact)
+    || hasComponentManifestClaim(game.architectureAdmission)
     || (game.artifact.decisionTraces ?? []).some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
@@ -1985,8 +2270,10 @@ function componentEvidence(
   const policyUses = traces.flatMap((trace) =>
     trace.components?.policyUse ?? [])
   return {
-    trust: trusted
-      ? 'trusted-host-manifest'
+    trust: current
+      ? 'descriptor-host-manifest-admitted'
+      : legacy
+        ? 'legacy-host-manifest-admitted'
       : hasComposedClaim
         ? 'unverified-composed'
         : 'not-applicable',
@@ -1994,9 +2281,10 @@ function componentEvidence(
       (game) => game.safety.promotionEvidenceEligible === true,
     ),
     decisions: traces.filter((trace) => trace.components !== undefined).length,
-    configured: artifactComponentPlans(
-      games[0].artifact,
-    )?.get(games[0].meta.targetSeat)?.configured.length ?? 0,
+    configured: (
+      admissions[0].provenance === 'descriptor-host-manifest-admitted'
+      || admissions[0].provenance === 'legacy-host-manifest-admitted'
+    ) ? admissions[0].plan.configured.length : 0,
     admitted: entries.filter((entry) => entry.status === 'admitted').length,
     inapplicable: entries.filter(
       (entry) => entry.status === 'inapplicable',
@@ -2045,26 +2333,47 @@ function observationPromotionEvidenceEligible(
 }
 
 function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVariantSummary {
-  const componentKeys = games.map((g) => JSON.stringify(g.meta.components))
+  const architectureAdmissions = games.map(
+    (game) => game.architectureAdmission,
+  )
+  const reportComponents = architectureAdmissions.map(
+    (admission, index) =>
+      admission.provenance === 'descriptor-host-manifest-admitted'
+        ? architectureIdentityVersions(admission.identity)
+        : games[index].meta.components,
+  )
+  const componentKeys = architectureAdmissions.map(
+    (admission, index) =>
+      admission.provenance === 'descriptor-host-manifest-admitted'
+        ? `identity:${resolvedArchitectureIdentityDigest(
+            admission.identity,
+          )}`
+        : `legacy:${JSON.stringify(reportComponents[index])}`,
+  )
   if (new Set(componentKeys).size !== 1) {
     throw new Error(`variant ${id} has inconsistent component versions`)
   }
-  const decisionComponentPlans = games.map(
-    (game) => JSON.stringify(
-      artifactComponentPlans(game.artifact)?.get(game.meta.targetSeat),
-    ),
-  )
+  const decisionComponentPlans = architectureAdmissions.map(
+    (admission) => JSON.stringify(
+      admission.provenance === 'descriptor-host-manifest-admitted'
+        || admission.provenance === 'legacy-host-manifest-admitted'
+        ? admission.plan
+        : undefined,
+    ))
   if (new Set(decisionComponentPlans).size !== 1) {
     throw new Error(
       `variant ${id} has inconsistent decision component manifests`,
     )
   }
-  const decisionComponentPlan = artifactComponentPlans(
-    games[0].artifact,
-  )?.get(games[0].meta.targetSeat)
+  const firstAdmission = architectureAdmissions[0]
+  const decisionComponentPlan =
+    firstAdmission.provenance === 'descriptor-host-manifest-admitted'
+    || firstAdmission.provenance === 'legacy-host-manifest-admitted'
+      ? firstAdmission.plan
+      : undefined
   const hasComponentEvidence = games.some((game) =>
     isComposedArchitectureMode(game.meta.components.mode)
-    || hasComponentManifestClaim(game.artifact)
+    || hasComponentManifestClaim(game.architectureAdmission)
     || (game.artifact.decisionTraces ?? []).some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
@@ -2082,7 +2391,7 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
 
   return {
     id,
-    components: { ...games[0].meta.components },
+    components: { ...reportComponents[0] },
     ...(decisionComponentPlan
       ? {
           decisionComponents: decisionComponentPlan.configured.map(

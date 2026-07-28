@@ -94,6 +94,25 @@ async function trustedArtifact(): Promise<GameArtifact> {
   return structuredClone(await trustedFixture)
 }
 
+function asLegacyArtifact(artifact: GameArtifact): GameArtifact {
+  const legacy = structuredClone(artifact)
+  const current = legacy.strategyVersions!.resolvedArchitecture!
+  legacy.strategyVersions!.decisionComponents = {
+    schema: 1,
+    seats: [{
+      seat: current.targetSeat,
+      plan: {
+        version: DECISION_COMPONENT_PLAN_VERSION,
+        configured: structuredClone(
+          current.identity.components.configured,
+        ),
+      },
+    }],
+  }
+  delete legacy.strategyVersions!.resolvedArchitecture
+  return legacy
+}
+
 function summary(artifact: GameArtifact) {
   return architectureReport([artifact]).variants[0]
 }
@@ -110,40 +129,44 @@ function assertDiagnosticRejection(artifact: GameArtifact): void {
 test('trusted target-seat manifest drives the generic evaluation view', async () => {
   const artifact = await trustedArtifact()
   const targetSeat = artifact.architecture!.targetSeat
-  const manifest = artifact.strategyVersions!.decisionComponents!
+  const manifest = artifact.strategyVersions!.resolvedArchitecture!
   assert.equal(manifest.schema, 1)
-  assert.deepEqual(
-    manifest.seats.map((entry) => entry.seat),
-    [targetSeat],
-  )
-  assert.ok(validateDecisionComponentPlan(manifest.seats[0].plan))
+  assert.equal(manifest.targetSeat, targetSeat)
+  const plan = {
+    version: DECISION_COMPONENT_PLAN_VERSION,
+    configured: manifest.identity.components.configured,
+  }
+  assert.ok(validateDecisionComponentPlan(plan))
   assert.ok(artifact.decisionTraces!.every(
     (trace) =>
       trace.viewerSeat === targetSeat
       && trace.version === COMPONENT_DECISION_TRACE_VERSION
       && JSON.stringify(trace.componentPlan)
-        === JSON.stringify(manifest.seats[0].plan),
+        === JSON.stringify(plan),
   ))
 
   const result = summary(artifact)
   assert.equal(result.safety.traceAttributionViolations, 0)
   assert.equal(result.safety.hiddenInformationViolations, 0)
   assert.equal(result.safety.promotionEvidenceEligible, true)
-  assert.equal(result.componentEvidence.trust, 'trusted-host-manifest')
+  assert.equal(
+    result.componentEvidence.trust,
+    'descriptor-host-manifest-admitted',
+  )
   assert.equal(
     result.componentEvidence.promotionEvidenceEligible,
     true,
   )
   assert.deepEqual(
     result.decisionComponents,
-    manifest.seats[0].plan.configured.map(
+    plan.configured.map(
       (component) => `${component.id}@${component.version}`,
     ),
   )
 })
 
 test('manifest faults remain readable and make component evidence ineligible', async () => {
-  const baseline = await trustedArtifact()
+  const baseline = asLegacyArtifact(await trustedArtifact())
   const targetSeat = baseline.architecture!.targetSeat
   const plan = baseline.strategyVersions!.decisionComponents!
     .seats[0].plan
@@ -212,7 +235,7 @@ test('manifest faults remain readable and make component evidence ineligible', a
 })
 
 test('trusted manifest rejects coherent and partial trace graph rewrites', async () => {
-  const baseline = await trustedArtifact()
+  const baseline = asLegacyArtifact(await trustedArtifact())
   const applicable = (artifact: GameArtifact) =>
     artifact.decisionTraces!.find((trace) =>
       trace.components?.policyUse.some((use) => use.used))!
@@ -297,7 +320,7 @@ test('trusted manifest rejects coherent and partial trace graph rewrites', async
 })
 
 test('historical traces stay diagnostic without gaining trusted promotion', async () => {
-  const baseline = await trustedArtifact()
+  const baseline = asLegacyArtifact(await trustedArtifact())
 
   const preB4 = structuredClone(baseline)
   delete preB4.strategyVersions!.decisionComponents
@@ -444,7 +467,7 @@ test('generic degradation is diagnostic and never promotion evidence', async () 
 })
 
 test('plan validator rejects hostile bounds and object shapes', async () => {
-  const artifact = await trustedArtifact()
+  const artifact = asLegacyArtifact(await trustedArtifact())
   const plan = artifact.strategyVersions!.decisionComponents!
     .seats[0].plan
   assert.ok(validateDecisionComponentPlan(plan))

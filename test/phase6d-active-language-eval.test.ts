@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
+  LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
   LANGUAGE_WEIGHTED_BELIEF_VERSION,
 } from '../server/agents/belief/language-factor.ts'
 import {
@@ -19,6 +20,7 @@ import {
 import {
   activeLanguageEvaluationVariant,
   ACTIVE_LANGUAGE_EVALUATION_PIPELINE,
+  ACTIVE_LANGUAGE_EVALUATION_INTERPRETER_VERSION,
   type ActiveLanguageEvaluationStats,
 } from '../server/eval/active-language-bank.ts'
 import {
@@ -155,6 +157,23 @@ test('active public-dialogue bank exercises mixed belief snapshots for free', as
   assert.equal(summary.degraded, 0)
   assert.equal(summary.safety.hiddenInformationViolations, 0)
   assert.equal(summary.safety.traceAttributionViolations, 0)
+  assert.equal(
+    summary.components.mechanicalBelief,
+    EXACT_BELIEF_MODEL_VERSION,
+  )
+  assert.equal(
+    summary.components.beliefPipeline,
+    ACTIVE_LANGUAGE_EVALUATION_PIPELINE,
+  )
+  assert.equal(summary.components.factors, LANGUAGE_FACTOR_BUNDLE_VERSION)
+  assert.equal(
+    summary.components.languageInterpreter,
+    ACTIVE_LANGUAGE_EVALUATION_INTERPRETER_VERSION,
+  )
+  assert.equal(
+    summary.components.languageFactor,
+    LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
+  )
   assertWallClockBelow(
     summary.latency.p95Ms ?? Infinity,
     1_000,
@@ -183,20 +202,15 @@ test('active public-dialogue evaluation replays deterministically', async () => 
   assert.deepEqual(first.strategyVersions, second.strategyVersions)
 })
 
-test('report catches forged stable pipeline, actual belief, and declarations', async () => {
+test('report binds configured identity by digest and actual belief separately', async () => {
   const [artifact] = await activeRun()
   const firstTrace = artifact.decisionTraces?.[0]
   assert.ok(firstTrace?.componentVersions)
 
-  const forgedMechanical = structuredClone(artifact)
-  forgedMechanical.decisionTraces![0].componentVersions!.mechanicalBelief =
-    'forged-mechanical-v1'
-  assert.ok(attributedViolations(forgedMechanical) > 0)
-
-  const forgedPipeline = structuredClone(artifact)
-  forgedPipeline.decisionTraces![0].componentVersions!.beliefPipeline =
-    'forged-pipeline-v1'
-  assert.ok(attributedViolations(forgedPipeline) > 0)
+  const forgedIdentity = structuredClone(artifact)
+  forgedIdentity.decisionTraces![0].architectureIdentityDigest =
+    '0'.repeat(64)
+  assert.ok(attributedViolations(forgedIdentity) > 0)
 
   const forgedActual = structuredClone(artifact)
   forgedActual.decisionTraces![0].componentVersions!.belief =
@@ -206,7 +220,13 @@ test('report catches forged stable pipeline, actual belief, and declarations', a
   const forgedDeclaration = structuredClone(artifact)
   forgedDeclaration.architecture!.components.beliefPipeline =
     'forged-declared-pipeline-v1'
-  assert.ok(attributedViolations(forgedDeclaration) > 0)
+  const canonical = architectureReport([forgedDeclaration]).variants[0]
+  assert.equal(canonical.safety.traceAttributionViolations, 0)
+  assert.equal(canonical.safety.promotionEvidenceEligible, true)
+  assert.equal(
+    canonical.components.beliefPipeline,
+    ACTIVE_LANGUAGE_EVALUATION_PIPELINE,
+  )
 })
 
 test('bench requires truthful stable declarations for active language', async () => {

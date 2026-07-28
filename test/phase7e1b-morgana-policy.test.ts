@@ -1007,10 +1007,9 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
   )
   const forgedManifest = structuredClone([morganaArtifact])
   delete forgedManifest[0].strategyVersions!.morganaRoleUtilities
-  assert.ok(
-    architectureReport(forgedManifest).variants[0]
-      .safety.traceAttributionViolations > 0,
-  )
+  const descriptorOwned = architectureReport(forgedManifest).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 
   const storedForgery = structuredClone([morganaArtifact])
   const storedArtifact = storedForgery[0]

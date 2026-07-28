@@ -1109,10 +1109,9 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
 
   const forgedManifest = structuredClone(evilArtifact)
   delete forgedManifest.strategyVersions!.evilRoleUtilities
-  assert.ok(
-    architectureReport([forgedManifest]).variants[0]
-      .safety.traceAttributionViolations > 0,
-  )
+  const descriptorOwned = architectureReport([forgedManifest]).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 
   const generationForgery: ArchitectureVariant = {
     ...variant,

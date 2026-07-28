@@ -349,6 +349,8 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
   delete optedLegacy.trace!.componentPlan
   delete offLegacy.trace!.componentVersions!.decisionComponents
   delete optedLegacy.trace!.componentVersions!.decisionComponents
+  delete offLegacy.trace!.architectureIdentityDigest
+  delete optedLegacy.trace!.architectureIdentityDigest
   offLegacy.trace!.version = 'decision-trace-v1'
   optedLegacy.trace!.version = 'decision-trace-v1'
   assert.deepEqual(optedLegacy, offLegacy)
@@ -804,10 +806,9 @@ test('artifact and architecture admission distinguish configured from applicable
   )
   const noManifest = structuredClone(artifact)
   delete noManifest.strategyVersions!.roleObjectives
-  assert.ok(
-    architectureReport([noManifest]).variants[0]
-      .safety.traceAttributionViolations > 0,
-  )
+  const descriptorOwned = architectureReport([noManifest]).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
   const forged = structuredClone(artifact)
   forged.decisionTraces![0].privateRoleObjective!.request.round += 1
   assert.ok(

@@ -1156,10 +1156,10 @@ test('artifact and report attribute only the trusted generic native graph', asyn
     cases: [architectureCase],
     bankId: 'phase7e2a-native',
   })
-  const plan = artifact.strategyVersions?.decisionComponents
-    ?.seats[0].plan
+  const configured = artifact.strategyVersions?.resolvedArchitecture
+    ?.identity.components.configured
   assert.deepEqual(
-    plan?.configured.map((component) => component.id),
+    configured?.map((component) => component.id),
     [ACTOR_TARGET_TREATMENT_COMPONENT.id, MORDRED_BLINDNESS_COMPONENT.id],
   )
   assert.deepEqual(
@@ -1176,7 +1176,10 @@ test('artifact and report attribute only the trusted generic native graph', asyn
   )
   const report = architectureReport([artifact])
   const componentEvidence = report.variants[0].componentEvidence
-  assert.equal(componentEvidence.trust, 'trusted-host-manifest')
+  assert.equal(
+    componentEvidence.trust,
+    'descriptor-host-manifest-admitted',
+  )
   assert.equal(componentEvidence.promotionEvidenceEligible, true)
   assert.equal(componentEvidence.configured, 2)
   assert.deepEqual(
@@ -1190,6 +1193,6 @@ test('artifact and report attribute only the trusted generic native graph', asyn
   assert.equal(componentEvidence.policyStages, 0)
   assert.match(
     renderArchitectureReport(report),
-    /trusted-host-manifest, promotion-eligible/,
+    /descriptor-host-manifest-admitted, promotion-eligible/,
   )
 })

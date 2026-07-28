@@ -723,10 +723,9 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
 
   const forgedRouter = structuredClone(evilArtifact)
   delete forgedRouter.strategyVersions!.roleObjectiveRouters
-  assert.ok(
-    architectureReport([forgedRouter]).variants[0]
-      .safety.traceAttributionViolations > 0,
-  )
+  const descriptorOwned = architectureReport([forgedRouter]).variants[0]
+  assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
+  assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 
   const mordredArtifact = artifacts.find(
     (artifact) => artifact.architecture!.targetRole === 'mordred',

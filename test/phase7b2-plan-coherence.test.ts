@@ -1287,6 +1287,16 @@ test('artifacts, architecture bench, and report bind finalized plan attribution 
   delete historicalOff.architecture!.components.coherenceIntent
   delete historicalOff.strategyVersions!.planMemories
   delete historicalOff.strategyVersions!.coherences
+  historicalOff.strategyVersions!.decisionComponents = {
+    schema: 1,
+    seats: [{
+      seat: historicalOff.architecture!.targetSeat,
+      plan: structuredClone(
+        historicalOff.decisionTraces![0].componentPlan!,
+      ),
+    }],
+  }
+  delete historicalOff.strategyVersions!.resolvedArchitecture
   for (const trace of historicalOff.decisionTraces ?? []) {
     delete trace.componentVersions!.planMemory
     delete trace.componentVersions!.coherence

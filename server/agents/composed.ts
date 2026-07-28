@@ -67,7 +67,9 @@ import {
 import {
   applyBoundedLanguageEvidence,
   boundedLanguageLikelihoodFactor,
+  combinedLanguageFactorBundleVersion,
   LANGUAGE_FACTOR_BUNDLE_VERSION,
+  languageBeliefPipelineVersion,
   type LanguageLikelihoodFactor,
 } from './belief/language-factor.ts'
 import {
@@ -105,7 +107,9 @@ import {
   createProductionComponentRegistry,
 } from './components/production-registry.ts'
 import {
+  projectResolvedArchitectureIdentity,
   resolveComposedBrain,
+  resolvedArchitectureIdentityDigest,
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
 import type { ComponentRef } from './components/types.ts'
@@ -775,6 +779,7 @@ function composedTrace(
   componentPlan: DecisionComponentPlan,
   decisionComponents: DecisionComponentRun,
   descriptor: ResolvedComposedBrain['description'],
+  architectureIdentityDigest: string,
   agentMode: AgentExecutionMode,
   communication: DecisionPlan['communication'],
   plannerCandidateId?: string,
@@ -850,6 +855,7 @@ function composedTrace(
       ]),
     ],
     agentMode,
+    architectureIdentityDigest,
     componentVersions: {
       ...baseVersions.prefix,
       ...(identityEnabled
@@ -963,12 +969,6 @@ function composedTrace(
         }
       : {}),
   }
-}
-
-function combinedFactorBundle(mechanical: string): string {
-  return mechanical === 'off'
-    ? LANGUAGE_FACTOR_BUNDLE_VERSION
-    : `${mechanical}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`
 }
 
 function resolveRolePolicyScorer(input: {
@@ -1139,6 +1139,11 @@ export function createComposedAgent(
     hostCapabilities: [],
     scoreLayerOrder: [],
     decisionLayerOrder: [],
+    executionMode: planner
+      ? 'hybrid'
+      : scorer.version === CANDIDATE_SCORER_VERSION
+        ? 'compatibility'
+        : 'structured-only',
     configuredPipeline: {
       belief: {
         model: beliefModel.version,
@@ -1209,6 +1214,9 @@ export function createComposedAgent(
       },
     },
   }, componentRegistry)
+  const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
+    projectResolvedArchitectureIdentity(resolvedBrain.description),
+  )
   const configuredComponentPlan = decisionComponentPlan(resolvedBrain)
   const requiredHostInputKeys = new Set(
     resolvedBrain.description.requiredHostInputs.map(
@@ -1434,8 +1442,9 @@ export function createComposedAgent(
             {
               belief: resolvedBelief,
               mechanicalBelief: beliefModel.version,
-              beliefPipeline:
-                `${beliefModel.version}+${LANGUAGE_FACTOR_BUNDLE_VERSION}`,
+              beliefPipeline: languageBeliefPipelineVersion(
+                beliefModel.version,
+              ),
               languageEvidence: language.trace.interpreterVersion,
               languageReads: language.reads,
               languageCursor: language.cursor,
@@ -2107,6 +2116,7 @@ export function createComposedAgent(
           configuredComponentPlan,
           decisionComponents,
           resolvedBrain.description,
+          architectureIdentityDigest,
           activePlanner
             ? 'hybrid'
             : scorerVersion === CANDIDATE_SCORER_VERSION
@@ -2116,7 +2126,9 @@ export function createComposedAgent(
           plannerCandidateId,
           plannerReasonCodes,
           interpreter
-            ? combinedFactorBundle(beliefModel.factorsVersion)
+            ? combinedLanguageFactorBundleVersion(
+                beliefModel.factorsVersion,
+              )
             : beliefModel.factorsVersion,
           languageTrace,
           legacyPublicObserverApplicable,

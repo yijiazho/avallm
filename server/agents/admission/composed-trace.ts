@@ -1953,16 +1953,18 @@ function validForcedPolicyResult(
   )
 }
 
-function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
+function validBeliefVersionRelation(trace: TraceValidationInput): boolean {
   const components = trace.componentVersions as
     | Record<string, unknown>
     | undefined
-  if (
-    components
-    && components.belief !== trace.beliefModelVersion
-  ) {
-    return false
-  }
+  return !components || components.belief === trace.beliefModelVersion
+}
+
+function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
+  if (!validBeliefVersionRelation(trace)) return false
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
   const provenance = trace.beliefProvenance as
     | Array<Record<string, unknown>>
     | undefined
@@ -3495,6 +3497,13 @@ function validDecisionTrace(
       || agentModes.includes(trace.agentMode as AgentExecutionMode)
     )
     && (
+      trace.architectureIdentityDigest === undefined
+      || (
+        typeof trace.architectureIdentityDigest === 'string'
+        && /^[0-9a-f]{64}$/.test(trace.architectureIdentityDigest)
+      )
+    )
+    && (
       trace.statedReasoning === undefined
       || typeof trace.statedReasoning === 'string'
     )
@@ -3619,6 +3628,7 @@ export function validateComposedTraceHostJoin(input: {
       || !isDeepStrictEqual(trace.request, req)
       || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
+      || !validBeliefVersionRelation(trace)
       || !validGenericRoleComponents(trace, view)
       || !validGenericRoleComponentsHostJoin(
         trace,
