@@ -35,8 +35,11 @@ No key? Everything except the LLM bots still works, and the headless tools below
 The engine is pure and deterministic, so a whole game can run without a browser or an API key. This is the fast path for development, and for measuring how the bots actually do.
 
 ```
-npm test                                # full test suite, no API needed
+npm test                                # full verification, no API needed
 npm run typecheck                       # strict no-emit check of server/**/*.ts
+npm run verify:quick                    # types, lane inventory, and fast tests
+npm run verify:contract                 # quick gates plus architecture contracts
+npm run verify:full                     # types, inventory, and complete API-free suite
 npm run test:fast                       # ordinary developer loop (about 3 seconds)
 npm run test:contract                   # architecture and boundary contracts
 npm run test:eval                       # fixtures, reports, and evaluation tooling
@@ -51,8 +54,11 @@ npm run play                            # play from the terminal against heurist
 Every `test/*.test.ts` file belongs to exactly one lane. `npm run
 test:lanes` checks that classification and fails when a new test has not been
 assigned. The fast, contract, eval, and exhaustive lanes keep performance
-budgets dormant. `npm test` runs all correctness tests and then the isolated,
-serial performance lane; `test:perf` runs that lane directly.
+budgets dormant. `npm test` first checks strict types and lane classification,
+then runs all correctness tests and the isolated, serial performance lane;
+`test:perf` runs that lane directly. Use
+`verify:quick` while editing, `verify:contract` before handing off architecture
+work, and `verify:full` before landing.
 
 ## How it's built
 

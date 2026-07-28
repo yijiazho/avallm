@@ -54,6 +54,7 @@ const LANES = Object.freeze({
     'talk-norms.test.ts',
     'transcript.test.ts',
     'user-copy.test.ts',
+    'verify-funnel.test.ts',
     'vote-lean.test.ts',
   ]),
   contract: Object.freeze([

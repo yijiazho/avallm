@@ -10,8 +10,11 @@ AvaLLM — a web implementation of The Resistance: Avalon where the other player
 
 ```
 npm ci                                     # root dev tooling only; production server remains zero-dependency
-npm test                                   # all tests (node:test, no API key or network needed)
+npm test                                   # strict checks and all API-free tests
 npm run typecheck                          # strict no-emit check of all server TypeScript
+npm run verify:quick                       # types, lane inventory, and fast tests
+npm run verify:contract                    # quick gates plus architecture contracts
+npm run verify:full                        # types, inventory, and complete API-free suite
 npm run test:fast                          # short developer feedback lane
 npm run test:contract                      # architecture and boundary contracts
 npm run test:eval                          # evaluation tooling and fixture contracts
