@@ -29,3 +29,15 @@ export interface PublicObserverSnapshot {
   entropy: number
   seats: readonly PublicObserverSeatAssessment[]
 }
+
+export interface PublicJointTeamAssessment {
+  team: readonly Seat[]
+  probabilitySemantics: 'public-preaction-uniform-feasible-joint'
+  cleanProbability: number
+  evilCountDistribution: readonly number[]
+}
+
+export interface PublicAlignmentMaskCount {
+  mask: number
+  count: number
+}

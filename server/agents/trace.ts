@@ -18,6 +18,7 @@ import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
+import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-types.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -81,6 +82,8 @@ export interface DecisionTrace {
     planMemory?: string
     /** Absent means literal commitment coherence is off. */
     coherence?: string
+    /** Absent means Merlin/Percival role-objective analysis is off. */
+    roleObjective?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -112,6 +115,8 @@ export interface DecisionTrace {
   publicObserver?: PublicObserverSnapshot
   /** Bounded private identity output, absent unless explicitly enabled. */
   privateIdentity?: PrivateIdentitySnapshot
+  /** Private mechanically inert Merlin/Percival objective output. */
+  privateRoleObjective?: PrivateRoleObjectiveSnapshot
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */

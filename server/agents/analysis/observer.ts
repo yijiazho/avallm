@@ -18,6 +18,8 @@ import {
   PUBLIC_BEHAVIOR_READING_VERSION,
   PUBLIC_OBSERVER_MODEL_VERSION,
   type PublicBehaviorReading,
+  type PublicJointTeamAssessment,
+  type PublicAlignmentMaskCount,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
 
@@ -31,6 +33,8 @@ const exactProjectionCache = new Map<string, {
     evilProbability: number
     roleMarginals: readonly { role: Role; probability: number }[]
   }[]
+  /** Compact public-only alignment histogram; never serialized. */
+  evilMaskCounts: readonly { mask: number; count: number }[]
 }>()
 
 function exactCacheKey(record: PublicRecord): string {
@@ -61,6 +65,7 @@ function exactProjection(record: PublicRecord) {
   }
 
   const questEvidence = questFailEvidenceFromQuests(record.quests)
+  const evilMaskCounts = new Map<number, number>()
   const joint = projectUniformJointWorlds(
     record.playerCount,
     record.rolesInPlay,
@@ -70,7 +75,15 @@ function exactProjection(record: PublicRecord) {
         rolesInPlay: record.rolesInPlay,
       },
       (world) => {
-        if (worldSatisfiesQuestEvidence(world, questEvidence)) visit(world)
+        if (worldSatisfiesQuestEvidence(world, questEvidence)) {
+          const mask = world.alignmentBySeat.reduce(
+            (mask, alignment, seat) =>
+              alignment === 'evil' ? mask | (1 << seat) : mask,
+            0,
+          )
+          evilMaskCounts.set(mask, (evilMaskCounts.get(mask) ?? 0) + 1)
+          visit(world)
+        }
       },
     ),
   )
@@ -88,6 +101,9 @@ function exactProjection(record: PublicRecord) {
           .map(({ role, probability }) => ({ role, probability })),
       }
     }),
+    evilMaskCounts: [...evilMaskCounts.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([mask, count]) => ({ mask, count })),
   }
   exactProjectionCache.set(key, projection)
   while (exactProjectionCache.size > PUBLIC_OBSERVER_CACHE_LIMIT) {
@@ -95,6 +111,71 @@ function exactProjection(record: PublicRecord) {
     if (oldest !== undefined) exactProjectionCache.delete(oldest)
   }
   return projection
+}
+
+/**
+ * Exact public pre-action joint team quantities. This reuses the observer's
+ * cached feasible-world masks and never multiplies independent seat marginals.
+ */
+export function assessPublicJointTeams(
+  record: PublicRecord,
+  teams: readonly (readonly Seat[])[],
+): readonly PublicJointTeamAssessment[] {
+  const exact = exactProjection(record)
+  if (
+    !Array.isArray(teams)
+    || Object.keys(teams).length !== teams.length
+    || teams.some(
+      (team) =>
+        !Array.isArray(team)
+        || Object.keys(team).length !== team.length,
+    )
+    || teams.length > 252
+  ) {
+    throw new Error('public joint team query exceeds the legal candidate bound')
+  }
+  return teams.map((rawTeam) => {
+    const team = [...rawTeam].sort((left, right) => left - right)
+    if (
+      team.length === 0
+      || team.length > record.playerCount
+      || new Set(team).size !== team.length
+      || team.some(
+        (seat) =>
+          !Number.isSafeInteger(seat)
+          || seat < 0
+          || seat >= record.playerCount,
+      )
+    ) {
+      throw new Error('public joint team query contains an invalid team')
+    }
+    const distribution = Array<number>(team.length + 1).fill(0)
+    const teamMask = team.reduce((mask, seat) => mask | (1 << seat), 0)
+    for (const { mask, count: worldCount } of exact.evilMaskCounts) {
+      let aboard = mask & teamMask
+      let count = 0
+      while (aboard) {
+        aboard &= aboard - 1
+        count += 1
+      }
+      distribution[count] += worldCount
+    }
+    return {
+      team,
+      probabilitySemantics: 'public-preaction-uniform-feasible-joint',
+      cleanProbability: distribution[0] / exact.feasibleWorldCount,
+      evilCountDistribution: distribution.map(
+        (count) => count / exact.feasibleWorldCount,
+      ),
+    }
+  })
+}
+
+/** Detached compact support used by exact public joint queries and tests. */
+export function publicAlignmentMaskHistogram(
+  record: PublicRecord,
+): readonly PublicAlignmentMaskCount[] {
+  return exactProjection(record).evilMaskCounts.map((entry) => ({ ...entry }))
 }
 
 const boundedRatio = (numerator: number, denominator: number): number =>

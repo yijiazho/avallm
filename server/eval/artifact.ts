@@ -57,6 +57,8 @@ export interface ArtifactStrategyVersions {
   planMemories?: readonly string[]
   /** Literal coherence component paired with planMemories. */
   coherences?: readonly string[]
+  /** Added in Phase 7C1; absent on role-objective-off artifacts. */
+  roleObjectives?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -184,6 +186,10 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.coherence,
     ...traces.map((trace) => trace.componentVersions?.coherence),
   ])
+  const roleObjectives = sortedUnique([
+    architecture.roleObjective,
+    ...traces.map((trace) => trace.componentVersions?.roleObjective),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -215,6 +221,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(identities.length ? { identities } : {}),
     ...(planMemories.length ? { planMemories } : {}),
     ...(coherences.length ? { coherences } : {}),
+    ...(roleObjectives.length ? { roleObjectives } : {}),
   }
 }
 

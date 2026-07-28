@@ -63,6 +63,15 @@ import {
 } from '../agents/cognition/plan-memory.ts'
 import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
 import {
+  ROLE_OBJECTIVE_DEGRADATION,
+  ROLE_OBJECTIVE_MODEL_VERSION,
+} from '../agents/analysis/role-objective-types.ts'
+import {
+  buildRoleObjectiveSnapshot,
+  validatePrivateRoleObjectiveHostJoin,
+} from '../agents/analysis/role-objectives.ts'
+import { legalCandidates } from '../agents/policy/candidates.ts'
+import {
   authoritativeDecisionSnapshots,
   decisionTraceReplayJoin,
   exactTargetTraceCoverage,
@@ -294,6 +303,25 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} has invalid identityModel`,
       )
     }
+    if (
+      variant.components.roleObjective !== undefined
+      && variant.components.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid roleObjective`,
+      )
+    }
+    if (
+      variant.components.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+      && (
+        variant.components.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+        || variant.components.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} roleObjective requires exact observer and identity models`,
+      )
+    }
     const planMemoryEnabled =
       variant.components.planMemory === PLAN_MEMORY_VERSION
       && variant.components.coherence === COHERENCE_MODEL_VERSION
@@ -494,6 +522,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const jointIdentity =
           expectedComponents.identityModel === JOINT_IDENTITY_MODEL_VERSION
         if (jointIdentity) tracedComponents.push('identityModel')
+        const roleObjectiveConfigured =
+          expectedComponents.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+        const roleObjectiveApplicable =
+          roleObjectiveConfigured
+          && (c.targetRole === 'merlin' || c.targetRole === 'percival')
+        if (roleObjectiveApplicable) tracedComponents.push('roleObjective')
         const planMemory =
           expectedComponents.planMemory === PLAN_MEMORY_VERSION
           && expectedComponents.coherence === COHERENCE_MODEL_VERSION
@@ -598,6 +632,68 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 : (
                     trace.privateIdentity !== undefined
                     || traceVersions.identityModel !== undefined
+                  )
+            )
+            || (
+              roleObjectiveApplicable
+                ? (
+                    trace.privateRoleObjective === undefined
+                      ? (
+                          !trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+                          || (
+                            trace.privateIdentity === undefined
+                              ? !trace.degradation.includes(
+                                  'identity-projection-failed',
+                                )
+                              : (
+                                  !snapshot
+                                  || !trace.publicObserver
+                                  || (() => {
+                                    try {
+                                      buildRoleObjectiveSnapshot({
+                                        req: snapshot.req,
+                                        view: snapshot.view,
+                                        identity: trace.privateIdentity!,
+                                        observer: trace.publicObserver,
+                                        candidates: legalCandidates(
+                                          snapshot.req,
+                                          snapshot.view,
+                                        ),
+                                      })
+                                      return true
+                                    } catch {
+                                      return false
+                                    }
+                                  })()
+                                )
+                          )
+                        )
+                      : (
+                          !snapshot
+                          || !trace.privateIdentity
+                          || !trace.publicObserver
+                          || trace.degradation.includes(
+                            ROLE_OBJECTIVE_DEGRADATION,
+                          )
+                          || !validatePrivateRoleObjectiveHostJoin(
+                            trace.privateRoleObjective,
+                            {
+                              req: snapshot.req,
+                              view: snapshot.view,
+                              identity: trace.privateIdentity,
+                              observer: trace.publicObserver,
+                              candidates: legalCandidates(
+                                snapshot.req,
+                                snapshot.view,
+                              ),
+                            },
+                          )
+                        )
+                  )
+                : (
+                    trace.privateRoleObjective !== undefined
+                    || traceVersions.roleObjective !== undefined
+                    || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
                   )
             )
             || tracedComponents.some(

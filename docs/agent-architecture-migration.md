@@ -2,13 +2,13 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7C Merlin and Percival objectives. Phase 7B2 landed opt-in private
-plan memory, engine-canonical post-legality outcomes, precommitted coherence intent, and literal
-commitment classification without changing policy. Phase 7C can now consume the exact private
-identity posterior, exact public observer, and committed-plan substrate for influence-versus-
-exposure and Merlin/Morgana-pair objectives. The Phase 5C population sign flip remains recorded,
-and win-rate tuning is still intentionally deferred until the architecture is complete enough to
-evaluate as a whole.
+**Current target phase:** Phase 7C2 Merlin and Percival policy integration. Phase 7C1 landed the
+opt-in, mechanically inert role-objective substrate: exact private Merlin influence, exact public
+joint-team context, a complete-world Percival Merlin/Morgana pair posterior, and explicitly
+non-probabilistic exposure, mimicry, and decoy-opportunity proxies. Phase 7C2 can now give those
+features bounded proposal and vote authority without weakening forced policy or the base good-side
+scorer. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
+intentionally deferred until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1203,13 +1203,17 @@ reviewable and ablatable:
 3. **Phase 7B2, plan memory and coherence:** persist selected and applied plans privately, add a
    post-legality outcome acknowledgment, and distinguish consistent conduct, accidental conflict,
    intentional concealment, and strategic deception. **Complete.**
-4. **Phase 7C, Merlin and Percival:** add influence-versus-exposure and Merlin/Morgana-pair
-   objectives without weakening forced policy or legality.
-5. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
+4. **Phase 7C1, Merlin and Percival substrate:** derive exact private influence and pair
+   posteriors plus bounded public exposure, mimicry, and decoy-opportunity proxies without changing
+   policy. **Complete.**
+5. **Phase 7C2, Merlin and Percival policy:** give the role-objective features bounded opt-in
+   proposal and vote scoring authority without weakening forced policy, legality, or the base
+   good-side scorer.
+6. **Phase 7D, visible evil and Oberon:** add public cover, burned-partner, visible-partner
    coordination, and Oberon's joint posterior over unseen evil seats.
-6. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
+7. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
    generic goodness.
-7. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+8. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1319,10 +1323,47 @@ default-policy, search, learned-factor, or factor-graph change was included.
 
 ### Merlin and Percival
 
-- [ ] Add Merlin's influence-versus-conspicuousness objective.
-- [ ] Score candidate actions for Assassin exposure.
-- [ ] Add a Merlin/Morgana pair posterior for Percival.
-- [ ] Model Percival's own decoy value.
+- [x] Add exact Merlin influence and bounded public conspicuousness and exposure proxies.
+- [x] Add a Merlin/Morgana pair posterior for Percival.
+- [x] Add candidate-conditioned pair-knowledge, Merlin-mimicry, and self-decoy-opportunity proxies.
+- [ ] Give proposal and vote candidates bounded role-objective scoring authority.
+- [ ] Prove causal score and action changes while forced policy and base-scorer degradation remain
+      authoritative.
+
+### Phase 7C1 implementation record
+
+`merlin-percival-objectives-v1` activates only for seats actually dealt Merlin or Percival. Merlin
+candidate assessments sum the resolved private hidden-team hypotheses directly into a complete
+evil-count distribution, exact team-clean probability, and the probability that a team can meet
+the current quest's one- or two-Fail threshold. Public team context is computed separately from the
+uniform public feasible-world projection. Its compact alignment-mask histogram retains
+multiplicity, so no joint quantity is reconstructed from independent seat marginals.
+
+Percival's pair posterior is a direct complete-world sum over ordered Merlin/Morgana assignments.
+Casts without Morgana retain an explicit `morganaSeat: null` coordinate, and every hypothesis is
+bound to the candidate seats in Percival's filtered private view. Exact public Merlin- and
+Morgana-on-team probabilities come from sums of the unique-role marginals. Their difference from
+the private pair influence feeds bounded pair-knowledge, Merlin-mimicry, and self-decoy-opportunity
+indices. These and Merlin's conspicuousness and Assassin-exposure values are explicitly labeled
+deterministic proxies, not calibrated Assassin probabilities. A no-vote sentinel contributes no
+approval extremity until a complete public vote has actually occurred.
+
+The component is opt-in, private, deterministic, and mechanically inert. It does not alter scores,
+candidate viability, selected actions, prompts, voice, `PlayerView`, public cognition, or defaults.
+External snapshots require strict plain detached data, exact keys, dense arrays, safe coordinates,
+semantic equations, authoritative request/view/candidate/observer/identity recomputation, and a
+1 MB UTF-8 ceiling. Stdio and offline evaluation reject missing recomputable payloads disguised as
+degradation. Architecture metadata distinguishes a configured role-objective variant from
+Merlin/Percival-only trace applicability, so the same variant completes the full frozen role bank
+while ineligible roles carry no role-objective payload, version, or degradation marker.
+
+The legal 10-player maximum enumerates 151,200 complete public role worlds but caches at most 210
+alignment-mask rows. Quest-four measurements covered all 252 legal teams: the Merlin snapshot was
+about 165 KB and 115 ms cold, and the Percival snapshot about 197 KB and 26 ms warm. Independent
+adversarial review covered joint arithmetic, no-Morgana semantics, filtered-view binding,
+candidate-varying decoy features, serialization tricks, forged degradation and dependency
+declarations, role applicability, full-bank attribution, privacy, replay, and policy inertia.
+Focused validation passed 64 tests and the complete API-free suite passed 745 tests.
 
 ### Evil and Oberon
 
@@ -1554,6 +1595,13 @@ here.
   coherence intent. Strict plain-data, dense-array, safe-coordinate, JSON-stability, and UTF-8 byte
   limits close external admission bypasses. The opt-in component remains private, mechanically
   inert, API-free, and absent from production defaults; Phase 7C owns Merlin and Percival policy.
+- Phase 7C1 Merlin and Percival substrate: added exact private Merlin team influence and
+  Merlin/Morgana pair posteriors, exact public joint-team context, and explicitly
+  non-probabilistic exposure, pair-knowledge, mimicry, and self-decoy-opportunity indices. A
+  multiplicity-weighted alignment histogram bounds repeated public projections without marginal
+  products. Strict host recomputation, role-applicability, dependency, degradation, serialization,
+  privacy, and full-bank attribution checks keep the component opt-in and mechanically inert;
+  Phase 7C2 owns proposal and vote scoring authority.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

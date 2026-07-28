@@ -11,6 +11,17 @@ import {
   PUBLIC_OBSERVER_MODEL_VERSION,
   type PublicObserverSnapshot,
 } from './analysis/observer-types.ts'
+import {
+  ROLE_OBJECTIVE_DEGRADATION,
+  ROLE_OBJECTIVE_MODEL_VERSION,
+  type PrivateRoleObjectiveSnapshot,
+  type RoleObjectiveRole,
+} from './analysis/role-objective-types.ts'
+import {
+  buildRoleObjectiveSnapshot,
+  mergeIdentityScopes,
+  roleObjectiveIdentityScope,
+} from './analysis/role-objectives.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
 import type { BeliefModel } from './belief/types.ts'
 import {
@@ -149,6 +160,7 @@ export type ComposedStage =
   | 'cognition'
   | 'identity'
   | 'observer'
+  | 'role-objective'
   | 'analysis'
   | 'candidates'
   | 'forced-policy'
@@ -176,6 +188,11 @@ export interface ComposedAgentOptions {
    * and remains mechanically inert in Phase 7B1.
    */
   privateIdentity?: IdentityProjectionScope
+  /**
+   * Opt-in Phase 7C substrate. It activates only for actual Merlin/Percival
+   * seats and remains mechanically inert until a later policy phase.
+   */
+  roleObjectives?: boolean
   /** Opt-in Phase 7B2 private selected/applied plan memory. */
   planMemory?: boolean
   /** Literal conflict classification intent. Defaults to maintain when enabled. */
@@ -383,6 +400,8 @@ function composedTrace(
   publicObserver?: PublicObserverSnapshot,
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
+  privateRoleObjective?: PrivateRoleObjectiveSnapshot,
+  roleObjectiveEnabled = false,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -420,6 +439,9 @@ function composedTrace(
       observerModel: brain.observerModel,
       ...(identityEnabled
         ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
+        : {}),
+      ...(roleObjectiveEnabled
+        ? { roleObjective: ROLE_OBJECTIVE_MODEL_VERSION }
         : {}),
       ...(planMemoryEnabled
         ? {
@@ -459,6 +481,9 @@ function composedTrace(
       : {}),
     ...(privateIdentity
       ? { privateIdentity: structuredClone(privateIdentity) }
+      : {}),
+    ...(privateRoleObjective
+      ? { privateRoleObjective: structuredClone(privateRoleObjective) }
       : {}),
   }
 }
@@ -695,12 +720,23 @@ export function createComposedAgent(
           },
         }
       }
+      const roleObjectiveRole: RoleObjectiveRole | undefined =
+        options.roleObjectives === true
+        && (view.role === 'merlin' || view.role === 'percival')
+          ? view.role
+          : undefined
+      const decisionIdentityScope = roleObjectiveRole
+        ? mergeIdentityScopes(
+            configuredIdentityScope,
+            roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
+          )
+        : configuredIdentityScope
       let privateIdentity: PrivateIdentitySnapshot | undefined
-      if (configuredIdentityScope) {
+      if (decisionIdentityScope) {
         try {
           privateIdentity = projectJointIdentity(
             cognition.belief,
-            configuredIdentityScope,
+            decisionIdentityScope,
           )
           cognition = {
             ...cognition,
@@ -715,7 +751,7 @@ export function createComposedAgent(
         }
         stage('identity')
       }
-      const publicObserver = options.publicObserver
+      const publicObserver = (options.publicObserver || roleObjectiveRole)
         ? observePublicRecord(projectPublicRecord(view))
         : undefined
       if (publicObserver) stage('observer')
@@ -726,6 +762,32 @@ export function createComposedAgent(
       stage('analysis')
       const candidates = legalCandidates(req, view)
       stage('candidates')
+      let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
+      if (roleObjectiveRole) {
+        try {
+          if (!privateIdentity || !publicObserver) {
+            throw new Error('role objective dependencies unavailable')
+          }
+          privateRoleObjective = buildRoleObjectiveSnapshot({
+            req,
+            view,
+            identity: privateIdentity,
+            observer: publicObserver,
+            candidates,
+          })
+          cognition = {
+            ...cognition,
+            roleObjective: privateRoleObjective,
+            versions: {
+              ...cognition.versions,
+              roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
+            },
+          }
+        } catch {
+          degradation.push(ROLE_OBJECTIVE_DEGRADATION)
+        }
+        stage('role-objective')
+      }
       const policyTeams = candidateTeams(candidates, view)
       const wantsJointProposalAssessments =
         (
@@ -967,7 +1029,9 @@ export function createComposedAgent(
         !!interpreter,
         publicObserver,
         privateIdentity,
-        !!configuredIdentityScope,
+        !!decisionIdentityScope,
+        privateRoleObjective,
+        !!roleObjectiveRole,
         planMemoryEnabled,
         coherenceIntent,
       )

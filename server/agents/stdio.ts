@@ -74,6 +74,15 @@ import {
   PLAN_MEMORY_VERSION,
 } from './cognition/plan-memory.ts'
 import { COHERENCE_MODEL_VERSION } from './cognition/coherence.ts'
+import {
+  ROLE_OBJECTIVE_DEGRADATION,
+  ROLE_OBJECTIVE_MODEL_VERSION,
+} from './analysis/role-objective-types.ts'
+import {
+  buildRoleObjectiveSnapshot,
+  validatePrivateRoleObjectiveHostJoin,
+} from './analysis/role-objectives.ts'
+import { legalCandidates } from './policy/candidates.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -164,6 +173,10 @@ function validComponentVersions(value: unknown): boolean {
     && (
       versions.coherence === undefined
       || versions.coherence === COHERENCE_MODEL_VERSION
+    )
+    && (
+      versions.roleObjective === undefined
+      || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
     )
     && (
       (versions.planMemory === undefined)
@@ -394,6 +407,72 @@ function validPrivateIdentityTrace(
     && Number.isInteger(trace.viewerSeat)
     && (trace.viewerSeat as number) < value.sourceBelief.playerCount
   )
+}
+
+function validPrivateRoleObjectiveTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const declared = components?.roleObjective
+  if (
+    declared !== undefined
+    && declared !== ROLE_OBJECTIVE_MODEL_VERSION
+  ) return false
+  const degradation = Array.isArray(trace.degradation)
+    ? trace.degradation as unknown[]
+    : []
+  const roleDegraded = degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+  if (
+    !hostView
+    || (hostView.role !== 'merlin' && hostView.role !== 'percival')
+  ) {
+    return declared === undefined
+      && value === undefined
+      && !roleDegraded
+  }
+  if (declared !== ROLE_OBJECTIVE_MODEL_VERSION) return false
+  if (
+    components?.identityModel !== JOINT_IDENTITY_MODEL_VERSION
+    || components.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+  ) return false
+  if (value === undefined) {
+    if (!roleDegraded) return false
+    if (!trace.privateIdentity) {
+      return degradation.includes('identity-projection-failed')
+    }
+    if (!trace.publicObserver) return false
+    try {
+      buildRoleObjectiveSnapshot({
+        req,
+        view: hostView,
+        identity: trace.privateIdentity as never,
+        observer: trace.publicObserver as never,
+        candidates: legalCandidates(req, hostView),
+      })
+      return false
+    } catch {
+      return true
+    }
+  }
+  if (roleDegraded || !trace.privateIdentity || !trace.publicObserver) {
+    return false
+  }
+  try {
+    return validatePrivateRoleObjectiveHostJoin(value, {
+      req,
+      view: hostView,
+      identity: trace.privateIdentity as never,
+      observer: trace.publicObserver as never,
+      candidates: legalCandidates(req, hostView),
+    })
+  } catch {
+    return false
+  }
 }
 
 function validBeliefProvenance(value: unknown): boolean {
@@ -1394,6 +1473,12 @@ function validDecisionTrace(
       trace.privateIdentity,
       trace,
       hostView?.rolesInPlay,
+    )
+    && validPrivateRoleObjectiveTrace(
+      trace.privateRoleObjective,
+      trace,
+      req,
+      hostView,
     )
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,

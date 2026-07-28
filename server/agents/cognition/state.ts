@@ -27,6 +27,12 @@ import {
   validatePrivatePlanMemory,
 } from './plan-memory.ts'
 import { COHERENCE_MODEL_VERSION } from './coherence.ts'
+import {
+  ROLE_OBJECTIVE_MODEL_VERSION,
+} from '../analysis/role-objective-types.ts'
+import {
+  validatePrivateRoleObjectiveSnapshot,
+} from '../analysis/role-objectives.ts'
 
 function validateEarlier(
   earlier: CognitionState,
@@ -63,6 +69,19 @@ function validateEarlier(
     )
   ) {
     throw new Error('cannot advance malformed private plan memory')
+  }
+  const hasRoleObjective = earlier.roleObjective !== undefined
+  if (
+    hasRoleObjective !== (earlier.versions.roleObjective !== undefined)
+    || (
+      hasRoleObjective
+      && (
+        earlier.versions.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+        || !validatePrivateRoleObjectiveSnapshot(earlier.roleObjective)
+      )
+    )
+  ) {
+    throw new Error('cannot advance malformed private role objective')
   }
   validateLanguageEvidenceCursor(earlier.languageCursor)
   const readSeqs = earlier.languageReads.map((read) => read.sourceSeq)

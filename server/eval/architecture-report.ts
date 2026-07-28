@@ -29,6 +29,15 @@ import {
   validateAppliedPlanOutcomeHostJoin,
 } from '../agents/cognition/plan-memory.ts'
 import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
+import {
+  ROLE_OBJECTIVE_DEGRADATION,
+  ROLE_OBJECTIVE_MODEL_VERSION,
+} from '../agents/analysis/role-objective-types.ts'
+import {
+  buildRoleObjectiveSnapshot,
+  validatePrivateRoleObjectiveHostJoin,
+} from '../agents/analysis/role-objectives.ts'
+import { legalCandidates } from '../agents/policy/candidates.ts'
 import type { DecisionSnapshot } from './replay.ts'
 import {
   authoritativeDecisionSnapshots,
@@ -261,7 +270,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|roleObjective|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -274,6 +283,11 @@ function architectureSafety(
     meta.components.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   const declaresJointIdentity =
     meta.components.identityModel === JOINT_IDENTITY_MODEL_VERSION
+  const declaresRoleObjective =
+    meta.components.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
+  const roleObjectiveApplicable =
+    declaresRoleObjective
+    && (meta.targetRole === 'merlin' || meta.targetRole === 'percival')
   const declaredCoherenceIntent = meta.components.coherenceIntent
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
@@ -291,14 +305,28 @@ function architectureSafety(
   const invalidIdentityDeclaration =
     meta.components.identityModel !== undefined
     && !declaresJointIdentity
+  const invalidRoleObjectiveDeclaration =
+    (
+      meta.components.roleObjective !== undefined
+      && !declaresRoleObjective
+    )
+    || (
+      declaresRoleObjective
+      && (
+        !declaresJointIdentity
+        || !declaresPublicObserver
+      )
+    )
   const coverageRequired =
     traces.length > 0
     || declaresBoundedLanguage
     || declaresPublicObserver
     || declaresJointIdentity
     || declaresPlanMemory
+    || declaresRoleObjective
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
+    || invalidRoleObjectiveDeclaration
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -340,11 +368,22 @@ function architectureSafety(
         (artifactPlanMemories?.length ?? 0) > 0
         || (artifactCoherences?.length ?? 0) > 0
       )
+  const artifactRoleObjectives = artifact.strategyVersions?.roleObjectives
+  const invalidRoleObjectiveManifest = declaresRoleObjective
+    ? (
+        artifactRoleObjectives?.length !== 1
+        || artifactRoleObjectives[0] !== ROLE_OBJECTIVE_MODEL_VERSION
+      )
+    : (artifactRoleObjectives?.length ?? 0) > 0
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
   if (invalidPlanManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidRoleObjectiveManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -365,6 +404,7 @@ function architectureSafety(
         : ['observerModel']),
       ...(declaresJointIdentity ? ['identityModel'] : []),
       ...(declaresPlanMemory ? ['planMemory', 'coherence'] : []),
+      ...(roleObjectiveApplicable ? ['roleObjective'] : []),
       'policy',
       'scorer',
       'planner',
@@ -400,6 +440,7 @@ function architectureSafety(
       || invalidDeclaration
       || invalidIdentityDeclaration
       || invalidPlanDeclaration
+      || invalidRoleObjectiveDeclaration
       || invalidTraceShape
       || (
         declaresPublicObserver
@@ -464,6 +505,71 @@ function architectureSafety(
           : (
               trace.privateIdentity !== undefined
               || versions.identityModel !== undefined
+            )
+      )
+      || (
+        roleObjectiveApplicable
+          ? (
+              trace.privateRoleObjective === undefined
+                ? (
+                    !trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+                    || (
+                      trace.privateIdentity === undefined
+                        ? !trace.degradation.includes(
+                            'identity-projection-failed',
+                          )
+                        : (() => {
+                            const snapshot = targetSnapshots.get(
+                              trace.decisionId,
+                            )
+                            if (!snapshot || !trace.publicObserver) return true
+                            try {
+                              buildRoleObjectiveSnapshot({
+                                req: snapshot.req,
+                                view: snapshot.view,
+                                identity: trace.privateIdentity,
+                                observer: trace.publicObserver,
+                                candidates: legalCandidates(
+                                  snapshot.req,
+                                  snapshot.view,
+                                ),
+                              })
+                              return true
+                            } catch {
+                              return false
+                            }
+                          })()
+                    )
+                  )
+                : (() => {
+                    const snapshot = targetSnapshots.get(trace.decisionId)
+                    return (
+                      !snapshot
+                      || !trace.privateIdentity
+                      || !trace.publicObserver
+                      || trace.degradation.includes(
+                        ROLE_OBJECTIVE_DEGRADATION,
+                      )
+                      || !validatePrivateRoleObjectiveHostJoin(
+                        trace.privateRoleObjective,
+                        {
+                          req: snapshot.req,
+                          view: snapshot.view,
+                          identity: trace.privateIdentity,
+                          observer: trace.publicObserver,
+                          candidates: legalCandidates(
+                            snapshot.req,
+                            snapshot.view,
+                          ),
+                        },
+                      )
+                    )
+                  })()
+            )
+          : (
+              trace.privateRoleObjective !== undefined
+              || versions.roleObjective !== undefined
+              || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
             )
       )
       || stableKeys.some(

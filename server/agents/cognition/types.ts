@@ -7,6 +7,7 @@ import type {
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
 import type { PrivatePlanMemory } from './plan-memory.ts'
+import type { PrivateRoleObjectiveSnapshot } from '../analysis/role-objective-types.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -200,6 +201,8 @@ export interface CognitionVersions {
   planMemory?: string
   /** Present only with plan memory; literal structured coherence only. */
   coherence?: string
+  /** Present only for an enabled Merlin/Percival private objective. */
+  roleObjective?: string
 }
 
 export interface CognitionState {
@@ -217,6 +220,8 @@ export interface CognitionState {
   identity?: PrivateIdentitySnapshot
   /** Private selected/applied history. Never included in publicCognition. */
   planMemory?: PrivatePlanMemory
+  /** Private, mechanically inert Merlin/Percival objective substrate. */
+  roleObjective?: PrivateRoleObjectiveSnapshot
   versions: CognitionVersions
 }
 
