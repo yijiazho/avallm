@@ -2,16 +2,17 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2C4A's typed `DecisionFrame` spine, followed by C4B's
-behavior-preserving runtime wiring. Phase 7E2A is complete and approved:
+**Current target phase:** Phase 7R3A ordered score layers. Phase 7R2C4's typed
+`DecisionFrame` spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete
+and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
 The fast-feedback and static-check slice, the admission/conformance foundation, and the
 single-pass replay work are complete. The resolved descriptor now owns configured architecture
 identity across trace, artifact, and report surfaces, component host roots resolve only after a
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
-boundaries. Before ordered policy layers, the remaining work is to extract and wire a staged
-`DecisionFrame` policy-pipeline seam.
+boundaries. The next work replaces compatibility scorer composition with registered ordered
+layers while preserving the staged frame as the sole live decision authority.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1350,7 +1351,7 @@ reviewable and ablatable:
     - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
       canonical request, view, belief, analysis, candidate surface, forced survivors, and component
       run into ordered score layers, ordered decision layers, and the committed action.
-      **Pending.**
+      **Complete.**
 20. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
     E1 transformations as registered ordered layers with explicit dependencies and fallback.
 21. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
@@ -2154,21 +2155,26 @@ reviewed slices are now landed:
   through a named nonpromotable legacy adapter. Independent review returned READY; strict
   typechecking, 102-file inventory, 989 correctness tests, and three isolated performance tests
   pass.
-- **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
-  mechanically split every large module. The staged type design makes invalid pipeline states
-  unrepresentable: canonical request/view precede legal candidates; candidate-aware analysis
-  precedes universal forced policy; component execution consumes that exact analysis and universal
-  surface; the quarantined D3 adapter may run only afterward; scoring, selection, commit, and
-  voice follow in order. Existing C2, D2, E1, and D3 behavior moves behind compatibility adapters
-  before new ordered-layer behavior is added.
-  Implement C4A first as types, constructors, nonempty survivor/viable collections, and one
-  compatibility scorer adapter without touching the runtime orchestrator. C4B then wires those
-  transitions through `composed.ts` and removes `composed.ts` from the architecture-fitness
-  `TRUSTED_RUNTIME_OWNERS` allowlist when its old component-execution path is deleted. A new native
-  policy family must not add role-named branches
-  to trace, artifact, report, stdio, or Inspector. Operation counters follow the owners that
-  perform work: kernel roots/components, analysis posterior batches, and frame-runner candidate,
-  layer, planner, and voice calls.
+- **C4A and C4B establish and wire the staged decision spine.** Canonical request/view now precede
+  legal candidates; candidate-aware analysis precedes universal forced policy; component execution
+  consumes that exact frame through a trusted-provider factory; the quarantined D3 adapter can run
+  only after a nonselecting universal result; scoring, viable selection, existing-owner plan commit,
+  and voice follow in order. The live composed path uses these transitions as its sole pipeline
+  state. Final trace fields project the voiced frame's scores, IDs, effective forced result,
+  degradation, component attribution, plan communication, and action rather than synchronized
+  local shadows. `composed.ts` no longer calls the component kernel or names trusted-provider
+  capabilities and has left the architecture-fitness allowlist.
+  C4B deletes 282 and adds 227 lines in `composed.ts` relative to the C4A base. The remaining
+  compatibility scorer degradation chain is isolated in `policy/legacy-scoring.ts` and is owned
+  for retirement by 7R3. A provenance-pinned pre-C4 oracle covers every frozen decision kind,
+  matching-base and hard fallback, real D3, planner acceptance/rejection, voice success/no-output/
+  failure, exact trace bytes, bounded planner/voice inputs, and diagnostic stages. The only
+  intentional compatibility correction is that the ephemeral stage hook now reports candidates
+  before the candidate-aware analysis that consumes them.
+  The C4B oracle is temporary migration evidence: delete its capture tool, fixture, test, and lane
+  entry after the behavior-preserving 7R3 adapter retirements pass the 7R3 exit audit. Never
+  regenerate this pre-C4 oracle to approve an intentional policy change; later policy behavior
+  gets a new, separately owned evaluation baseline.
 
 The cross-review findings establish these development guardrails for the rest of the migration:
 
@@ -2237,6 +2243,15 @@ The cross-review findings establish these development guardrails for the rest of
 18. **Treat assertion changes as behavior decisions.** They require explicit justification and
     cannot be inverted merely to bless a refactor. A change-surface or complexity-budget breach
     stops new cross-layer branching.
+19. **Prove replacement equivalence from an independent oracle.** A compatibility fixture records
+    the exact clean source commit that produced it and never derives expected values from the
+    runner under test. C4B's oracle was captured from the clean C4A commit `5354c2c`; the live
+    runtime still has one decision authority.
+20. **Make replacement work retire authority.** Each chunk names and deletes the old writer;
+    compatibility exemptions only shrink and every survivor has an exact retirement owner.
+    Native families use the shared contract kit and typed scenarios. Net-additive central
+    replacement work requires an explicit retained-authority explanation, and owner-local
+    operation counts are preferred to development-host wall-clock assertions.
 
 The development model follows a proof pyramid rather than using end-to-end mutation matrices as
 the first line of defense:
@@ -2702,8 +2717,12 @@ here.
   canonical migration-free identity, cached trace/manifest digest, exact run and replay joins,
   once-per-observation admission, and a named nonpromotable schema-1 adapter. Strict typechecking,
   the 102-file lane inventory, 989 correctness tests, and three isolated performance tests pass.
-  The current target is C4A's staged type spine followed by C4B runtime wiring. Those slices own
-  optional-state pipeline ambiguity rather than allowing it to accrete inside each component.
+  C4A's staged type spine and C4B's live runtime wiring now own optional-state pipeline ambiguity
+  rather than allowing it to accrete inside each component. Focused strict typechecking,
+  architecture fitness, frame/composed contracts, and the independent pre-C4 compatibility oracle
+  pass on the executable tree. C4B leaves role payload extraction, the quarantined scorer fallback
+  adapter, planner protocol rendering, communication intent rendering, and chosen-team trace
+  reanalysis as explicit 7R3 ownership work rather than pretending they are native frame layers.
   Phase 7R3B separately owns D3's discriminated historical compatibility read, incremental
   retirement of its conformance exemption, and deletion of its transitional write path after
   equality.

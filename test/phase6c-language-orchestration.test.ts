@@ -153,7 +153,12 @@ test('opt-in orchestration is deterministic and causally reaches scoring', async
   assert.deepEqual(one, two)
   assert.deepEqual(callsA, callsB)
   assert.equal(callsA.length, 1)
-  assert.deepEqual(stages.slice(0, 3), ['language', 'cognition', 'analysis'])
+  // Candidate enumeration now completes before the candidate-aware analysis
+  // that consumes that exact surface.
+  assert.deepEqual(
+    stages.slice(0, 4),
+    ['language', 'cognition', 'candidates', 'analysis'],
+  )
   assert.equal(one.trace!.beliefModelVersion, 'exact-constraints+bounded-language-v1')
   assert.equal(
     one.trace!.componentVersions?.languageEvidence,

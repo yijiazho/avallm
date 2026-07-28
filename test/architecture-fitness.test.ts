@@ -255,10 +255,6 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
   assert.deepEqual(
     auditArchitectureSources([
       [
-        'server/agents/composed.ts',
-        'const value: DecisionComponentTrustedHostInputProvider<unknown> = root',
-      ],
-      [
         'server/agents/components/kernel.ts',
         'export interface DecisionComponentTrustedHostInputProviders {}',
       ],
@@ -271,6 +267,10 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
   )
 
   const violations = auditArchitectureSources([
+    [
+      'server/agents/composed.ts',
+      'const value: DecisionComponentTrustedHostInputProvider<unknown> = root',
+    ],
     [
       'server/agents/stdio.ts',
       'import type { DecisionComponentTrustedHostInputProvider } from "./components/kernel.ts"',
@@ -310,6 +310,7 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
   assert.deepEqual(
     violations.map(({ rule, importer }) => [rule, importer]),
     [
+      ['ARCH004', 'server/agents/composed.ts'],
       ['ARCH004', 'server/agents/stdio.ts'],
       ['ARCH004', 'server/agents/trace.ts'],
       ['ARCH004', 'server/eval/artifact.ts'],

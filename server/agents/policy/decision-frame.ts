@@ -35,6 +35,7 @@ import type { PrivateEvilQuestCardPolicy } from './evil-quest-card.ts'
 import { applyForcedPolicy } from './forced.ts'
 import {
   DECISION_PLAN_VERSION,
+  type PlannerCommunicationDirection,
   type DecisionPlan,
 } from './plan.ts'
 import {
@@ -147,11 +148,21 @@ type ScoredData =
 
 export type ScoredDecisionFrame = Stage<'scored', ScoredData>
 
+export interface LegacyScoredPolicyProjection {
+  readonly candidates: readonly PolicyCandidate[]
+  readonly scores: readonly CandidateScore[]
+  readonly forced: ForcedPolicyResult
+  readonly structuredCandidateId: string
+}
+
 export type LegacyPlannerResolution =
   | Readonly<{ kind: 'not-run' }>
   | Readonly<{
       kind: 'accepted'
       candidateId: string
+      reasonCodes?: readonly string[]
+      communication?: PlannerCommunicationDirection
+      degradationCode?: string
     }>
   | Readonly<{
       kind: 'rejected'
@@ -174,12 +185,24 @@ export type VoicedDecisionFrame = Stage<'voiced', CommittedData & {
   readonly voice: Immutable<{ version: string; applied: boolean }>
 }>
 
+export interface LegacyVoicedOutputProjection {
+  readonly action: Decision
+  readonly scores: readonly CandidateScore[]
+  readonly forced: ForcedPolicyResult
+  readonly structuredCandidateId: string
+  readonly selectedCandidateId: string
+  readonly scorerVersion: string
+  readonly degradation: readonly string[]
+  readonly componentRun: DecisionComponentRun
+  readonly plan: DecisionPlan
+}
+
 export type DecisionAnalysisPlan =
   | 'candidate-teams'
   | 'good-proposal'
   | 'good-vote'
 
-/** C4B retires this adapter; its callback receives the exact component run. */
+/** 7R3 retires this compatibility adapter after scorer ownership extraction. */
 export type LegacyScoringBindings = Readonly<
   Pick<
     CandidateScoringContext,
@@ -201,6 +224,7 @@ export interface LegacyScoringResolution {
 export interface DecisionVoiceInput {
   readonly version: string
   readonly result: Decision
+  readonly degradationCode?: string
 }
 
 function nonEmpty<T>(
@@ -469,9 +493,24 @@ export function withLegacyScoring(
   }) as ScoredDecisionFrame
 }
 
+/** Detached DTO for the compatibility planner and plan builders. */
+export function projectScoredFrameForLegacy(
+  frame: ScoredDecisionFrame,
+): LegacyScoredPolicyProjection {
+  return structuredClone({
+    candidates: frame.legalCandidates,
+    scores: frame.scores,
+    forced: frame.effectiveForced,
+    structuredCandidateId: frame.structuredCandidateId,
+  }) as LegacyScoredPolicyProjection
+}
+
 export function selectDecisionCandidate(
   frame: ScoredDecisionFrame,
   planner: LegacyPlannerResolution,
+  attributeStructuredChoice?: (
+    run: DecisionComponentRun,
+  ) => DecisionComponentRun,
 ): SelectedDecisionFrame {
   if (
     planner.kind === 'accepted'
@@ -484,14 +523,28 @@ export function selectDecisionCandidate(
     (candidate) => candidate.candidate.id === id,
   )
   if (!selected) throw new Error('planner selected a nonviable candidate')
+  const componentRun = (
+      planner.kind !== 'accepted'
+      && frame.effectiveForced.selectedCandidateId === undefined
+      && frame.legacyD3 === null
+      && attributeStructuredChoice
+    )
+    ? advanceDecisionComponentRun(
+        legacy<DecisionComponentRun>(frame.componentRun),
+        attributeStructuredChoice(
+          legacy<DecisionComponentRun>(frame.componentRun),
+        ),
+      )
+    : frame.componentRun
   return Object.freeze({
     ...frame,
     stage: 'selected',
     selected,
     planner: detachTrustedPolicyData(planner),
+    componentRun: componentRun as Immutable<DecisionComponentRun>,
     degradation: detachTrustedPolicyData([
       ...frame.degradation,
-      ...(planner.kind === 'rejected'
+      ...(planner.kind !== 'not-run' && planner.degradationCode
         ? [planner.degradationCode]
         : []),
     ]),
@@ -508,13 +561,20 @@ function mechanical(decision: Decision): Decision {
   return result
 }
 
+/** The selected frame is the sole owner of mechanical communication stripping. */
+export function selectedMechanicalDecision(
+  frame: SelectedDecisionFrame,
+): Decision {
+  return structuredClone(mechanical(
+    legacy<Decision>(frame.selected.candidate.decision),
+  ))
+}
+
 export function commitDecision(
   frame: SelectedDecisionFrame,
   supplied: DecisionPlan,
 ): CommittedDecisionFrame {
-  const decision = mechanical(
-    legacy<Decision>(frame.selected.candidate.decision),
-  )
+  const decision = selectedMechanicalDecision(frame)
   if (
     supplied.version !== DECISION_PLAN_VERSION
     || supplied.candidateId !== frame.selected.candidate.id
@@ -552,5 +612,26 @@ export function withDecisionVoice(
       version: input.version,
       applied,
     }),
+    degradation: detachTrustedPolicyData([
+      ...frame.degradation,
+      ...(input.degradationCode ? [input.degradationCode] : []),
+    ]),
   }) as VoicedDecisionFrame
+}
+
+/** Detached DTO for legacy trace, memory, and agent-output consumers. */
+export function projectVoicedFrameForLegacy(
+  frame: VoicedDecisionFrame,
+): LegacyVoicedOutputProjection {
+  return structuredClone({
+    action: frame.result,
+    scores: frame.scores,
+    forced: frame.effectiveForced,
+    structuredCandidateId: frame.structuredCandidateId,
+    selectedCandidateId: frame.selected.candidate.id,
+    scorerVersion: frame.scorerVersion,
+    degradation: frame.degradation,
+    componentRun: frame.componentRun,
+    plan: frame.plan,
+  }) as LegacyVoicedOutputProjection
 }

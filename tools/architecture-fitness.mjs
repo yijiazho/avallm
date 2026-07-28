@@ -19,7 +19,6 @@ const TRUSTED_RUNTIME_IDENTIFIERS = new Set([
   'DecisionComponentTrustedHostInputProviders',
 ])
 const TRUSTED_RUNTIME_OWNERS = new Set([
-  'server/agents/composed.ts',
   'server/agents/components/kernel.ts',
   // The staged composition spine initiates component execution only after
   // universal policy and constructs trusted roots from that exact frame.

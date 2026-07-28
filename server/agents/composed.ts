@@ -80,10 +80,8 @@ import {
   attributeComponentPolicyUse,
   componentPayload,
   decisionComponentPlan,
-  runDecisionComponents,
   type DecisionComponentPlan,
   type DecisionComponentRun,
-  type DecisionComponentTrustedHostInputProvider,
 } from './components/kernel.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
@@ -151,10 +149,7 @@ import { heuristicDecide } from './heuristic.ts'
 import {
   candidateIdForDecision,
   candidateTeams,
-  hypotheticalProposalCandidates,
-  legalCandidates,
 } from './policy/candidates.ts'
-import { applyForcedPolicy } from './policy/forced.ts'
 import {
   EVIL_QUEST_CARD_POLICY_DEGRADATION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
@@ -181,17 +176,32 @@ import {
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   scoreCandidates,
-  structuredChoice,
-  validateCandidateScores,
   type CandidateScore,
   type CandidateScorer,
   type CandidateScoringContext,
 } from './policy/score.ts'
+import { resolveLegacyScores } from './policy/legacy-scoring.ts'
+import {
+  canonicalDecisionFrame,
+  commitDecision,
+  projectScoredFrameForLegacy,
+  projectVoicedFrameForLegacy,
+  selectDecisionCandidate,
+  selectedMechanicalDecision,
+  withDecisionAnalysis,
+  withDecisionVoice,
+  withLegacyD3QuestCard,
+  withLegacyScoring,
+  withLegalCandidates,
+  withResolvedComponents,
+  withUniversalForcedPolicy,
+  type LegacyPlannerResolution,
+  type PostComponentDecisionFrame,
+} from './policy/decision-frame.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
   type ForcedPolicyResult,
-  type PolicyCandidate,
 } from './policy/types.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,
@@ -599,15 +609,6 @@ function attributeRoleActionSelection(
   return attributed
 }
 
-function byId(
-  candidates: readonly PolicyCandidate[],
-  candidateId: string,
-): PolicyCandidate {
-  const candidate = candidates.find((entry) => entry.id === candidateId)
-  if (!candidate) throw new Error(`composed policy selected absent candidate ${candidateId}`)
-  return candidate
-}
-
 function validComponentVersion(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
@@ -617,14 +618,6 @@ function exactKeys(
   allowed: readonly string[],
 ): boolean {
   return Object.keys(value).every((key) => allowed.includes(key))
-}
-
-function silenceMechanicalCommunication(decision: Decision): Decision {
-  const copy = structuredClone(decision)
-  if (copy.kind === 'discuss') copy.say = ''
-  if (copy.kind === 'propose') delete copy.pitch
-  if (copy.kind === 'finalize' && !copy.stick) delete copy.reason
-  return copy
 }
 
 function validPlannerCommunication(
@@ -1558,13 +1551,6 @@ export function createComposedAgent(
         if (legacyPublicObserverApplicable) {
           providePublicObserver()
         }
-        let analysis = analyzeSituation(view, {
-          belief: cognition.belief,
-          evidence: cognition.evidence,
-        })
-        stage('analysis')
-        const candidates = legalCandidates(req, view)
-        stage('candidates')
         let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
         let privateEvilRoleObjective:
           PrivateEvilRoleObjectiveSnapshot | undefined
@@ -1577,7 +1563,6 @@ export function createComposedAgent(
           PrivateMorganaCounterfeitObjective | undefined
         let privateMorganaRoleUtility:
           PrivateMorganaRoleUtilityProjection | undefined
-        const policyTeams = candidateTeams(candidates, view)
         const wantsJointProposalAssessments =
           (
             resolvedScorer.analysisRequirement === 'joint-proposal-team-assessments'
@@ -1591,86 +1576,61 @@ export function createComposedAgent(
             === 'joint-proposal-vote-team-assessments'
           && req.kind === 'vote'
           && view.alignment === 'good'
-        const hypotheticalTeamCandidates = wantsJointVoteAssessments
-          ? hypotheticalProposalCandidates(view)
-          : undefined
-        const hypotheticalTeams = hypotheticalTeamCandidates
-          ? candidateTeams(hypotheticalTeamCandidates, view)
-          : undefined
-        analysis = analyzeSituation(view, {
-          belief: cognition.belief,
-          evidence: cognition.evidence,
-          policyCandidateTeams: policyTeams,
-          ...(wantsJointProposalAssessments
-            ? { policyCandidateAssessments: policyTeams }
-            : {}),
-          ...(hypotheticalTeams
-            ? {
-                policyCandidateAssessments: hypotheticalTeams,
-                goodVote: true,
-              }
-            : {}),
-        })
+        const canonicalFrame = canonicalDecisionFrame(req, view)
+        const candidateFrame = withLegalCandidates(canonicalFrame)
+        stage('candidates')
+        const analyzedFrame = withDecisionAnalysis(
+          candidateFrame,
+          cognition,
+          wantsJointVoteAssessments
+            ? 'good-vote'
+            : wantsJointProposalAssessments
+              ? 'good-proposal'
+              : 'candidate-teams',
+        )
+        const analysis = analyzedFrame.analysis
+        const candidates = analyzedFrame.legalCandidates
+        stage('analysis')
         let privateEvilQuestCardPolicy:
           PrivateEvilQuestCardPolicy | undefined
-        const universalForced =
-          applyForcedPolicy(req, view, analysis, candidates)
-        const beliefRoot = cognition.belief
-        let forced = universalForced
+        const universalFrame = withUniversalForcedPolicy(analyzedFrame)
+        const universalForced = universalFrame.universalForced
         const configuredComponentIds = new Set(
           resolvedBrain.description.components.configured.map(
             (component) => component.id,
           ),
         )
-        const trustedHostInputProviders:
-        DecisionComponentTrustedHostInputProvider<unknown>[] = []
-        if (requiresHostInput(PRIVATE_IDENTITY_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_IDENTITY_INPUT,
-            provide: () => privateIdentity,
-          })
-        }
-        if (requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_PUBLIC_OBSERVER_INPUT,
-            provide: providePublicObserver,
-          })
-        }
-        if (requiresHostInput(PRIVATE_BELIEF_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_BELIEF_INPUT,
-            provide: () => beliefRoot,
-          })
-        }
-        if (requiresHostInput(PRIVATE_SITUATION_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_SITUATION_INPUT,
-            provide: () => analysis,
-          })
-        }
-        if (requiresHostInput(PRIVATE_FORCED_POLICY_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_FORCED_POLICY_INPUT,
-            provide: () => universalForced,
-          })
-        }
-        if (requiresHostInput(PRIVATE_DETERMINISTIC_SEED_INPUT)) {
-          trustedHostInputProviders.push({
-            input: PRIVATE_DETERMINISTIC_SEED_INPUT,
-            provide: () => seed,
-          })
-        }
-        let decisionComponents = await runDecisionComponents(
+        const resolvedFrame = await withResolvedComponents(
+          universalFrame,
           resolvedBrain,
-          req,
-          view,
           undefined,
-          trustedHostInputProviders.length
-            ? { providers: trustedHostInputProviders }
-            : undefined,
+          (exactFrame) => ({
+            providers: [
+              requiresHostInput(PRIVATE_IDENTITY_INPUT)
+                ? { input: PRIVATE_IDENTITY_INPUT, provide: () => privateIdentity }
+                : undefined,
+              requiresHostInput(PRIVATE_PUBLIC_OBSERVER_INPUT)
+                ? { input: PRIVATE_PUBLIC_OBSERVER_INPUT, provide: providePublicObserver }
+                : undefined,
+              requiresHostInput(PRIVATE_BELIEF_INPUT)
+                ? { input: PRIVATE_BELIEF_INPUT, provide: () => exactFrame.belief }
+                : undefined,
+              requiresHostInput(PRIVATE_SITUATION_INPUT)
+                ? { input: PRIVATE_SITUATION_INPUT, provide: () => exactFrame.analysis }
+                : undefined,
+              requiresHostInput(PRIVATE_FORCED_POLICY_INPUT)
+                ? { input: PRIVATE_FORCED_POLICY_INPUT, provide: () => exactFrame.universalForced }
+                : undefined,
+              requiresHostInput(PRIVATE_DETERMINISTIC_SEED_INPUT)
+                ? { input: PRIVATE_DETERMINISTIC_SEED_INPUT, provide: () => seed }
+                : undefined,
+            ].filter((provider) => provider !== undefined),
+          }),
         )
+        let postComponentFrame: PostComponentDecisionFrame = resolvedFrame
+        const componentRun = resolvedFrame.componentRun
         const genericPublicObserverApplicable =
-          decisionComponents.entries.some(
+          componentRun.entries.some(
             (entry) =>
               entry.status === 'admitted'
               && componentRegistry.definition(entry.component)
@@ -1689,7 +1649,7 @@ export function createComposedAgent(
           : undefined
         if (configuredComponentIds.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)) {
           privateRoleObjective = componentPayload(
-            decisionComponents,
+            componentRun,
             GOOD_ROLE_OBJECTIVE_COMPONENT,
           )
           if (roleObjectiveRole && !privateRoleObjective) {
@@ -1698,7 +1658,7 @@ export function createComposedAgent(
         }
         if (configuredComponentIds.has(GOOD_ROLE_UTILITY_COMPONENT.id)) {
           privateRoleUtility = componentPayload(
-            decisionComponents,
+            componentRun,
             GOOD_ROLE_UTILITY_COMPONENT,
           )
           if (roleScorerApplicable && !privateRoleUtility) {
@@ -1713,7 +1673,7 @@ export function createComposedAgent(
         }
         if (configuredComponentIds.has(EVIL_ROLE_OBJECTIVE_COMPONENT.id)) {
           privateEvilRoleObjective = componentPayload(
-            decisionComponents,
+            componentRun,
             EVIL_ROLE_OBJECTIVE_COMPONENT,
           )
           if (evilRoleObjectiveApplicable && !privateEvilRoleObjective) {
@@ -1722,7 +1682,7 @@ export function createComposedAgent(
         }
         if (configuredComponentIds.has(EVIL_ROLE_UTILITY_COMPONENT.id)) {
           privateEvilRoleUtility = componentPayload(
-            decisionComponents,
+            componentRun,
             EVIL_ROLE_UTILITY_COMPONENT,
           )
           if (evilRoleScorerApplicable && !privateEvilRoleUtility) {
@@ -1736,13 +1696,13 @@ export function createComposedAgent(
           }
         }
         const genericPublicMorganaRead = componentPayload(
-          decisionComponents,
+          componentRun,
           MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
         )
         if (morganaCounterfeitApplicable) {
           publicMorganaCounterfeitRead = genericPublicMorganaRead
           privateMorganaCounterfeitObjective = componentPayload(
-            decisionComponents,
+            componentRun,
             MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
           )
           if (!privateMorganaCounterfeitObjective) {
@@ -1758,7 +1718,7 @@ export function createComposedAgent(
           )
         ) {
           privateMorganaRoleUtility = componentPayload(
-            decisionComponents,
+            componentRun,
             configuredMorganaRoleUtilityComponent,
           )
           if (
@@ -1777,18 +1737,14 @@ export function createComposedAgent(
         }
         if (configuredEvilQuestCardComponent) {
           privateEvilQuestCardPolicy = componentPayload(
-            decisionComponents,
+            componentRun,
             configuredEvilQuestCardComponent,
           )
           if (privateEvilQuestCardPolicy) {
             stage('quest-card-policy')
-            forced = applyForcedPolicy(req, view, analysis, candidates, {
-              evilQuestCardPolicy: privateEvilQuestCardPolicy,
-            })
-            decisionComponents = attributeComponentPolicyUse(
-              decisionComponents,
+            postComponentFrame = withLegacyD3QuestCard(
+              resolvedFrame,
               configuredEvilQuestCardComponent,
-              'action-selection',
             )
           } else if (
             !universalForced.applied
@@ -1799,6 +1755,7 @@ export function createComposedAgent(
             degradation.push(EVIL_QUEST_CARD_POLICY_DEGRADATION)
           }
         }
+        const forced = postComponentFrame.effectiveForced
         stage('forced-policy')
         if (roleObjectiveRole || evilRoleObjectiveApplicable) {
           stage('role-objective')
@@ -1827,226 +1784,203 @@ export function createComposedAgent(
 
         const compatibility = compatibilityDecision(req, view, seed)
         const compatibilityCandidateId = candidateIdForDecision(compatibility)
-        const scoringContext = {
-          deterministicSeed: seed,
-          request: req,
-          view,
-          analysis,
-          candidates,
-          ...(hypotheticalTeamCandidates
-            ? { hypotheticalTeamCandidates }
-            : {}),
-          ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
-          ...(privateEvilRoleUtility
-            ? { evilRoleUtility: privateEvilRoleUtility }
-            : {}),
-          ...(privateMorganaRoleUtility
-            ? { morganaRoleUtility: privateMorganaRoleUtility }
-            : {}),
-          forced,
-          compatibilityCandidateId,
-        }
-        let scorerVersion = resolvedScorer.version
-        let scores: readonly CandidateScore[]
-        let appliedScorer: CandidateScorer
-        try {
-          const suppliedScores =
-            resolvedScorer.score(structuredClone(scoringContext))
-          validateCandidateScores(scoringContext, suppliedScores, scorerVersion)
-          scores = structuredClone(suppliedScores)
-          appliedScorer = resolvedScorer
-        } catch {
-          degradation.push('scorer-invalid-output')
-          const roleScorerFailed =
-            resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
-            || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-            || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-            || resolvedScorer.version
-              === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-            || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-            || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-          const baseScorer = roleScorerFailed
-            ? resolveRolePolicyScorer({
-                configured: resolvedScorer.baseScorer ?? resolvedScorer,
-                req,
-                view,
-                routedObjective,
-              })
-            : undefined
-          if (baseScorer) {
-            degradation.push(
-              resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-              || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-                ? MORGANA_ROLE_SCORER_DEGRADATION
-                : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+        const roleScorerFailed =
+          resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
+          || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+          || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+        const fallbackScorer = roleScorerFailed
+          ? resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+              req,
+              view,
+              routedObjective,
+            })
+          : undefined
+        const fallbackDegradation =
+          resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
+          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
+            ? MORGANA_ROLE_SCORER_DEGRADATION
+            : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
               || resolvedScorer.version
                 === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-                ? 'evil-role-objective-scorer-failed'
-                : 'role-objective-scorer-failed',
-            )
-            try {
-              const suppliedBase =
-                baseScorer.score(structuredClone(scoringContext))
-              validateCandidateScores(
+              ? 'evil-role-objective-scorer-failed'
+              : 'role-objective-scorer-failed'
+        const scoredFrame = withLegacyScoring(
+          postComponentFrame,
+          () => ({
+            deterministicSeed: seed,
+            compatibilityCandidateId,
+            ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
+            ...(privateEvilRoleUtility
+              ? { evilRoleUtility: privateEvilRoleUtility }
+              : {}),
+            ...(privateMorganaRoleUtility
+              ? { morganaRoleUtility: privateMorganaRoleUtility }
+              : {}),
+          }),
+          (scoringContext, exactRun) => {
+            const { appliedScorer, scores, degradation: scorerDegradation } =
+              resolveLegacyScores(
                 scoringContext,
-                suppliedBase,
-                baseScorer.version,
+                resolvedScorer,
+                fallbackScorer
+                  ? {
+                      scorer: fallbackScorer,
+                      degradationCode: fallbackDegradation,
+                    }
+                  : undefined,
               )
-              scorerVersion = baseScorer.version
-              scores = structuredClone(suppliedBase)
-              appliedScorer = baseScorer
-            } catch {
-              degradation.push('base-scorer-invalid-output')
-              scorerVersion = CANDIDATE_SCORER_VERSION
-              scores = scoreCandidates(scoringContext)
-              appliedScorer = {
-                version: CANDIDATE_SCORER_VERSION,
-                score: scoreCandidates,
-              }
-              validateCandidateScores(
-                scoringContext,
-                scores,
-                CANDIDATE_SCORER_VERSION,
-              )
-            }
-          } else {
-            scorerVersion = CANDIDATE_SCORER_VERSION
-            scores = scoreCandidates(scoringContext)
-            appliedScorer = {
-              version: CANDIDATE_SCORER_VERSION,
-              score: scoreCandidates,
-            }
-            validateCandidateScores(
-              scoringContext,
+            return {
+              appliedScorer,
               scores,
-              CANDIDATE_SCORER_VERSION,
-            )
-          }
-        }
-        decisionComponents = attributeLegacyRolePolicyUse(
-          decisionComponents,
-          appliedScorer,
-          scores,
-          configuredMorganaRoleUtilityComponent,
+              degradation: [...degradation, ...scorerDegradation],
+              componentRun: attributeLegacyRolePolicyUse(
+                exactRun,
+                appliedScorer,
+                scores,
+                configuredMorganaRoleUtilityComponent,
+              ),
+            }
+          },
         )
-        const questCardPolicyCandidateId =
-          privateEvilQuestCardPolicy?.selectedCard
-            ? candidateIdForDecision({
-                kind: 'quest',
-                card: privateEvilQuestCardPolicy.selectedCard,
-              })
-            : undefined
-        const structured = forced.selectedCandidateId
-          ? scores.find((score) => score.candidateId === forced.selectedCandidateId)
-          : questCardPolicyCandidateId
-            ? scores.find((score) => score.candidateId === questCardPolicyCandidateId)
-            : structuredChoice(scores)
-        if (!structured || !structured.viable) {
-          throw new Error('forced policy selected a non-viable candidate')
-        }
+        const legacyScored = projectScoredFrameForLegacy(scoredFrame)
         stage('scoring')
 
         const context = composedPolicyContext(
           view,
           analysis,
-          candidates,
-          forced,
-          scores,
-          structured.candidateId,
+          legacyScored.candidates,
+          legacyScored.forced,
+          legacyScored.scores,
+          legacyScored.structuredCandidateId,
         )
-        const viableIds = new Set(
-          context.viableCandidates.map((candidate) => candidate.id),
-        )
-        let chosenCandidateId = structured.candidateId
-        let plannerCandidateId: string | undefined
-        let plannerCommunication: PlannerCommunicationDirection | undefined
-        let plannerReasonCodes: readonly string[] | undefined
-        let acceptedPlannerSelection = false
+        let plannerResolution: LegacyPlannerResolution = { kind: 'not-run' }
         if (
           activePlanner
           && !forced.selectedCandidateId
-          && !questCardPolicyCandidateId
+          && scoredFrame.legacyD3 === null
         ) {
           stage('planner')
           try {
             const suppliedPlan = await activePlanner.choose({
               context: structuredClone(context),
               renderedContext: renderComposedPolicyContext(context),
-              structuredCandidateId: structured.candidateId,
+              structuredCandidateId: legacyScored.structuredCandidateId,
             })
             const planned = suppliedPlan === undefined
               ? undefined
               : structuredClone(suppliedPlan)
             if (!planned) {
-              degradation.push('planner-no-choice')
+              plannerResolution = {
+                kind: 'rejected',
+                degradationCode: 'planner-no-choice',
+              }
             } else {
-              plannerCandidateId = planned.candidateId
-              const plannedScore = scores.find(
+              const plannedScore = legacyScored.scores.find(
                 (score) => score.candidateId === planned.candidateId,
               )
-              if (!viableIds.has(planned.candidateId) || !plannedScore) {
-                degradation.push('planner-invalid-candidate')
+              const plannedCandidate = context.viableCandidates.find(
+                (candidate) => candidate.id === planned.candidateId,
+              )
+              if (!plannedCandidate || !plannedScore) {
+                plannerResolution = {
+                  kind: 'rejected',
+                  degradationCode: 'planner-invalid-candidate',
+                  attemptedCandidateId: planned.candidateId,
+                }
               } else if (!validPlannerReasons(
                 planned.reasonCodes,
                 plannedScore,
-                scores,
-                structured.candidateId,
+                legacyScored.scores,
+                legacyScored.structuredCandidateId,
               )) {
-                degradation.push('planner-invalid-reason')
+                plannerResolution = {
+                  kind: 'rejected',
+                  degradationCode: 'planner-invalid-reason',
+                  attemptedCandidateId: planned.candidateId,
+                }
               } else {
-                acceptedPlannerSelection = true
-                chosenCandidateId = planned.candidateId
-                plannerReasonCodes = planned.reasonCodes === undefined
+                const plannerReasonCodes = planned.reasonCodes === undefined
                   ? undefined
                   : [...planned.reasonCodes]
+                let plannerCommunication:
+                  PlannerCommunicationDirection | undefined
+                let plannerDegradation: string | undefined
                 if (planned.communication !== undefined) {
                   if (validPlannerCommunication(
                     planned.communication,
-                    byId(candidates, planned.candidateId).decision,
+                    plannedCandidate.decision,
                     view,
                   )) {
                     plannerCommunication = structuredClone(
                       planned.communication,
                     )
                   } else {
-                    degradation.push('planner-invalid-communication')
+                    plannerDegradation = 'planner-invalid-communication'
                   }
+                }
+                plannerResolution = {
+                  kind: 'accepted',
+                  candidateId: planned.candidateId,
+                  ...(plannerReasonCodes
+                    ? { reasonCodes: plannerReasonCodes }
+                    : {}),
+                  ...(plannerCommunication
+                    ? { communication: plannerCommunication }
+                    : {}),
+                  ...(plannerDegradation
+                    ? { degradationCode: plannerDegradation }
+                    : {}),
                 }
               }
             }
           } catch {
-            degradation.push('planner-failed')
+            plannerResolution = {
+              kind: 'rejected',
+              degradationCode: 'planner-failed',
+            }
           }
         }
 
-        const candidate = byId(candidates, chosenCandidateId)
-        if (
-          !forced.selectedCandidateId
-          && !questCardPolicyCandidateId
-          && !acceptedPlannerSelection
-          && chosenCandidateId === structured.candidateId
-        ) {
-          decisionComponents = attributeRoleActionSelection(
-            decisionComponents,
-          )
-        }
-        const chosenScore = scores.find(
+        const selectedFrame = selectDecisionCandidate(
+          scoredFrame,
+          plannerResolution,
+          attributeRoleActionSelection,
+        )
+        const chosenCandidateId = selectedFrame.selected.candidate.id
+        const plannerCandidateId = selectedFrame.planner.kind === 'accepted'
+          ? selectedFrame.planner.candidateId
+          : selectedFrame.planner.kind === 'rejected'
+            ? selectedFrame.planner.attemptedCandidateId
+            : undefined
+        const plannerCommunication =
+          selectedFrame.planner.kind === 'accepted'
+            ? selectedFrame.planner.communication
+            : undefined
+        const plannerReasonCodes =
+          selectedFrame.planner.kind === 'accepted'
+            ? selectedFrame.planner.reasonCodes
+            : undefined
+        const chosenScore = legacyScored.scores.find(
           (score) => score.candidateId === chosenCandidateId,
         )
         if (!chosenScore) {
           throw new Error('composed policy selected candidate without a score')
         }
-        const mechanicalDecision = silenceMechanicalCommunication(candidate.decision)
+        const mechanicalDecision = selectedMechanicalDecision(selectedFrame)
         const communication = defaultCommunicationIntent(
           mechanicalDecision,
           analysis.factCodes,
           chosenScore,
-          scores,
+          legacyScored.scores,
           plannerCommunication,
           plannerReasonCodes,
         )
         const planStrategicReasons = plannerReasonCodes
-          ?? selectedStrategicReasonCodes(chosenScore, scores)
+          ?? selectedStrategicReasonCodes(chosenScore, legacyScored.scores)
         const plan: DecisionPlan = {
           version: DECISION_PLAN_VERSION,
           request: { ...req },
@@ -2058,12 +1992,14 @@ export function createComposedAgent(
             ...planStrategicReasons,
           ],
           beliefThroughSeq: cognition.throughSeq,
-          candidateScores: scores,
+          candidateScores: legacyScored.scores,
           ...(communication ? { communication } : {}),
         }
+        const committedFrame = commitDecision(selectedFrame, plan)
         stage('plan-committed')
 
-        let action = structuredClone(plan.decision)
+        let action = structuredClone(mechanicalDecision)
+        let voiceDegradation: string | undefined
         if (activeVoice && plan.communication) {
           stage('voice')
           try {
@@ -2073,15 +2009,24 @@ export function createComposedAgent(
               renderedPlan: renderCommittedVoicePlan(voicePlan),
             })
             if (!output) {
-              degradation.push('voice-no-output')
+              voiceDegradation = 'voice-no-output'
             } else {
               action = withVoice(plan.decision, output)
             }
           } catch {
-            degradation.push('voice-failed')
+            voiceDegradation = 'voice-failed'
             action = structuredClone(plan.decision)
           }
         }
+        const voicedFrame = withDecisionVoice(committedFrame, {
+          version: activeVoice?.version ?? NO_VOICE_VERSION,
+          result: action,
+          ...(voiceDegradation
+            ? { degradationCode: voiceDegradation }
+            : {}),
+        })
+        const legacyOutput = projectVoicedFrameForLegacy(voicedFrame)
+        action = legacyOutput.action
 
         const chosenTeamAnalysis = (
           action.kind === 'propose'
@@ -2105,24 +2050,24 @@ export function createComposedAgent(
           cognition,
           traceAnalysis,
           action,
-          scores,
-          structured.candidateId,
-          chosenCandidateId,
-          forced,
+          legacyOutput.scores,
+          legacyOutput.structuredCandidateId,
+          legacyOutput.selectedCandidateId,
+          legacyOutput.forced,
           plannerVersion,
           voiceVersion,
-          scorerVersion,
-          degradation,
+          legacyOutput.scorerVersion,
+          legacyOutput.degradation,
           configuredComponentPlan,
-          decisionComponents,
+          legacyOutput.componentRun,
           resolvedBrain.description,
           architectureIdentityDigest,
           activePlanner
             ? 'hybrid'
-            : scorerVersion === CANDIDATE_SCORER_VERSION
+            : legacyOutput.scorerVersion === CANDIDATE_SCORER_VERSION
               ? 'compatibility'
               : 'structured-only',
-          plan.communication,
+          legacyOutput.plan.communication,
           plannerCandidateId,
           plannerReasonCodes,
           interpreter

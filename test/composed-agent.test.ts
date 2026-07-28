@@ -64,8 +64,8 @@ test('composed engine runs in ownership order and attributes every component', a
   })
   assert.deepEqual(stages, [
     'cognition',
-    'analysis',
     'candidates',
+    'analysis',
     'forced-policy',
     'scoring',
     'planner',

@@ -1,0 +1,313 @@
+{
+  "schema": 1,
+  "capturedFrom": "5354c2c3a973355af1d66b03e2213dc1e5c93cb8",
+  "sourceDirty": false,
+  "scenarios": [
+    {
+      "id": "default:merlin-opening-proposal",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ]
+      },
+      "traceHash": "745537cd580d889eda9874ca7b50b03fb43ce1100e4e5e75b90c045f0dadb0db",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:percival-opening-discussion",
+      "decision": {
+        "kind": "discuss",
+        "say": "",
+        "lean": "approve"
+      },
+      "traceHash": "4058b3e38ba0a7052e4f9f1875b8f166abe37461f1fc0d35eaab790b729dfc45",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:servant-vote-after-evidence",
+      "decision": {
+        "kind": "vote",
+        "vote": "reject"
+      },
+      "traceHash": "3144b65f0b7352d44b87b7ea861236ae90d4b971e967ad420c41e740b284c5fd",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:assassin-late-finalize",
+      "decision": {
+        "kind": "finalize",
+        "stick": true
+      },
+      "traceHash": "9ea309b1efcf87a0a9525e15832d2f42803c6e0f7fc628990c74282c4438ab62",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:oberon-two-fail-quest",
+      "decision": {
+        "kind": "quest",
+        "card": "fail"
+      },
+      "traceHash": "cbff790880dfab34fef3b59a6a8e6e3f0ec5c1d2814567fd2a402657fdcbcd6d",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:minion-late-discussion",
+      "decision": {
+        "kind": "discuss",
+        "say": ""
+      },
+      "traceHash": "bdafef11c09b0f05b9668d51c0ad2db5b74178c6e67119febab5226ec3e73ca7",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:mordred-late-vote",
+      "decision": {
+        "kind": "vote",
+        "vote": "reject"
+      },
+      "traceHash": "8868c05875c6fd2b8dac5fc8d03ba5311ce331dfd5b973c4463da45eff7d9bf1",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "default:assassin-endgame-target",
+      "decision": {
+        "kind": "assassinate",
+        "target": 0
+      },
+      "traceHash": "52d128e1e1c7e797cdfbf8123d3d5963c451b6db939e1acd693dd8baa53cdd67",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "fallback:matching-base",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          1
+        ]
+      },
+      "traceHash": "931555316b454d7cb4d63ecc6d60a39df9154e8f87ad67de9fea13d96a7ca851",
+      "stages": [
+        "cognition",
+        "identity",
+        "observer",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "role-objective",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "fallback:hard-double",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ]
+      },
+      "traceHash": "3762fed02056112e420ed3a012b4a49e96d27f4cfd33601873bfd382e698eb79",
+      "stages": [
+        "cognition",
+        "identity",
+        "observer",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "role-objective",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "d3:robust",
+      "decision": {
+        "kind": "quest",
+        "card": "success"
+      },
+      "traceHash": "7e77ab4b205e35491a3975aa86781c28ea1fd47f0f70a437140ab5e98e820810",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "quest-card-policy",
+        "forced-policy",
+        "scoring",
+        "plan-committed"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": null
+    },
+    {
+      "id": "planner-voice:accepted",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ],
+        "pitch": "I support this team.",
+        "thinking": "Keep it concise."
+      },
+      "traceHash": "867d8462d903a36e1fb6ccda1aecd9bb8d7dcfff2e4db102b1d4a552c36f66f8",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "planner",
+        "plan-committed",
+        "voice"
+      ],
+      "plannerInputHash": "9cf84720433b18d34d48af63ef52fca8654d882204af52c224fe1e6fe1fc6e89",
+      "voiceInputHash": "8474ec7ad725b1ce3bd8c644733f4462226ffd8eb8d96c0ec4e236085167221b"
+    },
+    {
+      "id": "planner:invalid-candidate",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ]
+      },
+      "traceHash": "5a77ae46ec6992572d67e9195a53b8b336e2cc03ee309fc9b78944f203e92898",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "planner",
+        "plan-committed"
+      ],
+      "plannerInputHash": "9cf84720433b18d34d48af63ef52fca8654d882204af52c224fe1e6fe1fc6e89",
+      "voiceInputHash": null
+    },
+    {
+      "id": "voice:no-output",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ]
+      },
+      "traceHash": "275dbb6ffa46631b14373f5a8386f0328f2d241e32c73ad6285fb505fb131261",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed",
+        "voice"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": "8474ec7ad725b1ce3bd8c644733f4462226ffd8eb8d96c0ec4e236085167221b"
+    },
+    {
+      "id": "voice:failure",
+      "decision": {
+        "kind": "propose",
+        "team": [
+          0,
+          4
+        ]
+      },
+      "traceHash": "f953d05ee6c230269ced065797970aafeeb02dbb824169d7455ea03c45be8569",
+      "stages": [
+        "cognition",
+        "analysis",
+        "candidates",
+        "forced-policy",
+        "scoring",
+        "plan-committed",
+        "voice"
+      ],
+      "plannerInputHash": null,
+      "voiceInputHash": "8474ec7ad725b1ce3bd8c644733f4462226ffd8eb8d96c0ec4e236085167221b"
+    }
+  ]
+}
