@@ -138,6 +138,14 @@ import {
 } from './policy/candidates.ts'
 import { analyzeSituation } from './analysis/situation.ts'
 import { applyForcedPolicy } from './policy/forced.ts'
+import {
+  EVIL_QUEST_CARD_POLICY_VERSION,
+  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
+  EVIL_QUEST_PUBLIC_CONTEXT_VERSION,
+  MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
+  EVIL_QUEST_ROBUST_POLICY_VERSION,
+  validatePrivateEvilQuestCardPolicyHostJoin,
+} from './policy/evil-quest-card.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -247,6 +255,20 @@ function validComponentVersions(value: unknown): boolean {
       || versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
     )
     && (
+      versions.evilQuestCardPolicy === undefined
+      || versions.evilQuestCardPolicy
+        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      || versions.evilQuestCardPolicy
+        === EVIL_QUEST_ROBUST_POLICY_VERSION
+    )
+    && (
+      versions.configuredEvilQuestCardPolicy === undefined
+      || versions.configuredEvilQuestCardPolicy
+        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      || versions.configuredEvilQuestCardPolicy
+        === EVIL_QUEST_ROBUST_POLICY_VERSION
+    )
+    && (
       versions.configuredScorer === undefined
       || (
         typeof versions.configuredScorer === 'string'
@@ -265,6 +287,211 @@ function validComponentVersions(value: unknown): boolean {
     && (
       (versions.planMemory === undefined)
       === (versions.coherence === undefined)
+    )
+}
+
+function validPrivateEvilQuestCardPolicyTrace(
+  value: unknown,
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  if (value === undefined) {
+    return components?.evilQuestCardPolicy === undefined
+  }
+  const validSourceContext = (source: unknown): boolean => {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      return false
+    }
+    const context = source as Record<string, unknown>
+    return exactKeys(context, [
+      'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
+      'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
+      'priorProposals',
+    ])
+      && context.version === EVIL_QUEST_PUBLIC_CONTEXT_VERSION
+      && Number.isInteger(context.playerCount)
+      && (context.playerCount as number) >= 5
+      && (context.playerCount as number) <= 10
+      && Number.isInteger(context.round)
+      && (context.round as number) >= 1
+      && (context.round as number) <= 5
+      && Number.isInteger(context.proposalNum)
+      && (context.proposalNum as number) >= 1
+      && (context.proposalNum as number) <= 5
+      && Number.isInteger(context.leaderSeat)
+      && (context.leaderSeat as number) >= 0
+      && (context.leaderSeat as number) < (context.playerCount as number)
+      && seatArray(context.currentTeam)
+      && new Set(context.currentTeam as number[]).size
+        === (context.currentTeam as number[]).length
+      && (context.currentTeam as number[]).every(
+        (seat) => seat < (context.playerCount as number),
+      )
+      && Number.isInteger(context.teamSize)
+      && context.teamSize === (context.currentTeam as number[]).length
+      && Number.isInteger(context.failsRequired)
+      && (context.failsRequired as number) >= 1
+      && stringArray(context.priorQuests)
+      && stringArray(context.priorProposals)
+  }
+  if (
+    !value
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || components?.evilQuestCardPolicy !== (
+      (value as Record<string, unknown>).policyVersion
+    )
+  ) return false
+  const policy = value as Record<string, unknown>
+  if (
+    Buffer.byteLength(JSON.stringify(policy), 'utf8')
+      > MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES
+    ||
+    !exactKeys(policy, [
+      'version', 'policyVersion', 'mode', 'request', 'role', 'applicable',
+      'coordinationAssumption', 'populationAssumption', 'mixedTableSafe',
+      'promotionEvidenceEligible', 'sourceContext', 'sourceFingerprint',
+      'failsRequired', 'decisiveBoard', 'visibleEvilCount',
+      'visibleEvilAboardCount', 'visibleEvilSeats',
+      'visibleEvilAboard', 'orderedVisibleEvilAboard', 'designation',
+      'slowPlayProbability', 'slowPlayBucket', 'sharedSlowPlayGateOpen',
+      'localSlowPlayFail', 'reason', 'selectedCard',
+    ])
+    || policy.version !== EVIL_QUEST_CARD_POLICY_VERSION
+    || (
+      policy.mode !== 'visible-exact-quota'
+      && policy.mode !== 'robust-heterogeneous'
+    )
+    || policy.policyVersion !== (
+      policy.mode === 'visible-exact-quota'
+        ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+        : EVIL_QUEST_ROBUST_POLICY_VERSION
+    )
+    || !isDeepStrictEqual(policy.request, req)
+    || typeof policy.role !== 'string'
+    || typeof policy.applicable !== 'boolean'
+    || (
+      policy.coordinationAssumption !== 'none'
+      && policy.coordinationAssumption
+        !== 'homogeneous-common-policy-required'
+    )
+    || typeof policy.mixedTableSafe !== 'boolean'
+    || typeof policy.promotionEvidenceEligible !== 'boolean'
+    || !validSourceContext(policy.sourceContext)
+    || typeof policy.sourceFingerprint !== 'string'
+    || !/^[0-9a-f]{8}$/.test(policy.sourceFingerprint as string)
+    || !Number.isInteger(policy.failsRequired)
+    || (policy.failsRequired as number) < 1
+    || typeof policy.decisiveBoard !== 'boolean'
+    || !Number.isInteger(policy.visibleEvilCount)
+    || (policy.visibleEvilCount as number) < 0
+    || !Number.isInteger(policy.visibleEvilAboardCount)
+    || (policy.visibleEvilAboardCount as number) < 0
+    || (
+      policy.visibleEvilSeats !== undefined
+      && !seatArray(policy.visibleEvilSeats)
+    )
+    || (
+      policy.visibleEvilAboard !== undefined
+      && !seatArray(policy.visibleEvilAboard)
+    )
+    || (
+      policy.orderedVisibleEvilAboard !== undefined
+      && !seatArray(policy.orderedVisibleEvilAboard)
+    )
+    || (
+      policy.designation !== undefined
+      && !seatArray(policy.designation)
+    )
+    || typeof policy.reason !== 'string'
+    || (
+      policy.slowPlayProbability !== undefined
+      && !finiteProbability(policy.slowPlayProbability)
+    )
+    || (
+      policy.sharedSlowPlayGateOpen !== undefined
+      && typeof policy.sharedSlowPlayGateOpen !== 'boolean'
+    )
+    || (
+      policy.localSlowPlayFail !== undefined
+      && typeof policy.localSlowPlayFail !== 'boolean'
+    )
+    || (
+      policy.slowPlayBucket !== undefined
+      && !finiteProbability(policy.slowPlayBucket)
+    )
+    || (
+      policy.selectedCard !== undefined
+      && policy.selectedCard !== 'success'
+      && policy.selectedCard !== 'fail'
+    )
+  ) return false
+  const visible = (policy.visibleEvilSeats ?? []) as number[]
+  const aboard = (policy.visibleEvilAboard ?? []) as number[]
+  const ordered = (policy.orderedVisibleEvilAboard ?? []) as number[]
+  const designation = (policy.designation ?? []) as number[]
+  if (
+    new Set(visible).size !== visible.length
+    || new Set(aboard).size !== aboard.length
+    || new Set(ordered).size !== ordered.length
+    || new Set(designation).size !== designation.length
+    || aboard.some((seat) => !visible.includes(seat))
+    || ordered.some((seat) => !aboard.includes(seat))
+    || designation.some((seat) => !aboard.includes(seat))
+  ) return false
+  const exactMode = policy.mode === 'visible-exact-quota'
+  if (
+    exactMode
+      ? (
+          policy.coordinationAssumption
+            !== 'homogeneous-common-policy-required'
+          || policy.populationAssumption
+            !== 'homogeneous-all-evil-required'
+          || policy.mixedTableSafe !== false
+          || policy.promotionEvidenceEligible !== false
+          || policy.visibleEvilSeats === undefined
+          || policy.visibleEvilAboard === undefined
+          || policy.orderedVisibleEvilAboard === undefined
+          || policy.designation === undefined
+          || policy.visibleEvilCount !== visible.length
+          || policy.visibleEvilAboardCount !== aboard.length
+          || ordered.length !== aboard.length
+          || aboard.some((seat) => !ordered.includes(seat))
+          || policy.localSlowPlayFail !== undefined
+        )
+      : (
+          policy.coordinationAssumption !== 'none'
+          || policy.populationAssumption !== 'heterogeneous-independent'
+          || policy.mixedTableSafe !== true
+          || policy.promotionEvidenceEligible !== true
+          || policy.visibleEvilSeats !== undefined
+          || policy.visibleEvilAboard !== undefined
+          || policy.orderedVisibleEvilAboard !== undefined
+          || policy.designation !== undefined
+          || policy.sharedSlowPlayGateOpen !== undefined
+          || (policy.visibleEvilAboardCount as number)
+            > (policy.visibleEvilCount as number)
+        )
+  ) return false
+  if (hostView) {
+    const shouldApply =
+      req.kind === 'quest'
+      && hostView.alignment === 'evil'
+      && hostView.role !== 'oberon'
+    if (
+      policy.role !== hostView.role
+      || policy.applicable !== shouldApply
+    ) return false
+  }
+  const action = trace.action as Record<string, unknown> | undefined
+  return policy.selectedCard === undefined
+    || (
+      action?.kind === 'quest'
+      && action.card === policy.selectedCard
     )
 }
 
@@ -2414,6 +2641,12 @@ function validDecisionTrace(
       req,
       hostView,
     )
+    && validPrivateEvilQuestCardPolicyTrace(
+      trace.privateEvilQuestCardPolicy,
+      trace,
+      req,
+      hostView,
+    )
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
@@ -2498,6 +2731,13 @@ export function validateComposedTraceHostJoin(input: {
         req,
         view,
       )
+      || !validPrivateEvilQuestCardPolicyTrace(
+        trace.privateEvilQuestCardPolicy,
+        trace as unknown as Record<string, unknown>,
+        req,
+        view,
+      )
+      || !validateEvilQuestCardPolicyHostJoin(trace, req, view)
     ) return false
     const components = trace.componentVersions!
     if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false
@@ -2984,6 +3224,61 @@ function validateRoutedEvilDependencyHostJoin(
   }
 }
 
+function validateEvilQuestCardPolicyHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+): boolean {
+  const policy = trace.privateEvilQuestCardPolicy
+  const component = trace.componentVersions?.evilQuestCardPolicy
+  const configured =
+    trace.componentVersions?.configuredEvilQuestCardPolicy
+  const applicable =
+    req.kind === 'quest'
+    && view.alignment === 'evil'
+    && view.role !== 'oberon'
+  if (!policy && component === undefined) {
+    return !(configured && applicable)
+  }
+  if (
+    !policy
+    || component !== policy.policyVersion
+    || configured !== policy.policyVersion
+  ) return false
+  try {
+    const candidates = legalCandidates(req, view)
+    const analysis = analyzeSituation(view, {
+      belief: exactBelief(view),
+      policyCandidateTeams: candidateTeams(candidates, view),
+    })
+    if (!validatePrivateEvilQuestCardPolicyHostJoin(policy, {
+      req,
+      view,
+      analysis,
+      mode: policy.mode,
+    })) return false
+    const forced = applyForcedPolicy(req, view, analysis, candidates, {
+      evilQuestCardPolicy: policy,
+    })
+    const selectedId = candidateIdForDecision({
+      kind: 'quest',
+      card: policy.selectedCard!,
+    })
+    return (
+      policy.applicable
+      && policy.selectedCard !== undefined
+      && isDeepStrictEqual(trace.forcedPolicyResult, forced)
+      && forced.selectedCandidateId === selectedId
+      && trace.structuredCandidateId === selectedId
+      && trace.chosenCandidateId === selectedId
+      && trace.action.kind === 'quest'
+      && trace.action.card === policy.selectedCard
+    )
+  } catch {
+    return false
+  }
+}
+
 function isFullPlayerView(
   value: Pick<PlayerView, 'rolesInPlay'> | undefined,
 ): value is PlayerView {
@@ -3026,6 +3321,14 @@ export function parseStdioDecisionReply(
     || (
       isFullPlayerView(hostView)
       && !validateRoutedEvilDependencyHostJoin(
+        record.trace as DecisionTrace,
+        req,
+        hostView,
+      )
+    )
+    || (
+      isFullPlayerView(hostView)
+      && !validateEvilQuestCardPolicyHostJoin(
         record.trace as DecisionTrace,
         req,
         hostView,

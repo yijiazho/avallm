@@ -113,6 +113,10 @@ import {
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
 import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
+import {
+  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
+  EVIL_QUEST_ROBUST_POLICY_VERSION,
+} from '../agents/policy/evil-quest-card.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -421,6 +425,43 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       )
     }
     if (
+      variant.components.evilQuestCardPolicy !== undefined
+      && variant.components.evilQuestCardPolicy
+        !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      && variant.components.evilQuestCardPolicy
+        !== EVIL_QUEST_ROBUST_POLICY_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid evilQuestCardPolicy`,
+      )
+    }
+    if (
+      variant.components.evilQuestCardPolicy
+        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} cannot verify the homogeneous all-evil population required by exact quota`,
+      )
+    }
+    if (
+      variant.components.evilQuestCardPolicy
+        === EVIL_QUEST_ROBUST_POLICY_VERSION
+      && variant.components.populationAssumption
+        !== 'heterogeneous-independent'
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} robust D3 requires heterogeneous-independent populationAssumption`,
+      )
+    }
+    if (
+      variant.components.evilQuestCardPolicy === undefined
+      && variant.components.populationAssumption !== undefined
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} populationAssumption requires evilQuestCardPolicy`,
+      )
+    }
+    if (
       variant.components.evilRoleUtility
         === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       && (
@@ -711,6 +752,28 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               actualRoleObjective === 'off'
                 ? undefined
                 : actualRoleObjective
+            )
+            || traceVersions.configuredEvilQuestCardPolicy
+              !== expectedComponents.evilQuestCardPolicy
+            || (
+              trace.request.kind === 'quest'
+              && trace.request.seat === c.expectedTargetSeat
+              && !['merlin', 'percival', 'servant', 'oberon']
+                .includes(c.targetRole)
+                ? (
+                    traceVersions.evilQuestCardPolicy
+                      !== expectedComponents.evilQuestCardPolicy
+                    || (
+                      expectedComponents.evilQuestCardPolicy === undefined
+                        ? trace.privateEvilQuestCardPolicy !== undefined
+                        : trace.privateEvilQuestCardPolicy?.policyVersion
+                          !== expectedComponents.evilQuestCardPolicy
+                    )
+                  )
+                : (
+                    traceVersions.evilQuestCardPolicy !== undefined
+                    || trace.privateEvilQuestCardPolicy !== undefined
+                  )
             )
             || (
               !boundedLanguage

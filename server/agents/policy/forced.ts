@@ -17,6 +17,9 @@ import {
   type ForcedPolicyResult,
   type PolicyCandidate,
 } from './types.ts'
+import type {
+  PrivateEvilQuestCardPolicy,
+} from './evil-quest-card.ts'
 
 const ids = (candidates: readonly PolicyCandidate[]): readonly string[] =>
   candidates.map((candidate) => candidate.id)
@@ -112,6 +115,14 @@ export function applyForcedPolicy(
   view: PlayerView,
   analysis: SituationAnalysis,
   candidates: readonly PolicyCandidate[],
+  options: {
+    /**
+     * An explicitly configured private quest-card policy supplies the evil
+     * quest choice. This owner validates capacity and selects the sole legal
+     * candidate before any scorer or planner can act.
+     */
+    evilQuestCardPolicy?: PrivateEvilQuestCardPolicy
+  } = {},
 ): ForcedPolicyResult {
   if (candidates.some((candidate) => candidate.kind !== req.kind)) {
     throw new Error(`forced policy received mixed candidates for ${req.kind}`)
@@ -128,6 +139,38 @@ export function applyForcedPolicy(
     const current = analysis.currentTeam
     const need = analysis.failsRequired
     const canSink = (current?.knownFailsAboard.length ?? 0) >= need
+    const questPolicy = options.evilQuestCardPolicy
+    if (questPolicy?.selectedCard) {
+      const reason = {
+        EXACT_QUOTA_DESIGNATED_FAIL:
+          'EVIL_EXACT_QUOTA_DESIGNATED_FAIL',
+        EXACT_QUOTA_NONDESIGNATED_SUCCESS:
+          'EVIL_EXACT_QUOTA_UNDESIGNATED_SUCCESS',
+        INSUFFICIENT_VISIBLE_QUOTA_SUCCESS:
+          'EVIL_INSUFFICIENT_VISIBLE_QUOTA_HOLD',
+        SHARED_SLOW_PLAY_HOLD:
+          'EVIL_SHARED_SLOW_PLAY_HOLD',
+        ROBUST_DECISIVE_FAIL:
+          'EVIL_ROBUST_DECISIVE_FAIL',
+        ROBUST_LOCAL_SLOW_PLAY_FAIL:
+          'EVIL_ROBUST_LOCAL_SLOW_PLAY_FAIL',
+        ROBUST_LOCAL_SLOW_PLAY_HOLD:
+          'EVIL_ROBUST_LOCAL_SLOW_PLAY_HOLD',
+      }[questPolicy.reason] as ForcedPlayReasonCode | undefined
+      if (!reason || (questPolicy.selectedCard === 'fail' && !canSink)) {
+        throw new Error(
+          `invalid forced quest-policy directive: ${questPolicy.reason}`,
+        )
+      }
+      return select(
+        candidates,
+        { kind: 'quest', card: questPolicy.selectedCard },
+        [
+          reason,
+          ...(!canSink ? ['EVIL_QUEST_CARD_CANNOT_SINK' as const] : []),
+        ],
+      )
+    }
     if (!canSink && view.role !== 'oberon') {
       if (!analysis.forcedPlayReasonCodes.includes('EVIL_QUEST_CARD_CANNOT_SINK')) {
         throw new Error('analysis omitted EVIL_QUEST_CARD_CANNOT_SINK')
@@ -138,7 +181,10 @@ export function applyForcedPolicy(
         ['EVIL_QUEST_CARD_CANNOT_SINK'],
       )
     }
-    if (canSink && (analysis.matchPoint.good || analysis.matchPoint.evil)) {
+    if (
+      canSink
+      && (analysis.matchPoint.good || analysis.matchPoint.evil)
+    ) {
       const reasons: ForcedPlayReasonCode[] = []
       if (analysis.matchPoint.good) reasons.push('GOOD_MATCH_POINT_FAIL_REQUIRED')
       if (analysis.matchPoint.evil) reasons.push('EVIL_MATCH_POINT_FAIL_AVAILABLE')

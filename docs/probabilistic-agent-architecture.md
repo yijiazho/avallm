@@ -513,7 +513,10 @@ arbitrary teams or cards in prose.
   teams.
 - **Merlin:** trade off quest influence against public conspicuousness and assassination risk.
 - **Percival:** infer the Merlin/Morgana pair while increasing its own value as an Assassin decoy.
-- **Evil:** trade off quest failure, cover, teammate coordination, and information about Merlin.
+- **Evil:** share the mechanical objective of quest failure, cover, and future failure capacity.
+  This common objective is a substrate, not a substitute for special-role policy.
+- **Morgana:** counterfeit Merlin's public behavior and influence Percival's belief while still
+  serving the shared evil mechanical objective.
 - **Mordred:** exploit Merlin's uncertainty and observe who treats it anomalously.
 - **Oberon:** maintain a posterior over unseen teammates and reason explicitly about coordination
   uncertainty.
@@ -521,6 +524,14 @@ arbitrary teams or cards in prose.
   score.
 
 These objectives share facts and beliefs but should not be compressed into one universal score.
+In particular, a role label or descriptive posture that does not causally affect policy is not an
+implemented role objective.
+
+Coordination policy must also be valid for heterogeneous tables containing humans, raw LLMs, and
+other agent types. A deployable evil agent cannot assume that teammates share its algorithm,
+timing convention, seed, or capability handshake. Independent robust play is therefore the
+production direction. An exact-quota convention may remain as a clearly labeled homogeneous
+research ceiling, but mixed-table results from it are not promotion evidence.
 
 ---
 

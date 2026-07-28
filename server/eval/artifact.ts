@@ -65,6 +65,8 @@ export interface ArtifactStrategyVersions {
   roleUtilities?: readonly string[]
   /** Added in Phase 7D2; distinct from Merlin/Percival roleUtilities. */
   evilRoleUtilities?: readonly string[]
+  /** Added in Phase 7D3; exact and robust quest policies remain distinct. */
+  evilQuestCardPolicies?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -210,6 +212,15 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.evilRoleUtility,
     ...traces.map((trace) => trace.componentVersions?.evilRoleUtility),
   ])
+  const evilQuestCardPolicies = sortedUnique([
+    architecture.evilQuestCardPolicy,
+    ...traces.map(
+      (trace) => trace.componentVersions?.evilQuestCardPolicy,
+    ),
+    ...traces.map(
+      (trace) => trace.componentVersions?.configuredEvilQuestCardPolicy,
+    ),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -245,6 +256,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(roleObjectiveRouters.length ? { roleObjectiveRouters } : {}),
     ...(roleUtilities.length ? { roleUtilities } : {}),
     ...(evilRoleUtilities.length ? { evilRoleUtilities } : {}),
+    ...(evilQuestCardPolicies.length ? { evilQuestCardPolicies } : {}),
   }
 }
 

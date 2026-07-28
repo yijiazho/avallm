@@ -81,6 +81,10 @@ import {
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
 import { validateComposedTraceHostJoin } from '../agents/stdio.ts'
+import {
+  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
+  EVIL_QUEST_ROBUST_POLICY_VERSION,
+} from '../agents/policy/evil-quest-card.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -306,7 +310,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -342,6 +346,22 @@ function architectureSafety(
       === EVIL_ROLE_UTILITY_PROJECTION_VERSION
   const evilRoleUtilityApplicable =
     declaresEvilRoleUtility && evilRoleObjectiveApplicable
+  const declaredEvilQuestCardPolicy =
+    meta.components.evilQuestCardPolicy
+  const declaresEvilQuestCardPolicy =
+    declaredEvilQuestCardPolicy === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+    || declaredEvilQuestCardPolicy === EVIL_QUEST_ROBUST_POLICY_VERSION
+  const invalidEvilQuestCardPolicyDeclaration =
+    declaredEvilQuestCardPolicy === undefined
+      ? meta.components.populationAssumption !== undefined
+      : declaredEvilQuestCardPolicy
+          === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+        ? true
+      : (
+          !declaresEvilQuestCardPolicy
+          || meta.components.populationAssumption
+            !== 'heterogeneous-independent'
+        )
   const declaredCoherenceIntent = meta.components.coherenceIntent
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
@@ -429,11 +449,13 @@ function architectureSafety(
     || declaresRoleObjectiveRouter
     || declaresRoleUtility
     || declaresEvilRoleUtility
+    || declaresEvilQuestCardPolicy
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
     || invalidRoleObjectiveDeclaration
     || invalidRoleUtilityDeclaration
     || invalidEvilRoleUtilityDeclaration
+    || invalidEvilQuestCardPolicyDeclaration
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -509,6 +531,15 @@ function architectureSafety(
           !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
       )
     : (artifactEvilRoleUtilities?.length ?? 0) > 0
+  const artifactEvilQuestCardPolicies =
+    artifact.strategyVersions?.evilQuestCardPolicies
+  const invalidEvilQuestCardPolicyManifest = declaresEvilQuestCardPolicy
+    ? (
+        artifactEvilQuestCardPolicies?.length !== 1
+        || artifactEvilQuestCardPolicies[0]
+          !== declaredEvilQuestCardPolicy
+      )
+    : (artifactEvilQuestCardPolicies?.length ?? 0) > 0
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
@@ -530,6 +561,10 @@ function architectureSafety(
     traceAttributionViolations++
   }
   if (invalidEvilRoleUtilityManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidEvilQuestCardPolicyManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -622,7 +657,32 @@ function architectureSafety(
       || invalidRoleObjectiveDeclaration
       || invalidRoleUtilityDeclaration
       || invalidEvilRoleUtilityDeclaration
+      || invalidEvilQuestCardPolicyDeclaration
       || invalidTraceShape
+      || (
+        trace.request.kind === 'quest'
+        && !['merlin', 'percival', 'servant', 'oberon']
+          .includes(meta.targetRole)
+          ? (
+              declaresEvilQuestCardPolicy
+                ? (
+                    versions.evilQuestCardPolicy
+                      !== declaredEvilQuestCardPolicy
+                    || trace.privateEvilQuestCardPolicy?.policyVersion
+                      !== declaredEvilQuestCardPolicy
+                  )
+                : (
+                    versions.evilQuestCardPolicy !== undefined
+                    || trace.privateEvilQuestCardPolicy !== undefined
+                  )
+            )
+          : (
+              versions.evilQuestCardPolicy !== undefined
+              || trace.privateEvilQuestCardPolicy !== undefined
+            )
+      )
+      || versions.configuredEvilQuestCardPolicy
+        !== declaredEvilQuestCardPolicy
       || (
         declaresPublicObserver
           ? !validatePublicObserverSnapshot(trace.publicObserver)

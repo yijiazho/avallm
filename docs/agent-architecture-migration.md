@@ -2,13 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7D3 opt-in evil quest-card coordination and forced-policy
-ablations. Phase 7D2 landed bounded visible-evil and Oberon proposal and vote authority over the
-exact Phase 7D1 objective substrate. Phase 7D remains split into independently reviewable
-landings: completed objective substrate and routing, completed proposal/vote policy, then
-quest-card coordination and forced-policy ablations. The Phase 5C population sign flip remains
-recorded, and win-rate tuning is still intentionally deferred until the architecture is complete
-enough to evaluate as a whole.
+**Current target phase:** Phase 7E1 Morgana specialization. Phase 7D3 landed heterogeneous-safe
+evil quest-card policy and quarantined exact-quota coordination as a homogeneous research ceiling.
+The remaining role work is explicitly split into Morgana, Mordred, and Assassin policy before the
+Phase 7 role-bank evaluation and exit audit. The Phase 5C population sign flip remains recorded,
+and win-rate tuning is still intentionally deferred until the architecture is complete enough to
+evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -193,7 +192,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7D2 complete | Merlin, Percival, evil, Oberon, and Assassin objectives |
+| 7. Role-specific observer and identity models | In progress; Phase 7D3 complete | Morgana, Mordred, and Assassin specialization, then role-bank audit |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1215,11 +1214,16 @@ reviewable and ablatable:
 7. **Phase 7D2, evil/Oberon proposal and vote policy:** add bounded opt-in failure-capacity,
    cover, and future-opportunity utility while keeping Oberon separate from visible-partner
    coordination. **Complete.**
-8. **Phase 7D3, evil quest-card coordination:** add an exact-quota visible-partner convention and
-   retain the robust all-Fail policy as a separately attributable ablation for mixed-agent tables.
-9. **Phase 7E, Assassin:** add a capped, interpretable Merlin posterior that remains distinct from
-   generic goodness.
-10. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+8. **Phase 7D3, evil quest-card policy:** add independently valid heterogeneous play as the only
+   promotion-eligible direction. Retain exact quota only as a homogeneous, mixed-unsafe,
+   nonpromotable research ceiling. **Complete.**
+9. **Phase 7E1, Morgana specialization:** make counterfeit-Merlin and Percival-influence value
+   causally affect bounded policy.
+10. **Phase 7E2, Mordred specialization:** make Merlin-blindness exploitation and anomalous public
+   treatment causally affect bounded policy.
+11. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
+   remains distinct from generic goodness.
+12. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1503,15 +1507,78 @@ knowledge, and leak tests. The complete API-free suite passed 781 tests. The fre
 bank, weighted generation and report fixtures, 10-player 252-team bound, deterministic replay,
 two-Fail semantics, privacy checks, and hostile mutation matrices all passed with no paid calls.
 This establishes Phase 7D2 architecture and safety correctness, not playing-strength promotion.
-Phase 7D3 owns visible-partner quest-card coordination and the robust all-Fail ablation.
+Phase 7D3 owns heterogeneous-safe visible-partner quest-card policy and the quarantined
+homogeneous exact-quota comparison.
 
 - [x] Give proposal and vote candidates bounded failure-capacity-first utility. Failure capacity
       owns at least 70 percent of normalized value; cover and future opportunity together own at
       most 30 percent.
-- [ ] Add a visible-partner exact-quota Fail convention with a public common designation and
-      deterministic tie-breaking. Non-Oberon visible evil below the required quota still succeeds.
-- [ ] Preserve the current robust all-Fail decisive policy as an opt-in ablation until Phase 7F
-      measures exact-quota convention compliance on mixed-agent tables.
+- [x] Add a heterogeneous-safe visible-partner policy that assumes no shared algorithm, seed,
+      convention, teammate action, or agent-type handshake. Below known visible quota it succeeds;
+      on decisive sinkable boards each visible evil independently Fails; otherwise a seat-local
+      public-context bucket controls bounded timing.
+- [x] Retain exact-quota designation only as a homogeneous research ceiling. Mark it mixed-table
+      unsafe and promotion-ineligible, and reject its evaluation artifacts until Phase 7F can
+      prove genuine all-seat provenance.
+
+### Phase 7D3 implementation record
+
+`evil-robust-heterogeneous-quest-policy-v1` is the only promotion-eligible D3 direction. Each
+non-Oberon visible evil decides independently from its seat-filtered request, canonical public
+history, acting seat, and legally visible evil counts. It does not consume the game seed, player
+names, prose, raw events, a posterior, teammate card choices, execution order, agent type, shared
+state, or a capability handshake. It succeeds below known visible failure quota, independently
+Fails on a decisive sinkable quest, and otherwise uses an acting-seat-local public-context bucket.
+Zero, one, multiple, or subquota Fails are accepted consequences of heterogeneous play rather than
+silently assuming cooperative teammates.
+
+`visible-evil-exact-quota-homogeneous-research-v1` remains available only as an explicitly
+homogeneous comparison. Its canonical cohort, order, common gate, and designation require every
+visible evil seat to run the same convention. It declares that assumption, is marked mixed-table
+unsafe and promotion-ineligible, and every exact artifact is rejected by current generation and
+stored-report evaluation even if metadata falsely claims a verified homogeneous population.
+Phase 7F may add genuine all-seat provenance for research measurement, but exact quota cannot
+become the mixed-table production policy.
+
+The typed quest-card directive is consumed by forced policy before scoring or planning. Engine
+legality remains final, Oberon retains independent behavior, and no D3 payload enters prompts,
+voice, public cognition, client data, or public logs. Configured and resolved policy identities
+remain separate. Stdio, architecture generation, stored reporting, and artifacts reconstruct and
+join the directive, forced reason, selected card, and applied card while rejecting seed
+dependence, mode swaps, illegal cross-mode fields, forged context, count, order, designation,
+bucket, action, deletion, manifest, or degradation data.
+
+Independent review approved the implementation with no actionable findings after 49 focused
+C2/D1-D3 tests, hostile standalone and host-replay mutations, a free architecture bank, additional
+5-10 player composed games, execution-order invariance, and a no-D3 transcript comparison against
+the prior commit. Parent validation passed 54 focused tests and all 794 API-free repository tests.
+No client, prompt, provider, production-default, paid-call, push, or deployment change is included.
+
+The D1 posture names for Morgana and Mordred are explicitly descriptive `not-policy` data, and D2
+applies the same generic 70/20/10 evil utility to both roles. That is useful shared mechanics, but
+it does not implement either special role's causal objective. The following two slices are
+therefore required Phase 7 architecture, not optional cleanup.
+
+### Morgana
+
+- [ ] Add an interpretable public observer of whether Morgana is being read as Merlin and how that
+      could influence Percival.
+- [ ] Derive counterfeit-Merlin and Percival-influence value only from legal private knowledge and
+      public conduct; do not import Percival's private posterior or identify true Merlin through
+      privileged data.
+- [ ] Give the objective bounded, opt-in causal authority over relevant proposal, vote, or
+      communication intent while preserving forced policy, legality, and generic evil fallback.
+- [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
+
+### Mordred
+
+- [ ] Model the value of Merlin's blindness and anomalous public treatment using only Mordred's
+      legal view and the shared public observer.
+- [ ] Do not infer Merlin from privileged role identity or reuse the future Assassin posterior as
+      if Mordred possessed it.
+- [ ] Give deep-cover and Merlin-blindness exploitation bounded, opt-in causal policy authority
+      while preserving forced policy, legality, and generic evil fallback.
+- [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
 
 ### Assassin
 
@@ -1522,8 +1589,9 @@ Phase 7D3 owns visible-partner quest-card coordination and the robust all-Fail a
 
 ### Exit gate
 
-Each special role has an explicit objective and appropriate posterior. None is implemented only as
-extra prose appended to the generic good or evil prompt.
+Each special role has an explicit objective and appropriate posterior or observer. None is
+implemented only as extra prose, a descriptive posture label, or unchanged generic good or evil
+utility.
 
 ---
 
@@ -1767,8 +1835,20 @@ here.
   coordinates, two-Fail rules, role coordination, equations, seeds, selections, actions, and the
   exact weighted complete-or-triple-absence boundary. Independent review approved 781 API-free
   tests, the free bank, weighted generation/report fixtures, privacy, bounds, deterministic
-  replay, and hostile mutations. Phase 7D3 owns quest-card coordination and forced-policy
-  ablations.
+  replay, and hostile mutations. Phase 7D3 owns heterogeneous-safe quest-card policy and a
+  quarantined homogeneous research comparison.
+- Phase 7D3 heterogeneous evil quest policy: added an opt-in forced-policy owner whose robust mode
+  requires no shared convention, seed, teammate action, execution order, agent-type handshake, or
+  shared state. It succeeds below known visible quota, independently Fails on decisive sinkable
+  boards, and uses a seat-local public-context timing bucket otherwise. Exact quota remains an
+  explicitly homogeneous, mixed-unsafe, promotion-ineligible research ceiling, and current
+  evaluation rejects every exact artifact until Phase 7F can supply genuine all-seat provenance.
+  Forced-policy precedence, engine legality, Oberon separation, privacy, configured-versus-resolved
+  attribution, strict stdio and architecture joins, deterministic replay, hostile mutations, a
+  free bank, and no-D3 compatibility replay passed independent review. Parent validation passed 54
+  focused tests and all 794 API-free tests. Phase 7E is now split into required Morgana, Mordred,
+  and Assassin specialization because D1 posture labels and D2 generic evil utility do not yet
+  make the first two roles causally distinct.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

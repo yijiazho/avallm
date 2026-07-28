@@ -111,6 +111,14 @@ import {
 } from './policy/candidates.ts'
 import { applyForcedPolicy } from './policy/forced.ts'
 import {
+  buildPrivateEvilQuestCardPolicy,
+  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
+  EVIL_QUEST_ROBUST_POLICY_VERSION,
+  type EvilQuestCardPolicyMode,
+  type PrivateEvilQuestCardPolicy,
+  validatePrivateEvilQuestCardPolicyHostJoin,
+} from './policy/evil-quest-card.ts'
+import {
   COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
@@ -192,6 +200,7 @@ export type ComposedStage =
   | 'identity'
   | 'observer'
   | 'role-objective'
+  | 'quest-card-policy'
   | 'analysis'
   | 'candidates'
   | 'forced-policy'
@@ -229,6 +238,11 @@ export interface ComposedAgentOptions {
    * objective model but grants no scoring or quest-card policy authority.
    */
   roleObjectiveRouter?: boolean
+  /**
+   * Opt-in Phase 7D3 private quest-card convention. It is independent of the
+   * proposal/vote role scorer and never reaches communication.
+   */
+  evilQuestCardPolicy?: EvilQuestCardPolicyMode
   /** Opt-in Phase 7B2 private selected/applied plan memory. */
   planMemory?: boolean
   /** Literal conflict classification intent. Defaults to maintain when enabled. */
@@ -443,6 +457,8 @@ function composedTrace(
   roleObjectiveRouterEnabled = false,
   privateRoleUtility?: PrivateRoleUtilityProjection,
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection,
+  configuredEvilQuestCardPolicy?: string,
+  privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -464,6 +480,12 @@ function composedTrace(
       action,
       degradation,
     ),
+    reasonCodes: [
+      ...new Set([
+        ...analysis.forcedPlayReasonCodes,
+        ...forced.reasonCodes,
+      ]),
+    ],
     agentMode,
     componentVersions: {
       brain: brain.brain,
@@ -492,6 +514,15 @@ function composedTrace(
         : {}),
       ...(privateEvilRoleUtility
         ? { evilRoleUtility: EVIL_ROLE_UTILITY_PROJECTION_VERSION }
+        : {}),
+      ...(privateEvilQuestCardPolicy
+        ? {
+            evilQuestCardPolicy:
+              privateEvilQuestCardPolicy.policyVersion,
+          }
+        : {}),
+      ...(configuredEvilQuestCardPolicy
+        ? { configuredEvilQuestCardPolicy }
         : {}),
       ...(planMemoryEnabled
         ? {
@@ -546,6 +577,12 @@ function composedTrace(
       : {}),
     ...(privateEvilRoleUtility
       ? { privateEvilRoleUtility: structuredClone(privateEvilRoleUtility) }
+      : {}),
+    ...(privateEvilQuestCardPolicy
+      ? {
+          privateEvilQuestCardPolicy:
+            structuredClone(privateEvilQuestCardPolicy),
+        }
       : {}),
   }
 }
@@ -615,6 +652,20 @@ export function createComposedAgent(
     ? structuredClone(options.privateIdentity)
     : undefined
   const planMemoryEnabled = options.planMemory === true
+  const evilQuestCardPolicyMode = options.evilQuestCardPolicy
+  if (
+    evilQuestCardPolicyMode !== undefined
+    && evilQuestCardPolicyMode !== 'visible-exact-quota'
+    && evilQuestCardPolicyMode !== 'robust-heterogeneous'
+  ) {
+    throw new Error('invalid evilQuestCardPolicy mode')
+  }
+  const configuredEvilQuestCardPolicy =
+    evilQuestCardPolicyMode === 'visible-exact-quota'
+      ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      : evilQuestCardPolicyMode === 'robust-heterogeneous'
+        ? EVIL_QUEST_ROBUST_POLICY_VERSION
+        : undefined
   const coherenceIntent = options.coherenceIntent ?? 'maintain'
   if (!['maintain', 'conceal', 'deceive'].includes(coherenceIntent)) {
     throw new Error('coherenceIntent must be maintain, conceal, or deceive')
@@ -1085,7 +1136,36 @@ export function createComposedAgent(
             }
           : {}),
       })
-      const forced = applyForcedPolicy(req, view, analysis, candidates)
+      let privateEvilQuestCardPolicy:
+        PrivateEvilQuestCardPolicy | undefined
+      if (
+        evilQuestCardPolicyMode
+        && req.kind === 'quest'
+        && view.alignment === 'evil'
+        && view.role !== 'oberon'
+      ) {
+        privateEvilQuestCardPolicy = buildPrivateEvilQuestCardPolicy({
+          req,
+          view,
+          analysis,
+          mode: evilQuestCardPolicyMode,
+        })
+        if (!validatePrivateEvilQuestCardPolicyHostJoin(
+          privateEvilQuestCardPolicy,
+          {
+            req,
+            view,
+            analysis,
+            mode: evilQuestCardPolicyMode,
+          },
+        )) {
+          throw new Error('evil quest-card policy failed its host join')
+        }
+        stage('quest-card-policy')
+      }
+      const forced = applyForcedPolicy(req, view, analysis, candidates, {
+        evilQuestCardPolicy: privateEvilQuestCardPolicy,
+      })
       stage('forced-policy')
 
       const compatibility = compatibilityDecision(req, view, options.seed)
@@ -1167,9 +1247,18 @@ export function createComposedAgent(
           )
         }
       }
+      const questCardPolicyCandidateId =
+        privateEvilQuestCardPolicy?.selectedCard
+          ? candidateIdForDecision({
+              kind: 'quest',
+              card: privateEvilQuestCardPolicy.selectedCard,
+            })
+          : undefined
       const structured = forced.selectedCandidateId
         ? scores.find((score) => score.candidateId === forced.selectedCandidateId)
-        : structuredChoice(scores)
+        : questCardPolicyCandidateId
+          ? scores.find((score) => score.candidateId === questCardPolicyCandidateId)
+          : structuredChoice(scores)
       if (!structured || !structured.viable) {
         throw new Error('forced policy selected a non-viable candidate')
       }
@@ -1190,7 +1279,11 @@ export function createComposedAgent(
       let plannerCandidateId: string | undefined
       let plannerCommunication: PlannerCommunicationDirection | undefined
       let plannerReasonCodes: readonly string[] | undefined
-      if (activePlanner && !forced.selectedCandidateId) {
+      if (
+        activePlanner
+        && !forced.selectedCandidateId
+        && !questCardPolicyCandidateId
+      ) {
         stage('planner')
         try {
           const suppliedPlan = await activePlanner.choose({
@@ -1353,6 +1446,8 @@ export function createComposedAgent(
         routerConfigured,
         privateRoleUtility,
         privateEvilRoleUtility,
+        configuredEvilQuestCardPolicy,
+        privateEvilQuestCardPolicy,
         planMemoryEnabled,
         coherenceIntent,
       )

@@ -22,6 +22,9 @@ import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-typ
 import type { PrivateEvilRoleObjectiveSnapshot } from './analysis/evil-objective-types.ts'
 import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
 import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-utility.ts'
+import type {
+  PrivateEvilQuestCardPolicy,
+} from './policy/evil-quest-card.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -93,6 +96,10 @@ export interface DecisionTrace {
     roleUtility?: string
     /** Absent unless the D2 evil/Oberon projection was built. */
     evilRoleUtility?: string
+    /** Resolved D3 policy, present only on applicable evil quest decisions. */
+    evilQuestCardPolicy?: string
+    /** Configured D3 policy; resolved payload remains quest/applicability-only. */
+    configuredEvilQuestCardPolicy?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -134,6 +141,8 @@ export interface DecisionTrace {
   privateRoleUtility?: PrivateRoleUtilityProjection
   /** Private D2 evil/Oberon utility, absent off/inapplicable/degraded. */
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
+  /** Private D3 convention, absent unless explicitly configured. */
+  privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */
