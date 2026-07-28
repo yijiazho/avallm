@@ -20,6 +20,10 @@ import type { LanguageTraceAttribution } from './communication/language-orchestr
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-types.ts'
 import type { PrivateEvilRoleObjectiveSnapshot } from './analysis/evil-objective-types.ts'
+import type {
+  PrivateMorganaCounterfeitObjective,
+  PublicCounterfeitMerlinReadSnapshot,
+} from './analysis/morgana-counterfeit-types.ts'
 import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
 import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-utility.ts'
 import type {
@@ -100,6 +104,12 @@ export interface DecisionTrace {
     evilQuestCardPolicy?: string
     /** Configured D3 policy; resolved payload remains quest/applicability-only. */
     configuredEvilQuestCardPolicy?: string
+    /** Resolved public-only Phase 7E1A counterfeit-read projection. */
+    morganaCounterfeitPublicRead?: string
+    /** Resolved private Phase 7E1A candidate objective. */
+    morganaCounterfeitObjective?: string
+    /** Configured Phase 7E1A objective; resolved only for Morgana propose/vote. */
+    configuredMorganaCounterfeitObjective?: string
     analysis: string
     candidates: string
     forcedPolicy: string
@@ -143,6 +153,10 @@ export interface DecisionTrace {
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
   /** Private D3 convention, absent unless explicitly configured. */
   privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy
+  /** Public-only counterfeit-Merlin read, privately retained in trace. */
+  publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot
+  /** Private mechanically inert Morgana counterfeit objective. */
+  privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */

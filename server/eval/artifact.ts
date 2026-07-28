@@ -67,6 +67,8 @@ export interface ArtifactStrategyVersions {
   evilRoleUtilities?: readonly string[]
   /** Added in Phase 7D3; exact and robust quest policies remain distinct. */
   evilQuestCardPolicies?: readonly string[]
+  /** Added in Phase 7E1A; configured and resolved private substrates. */
+  morganaCounterfeitObjectives?: readonly string[]
 }
 
 export interface ArtifactTelemetry {
@@ -221,6 +223,16 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
       (trace) => trace.componentVersions?.configuredEvilQuestCardPolicy,
     ),
   ])
+  const morganaCounterfeitObjectives = sortedUnique([
+    architecture.morganaCounterfeitObjective,
+    ...traces.map(
+      (trace) =>
+        trace.componentVersions?.configuredMorganaCounterfeitObjective,
+    ),
+    ...traces.map(
+      (trace) => trace.componentVersions?.morganaCounterfeitObjective,
+    ),
+  ])
   return {
     schema: 1,
     agentDescriptors: sortedUnique(opts.agents),
@@ -257,6 +269,9 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     ...(roleUtilities.length ? { roleUtilities } : {}),
     ...(evilRoleUtilities.length ? { evilRoleUtilities } : {}),
     ...(evilQuestCardPolicies.length ? { evilQuestCardPolicies } : {}),
+    ...(morganaCounterfeitObjectives.length
+      ? { morganaCounterfeitObjectives }
+      : {}),
   }
 }
 

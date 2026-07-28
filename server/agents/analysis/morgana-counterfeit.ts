@@ -1,0 +1,1047 @@
+import { isDeepStrictEqual } from 'node:util'
+import type {
+  DecisionRequest,
+  PlayerView,
+  Role,
+  Seat,
+} from '../../engine/types.ts'
+import {
+  ROLE_ALIGNMENT,
+  TEAM_SIZES,
+  validateRoles,
+} from '../../engine/rules.ts'
+import type { BeliefSnapshot } from '../belief/types.ts'
+import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
+import {
+  visibleEventCursor,
+} from '../belief/exact.ts'
+import { worldSatisfiesView } from '../belief/constraints.ts'
+import {
+  canonicalRoleMultiset,
+  canonicalWorldKey,
+} from '../belief/worlds.ts'
+import { assessPublicJointTeams, observePublicRecord } from './observer.ts'
+import {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+  type PublicObserverSnapshot,
+} from './observer-types.ts'
+import type { PublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../communication/public-record.ts'
+import type { PolicyCandidate } from '../policy/types.ts'
+import { candidateIdForDecision } from '../policy/candidates.ts'
+import {
+  MAX_MORGANA_COUNTERFEIT_ASSESSMENTS,
+  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+  type CounterfeitObservationFraction,
+  type MorganaCounterfeitAssessment,
+  type MorganaCounterfeitCandidate,
+  type PrivateMorganaCounterfeitObjective,
+  type PublicCounterfeitMerlinRead,
+  type PublicCounterfeitMerlinReadSnapshot,
+} from './morgana-counterfeit-types.ts'
+
+const plainRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+function plainDetachedData(
+  value: unknown,
+  seen = new Set<object>(),
+): boolean {
+  if (
+    value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+  ) return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object' || seen.has(value)) return false
+  seen.add(value)
+  const array = Array.isArray(value)
+  if (
+    array
+      ? (
+          Object.keys(value).length !== value.length
+          || Array.from(
+            { length: value.length },
+            (_, index) => Object.hasOwn(value, index),
+          ).some((present) => !present)
+        )
+      : Object.getPrototypeOf(value) !== Object.prototype
+  ) return false
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  for (const key of Reflect.ownKeys(value)) {
+    if (array && key === 'length') continue
+    if (typeof key !== 'string') return false
+    const descriptor = descriptors[key]
+    if (
+      !descriptor
+      || !descriptor.enumerable
+      || !('value' in descriptor)
+      || !plainDetachedData(descriptor.value, seen)
+    ) return false
+  }
+  return true
+}
+
+const denseArray = (value: unknown): value is unknown[] =>
+  Array.isArray(value)
+  && Object.keys(value).length === value.length
+  && Array.from(
+    { length: value.length },
+    (_, index) => Object.hasOwn(value, index),
+  ).every(Boolean)
+
+const exactKeys = (
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean =>
+  Object.keys(value).length === keys.length
+  && Object.keys(value).every((key) => keys.includes(key))
+
+const probability = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isFinite(value)
+  && value >= 0
+  && value <= 1
+
+const canonicalSeats = (
+  value: unknown,
+  playerCount: number,
+): value is Seat[] =>
+  denseArray(value)
+  && value.length > 0
+  && value.every(
+    (seat, index) =>
+      Number.isSafeInteger(seat)
+      && (seat as number) >= 0
+      && (seat as number) < playerCount
+      && (index === 0 || (value[index - 1] as number) < (seat as number)),
+  )
+
+function canonicalCombinations(
+  playerCount: number,
+  size: number,
+): readonly Seat[][] {
+  const out: Seat[][] = []
+  const selected: Seat[] = []
+  const visit = (start: number): void => {
+    if (selected.length === size) {
+      out.push(selected.slice())
+      return
+    }
+    for (
+      let seat = start;
+      seat <= playerCount - (size - selected.length);
+      seat++
+    ) {
+      selected.push(seat)
+      visit(seat + 1)
+      selected.pop()
+    }
+  }
+  visit(0)
+  return out
+}
+
+const clamp01 = (value: number): number =>
+  Math.max(0, Math.min(1, value))
+
+const close = (left: number, right: number): boolean =>
+  Math.abs(left - right) <= PROBABILITY_TOLERANCE
+
+function canonicalTeam(team: readonly Seat[]): readonly Seat[] {
+  return [...team].sort((left, right) => left - right)
+}
+
+function sameTeam(
+  left: readonly Seat[],
+  right: readonly Seat[],
+): boolean {
+  return isDeepStrictEqual(canonicalTeam(left), canonicalTeam(right))
+}
+
+function fraction(
+  numerator: number,
+  denominator: number,
+): CounterfeitObservationFraction {
+  return {
+    numerator,
+    denominator,
+    index: denominator === 0 ? null : numerator / denominator,
+  }
+}
+
+interface TruthCounts {
+  proposalHits: number
+  proposalObservations: number
+  voteHits: number
+  voteObservations: number
+}
+
+/**
+ * Join only resolved public proposals to their quest outcomes. Player names,
+ * prose, raw events, private state, and input ordering never enter this read.
+ */
+function truthCounts(record: PublicRecord): readonly TruthCounts[] {
+  const counts = Array.from(
+    { length: record.playerCount },
+    (): TruthCounts => ({
+      proposalHits: 0,
+      proposalObservations: 0,
+      voteHits: 0,
+      voteObservations: 0,
+    }),
+  )
+  for (const quest of [...record.quests].sort((a, b) => a.num - b.num)) {
+    if (!quest.team || quest.result === undefined) continue
+    const executed = record.proposals
+      .filter(
+        (proposal) =>
+          proposal.round === quest.num
+          && (proposal.approved === true || proposal.auto === true)
+          && sameTeam(proposal.team, quest.team!),
+      )
+      .sort(
+        (left, right) =>
+          left.proposalNum - right.proposalNum
+          || left.leader - right.leader,
+      )
+      .at(-1)
+    if (!executed) continue
+    counts[executed.leader].proposalObservations += 1
+    if (quest.result === 'success') {
+      counts[executed.leader].proposalHits += 1
+    }
+    for (const vote of [...(executed.votes ?? [])].sort(
+      (left, right) => left.seat - right.seat,
+    )) {
+      counts[vote.seat].voteObservations += 1
+      if (
+        (vote.vote === 'approve' && quest.result === 'success')
+        || (vote.vote === 'reject' && quest.result === 'fail')
+      ) {
+        counts[vote.seat].voteHits += 1
+      }
+    }
+  }
+  return counts
+}
+
+/**
+ * A public-only read projection for "appears Merlin-like." Exact public role
+ * marginals remain separate from explicitly non-probabilistic behavior counts.
+ */
+export function buildPublicCounterfeitMerlinRead(
+  record: PublicRecord,
+  observer: PublicObserverSnapshot = observePublicRecord(record),
+): PublicCounterfeitMerlinReadSnapshot {
+  const authoritative = observePublicRecord(record)
+  if (!isDeepStrictEqual(observer, authoritative)) {
+    throw new Error('counterfeit public read received inconsistent observer')
+  }
+  const counts = truthCounts(record)
+  const merlinNumerators = observer.seats.map((seat) => {
+    const merlin = seat.roleMarginals.find(
+      (marginal) => marginal.role === 'merlin',
+    )?.probability ?? 0
+    return Math.round(merlin * observer.feasibleWorldCount)
+  })
+  const maximum = Math.max(...merlinNumerators)
+  if (maximum <= 0) {
+    throw new Error('counterfeit public read requires Merlin in the public cast')
+  }
+  const seats = counts.map((entry, seat): PublicCounterfeitMerlinRead => {
+    const proposal = fraction(
+      entry.proposalHits,
+      entry.proposalObservations,
+    )
+    const vote = fraction(entry.voteHits, entry.voteObservations)
+    const total = fraction(
+      entry.proposalHits + entry.voteHits,
+      entry.proposalObservations + entry.voteObservations,
+    )
+    const smoothedTruthTrackingIndex =
+      (total.numerator + 1) / (total.denominator + 2)
+    const relativeMerlinEligibilityIndex =
+      merlinNumerators[seat] / maximum
+    return {
+      seat,
+      probabilitySemantics: 'public-uniform-feasible-joint',
+      merlinWorldNumerator: merlinNumerators[seat],
+      feasibleWorldDenominator: observer.feasibleWorldCount,
+      merlinProbability:
+        merlinNumerators[seat] / observer.feasibleWorldCount,
+      relativeMerlinEligibilityIndex,
+      observationSemantics: 'public-counts-no-data-is-null',
+      proposalTruthTracking: proposal,
+      voteTruthTracking: vote,
+      totalTruthTracking: total,
+      proxySemantics:
+        'bounded-deterministic-proxy-not-role-probability',
+      smoothedTruthTrackingIndex,
+      counterfeitReadProxyIndex:
+        relativeMerlinEligibilityIndex * smoothedTruthTrackingIndex,
+    }
+  })
+  return {
+    version: MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+    observerModelVersion: PUBLIC_OBSERVER_MODEL_VERSION,
+    playerCount: record.playerCount,
+    feasibleWorldCount: observer.feasibleWorldCount,
+    seats,
+  }
+}
+
+function candidateCommitment(
+  candidate: PolicyCandidate,
+  view: PlayerView,
+): MorganaCounterfeitCandidate | undefined {
+  if (candidate.decision.kind === 'propose') {
+    return {
+      candidateId: candidate.id,
+      kind: 'propose',
+      direction: 'support',
+      team: canonicalTeam(candidate.decision.team),
+    }
+  }
+  if (candidate.decision.kind === 'vote' && view.currentTeam) {
+    return {
+      candidateId: candidate.id,
+      kind: 'vote',
+      direction: candidate.decision.vote === 'approve'
+        ? 'support'
+        : 'oppose',
+      team: canonicalTeam(view.currentTeam),
+    }
+  }
+  return undefined
+}
+
+function normalizedDistribution(
+  distribution: readonly number[],
+): readonly number[] {
+  const total = distribution.reduce((sum, value) => sum + value, 0)
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error('counterfeit objective requires positive world mass')
+  }
+  return distribution.map((value) => clamp01(value / total))
+}
+
+function merlinVisibleDistribution(
+  belief: BeliefSnapshot,
+  team: readonly Seat[],
+): readonly number[] {
+  const out = Array<number>(team.length + 1).fill(0)
+  for (const weighted of belief.worlds) {
+    let count = 0
+    for (const seat of team) {
+      const role = weighted.world.roleBySeat[seat]
+      if (ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred') count += 1
+    }
+    out[count] += weighted.probability
+  }
+  return normalizedDistribution(out)
+}
+
+function failureCapability(
+  distribution: readonly number[],
+  failsRequired: number,
+): number {
+  return clamp01(
+    distribution
+      .slice(failsRequired)
+      .reduce((sum, probability) => sum + probability, 0),
+  )
+}
+
+function validateBeliefForMorgana(
+  belief: BeliefSnapshot,
+  view: PlayerView,
+): void {
+  const cast = canonicalRoleMultiset(view.rolesInPlay)
+  const keys = new Set<string>()
+  if (
+    !belief
+    || typeof belief.modelVersion !== 'string'
+    || belief.modelVersion.length === 0
+    || !Number.isSafeInteger(belief.throughSeq)
+    || belief.throughSeq < -1
+    || belief.throughSeq !== visibleEventCursor(view)
+    || !['constraints-only', 'weighted', 'degraded'].includes(
+      belief.quality,
+    )
+    || !belief.worlds.length
+    || belief.playerMarginals.length !== view.playerCount
+    || belief.worlds.some(
+      (weighted) => {
+        const roles = weighted.world.roleBySeat
+        const alignments = weighted.world.alignmentBySeat
+        const duplicate = keys.has(weighted.world.key)
+        keys.add(weighted.world.key)
+        return (
+          roles.length !== view.playerCount
+        || alignments.length !== view.playerCount
+        || weighted.world.roleBySeat[view.seat] !== 'morgana'
+        || !isDeepStrictEqual(canonicalRoleMultiset(roles), cast)
+        || weighted.world.key !== canonicalWorldKey(roles)
+        || duplicate
+        || roles.some(
+          (role, seat) => ROLE_ALIGNMENT[role] !== alignments[seat],
+        )
+        || !probability(weighted.probability)
+        || weighted.probability === 0
+        || !worldSatisfiesView(
+          view,
+          weighted.world,
+          { questRecord: 'all' },
+        )
+        )
+      },
+    )
+    || Math.abs(
+      belief.worlds.reduce(
+        (sum, weighted) => sum + weighted.probability,
+        0,
+      ) - 1,
+    ) > PROBABILITY_TOLERANCE
+    || (
+      belief.quality === 'constraints-only'
+      && belief.worlds.some(
+        (weighted) =>
+          Math.abs(
+            weighted.probability - belief.worlds[0].probability,
+          ) > PROBABILITY_TOLERANCE,
+      )
+    )
+  ) {
+    throw new Error('counterfeit objective requires Morgana-bound joint worlds')
+  }
+}
+
+export function buildMorganaCounterfeitObjective(input: {
+  req: DecisionRequest
+  view: PlayerView
+  belief: BeliefSnapshot
+  publicRead: PublicCounterfeitMerlinReadSnapshot
+  candidates: readonly PolicyCandidate[]
+}): PrivateMorganaCounterfeitObjective {
+  const { req, view, belief, publicRead, candidates } = input
+  if (
+    view.role !== 'morgana'
+    || req.seat !== view.seat
+    || !['propose', 'vote'].includes(req.kind)
+    || req.round !== view.round
+    || req.proposalNum !== view.proposalNum
+    || view.phase !== (req.kind === 'propose' ? 'proposal' : 'vote')
+    || candidates.length > MAX_MORGANA_COUNTERFEIT_ASSESSMENTS
+  ) {
+    throw new Error('counterfeit objective is inapplicable to this decision')
+  }
+  validateBeliefForMorgana(belief, view)
+  const record = projectPublicRecord(view)
+  const observer = observePublicRecord(record)
+  const authoritativeRead = buildPublicCounterfeitMerlinRead(record, observer)
+  if (!isDeepStrictEqual(publicRead, authoritativeRead)) {
+    throw new Error('counterfeit objective received inconsistent public read')
+  }
+  const failsRequired = view.quests[view.round - 1]?.failsRequired
+  if (![1, 2].includes(failsRequired)) {
+    throw new Error('counterfeit objective requires current fail threshold')
+  }
+  const expectedTeamSize = TEAM_SIZES[view.playerCount]?.[view.round - 1]
+  const currentTeam = req.kind === 'vote'
+    ? view.currentTeam === undefined
+      ? undefined
+      : canonicalTeam(view.currentTeam)
+    : undefined
+  if (
+    !Number.isSafeInteger(expectedTeamSize)
+    || (
+      req.kind === 'vote'
+      && (
+        currentTeam === undefined
+        || currentTeam.length !== expectedTeamSize
+        || new Set(currentTeam).size !== currentTeam.length
+        || currentTeam.some(
+          (seat) =>
+            !Number.isSafeInteger(seat)
+            || seat < 0
+            || seat >= view.playerCount,
+        )
+      )
+    )
+  ) {
+    throw new Error('counterfeit objective requires a legal current team')
+  }
+  const commitments = candidates
+    .map((candidate) => candidateCommitment(candidate, view))
+    .filter(
+      (candidate): candidate is MorganaCounterfeitCandidate =>
+        candidate !== undefined,
+    )
+  if (
+    commitments.length !== candidates.length
+    || new Set(commitments.map((candidate) => candidate.candidateId)).size
+      !== commitments.length
+  ) {
+    throw new Error('counterfeit objective requires unique team candidates')
+  }
+  if (!view.rolesInPlay.includes('percival')) {
+    throw new Error('Morgana counterfeit objective requires legal Percival dependency')
+  }
+  const publicTeams = assessPublicJointTeams(
+    record,
+    commitments.map((candidate) => candidate.team),
+  )
+  const read = publicRead.seats[view.seat]
+  if (!read || read.seat !== view.seat) {
+    throw new Error('counterfeit objective requires the acting-seat read')
+  }
+  const assessments = commitments.map(
+    (candidate, index): MorganaCounterfeitAssessment => {
+        const privateDistribution = merlinVisibleDistribution(
+          belief,
+          candidate.team,
+        )
+        const q = failureCapability(privateDistribution, failsRequired)
+        const publicDistribution =
+          publicTeams[index].evilCountDistribution.slice()
+        const p = failureCapability(publicDistribution, failsRequired)
+        const support = candidate.direction === 'support'
+        const expectedMerlinConsistencyIndex = support ? 1 - q : q
+        const publicConsistencyBaselineIndex = support ? 1 - p : p
+        const privateKnowledgeTellIndex = Math.max(
+          0,
+          expectedMerlinConsistencyIndex - publicConsistencyBaselineIndex,
+        )
+        const publicAmbiguityIndex = 1 - Math.abs(2 * p - 1)
+        const counterfeitSignalIndex = expectedMerlinConsistencyIndex * (
+          0.5 * publicAmbiguityIndex
+          + 0.5 * privateKnowledgeTellIndex
+        )
+        const counterfeitOpportunityReadProxyIndex =
+          read.counterfeitReadProxyIndex
+        const counterfeitValue =
+          counterfeitOpportunityReadProxyIndex
+            * expectedMerlinConsistencyIndex
+          + (1 - counterfeitOpportunityReadProxyIndex)
+            * counterfeitSignalIndex
+        return {
+          candidate,
+          probabilitySemantics: 'resolved-complete-world-sum',
+          merlinVisibleEvilCountDistribution: privateDistribution,
+          merlinVisibleFailureCapabilityProbability: q,
+          publicProbabilitySemantics:
+            'public-preaction-uniform-feasible-joint',
+          publicEvilCountDistribution: publicDistribution,
+          publicFailureCapabilityProbability: p,
+          valueSemantics:
+            'bounded-deterministic-indices-not-probabilities',
+          expectedMerlinConsistencyIndex,
+          publicConsistencyBaselineIndex,
+          privateKnowledgeTellIndex,
+          publicAmbiguityIndex,
+          counterfeitSignalIndex,
+          counterfeitOpportunityReadProxyIndex,
+          counterfeitValue,
+        }
+    },
+  )
+  const snapshot: PrivateMorganaCounterfeitObjective = {
+    version: MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+    role: 'morgana',
+    source: {
+      beliefModelVersion: belief.modelVersion,
+      beliefThroughSeq: belief.throughSeq,
+      beliefQuality: belief.quality,
+      playerCount: view.playerCount,
+      rolesInPlay: [...view.rolesInPlay],
+      publicReadVersion: MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+      observerModelVersion: PUBLIC_OBSERVER_MODEL_VERSION,
+      observerFeasibleWorldCount: observer.feasibleWorldCount,
+    },
+    request: {
+      seat: req.seat,
+      kind: req.kind,
+      round: req.round,
+      proposalNum: req.proposalNum,
+      failsRequired,
+      ...(currentTeam ? { currentTeam } : {}),
+    },
+    counterfeitApplicability: 'percival-in-cast',
+    assessmentApplicability: 'team-candidates',
+    actingSeatRead: structuredClone(read),
+    assessments,
+  }
+  if (
+    Buffer.byteLength(JSON.stringify(snapshot), 'utf8')
+      > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
+  ) {
+    throw new Error('counterfeit objective exceeds its private payload bound')
+  }
+  return snapshot
+}
+
+function validFraction(value: unknown): value is CounterfeitObservationFraction {
+  if (!plainRecord(value)) return false
+  if (
+    !exactKeys(value, ['numerator', 'denominator', 'index'])
+    || !Number.isSafeInteger(value.numerator)
+    || !Number.isSafeInteger(value.denominator)
+    || (value.numerator as number) < 0
+    || (value.denominator as number) < (value.numerator as number)
+  ) return false
+  if (value.denominator === 0) {
+    return value.numerator === 0 && value.index === null
+  }
+  return probability(value.index)
+    && close(
+      value.index,
+      (value.numerator as number) / (value.denominator as number),
+    )
+}
+
+function validReadRow(
+  value: unknown,
+  seat: number,
+  playerCount: number,
+  feasibleWorldCount: number,
+): value is PublicCounterfeitMerlinRead {
+  if (!plainRecord(value)) return false
+  if (
+    !exactKeys(value, [
+      'seat',
+      'probabilitySemantics',
+      'merlinWorldNumerator',
+      'feasibleWorldDenominator',
+      'merlinProbability',
+      'relativeMerlinEligibilityIndex',
+      'observationSemantics',
+      'proposalTruthTracking',
+      'voteTruthTracking',
+      'totalTruthTracking',
+      'proxySemantics',
+      'smoothedTruthTrackingIndex',
+      'counterfeitReadProxyIndex',
+    ])
+    || value.seat !== seat
+    || seat < 0
+    || seat >= playerCount
+    || value.probabilitySemantics !== 'public-uniform-feasible-joint'
+    || !Number.isSafeInteger(value.merlinWorldNumerator)
+    || (value.merlinWorldNumerator as number) < 0
+    || value.feasibleWorldDenominator !== feasibleWorldCount
+    || !probability(value.merlinProbability)
+    || !probability(value.relativeMerlinEligibilityIndex)
+    || value.observationSemantics !== 'public-counts-no-data-is-null'
+    || !validFraction(value.proposalTruthTracking)
+    || !validFraction(value.voteTruthTracking)
+    || !validFraction(value.totalTruthTracking)
+    || value.proxySemantics
+      !== 'bounded-deterministic-proxy-not-role-probability'
+    || !probability(value.smoothedTruthTrackingIndex)
+    || !probability(value.counterfeitReadProxyIndex)
+  ) return false
+  const proposal = value.proposalTruthTracking
+  const vote = value.voteTruthTracking
+  const total = value.totalTruthTracking
+  return (
+    (value.merlinWorldNumerator as number) <= feasibleWorldCount
+    && proposal.denominator <= 5
+    && vote.denominator <= 5
+    && total.denominator <= 10
+    && total.numerator === proposal.numerator + vote.numerator
+    && total.denominator === proposal.denominator + vote.denominator
+    && close(
+      value.merlinProbability as number,
+      (value.merlinWorldNumerator as number) / feasibleWorldCount,
+    )
+    && close(
+      value.smoothedTruthTrackingIndex as number,
+      (total.numerator + 1) / (total.denominator + 2),
+    )
+    && close(
+      value.counterfeitReadProxyIndex as number,
+      (value.relativeMerlinEligibilityIndex as number)
+        * (value.smoothedTruthTrackingIndex as number),
+    )
+  )
+}
+
+export function validatePublicCounterfeitMerlinRead(
+  value: unknown,
+): value is PublicCounterfeitMerlinReadSnapshot {
+  try {
+    if (
+      !plainDetachedData(value)
+      || !plainRecord(value)
+      || !exactKeys(value, [
+        'version',
+        'observerModelVersion',
+        'playerCount',
+        'feasibleWorldCount',
+        'seats',
+      ])
+      || value.version !== MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
+      || value.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
+      || !Number.isSafeInteger(value.playerCount)
+      || (value.playerCount as number) < 5
+      || (value.playerCount as number) > 10
+      || !Number.isSafeInteger(value.feasibleWorldCount)
+      || (value.feasibleWorldCount as number) <= 0
+      || (value.feasibleWorldCount as number) > 3_628_800
+      || !denseArray(value.seats)
+      || value.seats.length !== value.playerCount
+    ) return false
+    const playerCount = value.playerCount as number
+    const denominator = value.feasibleWorldCount as number
+    if (
+      Buffer.byteLength(JSON.stringify(value), 'utf8')
+        > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
+    ) return false
+    const rows = value.seats as unknown[]
+    if (
+      rows.some(
+        (row, seat) =>
+          !validReadRow(row, seat, playerCount, denominator),
+      )
+    ) return false
+    const typed = rows as PublicCounterfeitMerlinRead[]
+    const maxNumerator = Math.max(
+      ...typed.map((row) => row.merlinWorldNumerator),
+    )
+    if (
+      maxNumerator <= 0
+      || typed.reduce(
+        (sum, row) => sum + row.merlinWorldNumerator,
+        0,
+      ) !== denominator
+    ) return false
+    return typed.every(
+      (row) =>
+        close(
+          row.relativeMerlinEligibilityIndex,
+          row.merlinWorldNumerator / maxNumerator,
+        ),
+    )
+  } catch {
+    return false
+  }
+}
+
+function validDistribution(value: unknown, teamSize: number): value is number[] {
+  return denseArray(value)
+    && value.length === teamSize + 1
+    && value.every(probability)
+    && close(
+      value.reduce((sum, entry) => sum + (entry as number), 0),
+      1,
+    )
+}
+
+function canonicalRoles(
+  value: unknown,
+  playerCount: number,
+): value is Role[] {
+  if (!denseArray(value) || value.length !== playerCount) return false
+  const roles = value as Role[]
+  if (
+    !roles.every(
+      (role) =>
+        typeof role === 'string'
+        && [
+          'assassin',
+          'merlin',
+          'minion',
+          'mordred',
+          'morgana',
+          'oberon',
+          'percival',
+          'servant',
+        ].includes(role),
+    )
+    || !isDeepStrictEqual(roles, canonicalRoleMultiset(roles))
+  ) return false
+  try {
+    validateRoles(playerCount, roles)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function validatePrivateMorganaCounterfeitObjective(
+  value: unknown,
+): value is PrivateMorganaCounterfeitObjective {
+  try {
+    if (
+      !plainDetachedData(value)
+      || !plainRecord(value)
+      || Buffer.byteLength(JSON.stringify(value), 'utf8')
+        > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
+      || !exactKeys(value, [
+        'version',
+        'role',
+        'source',
+        'request',
+        'counterfeitApplicability',
+        'assessmentApplicability',
+        'actingSeatRead',
+        'assessments',
+      ])
+      || value.version !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+      || value.role !== 'morgana'
+      || !plainRecord(value.source)
+      || !plainRecord(value.request)
+    ) return false
+    const source = value.source
+    const request = value.request
+    if (
+      !exactKeys(source, [
+        'beliefModelVersion',
+        'beliefThroughSeq',
+        'beliefQuality',
+        'playerCount',
+        'rolesInPlay',
+        'publicReadVersion',
+        'observerModelVersion',
+        'observerFeasibleWorldCount',
+      ])
+      || typeof source.beliefModelVersion !== 'string'
+      || source.beliefModelVersion.length === 0
+      || source.beliefModelVersion.length > 200
+      || !Number.isSafeInteger(source.beliefThroughSeq)
+      || (source.beliefThroughSeq as number) < -1
+      || !['constraints-only', 'weighted', 'degraded'].includes(
+        String(source.beliefQuality),
+      )
+      || !Number.isSafeInteger(source.playerCount)
+      || (source.playerCount as number) < 5
+      || (source.playerCount as number) > 10
+      || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
+      || !(source.rolesInPlay as Role[]).includes('morgana')
+      || source.publicReadVersion
+        !== MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
+      || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
+      || !Number.isSafeInteger(source.observerFeasibleWorldCount)
+      || (source.observerFeasibleWorldCount as number) <= 0
+      || !exactKeys(request, [
+        'seat',
+        'kind',
+        'round',
+        'proposalNum',
+        'failsRequired',
+        ...(request.kind === 'vote' ? ['currentTeam'] : []),
+      ])
+      || !Number.isSafeInteger(request.seat)
+      || (request.seat as number) < 0
+      || (request.seat as number) >= (source.playerCount as number)
+      || !['propose', 'vote'].includes(String(request.kind))
+      || !Number.isSafeInteger(request.round)
+      || (request.round as number) < 1
+      || (request.round as number) > 5
+      || !Number.isSafeInteger(request.proposalNum)
+      || (request.proposalNum as number) < 1
+      || (request.proposalNum as number) > 5
+      || ![1, 2].includes(request.failsRequired as number)
+      || !validReadRow(
+        value.actingSeatRead,
+        request.seat as number,
+        source.playerCount as number,
+        source.observerFeasibleWorldCount as number,
+      )
+    ) return false
+    const requestTeamSize = TEAM_SIZES[source.playerCount as number]?.[
+      (request.round as number) - 1
+    ]
+    if (
+      request.kind === 'vote'
+        ? (
+            !canonicalSeats(
+              request.currentTeam,
+              source.playerCount as number,
+            )
+            || (request.currentTeam as Seat[]).length !== requestTeamSize
+          )
+        : request.currentTeam !== undefined
+    ) return false
+    if (
+      value.counterfeitApplicability !== 'percival-in-cast'
+      || value.assessmentApplicability !== 'team-candidates'
+      || !denseArray(value.assessments)
+      || value.assessments.length
+        > MAX_MORGANA_COUNTERFEIT_ASSESSMENTS
+    ) return false
+    const ids = new Set<string>()
+    for (const raw of value.assessments) {
+      if (!plainRecord(raw)) return false
+      if (
+        !exactKeys(raw, [
+          'candidate',
+          'probabilitySemantics',
+          'merlinVisibleEvilCountDistribution',
+          'merlinVisibleFailureCapabilityProbability',
+          'publicProbabilitySemantics',
+          'publicEvilCountDistribution',
+          'publicFailureCapabilityProbability',
+          'valueSemantics',
+          'expectedMerlinConsistencyIndex',
+          'publicConsistencyBaselineIndex',
+          'privateKnowledgeTellIndex',
+          'publicAmbiguityIndex',
+          'counterfeitSignalIndex',
+          'counterfeitOpportunityReadProxyIndex',
+          'counterfeitValue',
+        ])
+        || !plainRecord(raw.candidate)
+      ) return false
+      const candidate = raw.candidate
+      if (
+        !exactKeys(candidate, [
+          'candidateId',
+          'kind',
+          'direction',
+          'team',
+        ])
+        || typeof candidate.candidateId !== 'string'
+        || candidate.candidateId.length === 0
+        || candidate.candidateId.length > 256
+        || ids.has(candidate.candidateId)
+        || candidate.kind !== request.kind
+        || !['support', 'oppose'].includes(String(candidate.direction))
+        || !canonicalSeats(candidate.team, source.playerCount as number)
+      ) return false
+      const playerCount = source.playerCount as number
+      const teamSize = TEAM_SIZES[playerCount]?.[
+        (request.round as number) - 1
+      ]
+      const typedTeam = candidate.team as Seat[]
+      const expectedCandidateId = candidate.kind === 'propose'
+        ? candidateIdForDecision({
+            kind: 'propose',
+            team: typedTeam,
+          })
+        : candidateIdForDecision({
+            kind: 'vote',
+            vote: candidate.direction === 'support'
+              ? 'approve'
+              : 'reject',
+          })
+      if (
+        !Number.isSafeInteger(teamSize)
+        || typedTeam.length !== teamSize
+        || (
+          candidate.kind === 'propose'
+          && candidate.direction !== 'support'
+        )
+        || candidate.candidateId !== expectedCandidateId
+        || (
+          candidate.kind === 'vote'
+          && !isDeepStrictEqual(candidate.team, request.currentTeam)
+        )
+      ) return false
+      ids.add(candidate.candidateId)
+      const candidateTeamSize = candidate.team.length
+      if (
+        raw.probabilitySemantics !== 'resolved-complete-world-sum'
+        || !validDistribution(
+          raw.merlinVisibleEvilCountDistribution,
+          candidateTeamSize,
+        )
+        || !probability(raw.merlinVisibleFailureCapabilityProbability)
+        || raw.publicProbabilitySemantics
+          !== 'public-preaction-uniform-feasible-joint'
+        || !validDistribution(
+          raw.publicEvilCountDistribution,
+          candidateTeamSize,
+        )
+        || !probability(raw.publicFailureCapabilityProbability)
+        || raw.valueSemantics
+          !== 'bounded-deterministic-indices-not-probabilities'
+        || !probability(raw.expectedMerlinConsistencyIndex)
+        || !probability(raw.publicConsistencyBaselineIndex)
+        || !probability(raw.privateKnowledgeTellIndex)
+        || !probability(raw.publicAmbiguityIndex)
+        || !probability(raw.counterfeitSignalIndex)
+        || !probability(raw.counterfeitOpportunityReadProxyIndex)
+        || !probability(raw.counterfeitValue)
+      ) return false
+      const threshold = request.failsRequired as number
+      const q = failureCapability(
+        raw.merlinVisibleEvilCountDistribution as number[],
+        threshold,
+      )
+      const p = failureCapability(
+        raw.publicEvilCountDistribution as number[],
+        threshold,
+      )
+      const support = candidate.direction === 'support'
+      const a = support ? 1 - q : q
+      const b = support ? 1 - p : p
+      const tell = Math.max(0, a - b)
+      const ambiguity = 1 - Math.abs(2 * p - 1)
+      const signal = a * (0.5 * ambiguity + 0.5 * tell)
+      const read = (
+        value.actingSeatRead as PublicCounterfeitMerlinRead
+      ).counterfeitReadProxyIndex
+      const counterfeitValue = read * a + (1 - read) * signal
+      if (
+        !close(q, raw.merlinVisibleFailureCapabilityProbability as number)
+        || !close(p, raw.publicFailureCapabilityProbability as number)
+        || !close(a, raw.expectedMerlinConsistencyIndex as number)
+        || !close(b, raw.publicConsistencyBaselineIndex as number)
+        || !close(tell, raw.privateKnowledgeTellIndex as number)
+        || !close(ambiguity, raw.publicAmbiguityIndex as number)
+        || !close(signal, raw.counterfeitSignalIndex as number)
+        || !close(
+          read,
+          raw.counterfeitOpportunityReadProxyIndex as number,
+        )
+        || !close(counterfeitValue, raw.counterfeitValue as number)
+      ) return false
+    }
+    const expectedCandidateIds = request.kind === 'vote'
+      ? [
+          candidateIdForDecision({ kind: 'vote', vote: 'approve' }),
+          candidateIdForDecision({ kind: 'vote', vote: 'reject' }),
+        ]
+      : canonicalCombinations(
+          source.playerCount as number,
+          requestTeamSize as number,
+        ).map((team) => candidateIdForDecision({
+          kind: 'propose',
+          team,
+        }))
+    return ids.size === expectedCandidateIds.length
+      && expectedCandidateIds.every((candidateId) => ids.has(candidateId))
+  } catch {
+    return false
+  }
+}
+
+export function validatePublicCounterfeitMerlinReadHostJoin(
+  value: unknown,
+  record: PublicRecord,
+): value is PublicCounterfeitMerlinReadSnapshot {
+  return validatePublicCounterfeitMerlinRead(value)
+    && isDeepStrictEqual(value, buildPublicCounterfeitMerlinRead(record))
+}
+
+export function validatePrivateMorganaCounterfeitHostJoin(
+  value: unknown,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    belief: BeliefSnapshot
+    publicRead: PublicCounterfeitMerlinReadSnapshot
+    candidates: readonly PolicyCandidate[]
+  },
+): value is PrivateMorganaCounterfeitObjective {
+  return validatePrivateMorganaCounterfeitObjective(value)
+    && validatePublicCounterfeitMerlinReadHostJoin(
+      input.publicRead,
+      projectPublicRecord(input.view),
+    )
+    && isDeepStrictEqual(value, buildMorganaCounterfeitObjective(input))
+}

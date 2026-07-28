@@ -85,6 +85,10 @@ import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../agents/policy/evil-quest-card.ts'
+import {
+  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+} from '../agents/analysis/morgana-counterfeit-types.ts'
+import { EXACT_BELIEF_MODEL_VERSION } from '../agents/belief/types.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 2
 
@@ -310,7 +314,7 @@ function architectureSafety(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
   if (
-    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
+    /decisionTrace|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/.test(
       publicLog,
     )
   ) {
@@ -362,6 +366,21 @@ function architectureSafety(
           || meta.components.populationAssumption
             !== 'heterogeneous-independent'
         )
+  const declaresMorganaCounterfeit =
+    meta.components.morganaCounterfeitObjective
+      === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+  const invalidMorganaCounterfeitDeclaration =
+    meta.components.morganaCounterfeitObjective !== undefined
+    && (
+      !declaresMorganaCounterfeit
+      || !declaresPublicObserver
+      || meta.components.belief !== EXACT_BELIEF_MODEL_VERSION
+      || meta.components.factors !== 'off'
+      || meta.components.languageEvidence !== 'off'
+      || !['compatibility', 'structured-only', 'hybrid'].includes(
+        meta.components.mode,
+      )
+    )
   const declaredCoherenceIntent = meta.components.coherenceIntent
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
@@ -450,12 +469,14 @@ function architectureSafety(
     || declaresRoleUtility
     || declaresEvilRoleUtility
     || declaresEvilQuestCardPolicy
+    || declaresMorganaCounterfeit
     || invalidIdentityDeclaration
     || invalidPlanDeclaration
     || invalidRoleObjectiveDeclaration
     || invalidRoleUtilityDeclaration
     || invalidEvilRoleUtilityDeclaration
     || invalidEvilQuestCardPolicyDeclaration
+    || invalidMorganaCounterfeitDeclaration
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
@@ -540,6 +561,15 @@ function architectureSafety(
           !== declaredEvilQuestCardPolicy
       )
     : (artifactEvilQuestCardPolicies?.length ?? 0) > 0
+  const artifactMorganaCounterfeitObjectives =
+    artifact.strategyVersions?.morganaCounterfeitObjectives
+  const invalidMorganaCounterfeitManifest = declaresMorganaCounterfeit
+    ? (
+        artifactMorganaCounterfeitObjectives?.length !== 1
+        || artifactMorganaCounterfeitObjectives[0]
+          !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+      )
+    : (artifactMorganaCounterfeitObjectives?.length ?? 0) > 0
   if (invalidIdentityManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
@@ -565,6 +595,10 @@ function architectureSafety(
     traceAttributionViolations++
   }
   if (invalidEvilQuestCardPolicyManifest) {
+    traceAttributionChecks++
+    traceAttributionViolations++
+  }
+  if (invalidMorganaCounterfeitManifest) {
     traceAttributionChecks++
     traceAttributionViolations++
   }
@@ -658,6 +692,7 @@ function architectureSafety(
       || invalidRoleUtilityDeclaration
       || invalidEvilRoleUtilityDeclaration
       || invalidEvilQuestCardPolicyDeclaration
+      || invalidMorganaCounterfeitDeclaration
       || invalidTraceShape
       || (
         trace.request.kind === 'quest'
@@ -683,6 +718,12 @@ function architectureSafety(
       )
       || versions.configuredEvilQuestCardPolicy
         !== declaredEvilQuestCardPolicy
+      || versions.configuredMorganaCounterfeitObjective
+        !== (
+          declaresMorganaCounterfeit
+            ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+            : undefined
+        )
       || (
         declaresPublicObserver
           ? !validatePublicObserverSnapshot(trace.publicObserver)

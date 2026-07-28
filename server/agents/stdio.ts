@@ -146,6 +146,19 @@ import {
   EVIL_QUEST_ROBUST_POLICY_VERSION,
   validatePrivateEvilQuestCardPolicyHostJoin,
 } from './policy/evil-quest-card.ts'
+import {
+  buildMorganaCounterfeitObjective,
+  buildPublicCounterfeitMerlinRead,
+  validatePrivateMorganaCounterfeitHostJoin,
+  validatePrivateMorganaCounterfeitObjective,
+  validatePublicCounterfeitMerlinRead,
+  validatePublicCounterfeitMerlinReadHostJoin,
+} from './analysis/morgana-counterfeit.ts'
+import {
+  MORGANA_COUNTERFEIT_DEGRADATION,
+  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+} from './analysis/morgana-counterfeit-types.ts'
 
 export interface StdioAgentOpts {
   cmd: string
@@ -269,6 +282,21 @@ function validComponentVersions(value: unknown): boolean {
         === EVIL_QUEST_ROBUST_POLICY_VERSION
     )
     && (
+      versions.morganaCounterfeitPublicRead === undefined
+      || versions.morganaCounterfeitPublicRead
+        === MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
+    )
+    && (
+      versions.morganaCounterfeitObjective === undefined
+      || versions.morganaCounterfeitObjective
+        === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    )
+    && (
+      versions.configuredMorganaCounterfeitObjective === undefined
+      || versions.configuredMorganaCounterfeitObjective
+        === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    )
+    && (
       versions.configuredScorer === undefined
       || (
         typeof versions.configuredScorer === 'string'
@@ -288,6 +316,116 @@ function validComponentVersions(value: unknown): boolean {
       (versions.planMemory === undefined)
       === (versions.coherence === undefined)
     )
+}
+
+function validMorganaCounterfeitTrace(
+  trace: Record<string, unknown>,
+  req: DecisionRequest,
+  hostView?: PlayerView,
+): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  const configured = components?.configuredMorganaCounterfeitObjective
+  const readVersion = components?.morganaCounterfeitPublicRead
+  const objectiveVersion = components?.morganaCounterfeitObjective
+  const read = trace.publicMorganaCounterfeitRead
+  const objective = trace.privateMorganaCounterfeitObjective
+  const degradation = Array.isArray(trace.degradation)
+    ? trace.degradation as unknown[]
+    : []
+  const degraded = degradation.includes(MORGANA_COUNTERFEIT_DEGRADATION)
+  if (configured === undefined) {
+    return readVersion === undefined
+      && objectiveVersion === undefined
+      && read === undefined
+      && objective === undefined
+      && !degraded
+  }
+  if (
+    configured !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    || !hostView
+  ) return false
+  const applicable =
+    hostView.role === 'morgana'
+    && (req.kind === 'propose' || req.kind === 'vote')
+  if (!applicable) {
+    return readVersion === undefined
+      && objectiveVersion === undefined
+      && read === undefined
+      && objective === undefined
+      && !degraded
+  }
+  if (degraded) {
+    const atomic = readVersion === undefined
+      && objectiveVersion === undefined
+      && read === undefined
+      && objective === undefined
+    if (!atomic) return false
+    const exactReconstructable =
+      trace.beliefModelVersion === EXACT_BELIEF_MODEL_VERSION
+      && components?.belief === EXACT_BELIEF_MODEL_VERSION
+      && components?.factors === 'off'
+      && components?.languageEvidence === 'off'
+    if (!exactReconstructable) return true
+    try {
+      const belief = exactBelief(hostView)
+      const publicRead = buildPublicCounterfeitMerlinRead(
+        projectPublicRecord(hostView),
+      )
+      buildMorganaCounterfeitObjective({
+        req,
+        view: hostView,
+        belief,
+        publicRead,
+        candidates: legalCandidates(req, hostView),
+      })
+      return false
+    } catch {
+      return true
+    }
+  }
+  if (
+    readVersion !== MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
+    || objectiveVersion !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    || components?.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+    || !validatePublicCounterfeitMerlinRead(read)
+    || !validatePrivateMorganaCounterfeitObjective(objective)
+  ) return false
+  const publicRecord = projectPublicRecord(hostView)
+  if (!validatePublicCounterfeitMerlinReadHostJoin(read, publicRecord)) {
+    return false
+  }
+  if (
+    trace.beliefModelVersion !== EXACT_BELIEF_MODEL_VERSION
+    || components?.belief !== EXACT_BELIEF_MODEL_VERSION
+    || components?.factors !== 'off'
+    || components?.languageEvidence !== 'off'
+  ) {
+    // Persisted/stdout traces do not carry the complete weighted world list,
+    // so admitting a weighted q distribution would not be host-reconstructable.
+    return false
+  }
+  try {
+    const belief = exactBelief(hostView)
+    return (
+      belief.throughSeq === trace.beliefThroughSeq
+      && belief.quality === trace.quality
+      && isDeepStrictEqual(
+        trace.beliefPlayerMarginals,
+        belief.playerMarginals,
+      )
+      && validatePrivateMorganaCounterfeitHostJoin(objective, {
+        req,
+        view: hostView,
+        belief,
+        publicRead: read,
+        candidates: legalCandidates(req, hostView),
+      })
+    )
+  } catch {
+    return false
+  }
 }
 
 function validPrivateEvilQuestCardPolicyTrace(
@@ -2647,6 +2785,7 @@ function validDecisionTrace(
       req,
       hostView,
     )
+    && validMorganaCounterfeitTrace(trace, req, hostView)
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
@@ -2738,6 +2877,11 @@ export function validateComposedTraceHostJoin(input: {
         view,
       )
       || !validateEvilQuestCardPolicyHostJoin(trace, req, view)
+      || !validMorganaCounterfeitTrace(
+        trace as unknown as Record<string, unknown>,
+        req,
+        view,
+      )
     ) return false
     const components = trace.componentVersions!
     if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false

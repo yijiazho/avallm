@@ -36,6 +36,17 @@ import {
   routedRoleObjectiveModel,
 } from './analysis/role-objective-router.ts'
 import {
+  buildMorganaCounterfeitObjective,
+  buildPublicCounterfeitMerlinRead,
+} from './analysis/morgana-counterfeit.ts'
+import {
+  MORGANA_COUNTERFEIT_DEGRADATION,
+  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+  type PrivateMorganaCounterfeitObjective,
+  type PublicCounterfeitMerlinReadSnapshot,
+} from './analysis/morgana-counterfeit-types.ts'
+import {
   buildRoleUtilityProjection,
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
@@ -200,6 +211,7 @@ export type ComposedStage =
   | 'identity'
   | 'observer'
   | 'role-objective'
+  | 'morgana-counterfeit'
   | 'quest-card-policy'
   | 'analysis'
   | 'candidates'
@@ -238,6 +250,11 @@ export interface ComposedAgentOptions {
    * objective model but grants no scoring or quest-card policy authority.
    */
   roleObjectiveRouter?: boolean
+  /**
+   * Opt-in Phase 7E1A Morgana counterfeit-read substrate. It is mechanically
+   * inert and resolves only for Morgana proposal and vote decisions.
+   */
+  morganaCounterfeitObjectives?: boolean
   /**
    * Opt-in Phase 7D3 private quest-card convention. It is independent of the
    * proposal/vote role scorer and never reaches communication.
@@ -459,6 +476,9 @@ function composedTrace(
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection,
   configuredEvilQuestCardPolicy?: string,
   privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy,
+  configuredMorganaCounterfeitObjective?: string,
+  publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot,
+  privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective,
   planMemoryEnabled = false,
   coherenceIntent: CoherenceIntent = 'maintain',
 ): DecisionTrace {
@@ -524,6 +544,21 @@ function composedTrace(
       ...(configuredEvilQuestCardPolicy
         ? { configuredEvilQuestCardPolicy }
         : {}),
+      ...(publicMorganaCounterfeitRead
+        ? {
+            morganaCounterfeitPublicRead:
+              MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
+          }
+        : {}),
+      ...(privateMorganaCounterfeitObjective
+        ? {
+            morganaCounterfeitObjective:
+              MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+          }
+        : {}),
+      ...(configuredMorganaCounterfeitObjective
+        ? { configuredMorganaCounterfeitObjective }
+        : {}),
       ...(planMemoryEnabled
         ? {
             planMemory: PLAN_MEMORY_VERSION,
@@ -582,6 +617,18 @@ function composedTrace(
       ? {
           privateEvilQuestCardPolicy:
             structuredClone(privateEvilQuestCardPolicy),
+        }
+      : {}),
+    ...(publicMorganaCounterfeitRead
+      ? {
+          publicMorganaCounterfeitRead:
+            structuredClone(publicMorganaCounterfeitRead),
+        }
+      : {}),
+    ...(privateMorganaCounterfeitObjective
+      ? {
+          privateMorganaCounterfeitObjective:
+            structuredClone(privateMorganaCounterfeitObjective),
         }
       : {}),
   }
@@ -901,6 +948,10 @@ export function createComposedAgent(
             : undefined
       const evilRoleObjectiveApplicable =
         routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+      const morganaCounterfeitApplicable =
+        options.morganaCounterfeitObjectives === true
+        && view.role === 'morgana'
+        && (req.kind === 'propose' || req.kind === 'vote')
       const decisionIdentityScope = roleObjectiveRole
         ? mergeIdentityScopes(
             configuredIdentityScope,
@@ -936,6 +987,7 @@ export function createComposedAgent(
         options.publicObserver
         || roleObjectiveRole
         || evilRoleObjectiveApplicable
+        || morganaCounterfeitApplicable
       )
         ? observePublicRecord(projectPublicRecord(view))
         : undefined
@@ -953,6 +1005,10 @@ export function createComposedAgent(
       let privateRoleUtility: PrivateRoleUtilityProjection | undefined
       let privateEvilRoleUtility:
         PrivateEvilRoleUtilityProjection | undefined
+      let publicMorganaCounterfeitRead:
+        PublicCounterfeitMerlinReadSnapshot | undefined
+      let privateMorganaCounterfeitObjective:
+        PrivateMorganaCounterfeitObjective | undefined
       if (roleObjectiveRole) {
         try {
           if (!privateIdentity || !publicObserver) {
@@ -1003,6 +1059,31 @@ export function createComposedAgent(
           degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
         }
         stage('role-objective')
+      }
+      if (morganaCounterfeitApplicable) {
+        try {
+          if (!publicObserver) {
+            throw new Error('Morgana counterfeit observer unavailable')
+          }
+          publicMorganaCounterfeitRead =
+            buildPublicCounterfeitMerlinRead(
+              projectPublicRecord(view),
+              publicObserver,
+            )
+          privateMorganaCounterfeitObjective =
+            buildMorganaCounterfeitObjective({
+              req,
+              view,
+              belief: cognition.belief,
+              publicRead: publicMorganaCounterfeitRead,
+              candidates,
+            })
+        } catch {
+          publicMorganaCounterfeitRead = undefined
+          privateMorganaCounterfeitObjective = undefined
+          degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
+        }
+        stage('morgana-counterfeit')
       }
       if (roleScorerApplicable) {
         try {
@@ -1448,6 +1529,11 @@ export function createComposedAgent(
         privateEvilRoleUtility,
         configuredEvilQuestCardPolicy,
         privateEvilQuestCardPolicy,
+        options.morganaCounterfeitObjectives === true
+          ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+          : undefined,
+        publicMorganaCounterfeitRead,
+        privateMorganaCounterfeitObjective,
         planMemoryEnabled,
         coherenceIntent,
       )

@@ -47,6 +47,7 @@ import {
   type AgentExecutionMode,
 } from '../agents/brain.ts'
 import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
+import { EXACT_BELIEF_MODEL_VERSION } from '../agents/belief/types.ts'
 import {
   validatePublicObserverSnapshot,
 } from '../agents/analysis/observer.ts'
@@ -117,6 +118,9 @@ import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../agents/policy/evil-quest-card.ts'
+import {
+  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
+} from '../agents/analysis/morgana-counterfeit-types.ts'
 
 export interface ArchitectureVariant {
   id: string
@@ -479,6 +483,32 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         `custom architecture variant ${variant.id} evilRoleUtility requires the router and an evil role scorer`,
       )
     }
+    if (
+      variant.components.morganaCounterfeitObjective !== undefined
+      && variant.components.morganaCounterfeitObjective
+        !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} has invalid morganaCounterfeitObjective`,
+      )
+    }
+    if (
+      variant.components.morganaCounterfeitObjective
+        === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+      && (
+        variant.components.observerModel !== PUBLIC_OBSERVER_MODEL_VERSION
+        || variant.components.belief !== EXACT_BELIEF_MODEL_VERSION
+        || variant.components.languageEvidence !== 'off'
+        || variant.components.factors !== 'off'
+        || !['compatibility', 'structured-only', 'hybrid'].includes(
+          variant.components.mode,
+        )
+      )
+    ) {
+      throw new Error(
+        `custom architecture variant ${variant.id} Morgana counterfeit objective requires host-reconstructable exact public and private sources`,
+      )
+    }
     const planMemoryEnabled =
       variant.components.planMemory === PLAN_MEMORY_VERSION
       && variant.components.coherence === COHERENCE_MODEL_VERSION
@@ -755,6 +785,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             )
             || traceVersions.configuredEvilQuestCardPolicy
               !== expectedComponents.evilQuestCardPolicy
+            || traceVersions.configuredMorganaCounterfeitObjective
+              !== expectedComponents.morganaCounterfeitObjective
             || (
               trace.request.kind === 'quest'
               && trace.request.seat === c.expectedTargetSeat

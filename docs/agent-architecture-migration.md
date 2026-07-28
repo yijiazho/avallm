@@ -2,12 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E1 Morgana specialization. Phase 7D3 landed heterogeneous-safe
-evil quest-card policy and quarantined exact-quota coordination as a homogeneous research ceiling.
-The remaining role work is explicitly split into Morgana, Mordred, and Assassin policy before the
-Phase 7 role-bank evaluation and exit audit. The Phase 5C population sign flip remains recorded,
-and win-rate tuning is still intentionally deferred until the architecture is complete enough to
-evaluate as a whole.
+**Current target phase:** Phase 7E1B Morgana policy. Phase 7E1A added the mechanically inert
+counterfeit-read and candidate-objective substrate on top of the heterogeneous-safe Phase 7D3
+quest policy. The remaining role work is Morgana policy, Mordred specialization, and Assassin
+specialization before the Phase 7 role-bank evaluation and exit audit. The Phase 5C population
+sign flip remains recorded, and win-rate tuning is still intentionally deferred until the
+architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -192,7 +192,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7D3 complete | Morgana, Mordred, and Assassin specialization, then role-bank audit |
+| 7. Role-specific observer and identity models | In progress; Phase 7E1A complete | Morgana policy, Mordred and Assassin specialization, then role-bank audit |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1217,13 +1217,15 @@ reviewable and ablatable:
 8. **Phase 7D3, evil quest-card policy:** add independently valid heterogeneous play as the only
    promotion-eligible direction. Retain exact quota only as a homogeneous, mixed-unsafe,
    nonpromotable research ceiling. **Complete.**
-9. **Phase 7E1, Morgana specialization:** make counterfeit-Merlin and Percival-influence value
-   causally affect bounded policy.
-10. **Phase 7E2, Mordred specialization:** make Merlin-blindness exploitation and anomalous public
+9. **Phase 7E1A, Morgana substrate:** add a separate public counterfeit-Merlin read and a private,
+   complete-world candidate objective without changing policy. **Complete.**
+10. **Phase 7E1B, Morgana policy:** make counterfeit-Merlin and Percival-influence value causally
+    affect bounded policy.
+11. **Phase 7E2, Mordred specialization:** make Merlin-blindness exploitation and anomalous public
    treatment causally affect bounded policy.
-11. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
+12. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
    remains distinct from generic goodness.
-12. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+13. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
    role-specific, and full configurations on a frozen API-free role bank, including virtual
    Assassin guesses derived only from seat-filtered views.
 
@@ -1561,14 +1563,48 @@ therefore required Phase 7 architecture, not optional cleanup.
 
 ### Morgana
 
-- [ ] Add an interpretable public observer of whether Morgana is being read as Merlin and how that
+- [x] Add an interpretable public observer of whether Morgana is being read as Merlin and how that
       could influence Percival.
-- [ ] Derive counterfeit-Merlin and Percival-influence value only from legal private knowledge and
+- [x] Derive counterfeit-Merlin and Percival-influence value only from legal private knowledge and
       public conduct; do not import Percival's private posterior or identify true Merlin through
       privileged data.
 - [ ] Give the objective bounded, opt-in causal authority over relevant proposal, vote, or
       communication intent while preserving forced policy, legality, and generic evil fallback.
 - [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
+
+Phase 7E1A implements `morgana-counterfeit-public-read-v1` as a separate public-only projection
+rather than relabeling the generic Phase 7A behavior indices. It joins only executed proposals and
+votes to resolved quest outcomes, preserves proposal and vote numerators and denominators with
+null for unobserved categories, and keeps the exact public Merlin marginal separate from the
+bounded deterministic read proxy. The proxy is not a posterior, likelihood factor, or role
+probability.
+
+`morgana-counterfeit-objectives-v1` then evaluates proposal and vote candidates over the resolved
+complete-world belief. In each world it simulates only Merlin's legal sight by excluding that
+world's Mordred from Merlin-visible evil, so uncertainty over which visible partner is Mordred is
+integrated by joint-world sums rather than independent marginals. Candidate output records the
+Merlin-visible and public count distributions, private and public failure-capability mass,
+consistency, tell, ambiguity, signal, read opportunity, and final counterfeit value with explicit
+equations. It never imports Percival's private pair posterior or assumes Morgana knows Percival's
+seat. The engine's cast validation requires Percival whenever Morgana is present, so malformed
+Morgana-without-Percival data is rejected instead of receiving a fabricated empty state.
+Vote snapshots bind the canonical current team in their request coordinate, and both vote and
+proposal snapshots carry the complete legal candidate surface for the current round. Standalone
+validation reconstructs every canonical candidate ID, direction, team size, and expected
+combination so deletion or a same-size team splice cannot create a valid-looking partial surface.
+Before any candidate sum, every supported world must have positive mass, the current public-event
+cursor, the canonical cast and alignment, Morgana at the acting seat, all seat-filtered private
+knowledge, and every resolved quest constraint. A malformed belief fails atomically rather than
+letting an impossible partner swap, stale world, or contradicted Fail count influence the proxy.
+
+The slice is opt-in, Morgana-only, proposal/vote-only, private, and mechanically inert. It adds no
+scorer, forced decision, prompt, voice, client, provider, or default behavior. Composed runtime
+analysis supports any valid resolved belief, including weighted joint worlds. Current stdio and
+stored promotion admission certify applied Morgana objectives only for exact host-reconstructable
+sources because traces do not carry the complete weighted world list. Weighted runtime snapshots
+remain structurally valid and attributable, but are not yet certifiable promotion evidence. Phase
+7F or a dedicated provenance follow-up must close that evidence-boundary limitation without
+discarding the weighted posterior from the north-star runtime.
 
 ### Mordred
 
@@ -1849,6 +1885,17 @@ here.
   focused tests and all 794 API-free tests. Phase 7E is now split into required Morgana, Mordred,
   and Assassin specialization because D1 posture labels and D2 generic evil utility do not yet
   make the first two roles causally distinct.
+- Phase 7E1A Morgana counterfeit substrate: added a separate public-only counterfeit-Merlin read
+  with exact Merlin marginals, hand-auditable truth-tracking counts, null no-data semantics, and a
+  bounded non-probabilistic read proxy. Added a private mechanically inert proposal/vote objective
+  that sums complete joint worlds while excluding each world's Mordred from simulated Merlin
+  sight, records exact private/public distributions and equations, and never imports Percival's
+  private posterior. Opt-in routing, typed atomic failure, configured-versus-resolved attribution,
+  strict detached validation, exact host reconstruction, stdio and stored-report rejection,
+  artifact manifests, 5-10 player bounds, weighted-world causal sensitivity, privacy, and a free
+  architecture-bank lane passed 65 focused tests and all 806 API-free repository tests. Applied
+  weighted objectives are supported by the composed runtime but remain ineligible for external
+  promotion evidence until a future provenance contract can certify their complete-world source.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents

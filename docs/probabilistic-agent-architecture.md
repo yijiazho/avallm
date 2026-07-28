@@ -527,6 +527,15 @@ These objectives share facts and beliefs but should not be compressed into one u
 In particular, a role label or descriptive posture that does not causally affect policy is not an
 implemented role objective.
 
+Morgana's public "read as Merlin" feature must keep two different semantics visible. Public Merlin
+eligibility is an exact marginal from the public feasible-world model. Proposal and vote
+truth-tracking are bounded, deterministic behavior counts and proxies, not likelihoods or role
+probabilities, and they must not reweight that public posterior merely by being displayed beside
+it. Candidate consistency is computed over Morgana's resolved complete worlds by simulating
+Merlin's legal sight in each world: evil except that world's Mordred. This integrates uncertainty
+over which partner is Mordred through joint sums and preserves role correlations; multiplying
+independent role or alignment marginals is not an acceptable substitute.
+
 Coordination policy must also be valid for heterogeneous tables containing humans, raw LLMs, and
 other agent types. A deployable evil agent cannot assume that teammates share its algorithm,
 timing convention, seed, or capability handshake. Independent robust play is therefore the
