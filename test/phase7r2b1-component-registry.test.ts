@@ -1,0 +1,410 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  ComponentRegistryError,
+  createDecisionComponentRegistry,
+} from '../server/agents/components/registry.ts'
+import {
+  resolveComposedBrain,
+} from '../server/agents/components/resolved-brain.ts'
+import type {
+  ComponentAdmissionResult,
+  ComponentRef,
+  DecisionComponentDefinition,
+} from '../server/agents/components/types.ts'
+import {
+  createComposedAgent,
+  type CandidatePlanner,
+  type ComposedAgentOptions,
+} from '../server/agents/composed.ts'
+import {
+  scoreCandidates,
+  type CandidateScorer,
+} from '../server/agents/policy/score.ts'
+import { normalizeAgentOutput } from '../server/agents/types.ts'
+import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+
+function admitted<Payload>(
+  payload: Payload,
+): ComponentAdmissionResult<Payload> {
+  return Object.freeze({
+    admitted: true,
+    payload,
+    verification: 'exact',
+    promotionEligible: true,
+  })
+}
+
+function definition(
+  id: string,
+  dependencies: ComponentRef[] = [],
+  hostRequirements: string[] = [],
+  version = 'v1',
+): DecisionComponentDefinition {
+  return {
+    token: {
+      id,
+      version,
+      kind: 'observer',
+      privacy: 'private',
+    },
+    source: 'native',
+    dependencies,
+    hostRequirements,
+    maxPayloadBytes: 256,
+    degradationCode: `${id}-failed`,
+    validateDetached: admitted,
+    admitHost: ({ payload }) => admitted(payload),
+  }
+}
+
+function errorCode(block: () => unknown): string | undefined {
+  try {
+    block()
+  } catch (error) {
+    assert.ok(error instanceof ComponentRegistryError)
+    return error.code
+  }
+  assert.fail('expected a ComponentRegistryError')
+}
+
+test('registry rejects duplicate, conflicting, missing, and cyclic definitions', () => {
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([
+      definition('same'),
+      definition('same'),
+    ])),
+    'duplicate-identity',
+  )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([
+      definition('same', [], [], 'v1'),
+      definition('same', [], [], 'v2'),
+    ])),
+    'conflicting-version',
+  )
+  assert.equal(
+    errorCode(() => createDecisionComponentRegistry([
+      definition('consumer', [{ id: 'missing', version: 'v1' }]),
+    ])),
+    'missing-dependency',
+  )
+  assert.throws(
+    () => createDecisionComponentRegistry([
+      definition('alpha', [{ id: 'bravo', version: 'v1' }]),
+      definition('bravo', [{ id: 'charlie', version: 'v1' }]),
+      definition('charlie', [{ id: 'alpha', version: 'v1' }]),
+    ]),
+    (error: unknown) => {
+      assert.ok(error instanceof ComponentRegistryError)
+      assert.equal(error.code, 'dependency-cycle')
+      assert.match(
+        error.message,
+        /alpha@v1 -> bravo@v1 -> charlie@v1 -> alpha@v1/,
+      )
+      return true
+    },
+  )
+})
+
+test('registry resolves a deterministic dependency-first eligible graph', () => {
+  const registry = createDecisionComponentRegistry([
+    definition('zulu'),
+    definition(
+      'delta',
+      [{ id: 'alpha', version: 'v1' }],
+      ['private-belief'],
+    ),
+    definition('alpha'),
+    definition('echo', [{ id: 'delta', version: 'v1' }]),
+    definition('bravo'),
+  ])
+  assert.deepEqual(
+    registry.definitions().map((entry) => entry.token.id),
+    ['alpha', 'bravo', 'delta', 'echo', 'zulu'],
+  )
+  const unavailable = registry.resolve({
+    requested: [{ id: 'echo', version: 'v1' }],
+  })
+  assert.deepEqual(
+    unavailable.configured.map((entry) => entry.id),
+    ['alpha', 'delta', 'echo'],
+  )
+  assert.deepEqual(
+    unavailable.eligible.map((entry) => entry.id),
+    ['alpha'],
+  )
+  assert.deepEqual(
+    unavailable.ineligible.map((entry) => ({
+      id: entry.component.id,
+      missing: entry.missingHostRequirements,
+      dependencies: entry.ineligibleDependencies.map(
+        (dependency) => dependency.id,
+      ),
+    })),
+    [
+      {
+        id: 'delta',
+        missing: ['private-belief'],
+        dependencies: [],
+      },
+      {
+        id: 'echo',
+        missing: [],
+        dependencies: ['delta'],
+      },
+    ],
+  )
+  const eligible = registry.resolve({
+    requested: [{ id: 'echo', version: 'v1' }],
+    hostCapabilities: ['private-belief'],
+  })
+  assert.deepEqual(
+    eligible.eligible.map((entry) => entry.id),
+    ['alpha', 'delta', 'echo'],
+  )
+})
+
+test('registry snapshots definitions and exposes no mutable collection', () => {
+  const dependencies = [{ id: 'alpha', version: 'v1' }]
+  const requirements = ['private-belief']
+  const source = definition('bravo', dependencies, requirements)
+  const registry = createDecisionComponentRegistry([
+    definition('alpha'),
+    source,
+  ])
+  dependencies[0].id = 'changed'
+  requirements[0] = 'changed'
+  const mutableSource = source as unknown as {
+    token: { id: string }
+    maxPayloadBytes: number
+  }
+  mutableSource.token.id = 'changed'
+  mutableSource.maxPayloadBytes = 999
+
+  const registered = registry.definition({ id: 'bravo', version: 'v1' })!
+  assert.equal(registered.token.id, 'bravo')
+  assert.equal(registered.dependencies[0].id, 'alpha')
+  assert.deepEqual(registered.hostRequirements, ['private-belief'])
+  assert.equal(registered.maxPayloadBytes, 256)
+  assert.ok(Object.isFrozen(registry))
+  assert.ok(Object.isFrozen(registry.definitions()))
+  assert.ok(Object.isFrozen(registered))
+  assert.ok(Object.isFrozen(registered.token))
+  assert.ok(Object.isFrozen(registered.dependencies))
+  assert.ok(Object.isFrozen(registered.dependencies[0]))
+  assert.ok(Object.isFrozen(registered.hostRequirements))
+})
+
+test('registry preserves stateful component receiver semantics', () => {
+  class StatefulDefinition
+  implements DecisionComponentDefinition<string> {
+    readonly token = {
+      id: 'stateful',
+      version: 'v1',
+      kind: 'observer' as const,
+      privacy: 'private' as const,
+    }
+    readonly source = 'native' as const
+    readonly dependencies: readonly ComponentRef[] = []
+    readonly hostRequirements: readonly string[] = []
+    readonly maxPayloadBytes = 256
+    readonly degradationCode = 'stateful-failed'
+    #marker = 'original-receiver'
+
+    validateDetached(payload: unknown): ComponentAdmissionResult<string> {
+      assert.equal(this.#marker, 'original-receiver')
+      return typeof payload === 'string'
+        ? admitted(payload)
+        : { admitted: false, degradationCode: this.degradationCode }
+    }
+
+    admitHost(
+      input: { readonly payload: string; readonly host: unknown },
+    ): ComponentAdmissionResult<string> {
+      assert.equal(this.#marker, 'original-receiver')
+      return admitted(input.payload)
+    }
+  }
+
+  const registry = createDecisionComponentRegistry([
+    new StatefulDefinition(),
+  ])
+  const registered = registry.definition({
+    id: 'stateful',
+    version: 'v1',
+  })!
+  assert.deepEqual(registered.validateDetached('payload'), {
+    admitted: true,
+    payload: 'payload',
+    verification: 'exact',
+    promotionEligible: true,
+  })
+  assert.equal(registered.admitHost({
+    payload: 'payload',
+    host: {},
+  }).admitted, true)
+})
+
+test('resolved brain owns frozen definitions, descriptions, and layer order', () => {
+  const registry = createDecisionComponentRegistry([
+    definition('observer'),
+    {
+      ...definition(
+        'objective',
+        [{ id: 'observer', version: 'v1' }],
+      ),
+      token: {
+        id: 'objective',
+        version: 'v1',
+        kind: 'objective',
+        privacy: 'private',
+      },
+    },
+  ])
+  const requested = [{ id: 'objective', version: 'v1' }]
+  const compatibility = {
+    requests: {
+      roleObjectives: true,
+      roleNames: ['merlin'],
+    },
+  }
+  const resolved = resolveComposedBrain({
+    requestedComponents: requested,
+    scoreLayerOrder: [{ id: 'objective', version: 'v1' }],
+    compatibility,
+  }, registry)
+  requested[0].id = 'changed'
+  compatibility.requests.roleObjectives = false
+  compatibility.requests.roleNames[0] = 'changed'
+
+  assert.deepEqual(
+    resolved.description.components.requested.map((entry) => entry.id),
+    ['objective'],
+  )
+  assert.deepEqual(
+    resolved.eligibleDefinitions.map((entry) => entry.token.id),
+    ['observer', 'objective'],
+  )
+  assert.equal(
+    resolved.eligibleDefinitions[0],
+    registry.definition({ id: 'observer', version: 'v1' }),
+  )
+  assert.deepEqual(
+    resolved.description.scoreLayerOrder.map((entry) => entry.id),
+    ['objective'],
+  )
+  assert.deepEqual(resolved.description.compatibility, {
+    requests: {
+      roleNames: ['merlin'],
+      roleObjectives: true,
+    },
+  })
+  assert.ok(Object.isFrozen(resolved))
+  assert.ok(Object.isFrozen(resolved.description))
+  assert.ok(Object.isFrozen(resolved.description.base))
+  assert.ok(Object.isFrozen(resolved.description.components))
+  assert.ok(Object.isFrozen(resolved.configuredDefinitions))
+  assert.ok(Object.isFrozen(resolved.eligibleDefinitions))
+  assert.ok(Object.isFrozen(resolved.description.scoreLayerOrder))
+  assert.ok(Object.isFrozen(resolved.description.compatibility))
+  assert.ok(Object.isFrozen(
+    (resolved.description.compatibility.requests as object),
+  ))
+  assert.doesNotThrow(() => JSON.stringify(resolved.description))
+  assert.doesNotMatch(
+    JSON.stringify(resolved.description),
+    /validateDetached|admitHost/,
+  )
+})
+
+test('composed construction resists later caller option and injection mutation', async () => {
+  const source = readDecisionFixtures().find(
+    (entry) => entry.id === 'merlin-opening-proposal',
+  )!
+  const stages: string[] = []
+  const scorer: CandidateScorer = {
+    version: 'construction-snapshot-v1',
+    score: scoreCandidates,
+  }
+  class StatefulPlanner implements CandidatePlanner {
+    version = 'construction-planner-v1'
+    #calls = 0
+
+    async choose(input: Parameters<CandidatePlanner['choose']>[0]) {
+      this.#calls++
+      return { candidateId: input.structuredCandidateId }
+    }
+
+    calls(): number {
+      return this.#calls
+    }
+  }
+  const planner = new StatefulPlanner()
+  const options: ComposedAgentOptions = {
+    seed: source.source.seed,
+    scorer,
+    planner,
+    publicObserver: false,
+    privateIdentity: {
+      roleQueries: ['merlin' as const],
+      hiddenTeam: false,
+    },
+    onStage: (stage: string) => stages.push(stage),
+  }
+  const agent = createComposedAgent(options)
+  const construction = agent.resolvedBrain()
+
+  const mutableOptions = options as unknown as {
+    seed: string
+    publicObserver: boolean
+    privateIdentity: { roleQueries: string[] }
+    onStage: () => void
+  }
+  mutableOptions.seed = 'mutated-seed'
+  mutableOptions.publicObserver = true
+  mutableOptions.privateIdentity.roleQueries[0] = 'morgana'
+  mutableOptions.onStage = () =>
+    assert.fail('mutated callback was observed')
+  scorer.version = 'mutated-scorer'
+  scorer.score = () => {
+    throw new Error('mutated scorer was observed')
+  }
+  planner.version = 'mutated-planner'
+  planner.choose = async () => {
+    throw new Error('mutated planner was observed')
+  }
+
+  const output = normalizeAgentOutput(
+    await agent.decide(source.req, source.view),
+  )
+  assert.equal(
+    output.trace!.componentVersions!.scorer,
+    'compatibility-scorer-v1',
+  )
+  assert.equal(
+    output.trace!.componentVersions!.configuredScorer,
+    'construction-snapshot-v1',
+  )
+  assert.equal(
+    output.trace!.componentVersions!.planner,
+    'construction-planner-v1',
+  )
+  assert.equal(planner.calls(), 1)
+  assert.ok(stages.length)
+  assert.deepEqual(construction.description.compatibility.requests, {
+    publicObserver: false,
+    privateIdentity: {
+      hiddenTeam: false,
+      roleQueries: ['merlin'],
+    },
+    roleObjectives: false,
+    roleObjectiveRouter: false,
+    morganaCounterfeitObjectives: false,
+    evilQuestCardPolicy: null,
+    planMemory: false,
+    coherenceIntent: 'maintain',
+  })
+  assert.deepEqual(construction.description.components.requested, [])
+  assert.deepEqual(construction.eligibleDefinitions, [])
+})

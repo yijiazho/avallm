@@ -92,6 +92,13 @@ import {
   type AgentExecutionMode,
 } from './brain.ts'
 import {
+  createDecisionComponentRegistry,
+} from './components/registry.ts'
+import {
+  resolveComposedBrain,
+  type ResolvedComposedBrain,
+} from './components/resolved-brain.ts'
+import {
   advanceCognition,
   advanceCognitionFromBelief,
 } from './cognition/state.ts'
@@ -287,8 +294,130 @@ export interface ComposedAvalonAgent extends AvalonAgent {
   setPlanner(planner: CandidatePlanner | undefined): void
   setVoice(voice: PlanVoice | undefined): void
   cognitionCursor(): number | undefined
+  /** Immutable construction-time description; per-decision resolution is B2. */
+  resolvedBrain(): ResolvedComposedBrain
   /** Detached private snapshot for tests and offline diagnostics. */
   planMemorySnapshot(): PrivatePlanMemory | undefined
+}
+
+const EMPTY_COMPONENT_REGISTRY = createDecisionComponentRegistry([])
+
+function snapshotPlanner(
+  source: CandidatePlanner | undefined,
+): CandidatePlanner | undefined {
+  if (!source) return undefined
+  const version = source.version
+  const choose = source.choose.bind(source)
+  const snapshot: CandidatePlanner = {
+    version,
+    choose(input: PlannerInput) {
+      return choose(input)
+    },
+  }
+  return Object.freeze(snapshot)
+}
+
+function snapshotVoice(source: PlanVoice | undefined): PlanVoice | undefined {
+  if (!source) return undefined
+  const version = source.version
+  const speak = source.speak.bind(source)
+  const snapshot: PlanVoice = {
+    version,
+    speak(input: VoiceInput) {
+      return speak(input)
+    },
+  }
+  return Object.freeze(snapshot)
+}
+
+function snapshotBeliefModel(source: BeliefModel): BeliefModel {
+  const version = source.version
+  const factorsVersion = source.factorsVersion
+  const infer = source.infer.bind(source)
+  const snapshot: BeliefModel = {
+    version,
+    factorsVersion,
+    infer(view: PlayerView) {
+      return infer(view)
+    },
+  }
+  return Object.freeze(snapshot)
+}
+
+function snapshotLanguageInterpreter(
+  source: LanguageInterpreter | undefined,
+): LanguageInterpreter | undefined {
+  if (!source) return undefined
+  const interpret = source.interpret.bind(source)
+  const snapshot: LanguageInterpreter = {
+    get interpreterVersion() {
+      return source.interpreterVersion
+    },
+    interpret(input: LanguageInterpreterInput) {
+      return interpret(input)
+    },
+  }
+  return Object.freeze(snapshot)
+}
+
+function snapshotLanguageFactor(
+  source: LanguageLikelihoodFactor,
+): LanguageLikelihoodFactor {
+  const id = source.id
+  const version = source.version
+  const logLikelihood = source.logLikelihood.bind(source)
+  const snapshot: LanguageLikelihoodFactor = {
+    id,
+    version,
+    logLikelihood(world, evidence) {
+      return logLikelihood(world, evidence)
+    },
+  }
+  return Object.freeze(snapshot)
+}
+
+function snapshotScorer(
+  source: CandidateScorer,
+  seen = new Map<CandidateScorer, CandidateScorer>(),
+): CandidateScorer {
+  const existing = seen.get(source)
+  if (existing) return existing
+  const score = source.score.bind(source)
+  const snapshot: CandidateScorer = {
+    version: source.version,
+    ...(source.analysisRequirement
+      ? { analysisRequirement: source.analysisRequirement }
+      : {}),
+    ...(source.roleUtilityRequirement
+      ? { roleUtilityRequirement: source.roleUtilityRequirement }
+      : {}),
+    ...(source.evilRoleUtilityRequirement
+      ? { evilRoleUtilityRequirement: source.evilRoleUtilityRequirement }
+      : {}),
+    ...(source.morganaRoleUtilityRequirement
+      ? { morganaRoleUtilityRequirement: source.morganaRoleUtilityRequirement }
+      : {}),
+    score(context: CandidateScoringContext) {
+      return score(context)
+    },
+  }
+  seen.set(source, snapshot)
+  if (source.baseScorer) {
+    snapshot.baseScorer = snapshotScorer(source.baseScorer, seen)
+  }
+  return Object.freeze(snapshot)
+}
+
+function scorerVersions(source: CandidateScorer): readonly string[] {
+  const versions: string[] = []
+  const seen = new Set<CandidateScorer>()
+  let current: CandidateScorer | undefined = source
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    versions.push(current.version)
+    current = current.baseScorer
+  }
+  return Object.freeze(versions)
 }
 
 function byId(
@@ -712,20 +841,36 @@ function resolveRolePolicyScorer(input: {
 export function createComposedAgent(
   options: ComposedAgentOptions,
 ): ComposedAvalonAgent {
+  const seed = options.seed
+  const onDecisionTrace = options.onDecisionTrace
+  const onStage = options.onStage
+  const publicObserverConfigured = options.publicObserver === true
+  const roleObjectivesConfigured = options.roleObjectives === true
+  const roleObjectiveRouterConfigured =
+    options.roleObjectiveRouter === true
+  const morganaCounterfeitConfigured =
+    options.morganaCounterfeitObjectives === true
   let cognition: CognitionState | undefined
-  let planner = options.planner
-  let voice = options.voice
+  let planner = snapshotPlanner(options.planner)
+  let voice = snapshotVoice(options.voice)
   const compatibilityDecision =
     options.compatibilityDecision ?? heuristicDecide
-  const scorer: CandidateScorer = options.scorer ?? {
+  const scorer = snapshotScorer(options.scorer ?? {
     version: CANDIDATE_SCORER_VERSION,
     score: scoreCandidates,
-  }
-  const stage = (value: ComposedStage): void => options.onStage?.(value)
-  const beliefModel = options.beliefModel ?? exactWorldBeliefModel
-  const configuredLanguageInterpreter = options.languageInterpreter
+  })
+  const stage = (value: ComposedStage): void => onStage?.(value)
+  const beliefModel = snapshotBeliefModel(
+    options.beliefModel ?? exactWorldBeliefModel,
+  )
+  const configuredLanguageInterpreter = snapshotLanguageInterpreter(
+    options.languageInterpreter,
+  )
   const configuredLanguageVersion =
     configuredLanguageInterpreter?.interpreterVersion
+  const languageFactor = snapshotLanguageFactor(
+    options.languageFactor ?? boundedLanguageLikelihoodFactor,
+  )
   const configuredIdentityScope = options.privateIdentity
     ? structuredClone(options.privateIdentity)
     : undefined
@@ -751,6 +896,42 @@ export function createComposedAgent(
   if (!planMemoryEnabled && options.coherenceIntent !== undefined) {
     throw new Error('coherenceIntent requires planMemory')
   }
+  const resolvedBrain = resolveComposedBrain({
+    requestedComponents: [],
+    hostCapabilities: [],
+    scoreLayerOrder: [],
+    decisionLayerOrder: [],
+    languageEvidenceEnabled:
+      configuredLanguageInterpreter !== undefined,
+    publicObserverConfigured:
+      publicObserverConfigured
+      || roleObjectivesConfigured
+      || roleObjectiveRouterConfigured
+      || morganaCounterfeitConfigured
+      || scorer.roleUtilityRequirement !== undefined
+      || scorer.evilRoleUtilityRequirement !== undefined
+      || scorer.morganaRoleUtilityRequirement !== undefined,
+    compatibility: {
+      requests: {
+        publicObserver: publicObserverConfigured,
+        privateIdentity: configuredIdentityScope ?? null,
+        roleObjectives: roleObjectivesConfigured,
+        roleObjectiveRouter: roleObjectiveRouterConfigured,
+        morganaCounterfeitObjectives: morganaCounterfeitConfigured,
+        evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
+        planMemory: planMemoryEnabled,
+        coherenceIntent,
+      },
+      beliefModel: {
+        version: beliefModel.version,
+        factorsVersion: beliefModel.factorsVersion,
+      },
+      languageInterpreterVersion:
+        configuredLanguageVersion ?? 'off',
+      languageFactorVersion: languageFactor.version,
+      scorerVersions: scorerVersions(scorer),
+    },
+  }, EMPTY_COMPONENT_REGISTRY)
   let pendingPlan: {
     request: DecisionRequest
     selectedDecision: Decision
@@ -760,13 +941,16 @@ export function createComposedAgent(
 
   return {
     setPlanner(next) {
-      planner = next
+      planner = snapshotPlanner(next)
     },
     setVoice(next) {
-      voice = next
+      voice = snapshotVoice(next)
     },
     cognitionCursor() {
       return cognition?.throughSeq
+    },
+    resolvedBrain() {
+      return resolvedBrain
     },
     planMemorySnapshot() {
       return appliedPlanMemory
@@ -774,7 +958,7 @@ export function createComposedAgent(
         : undefined
     },
     recordDecisionTrace(trace) {
-      options.onDecisionTrace?.(trace)
+      onDecisionTrace?.(trace)
     },
     recordAppliedDecisionOutcome(
       outcome: AppliedDecisionOutcome,
@@ -912,7 +1096,7 @@ export function createComposedAgent(
                 evidence: language.reads,
                 cursor: language.cursor,
               },
-              options.languageFactor ?? boundedLanguageLikelihoodFactor,
+              languageFactor,
             )
           : mechanicalBelief
         const nextCognition = advanceCognitionFromBelief(
@@ -934,7 +1118,7 @@ export function createComposedAgent(
         cognition = advanceCognition(cognition, view, beliefModel)
       }
       stage('cognition')
-      if (options.roleObjectiveRouter === true) {
+      if (roleObjectiveRouterConfigured) {
         cognition = {
           ...cognition,
           versions: {
@@ -954,7 +1138,7 @@ export function createComposedAgent(
           },
         }
       }
-      const routerConfigured = options.roleObjectiveRouter === true
+      const routerConfigured = roleObjectiveRouterConfigured
       const routedObjective = routerConfigured
         ? routedRoleObjectiveModel(view.role)
         : 'off'
@@ -971,7 +1155,7 @@ export function createComposedAgent(
         resolvedScorer.evilRoleUtilityRequirement
           === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       const roleObjectiveRole: RoleObjectiveRole | undefined =
-        (options.roleObjectives === true || roleScorerApplicable)
+        (roleObjectivesConfigured || roleScorerApplicable)
         && (view.role === 'merlin' || view.role === 'percival')
           ? view.role
           : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
@@ -981,7 +1165,7 @@ export function createComposedAgent(
         routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
       const morganaCounterfeitApplicable =
         (
-          options.morganaCounterfeitObjectives === true
+          morganaCounterfeitConfigured
           || resolvedScorer.morganaRoleUtilityRequirement
             === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
         )
@@ -1019,7 +1203,7 @@ export function createComposedAgent(
         stage('identity')
       }
       const publicObserver = (
-        options.publicObserver
+        publicObserverConfigured
         || roleObjectiveRole
         || evilRoleObjectiveApplicable
         || morganaCounterfeitApplicable
@@ -1312,7 +1496,7 @@ export function createComposedAgent(
               counterfeitObjective: privateMorganaCounterfeitObjective,
               evilRoleUtility: privateEvilRoleUtility,
               selectionMode,
-              deterministicSeed: options.seed,
+              deterministicSeed: seed,
             })
           if (!validatePrivateMorganaRoleUtilityHostJoin(
             privateMorganaRoleUtility,
@@ -1324,7 +1508,7 @@ export function createComposedAgent(
               counterfeitObjective: privateMorganaCounterfeitObjective,
               evilRoleUtility: privateEvilRoleUtility,
               selectionMode,
-              deterministicSeed: options.seed,
+              deterministicSeed: seed,
             },
           )) {
             throw new Error('Morgana role utility failed its host join')
@@ -1341,10 +1525,10 @@ export function createComposedAgent(
         }
       }
 
-      const compatibility = compatibilityDecision(req, view, options.seed)
+      const compatibility = compatibilityDecision(req, view, seed)
       const compatibilityCandidateId = candidateIdForDecision(compatibility)
       const scoringContext = {
-        deterministicSeed: options.seed,
+        deterministicSeed: seed,
         request: req,
         view,
         analysis,
@@ -1630,7 +1814,7 @@ export function createComposedAgent(
         configuredEvilQuestCardPolicy,
         privateEvilQuestCardPolicy,
         (
-          options.morganaCounterfeitObjectives === true
+          morganaCounterfeitConfigured
           || scorer.morganaRoleUtilityRequirement
             === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
         )

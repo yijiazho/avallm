@@ -2,16 +2,16 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R2B1 component contracts, registry, and resolved brain. Phase 7R1
-restored universal forced-policy authority ahead of optional D3 strategy, and Phase 7R2A moved
-detached validation, host reconstruction, and promotion admission behind an agent-owned boundary.
-Phase 7R2B now proceeds as five linear chunks: construction-time resolution, a per-decision generic
-kernel, two compatibility-adapter slices, and artifact/evaluation integration. Mordred E2A cannot
-begin until the complete 7R2B4 exit gate passes; it then becomes the first production native
-component rather than another role-specific central field. Mordred policy, Assassin specialization,
-and the Phase 7 role-bank evaluation follow. The Phase 5C population sign flip remains recorded,
-and win-rate tuning is still intentionally deferred until the architecture is complete enough to
-evaluate as a whole.
+**Current target phase:** Phase 7R2B2 generic per-decision kernel and native fixture. Phase 7R1
+restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A moved
+admission behind an agent-owned boundary, and Phase 7R2B1 established immutable generic component
+contracts, dependency resolution, and one construction-time resolved brain. Phase 7R2B now
+continues through the per-decision kernel, two compatibility-adapter slices, and
+artifact/evaluation integration. Mordred E2A cannot begin until the complete 7R2B4 exit gate
+passes; it then becomes the first production native component rather than another role-specific
+central field. Mordred policy, Assassin specialization, and the Phase 7 role-bank evaluation
+follow. The Phase 5C population sign flip remains recorded, and win-rate tuning is still
+intentionally deferred until the architecture is complete enough to evaluate as a whole.
 
 This document tracks the transition from AvaLLM's current prompt-guided agents to the target in
 [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md). Unlike the research
@@ -1274,6 +1274,7 @@ reviewable and ablatable:
 13. **Phase 7R2B1, contracts, registry, and resolved brain:** define the generic component
     contracts and immutable registry, validate the dependency graph, and resolve requested and
     eligible components once at construction without changing traces, artifacts, or decisions.
+    **Complete.**
 14. **Phase 7R2B2, per-decision kernel:** determine applicability from each
     `DecisionRequest + PlayerView`, execute and admit generic tagged outputs with bounded
     degradation, and prove the seam with a test-local native fixture.
@@ -1778,6 +1779,17 @@ not bypass or redesign them at a role-specific call site.
    injection remains limited to operational dependencies such as seed, planner, voice, clients,
    and sinks. Acceptance requires registry-failure and immutability tests, resistance to mutation
    of caller-owned options, and unchanged frozen prompts, decisions, and heuristic-bank behavior.
+
+   **Complete.** The resolved brain now owns frozen dependency-first component implementations and
+   a separate data-only description of requested, configured, construction-eligible, and
+   ineligible entries. The registry has closure-private storage and rejects duplicate identities,
+   conflicting versions, missing dependencies, unknown requests, and cycles with a concrete path.
+   The compatibility facade captures configuration and injected method identities once while
+   preserving the original implementation receiver and observable interpreter-version drift.
+   Fresh review initially caught frozen interpreter drift and broken class-private receiver
+   semantics; the corrected implementation added stateful planner and component regressions and
+   passed 164 affected compatibility cases plus all 841 API-free repository tests. Traces,
+   artifacts, stdio, prompts, decisions, role execution, and defaults remain unchanged.
 2. **7R2B2, generic per-decision kernel and native fixture:** use only the current
    `DecisionRequest + PlayerView` to determine applicability, execute components, admit bounded
    private tagged payloads, degrade safely, and record configured, admitted, and causal-policy-use
@@ -2141,6 +2153,13 @@ here.
   and 225 independent-review focused cases without changing trace or artifact schemas, versions,
   decisions, or defaults. Parent validation passed all 835 API-free tests, including the applicable
   free architecture banks.
+- Phase 7R2B1 component construction: added dependency-light component contracts, an immutable
+  registry with stable dependency-first resolution, and a resolved composed brain that owns both
+  frozen implementations and a data-only construction description. The compatibility facade now
+  snapshots configuration without hiding interpreter-version drift or rebinding stateful plugin
+  methods. Fresh re-review approved the corrected class/private-state and drift behavior; 164
+  affected compatibility cases and all 841 API-free repository tests passed without trace,
+  artifact, stdio, prompt, decision, role-policy, or default changes.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
