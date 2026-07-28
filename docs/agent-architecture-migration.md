@@ -200,6 +200,25 @@ Every dispatched chunk should answer this template:
 The parent records the base and resulting commit in the progress log. A review handoff cites that
 commit rather than a moving branch so the reviewed bytes are unambiguous.
 
+Handoff evidence is Git-native:
+
+- A writer hands off a clean commit SHA and its base SHA. Dirty-tree review is refused rather than
+  supported by a second snapshot format.
+- The detailed commit body records the changed contracts, focused verification, paid-call status,
+  and unresolved issues. These are human assertions, so a private manifest would not make them
+  more trustworthy.
+- The reviewer inspects that exact commit and confirms its worktree remains clean.
+- After sequential rebase, the parent records `HEAD` and `HEAD^{tree}`, runs the canonical full
+  verifier on the clean commit, then requires both identities and the clean status to remain
+  unchanged before the compare-and-swap landing.
+- Existing tests remain the authority for component exemptions and other repository contracts.
+  A handoff layer does not copy their inventories.
+
+This deliberately uses Git's immutable objects and the existing verifier instead of maintaining a
+parallel manifest schema, refresh lifecycle, or dirty-tree digest. If provenance errors recur
+despite this narrower workflow, the next automation is a small clean-tree verifier wrapper, not a
+general handoff subsystem.
+
 ### 3.5 Parallel non-blocking follow-ups
 
 Phase-local follow-up lists remain the source of architectural context. An open item enters this
@@ -2253,10 +2272,10 @@ The prioritized no-regret work before 7R3 is:
    executed, policy layers invoked, candidates scored, and posterior assessments reused. These
    budgets assert bounded work without turning development-host wall-clock timing into a false CI
    contract.
-4. Add a **tree-bound handoff manifest** containing base and head SHA or dirty-tree digest, changed
-   contracts, focused and complete commands and results, component exemptions, paid-call status,
-   and known issues. One implementation worktree is shared read-only with reviewers unless
-   isolation is genuinely required.
+4. Use the **Git-native clean-commit handoff** in Section 3.4. Exact base, commit, and tree
+   identities bind review and verification; commit bodies carry human declarations; existing
+   tests own component exemptions. Do not add a private manifest or support dirty-tree handoff
+   unless repeated evidence shows the narrower protocol is insufficient.
 
 Descriptor ownership is complete, so C4 is now the only sequential interface gate before 7R3.
 Coarse dependency fitness runs in every verification lane: engine cannot import
@@ -2681,6 +2700,13 @@ here.
   the high-player-count boundary cases required by the contract. The applicable free bank and full
   API-free suite run once on the completed executable chunk; a later documentation-only amendment
   may carry forward that evidence after an exact tree-delta and documentation hygiene check.
+- Development-workflow correction: a reviewed prototype proved that a tree-bound handoff manifest
+  could detect dirty-tree and test-evidence drift, but doing so added 1,239 repository lines and a
+  roughly 31-second process-heavy test without a durable CI or landing consumer. The prototype was
+  dropped before commit. Handoffs now use clean Git commits, exact base/commit/tree identities,
+  detailed commit bodies, and post-rebase verification. This narrows the permitted workflow and
+  reuses authoritative Git and verifier state instead of creating another parser and evidence
+  store.
 - Phase 5C vote-conversion diagnosis: added a reproducible four-lane funnel over the frozen Phase 4
   bank and ran both free populations for 1,440 games. Proposal-only improved or held outcomes in
   both populations, while top-utility and seeded-band votes were harmful against heuristic agents
