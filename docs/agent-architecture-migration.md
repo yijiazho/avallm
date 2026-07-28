@@ -1344,9 +1344,10 @@ reviewable and ablatable:
       consumes admitted typed values. Add a registry-wide conformance harness and shared
       rotation, renaming, private-canary, raw-truth, reweighting, and hostile-shape fixtures.
       **C2A admission and conformance foundation complete; incremental legacy migration remains.**
-    - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact,
-      report, and future Inspector metadata from the resolved graph and admitted run. Replace
-      repeated prefix replay with one pass over the event log while preserving exact snapshots.
+    - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact, and
+      report metadata from the resolved graph and admitted run, while fixing that same graph and
+      run as the future Inspector v2 source. Replace repeated prefix replay with one pass over the
+      event log while preserving exact snapshots.
       **Complete.**
     - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
       canonical request, view, belief, analysis, candidate surface, forced survivors, and component
@@ -2123,7 +2124,10 @@ reviewed slices are now landed:
   `ResolvedArchitectureDescriptor`.** It owns the configured component graph, required host
   inputs, base scorer and hard fallback, planner and voice configuration, and migration-only
   compatibility requests. The old private metadata shape is an exact projection rather than a
-  second author. Trace, artifact, report, and Inspector projections still need to consume it.
+  second author. At that checkpoint, trace, artifact, and report projections still needed to
+  consume it; those projections are now complete. Inspector v1 intentionally remains a
+  `DecisionRequest + PlayerView` boundary viewer, while Inspector v2 is deferred as the
+  descriptor/run projection.
 - **The lazy-root slice of C3, commit `b646922`, makes component input work causal.** Runtime and
   host reconstruction share one `unresolved | missing | invalid | admitted` state machine.
   In-process providers execute only after applicability, construction eligibility, and dependency
@@ -2168,9 +2172,9 @@ reviewed slices are now landed:
   compatibility scorer degradation chain is isolated in `policy/legacy-scoring.ts` and is owned
   for retirement by 7R3. A provenance-pinned pre-C4 oracle covers every frozen decision kind,
   matching-base and hard fallback, real D3, planner acceptance/rejection, voice success/no-output/
-  failure, exact trace bytes, bounded planner/voice inputs, and diagnostic stages. The only
-  intentional compatibility correction is that the ephemeral stage hook now reports candidates
-  before the candidate-aware analysis that consumes them.
+  failure, exact serialized-trace hashes, bounded planner/voice inputs, and diagnostic stages.
+  The only intentional compatibility correction is that the ephemeral stage hook now reports
+  candidates before the candidate-aware analysis that consumes them.
   The C4B oracle is temporary migration evidence: delete its capture tool, fixture, test, and lane
   entry after the behavior-preserving 7R3 adapter retirements pass the 7R3 exit audit. Never
   regenerate this pre-C4 oracle to approve an intentional policy change; later policy behavior
@@ -2289,34 +2293,30 @@ central orchestrator, trace, stdio, artifact, report, and Inspector, that is an 
 fix rather than a checklist to repeat. Compatibility readers are the explicit exception and carry
 a named retirement owner.
 
-The prioritized no-regret work before 7R3 is:
+The 7R2C outcomes and 7R3 handoff are:
 
-1. Implement **C4 as two staged `DecisionFrame` chunks**, not one optional-field bag. C4A adds
-   separate analyzed, candidate, forced, scored, selected, committed, and voiced frame types plus
-   constructor-owned transitions and one legacy scorer adapter without changing `composed.ts`.
-   C4B replaces the corresponding local-variable pipeline in `composed.ts` while preserving
-   scorer fallback, degradation, trace, prompt, and decision bytes. Preserve forced survivor
-   monotonicity, engine legality, and voice-after-commit as type and contract boundaries.
-   D3 remains behind an explicitly named post-universal compatibility adapter until 7R3B; C4 must
-   not relabel it as universal forced policy or silently change its authority.
-2. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
-   exemptions incrementally as their policy families move in 7R3. Component-specific formula
-   tests remain beside the generic contract.
-3. Add **operation budgets** for applicability evaluations, roots materialized, components
-   executed, policy layers invoked, candidates scored, and posterior assessments reused. These
-   budgets assert bounded work without turning development-host wall-clock timing into a false CI
-   contract.
-4. Use the **Git-native clean-commit handoff** in Section 3.4. Exact base, commit, and tree
-   identities bind review and verification; commit bodies carry human declarations; existing
-   tests own component exemptions. Do not add a private manifest or support dirty-tree handoff
-   unless repeated evidence shows the narrower protocol is insufficient.
+1. **C4 is complete as two staged `DecisionFrame` chunks**, not one optional-field bag.
+   Candidate generation, candidate-aware analysis, universal forced policy, exact-frame component
+   execution, quarantined D3, scoring, selection, commit, and voice now have one live authority.
+   D3 remains behind its named post-universal compatibility adapter until 7R3B.
+2. The C2A fixtures now use a **reusable component contract kit**. Eight exact 7R3A exemptions and
+   two exact 7R3B exemptions remain; a migrated family cannot retain its exemption.
+3. Add **operation budgets during 7R3A** for applicability evaluations, roots materialized,
+   components executed, policy layers invoked, candidates scored, and posterior assessments
+   reused. These budgets assert bounded work without turning development-host wall-clock timing
+   into a false CI contract. The relevant counters are a 7R3A landing requirement, not a blocker
+   to beginning the ordered-layer implementation.
+4. Continue using the **Git-native clean-commit handoff** in Section 3.4. Exact base, commit, and
+   tree identities bind review and verification; commit bodies carry human declarations;
+   existing tests own component exemptions. Do not add a private manifest or support dirty-tree
+   handoff unless repeated evidence shows the narrower protocol is insufficient.
 
-Descriptor ownership is complete, so C4 is now the only sequential interface gate before 7R3.
+Descriptor and staged-frame ownership are complete, so 7R3A is the next sequential interface gate.
 Coarse dependency fitness runs in every verification lane: engine cannot import
 agents or evaluation; runtime agents cannot import evaluation or raw `Game`; generic policy and
 component code cannot import artifact or report types; trusted provider callbacks remain confined
-to in-process composition. Finer internal agent layering waits for C4 because transitional
-analysis-policy and cognition-communication cycles still exist.
+to in-process composition. 7R3 owns the remaining transitional analysis-policy and
+cognition-communication compatibility paths.
 
 Broad file splitting, a third-party schema runtime, wholesale conversion of historical validators,
 and a rewrite of every legacy compatibility reader are deferred until a measured bottleneck or the
@@ -2332,6 +2332,22 @@ fixture for every native token, byte-identical replay snapshots, derived metadat
 runtime/artifact/report surfaces, frozen decisions/prompts/logs/replay, and no new role-named
 central write field. Each remaining legacy exemption must name its retirement owner; 7R3 cannot
 declare a migrated family native while its exemption remains.
+
+**Exit audit passed on `26eee384`.** Independent code/ownership and metadata/evidence audits
+approved 7R3A. The final parent gate passed strict typechecking, architecture fitness, the
+104-file fail-closed lane inventory, 999 correctness tests, and three isolated performance tests.
+The applicable free banks passed; a separate ten-case `standard-v1` autopilot run recorded 7/10
+target-side wins, zero forced violations, zero degradation, zero calls, and zero cost. The
+registry contains twelve production tokens: two have native executable conformance fixtures,
+eight exemptions name 7R3A, and two D3 exemptions name 7R3B. Frozen decisions, prompt hashes,
+trace hashes, replay/log snapshots, descriptor-manifest-report joins, target-seat privacy, and
+historical provenance all pass.
+
+Inspector v1 remains intentionally limited to the `DecisionRequest + PlayerView` boundary. It is
+not evidence that descriptor, admitted component-run, candidate, policy-gate, committed-action,
+or voiced-frame diagnostics are implemented. Inspector v2 remains a post-7R3 projection over
+`ResolvedArchitectureIdentity`, admitted `DecisionComponentRun`, and `DecisionFrame`; it must not
+become a parallel metadata author.
 
 **7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
 score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
@@ -2702,12 +2718,13 @@ here.
   synchronous applicability, and registered exact suppression proofs close the host-replay gaps
   found during review. Focused architecture/privacy/replay validation passes 112/112 and all 938
   API-free repository tests pass. Independent final rereview passes 116/116 and returns READY.
-- Phase 7R2C checkpoint in progress: C1 (`30a96e8`) added strict server typechecking and
+- Phase 7R2C checkpoint complete: C1 (`30a96e8`) added strict server typechecking and
   fail-closed tiered test lanes. C2A (`35f30cb`) added the bounded canonical admission boundary,
   registry-wide conformance inventory, two native executable fixtures, and ten explicit legacy
-  exemptions owned by C2B and 7R3. The replay half of C3 (`b797a5e`) added one authoritative
-  replay timeline, incremental target-seat projection, private probe binding, detached artifact
-  DTOs, and honest work/output accounting. The descriptor foundation (`21c60a1`) now owns
+  exemptions now owned exactly by 7R3A and 7R3B. The replay half of C3 (`b797a5e`) added one
+  authoritative replay timeline, incremental target-seat projection, private probe binding,
+  detached artifact DTOs, and honest work/output accounting. The descriptor foundation
+  (`21c60a1`) now owns
   configured architecture identity, and lazy host roots (`b646922`) remove eager private work for
   inapplicable, ineligible, or dependency-blocked components through one shared cached state
   machine. Trace metadata (`34b30ac`) is now a descriptor/run projection rather than a parallel
@@ -2725,7 +2742,12 @@ here.
   reanalysis as explicit 7R3 ownership work rather than pretending they are native frame layers.
   Phase 7R3B separately owns D3's discriminated historical compatibility read, incremental
   retirement of its conformance exemption, and deletion of its transitional write path after
-  equality.
+  equality. The reusable native component contract kit (`6a586fc`) and sole-owner C4B runtime
+  wiring (`26eee384`) passed independent review. The exit audit passed strict typechecking,
+  architecture fitness, the 104-file lane inventory, 999 correctness tests, three performance
+  tests, the applicable composed-agent banks, and a separate ten-case free `standard-v1` run.
+  Inspector v2 remains explicitly deferred, and layer-owned operation budgets are required before
+  7R3A lands.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
