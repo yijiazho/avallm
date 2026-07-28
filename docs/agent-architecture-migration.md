@@ -2,15 +2,16 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** finish Phase 7R2C3's descriptor-derived trace, artifact, and report
+**Current target phase:** finish Phase 7R2C3's descriptor-derived artifact and report
 projections, followed by Phase 7R2C4's typed policy seam. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
 The fast-feedback and static-check slice, the admission/conformance foundation, and the
 single-pass replay work are complete. The resolved descriptor now owns configured architecture
-identity, and component host roots resolve only after a component is causally eligible. Before
-ordered policy layers, the remaining work is to project every runtime and evaluation surface from
-that descriptor and extract a staged `DecisionFrame` policy-pipeline seam.
+identity and trace metadata, component host roots resolve only after a component is causally
+eligible, and a fast dependency-fitness guard protects the coarse ownership boundaries. Before
+ordered policy layers, the remaining work is to project artifact and report surfaces from that
+descriptor and extract a staged `DecisionFrame` policy-pipeline seam.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1326,7 +1327,7 @@ reviewable and ablatable:
     - **7R2C3, one derived descriptor and linear evaluation replay:** derive trace, artifact,
       report, and future Inspector metadata from the resolved graph and admitted run. Replace
       repeated prefix replay with one pass over the event log while preserving exact snapshots.
-      **Replay complete; descriptor ownership remains.**
+      **Replay and trace projection complete; artifact/report projection remains.**
     - **7R2C4, typed policy seam:** behavior-preservingly extract one `DecisionFrame` carrying the
       canonical request, view, belief, analysis, candidate surface, forced survivors, and component
       run into ordered score layers, ordered decision layers, and the committed action.
@@ -2110,6 +2111,19 @@ reviewed slices are now landed:
   descriptors, traces, artifacts, or stdio. The generic observer now runs and stages only on first
   use, while the compatibility observer keeps its historical ordering. Strict typechecking,
   101-file lane inventory, 966 correctness tests, and three isolated performance tests pass.
+- **The trace-projection slice of C3, commit `34b30ac`, removes a second architecture author.**
+  Stable trace fields are a pure projection of the exact resolved descriptor, while actual
+  runtime production and degradation remain facts of the admitted run. Trace assembly no longer
+  reconstructs configured components or role-specific observer labels, and the descriptor/run
+  join rejects mismatched identities.
+- **The dependency-fitness slice, commit `5f47201`, makes coarse ownership executable.** Every
+  verification level uses the pinned TypeScript parser to reject declared dependencies from
+  engine to agents/evaluation, runtime agents to evaluation or raw `Game`, generic
+  policy/components to artifacts/reports, and trusted host capabilities outside composition and
+  the component kernel. Unreadable, malformed, escaping, or unclassifiable dynamic dependencies
+  fail closed. This is a regression guard for trusted contributors, not a sandbox against a code
+  author deliberately using runtime evaluation or filesystem loading. The 102-file inventory,
+  982 correctness tests, and three isolated performance tests pass on the landed tree.
 - **C4 remains pending.** It extracts only the policy region needed by 7R3. It must not
   mechanically split every large module. The staged type design makes invalid pipeline states
   unrepresentable: request, view, belief, and analysis establish the analyzed frame; the legal
@@ -2147,6 +2161,27 @@ The cross-review findings establish these development guardrails for the rest of
    API-free suites. The lane inventory is fail closed. Every commit has a detailed motivation,
    behavior, design, and verification body, followed by a pre-land commit-message and clean-tree
    check.
+8. **Separate boundary validation from domain semantics.** Shared admission owns hostile-shape
+   limits, prototype rejection, canonical JSON, and detachment. A component-owned codec owns the
+   meaning of one external shape. Host join owns contextual equality against reconstructed private
+   inputs. Code after that join receives a trusted discriminated type and does not repeat parsing,
+   bounds checks, or canonicalization.
+9. **Prefer registered data over central branching.** Applicability, dependencies, codecs,
+   policy-layer order, fallbacks, and projection metadata belong in component or layer
+   descriptors. A growing role- or token-named `if`/`switch` in the orchestrator, trace, artifact,
+   report, or Inspector is an ownership defect unless it is an explicitly quarantined
+   compatibility reader.
+10. **Use exact fixtures only where exactness is a contract.** Byte and property-order goldens
+    protect wire formats, historical compatibility, prompts, and deterministic persisted
+    artifacts. Domain behavior uses formula examples, algebraic invariants, and replayable
+    generated cases so harmless representation changes do not create broad fixture churn.
+11. **Keep observability downstream of execution truth.** Trace, artifact, report, and Inspector
+    project the same descriptor plus admitted run. They may filter private data for their
+    audience, but they do not infer which policy ran, repair missing causal stages, or relabel an
+    invalid trace into a self-consistent story.
+12. **Quarantine migration debt.** Historical readers have named adapters, explicit version
+    states, and retirement owners. New write paths never emit legacy optional bags. Compatibility
+    code does not become a shared utility imported by native policy.
 
 The development model follows a proof pyramid rather than using end-to-end mutation matrices as
 the first line of defense:
@@ -2186,13 +2221,12 @@ a named retirement owner.
 
 The prioritized no-regret work before 7R3 is:
 
-1. Finish **C3 descriptor ownership** so one authoritative resolved descriptor derives trace,
-   artifact, report, and future Inspector v2 metadata. Add architecture dependency fitness checks
-   that reject duplicate authorship, undeclared dependencies, inapplicable eager roots, and
-   cross-surface drift. The checks also enforce import direction: the engine cannot depend on
-   agents or evaluation, runtime agents cannot depend on evaluation or raw `Game`, and generic
-   policy components cannot depend on artifact or report types. Ratchet unsafe casts toward codecs
-   and compatibility readers rather than allowing them in new policy code.
+1. Finish **C3 descriptor ownership** so one authoritative resolved descriptor derives artifact,
+   report, and future Inspector v2 metadata; trace projection is complete. The landed coarse
+   dependency-fitness check enforces import direction and trusted-provider ownership. Exact
+   descriptor/run joins and projection contract tests, rather than source scanning, own
+   cross-surface truth; lazy-root contract tests own causal materialization. Ratchet unsafe casts
+   toward codecs and compatibility readers rather than allowing them in new policy code.
 2. Implement **C4 as staged `DecisionFrame` types**, not one optional-field bag. Preserve forced
    survivor monotonicity, engine legality, and voice-after-commit as type and contract boundaries.
 3. Turn the C2A fixtures into a **reusable component contract kit** and retire the ten explicit
@@ -2208,10 +2242,10 @@ The prioritized no-regret work before 7R3 is:
    isolation is genuinely required.
 
 Descriptor ownership and C4 remain sequential because both define the interfaces 7R3 will
-consume. Coarse dependency fitness checks land before C4: engine cannot import agents or
-evaluation; runtime agents cannot import evaluation or raw `Game`; generic policy and component
-code cannot import artifact or report types; trusted provider callbacks remain confined to
-in-process composition. Finer internal agent layering waits for C4 because transitional
+consume. Coarse dependency fitness now runs in every verification lane: engine cannot import
+agents or evaluation; runtime agents cannot import evaluation or raw `Game`; generic policy and
+component code cannot import artifact or report types; trusted provider callbacks remain confined
+to in-process composition. Finer internal agent layering waits for C4 because transitional
 analysis-policy and cognition-communication cycles still exist.
 
 Broad file splitting, a third-party schema runtime, wholesale conversion of historical validators,
@@ -2606,9 +2640,12 @@ here.
   DTOs, and honest work/output accounting. The descriptor foundation (`21c60a1`) now owns
   configured architecture identity, and lazy host roots (`b646922`) remove eager private work for
   inapplicable, ineligible, or dependency-blocked components through one shared cached state
-  machine. Strict typechecking, the 101-file lane inventory, 966 correctness tests, and three
-  isolated performance tests pass. The current target is descriptor-derived trace, artifact, and
-  report projections, followed by C4's staged `DecisionFrame` policy seam. Those slices own
+  machine. Trace metadata (`34b30ac`) is now a descriptor/run projection rather than a parallel
+  role-aware author. The AST-based dependency-fitness guard (`5f47201`) runs in every verification
+  lane and protects coarse import direction and trusted-provider ownership without becoming a
+  source-code sandbox. Strict typechecking, the 102-file lane inventory, 982 correctness tests,
+  and three isolated performance tests pass. The current target is descriptor-derived artifact
+  and report projection, followed by C4's staged `DecisionFrame` policy seam. Those slices own
   redundant metadata authorship and optional-state pipeline ambiguity rather than allowing them
   to accrete inside each component. Phase 7R3B separately owns D3's discriminated historical
   compatibility read, incremental retirement of its conformance exemption, and deletion of its
