@@ -113,7 +113,7 @@
     },
     {
       "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "4f2f30a8da3b5fb808194f03fe9bb7217f929337eb2e6131f18e8091703e7e17",
+      "sha256": "dfb7395a6d6f530c846978ef8fc5fac39c706ec1b211e7485d861dc4bed2e0c9",
       "rationale": "Legacy role-policy fixtures need current union narrowing."
     },
     {
@@ -123,22 +123,22 @@
     },
     {
       "path": "test/phase7d2-evil-policy.test.ts",
-      "sha256": "2747f745f5e5f5e13af50f1a63076434289dabdff0a359a69d8ac87263272ca6",
+      "sha256": "401361d61625458c7d16f1c91705ec73b81abbd6a2e11471bcb5af895615bb11",
       "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7d3-quest-coordination.test.ts",
-      "sha256": "27479b2f91ff2e1008e6a779eacdf1b5ed350b1d97dc12a98aaf90dd36fa89a4",
+      "sha256": "cc62d2f3d2d7aa785a68d3d6b2dfe6d941e6fd71ef4763ff0c0fd2254143d5a8",
       "rationale": "Legacy quest fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e1a-morgana-counterfeit.test.ts",
-      "sha256": "9bf890875c5736070b6e1974e6982830652e2d1ea39c9fa7cf426336f54d2867",
+      "sha256": "323226c0827446c754dca4de64463fb10d6d623fdd218109023be1a2c061f6f8",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "714419fe8695e561a19110400851e30bb13ad089145e415b68594c2a7ce90b6e",
+      "sha256": "7b914e7acdf8af1bdb959df9446a6f4593c57653c765dbebe08be6b358258233",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "5135c7e1dc365ec30aec3e38fc581e48fbd8f2b4561bf7b6fcd7ab25baffea8a",
+      "sha256": "67a371a6fb41fdaca4d23d10b8c5bd5f90105c8307fcfdd286a7969db23caf1b",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {

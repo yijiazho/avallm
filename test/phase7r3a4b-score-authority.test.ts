@@ -57,8 +57,10 @@ import type {
 } from '../server/engine/types.ts'
 import {
   parseStdioDecisionReply,
-  validateComposedTraceHostJoin,
 } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
   projectResolvedArchitectureIdentity,

@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   canonicalizeJson,
+  canonicalizeTransportJson,
 } from '../server/agents/components/canonical-json.ts'
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
@@ -448,6 +449,61 @@ test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
     ok: false,
     failureCode: 'payload-too-large',
   })
+})
+
+test('transport canonicalization omits object undefined without weakening arrays', () => {
+  const transported = canonicalizeTransportJson(
+    {
+      kept: 1,
+      omitted: undefined,
+      nested: { omitted: undefined, kept: true },
+    },
+    1_000,
+  )
+  assert.equal(transported.ok, true)
+  if (!transported.ok) return
+  assert.equal(
+    JSON.stringify(transported.payload),
+    '{"kept":1,"nested":{"kept":true}}',
+  )
+  assert.equal(
+    transported.bytes,
+    Buffer.byteLength(JSON.stringify(transported.payload)),
+  )
+  assert.deepEqual(
+    canonicalizeTransportJson([undefined], 1_000),
+    { ok: false, failureCode: 'payload-json-unsafe' },
+  )
+  const cyclic: any = {}
+  cyclic.self = cyclic
+  const sparse = new Array(2)
+  sparse[1] = true
+  let accessorReads = 0
+  const accessor = {}
+  Object.defineProperty(accessor, 'value', {
+    enumerable: true,
+    get() {
+      accessorReads++
+      return true
+    },
+  })
+  const symbolKeyed = { value: true } as Record<PropertyKey, unknown>
+  symbolKeyed[Symbol('hidden')] = true
+  for (const hostile of [
+    new Proxy({ value: true }, {}),
+    accessor,
+    cyclic,
+    sparse,
+    symbolKeyed,
+    { value: Number.NaN },
+    { value: Number.POSITIVE_INFINITY },
+  ]) {
+    assert.deepEqual(
+      canonicalizeTransportJson(hostile, 1_000),
+      { ok: false, failureCode: 'payload-json-unsafe' },
+    )
+  }
+  assert.equal(accessorReads, 0)
 })
 
 test('native decoders preserve raw-validator semantics after one boundary', () => {

@@ -20,8 +20,10 @@ import {
 } from '../server/agents/policy/evil-quest-card.ts'
 import {
   parseStdioDecisionReply,
-  validateComposedTraceHostJoin,
 } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
   runArchitectureBench,

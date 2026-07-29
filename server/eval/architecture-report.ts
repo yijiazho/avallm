@@ -23,6 +23,7 @@ import {
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
+  type DecisionTrace,
 } from '../agents/trace.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
@@ -89,9 +90,10 @@ import {
   type AuthoritativeDecisionReplay,
 } from './trace-replay.ts'
 import {
-  validateComposedTraceHostJoin,
-  validateFinalizedDiagnosticDecisionTrace,
-  validateSuppressedEvilQuestCardPolicyHostJoin,
+  admitCanonicalDecisionTrace,
+  snapshotDecisionTraceInput,
+  type DecisionTraceAdmissionResult,
+  type DecisionTraceSnapshotResult,
 } from '../agents/admission/composed-trace.ts'
 import {
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
@@ -165,6 +167,11 @@ export interface ArchitectureSafetySummary {
   traceAttributionViolations: number
   /** Trusted, exact generic component evidence suitable for promotion gates. */
   promotionEvidenceEligible?: boolean
+}
+
+interface ArchitectureSafetyAdmission {
+  readonly safety: ArchitectureSafetySummary
+  readonly traces: readonly Readonly<DecisionTrace>[]
 }
 
 export interface ArchitectureComponentEvidenceSummary {
@@ -271,6 +278,7 @@ function isComposedArchitectureMode(value: unknown): boolean {
 
 interface GameObservation {
   artifact: GameArtifact
+  decisionTraces: readonly Readonly<DecisionTrace>[]
   meta: ArchitectureRunMetadata
   architectureAdmission: ArtifactArchitectureAdmission
   won: boolean
@@ -619,7 +627,8 @@ function currentArchitectureSafety(
     ArtifactArchitectureAdmission,
     { provenance: 'descriptor-host-manifest-admitted' }
   >,
-): ArchitectureSafetySummary {
+  traceCandidates: readonly DecisionTraceSnapshotResult[],
+): ArchitectureSafetyAdmission {
   let hiddenInformationChecks = 1
   let hiddenInformationViolations = PRIVATE_ARCHITECTURE_TELEMETRY.test(
     JSON.stringify(
@@ -628,7 +637,18 @@ function currentArchitectureSafety(
   ) ? 1 : 0
   let traceAttributionChecks = 0
   let traceAttributionViolations = 0
-  const traces = artifact.decisionTraces ?? []
+  const rejectedSnapshots = traceCandidates.filter(
+    (candidate) => candidate.kind === 'rejected',
+  )
+  const canonicalCandidates = traceCandidates.filter(
+    (candidate) =>
+      candidate.kind === 'canonical-decision-trace-candidate',
+  )
+  const traces = canonicalCandidates.map((candidate) => candidate.trace)
+  traceAttributionChecks += rejectedSnapshots.length
+  traceAttributionViolations += rejectedSnapshots.length
+  const trustedAdmissions: DecisionTraceAdmissionResult[] = []
+  const admittedTraces: Readonly<DecisionTrace>[] = []
   let replay: AuthoritativeDecisionReplay | undefined
   try {
     replay = authoritativeDecisionReplay(
@@ -651,12 +671,32 @@ function currentArchitectureSafety(
   const planCoherenceEnabled =
     admission.identity.configuredPipeline.planCoherence.memory !== 'off'
     && admission.identity.configuredPipeline.planCoherence.model !== 'off'
-  for (const trace of traces) {
+  for (const candidate of canonicalCandidates) {
     traceAttributionChecks++
-    const snapshot = replay?.snapshots.get(trace.decisionId)
-    const selectedDecision =
-      trace.privatePlanOutcome?.selected?.decision
-      ?? snapshot?.original
+    const pendingTrace = candidate.trace
+    const snapshot = replay?.snapshots.get(pendingTrace.decisionId)
+    if (!snapshot) {
+      traceAttributionViolations++
+      continue
+    }
+    const traceAdmission = admitCanonicalDecisionTrace({
+      kind: 'finalized-artifact',
+      trace: candidate,
+      req: snapshot.req,
+      view: snapshot.view,
+      authoritativeAction: snapshot.original,
+      deterministicSeed: artifact.seed,
+      expectComponentTrace: true,
+      expectedComponentPlan: admission.plan,
+      expectedArchitectureIdentity: admission.identity,
+    })
+    trustedAdmissions.push(traceAdmission)
+    if (traceAdmission.kind !== 'trusted-exact') {
+      traceAttributionViolations++
+      continue
+    }
+    const trace = traceAdmission.trace
+    admittedTraces.push(trace)
     const planAttributionValid = planCoherenceEnabled
       ? (
           trace.componentVersions?.planMemory
@@ -693,24 +733,7 @@ function currentArchitectureSafety(
         )
     if (
       trace.viewerSeat !== meta.targetSeat
-      || !snapshot
-      || !selectedDecision
       || !planAttributionValid
-      || !resolvedArchitectureIdentityTraceJoin(
-        admission.identity,
-        trace,
-      )
-      || !validateComposedTraceHostJoin({
-        trace,
-        req: snapshot.req,
-        view: snapshot.view,
-        authoritativeAction: snapshot.original,
-        selectedDecision,
-        deterministicSeed: artifact.seed,
-        expectComponentTrace: true,
-        expectedComponentPlan: admission.plan,
-        expectedArchitectureIdentity: admission.identity,
-      })
     ) {
       traceAttributionViolations++
     }
@@ -748,25 +771,23 @@ function currentArchitectureSafety(
       hiddenInformationViolations++
     }
   }
-  const genericEvidence = traces.length > 0 && traces.every((trace) =>
-    trace.components !== undefined)
   return {
-    hiddenInformationChecks,
-    hiddenInformationViolations,
-    traceAttributionChecks,
-    traceAttributionViolations,
-    promotionEvidenceEligible: (
-      genericEvidence
-      && traces.every((trace) =>
-        trace.components?.entries.every((entry) =>
-          entry.status !== 'degraded'
-          && (
-            entry.status !== 'admitted'
-            || entry.promotionEligible
-          )) === true)
-      && hiddenInformationViolations === 0
-      && traceAttributionViolations === 0
-    ),
+    traces: Object.freeze(admittedTraces),
+    safety: {
+      hiddenInformationChecks,
+      hiddenInformationViolations,
+      traceAttributionChecks,
+      traceAttributionViolations,
+      promotionEvidenceEligible: (
+        trustedAdmissions.length === traces.length
+        && trustedAdmissions.length > 0
+        && trustedAdmissions.every((result) =>
+          result.kind === 'trusted-exact'
+          && result.promotionEvidenceEligible)
+        && hiddenInformationViolations === 0
+        && traceAttributionViolations === 0
+      ),
+    },
   }
 }
 
@@ -778,7 +799,8 @@ function legacyArchitectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
   architectureAdmission: ArtifactArchitectureAdmission,
-): ArchitectureSafetySummary {
+  traceCandidates: readonly DecisionTraceSnapshotResult[],
+): ArchitectureSafetyAdmission {
   let hiddenInformationChecks = 1
   let hiddenInformationViolations = 0
   let traceAttributionChecks = 0
@@ -789,7 +811,17 @@ function legacyArchitectureSafety(
   if (PRIVATE_ARCHITECTURE_TELEMETRY.test(publicLog)) {
     hiddenInformationViolations++
   }
-  const traces = artifact.decisionTraces ?? []
+  const rejectedSnapshots = traceCandidates.filter(
+    (candidate) => candidate.kind === 'rejected',
+  )
+  const canonicalCandidates = traceCandidates.filter(
+    (candidate) =>
+      candidate.kind === 'canonical-decision-trace-candidate',
+  )
+  const traces = canonicalCandidates.map((candidate) => candidate.trace)
+  traceAttributionChecks += rejectedSnapshots.length
+  traceAttributionViolations += rejectedSnapshots.length
+  const admittedTraces: Readonly<DecisionTrace>[] = []
   const componentManifestClaim = hasComponentManifestClaim(
     architectureAdmission,
   )
@@ -1150,8 +1182,50 @@ function legacyArchitectureSafety(
     traceAttributionChecks++
     traceAttributionViolations++
   }
-  for (const trace of traces) {
+  for (const candidate of canonicalCandidates) {
     traceAttributionChecks++
+    const pendingTrace = candidate.trace
+    const hostSnapshot = targetSnapshots.get(pendingTrace.decisionId)
+    if (!hostSnapshot) {
+      traceAttributionViolations++
+      continue
+    }
+    const pendingStrictComposedTrace = (
+      pendingTrace.agentMode === 'compatibility'
+      || pendingTrace.agentMode === 'structured-only'
+      || pendingTrace.agentMode === 'hybrid'
+    )
+    const traceAdmission = admitCanonicalDecisionTrace({
+      kind: 'finalized-artifact',
+      trace: candidate,
+      req: hostSnapshot.req,
+      view: hostSnapshot.view,
+      authoritativeAction: hostSnapshot.original,
+      deterministicSeed: artifact.seed,
+      ...(expectedComponentPlan
+        ? {
+            expectComponentTrace: true,
+            expectedComponentPlan,
+          }
+        : {}),
+      ...(
+        pendingTrace.version !== COMPONENT_DECISION_TRACE_VERSION
+        && pendingStrictComposedTrace
+          ? { requireLegacyExactHostJoin: true }
+          : {}
+      ),
+    })
+    if (traceAdmission.kind === 'rejected') {
+      traceAttributionViolations++
+      continue
+    }
+    const trace = traceAdmission.trace
+    admittedTraces.push(trace)
+    const strictComposedTrace = (
+      trace.agentMode === 'compatibility'
+      || trace.agentMode === 'structured-only'
+      || trace.agentMode === 'hybrid'
+    )
     const versions = trace.componentVersions
     const languageEnabled = declaresBoundedLanguage
     const stableKeys = [
@@ -1195,49 +1269,10 @@ function legacyArchitectureSafety(
           versions?.mechanicalBelief !== undefined
           || versions?.beliefPipeline !== undefined
         )
-    const hostSnapshot = targetSnapshots.get(trace.decisionId)
-    const selectedDecision =
-      trace.privatePlanOutcome?.selected?.decision
-      ?? hostSnapshot?.original
-    const strictComposedTrace = (
-      trace.agentMode === 'compatibility'
-      || trace.agentMode === 'structured-only'
-      || trace.agentMode === 'hybrid'
-    )
     if (
       trace.viewerSeat !== meta.targetSeat
       || trace.agentMode !== meta.components.mode
       || !versions
-      || !hostSnapshot
-      || !selectedDecision
-      || (
-        trace.version === COMPONENT_DECISION_TRACE_VERSION
-        && !validateFinalizedDiagnosticDecisionTrace(
-          hostSnapshot.req,
-          hostSnapshot.original,
-          selectedDecision,
-          trace,
-          hostSnapshot.view,
-        )
-      )
-      || (
-        strictComposedTrace
-        && trace.version !== COMPONENT_DECISION_TRACE_VERSION
-        && !validateComposedTraceHostJoin({
-          trace,
-          req: hostSnapshot.req,
-          view: hostSnapshot.view,
-          authoritativeAction: hostSnapshot.original,
-          selectedDecision,
-          deterministicSeed: artifact.seed,
-          ...(expectedComponentPlan
-            ? {
-                expectComponentTrace: true,
-                expectedComponentPlan,
-              }
-            : {}),
-        })
-      )
       || (
         expectedComponentPlan !== undefined
         && trace.version !== COMPONENT_DECISION_TRACE_VERSION
@@ -1274,14 +1309,8 @@ function legacyArchitectureSafety(
                         === declaredEvilQuestCardPolicy
                     )
                     || (
-                      versions.evilQuestCardPolicy === undefined
-                      && trace.privateEvilQuestCardPolicy === undefined
-                      && hostSnapshot !== undefined
-                      && validateSuppressedEvilQuestCardPolicyHostJoin(
-                        trace,
-                        hostSnapshot.req,
-                        hostSnapshot.view,
-                      )
+                      traceAdmission.facts.evilQuestCardPolicy.state
+                        === 'universally-suppressed'
                     )
                   )
                 : (
@@ -1827,31 +1856,20 @@ function legacyArchitectureSafety(
     }
   }
   return {
-    hiddenInformationChecks,
-    hiddenInformationViolations,
-    traceAttributionChecks,
-    traceAttributionViolations,
-    ...(componentEvidenceApplicable
-      ? {
-          promotionEvidenceEligible: (
-            architectureAdmission.provenance
-              === 'descriptor-host-manifest-admitted'
-            &&
-            expectedComponentPlan !== undefined
-            && genericComponentClaim
-            && traces.every((trace) =>
-              trace.version === COMPONENT_DECISION_TRACE_VERSION
-              && trace.components?.entries.every((entry) =>
-                entry.status !== 'degraded'
-                && (
-                  entry.status !== 'admitted'
-                  || entry.promotionEligible
-                )) === true)
-            && hiddenInformationViolations === 0
-            && traceAttributionViolations === 0
-          ),
-        }
-      : {}),
+    traces: Object.freeze(admittedTraces),
+    safety: {
+      hiddenInformationChecks,
+      hiddenInformationViolations,
+      traceAttributionChecks,
+      traceAttributionViolations,
+      ...(componentEvidenceApplicable
+        ? {
+            // This path has no current out-of-band architecture identity.
+            // Canonical diagnostic fields cannot mint promotion evidence.
+            promotionEvidenceEligible: false,
+          }
+        : {}),
+    },
   }
 }
 
@@ -1859,20 +1877,35 @@ function architectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
   admission: ArtifactArchitectureAdmission,
-): ArchitectureSafetySummary {
+  traceCandidates: readonly DecisionTraceSnapshotResult[],
+): ArchitectureSafetyAdmission {
   return admission.provenance === 'descriptor-host-manifest-admitted'
-    ? currentArchitectureSafety(artifact, meta, admission)
-    : legacyArchitectureSafety(artifact, meta, admission)
+    ? currentArchitectureSafety(artifact, meta, admission, traceCandidates)
+    : legacyArchitectureSafety(
+        artifact,
+        meta,
+        admission,
+        traceCandidates,
+      )
 }
 
 function observe(a: GameArtifact): GameObservation {
   const meta = a.architecture
   if (!meta) throw new Error(`artifact ${a.id} has no architecture metadata`)
   const architectureAdmission = artifactArchitectureAdmission(a)
+  const traceCandidates = (a.decisionTraces ?? []).map((trace) =>
+    snapshotDecisionTraceInput(trace))
   const player = a.players[meta.targetSeat]
   if (!player || player.role !== meta.targetRole) {
     throw new Error(`${a.id}: architecture target seat/role does not match the archived deal`)
   }
+  const traceSafety = architectureSafety(
+    a,
+    meta,
+    architectureAdmission,
+    traceCandidates,
+  )
+  const decisionTraces = traceSafety.traces
   const metrics = computeMetrics(a)
   const seatMetrics = metrics.seats[meta.targetSeat]
   const decisions = new Map<string, number>()
@@ -1924,7 +1957,7 @@ function observe(a: GameArtifact): GameObservation {
   const proposalCleanProbabilities: number[] = []
   const proposalPosteriorRegrets: number[] = []
   const voteUtilityRegrets: number[] = []
-  for (const trace of a.decisionTraces ?? []) {
+  for (const trace of decisionTraces) {
     if (
       trace.plannerCandidateId
       && trace.plannerCandidateId === trace.chosenCandidateId
@@ -2015,6 +2048,7 @@ function observe(a: GameArtifact): GameObservation {
 
   return {
     artifact: a,
+    decisionTraces,
     meta,
     architectureAdmission,
     won: player.alignment === a.winner,
@@ -2039,7 +2073,7 @@ function observe(a: GameArtifact): GameObservation {
     proposalPosteriorRegrets,
     voteUtilityRegrets,
     latencyMs,
-    safety: architectureSafety(a, meta, architectureAdmission),
+    safety: traceSafety.safety,
   }
 }
 
@@ -2269,13 +2303,13 @@ function componentEvidence(
   const hasComposedClaim = games.some((game) =>
     isComposedArchitectureMode(game.meta.components.mode)
     || hasComponentManifestClaim(game.architectureAdmission)
-    || (game.artifact.decisionTraces ?? []).some((trace) =>
+    || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined
       || isComposedArchitectureMode(trace.agentMode)))
   const traces = games.flatMap((game) =>
-    (game.artifact.decisionTraces ?? []).filter(
+    game.decisionTraces.filter(
       (trace) => trace.viewerSeat === game.meta.targetSeat,
     ))
   const entries = traces.flatMap((trace) =>
@@ -2387,7 +2421,7 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
   const hasComponentEvidence = games.some((game) =>
     isComposedArchitectureMode(game.meta.components.mode)
     || hasComponentManifestClaim(game.architectureAdmission)
-    || (game.artifact.decisionTraces ?? []).some((trace) =>
+    || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined

@@ -2,8 +2,9 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B1B, followed by Phase 7R3B3. Phase 7R3A4B is complete at
+**Current target phase:** Phase 7R3B2, followed by Phase 7R3B3. Phase 7R3A4B is complete at
 checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
+Phase 7R3B1B's closed, trust-labeled trace admission boundary is complete.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
 D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
@@ -125,8 +126,9 @@ migration work cite the corresponding ledger ID.
 | ID | Deferred work | Reason and current risk | Owner/checkpoint | Exit condition | Status |
 |---|---|---|---|---|---|
 | MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay previously assembled candidate teams, joint assessments, and vote alternatives separately, allowing drift to falsely reject another role or decision kind | R3B1A | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `complete` |
-| MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Downstream callers can still re-parse open trace shapes; pre-apply stdio admission and finalized-artifact diagnostic admission compose the same detached primitives with lifecycle-specific outcome rules, while retained diagnostics and identity-witnessed promotion remain distinguished by call path rather than a closed result type | R3B1 | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `open` |
+| MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Whole hostile traces now cross one bounded canonical snapshot before any field read, then host admission returns trusted exact, external diagnostic, finalized-artifact diagnostic, or typed rejection; replay lookup sees only the frozen candidate and stdio, benchmark, and report aggregation consume the admitted snapshot | R3B1B | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `complete` |
 | MD-003 | Delete or isolate the remaining D3 legacy adapter and its two conformance exemptions | Robust and exact-quota D3 are the only legacy flat projection/binding exceptions | R3B3 | D3 uses the native component/policy boundary and both exemptions and flat projections are deleted | `open` |
+| MD-004 | Delete historical boolean trace-admission test facades | Formula and D3 compatibility tests still call three boolean wrappers over the closed result; architecture fitness prevents runtime and evaluation code from importing them, so they are not executable trust authorities | R3B3 | Tests consume the closed union directly and all three compatibility exports are deleted with the remaining D3 flat reader | `open` |
 
 ### 3.2 Parent-orchestrated execution
 
@@ -3142,6 +3144,21 @@ here.
   or admission from rebuilding this scorer-sensitive `analyzeSituation` option surface. MD-001 is
   closed; R3B1B retains ownership of closed trust-labeled admission outcomes and no parsing or
   trace-admission redesign was included here.
+- Phase 7R3B1B closed trace admission complete: every external or stored trace is first copied
+  through one 4 MiB strict JSON snapshot before any discriminator, selected decision, plan
+  outcome, or component field is read. Host admission then returns one exhaustive result:
+  identity-witnessed `trusted-exact`, pre-apply `external-diagnostic`, finalized
+  `artifact-diagnostic`, or `rejected` with a typed reason. Only the trusted branch can derive
+  promotion eligibility, and it does so after the out-of-band architecture identity, component
+  plan, generic native score replay, action, and host joins pass; descriptor-less traces remain
+  diagnostics even when structurally coherent. Stdio retains valid optional telemetry and strips
+  invalid telemetry without rejecting a legal action. Replay lookup receives only the frozen
+  canonical candidate; architecture generation, safety, report aggregation, and D3 suppression
+  reporting consume the admitted snapshot and explicit facts rather than open trace objects or
+  boolean validator combinations. Architecture
+  fitness rejects legacy boolean admission imports from server consumers. Three historical
+  formula/D3 test facades remain thin wrappers over the union and are assigned to MD-004 for
+  deletion with the R3B3 compatibility reader.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

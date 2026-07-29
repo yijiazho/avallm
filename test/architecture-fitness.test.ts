@@ -78,6 +78,29 @@ test('runtime and admission cannot rebuild scorer-sensitive situation analysis',
   }
 })
 
+test('server consumers cannot bypass closed trace admission results', () => {
+  const violations = auditArchitectureSources([[
+    'server/eval/example.ts',
+    `import {
+      validateComposedTraceHostJoin
+    } from "../agents/admission/composed-trace.ts"\n`,
+  ]])
+  assert.deepEqual(
+    violations.map(({ rule }) => rule),
+    ['ARCH009'],
+  )
+  assert.match(violations[0].message, /closed trace admission result/)
+  assert.deepEqual(
+    auditArchitectureSources([[
+      'server/eval/example.ts',
+      `import {
+        admitDecisionTrace
+      } from "../agents/admission/composed-trace.ts"\n`,
+    ]]),
+    [],
+  )
+})
+
 test('the strict test ratchet is the only test typecheck inventory', () => {
   assert.equal(existsSync('tsconfig.score-layer-contract.json'), false)
 

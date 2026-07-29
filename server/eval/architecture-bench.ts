@@ -115,9 +115,8 @@ import {
   selectedDecisionReplayJoin,
 } from './trace-replay.ts'
 import {
-  validateComposedTraceHostJoin,
-  validateFinalizedDiagnosticDecisionTrace,
-  validateSuppressedEvilQuestCardPolicyHostJoin,
+  admitCanonicalDecisionTrace,
+  snapshotDecisionTraceInput,
 } from '../agents/admission/composed-trace.ts'
 import {
   componentPayload,
@@ -761,15 +760,31 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           steps: result.steps,
           decisionTraces,
         })
+        const traceCandidates = decisionTraces.map((trace) =>
+          snapshotDecisionTraceInput(trace))
+        const rejectedTrace = traceCandidates.find(
+          (trace) => trace.kind === 'rejected',
+        )
+        if (rejectedTrace?.kind === 'rejected') {
+          throw new Error(
+            `custom architecture variant ${variant.id} emitted an unsafe trace payload: ${rejectedTrace.reason}`,
+          )
+        }
+        const canonicalCandidates = traceCandidates.filter(
+          (trace) => trace.kind === 'canonical-decision-trace-candidate',
+        )
+        const canonicalTraces = canonicalCandidates.map(
+          (candidate) => candidate.trace,
+        )
         const targetReplay = authoritativeDecisionReplay(
           replayArtifact,
           target.seat,
-          decisionTraces,
+          canonicalTraces,
         )
         const targetSnapshots = targetReplay.snapshots
         if (!exactTargetTraceCoverage(
           targetSnapshots,
-          decisionTraces,
+          canonicalTraces,
           target.seat,
         )) {
           throw new Error(
@@ -828,68 +843,62 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         } else {
           tracedComponents.push('belief')
         }
-        const mismatch = decisionTraces.find((trace) => {
+        const mismatch = canonicalCandidates.find((candidate) => {
+          const pendingTrace = candidate.trace
+          const snapshot = targetSnapshots.get(pendingTrace.decisionId)
+          if (!snapshot) return true
+          const pendingStrictComposedTrace = (
+            pendingTrace.agentMode === 'compatibility'
+            || pendingTrace.agentMode === 'structured-only'
+            || pendingTrace.agentMode === 'hybrid'
+          )
+          const traceAdmission = admitCanonicalDecisionTrace({
+            kind: 'finalized-artifact',
+            trace: candidate,
+            req: snapshot.req,
+            view: snapshot.view,
+            authoritativeAction: snapshot.original,
+            deterministicSeed: c.seed,
+            ...(expectComponentTrace
+              ? {
+                  expectComponentTrace: true,
+                  expectedComponentPlan,
+                  expectedArchitectureIdentity:
+                    expectedArchitectureDescriptor
+                      ? projectResolvedArchitectureIdentity(
+                          expectedArchitectureDescriptor,
+                        )
+                      : undefined,
+                }
+              : {}),
+            ...(
+              expectedArchitectureDescriptor === undefined
+              && pendingTrace.version
+                !== COMPONENT_DECISION_TRACE_VERSION
+              && pendingStrictComposedTrace
+                ? { requireLegacyExactHostJoin: true }
+                : {}
+            ),
+          })
+          if (traceAdmission.kind === 'rejected') return true
+          const trace = traceAdmission.trace
+          const strictComposedTrace = (
+            trace.agentMode === 'compatibility'
+            || trace.agentMode === 'structured-only'
+            || trace.agentMode === 'hybrid'
+          )
           const traceVersions = trace.componentVersions
           const currentComponentTrace =
             trace.version === COMPONENT_DECISION_TRACE_VERSION
-          const snapshot = targetSnapshots.get(trace.decisionId)
           const boundedLanguage =
             expectedComponents.languageEvidence
             === LANGUAGE_FACTOR_BUNDLE_VERSION
           const exactPublicObserver =
             expectedComponents.observerModel
             === PUBLIC_OBSERVER_MODEL_VERSION
-          const selectedDecision =
-            trace.privatePlanOutcome?.selected?.decision
-            ?? snapshot?.original
-          const strictComposedTrace = (
-            trace.agentMode === 'compatibility'
-            || trace.agentMode === 'structured-only'
-            || trace.agentMode === 'hybrid'
-          )
           return (
             trace.agentMode !== expectedComponents.mode
             || !traceVersions
-            || !snapshot
-            || !selectedDecision
-            || (
-              currentComponentTrace
-              && expectedArchitectureDescriptor === undefined
-              && !validateFinalizedDiagnosticDecisionTrace(
-                snapshot.req,
-                snapshot.original,
-                selectedDecision,
-                trace,
-                snapshot.view,
-              )
-            )
-            || (
-              strictComposedTrace
-              && (
-                !currentComponentTrace
-                || expectedArchitectureDescriptor !== undefined
-              )
-              && !validateComposedTraceHostJoin({
-                trace,
-                req: snapshot.req,
-                view: snapshot.view,
-                authoritativeAction: snapshot.original,
-                selectedDecision,
-                deterministicSeed: c.seed,
-                ...(expectComponentTrace
-                  ? {
-                      expectComponentTrace: true,
-                      expectedComponentPlan,
-                      expectedArchitectureIdentity:
-                        expectedArchitectureDescriptor
-                          ? projectResolvedArchitectureIdentity(
-                              expectedArchitectureDescriptor,
-                            )
-                          : undefined,
-                    }
-                  : {}),
-              })
-            )
             || traceVersions.belief !== trace.beliefModelVersion
             || (
               !currentComponentTrace
@@ -930,14 +939,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                               === expectedComponents.evilQuestCardPolicy
                           )
                           || (
-                            traceVersions.evilQuestCardPolicy === undefined
-                            && trace.privateEvilQuestCardPolicy === undefined
-                            && snapshot !== undefined
-                            && validateSuppressedEvilQuestCardPolicyHostJoin(
-                              trace,
-                              snapshot.req,
-                              snapshot.view,
-                            )
+                            traceAdmission.facts.evilQuestCardPolicy.state
+                              === 'universally-suppressed'
                           )
                         )
                   )
@@ -1555,12 +1558,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         if (!decisionTraces.length || mismatch) {
           const actual = mismatch
             ? {
-                mode: mismatch.agentMode,
-                ...mismatch.componentVersions,
+                mode: mismatch.trace.agentMode,
+                ...mismatch.trace.componentVersions,
               }
             : undefined
           throw new Error(
-            `custom architecture variant ${variant.id} trace components do not match declared components in ${c.id} at ${mismatch?.decisionId ?? 'missing-trace'}`
+            `custom architecture variant ${variant.id} trace components do not match declared components in ${c.id} at ${mismatch?.trace.decisionId ?? 'missing-trace'}`
             + `: expected ${JSON.stringify(expectedComponents)}, `
             + `actual ${JSON.stringify(actual)}`,
           )

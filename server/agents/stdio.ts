@@ -16,14 +16,7 @@ import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { DecisionTrace } from './trace.ts'
 import type { AgentOutput, AvalonAgent } from './types.ts'
 import {
-  validateExternalDecisionTrace,
-} from './admission/composed-trace.ts'
-
-// Transitional source-compatibility exports. New consumers import the
-// agent-owned admission module directly.
-export {
-  validateComposedTraceHostJoin,
-  validateSuppressedEvilQuestCardPolicyHostJoin,
+  admitDecisionTrace,
 } from './admission/composed-trace.ts'
 
 export interface StdioAgentOpts {
@@ -52,15 +45,17 @@ export function parseStdioDecisionReply(
     throw new Error(`${label} returned invalid decision for ${req.kind}`)
   }
   if (record.trace === undefined) return decision
-  if (!validateExternalDecisionTrace(
+  const admission = admitDecisionTrace({
+    kind: 'pre-apply-external',
     req,
     decision,
-    record.trace,
-    hostView,
-  )) {
+    trace: record.trace,
+    ...(hostView ? { hostView } : {}),
+  })
+  if (admission.kind !== 'external-diagnostic') {
     return decision
   }
-  return { decision, trace: record.trace }
+  return { decision, trace: admission.trace }
 }
 
 export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {

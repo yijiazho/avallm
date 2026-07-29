@@ -39,8 +39,10 @@ import {
 import { CANDIDATE_SCORER_VERSION } from '../server/agents/policy/score.ts'
 import {
   parseStdioDecisionReply,
-  validateComposedTraceHostJoin,
 } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
 import type {
   DecisionRequest,

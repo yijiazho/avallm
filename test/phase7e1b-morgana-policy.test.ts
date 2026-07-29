@@ -29,7 +29,9 @@ import {
   buildMorganaRoleUtilityProjection,
   validatePrivateMorganaRoleUtilityProjection,
 } from '../server/agents/analysis/morgana-role-utility.ts'
-import { validateComposedTraceHostJoin } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,

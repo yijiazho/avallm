@@ -487,7 +487,7 @@ test('noncomponent comparisons still require clean safety evidence', async () =>
   )
 })
 
-test('generic degradation is diagnostic and never promotion evidence', async () => {
+test('forged generic degradation is rejected before report aggregation', async () => {
   const artifact = await trustedArtifact()
   const trace = artifact.decisionTraces!.find(
     (candidate) => candidate.components!.entries.length > 0,
@@ -502,7 +502,8 @@ test('generic degradation is diagnostic and never promotion evidence', async () 
     failureCode: 'host-admission-failed',
   }
   const result = summary(artifact)
-  assert.equal(result.componentEvidence?.degraded, 1)
+  assert.equal(result.componentEvidence?.degraded, 0)
+  assert.ok(result.safety.traceAttributionViolations > 0)
   assert.equal(result.safety.promotionEvidenceEligible, false)
 })
 

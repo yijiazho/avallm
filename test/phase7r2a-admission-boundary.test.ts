@@ -2,15 +2,11 @@ import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  validateComposedTraceHostJoin as validateComposedTraceAtOwner,
-  validateSuppressedEvilQuestCardPolicyHostJoin as validateSuppressedPolicyAtOwner,
+  admitDecisionTrace,
+  snapshotDecisionTraceInput,
 } from '../server/agents/admission/composed-trace.ts'
-import {
-  validateComposedTraceHostJoin as validateComposedTraceAtTransport,
-  validateSuppressedEvilQuestCardPolicyHostJoin as validateSuppressedPolicyAtTransport,
-} from '../server/agents/stdio.ts'
 
-test('composed trace admission consumers import the agent-owned module', () => {
+test('trace admission consumers use the agent-owned closed boundary', () => {
   const owner = readFileSync(
     'server/agents/admission/composed-trace.ts',
     'utf8',
@@ -21,11 +17,18 @@ test('composed trace admission consumers import the agent-owned module', () => {
     'server/eval/architecture-report.ts',
   ].map((path) => readFileSync(path, 'utf8'))
 
-  assert.match(stdio, /from '\.\/admission\/composed-trace\.ts'/)
+  assert.match(stdio, /admitDecisionTrace/)
+  assert.doesNotMatch(
+    stdio,
+    /validate(?:Composed|External|Finalized|Suppressed).*Trace/,
+  )
   assert.doesNotMatch(owner, /from ['"].*(?:stdio|server\/eval)/)
   for (const source of admissionConsumers) {
-    assert.match(source, /validateComposedTraceHostJoin/)
-    assert.match(source, /validateSuppressedEvilQuestCardPolicyHostJoin/)
+    assert.match(source, /admit(?:Canonical)?DecisionTrace/)
+    assert.doesNotMatch(
+      source,
+      /validate(?:Composed|Finalized|Suppressed).*Trace/,
+    )
     assert.match(
       source,
       /from '\.\.\/agents\/admission\/composed-trace\.ts'/,
@@ -33,7 +36,7 @@ test('composed trace admission consumers import the agent-owned module', () => {
   }
 })
 
-test('transitional stdio exports preserve exact admission function identity', () => {
-  assert.equal(validateComposedTraceAtTransport, validateComposedTraceAtOwner)
-  assert.equal(validateSuppressedPolicyAtTransport, validateSuppressedPolicyAtOwner)
+test('the public trace boundary exposes canonical and closed result states', () => {
+  assert.equal(typeof snapshotDecisionTraceInput, 'function')
+  assert.equal(typeof admitDecisionTrace, 'function')
 })

@@ -188,6 +188,7 @@ import {
 } from '../components/production-registry.ts'
 import {
   canonicalizeJson,
+  canonicalizeTransportJson,
   canonicalJsonEqual,
 } from '../components/canonical-json.ts'
 import {
@@ -3738,7 +3739,7 @@ function validDecisionTrace(
  * this accepts finalized applied-outcome telemetry and validates score/action
  * relations against the selected decision supplied by replay.
  */
-export function validateComposedTraceHostJoin(input: {
+interface ExactComposedTraceHostJoinInput {
   trace: DecisionTrace
   req: DecisionRequest
   view: PlayerView
@@ -3760,7 +3761,11 @@ export function validateComposedTraceHostJoin(input: {
   expectedArchitectureIdentity?: ResolvedArchitectureIdentity
   /** Require the component-bearing producer schema even for an empty plan. */
   expectComponentTrace?: boolean
-}): boolean {
+}
+
+function validExactComposedTraceHostJoin(
+  input: ExactComposedTraceHostJoinInput,
+): boolean {
   try {
     const {
       trace,
@@ -4744,7 +4749,7 @@ function exactEvilQuestCardHostSurface(
   }
 }
 
-export function validateSuppressedEvilQuestCardPolicyHostJoin(
+function validSuppressedEvilQuestCardPolicyHostJoin(
   trace: DecisionTrace,
   req: DecisionRequest,
   view: PlayerView,
@@ -4781,58 +4786,6 @@ function isFullPlayerView(
 }
 
 /**
- * Validate the optional trace carried by an external agent reply. The stdio
- * adapter owns protocol errors; this agent module owns detached validation
- * and every host-reconstructable admission join.
- */
-export function validateExternalDecisionTrace(
-  req: DecisionRequest,
-  decision: Decision,
-  trace: unknown,
-  hostView?: Pick<PlayerView, 'rolesInPlay'>,
-): trace is DecisionTrace {
-  const candidate = trace as DecisionTrace
-  const claimsD3QuestPolicy =
-    req.kind === 'quest'
-    && (
-      candidate.componentVersions?.configuredEvilQuestCardPolicy
-        !== undefined
-      || candidate.componentVersions?.evilQuestCardPolicy !== undefined
-      || candidate.privateEvilQuestCardPolicy !== undefined
-    )
-  return validDecisionTrace(req, decision, trace, hostView)
-    && (
-      !isFullPlayerView(hostView)
-      || (
-        (
-          (trace as DecisionTrace).version
-            === COMPONENT_DECISION_TRACE_VERSION
-          || (
-            validateExactRoleDependencyHostJoin(
-              trace as DecisionTrace,
-              req,
-              hostView,
-            )
-            && validateRoutedEvilDependencyHostJoin(
-              trace as DecisionTrace,
-              req,
-              hostView,
-            )
-          )
-        )
-        && (
-          !claimsD3QuestPolicy
-          || exactEvilQuestCardHostSurface(
-            candidate,
-            req,
-            hostView,
-          ) !== undefined
-        )
-      )
-    )
-}
-
-/**
  * Scorer-independent mechanical join shared by trusted admission and
  * finalized diagnostic retention.
  */
@@ -4860,23 +4813,13 @@ function validMechanicalDecisionTraceHostJoin(input: {
       === candidateIdForDecision(selectedDecision)
 }
 
-/**
- * Validate the structural trust level of an untrusted trace retained in a
- * finalized artifact. Lifecycle-specific plan/outcome checks stay with the
- * artifact caller. This validation cannot confer architecture identity or
- * promotion.
- */
-export function validateFinalizedDiagnosticDecisionTrace(
+function validFinalizedDiagnosticDecisionTrace(
   req: DecisionRequest,
   authoritativeDecision: Decision,
   selectedDecision: Decision,
-  trace: unknown,
+  candidate: DecisionTrace,
   hostView: PlayerView,
-): trace is DecisionTrace {
-  if (!trace || typeof trace !== 'object' || Array.isArray(trace)) {
-    return false
-  }
-  const candidate = trace as DecisionTrace
+): boolean {
   return (
     validMechanicalDecisionTraceHostJoin({
       trace: candidate,
@@ -4900,4 +4843,461 @@ export function validateFinalizedDiagnosticDecisionTrace(
       hostView.rolesInPlay,
     )
   )
+}
+
+/**
+ * A complete decision trace may contain the maximum two-megabyte component
+ * run plus the surrounding belief, analysis, plan, and communication data.
+ * Bound the entire hostile object before inspecting even its discriminator.
+ */
+export const MAX_DECISION_TRACE_JSON_BYTES = 4_194_304
+
+declare const canonicalDecisionTraceCandidateBrand: unique symbol
+
+/**
+ * Strict JSON snapshot of one trace-shaped input. This state is safe to
+ * inspect for replay lookup, but it is not host-admitted and carries no trust.
+ */
+export interface CanonicalDecisionTraceCandidate {
+  readonly kind: 'canonical-decision-trace-candidate'
+  readonly trace: Readonly<DecisionTrace>
+  readonly bytes: number
+  readonly [canonicalDecisionTraceCandidateBrand]: true
+}
+
+export type DecisionTraceSnapshotRejection =
+  | 'trace-json-unsafe'
+  | 'trace-too-large'
+  | 'trace-not-object'
+
+export type DecisionTraceSnapshotResult =
+  | CanonicalDecisionTraceCandidate
+  | Readonly<{
+      kind: 'rejected'
+      reason: DecisionTraceSnapshotRejection
+    }>
+
+/**
+ * Snapshot hostile trace input exactly once. The returned graph is sorted,
+ * detached, deeply frozen, accessor-free, proxy-free, dense, and bounded.
+ * Domain admission must consume this snapshot rather than the caller object.
+ */
+export function snapshotDecisionTraceInput(
+  value: unknown,
+): DecisionTraceSnapshotResult {
+  const canonical = canonicalizeTransportJson(
+    value,
+    MAX_DECISION_TRACE_JSON_BYTES,
+  )
+  if (!canonical.ok) {
+    return Object.freeze({
+      kind: 'rejected',
+      reason: canonical.failureCode === 'payload-too-large'
+        ? 'trace-too-large'
+        : 'trace-json-unsafe',
+    })
+  }
+  if (
+    !canonical.payload
+    || typeof canonical.payload !== 'object'
+    || Array.isArray(canonical.payload)
+  ) {
+    return Object.freeze({
+      kind: 'rejected',
+      reason: 'trace-not-object',
+    })
+  }
+  return Object.freeze({
+    kind: 'canonical-decision-trace-candidate',
+    trace: canonical.payload as unknown as Readonly<DecisionTrace>,
+    bytes: canonical.bytes,
+  }) as CanonicalDecisionTraceCandidate
+}
+
+export type DecisionTraceAdmissionRejection =
+  | DecisionTraceSnapshotRejection
+  | 'external-detached-invalid'
+  | 'external-host-join-failed'
+  | 'finalized-diagnostic-invalid'
+  | 'trusted-identity-host-join-failed'
+  | 'legacy-exact-host-join-failed'
+
+export type EvilQuestCardAdmissionState =
+  | Readonly<{ state: 'not-configured' }>
+  | Readonly<{
+      state: 'configured-inactive'
+      configuredVersion: string
+    }>
+  | Readonly<{
+      state: 'resolved'
+      configuredVersion: string
+      resolvedVersion: string
+    }>
+  | Readonly<{
+      state: 'universally-suppressed'
+      configuredVersion: string
+    }>
+
+interface DecisionTraceAdmissionFacts {
+  readonly evilQuestCardPolicy: EvilQuestCardAdmissionState
+}
+
+export type DecisionTraceAdmissionResult =
+  | Readonly<{
+      kind: 'trusted-exact'
+      lifecycle: 'finalized-artifact'
+      trace: Readonly<DecisionTrace>
+      identity: ResolvedArchitectureIdentity
+      promotionEvidenceEligible: boolean
+      facts: DecisionTraceAdmissionFacts
+    }>
+  | Readonly<{
+      kind: 'external-diagnostic'
+      lifecycle: 'pre-apply-external'
+      trace: Readonly<DecisionTrace>
+      promotionEvidenceEligible: false
+      facts: DecisionTraceAdmissionFacts
+    }>
+  | Readonly<{
+      kind: 'artifact-diagnostic'
+      lifecycle: 'finalized-artifact'
+      trace: Readonly<DecisionTrace>
+      promotionEvidenceEligible: false
+      facts: DecisionTraceAdmissionFacts
+    }>
+  | Readonly<{
+      kind: 'rejected'
+      lifecycle: 'pre-apply-external' | 'finalized-artifact'
+      reason: DecisionTraceAdmissionRejection
+    }>
+
+export interface ExternalDecisionTraceAdmissionInput {
+  readonly kind: 'pre-apply-external'
+  readonly trace: unknown
+  readonly req: DecisionRequest
+  readonly decision: Decision
+  readonly hostView?: Pick<PlayerView, 'rolesInPlay'>
+}
+
+export interface FinalizedDecisionTraceAdmissionInput {
+  readonly kind: 'finalized-artifact'
+  readonly trace: unknown
+  readonly req: DecisionRequest
+  readonly view: PlayerView
+  readonly authoritativeAction: Decision
+  /**
+   * A caller-owned selected action may be supplied by live capture. Stored
+   * consumers omit it; admission then reads the canonical finalized outcome,
+   * never the caller's raw object, and falls back to the applied action.
+   */
+  readonly selectedDecision?: Decision
+  readonly deterministicSeed: string
+  readonly expectedComponentPlan?: DecisionComponentPlan
+  readonly expectedArchitectureIdentity?: ResolvedArchitectureIdentity
+  readonly expectComponentTrace?: boolean
+  /**
+   * Historical formula tests and v1 readers may demand the old exact host
+   * equation without gaining identity or promotion trust.
+   */
+  readonly requireLegacyExactHostJoin?: boolean
+}
+
+export type DecisionTraceAdmissionInput =
+  | ExternalDecisionTraceAdmissionInput
+  | FinalizedDecisionTraceAdmissionInput
+
+export type CanonicalDecisionTraceAdmissionInput =
+  | (
+      Omit<ExternalDecisionTraceAdmissionInput, 'trace'>
+      & { readonly trace: CanonicalDecisionTraceCandidate }
+    )
+  | (
+      Omit<FinalizedDecisionTraceAdmissionInput, 'trace'>
+      & { readonly trace: CanonicalDecisionTraceCandidate }
+    )
+
+function evilQuestCardAdmissionState(
+  trace: Readonly<DecisionTrace>,
+  req: DecisionRequest,
+  view?: PlayerView,
+): EvilQuestCardAdmissionState {
+  const configured =
+    trace.componentVersions?.configuredEvilQuestCardPolicy
+  if (configured === undefined) {
+    return Object.freeze({ state: 'not-configured' })
+  }
+  const resolved = trace.componentVersions?.evilQuestCardPolicy
+  if (
+    resolved !== undefined
+    && trace.privateEvilQuestCardPolicy !== undefined
+  ) {
+    return Object.freeze({
+      state: 'resolved',
+      configuredVersion: configured,
+      resolvedVersion: resolved,
+    })
+  }
+  if (
+    view
+    && validSuppressedEvilQuestCardPolicyHostJoin(
+      trace as DecisionTrace,
+      req,
+      view,
+    )
+  ) {
+    return Object.freeze({
+      state: 'universally-suppressed',
+      configuredVersion: configured,
+    })
+  }
+  return Object.freeze({
+    state: 'configured-inactive',
+    configuredVersion: configured,
+  })
+}
+
+function promotionEvidenceEligible(
+  trace: Readonly<DecisionTrace>,
+): boolean {
+  return trace.version === COMPONENT_DECISION_TRACE_VERSION
+    && trace.components !== undefined
+    && trace.components.entries.every((entry) =>
+      entry.status !== 'degraded'
+      && (
+        entry.status !== 'admitted'
+        || entry.promotionEligible
+      ))
+}
+
+function rejectedAdmission(
+  lifecycle: DecisionTraceAdmissionResult['lifecycle'],
+  reason: DecisionTraceAdmissionRejection,
+): DecisionTraceAdmissionResult {
+  return Object.freeze({ kind: 'rejected', lifecycle, reason })
+}
+
+/**
+ * Admit an already snapshotted trace candidate against its lifecycle and
+ * host. This function never sees the caller's original object.
+ */
+export function admitCanonicalDecisionTrace(
+  input: CanonicalDecisionTraceAdmissionInput,
+): DecisionTraceAdmissionResult {
+  const trace = input.trace.trace as DecisionTrace
+  if (input.kind === 'pre-apply-external') {
+    const claimsD3QuestPolicy =
+      input.req.kind === 'quest'
+      && (
+        trace.componentVersions?.configuredEvilQuestCardPolicy
+          !== undefined
+        || trace.componentVersions?.evilQuestCardPolicy !== undefined
+        || trace.privateEvilQuestCardPolicy !== undefined
+      )
+    if (!validDecisionTrace(
+      input.req,
+      input.decision,
+      trace,
+      input.hostView,
+    )) {
+      return rejectedAdmission(
+        'pre-apply-external',
+        'external-detached-invalid',
+      )
+    }
+    if (
+      isFullPlayerView(input.hostView)
+      && (
+        (
+          trace.version !== COMPONENT_DECISION_TRACE_VERSION
+          && (
+            !validateExactRoleDependencyHostJoin(
+              trace,
+              input.req,
+              input.hostView,
+            )
+            || !validateRoutedEvilDependencyHostJoin(
+              trace,
+              input.req,
+              input.hostView,
+            )
+          )
+        )
+        || (
+          claimsD3QuestPolicy
+          && exactEvilQuestCardHostSurface(
+            trace,
+            input.req,
+            input.hostView,
+          ) === undefined
+        )
+      )
+    ) {
+      return rejectedAdmission(
+        'pre-apply-external',
+        'external-host-join-failed',
+      )
+    }
+    return Object.freeze({
+      kind: 'external-diagnostic',
+      lifecycle: 'pre-apply-external',
+      trace,
+      promotionEvidenceEligible: false,
+      facts: Object.freeze({
+        evilQuestCardPolicy: evilQuestCardAdmissionState(
+          trace,
+          input.req,
+          isFullPlayerView(input.hostView)
+            ? input.hostView
+            : undefined,
+        ),
+      }),
+    })
+  }
+
+  const selectedDecision = input.selectedDecision
+    ?? trace.privatePlanOutcome?.selected?.decision
+    ?? input.authoritativeAction
+  const exactInput: ExactComposedTraceHostJoinInput = {
+    trace,
+    req: input.req,
+    view: input.view,
+    authoritativeAction: input.authoritativeAction,
+    selectedDecision,
+    deterministicSeed: input.deterministicSeed,
+    ...(input.expectedComponentPlan
+      ? { expectedComponentPlan: input.expectedComponentPlan }
+      : {}),
+    ...(input.expectedArchitectureIdentity
+      ? {
+          expectedArchitectureIdentity:
+            input.expectedArchitectureIdentity,
+        }
+      : {}),
+    ...(input.expectComponentTrace
+      ? { expectComponentTrace: true }
+      : {}),
+  }
+  const facts = Object.freeze({
+    evilQuestCardPolicy: evilQuestCardAdmissionState(
+      trace,
+      input.req,
+      input.view,
+    ),
+  })
+  if (input.expectedArchitectureIdentity !== undefined) {
+    if (!validExactComposedTraceHostJoin(exactInput)) {
+      return rejectedAdmission(
+        'finalized-artifact',
+        'trusted-identity-host-join-failed',
+      )
+    }
+    return Object.freeze({
+      kind: 'trusted-exact',
+      lifecycle: 'finalized-artifact',
+      trace,
+      identity: input.expectedArchitectureIdentity,
+      promotionEvidenceEligible: promotionEvidenceEligible(trace),
+      facts,
+    })
+  }
+  if (input.requireLegacyExactHostJoin) {
+    if (!validExactComposedTraceHostJoin(exactInput)) {
+      return rejectedAdmission(
+        'finalized-artifact',
+        'legacy-exact-host-join-failed',
+      )
+    }
+  } else if (!validFinalizedDiagnosticDecisionTrace(
+    input.req,
+    input.authoritativeAction,
+    selectedDecision,
+    trace,
+    input.view,
+  )) {
+    return rejectedAdmission(
+      'finalized-artifact',
+      'finalized-diagnostic-invalid',
+    )
+  }
+  return Object.freeze({
+    kind: 'artifact-diagnostic',
+    lifecycle: 'finalized-artifact',
+    trace,
+    promotionEvidenceEligible: false,
+    facts,
+  })
+}
+
+/**
+ * Public one-shot ingress. Canonicalization happens before any trace field is
+ * read, and admitted consumers receive only that detached snapshot.
+ */
+export function admitDecisionTrace(
+  input: DecisionTraceAdmissionInput,
+): DecisionTraceAdmissionResult {
+  const snapshot = snapshotDecisionTraceInput(input.trace)
+  if (snapshot.kind === 'rejected') {
+    return rejectedAdmission(
+      input.kind === 'pre-apply-external'
+        ? 'pre-apply-external'
+        : 'finalized-artifact',
+      snapshot.reason,
+    )
+  }
+  return admitCanonicalDecisionTrace({
+    ...input,
+    trace: snapshot,
+  })
+}
+
+/**
+ * Historical test/read compatibility wrapper. Runtime and evaluation code
+ * must consume the closed admission result instead.
+ */
+export function validateComposedTraceHostJoin(
+  input: ExactComposedTraceHostJoinInput,
+): boolean {
+  return admitDecisionTrace({
+    kind: 'finalized-artifact',
+    ...input,
+    requireLegacyExactHostJoin:
+      input.expectedArchitectureIdentity === undefined,
+  }).kind !== 'rejected'
+}
+
+/** Historical D3 compatibility wrapper over the closed artifact result. */
+export function validateSuppressedEvilQuestCardPolicyHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+): boolean {
+  const result = admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace,
+    req,
+    view,
+    authoritativeAction: trace.action,
+    deterministicSeed: '',
+  })
+  return result.kind !== 'rejected'
+    && result.facts.evilQuestCardPolicy.state === 'universally-suppressed'
+}
+
+/** Historical finalized diagnostic wrapper over the closed result. */
+export function validateFinalizedDiagnosticDecisionTrace(
+  req: DecisionRequest,
+  authoritativeDecision: Decision,
+  selectedDecision: Decision,
+  trace: unknown,
+  hostView: PlayerView,
+): boolean {
+  return admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace,
+    req,
+    view: hostView,
+    authoritativeAction: authoritativeDecision,
+    selectedDecision,
+    deterministicSeed: '',
+  }).kind !== 'rejected'
 }

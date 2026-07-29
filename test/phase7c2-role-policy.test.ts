@@ -70,8 +70,10 @@ import {
 } from '../server/agents/policy/plan.ts'
 import {
   parseStdioDecisionReply,
-  validateComposedTraceHostJoin,
 } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import {
@@ -1069,10 +1071,10 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   if (speechTrace.action.kind === 'propose') {
     speechTrace.action.pitch = 'role-composite-decision'
   }
-  assert.ok(
-    architectureReport([forgedSpeech]).variants[0]
-      .safety.hiddenInformationViolations > 0,
-  )
+  const forgedSpeechSafety =
+    architectureReport([forgedSpeech]).variants[0].safety
+  assert.ok(forgedSpeechSafety.traceAttributionViolations > 0)
+  assert.equal(forgedSpeechSafety.hiddenInformationViolations, 0)
 
   const degradedVariant: ArchitectureVariant = {
     ...variant,

@@ -23,6 +23,13 @@ const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
   'server/agents/policy/decision-frame.ts',
   'server/agents/admission/composed-trace.ts',
 ])
+const TRACE_ADMISSION_OWNER =
+  'server/agents/admission/composed-trace'
+const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
+  'validateComposedTraceHostJoin',
+  'validateFinalizedDiagnosticDecisionTrace',
+  'validateSuppressedEvilQuestCardPolicyHostJoin',
+])
 const SCORE_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
   'server/agents/policy/score-layer/admission-replay.ts',
@@ -394,6 +401,20 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (!target) continue
+      if (
+        target === TRACE_ADMISSION_OWNER
+        && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
+        && edge.names.some((name) =>
+          LEGACY_TRACE_ADMISSION_EXPORTS.has(name))
+      ) {
+        violations.push(violation(
+          'ARCH009',
+          sourcePath,
+          edge,
+          'runtime and evaluation consumers must switch on the closed trace admission result',
+        ))
+        continue
+      }
       if (
         SCORER_SITUATION_SURFACE_CONSUMERS.has(sourcePath)
         && target === 'server/agents/analysis/situation'

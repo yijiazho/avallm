@@ -98,6 +98,7 @@ function freezeJsonValue(
   budget: TraversalBudget,
   depth = 0,
   allowUndefined = false,
+  omitUndefinedObjectProperties = false,
 ): FrozenJsonValue {
   if (depth > MAX_CANONICAL_JSON_DEPTH) {
     unsafe('JSON nesting exceeds the canonical depth bound')
@@ -186,6 +187,7 @@ function freezeJsonValue(
           budget,
           depth + 1,
           allowUndefined,
+          omitUndefinedObjectProperties,
         )
         clone.push(child.value)
         bytes = addBytes(
@@ -213,8 +215,8 @@ function freezeJsonValue(
     const sortedKeys = (keys as string[]).sort()
     const clone: Record<string, unknown> = {}
     let bytes = 2
-    for (let index = 0; index < sortedKeys.length; index++) {
-      const key = sortedKeys[index]
+    let emitted = 0
+    for (const key of sortedKeys) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key)
       if (
         !descriptor
@@ -225,6 +227,12 @@ function freezeJsonValue(
       ) {
         unsafe('non-JSON property')
       }
+      if (
+        omitUndefinedObjectProperties
+        && descriptor.value === undefined
+      ) {
+        continue
+      }
       const keyBytes = primitiveBytes(key, budget)
       const child = freezeJsonValue(
         descriptor.value,
@@ -232,6 +240,7 @@ function freezeJsonValue(
         budget,
         depth + 1,
         allowUndefined,
+        omitUndefinedObjectProperties,
       )
       Object.defineProperty(clone, key, {
         value: child.value,
@@ -245,8 +254,9 @@ function freezeJsonValue(
         keyBytes,
         1,
         child.bytes,
-        index === 0 ? 0 : 1,
+        emitted === 0 ? 0 : 1,
       )
+      emitted++
     }
     return { value: Object.freeze(clone), bytes }
   } finally {
@@ -258,9 +268,10 @@ function freezeJsonValue(
  * Copy arbitrary component ingress into a sorted, deeply frozen, strict JSON
  * value and measure the exact bytes the kernel will retain.
  */
-export function canonicalizeJson(
+function canonicalizeJsonMode(
   value: unknown,
   maxBytes: number,
+  omitUndefinedObjectProperties: boolean,
 ): CanonicalJsonResult {
   try {
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
@@ -274,6 +285,9 @@ export function canonicalizeJson(
         maxNodes: maxBytes,
         nodes: 0,
       },
+      0,
+      false,
+      omitUndefinedObjectProperties,
     )
     const payload = frozen.value as CanonicalJsonValue
     // Exercise the platform clone boundary only after accessors and proxies
@@ -288,6 +302,26 @@ export function canonicalizeJson(
         : 'payload-json-unsafe',
     }
   }
+}
+
+export function canonicalizeJson(
+  value: unknown,
+  maxBytes: number,
+): CanonicalJsonResult {
+  return canonicalizeJsonMode(value, maxBytes, false)
+}
+
+/**
+ * Canonicalize an in-process value exactly as an object crossing a JSON
+ * transport would arrive: own data properties whose value is undefined are
+ * omitted. Undefined array entries remain invalid rather than silently
+ * becoming null, because protocol arrays do not use that ambiguity.
+ */
+export function canonicalizeTransportJson(
+  value: unknown,
+  maxBytes: number,
+): CanonicalJsonResult {
+  return canonicalizeJsonMode(value, maxBytes, true)
 }
 
 export function canonicalJsonEqual(

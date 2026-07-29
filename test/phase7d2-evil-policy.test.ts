@@ -62,8 +62,10 @@ import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import {
   parseStdioDecisionReply,
-  validateComposedTraceHostJoin,
 } from '../server/agents/stdio.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
 import type {
   DecisionRequest,
   PlayerView,
