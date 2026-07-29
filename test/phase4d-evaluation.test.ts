@@ -103,6 +103,27 @@ test('Phase 4 policy comparison reports confidence, latency, safety, and variati
   const hybridArtifact = artifacts.find(
     (artifact) => artifact.architecture?.variant === 'hybrid',
   )!
+  const hybridSummary = report.variants.find(
+    (variant) => variant.id === 'hybrid',
+  )!
+  const spokenTraceCount = hybridArtifact.decisionTraces!.filter((trace) =>
+    (
+      trace.action.kind === 'discuss'
+      && Boolean(trace.action.say)
+    )
+    || (
+      trace.action.kind === 'propose'
+      && Boolean(trace.action.pitch)
+    )
+    || (
+      trace.action.kind === 'finalize'
+      && trace.action.stick === false
+      && Boolean(trace.action.reason)
+    )).length
+  assert.equal(
+    hybridSummary.safety.hiddenInformationChecks,
+    1 + spokenTraceCount,
+  )
   const admittedVote = hybridArtifact.decisionTraces?.find(
     (trace) =>
       trace.request.kind === 'vote'
@@ -132,9 +153,16 @@ test('Phase 4 policy comparison reports confidence, latency, safety, and variati
   if (proposalTrace!.action.kind === 'propose') {
     proposalTrace!.action.pitch = proposalTrace!.beliefModelVersion
   }
-  assert.ok(
-    architectureReport([leaked]).variants[0]
-      .safety.hiddenInformationViolations > 0,
+  const leakedSummary = architectureReport([leaked]).variants[0]
+  assert.ok(leakedSummary.safety.hiddenInformationViolations > 0)
+  assert.ok(leakedSummary.safety.traceAttributionViolations > 0)
+  assert.equal(
+    leakedSummary.safety.hiddenInformationChecks,
+    hybridSummary.safety.hiddenInformationChecks,
+  )
+  assert.equal(
+    leakedSummary.componentEvidence!.decisions,
+    hybridSummary.componentEvidence!.decisions - 1,
   )
 })
 

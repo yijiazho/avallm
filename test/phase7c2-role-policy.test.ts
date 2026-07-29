@@ -1074,7 +1074,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   const forgedSpeechSafety =
     architectureReport([forgedSpeech]).variants[0].safety
   assert.ok(forgedSpeechSafety.traceAttributionViolations > 0)
-  assert.equal(forgedSpeechSafety.hiddenInformationViolations, 0)
+  assert.ok(forgedSpeechSafety.hiddenInformationViolations > 0)
 
   const degradedVariant: ArchitectureVariant = {
     ...variant,

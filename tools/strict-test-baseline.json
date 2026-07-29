@@ -113,7 +113,7 @@
     },
     {
       "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "dfb7395a6d6f530c846978ef8fc5fac39c706ec1b211e7485d861dc4bed2e0c9",
+      "sha256": "8b0df981a37ca27e3707c08b60d83837824d03f7c4c0b9c6edfa87685a203430",
       "rationale": "Legacy role-policy fixtures need current union narrowing."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "67a371a6fb41fdaca4d23d10b8c5bd5f90105c8307fcfdd286a7969db23caf1b",
+      "sha256": "06e5fca7c08fa3842f1808eee5e7ef3976c67718ec4184a2c8a9c94fbbefa447",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {

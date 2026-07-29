@@ -507,6 +507,82 @@ test('forged generic degradation is rejected before report aggregation', async (
   assert.equal(result.safety.promotionEvidenceEligible, false)
 })
 
+test('legacy privacy scans canonical host rejections without admitting evidence', async () => {
+  const baselineArtifact = asLegacyArtifact(await trustedArtifact())
+  const baseline = summary(baselineArtifact)
+  const artifact = structuredClone(baselineArtifact)
+  const trace = artifact.decisionTraces!.find(
+    (candidate) => candidate.action.kind === 'propose',
+  )!
+  assert.equal(trace.action.kind, 'propose')
+  if (trace.action.kind !== 'propose') return
+  trace.action.pitch = trace.beliefModelVersion
+  ;(trace as unknown as Record<string, unknown>).topHypotheses = {
+    malformed: true,
+  }
+
+  const result = summary(artifact)
+  assert.ok(result.safety.hiddenInformationViolations > 0)
+  assert.ok(result.safety.traceAttributionViolations > 0)
+  assert.equal(
+    result.safety.hiddenInformationChecks,
+    baseline.safety.hiddenInformationChecks + 1,
+  )
+  assert.equal(
+    result.componentEvidence.decisions,
+    baseline.componentEvidence.decisions - 1,
+  )
+})
+
+test('unsafe trace shapes are rejected without privacy inspection', async () => {
+  const baselineArtifact = await trustedArtifact()
+  const baseline = summary(baselineArtifact)
+  const hostileIndex = 0
+
+  for (const kind of ['accessor', 'proxy'] as const) {
+    const artifact = await trustedArtifact()
+    const original = artifact.decisionTraces![hostileIndex]
+    const secret = 'unsafe-trace-secret'
+    let reads = 0
+    const readKeys: string[] = []
+    const hostile = kind === 'accessor'
+      ? Object.defineProperty(Object.create(null), 'action', {
+          enumerable: true,
+          get() {
+            reads++
+            return { kind: 'propose', team: [], pitch: secret }
+          },
+        })
+      : new Proxy({
+          ...original,
+          beliefModelVersion: secret,
+          action: { kind: 'propose', team: [], pitch: secret },
+        }, {
+          get(target, key, receiver) {
+            reads++
+            readKeys.push(String(key))
+            return Reflect.get(target, key, receiver)
+          },
+        })
+    artifact.decisionTraces![hostileIndex] = hostile
+
+    const result = summary(artifact)
+    assert.equal(reads, 0, `${kind}: ${readKeys.join(', ')}`)
+    assert.ok(result.safety.traceAttributionViolations > 0, kind)
+    assert.equal(result.safety.hiddenInformationViolations, 0, kind)
+    assert.equal(
+      result.safety.hiddenInformationChecks,
+      baseline.safety.hiddenInformationChecks,
+      kind,
+    )
+    assert.equal(
+      result.componentEvidence.decisions,
+      baseline.componentEvidence.decisions - 1,
+      kind,
+    )
+  }
+})
+
 test('plan validator rejects hostile bounds and object shapes', async () => {
   const artifact = asLegacyArtifact(await trustedArtifact())
   const plan = artifact.strategyVersions!.decisionComponents!

@@ -325,14 +325,114 @@ function actionKind(a: GameArtifact, type: string, seat: unknown): DecisionKind 
   }
 }
 
-function publicSpeech(trace: NonNullable<GameArtifact['decisionTraces']>[number]): string {
-  const action = trace.action
-  if (action.kind === 'discuss') return action.say ?? ''
-  if (action.kind === 'propose') return action.pitch ?? ''
-  if (action.kind === 'finalize') {
-    return action.stick === false ? action.reason ?? '' : ''
+function canonicalRecord(
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && !isProxy(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined
+}
+
+/**
+ * Scan privacy on the canonical transport snapshot, independently of whether
+ * host admission accepts that trace as evidence. The snapshot boundary makes
+ * property access inert; these shape checks keep malformed diagnostics from
+ * throwing or acquiring admission semantics.
+ */
+function canonicalTracePrivacyScan(
+  traces: readonly unknown[],
+): Readonly<{ checks: number; violations: number }> {
+  let checks = 0
+  let violations = 0
+  for (const value of traces) {
+    const trace = canonicalRecord(value)
+    const action = canonicalRecord(trace?.action)
+    let speech = ''
+    if (action?.kind === 'discuss' && typeof action.say === 'string') {
+      speech = action.say
+    } else if (
+      action?.kind === 'propose'
+      && typeof action.pitch === 'string'
+    ) {
+      speech = action.pitch
+    } else if (
+      action?.kind === 'finalize'
+      && action.stick === false
+      && typeof action.reason === 'string'
+    ) {
+      speech = action.reason
+    }
+    if (!speech) continue
+    checks++
+
+    const forbidden: string[] = ['role-composite-decision']
+    if (typeof trace?.beliefModelVersion === 'string') {
+      forbidden.push(trace.beliefModelVersion)
+    }
+    if (Array.isArray(trace?.topHypotheses)) {
+      for (const hypothesisValue of trace.topHypotheses) {
+        const hypothesis = canonicalRecord(hypothesisValue)
+        if (typeof hypothesis?.worldKey === 'string') {
+          forbidden.push(hypothesis.worldKey)
+        }
+      }
+    }
+    const intent = canonicalRecord(trace?.communicationIntent)
+    if (Array.isArray(intent?.conceal)) {
+      for (const value of intent.conceal) {
+        if (typeof value === 'string') forbidden.push(value)
+      }
+    }
+    const uncertainty = canonicalRecord(intent?.uncertainty)
+    if (uncertainty) {
+      for (const value of Object.values(uncertainty)) {
+        if (
+          typeof value === 'number'
+          && Number.isFinite(value)
+          && !Number.isInteger(value)
+        ) {
+          forbidden.push(String(value))
+        }
+      }
+    }
+    if (Array.isArray(trace?.beliefPlayerMarginals)) {
+      for (const marginalValue of trace.beliefPlayerMarginals) {
+        const marginal = canonicalRecord(marginalValue)
+        for (const value of [
+          marginal?.goodProbability,
+          marginal?.evilProbability,
+        ]) {
+          if (
+            typeof value === 'number'
+            && Number.isFinite(value)
+            && !Number.isInteger(value)
+          ) {
+            forbidden.push(String(value))
+          }
+        }
+      }
+    }
+    if (
+      forbidden.some((secret) =>
+        secret.length > 0 && speech.includes(secret))
+    ) {
+      violations++
+    }
   }
-  return ''
+  return Object.freeze({ checks, violations })
+}
+
+function artifactWithCanonicalDecisionTraces(
+  artifact: GameArtifact,
+  traces: readonly Readonly<DecisionTrace>[],
+): GameArtifact {
+  return {
+    ...artifact,
+    decisionTraces: Object.freeze([...traces]) as DecisionTrace[],
+  }
 }
 
 function planOutcomeHostJoin(
@@ -645,14 +745,21 @@ function currentArchitectureSafety(
       candidate.kind === 'canonical-decision-trace-candidate',
   )
   const traces = canonicalCandidates.map((candidate) => candidate.trace)
+  const tracePrivacy = canonicalTracePrivacyScan(traces)
+  hiddenInformationChecks += tracePrivacy.checks
+  hiddenInformationViolations += tracePrivacy.violations
   traceAttributionChecks += rejectedSnapshots.length
   traceAttributionViolations += rejectedSnapshots.length
   const trustedAdmissions: DecisionTraceAdmissionResult[] = []
   const admittedTraces: Readonly<DecisionTrace>[] = []
+  const canonicalArtifact = artifactWithCanonicalDecisionTraces(
+    artifact,
+    traces,
+  )
   let replay: AuthoritativeDecisionReplay | undefined
   try {
     replay = authoritativeDecisionReplay(
-      artifact,
+      canonicalArtifact,
       meta.targetSeat,
       traces,
     )
@@ -737,39 +844,6 @@ function currentArchitectureSafety(
     ) {
       traceAttributionViolations++
     }
-    const speech = publicSpeech(trace)
-    if (!speech) continue
-    hiddenInformationChecks++
-    const intent = trace.communicationIntent
-    const numericSecrets = [
-      ...(intent?.uncertainty
-        ? Object.values(intent.uncertainty)
-            .filter(
-              (value): value is number =>
-                typeof value === 'number'
-                && Number.isFinite(value)
-                && !Number.isInteger(value),
-            )
-            .map(String)
-        : []),
-      ...((trace.beliefPlayerMarginals ?? [])
-        .flatMap((marginal) => [
-          marginal.goodProbability,
-          marginal.evilProbability,
-        ])
-        .filter((value) => !Number.isInteger(value))
-        .map(String)),
-    ]
-    const forbidden = [
-      trace.beliefModelVersion,
-      'role-composite-decision',
-      ...trace.topHypotheses.map((hypothesis) => hypothesis.worldKey),
-      ...(intent?.conceal ?? []),
-      ...numericSecrets,
-    ].filter((value) => value.length > 0)
-    if (forbidden.some((value) => speech.includes(value))) {
-      hiddenInformationViolations++
-    }
   }
   return {
     traces: Object.freeze(admittedTraces),
@@ -819,6 +893,9 @@ function legacyArchitectureSafety(
       candidate.kind === 'canonical-decision-trace-candidate',
   )
   const traces = canonicalCandidates.map((candidate) => candidate.trace)
+  const tracePrivacy = canonicalTracePrivacyScan(traces)
+  hiddenInformationChecks += tracePrivacy.checks
+  hiddenInformationViolations += tracePrivacy.violations
   traceAttributionChecks += rejectedSnapshots.length
   traceAttributionViolations += rejectedSnapshots.length
   const admittedTraces: Readonly<DecisionTrace>[] = []
@@ -1037,13 +1114,17 @@ function legacyArchitectureSafety(
     || traces.some((trace) =>
       isComposedArchitectureMode(trace.agentMode))
   )
+  const canonicalArtifact = artifactWithCanonicalDecisionTraces(
+    artifact,
+    traces,
+  )
   let targetReplay: AuthoritativeDecisionReplay | undefined
   let targetSnapshots: ReadonlyMap<string, DecisionSnapshot> = new Map()
   let invalidTraceCoverage = false
   if (coverageRequired) {
     try {
       targetReplay = authoritativeDecisionReplay(
-        artifact,
+        canonicalArtifact,
         meta.targetSeat,
         traces,
       )
@@ -1820,39 +1901,6 @@ function legacyArchitectureSafety(
       )
     ) {
       traceAttributionViolations++
-    }
-    const speech = publicSpeech(trace)
-    if (!speech) continue
-    hiddenInformationChecks++
-    const intent = trace.communicationIntent
-    const numericSecrets = [
-      ...(intent?.uncertainty
-        ? Object.values(intent.uncertainty)
-            .filter(
-              (value): value is number =>
-                typeof value === 'number'
-                && Number.isFinite(value)
-                && !Number.isInteger(value),
-            )
-            .map(String)
-        : []),
-      ...((trace.beliefPlayerMarginals ?? [])
-        .flatMap((marginal) => [
-          marginal.goodProbability,
-          marginal.evilProbability,
-        ])
-        .filter((value) => !Number.isInteger(value))
-        .map(String)),
-    ]
-    const forbidden = [
-      trace.beliefModelVersion,
-      'role-composite-decision',
-      ...trace.topHypotheses.map((hypothesis) => hypothesis.worldKey),
-      ...(intent?.conceal ?? []),
-      ...numericSecrets,
-    ].filter((value) => value.length > 0)
-    if (forbidden.some((value) => speech.includes(value))) {
-      hiddenInformationViolations++
     }
   }
   return {
