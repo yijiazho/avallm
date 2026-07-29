@@ -29,7 +29,10 @@ import { EXPECTED } from './screens-expected.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(path.join(root, 'client', 'package.json'))
-const puppeteer = require('puppeteer-core')
+// Resolved lazily, not at import time: `--check` and `--accept` are documented as
+// Chrome-free, and a top-level require would break them in a checkout that never
+// ran `npm --prefix client install` (e.g. a fresh worktree).
+const loadPuppeteer = () => require('puppeteer-core')
 
 const CHROME = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 // PORT/BASE are mutable: a prior run's server can orphan and hold the port (a killed
@@ -558,7 +561,7 @@ await new Promise((resolve, reject) => {
 })
 
 try {
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox'] })
+  const browser = await loadPuppeteer().launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox'] })
   await soloRun(browser, 'desktop', { width: 1280, height: 800, deviceScaleFactor: 1 })
   await soloRun(browser, 'mobile', { width: 390, height: 844, deviceScaleFactor: 2 })
   await lobbyRun(browser)
