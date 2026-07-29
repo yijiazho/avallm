@@ -17,6 +17,12 @@ const CONFIGURED_SCORE_LAYER_SEAM =
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
 const SCORE_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/score-layer/admission-replay'
+const SCORER_SITUATION_SURFACE =
+  'server/agents/analysis/scorer-situation-surface'
+const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
+  'server/agents/policy/decision-frame.ts',
+  'server/agents/admission/composed-trace.ts',
+])
 const SCORE_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
   'server/agents/policy/score-layer/admission-replay.ts',
@@ -388,6 +394,18 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (!target) continue
+      if (
+        SCORER_SITUATION_SURFACE_CONSUMERS.has(sourcePath)
+        && target === 'server/agents/analysis/situation'
+      ) {
+        violations.push(violation(
+          'ARCH008',
+          sourcePath,
+          edge,
+          `scorer-sensitive runtime and admission analysis must use ${SCORER_SITUATION_SURFACE}.ts`,
+        ))
+        continue
+      }
       const sourceIsConcreteScoreFamily =
         sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
         && moduleIdentity(sourcePath) !== CONFIGURED_SCORE_LAYER_SEAM

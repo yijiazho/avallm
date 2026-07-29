@@ -4,11 +4,13 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../../engine/types.ts'
-import { analyzeSituation } from '../analysis/situation.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
 import type {
   SituationAnalysisPlan,
 } from '../analysis/situation-plan.ts'
+import {
+  buildScorerSituationSurface,
+} from '../analysis/scorer-situation-surface.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { CognitionState } from '../cognition/types.ts'
@@ -39,9 +41,7 @@ import type {
 } from './score-layer/types.ts'
 import {
   candidateIdForDecision,
-  candidateTeams,
   compareCandidateIds,
-  hypotheticalProposalCandidates,
   legalCandidates,
   validateCandidateRequest,
 } from './candidates.ts'
@@ -435,34 +435,22 @@ export function withDecisionAnalysis(
   ) {
     throw new Error('cognition must match the decision seat and cursor')
   }
-  const policyTeams = candidateTeams(
-    legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
+  const surface = buildScorerSituationSurface({
     view,
-  )
-  const alternatives = plan === 'good-vote'
-    ? hypotheticalProposalCandidates(view)
-    : undefined
-  const analysis = analyzeSituation(view, {
     belief: cognition.belief,
     evidence: cognition.evidence,
-    policyCandidateTeams: policyTeams,
-    ...(plan === 'good-proposal'
-      ? { policyCandidateAssessments: policyTeams }
-      : {}),
-    ...(alternatives
-      ? {
-          policyCandidateAssessments: candidateTeams(alternatives, view),
-          goodVote: true,
-        }
-      : {}),
+    legalCandidates: legacy<readonly PolicyCandidate[]>(
+      frame.legalCandidates,
+    ),
+    plan,
   })
   return Object.freeze({
     ...frame,
     stage: 'analyzed',
     belief: cognition.belief as Immutable<BeliefSnapshot>,
-    analysis: analysis as Immutable<SituationAnalysis>,
-    hypotheticalTeamCandidates: alternatives
-      ? detachTrustedPolicyData(alternatives)
+    analysis: surface.analysis as Immutable<SituationAnalysis>,
+    hypotheticalTeamCandidates: surface.hypotheticalTeamCandidates
+      ? detachTrustedPolicyData(surface.hypotheticalTeamCandidates)
       : null,
   }) as AnalyzedDecisionFrame
 }

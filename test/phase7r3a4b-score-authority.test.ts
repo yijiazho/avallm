@@ -24,11 +24,11 @@ import {
 import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
-  candidateTeams,
-  hypotheticalProposalCandidates,
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
-import { analyzeSituation } from '../server/agents/analysis/situation.ts'
+import {
+  buildScorerSituationSurface,
+} from '../server/agents/analysis/scorer-situation-surface.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import {
   configuredScoreLayerChainForVersion,
@@ -262,25 +262,14 @@ test('native family replays retain concrete journal and transitive component att
       scorer: entry.scorer,
     }).decide(entry.req, entry.view))
     const candidates = legalCandidates(entry.req, entry.view)
-    const hypotheticalTeamCandidates = entry.req.kind === 'vote'
-      ? hypotheticalProposalCandidates(entry.view)
-      : undefined
-    const policyTeams = candidateTeams(candidates, entry.view)
-    const hypotheticalTeams = hypotheticalTeamCandidates
-      ? candidateTeams(hypotheticalTeamCandidates, entry.view)
-      : undefined
-    const analysis = analyzeSituation(entry.view, {
+    const {
+      analysis,
+      hypotheticalTeamCandidates,
+    } = buildScorerSituationSurface({
+      view: entry.view,
       belief: exactBelief(entry.view),
-      policyCandidateTeams: policyTeams,
-      ...(entry.req.kind === 'propose'
-        ? { policyCandidateAssessments: policyTeams }
-        : {}),
-      ...(hypotheticalTeams
-        ? {
-            policyCandidateAssessments: hypotheticalTeams,
-            goodVote: true,
-          }
-        : {}),
+      legalCandidates: candidates,
+      plan: entry.req.kind === 'vote' ? 'good-vote' : 'good-proposal',
     })
     const scorerVersion = output.trace!.componentVersions!.scorer
     const replay = replayNativeScoresForAdmission({
@@ -289,7 +278,7 @@ test('native family replays retain concrete journal and transitive component att
       view: entry.view,
       analysis,
       candidates,
-      ...(hypotheticalTeamCandidates
+      ...(hypotheticalTeamCandidates !== null
         ? { hypotheticalTeamCandidates }
         : {}),
       forced: output.trace!.forcedPolicyResult!,
@@ -339,7 +328,7 @@ test('native family replays retain concrete journal and transitive component att
       view: entry.view,
       analysis,
       candidates,
-      ...(hypotheticalTeamCandidates
+      ...(hypotheticalTeamCandidates !== null
         ? { hypotheticalTeamCandidates }
         : {}),
       forced: output.trace!.forcedPolicyResult!,

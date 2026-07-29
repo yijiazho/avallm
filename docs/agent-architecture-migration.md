@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B1, followed by Phase 7R3B3. Phase 7R3A4B is complete at
-checkpoint `556f501`.
+**Current target phase:** Phase 7R3B1B, followed by Phase 7R3B3. Phase 7R3A4B is complete at
+checkpoint `556f501`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
 D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
@@ -124,7 +124,7 @@ migration work cite the corresponding ledger ID.
 
 | ID | Deferred work | Reason and current risk | Owner/checkpoint | Exit condition | Status |
 |---|---|---|---|---|---|
-| MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay currently compile the same requirements in separate owners; drift can falsely reject another role or decision kind | R3B1 | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `open` |
+| MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay previously assembled candidate teams, joint assessments, and vote alternatives separately, allowing drift to falsely reject another role or decision kind | R3B1A | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `complete` |
 | MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Downstream callers can still re-parse open trace shapes; pre-apply stdio admission and finalized-artifact diagnostic admission compose the same detached primitives with lifecycle-specific outcome rules, while retained diagnostics and identity-witnessed promotion remain distinguished by call path rather than a closed result type | R3B1 | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `open` |
 | MD-003 | Delete or isolate the remaining D3 legacy adapter and its two conformance exemptions | Robust and exact-quota D3 are the only legacy flat projection/binding exceptions | R3B3 | D3 uses the native component/policy boundary and both exemptions and flat projections are deleted | `open` |
 
@@ -3130,6 +3130,18 @@ here.
   seat-filtered `PlayerView` boundary. D3 admission now constructs one exact host surface, applies
   universal precedence before an admitted discretionary policy, and passes the resulting
   effective forced surface into native replay; a pre-D3 surface substitution is rejected.
+- Phase 7R3B1A shared situation surface complete: one pure scorer-sensitive builder now owns the
+  expansion from trusted legal candidates plus an explicit compiled analysis plan into policy
+  candidate teams, proposal assessments, good-vote hypothetical candidates and assessments, and
+  the exact `SituationAnalysis`. Runtime frame construction and exact host admission choose or
+  compile their plans independently but invoke that same builder; universal forced policy remains
+  downstream, and the quarantined D3 overlay still runs only after universal precedence. The
+  candidate-only, good-proposal, and good-vote plan laws, all six frozen decision kinds, good,
+  C2, D2, Morgana, and D3 host replay pass without decision-fixture, prompt-byte,
+  hidden-information, or deterministic-replay drift. Architecture fitness prevents either runtime
+  or admission from rebuilding this scorer-sensitive `analyzeSituation` option surface. MD-001 is
+  closed; R3B1B retains ownership of closed trust-labeled admission outcomes and no parsing or
+  trace-admission redesign was included here.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

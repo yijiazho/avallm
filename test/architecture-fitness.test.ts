@@ -56,6 +56,28 @@ test('repository sources satisfy the coarse architecture fitness rules', () => {
   assert.deepEqual(checkRepositoryArchitecture(), [])
 })
 
+test('runtime and admission cannot rebuild scorer-sensitive situation analysis', () => {
+  for (const owner of [
+    'server/agents/policy/decision-frame.ts',
+    'server/agents/admission/composed-trace.ts',
+  ]) {
+    const violations = auditArchitectureSources([[
+      owner,
+      'import { analyzeSituation } from "../analysis/situation.ts"\n',
+    ]])
+    assert.deepEqual(
+      violations.map(({ rule }) => rule),
+      ['ARCH008'],
+      owner,
+    )
+    assert.match(
+      violations[0].message,
+      /scorer-situation-surface/,
+      owner,
+    )
+  }
+})
+
 test('the strict test ratchet is the only test typecheck inventory', () => {
   assert.equal(existsSync('tsconfig.score-layer-contract.json'), false)
 

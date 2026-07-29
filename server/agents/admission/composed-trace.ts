@@ -9,10 +9,14 @@ import type { Decision, DecisionRequest, PlayerView } from '../../engine/types.t
 import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
+  type SituationAnalysis,
 } from '../analysis/types.ts'
 import {
   combineSituationAnalysisRequirements,
 } from '../analysis/situation-plan.ts'
+import {
+  buildScorerSituationSurface,
+} from '../analysis/scorer-situation-surface.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
@@ -128,12 +132,10 @@ import { routedRoleObjectiveModel } from '../analysis/role-objective-router.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   candidateIdForDecision,
-  candidateTeams,
   compareCandidateIds,
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../policy/candidates.ts'
-import { analyzeSituation } from '../analysis/situation.ts'
 import { applyForcedPolicy } from '../policy/forced.ts'
 import { heuristicDecide } from '../heuristic.ts'
 import {
@@ -4576,7 +4578,7 @@ function validateRoutedEvilDependencyHostJoin(
 
 interface ExactPolicyHostSurface {
   readonly candidates: ReturnType<typeof legalCandidates>
-  readonly analysis: ReturnType<typeof analyzeSituation>
+  readonly analysis: SituationAnalysis
   readonly hypotheticalTeamCandidates?:
     ReturnType<typeof hypotheticalProposalCandidates>
   readonly universalForced: ForcedPolicyResult
@@ -4623,7 +4625,6 @@ function exactPolicyHostSurface(
 ): ExactPolicyHostSurface | undefined {
   try {
     const candidates = legalCandidates(req, view)
-    const policyCandidateTeams = candidateTeams(candidates, view)
     const chain = expectedArchitectureIdentity
       ? trustedNativeScoreChain(expectedArchitectureIdentity)
       : configuredScoreLayerChainForVersion(CANDIDATE_SCORER_VERSION)
@@ -4634,24 +4635,14 @@ function exactPolicyHostSurface(
         view: Object.freeze(structuredClone(view)),
       }).requirements,
     )
-    const hypotheticalTeamCandidates = analysisPlan === 'good-vote'
-      ? hypotheticalProposalCandidates(view)
-      : undefined
-    const hypotheticalTeams = hypotheticalTeamCandidates
-      ? candidateTeams(hypotheticalTeamCandidates, view)
-      : undefined
-    const analysis = analyzeSituation(view, {
+    const {
+      analysis,
+      hypotheticalTeamCandidates,
+    } = buildScorerSituationSurface({
+      view,
       belief: exactBelief(view),
-      policyCandidateTeams,
-      ...(analysisPlan === 'good-proposal'
-        ? { policyCandidateAssessments: policyCandidateTeams }
-        : {}),
-      ...(hypotheticalTeams
-        ? {
-            policyCandidateAssessments: hypotheticalTeams,
-            goodVote: true,
-          }
-        : {}),
+      legalCandidates: candidates,
+      plan: analysisPlan,
     })
     const universalForced = applyForcedPolicy(
       req,
@@ -4662,7 +4653,7 @@ function exactPolicyHostSurface(
     return {
       candidates,
       analysis,
-      ...(hypotheticalTeamCandidates
+      ...(hypotheticalTeamCandidates !== null
         ? { hypotheticalTeamCandidates }
         : {}),
       universalForced,
