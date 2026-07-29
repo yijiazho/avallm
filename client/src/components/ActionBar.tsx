@@ -239,20 +239,24 @@ function QuestCard({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<
       <span className="bar-spacer" />
       {/* `success`/`fail`, not `approve`/`reject`: the quest owns the play cards
           outright now. The vote used to share these exact classes, which is why
-          the two moments were literally the same picture. */}
+          the two moments were literally the same picture.
+
+          The card you play is the card that lands on the felt — same sigil, same
+          word as QuestBoard's resolved face and the reveal in Feed. It used to be
+          a laurel under a XIX reading "SUCCESS" that turned into a shield reading
+          "LOYAL", so the one moment a player most needs confirmation of what they
+          just did was the moment the card changed under them. No numeral either:
+          a faction sigil is not an arcanum, and XIX (The Sun) labelling a shield
+          reads as decoration rather than reference. */}
       <div className="playcards">
         <button className="play success" data-t="quest-success" onClick={() => onDecide({ kind: 'quest', card: 'success' })}>
-          <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
-          <span className="pnum">XIX</span>
-          <span className="pem-frame"><Emblem id="laurel" className="pem" /></span>
+          <span className="pem-frame"><Emblem id="shield" className="pem" /></span>
           <span className="pt">Success</span>
         </button>
         {!good && (
           <button className="play fail" data-t="quest-fail" onClick={() => onDecide({ kind: 'quest', card: 'fail' })}>
-            <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
-            <span className="pnum">XVI</span>
             <span className="pem-frame"><Emblem id="dagger" className="pem" /></span>
-            <span className="pt">Fail</span>
+            <span className="pt">Sabotage</span>
           </button>
         )}
       </div>

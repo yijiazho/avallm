@@ -2,10 +2,15 @@ import type { PlayerView } from '../types.ts'
 import { Emblem } from './Arcana.tsx'
 
 // The quest line as a five-card spread lying on the felt: face-down = future,
-// glowing = current, flipped = resolved to the faction that won it (Loyal shield
-// / Evil dagger — the sigils players already know from the role sheets). Details live in
-// arcane tooltips (who went, fails revealed); the tally plaque carries the
-// score where hover doesn't exist (mobile).
+// glowing = current, flipped = resolved (Loyal shield / Evil dagger — the sigils
+// players already know from the role sheets). The face is the same sigil and the
+// same word as the card the player pressed in ActionBar, so a resolved quest
+// reads as their card arriving rather than a different card being dealt.
+// "SUCCESS" rather than "LOYAL": it names the quest's outcome, which is what the
+// spread records, and it does not invite a first-time reader to hear it as a
+// claim about some player's loyalty. Details live in arcane tooltips (who went,
+// fails revealed); the tally plaque carries the score where hover doesn't exist
+// (mobile).
 export function QuestBoard({ view }: { view: PlayerView }) {
   const name = (s: number) => (s === view.seat ? 'You' : view.players[s]?.name ?? `seat ${s}`)
   return (
@@ -15,7 +20,7 @@ export function QuestBoard({ view }: { view: PlayerView }) {
           const tip = (
             <span className="tooltip tip-up" role="tooltip">
               <span className="t-title"><span className="t-num">Q·{q.num}</span>
-                {q.result === 'success' ? 'Loyal victory' : q.result === 'fail' ? 'Sabotaged' : q.num === view.round ? 'Current quest' : 'Future quest'}
+                {q.result === 'success' ? 'Succeeded' : q.result === 'fail' ? 'Sabotaged' : q.num === view.round ? 'Current quest' : 'Future quest'}
               </span>
               <span className="t-rows">
                 {q.team
@@ -32,7 +37,7 @@ export function QuestBoard({ view }: { view: PlayerView }) {
               <div key={q.num} className="qcard face won">
                 <span className="qn">Q·{q.num}</span>
                 <Emblem id="shield" className="qem" />
-                <span className="word">LOYAL</span>
+                <span className="word">SUCCESS</span>
                 {tip}
               </div>
             )

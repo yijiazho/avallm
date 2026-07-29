@@ -30,6 +30,21 @@
   --lit-deep: #c0af82;
   --unlit: #6f6a92;      /* rims and fills */
   --unlit-ink: #a49dc8;  /* unlit text, on the night ground */
+  /* The quest card's field, shared by the card you press (.play.success/.fail)
+     and the card it becomes on the felt (.qcard.face.won/.lost). One definition
+     because those two are deliberately the same object; they used to carry
+     separately hardcoded fields and had already drifted apart by a few points.
+     House rule everywhere else: a neutral --panel/--night-2 ground with the
+     allegiance hue only at the edges (border + inner ring) and as a ~12% wash.
+     The quest pair is the one deliberate exception, sitting a measured 1.6x
+     (good) / 1.8x (evil) the ground's relative luminance — enough presence for
+     the only card a player ever chooses between, without the 3.5x-4x blaze it
+     had, which made these two look lit from a different room than every other
+     card. Hue is unchanged; only lightness came down (31%/32% -> 21%). */
+  --quest-good-top: #1f2a4c;
+  --quest-good-bot: #151b32;
+  --quest-evil-top: #4b2321;
+  --quest-evil-bot: #321716;
   --lacquer: #201625;
   --lacquer-lit: #322238;
   --felt: #1c2138;
@@ -720,13 +735,13 @@ input::placeholder { color: var(--faint); }
 }
 .qcard.face.won {
   color: #dfe8fa; border-color: var(--good);
-  background: linear-gradient(170deg, #2c3c6e, #222c52);
-  box-shadow: inset 0 0 0 2.5px #222c52, inset 0 0 0 3.5px var(--good), 0 8px 14px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(170deg, var(--quest-good-top), var(--quest-good-bot));
+  box-shadow: inset 0 0 0 2.5px var(--night-2), inset 0 0 0 3.5px var(--good), 0 8px 14px rgba(0, 0, 0, 0.5);
 }
 .qcard.face.lost {
   color: #f5ddd8; border-color: var(--evil);
-  background: linear-gradient(170deg, #6e3230, #4a2220);
-  box-shadow: inset 0 0 0 2.5px #4a2220, inset 0 0 0 3.5px var(--evil), 0 8px 14px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(170deg, var(--quest-evil-top), var(--quest-evil-bot));
+  box-shadow: inset 0 0 0 2.5px var(--night-2), inset 0 0 0 3.5px var(--evil), 0 8px 14px rgba(0, 0, 0, 0.5);
 }
 .qcard .qem { width: 33px; height: 33px; }
 .qcard .word { font: 700 0.6rem var(--mono); letter-spacing: 0.08em; margin-top: 3px; white-space: nowrap; }
@@ -1430,54 +1445,42 @@ footer .error::before {
   margin-top: -34px; /* the hand rises above the table edge */
   transition: transform 0.16s ease;
 }
-.play .pc-star { position: absolute; font-size: 8px; opacity: 0.55; }
-.play .pc-star.tl { top: 5px; left: 7px; }
-.play .pc-star.br { bottom: 5px; right: 7px; }
-.play .pnum {
-  font: 700 0.58rem var(--serif); letter-spacing: 0.22em;
-  border: 1px solid currentColor; border-radius: 2px; padding: 2px 8px 2px 10px; opacity: 0.8;
-}
 .play .pem-frame {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  width: calc(100% - 8px); margin: 5px 0 4px; position: relative; min-height: 52px;
+  width: calc(100% - 8px); margin: 5px 0 4px; min-height: 52px;
 }
-.play .pem-frame::before {
-  content: ""; position: absolute; inset: 0 8px;
-  border: 1px solid; border-radius: 50% / 38%; opacity: 0.28;
-}
-.play .pem { width: 34px; height: 34px; }
+/* The sigil is the card now — with the stars, numeral and oval gone it has the
+   field to itself, and at the old 34px it read as sparse rather than spare. */
+.play .pem { width: 46px; height: 46px; }
+.play:not(.compact) .pem { filter: drop-shadow(0 0 6px currentColor); }
 .play .pt {
   font-size: 0.74rem; font-weight: 700;
   width: 100%; text-align: center; padding-top: 5px; border-top: 1px solid;
 }
-.play .ps { font: 400 0.48rem var(--mono); letter-spacing: 0.08em; opacity: 0.8; text-transform: none; margin-top: 2px; }
 /* `success`/`fail`, not `approve`/`reject`. The vote used to share these two
    rules, so the vote hand and the quest hand were the same picture in the same
    corner twice a round. The quest owns the play cards now, and lapis/oxblood
    mean what the tokens say they mean: allegiance. */
 .play.success {
   color: #e6ecfa; border-color: var(--good);
-  background:
-    radial-gradient(90px 130px at 50% 32%, rgba(111, 143, 217, 0.14), transparent 70%),
-    linear-gradient(175deg, #2e3f72, #232c52);
-  box-shadow: inset 0 0 0 2.5px #232c52, inset 0 0 0 3.5px var(--good), 0 8px 18px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(175deg, var(--quest-good-top), var(--quest-good-bot));
+  box-shadow: inset 0 0 0 2.5px var(--night-2), inset 0 0 0 3.5px var(--good), 0 8px 18px rgba(0, 0, 0, 0.55);
   transform: rotate(-2deg);
 }
-.play.success .pt { border-top-color: rgba(111, 143, 217, 0.5); }
-.play.success .pem-frame::before { border-color: var(--good); }
+.play.success .pt { border-top-color: color-mix(in srgb, var(--good) 45%, transparent); }
 .play.fail {
   color: #f7e2dd; border-color: var(--evil);
-  background:
-    radial-gradient(90px 130px at 50% 32%, rgba(194, 94, 84, 0.14), transparent 70%),
-    linear-gradient(175deg, #703431, #4c2321);
-  box-shadow: inset 0 0 0 2.5px #4c2321, inset 0 0 0 3.5px var(--evil), 0 8px 18px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(175deg, var(--quest-evil-top), var(--quest-evil-bot));
+  box-shadow: inset 0 0 0 2.5px var(--night-2), inset 0 0 0 3.5px var(--evil), 0 8px 18px rgba(0, 0, 0, 0.55);
   transform: rotate(2deg);
 }
-.play.fail .pt { border-top-color: rgba(194, 94, 84, 0.5); }
-.play.fail .pem-frame::before { border-color: var(--evil); }
+.play.fail .pt { border-top-color: color-mix(in srgb, var(--evil) 45%, transparent); }
 .play.success:hover { transform: rotate(-1deg) translateY(-6px); filter: none; }
 .play.fail:hover { transform: rotate(1deg) translateY(-6px); filter: none; }
 .play.compact { min-height: 0; flex-direction: row; width: auto; padding: 0.55rem 1rem; transform: none; gap: 8px; margin-top: 0; }
+/* the compact button is an inline control, not a card — it does not get the
+   full-size sigil the played cards carry */
+.play.compact .pem { width: 24px; height: 24px; }
 .play.compact .pt { border-top: none; width: auto; padding-top: 0; }
 .play.compact:hover { transform: translateY(-2px); }
 .play:disabled { transform: none; }
@@ -2034,10 +2037,11 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
   .vtoken { width: 80px; height: 80px; margin-top: 0; }
   .vt-sub { max-width: 52px; }
   .play .pem { width: 19px; height: 19px; }
+  /* matched specificity, later in the cascade: without this the compact rule
+     above wins here and the inline control outgrows the card it sits beside */
+  .play.compact .pem { width: 19px; height: 19px; }
   .play .pem-frame { flex: 0 0 auto; width: auto; min-height: 0; margin: 0; }
-  .play .pem-frame::before { display: none; }
   .play .pt { width: auto; border-top: none; padding-top: 0; }
-  .play .pnum, .play .ps, .play .pc-star { display: none; }
   .landing { margin: 6vh auto; }
 
   /* setup */

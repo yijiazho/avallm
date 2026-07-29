@@ -60,8 +60,8 @@ cartouche, engraved emblem in an oval frame, title plate, corner stars. Emblems 
 | Morgana — **The Mirror** | XVIII | facing crescents | The Moon is XVIII |
 | Mordred — **The Veiled** | XV | shrouded crown | The Devil is XV |
 | Oberon — **The Stranger** | IX | lantern | The Hermit is IX |
-| Quest success — **Loyal** | — | shield (Loyal sigil) | quest card flips to this; result speaks faction, not arcana |
-| Quest fail — **Sabotaged** | — | dagger (Evil sigil) | fail count on title plate |
+| Quest success — **SUCCESS** | — | shield (Loyal sigil) | not an arcanum: result speaks faction, not deck. The card the player *presses* is this same sigil and word, so a resolved quest reads as their card arriving. Named for the outcome, not the faction — "LOYAL" invited a first-time reader to hear a claim about some player's loyalty. |
+| Quest fail — **SABOTAGE** | — | dagger (Evil sigil) | same sigil and word on the played card and the flip; fail count on the title plate |
 | Spectator — **The Witness** | 0 | open book | unaligned; the Fool's position |
 | Seat sigils — **celestial bodies** | — | ☿ ♊ ☉ ☽ ♃ ♄ … | pick O2 (2026-07-23): each agent is a body in the constellation, brand-colored; humans are ⊕ Earth; autopilot is ⚙ the Clockwork; custom agents draw deterministically from the outer pool (`celestialFor` in Arcana.tsx). Unicode for now — converting the chosen set to SVG is an open polish item. |
 | Vote approve | — | **full moon** | not an arcanum: the vote is a round token, after the tabletop vote chip. Lit disc. |
@@ -89,6 +89,18 @@ names (Merlin, Percival…) — the arcana titles are the cards' display dress, 
   not. Deliberate near-collision to keep an eye on: Morgana (The Mirror, XVIII) is drawn
   as facing crescents; the vote discs are full/new, a different shape in a different
   place (a token on the bar, never an emblem on a card).
+- **Card grounds (the house recipe)**: every card sits on a neutral `--panel → --night-2`
+  field, and the allegiance hue appears only at the *edges* — 1px border, 3.5px inner ring
+  over a shared `--night-2` separator — plus at most a ~12% wash. Role cards, seat cards
+  and face-down quest cards all follow it. **The quest pair is the one deliberate
+  exception**: `--quest-good-*` / `--quest-evil-*` put the hue in the field itself, at a
+  measured 1.6x (good) / 1.8x (evil) the ground's relative luminance. Those four tokens are
+  shared by the card you press (`.play.success/.fail`) and the card it becomes on the felt
+  (`.qcard.face.won/.lost`), which are the same object and previously carried separately
+  hardcoded fields that had already drifted. Judge any new card against the ratio, not
+  against saturation: every card in the palette sits at 39-43% saturation, so saturation
+  tells you nothing — these two read as "too bright" at 3.5x-4x and read as belonging at
+  1.6x-1.8x, with the hue untouched either way.
 - **Type**: display + body `Constantia, "Palatino Linotype", Georgia, serif`; records,
   labels, model slugs `Consolas / Cascadia Mono` (machine voice). Small-caps + tracked
   uppercase for plates and labels.
@@ -109,7 +121,8 @@ Audit finding IDs: see the audit artifact. `[ ]` = not started.
 - [x] Extract tokens into `client/src/styles.css`; emblem sprite + role mapping live in
   `client/src/components/Arcana.tsx` (rendered once from `main.tsx`).
 - [x] **Game screen**: table arc + arc-positioned seat cards (G4), quest spread with
-  Sun/Tower faces (G2), differentiated feed — speech/record/moment, win reasons in plain
+  faction-sigil faces (G2; originally Sun/Tower, since replaced by shield/dagger),
+  differentiated feed — speech/record/moment, win reasons in plain
   words (G3), role card as arcana (G6), play-card vote/quest actions with turn tags (G5),
   mobile pinned your-edge bar + compact role strip (M2). Seat arc positions are
   percentages of the zone, so the arrangement compresses with the viewport.

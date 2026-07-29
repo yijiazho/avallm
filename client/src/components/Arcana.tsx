@@ -64,8 +64,7 @@ export function celestialFor(agentId: string | undefined, name: string): { glyph
 }
 
 export type EmblemId =
-  | 'eye' | 'shield' | 'chalice' | 'dagger' | 'moons' | 'veil' | 'lantern' | 'swords'
-  | 'sun' | 'tower' | 'laurel' | 'crown' | 'book'
+  | 'eye' | 'shield' | 'chalice' | 'dagger' | 'moons' | 'veil' | 'lantern' | 'swords' | 'book'
 
 export function Emblem({ id, className }: { id: EmblemId; className?: string }) {
   return (
@@ -126,29 +125,6 @@ export function ArcanaDefs() {
           <path d="M14 10 L40 42 M18 46 l-4 -4 6 -1 -1 6 Z" />
           <path d="M46 10 L20 42 M42 46 l4 -4 -6 -1 1 6 Z" />
           <path d="M12 34 h6 M42 34 h6" opacity="0.5" />
-        </g>
-        <g id="em-sun" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="30" cy="30" r="11" />
-          <circle cx="30" cy="30" r="4.5" opacity="0.7" />
-          <path d="M30 8 V15 M30 45 V52 M8 30 H15 M45 30 H52 M14.4 14.4 l5 5 M40.6 40.6 l5 5 M45.6 14.4 l-5 5 M19.4 40.6 l-5 5" />
-        </g>
-        <g id="em-tower" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 22 L22 52 H38 L40 22" />
-          <path d="M17 22 H43 M19 15 h5 v7 M36 15 h5 v7 M27 13 h6 v9" />
-          <path d="M27 34 h6 M30 34 v8" opacity="0.6" />
-          <path d="M46 4 L36 15 H42 L31 28" strokeWidth="2.2" />
-        </g>
-        <g id="em-laurel" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 12 C10 24 10 38 20 48" />
-          <path d="M42 12 C50 24 50 38 40 48" />
-          <path d="M16 20 q-5 1 -7 -3 q5 -2 7 3 Z M14 30 q-5 1 -7 -3 q5 -2 7 3 Z M16 40 q-5 2 -8 -1 q4 -4 8 1 Z" fill="currentColor" stroke="none" opacity="0.8" />
-          <path d="M44 20 q5 1 7 -3 q-5 -2 -7 3 Z M46 30 q5 1 7 -3 q-5 -2 -7 3 Z M44 40 q5 2 8 -1 q-4 -4 -8 1 Z" fill="currentColor" stroke="none" opacity="0.8" />
-          <path d="M30 22 l2 4.5 4.5 0.7 -3.3 3.2 0.8 4.6 -4 -2.2 -4 2.2 0.8 -4.6 -3.3 -3.2 4.5 -0.7 Z" fill="currentColor" stroke="none" />
-        </g>
-        <g id="em-crown" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M16 40 L19 24 L27 32 L30 18 L33 32 L41 24 L44 40 Z" />
-          <path d="M16 46 H44" />
-          <circle cx="30" cy="12" r="2" opacity="0.7" />
         </g>
         <g id="em-book" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M30 16 C25 11 17 11 12 14 V44 C17 41 25 41 30 46 C35 41 43 41 48 44 V14 C43 11 35 11 30 16 Z" />

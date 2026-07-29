@@ -352,7 +352,8 @@ async function galleryRun(browser) {
   const dir = path.join(OUT, 'components')
   const ctx = await browser.createBrowserContext()
   const page = await ctx.newPage()
-  await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 })
+  const vp = { width: 1280, height: 800 }
+  await page.setViewport({ ...vp, deviceScaleFactor: 1 })
   await page.goto(`${BASE}/gallery.html`, { waitUntil: 'networkidle0' })
   // The gallery publishes its own variant list — the harness never hard-codes it,
   // so adding a fixture in gallery.tsx is enough to get it shot here. Wait for the
@@ -391,7 +392,30 @@ async function galleryRun(browser) {
     ]))
     if (hover) { await page.hover(hover); await sleep(150) } // reveal the hover-only tooltip
     const file = path.join(dir, `${id}.jpg`)
-    await el.screenshot({ path: file, type: 'jpeg', quality: 82 })
+    // Crop the VIEWPORT to the element's box, with captureBeyondViewport OFF.
+    // Both el.screenshot() and a plain clip use Chrome's capture-beyond-viewport
+    // path, which re-rasterizes the subtree and gets nested 3D content wrong:
+    // .fartable puts the table arc in a 3D context, and inside it the resolved
+    // quest cards came out sheared nearly edge-on with their tooltip missing
+    // (tip-quest.jpg shipped broken that way for several gallery generations).
+    // The page itself was always fine — the same frame renders correctly in a
+    // normal viewport raster — so this takes what a player would actually see.
+    // Falls back to element capture when the box does not fit the viewport,
+    // where a viewport clip would truncate instead.
+    const box = await el.boundingBox()
+    // Both axes must be inside the viewport, not just y: a clip cannot recover
+    // content left of the origin any more than it can content below the fold,
+    // and silently clamping x would bank a mis-framed shot instead of falling
+    // back to element capture.
+    const fits = box && box.width > 0 && box.height > 0
+      && box.x >= 0 && box.x + box.width <= vp.width
+      && box.y >= 0 && box.y + box.height <= vp.height
+    if (fits) {
+      const clip = { x: box.x, y: box.y, width: box.width, height: box.height }
+      await page.screenshot({ path: file, type: 'jpeg', quality: 82, clip, captureBeyondViewport: false })
+    } else {
+      await el.screenshot({ path: file, type: 'jpeg', quality: 82 })
+    }
     record(file)
     console.log('shot:', path.relative(root, file))
   }

@@ -142,10 +142,13 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
 
         if (row.kind === 'questreveal') {
           // Q1: the sealed cards gather, shuffle, then a single card flips to the
-          // aggregate (Loyal shield / Evil dagger + fail count) — individual plays are
-          // never shown, the shuffle IS the anonymity. Same stage as the sealing
+          // aggregate (shield / dagger + fail count) — individual plays are never
+          // shown, the shuffle IS the anonymity. Same stage as the sealing
           // indicator, so the moment reads as one continuous element. Mount-driven,
           // so it plays in full even when the server resolved instantly.
+          // The face carries the same sigil and word as the card the player pressed
+          // and as the spread's resolved face. It used to read LOYAL while the
+          // caption directly beneath it already read SUCCESS.
           const won = row.cls === 'ok'
           const size = row.teamSize ?? 3
           return (
@@ -157,7 +160,7 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
                 ))}
                 <span className={`qr-result ${won ? 'won' : 'lost'}`}>
                   <Emblem id={won ? 'shield' : 'dagger'} className="qr-em" />
-                  <span className="qr-word">{won ? 'LOYAL' : `SABOTAGE ·${row.failCount}`}</span>
+                  <span className="qr-word">{won ? 'SUCCESS' : `SABOTAGE ·${row.failCount}`}</span>
                 </span>
               </span>
               <span className="qr-caption">
