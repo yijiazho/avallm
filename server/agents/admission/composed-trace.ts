@@ -11,6 +11,9 @@ import {
   FORCED_PLAY_REASON_CODES,
 } from '../analysis/types.ts'
 import {
+  combineSituationAnalysisRequirements,
+} from '../analysis/situation-plan.ts'
+import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
   type ForcedPolicyResult,
@@ -34,18 +37,12 @@ import {
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   ROLE_OBJECTIVE_UTILITY_VERSION,
-  goodProposalVoteScorer,
-  seededGoodProposalVoteScorer,
-  evilRoleObjectiveScorer,
-  seededEvilRoleObjectiveScorer,
-  roleObjectiveScorer,
-  seededRoleObjectiveScorer,
-  morganaRoleScorer,
-  seededMorganaRoleScorer,
   stablePolicyBucket,
   structuredChoice,
   type CandidateScore,
+  type CandidateScoringContext,
 } from '../policy/score.ts'
+import { projectConfiguredScoreDiagnostics } from '../policy/score-compatibility.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
@@ -138,19 +135,52 @@ import {
 } from '../policy/candidates.ts'
 import { analyzeSituation } from '../analysis/situation.ts'
 import { applyForcedPolicy } from '../policy/forced.ts'
+import { heuristicDecide } from '../heuristic.ts'
+import {
+  replayNativeScoresForAdmission,
+} from '../policy/score-layer/admission-replay.ts'
+import {
+  prepareScoreLayerRequirements,
+} from '../policy/score-layer/preparation.ts'
+import {
+  configuredScoreLayerChainForVersion,
+  createConfiguredScoreLayerRegistry,
+} from '../score-layers/configured.ts'
+import type {
+  ResolvedScoreLayerChain,
+} from '../policy/score-layer/types.ts'
 import {
   DECISION_COMPONENT_PLAN_VERSION,
   DECISION_COMPONENT_RUN_VERSION,
   MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
   MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
+  componentPayload,
   type DecisionComponentPlan,
+  type DecisionComponentRun,
   validateDecisionComponentRunHostJoin,
 } from '../components/kernel.ts'
 import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
-  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-  reconstructLegacyRoleAdapterHostInputs,
 } from '../components/legacy-role-adapters.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  EVIL_ROLE_UTILITY_COMPONENT,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+} from '../components/native-score-components.ts'
+import {
+  reconstructScoreComponentHostInputs,
+} from './component-host-inputs.ts'
+import {
+  resolvedArchitectureIdentityTraceJoin,
+} from '../components/architecture-metadata.ts'
+import type {
+  ResolvedArchitectureIdentity,
+} from '../components/resolved-brain.ts'
 import {
   createProductionComponentRegistry,
 } from '../components/production-registry.ts'
@@ -2017,6 +2047,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   const ids = scores.map((score) => String(score.candidateId))
   if (new Set(ids).size !== ids.length) return false
   const components = trace.componentVersions as Record<string, unknown> | undefined
+  const componentRun = trace.components as DecisionComponentRun | undefined
   if (
     components
     && scores.some((score) => score.version !== components.scorer)
@@ -2437,9 +2468,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     (score) => score.roleObjectiveFeatures !== undefined,
   )
   if (roleFeatureScores.length > 0) {
-    const roleProjection = trace.privateRoleUtility as
-      | Record<string, unknown>
-      | undefined
+    const roleProjection = (
+      componentRun
+        ? componentPayload(componentRun, GOOD_ROLE_UTILITY_COMPONENT)
+        : trace.privateRoleUtility
+    ) as Record<string, unknown> | undefined
     const forced = trace.forcedPolicyResult as
       | Record<string, unknown>
       | undefined
@@ -2448,7 +2481,6 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || !roleProjection
       || !forced
       || !Array.isArray(roleProjection.assessments)
-      || components?.roleUtility !== ROLE_UTILITY_PROJECTION_VERSION
       || ![
         ROLE_OBJECTIVE_SCORER_VERSION,
         ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -2612,9 +2644,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     (score) => score.evilRoleObjectiveFeatures !== undefined,
   )
   if (evilRoleFeatureScores.length > 0) {
-    const projection = trace.privateEvilRoleUtility as
-      | Record<string, unknown>
-      | undefined
+    const projection = (
+      componentRun
+        ? componentPayload(componentRun, EVIL_ROLE_UTILITY_COMPONENT)
+        : trace.privateEvilRoleUtility
+    ) as Record<string, unknown> | undefined
     const forced = trace.forcedPolicyResult as
       | Record<string, unknown>
       | undefined
@@ -2623,8 +2657,6 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || !projection
       || !forced
       || !Array.isArray(projection.assessments)
-      || components?.evilRoleUtility
-        !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
       || ![
         EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
         EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -2756,9 +2788,16 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     (score) => score.morganaRoleObjectiveFeatures !== undefined,
   )
   if (morganaRoleFeatureScores.length > 0) {
-    const projection = trace.privateMorganaRoleUtility as
-      | Record<string, unknown>
-      | undefined
+    const projection = (
+      componentRun
+        ? componentPayload(
+            componentRun,
+            components?.scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
+              ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
+              : MORGANA_ROLE_UTILITY_COMPONENT,
+          )
+        : trace.privateMorganaRoleUtility
+    ) as Record<string, unknown> | undefined
     const projectionRows = Array.isArray(projection?.candidates)
       ? projection.candidates as Record<string, unknown>[]
       : []
@@ -3130,11 +3169,82 @@ function validDecisionTraceProvenance(trace: DecisionTrace): boolean {
   return false
 }
 
+const MIGRATED_FLAT_DEGRADATIONS = new Set([
+  ROLE_OBJECTIVE_DEGRADATION,
+  ROLE_UTILITY_DEGRADATION,
+  EVIL_ROLE_OBJECTIVE_DEGRADATION,
+  EVIL_ROLE_UTILITY_DEGRADATION,
+  MORGANA_COUNTERFEIT_DEGRADATION,
+  MORGANA_ROLE_UTILITY_DEGRADATION,
+])
+
+function currentTraceOmitsMigratedFlatState(
+  trace: DecisionTrace,
+): boolean {
+  if (trace.version === DECISION_TRACE_VERSION) return true
+  const versions = trace.componentVersions
+  return (
+    trace.privateRoleObjective === undefined
+    && trace.privateEvilRoleObjective === undefined
+    && trace.privateRoleUtility === undefined
+    && trace.privateEvilRoleUtility === undefined
+    && trace.publicMorganaCounterfeitRead === undefined
+    && trace.privateMorganaCounterfeitObjective === undefined
+    && trace.privateMorganaRoleUtility === undefined
+    && versions?.roleObjective === undefined
+    && versions?.roleUtility === undefined
+    && versions?.evilRoleUtility === undefined
+    && versions?.morganaCounterfeitPublicRead === undefined
+    && versions?.morganaCounterfeitObjective === undefined
+    && versions?.configuredMorganaCounterfeitObjective === undefined
+    && versions?.morganaRoleUtility === undefined
+    && versions?.configuredMorganaRoleUtility === undefined
+    && !trace.degradation.some((code) =>
+      MIGRATED_FLAT_DEGRADATIONS.has(code))
+  )
+}
+
+function expectedNativeTraceStages(
+  componentId: string,
+  trace: DecisionTrace,
+): readonly string[] | undefined {
+  if (!NATIVE_SCORE_COMPONENT_IDS.has(componentId)) return undefined
+  const scores = trace.candidateScores ?? []
+  const goodRole =
+    componentId === GOOD_ROLE_OBJECTIVE_COMPONENT.id
+    || componentId === GOOD_ROLE_UTILITY_COMPONENT.id
+  const evilRole =
+    componentId === EVIL_ROLE_OBJECTIVE_COMPONENT.id
+    || componentId === EVIL_ROLE_UTILITY_COMPONENT.id
+  const morganaRole =
+    componentId === MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id
+    || componentId === MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id
+    || componentId === MORGANA_ROLE_UTILITY_COMPONENT.id
+    || componentId === MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id
+  const consumed = scores.length > 0 && scores.every((score) =>
+    goodRole
+      ? score.roleObjectiveFeatures !== undefined
+      : evilRole
+        ? score.evilRoleObjectiveFeatures !== undefined
+          || score.morganaRoleObjectiveFeatures !== undefined
+        : morganaRole
+          ? score.morganaRoleObjectiveFeatures !== undefined
+          : false)
+  return consumed
+    ? nativeScoreSelectionSurvived(trace)
+      ? ['candidate-score', 'action-selection']
+      : ['candidate-score']
+    : []
+}
+
 function validGenericRoleComponents(
   trace: DecisionTrace,
   hostView?: PlayerView,
 ): boolean {
-  if (!validDecisionTraceProvenance(trace)) return false
+  if (
+    !validDecisionTraceProvenance(trace)
+    || !currentTraceOmitsMigratedFlatState(trace)
+  ) return false
   if (trace.version === DECISION_TRACE_VERSION) return true
   const safePlan = canonicalizeJson(
     trace.componentPlan,
@@ -3389,14 +3499,25 @@ function validGenericRoleComponents(
       return false
     }
 
-    const expectedStages = entry.status === 'admitted' && binding
-      ? binding.policyStages(trace)
+    const expectedStages = entry.status === 'admitted'
+      ? binding
+        ? binding.policyStages(trace)
+        : expectedNativeTraceStages(ref.id, trace)
       : []
     if (
       typeof use.used !== 'boolean'
       || !exactGenericArray(use.stages)
-      || !isDeepStrictEqual(use.stages, expectedStages)
-      || use.used !== (expectedStages.length > 0)
+      || !use.stages.every(
+        (stage) =>
+          stage === 'candidate-score'
+          || stage === 'action-selection',
+      )
+      || new Set(use.stages).size !== use.stages.length
+      || (
+        expectedStages !== undefined
+        && !isDeepStrictEqual(use.stages, expectedStages)
+      )
+      || use.used !== (use.stages.length > 0)
     ) return false
   }
 
@@ -3435,7 +3556,7 @@ function validGenericRoleComponentsHostJoin(
     run: trace.components!,
     request: req,
     view,
-    hostInputs: reconstructLegacyRoleAdapterHostInputs({
+    hostInputs: reconstructScoreComponentHostInputs({
       trace,
       plan,
       req,
@@ -3523,7 +3644,10 @@ function validDecisionTrace(
       trace as unknown as DecisionTrace,
       fullHostView,
     )
-    && validRoleObjectiveRoute(trace, fullHostView)
+    && (
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      || validRoleObjectiveRoute(trace, fullHostView)
+    )
     && validLanguageTrace(trace.languageEvidence, trace)
     && validPublicObserverTrace(trace.publicObserver, trace, hostView)
     && validPrivateIdentityTrace(
@@ -3531,29 +3655,34 @@ function validDecisionTrace(
       trace,
       hostView?.rolesInPlay,
     )
-    && validPrivateRoleObjectiveTrace(
-      trace.privateRoleObjective,
-      trace,
-      req,
-      fullHostView,
-    )
-    && validPrivateEvilRoleObjectiveTrace(
-      trace.privateEvilRoleObjective,
-      trace,
-      req,
-      fullHostView,
-    )
-    && validPrivateRoleUtilityTrace(
-      trace.privateRoleUtility,
-      trace,
-      req,
-      fullHostView,
-    )
-    && validPrivateEvilRoleUtilityTrace(
-      trace.privateEvilRoleUtility,
-      trace,
-      req,
-      fullHostView,
+    && (
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      || (
+        validPrivateRoleObjectiveTrace(
+          trace.privateRoleObjective,
+          trace,
+          req,
+          fullHostView,
+        )
+        && validPrivateEvilRoleObjectiveTrace(
+          trace.privateEvilRoleObjective,
+          trace,
+          req,
+          fullHostView,
+        )
+        && validPrivateRoleUtilityTrace(
+          trace.privateRoleUtility,
+          trace,
+          req,
+          fullHostView,
+        )
+        && validPrivateEvilRoleUtilityTrace(
+          trace.privateEvilRoleUtility,
+          trace,
+          req,
+          fullHostView,
+        )
+      )
     )
     && validPrivateEvilQuestCardPolicyTrace(
       trace.privateEvilQuestCardPolicy,
@@ -3561,8 +3690,13 @@ function validDecisionTrace(
       req,
       fullHostView,
     )
-    && validMorganaCounterfeitTrace(trace, req, fullHostView)
-    && validMorganaRolePolicyTrace(trace, req, fullHostView)
+    && (
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      || (
+        validMorganaCounterfeitTrace(trace, req, fullHostView)
+        && validMorganaRolePolicyTrace(trace, req, fullHostView)
+      )
+    )
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
@@ -3616,6 +3750,12 @@ export function validateComposedTraceHostJoin(input: {
    * resolved brain. Self-contained stdio and stored traces cannot supply it.
    */
   expectedComponentPlan?: DecisionComponentPlan
+  /**
+   * Out-of-band configured identity owned by the producing resolved brain.
+   * Current exact score replay never accepts trace scorer labels as
+   * provenance.
+   */
+  expectedArchitectureIdentity?: ResolvedArchitectureIdentity
   /** Require the component-bearing producer schema even for an empty plan. */
   expectComponentTrace?: boolean
 }): boolean {
@@ -3628,9 +3768,30 @@ export function validateComposedTraceHostJoin(input: {
       selectedDecision,
       deterministicSeed,
       expectedComponentPlan,
+      expectedArchitectureIdentity,
       expectComponentTrace,
     } = input
+    const policyHostSurface = exactPolicyHostSurface(
+      req,
+      view,
+      expectedArchitectureIdentity,
+    )
+    const d3HostSurface = exactEvilQuestCardHostSurface(
+      trace,
+      req,
+      view,
+      policyHostSurface,
+    )
+    const genericRoleComponentsValid = validGenericRoleComponents(trace, view)
+    const genericRoleHostJoinValid = validGenericRoleComponentsHostJoin(
+      trace,
+      req,
+      view,
+      deterministicSeed,
+    )
     if (
+      !d3HostSurface
+      ||
       req.seat !== view.seat
       || selectedDecision.kind !== req.kind
       || authoritativeAction.kind !== req.kind
@@ -3640,30 +3801,34 @@ export function validateComposedTraceHostJoin(input: {
       || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
       || !validBeliefVersionRelation(trace)
-      || !validGenericRoleComponents(trace, view)
-      || !validGenericRoleComponentsHostJoin(
-        trace,
-        req,
-        view,
-        deterministicSeed,
-      )
+      || !genericRoleComponentsValid
+      || !genericRoleHostJoinValid
       || (
         expectComponentTrace === true
         && trace.version !== COMPONENT_DECISION_TRACE_VERSION
       )
       || (
+        expectedArchitectureIdentity !== undefined
+        && !resolvedArchitectureIdentityTraceJoin(
+          expectedArchitectureIdentity,
+          trace,
+        )
+      )
+      || (
         expectedComponentPlan !== undefined
         && (
           trace.version !== COMPONENT_DECISION_TRACE_VERSION
+          || expectedArchitectureIdentity === undefined
           || !isDeepStrictEqual(
             trace.componentPlan,
             expectedComponentPlan,
           )
+          || !validTrustedPassiveComponentAttribution(trace)
         )
       )
-      || !validRoleObjectiveRoute(
-        trace,
-        view,
+      || (
+        trace.version === DECISION_TRACE_VERSION
+        && !validRoleObjectiveRoute(trace, view)
       )
       || !validCandidateScores(trace.candidateScores)
       || !validForcedPolicyResult(trace.forcedPolicyResult)
@@ -3677,11 +3842,14 @@ export function validateComposedTraceHostJoin(input: {
         trace,
         view.rolesInPlay,
       )
-      || !validPrivateEvilRoleObjectiveTrace(
-        trace.privateEvilRoleObjective,
-        trace,
-        req,
-        view,
+      || (
+        trace.version === DECISION_TRACE_VERSION
+        && !validPrivateEvilRoleObjectiveTrace(
+          trace.privateEvilRoleObjective,
+          trace,
+          req,
+          view,
+        )
       )
       || !validPrivateEvilQuestCardPolicyTrace(
         trace.privateEvilQuestCardPolicy,
@@ -3689,27 +3857,36 @@ export function validateComposedTraceHostJoin(input: {
         req,
         view,
       )
-      || !validateEvilQuestCardPolicyHostJoin(trace, req, view)
-      || !validMorganaCounterfeitTrace(
-        trace,
-        req,
-        view,
+      || (
+        trace.version === DECISION_TRACE_VERSION
+        && !validMorganaCounterfeitTrace(trace, req, view)
       )
-      || !validMorganaRolePolicyTrace(
-        trace,
-        req,
-        view,
-        deterministicSeed,
+      || (
+        trace.version === DECISION_TRACE_VERSION
+        && !validMorganaRolePolicyTrace(
+          trace,
+          req,
+          view,
+          deterministicSeed,
+        )
       )
     ) return false
     const components = trace.componentVersions!
-    if (!validateExactRoleDependencyHostJoin(trace, req, view)) return false
-    if (!validateRoutedEvilDependencyHostJoin(trace, req, view)) return false
+    if (
+      trace.version === DECISION_TRACE_VERSION
+      && !validateExactRoleDependencyHostJoin(trace, req, view)
+    ) return false
+    if (
+      trace.version === DECISION_TRACE_VERSION
+      && !validateRoutedEvilDependencyHostJoin(trace, req, view)
+    ) return false
     const hasRoleObjective =
       components.roleObjective !== undefined
       || trace.privateRoleObjective !== undefined
       || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
     if (
+      trace.version === DECISION_TRACE_VERSION
+      &&
       hasRoleObjective
       && !validPrivateRoleObjectiveTrace(
         trace.privateRoleObjective,
@@ -3718,13 +3895,17 @@ export function validateComposedTraceHostJoin(input: {
         view,
       )
     ) return false
-    if (!validPrivateRoleUtilityTrace(
+    if (
+      trace.version === DECISION_TRACE_VERSION
+      && !validPrivateRoleUtilityTrace(
       trace.privateRoleUtility,
       trace,
       req,
       view,
     )) return false
-    if (!validPrivateEvilRoleUtilityTrace(
+    if (
+      trace.version === DECISION_TRACE_VERSION
+      && !validPrivateEvilRoleUtilityTrace(
       trace.privateEvilRoleUtility,
       trace,
       req,
@@ -3742,6 +3923,27 @@ export function validateComposedTraceHostJoin(input: {
     ) return false
 
     const configured = components.configuredScorer ?? components.scorer
+    const nativeRun = trace.components
+    const roleUtility = nativeRun
+      ? componentPayload(nativeRun, GOOD_ROLE_UTILITY_COMPONENT)
+      : trace.privateRoleUtility
+    const evilRoleUtility = nativeRun
+      ? componentPayload(nativeRun, EVIL_ROLE_UTILITY_COMPONENT)
+      : trace.privateEvilRoleUtility
+    const morganaObjective = nativeRun
+      ? componentPayload(
+          nativeRun,
+          MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+        )
+      : trace.privateMorganaCounterfeitObjective
+    const morganaUtility = nativeRun
+      ? componentPayload(
+          nativeRun,
+          configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
+            ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
+            : MORGANA_ROLE_UTILITY_COMPONENT,
+        )
+      : trace.privateMorganaRoleUtility
     const morganaConfigured =
       configured === MORGANA_ROLE_SCORER_VERSION
       || configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
@@ -3754,15 +3956,22 @@ export function validateComposedTraceHostJoin(input: {
     const c2Resolved =
       components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
       || components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-    if (morganaConfigured) {
+    const exactNativeInputs =
+      trace.version === COMPONENT_DECISION_TRACE_VERSION
+      && components.belief === EXACT_BELIEF_MODEL_VERSION
+      && components.languageEvidence === 'off'
+      && components.factors === 'off'
+    if (
+      morganaConfigured
+      && trace.version === DECISION_TRACE_VERSION
+    ) {
       const seeded = configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
       const applicable =
         view.role === 'morgana'
         && (req.kind === 'propose' || req.kind === 'vote')
       const applied =
         applicable
-        && trace.privateMorganaRoleUtility !== undefined
-        && !trace.degradation.includes(MORGANA_ROLE_UTILITY_DEGRADATION)
+        && morganaUtility !== undefined
         && !trace.degradation.includes(MORGANA_ROLE_SCORER_DEGRADATION)
       const d2Base = seeded
         ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -3788,60 +3997,39 @@ export function validateComposedTraceHostJoin(input: {
         || components.configuredScorer !== (
           expectedResolved === configured ? undefined : configured
         )
-        || components.configuredMorganaRoleUtility
-          !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
       ) return false
       if (applied) {
-        const projection = trace.privateMorganaRoleUtility!
+        const projection = morganaUtility!
         const selectionMode =
           configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
             ? 'seeded-near-equal-vote-within-d2-band'
             : 'top-counterfeit-within-d2-band'
         if (
-          !trace.privateMorganaCounterfeitObjective
-          || !trace.privateEvilRoleUtility
+          !morganaObjective
+          || !evilRoleUtility
           || !validatePrivateMorganaRoleUtilityHostJoin(projection, {
             req,
             view,
             candidates: legal,
             forced: trace.forcedPolicyResult!,
-            counterfeitObjective:
-              trace.privateMorganaCounterfeitObjective,
-            evilRoleUtility: trace.privateEvilRoleUtility,
+            counterfeitObjective: morganaObjective,
+            evilRoleUtility,
             selectionMode,
             deterministicSeed,
           })
         ) return false
-        const scorer = seeded
-          ? seededMorganaRoleScorer
-          : morganaRoleScorer
-        const expectedScores = scorer.score({
-          deterministicSeed,
-          request: req,
-          view,
-          analysis: analyzeSituation(view, {
-            belief: exactBelief(view),
-            policyCandidateTeams: candidateTeams(legal, view),
-          }),
-          candidates: legal,
-          evilRoleUtility: trace.privateEvilRoleUtility,
-          morganaRoleUtility: projection,
-          forced: trace.forcedPolicyResult!,
-        })
-        if (
-          !isDeepStrictEqual(trace.candidateScores, expectedScores)
-          || trace.structuredCandidateId
-            !== projection.selectedCandidateId
-        ) return false
       }
     }
-    if (c2Configured || c2Resolved) {
+    if (
+      (c2Configured || c2Resolved)
+      && trace.version === DECISION_TRACE_VERSION
+    ) {
       const applicable =
         (req.kind === 'propose' || req.kind === 'vote')
         && (view.role === 'merlin' || view.role === 'percival')
       const roleApplied =
         applicable
-        && trace.privateRoleUtility !== undefined
+        && roleUtility !== undefined
         && !trace.degradation.includes('role-objective-scorer-failed')
       const seeded =
         configured === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -3855,27 +4043,17 @@ export function validateComposedTraceHostJoin(input: {
           : ROLE_OBJECTIVE_SCORER_VERSION
         : base
       if (components.scorer !== expectedResolved) return false
-      if (
-        (req.kind === 'propose' || req.kind === 'vote')
-        && view.alignment === 'good'
-        && components.belief === EXACT_BELIEF_MODEL_VERSION
-        && components.languageEvidence === 'off'
-        && components.factors === 'off'
-        && !validateExactRolePolicySurface(
-          trace,
-          req,
-          view,
-          deterministicSeed,
-        )
-      ) return false
     }
-    if (d2Configured) {
+    if (
+      d2Configured
+      && trace.version === DECISION_TRACE_VERSION
+    ) {
       const eligible =
         (req.kind === 'propose' || req.kind === 'vote')
         && view.alignment === 'evil'
       const d2Applied =
         eligible
-        && trace.privateEvilRoleUtility !== undefined
+        && evilRoleUtility !== undefined
         && !trace.degradation.includes('evil-role-objective-scorer-failed')
       const seeded =
         configured === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -3897,19 +4075,23 @@ export function validateComposedTraceHostJoin(input: {
           expectedResolved === configured ? undefined : configured
         )
       ) return false
-      if (
-        d2Applied
-        && components.belief === EXACT_BELIEF_MODEL_VERSION
-        && components.languageEvidence === 'off'
-        && components.factors === 'off'
-        && !validateExactEvilRolePolicySurface(
+    }
+
+    if (
+      exactNativeInputs
+      && NATIVE_SCORER_VERSIONS.has(components.scorer)
+      && (
+        expectedArchitectureIdentity === undefined
+        || !validateExactNativeScoreSurface(
           trace,
           req,
           view,
           deterministicSeed,
+          d3HostSurface,
+          expectedArchitectureIdentity,
         )
-      ) return false
-    }
+      )
+    ) return false
 
     const expectedBucket = stablePolicyBucket([
       deterministicSeed,
@@ -3919,7 +4101,7 @@ export function validateComposedTraceHostJoin(input: {
       req.proposalNum,
       trace.beliefThroughSeq,
     ].join(':'))
-    if (scores.some((score) => {
+    const invalidSeedBucket = scores.some((score) => {
       const baseBucket = score.features?.version === GOOD_VOTE_FEATURE_VERSION
         ? score.features.seedBucket
         : undefined
@@ -3954,7 +4136,8 @@ export function validateComposedTraceHostJoin(input: {
           MORGANA_ROLE_SEEDED_SCORER_VERSION,
         ].join(':'))
       )
-    })) return false
+    })
+    if (invalidSeedBucket) return false
 
     const relationTrace = structuredClone(trace) as unknown as
       Record<string, unknown>
@@ -3965,48 +4148,192 @@ export function validateComposedTraceHostJoin(input: {
   }
 }
 
-function validateExactRolePolicySurface(
+interface ExpectedNativeDiagnostics {
+  readonly scores: readonly CandidateScore[]
+  readonly componentRun: DecisionComponentRun
+  readonly resolvedScorerVersion: string
+}
+
+const NATIVE_SCORE_COMPONENT_IDS = new Set([
+  GOOD_ROLE_OBJECTIVE_COMPONENT.id,
+  GOOD_ROLE_UTILITY_COMPONENT.id,
+  EVIL_ROLE_OBJECTIVE_COMPONENT.id,
+  EVIL_ROLE_UTILITY_COMPONENT.id,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+  MORGANA_ROLE_UTILITY_COMPONENT.id,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id,
+])
+
+function validTrustedPassiveComponentAttribution(
+  trace: DecisionTrace,
+): boolean {
+  if (!trace.components) return false
+  const d3Ids = new Set(
+    LEGACY_ROLE_ADAPTER_TRACE_BINDINGS.map((binding) => binding.token.id),
+  )
+  return trace.components.policyUse.every(
+    (use) =>
+      NATIVE_SCORE_COMPONENT_IDS.has(use.component.id)
+      || d3Ids.has(use.component.id)
+      || (!use.used && use.stages.length === 0),
+  )
+}
+
+const NATIVE_SCORER_VERSIONS = new Set([
+  CANDIDATE_SCORER_VERSION,
+  GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SEEDED_SCORER_VERSION,
+])
+
+function nativeScoreSelectionSurvived(trace: DecisionTrace): boolean {
+  const plannerSelectionAccepted =
+    trace.plannerCandidateId !== undefined
+    && trace.plannerCandidateId === trace.chosenCandidateId
+    && !trace.degradation.some((code) => code.startsWith('planner-'))
+  return trace.structuredCandidateId !== undefined
+    && trace.chosenCandidateId === trace.structuredCandidateId
+    && trace.forcedPolicyResult?.selectedCandidateId === undefined
+    && trace.privateEvilQuestCardPolicy?.selectedCard === undefined
+    && !plannerSelectionAccepted
+}
+
+function validNativeScoreAttribution(
+  trace: DecisionTrace,
+  replay: DecisionComponentRun,
+): boolean {
+  if (!trace.components) return false
+  const selected = nativeScoreSelectionSurvived(trace)
+  for (const expected of replay.policyUse) {
+    if (!NATIVE_SCORE_COMPONENT_IDS.has(expected.component.id)) continue
+    const actual = trace.components.policyUse.find(
+      (use) => isDeepStrictEqual(use.component, expected.component),
+    )
+    if (!actual) return false
+    const consumed = expected.stages.includes('candidate-score')
+    const stages = [
+      ...(consumed ? ['candidate-score'] : []),
+      ...(consumed && selected ? ['action-selection'] : []),
+    ]
+    if (
+      actual.used !== (stages.length > 0)
+      || !isDeepStrictEqual(actual.stages, stages)
+    ) return false
+  }
+  return true
+}
+
+function expectedNativeDiagnostics(
+  context: CandidateScoringContext,
+  trace: DecisionTrace,
+  chain: ResolvedScoreLayerChain,
+): ExpectedNativeDiagnostics {
+  if (!trace.components) {
+    throw new Error('native score replay requires the component run')
+  }
+  const compatibilityCandidateId = candidateIdForDecision(
+    heuristicDecide(
+      context.request,
+      context.view,
+      context.deterministicSeed,
+    ),
+  )
+  const replay = replayNativeScoresForAdmission({
+    chain,
+    request: context.request,
+    view: context.view,
+    analysis: context.analysis,
+    candidates: context.candidates,
+    ...(context.hypotheticalTeamCandidates
+      ? {
+          hypotheticalTeamCandidates:
+            context.hypotheticalTeamCandidates,
+        }
+      : {}),
+    forced: context.forced,
+    deterministicSeed: context.deterministicSeed,
+    compatibilityCandidateId,
+    componentDefinitions: PRODUCTION_COMPONENT_REGISTRY.definitions(),
+    componentRun: trace.components,
+  })
+  const scorerVersion = replay.resolvedScorerVersion
+  const morganaToken =
+    scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
+      ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
+      : MORGANA_ROLE_UTILITY_COMPONENT
+  const diagnosticContext: CandidateScoringContext = {
+    ...context,
+    ...(componentPayload(trace.components, GOOD_ROLE_UTILITY_COMPONENT)
+      ? {
+          roleUtility: componentPayload(
+            trace.components,
+            GOOD_ROLE_UTILITY_COMPONENT,
+          ),
+        }
+      : {}),
+    ...(componentPayload(trace.components, EVIL_ROLE_UTILITY_COMPONENT)
+      ? {
+          evilRoleUtility: componentPayload(
+            trace.components,
+            EVIL_ROLE_UTILITY_COMPONENT,
+          ),
+        }
+      : {}),
+    ...(componentPayload(trace.components, morganaToken)
+      ? {
+          morganaRoleUtility: componentPayload(
+            trace.components,
+            morganaToken,
+          ),
+        }
+      : {}),
+  }
+  return Object.freeze({
+    scores: projectConfiguredScoreDiagnostics(
+      diagnosticContext,
+      replay.rows,
+      scorerVersion,
+    ),
+    componentRun: replay.componentRun,
+    resolvedScorerVersion: scorerVersion,
+  })
+}
+
+function validateExactNativeScoreSurface(
   trace: DecisionTrace,
   req: DecisionRequest,
   view: PlayerView,
   deterministicSeed: string,
+  d3HostSurface: ExactPolicyHostSurface,
+  expectedArchitectureIdentity: ResolvedArchitectureIdentity,
 ): boolean {
   try {
-    const components = trace.componentVersions!
-    const candidates = legalCandidates(req, view)
-    const policyTeams = candidateTeams(candidates, view)
-    const hypotheticalTeamCandidates = req.kind === 'vote'
-      ? hypotheticalProposalCandidates(view)
-      : undefined
-    const hypotheticalTeams = hypotheticalTeamCandidates
-      ? candidateTeams(hypotheticalTeamCandidates, view)
-      : undefined
-    const analysis = analyzeSituation(view, {
-      belief: exactBelief(view),
-      policyCandidateTeams: policyTeams,
-      ...(req.kind === 'propose'
-        ? { policyCandidateAssessments: policyTeams }
-        : {}),
-      ...(hypotheticalTeams
-        ? {
-            policyCandidateAssessments: hypotheticalTeams,
-            goodVote: true,
-          }
-        : {}),
-    })
-    const forced = applyForcedPolicy(req, view, analysis, candidates)
-    const scorer =
-      components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-        ? seededRoleObjectiveScorer
-        : components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
-          ? roleObjectiveScorer
-          : components.scorer === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-            ? seededGoodProposalVoteScorer
-            : components.scorer === GOOD_PROPOSAL_VOTE_SCORER_VERSION
-              ? goodProposalVoteScorer
-              : undefined
-    if (!scorer) return false
-    const expectedScores = scorer.score({
+    const {
+      candidates,
+      analysis,
+      hypotheticalTeamCandidates,
+      effectiveForced: forced,
+    } = d3HostSurface
+    const scorerVersion = trace.componentVersions?.scorer
+    const configuredScorer =
+      expectedArchitectureIdentity.configuredPipeline.scoring
+        .configuredScorer
+    const chain = trustedNativeScoreChain(expectedArchitectureIdentity)
+    if (
+      !scorerVersion
+      || !NATIVE_SCORER_VERSIONS.has(scorerVersion)
+      || !chain
+    ) {
+      return false
+    }
+    const expected = expectedNativeDiagnostics({
       deterministicSeed,
       request: req,
       view,
@@ -4015,59 +4342,20 @@ function validateExactRolePolicySurface(
       ...(hypotheticalTeamCandidates
         ? { hypotheticalTeamCandidates }
         : {}),
-      ...(trace.privateRoleUtility
-        ? { roleUtility: trace.privateRoleUtility }
-        : {}),
       forced,
-    })
-    return (
-      isDeepStrictEqual(trace.forcedPolicyResult, forced)
-      && isDeepStrictEqual(trace.candidateScores, expectedScores)
+    }, trace, chain)
+    const expectedConfiguredAttribution =
+      expected.resolvedScorerVersion === configuredScorer
+        ? undefined
+        : configuredScorer
+    return isDeepStrictEqual(trace.forcedPolicyResult, forced)
+      && isDeepStrictEqual(trace.candidateScores, expected.scores)
+      && scorerVersion === expected.resolvedScorerVersion
+      && trace.componentVersions?.configuredScorer
+        === expectedConfiguredAttribution
       && trace.structuredCandidateId
-        === structuredChoice(expectedScores).candidateId
-    )
-  } catch {
-    return false
-  }
-}
-
-function validateExactEvilRolePolicySurface(
-  trace: DecisionTrace,
-  req: DecisionRequest,
-  view: PlayerView,
-  deterministicSeed: string,
-): boolean {
-  try {
-    const candidates = legalCandidates(req, view)
-    const analysis = analyzeSituation(view, {
-      belief: exactBelief(view),
-      policyCandidateTeams: candidateTeams(candidates, view),
-    })
-    const forced = applyForcedPolicy(req, view, analysis, candidates)
-    const scorer =
-      trace.componentVersions?.scorer
-        === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-        ? seededEvilRoleObjectiveScorer
-        : trace.componentVersions?.scorer
-            === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-          ? evilRoleObjectiveScorer
-          : undefined
-    if (!scorer || !trace.privateEvilRoleUtility) return false
-    const expectedScores = scorer.score({
-      deterministicSeed,
-      request: req,
-      view,
-      analysis,
-      candidates,
-      evilRoleUtility: trace.privateEvilRoleUtility,
-      forced,
-    })
-    return (
-      isDeepStrictEqual(trace.forcedPolicyResult, forced)
-      && isDeepStrictEqual(trace.candidateScores, expectedScores)
-      && trace.structuredCandidateId
-        === structuredChoice(expectedScores).candidateId
-    )
+        === structuredChoice(expected.scores).candidateId
+      && validNativeScoreAttribution(trace, expected.componentRun)
   } catch {
     return false
   }
@@ -4287,6 +4575,185 @@ function validateRoutedEvilDependencyHostJoin(
   }
 }
 
+interface ExactPolicyHostSurface {
+  readonly candidates: ReturnType<typeof legalCandidates>
+  readonly analysis: ReturnType<typeof analyzeSituation>
+  readonly hypotheticalTeamCandidates?:
+    ReturnType<typeof hypotheticalProposalCandidates>
+  readonly universalForced: ForcedPolicyResult
+  readonly effectiveForced: ForcedPolicyResult
+}
+
+function trustedNativeScoreChain(
+  identity: ResolvedArchitectureIdentity,
+): ResolvedScoreLayerChain | undefined {
+  try {
+    const order = identity.scoreLayerOrder
+    const terminal = order.at(-1)
+    if (!terminal) return undefined
+    const chain = createConfiguredScoreLayerRegistry().resolve({
+      terminal,
+      declaredOrder: order,
+    })
+    const scoring = identity.configuredPipeline.scoring
+    const expectedTerminal = [
+      scoring.configuredScorer,
+      ...scoring.configuredBaseChain,
+    ].find((version) => NATIVE_SCORER_VERSIONS.has(version))
+      ?? CANDIDATE_SCORER_VERSION
+    if (
+      scoring.invalidOutputFallback !== CANDIDATE_SCORER_VERSION
+      || terminal.version !== expectedTerminal
+    ) return undefined
+    return chain
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Construct the one exact host-owned policy/scoring input surface. The
+ * configured score chain comes only from an out-of-band resolved identity;
+ * witnessless protocol traces receive the compatibility analysis shape and
+ * remain diagnostic.
+ */
+function exactPolicyHostSurface(
+  req: DecisionRequest,
+  view: PlayerView,
+  expectedArchitectureIdentity?: ResolvedArchitectureIdentity,
+): ExactPolicyHostSurface | undefined {
+  try {
+    const candidates = legalCandidates(req, view)
+    const policyCandidateTeams = candidateTeams(candidates, view)
+    const chain = expectedArchitectureIdentity
+      ? trustedNativeScoreChain(expectedArchitectureIdentity)
+      : configuredScoreLayerChainForVersion(CANDIDATE_SCORER_VERSION)
+    if (!chain) return undefined
+    const analysisPlan = combineSituationAnalysisRequirements(
+      prepareScoreLayerRequirements(chain, {
+        request: Object.freeze(structuredClone(req)),
+        view: Object.freeze(structuredClone(view)),
+      }).requirements,
+    )
+    const hypotheticalTeamCandidates = analysisPlan === 'good-vote'
+      ? hypotheticalProposalCandidates(view)
+      : undefined
+    const hypotheticalTeams = hypotheticalTeamCandidates
+      ? candidateTeams(hypotheticalTeamCandidates, view)
+      : undefined
+    const analysis = analyzeSituation(view, {
+      belief: exactBelief(view),
+      policyCandidateTeams,
+      ...(analysisPlan === 'good-proposal'
+        ? { policyCandidateAssessments: policyCandidateTeams }
+        : {}),
+      ...(hypotheticalTeams
+        ? {
+            policyCandidateAssessments: hypotheticalTeams,
+            goodVote: true,
+          }
+        : {}),
+    })
+    const universalForced = applyForcedPolicy(
+      req,
+      view,
+      analysis,
+      candidates,
+    )
+    return {
+      candidates,
+      analysis,
+      ...(hypotheticalTeamCandidates
+        ? { hypotheticalTeamCandidates }
+        : {}),
+      universalForced,
+      effectiveForced: universalForced,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function exactEvilQuestCardHostSurface(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+  baseSurface: ExactPolicyHostSurface | undefined = exactPolicyHostSurface(
+    req,
+    view,
+  ),
+): ExactPolicyHostSurface | undefined {
+  const configured =
+    trace.componentVersions?.configuredEvilQuestCardPolicy
+  const component = trace.componentVersions?.evilQuestCardPolicy
+  const policy = trace.privateEvilQuestCardPolicy
+  const applicable =
+    req.kind === 'quest'
+    && view.alignment === 'evil'
+    && view.role !== 'oberon'
+  try {
+    if (!baseSurface) return undefined
+    const {
+      candidates,
+      analysis,
+      universalForced,
+    } = baseSurface
+    if (!policy && component === undefined) {
+      if (configured && applicable && !universalForced.applied) {
+        return undefined
+      }
+      if (!isDeepStrictEqual(trace.forcedPolicyResult, universalForced)) {
+        return undefined
+      }
+      return baseSurface
+    }
+    if (
+      !policy
+      || !applicable
+      || component !== policy.policyVersion
+      || configured !== policy.policyVersion
+      || (
+        configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+        && configured !== EVIL_QUEST_ROBUST_POLICY_VERSION
+      )
+      || !validatePrivateEvilQuestCardPolicyHostJoin(policy, {
+        req,
+        view,
+        analysis,
+        mode: policy.mode,
+      })
+      || universalForced.applied
+    ) return undefined
+    const effectiveForced = applyForcedPolicy(
+      req,
+      view,
+      analysis,
+      candidates,
+      { evilQuestCardPolicy: policy },
+    )
+    const selectedId = candidateIdForDecision({
+      kind: 'quest',
+      card: policy.selectedCard!,
+    })
+    if (
+      !policy.applicable
+      || policy.selectedCard === undefined
+      || !isDeepStrictEqual(trace.forcedPolicyResult, effectiveForced)
+      || effectiveForced.selectedCandidateId !== selectedId
+      || trace.structuredCandidateId !== selectedId
+      || trace.chosenCandidateId !== selectedId
+      || trace.action.kind !== 'quest'
+      || trace.action.card !== policy.selectedCard
+    ) return undefined
+    return {
+      ...baseSurface,
+      effectiveForced,
+    }
+  } catch {
+    return undefined
+  }
+}
+
 export function validateSuppressedEvilQuestCardPolicyHostJoin(
   trace: DecisionTrace,
   req: DecisionRequest,
@@ -4298,88 +4765,18 @@ export function validateSuppressedEvilQuestCardPolicyHostJoin(
     req.kind === 'quest'
     && view.alignment === 'evil'
     && view.role !== 'oberon'
-  if (
+  const surface = exactEvilQuestCardHostSurface(trace, req, view)
+  return (
     (
-      configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      && configured !== EVIL_QUEST_ROBUST_POLICY_VERSION
+      configured === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      || configured === EVIL_QUEST_ROBUST_POLICY_VERSION
     )
-    || !applicable
-    || trace.componentVersions?.evilQuestCardPolicy !== undefined
-    || trace.privateEvilQuestCardPolicy !== undefined
-  ) return false
-  try {
-    const candidates = legalCandidates(req, view)
-    const analysis = analyzeSituation(view, {
-      belief: exactBelief(view),
-      policyCandidateTeams: candidateTeams(candidates, view),
-    })
-    const forced = applyForcedPolicy(req, view, analysis, candidates)
-    return (
-      forced.applied
-      && isDeepStrictEqual(trace.forcedPolicyResult, forced)
-    )
-  } catch {
-    return false
-  }
-}
-
-function validateEvilQuestCardPolicyHostJoin(
-  trace: DecisionTrace,
-  req: DecisionRequest,
-  view: PlayerView,
-): boolean {
-  const policy = trace.privateEvilQuestCardPolicy
-  const component = trace.componentVersions?.evilQuestCardPolicy
-  const configured =
-    trace.componentVersions?.configuredEvilQuestCardPolicy
-  const applicable =
-    req.kind === 'quest'
-    && view.alignment === 'evil'
-    && view.role !== 'oberon'
-  if (!policy && component === undefined) {
-    return !(configured && applicable)
-      || validateSuppressedEvilQuestCardPolicyHostJoin(trace, req, view)
-  }
-  if (
-    !policy
-    || component !== policy.policyVersion
-    || configured !== policy.policyVersion
-  ) return false
-  try {
-    const candidates = legalCandidates(req, view)
-    const analysis = analyzeSituation(view, {
-      belief: exactBelief(view),
-      policyCandidateTeams: candidateTeams(candidates, view),
-    })
-    if (!validatePrivateEvilQuestCardPolicyHostJoin(policy, {
-      req,
-      view,
-      analysis,
-      mode: policy.mode,
-    })) return false
-    if (applyForcedPolicy(req, view, analysis, candidates).applied) {
-      return false
-    }
-    const forced = applyForcedPolicy(req, view, analysis, candidates, {
-      evilQuestCardPolicy: policy,
-    })
-    const selectedId = candidateIdForDecision({
-      kind: 'quest',
-      card: policy.selectedCard!,
-    })
-    return (
-      policy.applicable
-      && policy.selectedCard !== undefined
-      && isDeepStrictEqual(trace.forcedPolicyResult, forced)
-      && forced.selectedCandidateId === selectedId
-      && trace.structuredCandidateId === selectedId
-      && trace.chosenCandidateId === selectedId
-      && trace.action.kind === 'quest'
-      && trace.action.card === policy.selectedCard
-    )
-  } catch {
-    return false
-  }
+    && applicable
+    && trace.componentVersions?.evilQuestCardPolicy === undefined
+    && trace.privateEvilQuestCardPolicy === undefined
+    && surface !== undefined
+    && surface.universalForced.applied
+  )
 }
 
 function isFullPlayerView(
@@ -4404,24 +4801,42 @@ export function validateExternalDecisionTrace(
   trace: unknown,
   hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): trace is DecisionTrace {
+  const candidate = trace as DecisionTrace
+  const claimsD3QuestPolicy =
+    req.kind === 'quest'
+    && (
+      candidate.componentVersions?.configuredEvilQuestCardPolicy
+        !== undefined
+      || candidate.componentVersions?.evilQuestCardPolicy !== undefined
+      || candidate.privateEvilQuestCardPolicy !== undefined
+    )
   return validDecisionTrace(req, decision, trace, hostView)
     && (
       !isFullPlayerView(hostView)
       || (
-        validateExactRoleDependencyHostJoin(
-          trace as DecisionTrace,
-          req,
-          hostView,
+        (
+          (trace as DecisionTrace).version
+            === COMPONENT_DECISION_TRACE_VERSION
+          || (
+            validateExactRoleDependencyHostJoin(
+              trace as DecisionTrace,
+              req,
+              hostView,
+            )
+            && validateRoutedEvilDependencyHostJoin(
+              trace as DecisionTrace,
+              req,
+              hostView,
+            )
+          )
         )
-        && validateRoutedEvilDependencyHostJoin(
-          trace as DecisionTrace,
-          req,
-          hostView,
-        )
-        && validateEvilQuestCardPolicyHostJoin(
-          trace as DecisionTrace,
-          req,
-          hostView,
+        && (
+          !claimsD3QuestPolicy
+          || exactEvilQuestCardHostSurface(
+            candidate,
+            req,
+            hostView,
+          ) !== undefined
         )
       )
     )

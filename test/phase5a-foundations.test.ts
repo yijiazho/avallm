@@ -23,9 +23,11 @@ import {
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import {
   GOOD_PROPOSAL_SCORER_VERSION,
-  scoreGoodProposalCandidates,
   validateCandidateScores,
 } from '../server/agents/policy/score.ts'
+import {
+  calculateGoodProposalCandidateScores,
+} from '../server/agents/score-layers/good.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import { runGame } from '../server/sim/runner.ts'
 import { createGame } from '../server/engine/game.ts'
@@ -161,7 +163,7 @@ test('non-uniform world weights drive every posterior projection', () => {
       heuristicDecide(request, view, 'phase5a-weighted'),
     ),
   }
-  const scores = scoreGoodProposalCandidates(context)
+  const scores = calculateGoodProposalCandidateScores(context)
   validateCandidateScores(context, scores, GOOD_PROPOSAL_SCORER_VERSION)
   assert.ok(scores.every(
     (score) => score.features?.semantics === 'weighted-joint',

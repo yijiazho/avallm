@@ -771,7 +771,7 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
   )
   assert.equal(valid(coherentPayload), false)
 
-  for (const mutate of [
+  for (const [index, mutate] of [
     (trace: typeof original) => {
       const entry = trace.components!.entries[1]
       ;(entry.component as any).id = 'forged-native'
@@ -800,10 +800,10 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
         status: 'inapplicable',
       }
     },
-  ]) {
+  ].entries()) {
     const forged = structuredClone(original)
     mutate(forged)
-    assert.equal(valid(forged), false)
+    assert.equal(valid(forged), false, `graph mutation ${index}`)
   }
 
   let getterCalls = 0

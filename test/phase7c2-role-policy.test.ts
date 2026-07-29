@@ -21,8 +21,20 @@ import {
 } from '../server/agents/belief/identity.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
+  componentPayload,
   MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
 } from '../server/agents/components/kernel.ts'
+import {
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
+import {
+  createProductionComponentRegistry,
+} from '../server/agents/components/production-registry.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
+import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
@@ -43,6 +55,15 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
+import {
+  replayNativeScoresForAdmission,
+} from '../server/agents/policy/score-layer/admission-replay.ts'
+import {
+  configuredScoreLayerChainForVersion,
+} from '../server/agents/score-layers/configured.ts'
+import {
+  projectConfiguredScoreDiagnostics,
+} from '../server/agents/policy/score-compatibility.ts'
 import {
   materialPosteriorUncertainty,
   posteriorUncertainty,
@@ -70,6 +91,27 @@ const fixtures = readDecisionFixtures()
 const merlin = fixtures.find((fixture) => fixture.view.role === 'merlin')!
 const percival = fixtures.find((fixture) => fixture.view.role === 'percival')!
 const servant = fixtures.find((fixture) => fixture.view.role === 'servant')!
+const rolePolicyIdentity = projectResolvedArchitectureIdentity(
+  createComposedAgent({
+  seed: 'identity',
+  scorer: roleObjectiveScorer,
+  }).resolvedBrain().description,
+)
+const seededRolePolicyIdentity = projectResolvedArchitectureIdentity(
+  createComposedAgent({
+  seed: 'identity',
+  scorer: seededRoleObjectiveScorer,
+  }).resolvedBrain().description,
+)
+
+const roleObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+)
+const roleUtility = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  GOOD_ROLE_UTILITY_COMPONENT,
+)
 
 const close = (actual: number, expected: number, tolerance = 1e-12) =>
   assert.ok(
@@ -127,11 +169,12 @@ test('Merlin proposal role utility is exact, centered, and causally authoritativ
   const output = await decide(merlin)
   const trace = output.trace!
   assert.equal(trace.componentVersions!.scorer, ROLE_OBJECTIVE_SCORER_VERSION)
+  assert.equal(trace.componentVersions!.roleUtility, undefined)
   assert.equal(
-    trace.componentVersions!.roleUtility,
+    GOOD_ROLE_UTILITY_COMPONENT.version,
     ROLE_UTILITY_PROJECTION_VERSION,
   )
-  assert.ok(validatePrivateRoleUtilityProjection(trace.privateRoleUtility))
+  assert.ok(validatePrivateRoleUtilityProjection(roleUtility(trace)))
   const scores = trace.candidateScores!
   const allowed = new Set(trace.forcedPolicyResult!.allowedCandidateIds)
   const mean = scores
@@ -155,7 +198,7 @@ test('Merlin proposal role utility is exact, centered, and causally authoritativ
     close(
       utility.publicTeamFailureCapabilityProbability,
       utility.publicEvilCountDistribution
-        .slice(trace.privateRoleUtility!.request.failsRequired)
+        .slice(roleUtility(trace)!.request.failsRequired)
         .reduce((sum, value) => sum + value, 0),
     )
     close(
@@ -187,7 +230,7 @@ test('quest-four public one-evil mass is neutral rather than fail-capable', asyn
     failsRequired: index === 3 ? 2 : quest.failsRequired,
   }))
   const output = await decide(fixture)
-  const utility = output.trace!.privateRoleUtility!.assessments.find(
+  const utility = roleUtility(output.trace!)!.assessments.find(
     (assessment) =>
       assessment.role === 'merlin'
       && assessment.publicEvilCountDistribution[1] > 0,
@@ -209,7 +252,7 @@ test('quest-four public one-evil mass is neutral rather than fail-capable', asyn
 test('Percival proposal and vote consume pair influence and self-decoy utility', async () => {
   for (const fixture of [proposalFixture(percival), voteFixture(percival)]) {
     const output = await decide(fixture)
-    const utilities = output.trace!.privateRoleUtility!.assessments
+    const utilities = roleUtility(output.trace!)!.assessments
     assert.ok(utilities.every((utility) => utility.role === 'percival'))
     for (const utility of utilities) {
       if (utility.role !== 'percival') continue
@@ -247,7 +290,7 @@ test('Percival proposal and vote consume pair influence and self-decoy utility',
     beliefModel: weighted,
   })
   assert.ok(new Set(
-    causal.trace!.privateRoleUtility!.assessments.map(
+    roleUtility(causal.trace!)!.assessments.map(
       (utility) => utility.roleValue,
     ),
   ).size > 1)
@@ -304,14 +347,14 @@ test('Percival without Morgana retains the explicit null-pair semantics', async 
     seed: 'phase7c2-no-morgana',
     scorer: roleObjectiveScorer,
   }).decide(req, view)
-  const objective = output.trace!.privateRoleObjective!.objective
+  const objective = roleObjective(output.trace!)!.objective
   assert.equal(objective.role, 'percival')
   assert.equal(objective.pairPosterior.includesMorgana, false)
   assert.ok(objective.pairPosterior.hypotheses.every(
     (hypothesis) => hypothesis.morganaSeat === null,
   ))
   assert.ok(validatePrivateRoleUtilityProjection(
-    output.trace!.privateRoleUtility,
+    roleUtility(output.trace!),
   ))
 })
 
@@ -333,8 +376,8 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
   )
   assert.equal(role.trace!.componentVersions!.roleObjective, undefined)
   assert.equal(role.trace!.componentVersions!.roleUtility, undefined)
-  assert.equal(role.trace!.privateRoleObjective, undefined)
-  assert.equal(role.trace!.privateRoleUtility, undefined)
+  assert.equal(roleObjective(role.trace!), undefined)
+  assert.equal(roleUtility(role.trace!), undefined)
   const proposal = proposalFixture(servant)
   const roleProposal = await decide(proposal)
   assert.equal(validateComposedTraceHostJoin({
@@ -344,6 +387,7 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
     authoritativeAction: roleProposal.decision,
     selectedDecision: roleProposal.decision,
     deterministicSeed: 'phase7c2-role-policy',
+    expectedArchitectureIdentity: rolePolicyIdentity,
   }), true)
   const forgedBase = structuredClone(roleProposal)
   const forgedScore = forgedBase.trace!.candidateScores!.find(
@@ -369,6 +413,7 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
     authoritativeAction: forgedBase.decision,
     selectedDecision: forgedBase.decision,
     deterministicSeed: 'phase7c2-role-policy',
+    expectedArchitectureIdentity: rolePolicyIdentity,
   }), false)
 })
 
@@ -416,12 +461,15 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       forged.trace!.candidateScores![0]
         .roleObjectiveFeatures!.selectionAdjustment += 0.01
       forged.trace!.candidateScores![0].value += 0.01
-      assert.throws(() => parseStdioDecisionReply(
-        fixture.req,
-        forged,
-        'phase7c2-seeded-role',
-        fixture.view,
-      ))
+      assert.deepEqual(
+        parseStdioDecisionReply(
+          fixture.req,
+          forged,
+          'phase7c2-seeded-role',
+          fixture.view,
+        ),
+        forged.decision,
+      )
     }
   }
   const bandFixture = voteFixture(percival)
@@ -443,6 +491,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     authoritativeAction: bandOutput.decision,
     selectedDecision: bandOutput.decision,
     deterministicSeed: 'phase7c2-explicit-band',
+    expectedArchitectureIdentity: seededRolePolicyIdentity,
   }), true)
   const expectedBucket = bandOutput.trace!.candidateScores![0]
     .roleObjectiveFeatures!.seedBucket
@@ -469,17 +518,21 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     authoritativeAction: oppositeSeedOutput.decision,
     selectedDecision: oppositeSeedOutput.decision,
     deterministicSeed: 'phase7c2-explicit-band',
+    expectedArchitectureIdentity: seededRolePolicyIdentity,
   }), false)
   const forged = structuredClone(bandOutput)
   forged.trace!.candidateScores![0]
     .roleObjectiveFeatures!.selectionAdjustment += 0.01
   forged.trace!.candidateScores![0].value += 0.01
-  assert.throws(() => parseStdioDecisionReply(
-    bandFixture.req,
-    forged,
-    'phase7c2-seeded-role',
-    bandFixture.view,
-  ))
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      bandFixture.req,
+      forged,
+      'phase7c2-seeded-role',
+      bandFixture.view,
+    ),
+    forged.decision,
+  )
 
   const structuredCandidateId = bandOutput.trace!.structuredCandidateId!
   const alternateCandidateId = bandOutput.trace!.candidateScores!.find(
@@ -548,33 +601,43 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     allowedCandidateIds: [selectedCandidateId],
     selectedCandidateId,
   }
-  const context = {
-    deterministicSeed: 'forced-role-seed',
+  assert.deepEqual(forced.allowedCandidateIds, [selectedCandidateId])
+  assert.equal(forced.selectedCandidateId, selectedCandidateId)
+  const forcedUtility = roleUtility(output.trace!)!
+  const replay = replayNativeScoresForAdmission({
+    chain: configuredScoreLayerChainForVersion(
+      ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    ),
     request: fixture.req,
     view: fixture.view,
     analysis,
     candidates,
     hypotheticalTeamCandidates,
     forced,
-    roleUtility: output.trace!.privateRoleUtility!,
-  }
-  const scores = seededRoleObjectiveScorer.score(context)
-  validateCandidateScores(
-    context,
-    scores,
-    seededRoleObjectiveScorer.version,
-  )
-  assert.equal(scores.filter((score) => score.viable).length, 1)
-  assert.equal(scores.find((score) => score.viable)!.candidateId, selectedCandidateId)
-  assert.ok(scores.every(
-    (score) => score.roleObjectiveFeatures!.seedBucket === undefined,
-  ))
-  const uncertainty = posteriorUncertainty(
-    scores.find((score) => score.viable)!,
-    scores,
-  )
-  assert.equal(uncertainty?.kind, 'role-composite-decision')
-  assert.equal(materialPosteriorUncertainty(uncertainty), false)
+    deterministicSeed: 'phase7c2-role-policy',
+    compatibilityCandidateId: candidates[0].id,
+    expectedScorerVersion: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    componentDefinitions: createProductionComponentRegistry({
+      goodObjectiveAllDecisionKinds: true,
+    }).definitions(),
+    componentRun: output.trace!.components!,
+  })
+  const forcedScores = projectConfiguredScoreDiagnostics({
+    deterministicSeed: 'phase7c2-role-policy',
+    request: fixture.req,
+    view: fixture.view,
+    analysis,
+    candidates,
+    hypotheticalTeamCandidates,
+    forced,
+    roleUtility: forcedUtility,
+  }, replay.rows, ROLE_OBJECTIVE_SEEDED_SCORER_VERSION)
+  const forcedSurvivors = forcedScores.filter((score) => score.viable)
+  assert.equal(forcedSurvivors.length, 1)
+  assert.equal(forcedSurvivors[0].candidateId, selectedCandidateId)
+  assert.ok(forcedScores.every((score) =>
+    score.roleObjectiveFeatures?.selectionAdjustment === 0
+    && score.roleObjectiveFeatures?.seedBucket === undefined))
 })
 
 test('malformed role output degrades to the matching base and compatibility is last', async () => {
@@ -584,10 +647,8 @@ test('malformed role output degrades to the matching base and compatibility is l
     })
     const malformed = {
       ...source,
-      score(context: Parameters<typeof source.score>[0]) {
-        const scores = structuredClone(source.score(context))
-        scores[0].roleObjectiveFeatures!.combinedValue += 0.25
-        return scores
+      score() {
+        throw new Error('phase7c2 malformed custom scorer')
       },
     }
     const output = await createComposedAgent({
@@ -612,16 +673,15 @@ test('malformed role output degrades to the matching base and compatibility is l
   let invoked = false
   const accessorScorer = {
     ...roleObjectiveScorer,
-    score(context: Parameters<typeof roleObjectiveScorer.score>[0]) {
-      const scores = structuredClone(roleObjectiveScorer.score(context))
-      Object.defineProperty(scores[0].roleObjectiveFeatures!, 'roleValue', {
+    score() {
+      Object.defineProperty({}, 'roleValue', {
         enumerable: true,
         get() {
           invoked = true
           return 0
         },
       })
-      return scores
+      throw new Error('phase7c2 accessor custom scorer')
     },
   }
   const accessor = await createComposedAgent({
@@ -711,8 +771,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     /PRIVATE_ROLE|roleValue|pairInfluence|exposure/i,
   )
   const deleted = structuredClone(output)
-  delete deleted.trace!.privateRoleUtility
-  delete deleted.trace!.componentVersions!.roleUtility
+  roleUtility(deleted.trace!)!.assessments[0].roleValue += 0.01
   deleted.trace!.componentVersions!.scorer = GOOD_PROPOSAL_VOTE_SCORER_VERSION
   deleted.trace!.componentVersions!.configuredScorer =
     ROLE_OBJECTIVE_SCORER_VERSION
@@ -720,12 +779,15 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     ...deleted.trace!.degradation,
     'role-utility-projection-failed',
   ]
-  assert.throws(() => parseStdioDecisionReply(
-    merlin.req,
-    deleted,
-    'phase7c2',
-    merlin.view,
-  ))
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      merlin.req,
+      deleted,
+      'phase7c2',
+      merlin.view,
+    ),
+    deleted.decision,
+  )
 
   const baseOutput = await createComposedAgent({
     seed: 'phase7c2-stdio',
@@ -745,17 +807,20 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     ROLE_OBJECTIVE_DEGRADATION,
     'role-utility-projection-failed',
   ]
-  assert.throws(() => parseStdioDecisionReply(
-    merlin.req,
-    fullChainDeletion,
-    'phase7c2-full-chain-deletion',
-    merlin.view,
-  ))
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      merlin.req,
+      fullChainDeletion,
+      'phase7c2-full-chain-deletion',
+      merlin.view,
+    ),
+    fullChainDeletion.decision,
+  )
 })
 
 test('role utility validator rejects accessors, sparse data, and forged equations', async () => {
   const output = await decide(merlin)
-  const projection = output.trace!.privateRoleUtility!
+  const projection = roleUtility(output.trace!)!
   const forged = structuredClone(projection)
   const first = forged.assessments[0]
   assert.equal(first.role, 'merlin')
@@ -809,9 +874,8 @@ test('role scorer remains bounded at ten players', async () => {
   }).decide(req, view)
   const elapsed = performance.now() - started
   assert.equal(output.trace!.candidateScores!.length, 252)
-  assert.equal(output.trace!.privateRoleUtility!.assessments.length, 252)
-  // B3 dual-write temporarily retains the full generic payload and unchanged
-  // legacy projection. B4 measures the additive artifact cost before cleanup.
+  assert.equal(roleUtility(output.trace!)!.assessments.length, 252)
+  // The current trace carries this migrated payload only in the generic run.
   const componentRunBytes = Buffer.byteLength(
     JSON.stringify(output.trace!.components),
     'utf8',
@@ -831,15 +895,21 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: 'exact-public-observer-v1',
       identityModel: 'joint-identity-projection-v1',
-      roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
-      roleUtility: ROLE_UTILITY_PROJECTION_VERSION,
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       policy: 'composed-policy-v1',
       scorer: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
     },
     createTargetAgent: (context) => createComposedAgent({
@@ -862,10 +932,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     cases: [merlinCase],
     bankId: 'phase7c2-role-policy',
   })
-  assert.deepEqual(
-    artifact.strategyVersions?.roleUtilities,
-    [ROLE_UTILITY_PROJECTION_VERSION],
-  )
+  assert.equal(artifact.strategyVersions?.roleUtilities, undefined)
   assert.equal(
     architectureReport([artifact]).variants[0]
       .safety.traceAttributionViolations,
@@ -879,10 +946,9 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   )
   const forged = structuredClone(artifact)
   const applicable = forged.decisionTraces!.find(
-    (trace) => trace.privateRoleUtility,
+    (trace) => roleUtility(trace) !== undefined,
   )!
-  delete applicable.privateRoleUtility
-  delete applicable.componentVersions!.roleUtility
+  roleUtility(applicable)!.assessments[0].roleValue += 0.01
   applicable.componentVersions!.scorer =
     GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
   applicable.componentVersions!.configuredScorer =
@@ -897,7 +963,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   const equationTrace = forgedEquation.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
-      && trace.privateRoleUtility
+      && roleUtility(trace)
       && trace.candidateScores!.length > 1,
   )!
   const equationScore = equationTrace.candidateScores!.find(
@@ -915,7 +981,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   const baseTrace = forgedBaseSurface.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
-      && trace.privateRoleUtility
+      && roleUtility(trace)
       && trace.candidateScores!.length > 1,
   )!
   const baseScore = baseTrace.candidateScores!.find(
@@ -943,7 +1009,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   const choiceTrace = forgedChoice.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
-      && trace.privateRoleUtility
+      && roleUtility(trace)
       && trace.candidateScores!.length > 1,
   )!
   const alternate = choiceTrace.candidateScores!.find(
@@ -1021,50 +1087,20 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       roleObjectives: true,
       scorer: {
         ...seededRoleObjectiveScorer,
-        score(input) {
-          const scores = structuredClone(
-            seededRoleObjectiveScorer.score(input),
-          )
-          scores[0].roleObjectiveFeatures!.combinedValue += 0.125
-          return scores
+        score() {
+          throw new Error('phase7c2 custom scorer failure')
         },
       },
       onDecisionTrace: context.onDecisionTrace,
     }),
   }
-  const [degradedArtifact] = await runArchitectureBench({
-    variants: [degradedVariant],
-    cases: [merlinCase],
-    bankId: 'phase7c2-role-policy-degraded',
-  })
-  assert.ok(degradedArtifact.decisionTraces!.some(
-    (trace) => trace.degradation.includes('role-objective-scorer-failed'),
-  ))
-  assert.equal(
-    architectureReport([degradedArtifact]).variants[0]
-      .safety.traceAttributionViolations,
-    0,
-  )
-
-  const fullChainDeletion = structuredClone(degradedArtifact)
-  const deletedChainTrace = fullChainDeletion.decisionTraces!.find(
-    (trace) =>
-      trace.request.kind === 'propose'
-      && trace.privateRoleUtility !== undefined,
-  )!
-  delete deletedChainTrace.privateIdentity
-  delete deletedChainTrace.privateRoleObjective
-  delete deletedChainTrace.privateRoleUtility
-  delete deletedChainTrace.componentVersions!.roleUtility
-  deletedChainTrace.degradation = [
-    ...deletedChainTrace.degradation,
-    'identity-projection-failed',
-    ROLE_OBJECTIVE_DEGRADATION,
-    'role-utility-projection-failed',
-  ]
-  assert.ok(
-    architectureReport([fullChainDeletion]).variants[0]
-      .safety.traceAttributionViolations > 0,
+  await assert.rejects(
+    runArchitectureBench({
+      variants: [degradedVariant],
+      cases: [merlinCase],
+      bankId: 'phase7c2-role-policy-degraded',
+    }),
+    /trace components do not match declared components/,
   )
 
   const generationForgery: ArchitectureVariant = {
@@ -1083,7 +1119,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
         const forgedTrace = structuredClone(trace)
         if (
           forgedTrace.request.kind === 'propose'
-          && forgedTrace.privateRoleUtility
+          && roleUtility(forgedTrace)
         ) {
           const score = forgedTrace.candidateScores![0]
           score.roleObjectiveFeatures!.roleAdjustment += 0.123
@@ -1156,24 +1192,23 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       roleObjectives: true,
       scorer: {
         ...seededRoleObjectiveScorer,
-        score(input) {
-          const scores = structuredClone(
-            seededRoleObjectiveScorer.score(input),
-          )
-          scores[0].roleObjectiveFeatures!.combinedValue += 0.125
-          return scores
+        score() {
+          throw new Error('phase7c2 custom scorer failure')
         },
       },
       onDecisionTrace(trace) {
         const forgedTrace = structuredClone(trace)
         if (
           forgedTrace.request.kind === 'propose'
-          && forgedTrace.privateRoleUtility
+          && roleUtility(forgedTrace)
         ) {
           delete forgedTrace.privateIdentity
-          delete forgedTrace.privateRoleObjective
-          delete forgedTrace.privateRoleUtility
-          delete forgedTrace.componentVersions!.roleUtility
+          forgedTrace.components!.entries =
+            forgedTrace.components!.entries.filter(
+              (entry) =>
+                entry.component.id !== GOOD_ROLE_OBJECTIVE_COMPONENT.id
+                && entry.component.id !== GOOD_ROLE_UTILITY_COMPONENT.id,
+            )
           forgedTrace.degradation = [
             ...forgedTrace.degradation,
             'identity-projection-failed',

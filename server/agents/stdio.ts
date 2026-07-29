@@ -4,8 +4,10 @@
 //   us    -> { id, type: 'decide', request, view }
 //   child -> { id, decision }
 // Agents that declare discuss:false are auto-passed in table-talk rounds.
-// Any protocol failure throws from decide(); the runner's fallback ladder
-// (heuristic substitute) keeps the game moving.
+// Invalid decisions and protocol failures throw from decide(); the runner's
+// fallback ladder keeps the game moving. Optional trace telemetry is
+// non-authoritative: rejection strips the trace without changing a legal
+// external action.
 
 import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
@@ -56,7 +58,7 @@ export function parseStdioDecisionReply(
     record.trace,
     hostView,
   )) {
-    throw new Error(`${label} returned invalid decision trace for ${req.kind}`)
+    return decision
   }
   return { decision, trace: record.trace }
 }

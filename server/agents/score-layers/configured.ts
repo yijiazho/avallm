@@ -1,8 +1,4 @@
 import type { DecisionKind } from '../../engine/types.ts'
-import type {
-  NativeScoreLayersResolvedDecisionFrame,
-  ScoredDecisionFrame,
-} from '../policy/decision-frame.ts'
 import type { CandidateScorer } from '../policy/score.ts'
 import type {
   ScoreLayerRegistry,
@@ -11,12 +7,18 @@ import {
   createScoreLayerRegistry,
 } from '../policy/score-layer/registry.ts'
 import type { ScoreLayerToken } from '../policy/score-layer/types.ts'
+import type { ResolvedScoreLayerChain } from '../policy/score-layer/types.ts'
 import {
+  COMPATIBILITY_SCORE_LAYER,
+  GOOD_PROPOSAL_SCORE_LAYER,
+  GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   GOOD_ROLE_SCORE_LAYER,
+  SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   SEEDED_GOOD_ROLE_SCORE_LAYER,
   goodScoreLayerDefinitions,
   goodScoreLayerTerminalFor,
   goodScoreLayersApplyToDecision,
+  calculateDeterministicGoodBase,
 } from './good.ts'
 import {
   EVIL_ROLE_SCORE_LAYER,
@@ -25,11 +27,8 @@ import {
   evilScoreLayerTerminalFor,
 } from './evil.ts'
 import {
-  assertEvilScoreLayerLegacyEquality,
-  assertGoodScoreLayerLegacyEquality,
-  assertMorganaScoreLayerLegacyEquality,
-} from './legacy-equality.ts'
-import {
+  MORGANA_ROLE_SCORE_LAYER,
+  SEEDED_MORGANA_ROLE_SCORE_LAYER,
   morganaScoreLayerDefinitions,
   morganaScoreLayerTerminalFor,
 } from './morgana.ts'
@@ -49,6 +48,57 @@ export function configuredScoreLayerTerminalFor(
     ?? goodScoreLayerTerminalFor(scorer)
 }
 
+/**
+ * Custom sources always carry a canonical native failure path. The first
+ * registered descriptor in their declared base chain wins; otherwise the
+ * total compatibility root is the fallback.
+ */
+export function configuredNativeFallbackTerminalFor(
+  scorer: CandidateScorer | undefined,
+): ScoreLayerToken {
+  const seen = new Set<CandidateScorer>()
+  let current = scorer?.baseScorer
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    const terminal = configuredScoreLayerTerminalFor(current)
+    if (terminal) return terminal
+    current = current.baseScorer
+  }
+  return COMPATIBILITY_SCORE_LAYER
+}
+
+const CONFIGURED_TERMINAL_BY_VERSION = new Map<string, ScoreLayerToken>([
+  COMPATIBILITY_SCORE_LAYER,
+  GOOD_PROPOSAL_SCORE_LAYER,
+  GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+  SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+  GOOD_ROLE_SCORE_LAYER,
+  SEEDED_GOOD_ROLE_SCORE_LAYER,
+  EVIL_ROLE_SCORE_LAYER,
+  SEEDED_EVIL_ROLE_SCORE_LAYER,
+  MORGANA_ROLE_SCORE_LAYER,
+  SEEDED_MORGANA_ROLE_SCORE_LAYER,
+].map((token) => [token.version, token]))
+
+export function configuredScoreLayerTerminalForVersion(
+  version: string,
+): ScoreLayerToken {
+  const terminal = CONFIGURED_TERMINAL_BY_VERSION.get(version)
+  if (!terminal) throw new Error(`unsupported configured scorer ${version}`)
+  return terminal
+}
+
+export function configuredScoreLayerChainForVersion(
+  version: string,
+): ResolvedScoreLayerChain {
+  return createConfiguredScoreLayerRegistry().resolve({
+    terminal: configuredScoreLayerTerminalForVersion(version),
+  })
+}
+
+export const calculateConfiguredDeterministicGoodBase =
+  calculateDeterministicGoodBase
+
 export function configuredScoreLayersApplyToDecision(
   kind: DecisionKind,
 ): boolean {
@@ -67,28 +117,4 @@ export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
       seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
     }),
   ])
-}
-
-/**
- * Temporary A0/A2 shadow edge. A4 deletes this dispatch with the legacy
- * scoring writer after every configured family has crossed the equality gate.
- */
-export function assertConfiguredScoreLayerLegacyEquality(
-  native: NativeScoreLayersResolvedDecisionFrame,
-  legacy: ScoredDecisionFrame,
-): void {
-  const terminal = native.scoreLayerRun.configured.at(-1)
-  if (
-    terminal?.id === 'morgana-role-score'
-    || terminal?.id === 'seeded-morgana-role-score'
-  ) {
-    assertMorganaScoreLayerLegacyEquality(native, legacy)
-  } else if (
-    terminal?.id === 'evil-role-score'
-    || terminal?.id === 'seeded-evil-role-score'
-  ) {
-    assertEvilScoreLayerLegacyEquality(native, legacy)
-  } else {
-    assertGoodScoreLayerLegacyEquality(native, legacy)
-  }
 }

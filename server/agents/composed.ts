@@ -87,10 +87,12 @@ import {
   type DecisionComponentRun,
 } from './components/kernel.ts'
 import {
-  EVIL_ROLE_OBJECTIVE_COMPONENT,
-  EVIL_ROLE_UTILITY_COMPONENT,
   EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from './components/legacy-role-adapters.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  EVIL_ROLE_UTILITY_COMPONENT,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
@@ -103,7 +105,7 @@ import {
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
   PRIVATE_SITUATION_INPUT,
-} from './components/legacy-role-adapters.ts'
+} from './components/native-score-components.ts'
 import {
   createProductionComponentRegistry,
 } from './components/production-registry.ts'
@@ -178,38 +180,44 @@ import {
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  scoreCandidates,
+  isCustomCandidateScorer,
   type CandidateScore,
   type CandidateScorer,
   type CandidateScoringContext,
 } from './policy/score.ts'
-import { resolveLegacyScores } from './policy/legacy-scoring.ts'
+import { executeCustomScores } from './policy/custom-scoring.ts'
 import {
   canonicalDecisionFrame,
   commitDecision,
-  projectScoredFrameForLegacy,
+  projectScoredFrameForCompatibility,
+  projectScoringContext,
   projectVoicedFrameForLegacy,
   selectDecisionCandidate,
   selectedMechanicalDecision,
   withDecisionAnalysis,
   withDecisionVoice,
   withLegacyD3QuestCard,
-  withLegacyScoring,
+  withCustomScoring,
   withLegalCandidates,
   withNativeResolvedComponents,
   withNativeScoreLayers,
+  withNativeScoringAuthority,
   prepareNativeScoreLayers,
+  nativeScorerVersion,
   withResolvedComponents,
   withUniversalForcedPolicy,
   type LegacyPlannerResolution,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
 import {
-  assertConfiguredScoreLayerLegacyEquality,
   configuredScoreLayerTerminalFor,
+  configuredNativeFallbackTerminalFor,
   configuredScoreLayersApplyToDecision,
   createConfiguredScoreLayerRegistry,
 } from './score-layers/configured.ts'
+import {
+  projectConfiguredScoreDiagnostics,
+} from './policy/score-compatibility.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
@@ -431,7 +439,7 @@ function snapshotScorer(
 ): CandidateScorer {
   const existing = seen.get(source)
   if (existing) return existing
-  const score = source.score.bind(source)
+  const score = source.score?.bind(source)
   const snapshot: CandidateScorer = {
     version: source.version,
     ...(source.analysisRequirement
@@ -446,9 +454,13 @@ function snapshotScorer(
     ...(source.morganaRoleUtilityRequirement
       ? { morganaRoleUtilityRequirement: source.morganaRoleUtilityRequirement }
       : {}),
-    score(context: CandidateScoringContext) {
-      return score(context)
-    },
+    ...(score
+      ? {
+          score(context: CandidateScoringContext) {
+            return score(context)
+          },
+        }
+      : {}),
   }
   seen.set(source, snapshot)
   if (source.baseScorer) {
@@ -795,19 +807,9 @@ function composedTrace(
   publicObserver?: PublicObserverSnapshot,
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
-  privateRoleObjective?: PrivateRoleObjectiveSnapshot,
-  privateEvilRoleObjective?: PrivateEvilRoleObjectiveSnapshot,
-  resolvedRoleObjective: RoutedRoleObjectiveModel = 'off',
   roleObjectiveRouterEnabled = false,
-  privateRoleUtility?: PrivateRoleUtilityProjection,
-  privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection,
   configuredEvilQuestCardPolicy?: string,
   privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy,
-  configuredMorganaCounterfeitObjective?: string,
-  publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot,
-  privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective,
-  configuredMorganaRoleUtility?: string,
-  privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection,
 ): DecisionTrace {
   const baseVersions = projectBaseTraceComponentVersions(
     descriptor,
@@ -866,17 +868,8 @@ function composedTrace(
       ...(identityEnabled
         ? { identityModel: JOINT_IDENTITY_MODEL_VERSION }
         : {}),
-      ...(resolvedRoleObjective === 'off'
-        ? {}
-        : { roleObjective: resolvedRoleObjective }),
       ...(roleObjectiveRouterEnabled
         ? { roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION }
-        : {}),
-      ...(privateRoleUtility
-        ? { roleUtility: ROLE_UTILITY_PROJECTION_VERSION }
-        : {}),
-      ...(privateEvilRoleUtility
-        ? { evilRoleUtility: EVIL_ROLE_UTILITY_PROJECTION_VERSION }
         : {}),
       ...(privateEvilQuestCardPolicy
         ? {
@@ -886,27 +879,6 @@ function composedTrace(
         : {}),
       ...(configuredEvilQuestCardPolicy
         ? { configuredEvilQuestCardPolicy }
-        : {}),
-      ...(publicMorganaCounterfeitRead
-        ? {
-            morganaCounterfeitPublicRead:
-              MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
-          }
-        : {}),
-      ...(privateMorganaCounterfeitObjective
-        ? {
-            morganaCounterfeitObjective:
-              MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
-          }
-        : {}),
-      ...(configuredMorganaCounterfeitObjective
-        ? { configuredMorganaCounterfeitObjective }
-        : {}),
-      ...(privateMorganaRoleUtility
-        ? { morganaRoleUtility: MORGANA_ROLE_UTILITY_PROJECTION_VERSION }
-        : {}),
-      ...(configuredMorganaRoleUtility
-        ? { configuredMorganaRoleUtility }
         : {}),
       ...baseVersions.suffix,
     },
@@ -937,40 +909,10 @@ function composedTrace(
     ...(privateIdentity
       ? { privateIdentity: structuredClone(privateIdentity) }
       : {}),
-    ...(privateRoleObjective
-      ? { privateRoleObjective: structuredClone(privateRoleObjective) }
-      : {}),
-    ...(privateEvilRoleObjective
-      ? { privateEvilRoleObjective: structuredClone(privateEvilRoleObjective) }
-      : {}),
-    ...(privateRoleUtility
-      ? { privateRoleUtility: structuredClone(privateRoleUtility) }
-      : {}),
-    ...(privateEvilRoleUtility
-      ? { privateEvilRoleUtility: structuredClone(privateEvilRoleUtility) }
-      : {}),
     ...(privateEvilQuestCardPolicy
       ? {
           privateEvilQuestCardPolicy:
             structuredClone(privateEvilQuestCardPolicy),
-        }
-      : {}),
-    ...(publicMorganaCounterfeitRead
-      ? {
-          publicMorganaCounterfeitRead:
-            structuredClone(publicMorganaCounterfeitRead),
-        }
-      : {}),
-    ...(privateMorganaCounterfeitObjective
-      ? {
-          privateMorganaCounterfeitObjective:
-            structuredClone(privateMorganaCounterfeitObjective),
-        }
-      : {}),
-    ...(privateMorganaRoleUtility
-      ? {
-          privateMorganaRoleUtility:
-            structuredClone(privateMorganaRoleUtility),
         }
       : {}),
   }
@@ -1038,12 +980,23 @@ export function createComposedAgent(
   const compatibilityDecision =
     options.compatibilityDecision ?? heuristicDecide
   const configuredScorerSource = options.scorer
-  const configuredScoreLayerTerminal = configuredScoreLayerTerminalFor(
+  const builtInScoreLayerTerminal = configuredScoreLayerTerminalFor(
     configuredScorerSource,
   )
+  if (
+    configuredScorerSource
+    && !builtInScoreLayerTerminal
+    && !isCustomCandidateScorer(configuredScorerSource)
+  ) {
+    throw new Error(
+      'unknown scorer descriptors must provide a custom score function',
+    )
+  }
+  const configuredScoreLayerTerminal =
+    builtInScoreLayerTerminal
+    ?? configuredNativeFallbackTerminalFor(configuredScorerSource)
   const scorer = snapshotScorer(options.scorer ?? {
     version: CANDIDATE_SCORER_VERSION,
-    score: scoreCandidates,
   })
   const configuredScorerChain = scorerVersions(scorer)
   const goodRoleUtilityConfigured = scorerRequires(
@@ -1605,14 +1558,14 @@ export function createComposedAgent(
         const analyzedFrame = withDecisionAnalysis(
           candidateFrame,
           cognition,
-          nativeScoreLayerLease
-            ? combineSituationAnalysisRequirements(
-                nativeScoreLayerLease.requirements,
-              )
-            : wantsJointVoteAssessments
-              ? 'good-vote'
-              : wantsJointProposalAssessments
-                ? 'good-proposal'
+          wantsJointVoteAssessments
+            ? 'good-vote'
+            : wantsJointProposalAssessments
+              ? 'good-proposal'
+              : nativeScoreLayerLease
+                ? combineSituationAnalysisRequirements(
+                    nativeScoreLayerLease.requirements,
+                  )
                 : 'candidate-teams',
         )
         const analysis = analyzedFrame.analysis
@@ -1688,9 +1641,6 @@ export function createComposedAgent(
             componentRun,
             GOOD_ROLE_OBJECTIVE_COMPONENT,
           )
-          if (roleObjectiveRole && !privateRoleObjective) {
-            degradation.push(ROLE_OBJECTIVE_DEGRADATION)
-          }
         }
         if (configuredComponentIds.has(GOOD_ROLE_UTILITY_COMPONENT.id)) {
           privateRoleUtility = componentPayload(
@@ -1698,7 +1648,6 @@ export function createComposedAgent(
             GOOD_ROLE_UTILITY_COMPONENT,
           )
           if (roleScorerApplicable && !privateRoleUtility) {
-            degradation.push(ROLE_UTILITY_DEGRADATION)
             resolvedScorer = resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
               req,
@@ -1712,9 +1661,6 @@ export function createComposedAgent(
             componentRun,
             EVIL_ROLE_OBJECTIVE_COMPONENT,
           )
-          if (evilRoleObjectiveApplicable && !privateEvilRoleObjective) {
-            degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-          }
         }
         if (configuredComponentIds.has(EVIL_ROLE_UTILITY_COMPONENT.id)) {
           privateEvilRoleUtility = componentPayload(
@@ -1722,7 +1668,6 @@ export function createComposedAgent(
             EVIL_ROLE_UTILITY_COMPONENT,
           )
           if (evilRoleScorerApplicable && !privateEvilRoleUtility) {
-            degradation.push(EVIL_ROLE_UTILITY_DEGRADATION)
             resolvedScorer = resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
               req,
@@ -1743,7 +1688,6 @@ export function createComposedAgent(
           )
           if (!privateMorganaCounterfeitObjective) {
             publicMorganaCounterfeitRead = undefined
-            degradation.push(MORGANA_COUNTERFEIT_DEGRADATION)
           }
           stage('morgana-counterfeit')
         }
@@ -1762,7 +1706,6 @@ export function createComposedAgent(
               === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
             && !privateMorganaRoleUtility
           ) {
-            degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
             resolvedScorer = resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
               req,
@@ -1781,6 +1724,7 @@ export function createComposedAgent(
             postComponentFrame = withLegacyD3QuestCard(
               resolvedFrame,
               configuredEvilQuestCardComponent,
+              nativeScoreLayerLease,
             )
           } else if (
             !universalForced.applied
@@ -1827,14 +1771,6 @@ export function createComposedAgent(
           || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
           || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
           || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-        const fallbackScorer = roleScorerFailed
-          ? resolveRolePolicyScorer({
-              configured: resolvedScorer.baseScorer ?? resolvedScorer,
-              req,
-              view,
-              routedObjective,
-            })
-          : undefined
         const fallbackDegradation =
           resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
           || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
@@ -1855,60 +1791,84 @@ export function createComposedAgent(
               },
             )
           : undefined
-        const scoredFrame = withLegacyScoring(
-          postComponentFrame,
-          () => ({
-            deterministicSeed: seed,
-            compatibilityCandidateId,
-            ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
-            ...(privateEvilRoleUtility
-              ? { evilRoleUtility: privateEvilRoleUtility }
-              : {}),
-            ...(privateMorganaRoleUtility
-              ? { morganaRoleUtility: privateMorganaRoleUtility }
-              : {}),
-          }),
-          (scoringContext, exactRun) => {
-            const { appliedScorer, scores, degradation: scorerDegradation } =
-              resolveLegacyScores(
-                scoringContext,
-                resolvedScorer,
-                fallbackScorer
-                  ? {
-                      scorer: fallbackScorer,
-                      degradationCode: fallbackDegradation,
-                    }
-                  : undefined,
-              )
-            return {
-              appliedScorer,
-              scores,
-              degradation: [...degradation, ...scorerDegradation],
-              componentRun: attributeLegacyRolePolicyUse(
-                exactRun,
-                appliedScorer,
-                scores,
-                configuredMorganaRoleUtilityComponent,
-              ),
-            }
-          },
-        )
-        if (nativeScoredFrame) {
-          assertConfiguredScoreLayerLegacyEquality(
-            nativeScoredFrame,
-            scoredFrame,
-          )
+        const scoringBindings = {
+          deterministicSeed: seed,
+          compatibilityCandidateId,
+          ...(privateRoleUtility ? { roleUtility: privateRoleUtility } : {}),
+          ...(privateEvilRoleUtility
+            ? { evilRoleUtility: privateEvilRoleUtility }
+            : {}),
+          ...(privateMorganaRoleUtility
+            ? { morganaRoleUtility: privateMorganaRoleUtility }
+            : {}),
         }
-        const legacyScored = projectScoredFrameForLegacy(scoredFrame)
+        let customScoredFrame
+        if (isCustomCandidateScorer(resolvedScorer)) {
+          try {
+            customScoredFrame = withCustomScoring(
+              postComponentFrame,
+              () => scoringBindings,
+              (scoringContext, exactRun) => {
+                const {
+                  appliedScorer,
+                  scores,
+                  degradation: scorerDegradation,
+                } = executeCustomScores(
+                  scoringContext,
+                  resolvedScorer,
+                )
+                return {
+                  appliedScorer,
+                  scores,
+                  degradation: [...degradation, ...scorerDegradation],
+                  componentRun: attributeLegacyRolePolicyUse(
+                    exactRun,
+                    appliedScorer,
+                    scores,
+                    configuredMorganaRoleUtilityComponent,
+                  ),
+                }
+              },
+            )
+          } catch {
+            degradation.push('scorer-invalid-output')
+            if (roleScorerFailed) degradation.push(fallbackDegradation)
+          }
+        }
+        const nativeDiagnostics = nativeScoredFrame
+          ? projectConfiguredScoreDiagnostics(
+              projectScoringContext(nativeScoredFrame, scoringBindings),
+              nativeScoredFrame.scores,
+              nativeScorerVersion(nativeScoredFrame),
+            )
+          : undefined
+        const scoredFrame = customScoredFrame
+          ?? (
+            nativeScoredFrame
+              ? withNativeScoringAuthority(
+              nativeScoredFrame,
+              scoringBindings,
+              {
+                scores: nativeDiagnostics!,
+                scorerVersion: nativeScorerVersion(nativeScoredFrame),
+                degradation,
+              },
+            )
+              : (() => {
+                  throw new Error('native scorer fallback was not prepared')
+                })()
+          )
+        const compatibilityScored =
+          projectScoredFrameForCompatibility(scoredFrame)
         stage('scoring')
 
         const context = composedPolicyContext(
           view,
           analysis,
-          legacyScored.candidates,
-          legacyScored.forced,
-          legacyScored.scores,
-          legacyScored.structuredCandidateId,
+          compatibilityScored.candidates,
+          compatibilityScored.forced,
+          compatibilityScored.scores,
+          compatibilityScored.structuredCandidateId,
         )
         let plannerResolution: LegacyPlannerResolution = { kind: 'not-run' }
         if (
@@ -1921,7 +1881,8 @@ export function createComposedAgent(
             const suppliedPlan = await activePlanner.choose({
               context: structuredClone(context),
               renderedContext: renderComposedPolicyContext(context),
-              structuredCandidateId: legacyScored.structuredCandidateId,
+              structuredCandidateId:
+                compatibilityScored.structuredCandidateId,
             })
             const planned = suppliedPlan === undefined
               ? undefined
@@ -1932,7 +1893,7 @@ export function createComposedAgent(
                 degradationCode: 'planner-no-choice',
               }
             } else {
-              const plannedScore = legacyScored.scores.find(
+              const plannedScore = compatibilityScored.scores.find(
                 (score) => score.candidateId === planned.candidateId,
               )
               const plannedCandidate = context.viableCandidates.find(
@@ -1947,8 +1908,8 @@ export function createComposedAgent(
               } else if (!validPlannerReasons(
                 planned.reasonCodes,
                 plannedScore,
-                legacyScored.scores,
-                legacyScored.structuredCandidateId,
+                compatibilityScored.scores,
+                compatibilityScored.structuredCandidateId,
               )) {
                 plannerResolution = {
                   kind: 'rejected',
@@ -2017,7 +1978,7 @@ export function createComposedAgent(
           selectedFrame.planner.kind === 'accepted'
             ? selectedFrame.planner.reasonCodes
             : undefined
-        const chosenScore = legacyScored.scores.find(
+        const chosenScore = compatibilityScored.scores.find(
           (score) => score.candidateId === chosenCandidateId,
         )
         if (!chosenScore) {
@@ -2028,12 +1989,15 @@ export function createComposedAgent(
           mechanicalDecision,
           analysis.factCodes,
           chosenScore,
-          legacyScored.scores,
+          compatibilityScored.scores,
           plannerCommunication,
           plannerReasonCodes,
         )
         const planStrategicReasons = plannerReasonCodes
-          ?? selectedStrategicReasonCodes(chosenScore, legacyScored.scores)
+          ?? selectedStrategicReasonCodes(
+            chosenScore,
+            compatibilityScored.scores,
+          )
         const plan: DecisionPlan = {
           version: DECISION_PLAN_VERSION,
           request: { ...req },
@@ -2045,7 +2009,7 @@ export function createComposedAgent(
             ...planStrategicReasons,
           ],
           beliefThroughSeq: cognition.throughSeq,
-          candidateScores: legacyScored.scores,
+          candidateScores: compatibilityScored.scores,
           ...(communication ? { communication } : {}),
         }
         const committedFrame = commitDecision(selectedFrame, plan)
@@ -2133,32 +2097,9 @@ export function createComposedAgent(
           tracePublicObserver,
           privateIdentity,
           !!decisionIdentityScope,
-          privateRoleObjective,
-          privateEvilRoleObjective,
-          privateRoleObjective
-            ? ROLE_OBJECTIVE_MODEL_VERSION
-            : privateEvilRoleObjective
-              ? EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-              : 'off',
           routerConfigured,
-          privateRoleUtility,
-          privateEvilRoleUtility,
           configuredEvilQuestCardPolicy,
           privateEvilQuestCardPolicy,
-          (
-            morganaCounterfeitConfigured
-            || scorer.morganaRoleUtilityRequirement
-              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-          )
-            ? MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
-            : undefined,
-          publicMorganaCounterfeitRead,
-          privateMorganaCounterfeitObjective,
-          scorer.morganaRoleUtilityRequirement
-            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-            ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-            : undefined,
-          privateMorganaRoleUtility,
         )
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {

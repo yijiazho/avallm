@@ -16,11 +16,13 @@ import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
   goodProposalScorer,
-  scoreGoodProposalCandidates,
   structuredChoice,
   validateCandidateScores,
   type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
+import {
+  calculateGoodProposalCandidateScores as scoreGoodProposalCandidates,
+} from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
@@ -271,7 +273,7 @@ test('candidate assessments require a complete ID and team join', () => {
           context.analysis.policyCandidateAssessments.slice(1),
       },
     }),
-    /one unique assessment per candidate/,
+    /good base assessment mismatch/,
   )
   assert.throws(
     () => scoreGoodProposalCandidates({
@@ -466,22 +468,22 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
         }
       : score,
   )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, malformed),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, malformed),
+    malformed.decision,
   )
   const mismatchedValue = structuredClone(first)
   mismatchedValue.trace!.candidateScores![0].value = 0.987654321
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, mismatchedValue),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, mismatchedValue),
+    mismatchedValue.decision,
   )
   const mismatchedTeam = structuredClone(first)
   const featureScore = mismatchedTeam.trace!.candidateScores![0]
   featureScore.features!.team = [2, 4]
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, mismatchedTeam),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, mismatchedTeam),
+    mismatchedTeam.decision,
   )
 
   const voteSource = readDecisionFixtures().find(
@@ -510,9 +512,9 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
   transplanted.trace!.relevantTeam = structuredClone(
     first.trace!.relevantTeam!,
   )
-  assert.throws(
-    () => parseStdioDecisionReply(voteSource.req, transplanted),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(voteSource.req, transplanted),
+    transplanted.decision,
   )
 })
 

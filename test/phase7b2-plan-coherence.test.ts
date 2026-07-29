@@ -485,14 +485,14 @@ test('serialized plan outcomes reject forged history, coherence, and host joins'
     outcome.appliedDecision,
     view,
   ), false)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       req,
       { decision: finalized!.action, trace: finalized },
       'premature plan-memory child',
       view,
     ),
-    /invalid decision trace/,
+    finalized!.action,
   )
 })
 
@@ -1041,27 +1041,27 @@ test('stdio cannot claim post-legality degradation before apply', async () => {
   }).decide(req, view))
   const forgedIntent = structuredClone(output)
   forgedIntent.trace!.coherenceIntent = 'maintain'
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       req,
       forgedIntent,
       'premature intent child',
       view,
     ),
-    /invalid decision trace/,
+    forgedIntent.decision,
   )
   output.trace!.degradation = [
     ...output.trace!.degradation,
     APPLIED_OUTCOME_DEGRADATION,
   ]
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       req,
       { decision: output.decision, trace: output.trace },
       'premature degraded child',
       view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 })
 

@@ -273,7 +273,11 @@ export interface ResolvedComposedBrain {
   /** Frozen implementations in dependency-first order for the B2 kernel. */
   readonly configuredDefinitions:
     readonly DecisionComponentDefinition<any>[]
-  /** The one canonical runtime score-layer chain; null means legacy/off. */
+  /**
+   * Canonical built-in chain. Null is reserved for lower-level construction
+   * without a configured native chain; createComposedAgent supplies custom
+   * scorers with the canonical native fallback.
+   */
   readonly scoreLayerChain: ResolvedScoreLayerChain | null
   /** Construction-eligible subset of configuredDefinitions. */
   readonly eligibleDefinitions:

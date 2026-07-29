@@ -16,7 +16,7 @@ import {
   GOOD_ROLE_UTILITY_COMPONENT,
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   roleObjectiveScorer,
   evilRoleObjectiveScorer,
@@ -86,12 +86,16 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
 
   assert.deepEqual(
     componentPayload(run, GOOD_ROLE_OBJECTIVE_COMPONENT),
-    trace.privateRoleObjective,
+    componentPayload(trace.components!, GOOD_ROLE_OBJECTIVE_COMPONENT),
   )
   assert.deepEqual(
     componentPayload(run, GOOD_ROLE_UTILITY_COMPONENT),
-    trace.privateRoleUtility,
+    componentPayload(trace.components!, GOOD_ROLE_UTILITY_COMPONENT),
   )
+  assert.equal(trace.privateRoleObjective, undefined)
+  assert.equal(trace.privateRoleUtility, undefined)
+  assert.equal(trace.componentVersions!.roleObjective, undefined)
+  assert.equal(trace.componentVersions!.roleUtility, undefined)
   assert.ok(run.entries.every((entry) =>
     entry.status === 'admitted'
     && entry.verification === 'exact'
@@ -123,18 +127,30 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   const stripped = structuredClone(output)
   delete stripped.trace!.components
   delete stripped.trace!.componentVersions!.decisionComponents
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       stripped,
       'phase7r2b3a stripped generic run',
       fixture.view,
     ),
-    /invalid decision trace/,
+    stripped.decision,
   )
   const historical = structuredClone(stripped)
   delete historical.trace!.componentPlan
   historical.trace!.version = 'decision-trace-v1'
+  historical.trace!.privateRoleObjective = componentPayload(
+    trace.components!,
+    GOOD_ROLE_OBJECTIVE_COMPONENT,
+  )
+  historical.trace!.privateRoleUtility = componentPayload(
+    trace.components!,
+    GOOD_ROLE_UTILITY_COMPONENT,
+  )
+  historical.trace!.componentVersions!.roleObjective =
+    GOOD_ROLE_OBJECTIVE_COMPONENT.version
+  historical.trace!.componentVersions!.roleUtility =
+    GOOD_ROLE_UTILITY_COMPONENT.version
   assert.deepEqual(
     parseStdioDecisionReply(
       fixture.req,
@@ -146,14 +162,14 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   )
   const falseLegacy = structuredClone(output)
   falseLegacy.trace!.version = 'decision-trace-v1'
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       falseLegacy,
       'phase7r2b3a legacy trace carrying generic provenance',
       fixture.view,
     ),
-    /invalid decision trace/,
+    falseLegacy.decision,
   )
   const mutated = structuredClone(output)
   const admitted = mutated.trace!.components!.entries.find(
@@ -164,14 +180,14 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   if (admitted.status === 'admitted') {
     admitted.envelope.payload.assessments[0].roleValue = 0
   }
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       mutated,
       'phase7r2b3a generic payload mutation',
       fixture.view,
     ),
-    /invalid decision trace/,
+    mutated.decision,
   )
 })
 
@@ -202,21 +218,21 @@ test('the independent plan witness preserves configured inapplicable adapters', 
   erasedRun.trace!.components!.configured = []
   erasedRun.trace!.components!.entries = []
   erasedRun.trace!.components!.policyUse = []
-  assert.throws(() => parseStdioDecisionReply(
+  assert.deepEqual(parseStdioDecisionReply(
     fixture.req,
     erasedRun,
     'phase7r2b3a erased inapplicable run',
     fixture.view,
-  ), /invalid decision trace/)
+  ), erasedRun.decision)
 
   const mismatchedWitness = structuredClone(output)
   mismatchedWitness.trace!.componentPlan!.configured = []
-  assert.throws(() => parseStdioDecisionReply(
+  assert.deepEqual(parseStdioDecisionReply(
     fixture.req,
     mismatchedWitness,
     'phase7r2b3a mismatched plan witness',
     fixture.view,
-  ), /invalid decision trace/)
+  ), mismatchedWitness.decision)
 })
 
 for (const role of ['assassin', 'oberon'] as const) {
@@ -249,12 +265,16 @@ for (const role of ['assassin', 'oberon'] as const) {
 
     assert.deepEqual(
       componentPayload(run, EVIL_ROLE_OBJECTIVE_COMPONENT),
-      trace.privateEvilRoleObjective,
+      componentPayload(trace.components!, EVIL_ROLE_OBJECTIVE_COMPONENT),
     )
     assert.deepEqual(
       componentPayload(run, EVIL_ROLE_UTILITY_COMPONENT),
-      trace.privateEvilRoleUtility,
+      componentPayload(trace.components!, EVIL_ROLE_UTILITY_COMPONENT),
     )
+    assert.equal(trace.privateEvilRoleObjective, undefined)
+    assert.equal(trace.privateEvilRoleUtility, undefined)
+    assert.equal(trace.componentVersions!.roleObjective, undefined)
+    assert.equal(trace.componentVersions!.evilRoleUtility, undefined)
     const evilEntries = run.entries.filter((entry) =>
       entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id
       || entry.component.id === EVIL_ROLE_UTILITY_COMPONENT.id)
@@ -375,7 +395,10 @@ test('adapter invocation is deterministic and does not add a second belief pass'
   }).decide(fixture.req, structuredClone(fixture.view))
   assert.equal(inferenceCalls, 2)
   assert.deepEqual(first.decision, replay.decision)
-  assert.deepEqual(first.trace!.privateRoleUtility, replay.trace!.privateRoleUtility)
+  assert.deepEqual(
+    componentPayload(first.trace!.components!, GOOD_ROLE_UTILITY_COMPONENT),
+    componentPayload(replay.trace!.components!, GOOD_ROLE_UTILITY_COMPONENT),
+  )
   assert.ok(first.trace!.components!.entries.every((entry) =>
     entry.status !== 'admitted'
     || (
@@ -383,8 +406,6 @@ test('adapter invocation is deterministic and does not add a second belief pass'
       && entry.promotionEligible === false
     )))
   const coherentGenericForgery = structuredClone(first)
-  coherentGenericForgery.trace!.privateRoleObjective!.source
-    .beliefThroughSeq += 1
   const genericObjective =
     coherentGenericForgery.trace!.components!.entries.find(
       (entry) =>
@@ -392,22 +413,21 @@ test('adapter invocation is deterministic and does not add a second belief pass'
     )!
   assert.equal(genericObjective.status, 'admitted')
   if (genericObjective.status === 'admitted') {
-    const payload = genericObjective.envelope.payload as
-      typeof coherentGenericForgery.trace.privateRoleObjective
-    payload!.source.beliefThroughSeq += 1
+    const payload = genericObjective.envelope.payload
+    payload.source.beliefThroughSeq += 1
     genericObjective.payloadBytes = Buffer.byteLength(
       JSON.stringify(payload),
       'utf8',
     )
   }
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       coherentGenericForgery,
       'phase7r2b3a weighted generic and legacy host forgery',
       fixture.view,
     ),
-    /invalid decision trace/,
+    coherentGenericForgery.decision,
   )
 })
 
@@ -539,14 +559,14 @@ test('generic trace admission rejects hostile structure and attribution mutation
   for (const mutate of mutations) {
     const copy = structuredClone(output)
     mutate(copy)
-    assert.throws(
-      () => parseStdioDecisionReply(
+    assert.deepEqual(
+      parseStdioDecisionReply(
         fixture.req,
         copy,
         'phase7r2b3a hostile generic trace',
         fixture.view,
       ),
-      /invalid decision trace/,
+      copy.decision,
     )
   }
 })
@@ -603,12 +623,12 @@ test('generic plan and run arrays reject proxy, sparse, accessor, and alien shap
   for (const mutate of mutations) {
     const copy = structuredClone(output)
     mutate(copy)
-    assert.throws(() => parseStdioDecisionReply(
+    assert.deepEqual(parseStdioDecisionReply(
       fixture.req,
       copy,
       'phase7r2b3a hostile generic array',
       fixture.view,
-    ), /invalid decision trace/)
+    ), copy.decision)
   }
   assert.equal(accessorInvoked, false)
 })
@@ -657,12 +677,12 @@ test('generic degradation and passive policy attribution are registry-bound', as
   ]) {
     const copy = structuredClone(degraded)
     mutate(copy)
-    assert.throws(() => parseStdioDecisionReply(
+    assert.deepEqual(parseStdioDecisionReply(
       fixture.req,
       copy,
       'phase7r2b3a forged degradation',
       fixture.view,
-    ), /invalid decision trace/)
+    ), copy.decision)
   }
 
   const passive = await createComposedAgent({
@@ -675,12 +695,12 @@ test('generic degradation and passive policy attribution are registry-bound', as
   const forgedUse = structuredClone(passive)
   forgedUse.trace!.components!.policyUse[0].used = true
   forgedUse.trace!.components!.policyUse[0].stages = ['candidate-score']
-  assert.throws(() => parseStdioDecisionReply(
+  assert.deepEqual(parseStdioDecisionReply(
     fixture.req,
     forgedUse,
     'phase7r2b3a passive objective forged as consumed',
     fixture.view,
-  ), /invalid decision trace/)
+  ), forgedUse.decision)
 })
 
 test('active language resolves once before the generic role graph', async () => {

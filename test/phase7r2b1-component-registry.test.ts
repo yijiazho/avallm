@@ -21,7 +21,7 @@ import {
   type ComposedAgentOptions,
 } from '../server/agents/composed.ts'
 import {
-  scoreCandidates,
+  compatibilityCandidateScores,
   type CandidateScorer,
 } from '../server/agents/policy/score.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
@@ -524,7 +524,7 @@ test('composed construction resists later caller option and injection mutation',
   const stages: string[] = []
   const scorer: CandidateScorer = {
     version: 'construction-snapshot-v1',
-    score: scoreCandidates,
+    score: compatibilityCandidateScores,
   }
   class StatefulPlanner implements CandidatePlanner {
     version = 'construction-planner-v1'

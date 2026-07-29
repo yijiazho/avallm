@@ -1,8 +1,11 @@
 import {
-  LEGACY_ROLE_ADAPTER_HOST_INPUTS,
   legacyRoleAdapterDefinitions,
-  type LegacyRoleAdapterConfiguration,
 } from './legacy-role-adapters.ts'
+import {
+  SCORE_COMPONENT_HOST_INPUTS,
+  nativeScoreComponentDefinitions,
+  type NativeScoreComponentConfiguration,
+} from './native-score-components.ts'
 import { nativeRoleComponentDefinitions } from './native-role-components.ts'
 import {
   createDecisionComponentRegistry,
@@ -15,13 +18,14 @@ import {
  * surface; requesting nothing native preserves the legacy resolved plan.
  */
 export function createProductionComponentRegistry(
-  configuration: LegacyRoleAdapterConfiguration,
+  configuration: NativeScoreComponentConfiguration,
 ): DecisionComponentRegistry {
   return createDecisionComponentRegistry(
     [
-      ...legacyRoleAdapterDefinitions(configuration),
+      ...nativeScoreComponentDefinitions(configuration),
+      ...legacyRoleAdapterDefinitions(),
       ...nativeRoleComponentDefinitions(),
     ],
-    { hostInputs: LEGACY_ROLE_ADAPTER_HOST_INPUTS },
+    { hostInputs: SCORE_COMPONENT_HOST_INPUTS },
   )
 }

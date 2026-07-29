@@ -18,6 +18,50 @@ export const ROLE_OBJECTIVE_SCORE_FEATURE_VERSION =
 export const ROLE_OBJECTIVE_UTILITY_VERSION =
   'merlin-percival-role-score-utility-v1'
 
+export type GoodVoteSelectionMode = 'top-utility' | 'seeded-band'
+
+export interface GoodProposalFeatures {
+  version: typeof GOOD_PROPOSAL_FEATURE_VERSION
+  semantics: JointProbabilitySemantics
+  beliefModelVersion: string
+  beliefThroughSeq: number
+  team: readonly number[]
+  cleanProbability: number
+  evilCountDistribution: readonly number[]
+}
+
+export interface GoodVoteFeatures {
+  version: typeof GOOD_VOTE_FEATURE_VERSION
+  utilityVersion: typeof GOOD_VOTE_UTILITY_VERSION
+  situationVersion: typeof GOOD_VOTE_SITUATION_VERSION
+  semantics: JointProbabilitySemantics
+  beliefModelVersion: string
+  beliefThroughSeq: number
+  currentTeam: readonly number[]
+  currentCleanProbability: number
+  currentEvilCountDistribution: readonly number[]
+  bestAlternativeCandidateId: string
+  bestAlternativeTeam: readonly number[]
+  bestAlternativeCleanProbability: number
+  bestAlternativeEvilCountDistribution: readonly number[]
+  boardScore: Readonly<{ good: number; evil: number }>
+  proposalNumber: number
+  rejectionsBeforeHammer: number
+  futureQuestsRemain: boolean
+  stake: number
+  alternativeRealization: number
+  hammerPenalty: number
+  informationBonus: number
+  approveUtility: number
+  rejectUtility: number
+  baseUtility: number
+  selectionAdjustment: number
+  selectionMode: GoodVoteSelectionMode
+  viableBand: number
+  inViableBand: boolean
+  seedBucket?: 0 | 1
+}
+
 export const ROLE_OBJECTIVE_UTILITY_CONSTANTS = Object.freeze({
   centeredAdjustmentScale: 0.20,
   viableBand: 0.04,
@@ -55,3 +99,7 @@ export const GOOD_VOTE_REASON_CODES = [
 ] as const
 
 export { stablePolicyBucket } from './deterministic-policy.ts'
+import {
+  GOOD_VOTE_SITUATION_VERSION,
+  type JointProbabilitySemantics,
+} from '../analysis/types.ts'

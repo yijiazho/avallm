@@ -798,13 +798,14 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
       use.stages = ['candidate-score']
     },
     (candidate) => {
-      candidate.trace!.componentVersions!.observerModel = 'observer-off'
+      ;(candidate.trace!.publicObserver as { version: string }).version =
+        'observer-off'
     },
   ]
-  for (const mutate of mutations) {
+  for (const [index, mutate] of mutations.entries()) {
     const candidate = structuredClone(output)
     mutate(candidate)
-    assert.equal(valid(candidate), false)
+    assert.equal(valid(candidate), false, `host mutation ${index}`)
   }
 
   const metadataForgery = structuredClone(output)

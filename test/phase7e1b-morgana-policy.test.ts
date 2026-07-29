@@ -4,6 +4,17 @@ import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView } from '../server/engine/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { componentPayload } from '../server/agents/components/kernel.ts'
+import {
+  EVIL_ROLE_UTILITY_COMPONENT,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
+import type { DecisionTrace } from '../server/agents/trace.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
 import {
   evilRoleObjectiveScorer,
   morganaRoleScorer,
@@ -63,6 +74,28 @@ import type { Role } from '../server/engine/types.ts'
 import {
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../server/agents/policy/evil-quest-card.ts'
+
+const evilUtility = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  EVIL_ROLE_UTILITY_COMPONENT,
+)
+const morganaObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+)
+const morganaUtility = (trace: DecisionTrace) =>
+  componentPayload(trace.components!, MORGANA_ROLE_UTILITY_COMPONENT)
+  ?? componentPayload(
+    trace.components!,
+    MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  )
+const morganaPolicyIdentity = projectResolvedArchitectureIdentity(
+  createComposedAgent({
+  seed: 'identity',
+  roleObjectiveRouter: true,
+  scorer: morganaRoleScorer,
+  }).resolvedBrain().description,
+)
 
 function morganaProposal(
   playerCount = 9,
@@ -145,21 +178,22 @@ test('opt-in Morgana policy resolves above D2 with exact private attribution', a
   }).decide(req, view)
   const trace = result.trace!
   assert.equal(trace.componentVersions!.scorer, MORGANA_ROLE_SCORER_VERSION)
+  assert.equal(trace.componentVersions!.morganaRoleUtility, undefined)
   assert.equal(
-    trace.componentVersions!.morganaRoleUtility,
+    MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.version,
     MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   )
   assert.equal(
     trace.componentVersions!.configuredMorganaRoleUtility,
-    MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+    undefined,
   )
   assert.ok(
     validatePrivateMorganaRoleUtilityProjection(
-      trace.privateMorganaRoleUtility,
+      morganaUtility(trace),
     ),
   )
   assert.equal(
-    trace.privateMorganaRoleUtility!.selectedCandidateId,
+    morganaUtility(trace)!.selectedCandidateId,
     trace.structuredCandidateId,
   )
   assert.equal(
@@ -173,6 +207,7 @@ test('opt-in Morgana policy resolves above D2 with exact private attribution', a
     authoritativeAction: result.decision,
     selectedDecision: result.decision,
     deterministicSeed: game.seed,
+    expectedArchitectureIdentity: morganaPolicyIdentity,
   }))
 })
 
@@ -194,7 +229,7 @@ test('Morgana proposals are seed invariant and ineligible roles truthfully resol
     MORGANA_ROLE_SEEDED_SCORER_VERSION,
   )
   assert.equal(
-    first.trace!.privateMorganaRoleUtility!.seedBucket,
+    morganaUtility(first.trace!)!.seedBucket,
     undefined,
   )
 
@@ -230,7 +265,7 @@ test('Morgana proposals are seed invariant and ineligible roles truthfully resol
     ineligible.trace!.componentVersions!.morganaRoleUtility,
     undefined,
   )
-  assert.equal(ineligible.trace!.privateMorganaRoleUtility, undefined)
+  assert.equal(morganaUtility(ineligible.trace!), undefined)
 })
 
 test('counterfeit value causally changes an actual proposal only inside the D2 band', async () => {
@@ -265,7 +300,7 @@ test('counterfeit value causally changes an actual proposal only inside the D2 b
         roleObjectiveRouter: true,
         scorer: morganaRoleScorer,
       }).decide(req, view)
-      const projection = morgana.trace!.privateMorganaRoleUtility!
+      const projection = morganaUtility(morgana.trace!)!
       const selected = projection.candidates.find(
         (candidate) =>
           candidate.candidateId === projection.selectedCandidateId,
@@ -282,7 +317,7 @@ test('counterfeit value causally changes an actual proposal only inside the D2 b
     }
   }
   assert.ok(found, 'expected an authentic in-band Morgana causal fixture')
-  const projection = found.morgana.trace!.privateMorganaRoleUtility!
+  const projection = morganaUtility(found.morgana.trace!)!
   const selected = projection.candidates.find(
     (candidate) => candidate.candidateId === projection.selectedCandidateId,
   )!
@@ -317,7 +352,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
   }).decide(vote.req, vote.view)
   const trace = authentic.trace!
   const counterfeit = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaObjective(trace)!,
   )
   const threshold = counterfeit.request.failsRequired
   for (const assessment of counterfeit.assessments) {
@@ -341,7 +376,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
   }
   assert.ok(validatePrivateMorganaCounterfeitObjective(counterfeit))
 
-  const d2 = structuredClone(trace.privateEvilRoleUtility!)
+  const d2 = structuredClone(evilUtility(trace)!)
   const bases: number[] = []
   for (const assessment of d2.assessments) {
     assessment.participantCoverProxyIndex = 0.5
@@ -475,7 +510,7 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
     'legal-candidates-v1:vote:approve',
   )
   assert.equal(
-    result.trace!.privateMorganaRoleUtility!.selectedCandidateId,
+    morganaUtility(result.trace!)!.selectedCandidateId,
     result.trace!.forcedPolicyResult!.selectedCandidateId,
   )
   assert.deepEqual(
@@ -559,14 +594,29 @@ test('an E1A-only malformed belief degrades narrowly to D2', async () => {
     result.trace!.componentVersions!.configuredScorer,
     MORGANA_ROLE_SCORER_VERSION,
   )
-  assert.ok(result.trace!.privateEvilRoleUtility)
-  assert.equal(result.trace!.privateMorganaRoleUtility, undefined)
-  assert.ok(result.trace!.degradation.includes(
+  assert.ok(evilUtility(result.trace!))
+  assert.equal(morganaUtility(result.trace!), undefined)
+  const degradedEntries = new Map(
+    result.trace!.components!.entries.map((entry) => [
+      entry.component.id,
+      entry,
+    ]),
+  )
+  assert.equal(
+    degradedEntries.get(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
+      ?.status,
+    'degraded',
+  )
+  assert.equal(
+    degradedEntries.get(MORGANA_ROLE_UTILITY_COMPONENT.id)?.status,
+    'degraded',
+  )
+  assert.equal(result.trace!.degradation.includes(
     'morgana-objective-assessment-failed',
-  ))
-  assert.ok(result.trace!.degradation.includes(
+  ), false)
+  assert.equal(result.trace!.degradation.includes(
     MORGANA_ROLE_UTILITY_DEGRADATION,
-  ))
+  ), false)
   assert.equal(
     result.trace!.degradation.includes(
       'evil-role-utility-projection-failed',
@@ -604,17 +654,20 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
     scorer: morganaRoleScorer,
   }).decide(input.req, input.view)
   assert.equal(result.trace!.quality, 'weighted')
-  assert.ok(result.trace!.privateMorganaRoleUtility)
+  assert.ok(morganaUtility(result.trace!))
   assert.equal(
     result.trace!.componentVersions!.scorer,
     MORGANA_ROLE_SCORER_VERSION,
   )
-  assert.throws(() => parseStdioDecisionReply(
-    input.req,
-    result,
-    'phase7e1b weighted external admission',
-    input.view,
-  ))
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      input.req,
+      result,
+      'phase7e1b weighted external admission',
+      input.view,
+    ),
+    result.decision,
+  )
   assert.equal(validateComposedTraceHostJoin({
     trace: result.trace!,
     req: input.req,
@@ -663,7 +716,7 @@ test('E1B leaves the independent robust D3 quest-card path unchanged', async () 
     layered.trace!.componentVersions!.evilQuestCardPolicy,
     EVIL_QUEST_ROBUST_POLICY_VERSION,
   )
-  assert.equal(layered.trace!.privateMorganaRoleUtility, undefined)
+  assert.equal(morganaUtility(layered.trace!), undefined)
 })
 
 test('Morgana policy values and reasons stay out of rendered planner, voice, communication, and PlayerView', async () => {
@@ -707,7 +760,7 @@ test('standalone Morgana projection rejects nested team, band, rank, seed, and s
     roleObjectiveRouter: true,
     scorer: seededMorganaRoleScorer,
   }).decide(req, view)
-  const projection = result.trace!.privateMorganaRoleUtility!
+  const projection = morganaUtility(result.trace!)!
   const mutate = (fn: (copy: any) => void): void => {
     const copy = structuredClone(projection)
     fn(copy)
@@ -757,18 +810,19 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: proposal.game.seed,
+    expectedArchitectureIdentity: morganaPolicyIdentity,
   }))
   const mutations = [
     (trace: NonNullable<typeof output.trace>) => {
-      trace.privateMorganaRoleUtility!.candidates[0]
+      morganaUtility(trace)!.candidates[0]
         .counterfeitValue += 0.01
     },
     (trace: NonNullable<typeof output.trace>) => {
-      trace.privateMorganaRoleUtility!.evilRoleUtility.assessments[0]
+      morganaUtility(trace)!.evilRoleUtility.assessments[0]
         .roleValue += 0.01
     },
     (trace: NonNullable<typeof output.trace>) => {
-      trace.privateMorganaRoleUtility!.counterfeitObjective
+      morganaUtility(trace)!.counterfeitObjective
         .assessments[0].counterfeitValue += 0.01
     },
     (trace: NonNullable<typeof output.trace>) => {
@@ -776,8 +830,10 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
         .counterfeitValue += 0.01
     },
     (trace: NonNullable<typeof output.trace>) => {
-      delete trace.privateMorganaRoleUtility
-      delete trace.componentVersions!.morganaRoleUtility
+      const tokenId = MORGANA_ROLE_UTILITY_COMPONENT.id
+      trace.components!.entries = trace.components!.entries.filter(
+        (entry) => entry.component.id !== tokenId,
+      )
       trace.componentVersions!.scorer =
         EVIL_ROLE_OBJECTIVE_SCORER_VERSION
       trace.componentVersions!.configuredScorer =
@@ -798,10 +854,8 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
         ),
       )!
       const applyTeam = (
-        objective: NonNullable<
-          typeof trace.privateMorganaCounterfeitObjective
-        >,
-        d2: NonNullable<typeof trace.privateEvilRoleUtility>,
+        objective: NonNullable<ReturnType<typeof morganaObjective>>,
+        d2: NonNullable<ReturnType<typeof evilUtility>>,
       ) => {
         objective.request.currentTeam = replacement
         for (const assessment of objective.assessments) {
@@ -811,27 +865,32 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
           assessment.team = replacement
         }
       }
-      const projection = trace.privateMorganaRoleUtility!
+      const projection = morganaUtility(trace)!
       projection.request.currentTeam = replacement
       applyTeam(
         projection.counterfeitObjective,
         projection.evilRoleUtility,
       )
       applyTeam(
-        trace.privateMorganaCounterfeitObjective!,
-        trace.privateEvilRoleUtility!,
+        morganaObjective(trace)!,
+        evilUtility(trace)!,
       )
     },
   ]
-  for (const mutate of mutations) {
+  for (const [index, mutate] of mutations.entries()) {
     const forged = structuredClone(output)
     mutate(forged.trace!)
-    assert.throws(() => parseStdioDecisionReply(
+    const parsed = parseStdioDecisionReply(
       input.req,
       forged,
       'phase7e1b forged',
       input.view,
-    ))
+    )
+    if (index === 6) {
+      assert.deepEqual(parsed, forged)
+    } else {
+      assert.deepEqual(parsed, forged.decision, `seedless mutation ${index}`)
+    }
     assert.equal(validateComposedTraceHostJoin({
       trace: forged.trace!,
       req: input.req,
@@ -839,6 +898,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
       authoritativeAction: output.decision,
       selectedDecision: output.decision,
       deterministicSeed: proposal.game.seed,
+      expectedArchitectureIdentity: morganaPolicyIdentity,
     }), false)
   }
 })
@@ -854,21 +914,48 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
   const forged = structuredClone(d2)
   forged.trace!.componentVersions!.configuredScorer =
     MORGANA_ROLE_SCORER_VERSION
-  forged.trace!.componentVersions!.configuredMorganaRoleUtility =
-    MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-  forged.trace!.degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
+  const token = MORGANA_ROLE_UTILITY_COMPONENT
+  const ref = { id: token.id, version: token.version }
+  forged.trace!.componentPlan!.configured = [
+    ...forged.trace!.componentPlan!.configured,
+    ref,
+  ]
+  forged.trace!.components!.configured = [
+    ...forged.trace!.components!.configured,
+    ref,
+  ]
+  forged.trace!.components!.entries = [
+    ...forged.trace!.components!.entries,
+    {
+      component: ref,
+      kind: token.kind,
+      privacy: token.privacy,
+      status: 'degraded',
+      degradationCode: MORGANA_ROLE_UTILITY_DEGRADATION,
+      failureCode: 'execution-failed',
+    },
+  ]
+  forged.trace!.components!.policyUse = [
+    ...forged.trace!.components!.policyUse,
+    { component: ref, used: false, stages: [] },
+  ]
   assert.equal(
     forged.trace!.componentVersions!.scorer,
     EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   )
-  assert.ok(forged.trace!.privateMorganaCounterfeitObjective)
-  assert.ok(forged.trace!.privateEvilRoleUtility)
-  assert.throws(() => parseStdioDecisionReply(
-    input.req,
+  assert.ok(morganaObjective(forged.trace!))
+  assert.ok(evilUtility(forged.trace!))
+  // The self-described external graph is retained as diagnostic telemetry.
+  // The trusted host join below rejects the recoverable degradation.
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      input.req,
+      forged,
+      'phase7e1b coherent degraded D2',
+      input.view,
+    ),
     forged,
-    'phase7e1b coherent degraded D2',
-    input.view,
-  ))
+  )
   assert.equal(validateComposedTraceHostJoin({
     trace: forged.trace!,
     req: input.req,
@@ -921,7 +1008,7 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
       roleObjectiveRouter: true,
       scorer: morganaRoleScorer,
     }).decide(input.req, input.view)
-    const projection = output.trace!.privateMorganaRoleUtility!
+    const projection = morganaUtility(output.trace!)!
     assert.ok(
       validatePrivateMorganaRoleUtilityProjection(projection),
       `invalid E1B projection at ${playerCount}p; degradation=${
@@ -954,19 +1041,22 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
       mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
       identityModel: JOINT_IDENTITY_MODEL_VERSION,
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
-      roleUtility: ROLE_UTILITY_PROJECTION_VERSION,
-      evilRoleUtility: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
-      morganaCounterfeitObjective:
-        MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
-      morganaRoleUtility: MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
       policy: 'composed-policy-v1',
       scorer: MORGANA_ROLE_SEEDED_SCORER_VERSION,
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
     },
     createTargetAgent: (context) => createComposedAgent({
@@ -992,15 +1082,15 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
   const morganaArtifact = artifacts.find(
     (artifact) => artifact.architecture!.targetRole === 'morgana',
   )!
-  assert.deepEqual(
+  assert.equal(
     morganaArtifact.strategyVersions!.morganaRoleUtilities,
-    [MORGANA_ROLE_UTILITY_PROJECTION_VERSION],
+    undefined,
   )
   const forgedTrace = structuredClone([morganaArtifact])
   const applicable = forgedTrace[0].decisionTraces!.find(
-    (trace) => trace.privateMorganaRoleUtility,
+    (trace) => morganaUtility(trace) !== undefined,
   )!
-  delete applicable.privateMorganaRoleUtility
+  morganaUtility(applicable)!.candidates[0].counterfeitValue += 0.01
   assert.ok(
     architectureReport(forgedTrace).variants[0]
       .safety.traceAttributionViolations > 0,

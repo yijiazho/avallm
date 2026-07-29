@@ -1,12 +1,14 @@
 import {
   MORGANA_ROLE_SCORER_VERSION,
+  MORGANA_ROLE_SCORE_FEATURE_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
+  MORGANA_ROLE_UTILITY_CONSTANTS,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
 } from '../analysis/morgana-role-utility.ts'
 import {
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-} from '../components/legacy-role-adapters.ts'
+} from '../components/native-score-components.ts'
 import {
   morganaRoleScorer,
   seededMorganaRoleScorer,

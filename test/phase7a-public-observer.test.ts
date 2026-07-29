@@ -589,15 +589,15 @@ test('composed observer is opt-in, attributable, and mechanically inert', async 
   assert.deepEqual(accepted, on)
   const forgedOff = structuredClone(off)
   forgedOff.trace!.publicObserver = structuredClone(on.trace!.publicObserver)
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, forgedOff),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, forgedOff),
+    forgedOff.decision,
   )
   const forgedOn = structuredClone(on)
   forgedOn.trace!.componentVersions!.observerModel = 'off'
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, forgedOn),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, forgedOn),
+    forgedOn.decision,
   )
 })
 

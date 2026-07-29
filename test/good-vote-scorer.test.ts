@@ -30,6 +30,9 @@ import {
   type GoodVoteFeatures,
   type GoodVoteSelectionMode,
 } from '../server/agents/policy/score.ts'
+import {
+  calculateGoodProposalVoteCandidateScores,
+} from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
@@ -47,6 +50,13 @@ const proposalFixture = () =>
   readDecisionFixtures().find(
     (candidate) => candidate.id === 'merlin-opening-proposal',
   )!
+
+const scoreWith = (
+  scorer: Parameters<
+    typeof calculateGoodProposalVoteCandidateScores
+  >[1],
+  context: CandidateScoringContext,
+) => calculateGoodProposalVoteCandidateScores(context, scorer)
 
 function syntheticBelief(
   pairs: readonly {
@@ -208,10 +218,12 @@ test('current-team and best-alternative joint posteriors causally change vote ut
     { evil: [1, 3], probability: 1 / 6 },
     { evil: [1, 4], probability: 1 / 6 },
   ])
-  const first = features(goodProposalVoteScorer.score(
+  const first = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 1]), correlated),
   ))
-  const second = features(goodProposalVoteScorer.score(
+  const second = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 1]), spread),
   ))
   assert.equal(first.currentCleanProbability, 0)
@@ -222,7 +234,8 @@ test('current-team and best-alternative joint posteriors causally change vote ut
   ) < 1e-12)
   assert.ok(first.rejectUtility > second.rejectUtility)
 
-  const safeCurrent = features(goodProposalVoteScorer.score(
+  const safeCurrent = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 2]), spread),
   ))
   assert.ok(safeCurrent.currentCleanProbability > second.currentCleanProbability)
@@ -234,13 +247,16 @@ test('board stakes, future information, runway, and hammer risk are explicit', (
     { evil: [0, 1], probability: 0.6 },
     { evil: [2, 3], probability: 0.4 },
   ])
-  const early = features(goodProposalVoteScorer.score(
+  const early = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 1]), belief),
   ))
-  const nearHammer = features(goodProposalVoteScorer.score(
+  const nearHammer = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 1], { proposalNum: 4 }), belief),
   ))
-  const decisive = features(goodProposalVoteScorer.score(
+  const decisive = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(goodVoteView([0, 1], { decisive: 'good' }), belief),
   ))
 
@@ -248,7 +264,8 @@ test('board stakes, future information, runway, and hammer risk are explicit', (
   assert.equal(early.alternativeRealization, 1)
   assert.equal(early.hammerPenalty, 0)
   assert.equal(structuredChoice(
-    goodProposalVoteScorer.score(
+    scoreWith(
+      goodProposalVoteScorer,
       voteContext(goodVoteView([0, 1]), belief),
     ),
   ).candidateId.endsWith(':reject'), true)
@@ -257,7 +274,8 @@ test('board stakes, future information, runway, and hammer risk are explicit', (
   assert.equal(nearHammer.alternativeRealization, 0.79)
   assert.equal(nearHammer.hammerPenalty, 0.255)
   assert.equal(structuredChoice(
-    goodProposalVoteScorer.score(
+    scoreWith(
+      goodProposalVoteScorer,
       voteContext(goodVoteView([0, 1], { proposalNum: 4 }), belief),
     ),
   ).candidateId.endsWith(':approve'), true)
@@ -289,7 +307,7 @@ test('forced selection dominates vote utility and disables variation', () => {
   const scorer = createGoodProposalVoteScorer({
     selectionMode: 'seeded-band',
   })
-  const scores = scorer.score(context)
+  const scores = scoreWith(scorer, context)
   validateCandidateScores(context, scores, scorer.version)
   assert.equal(structuredChoice(scores).candidateId, approveId)
   assert.ok(scores.every(
@@ -313,7 +331,7 @@ test('seeded variation is replayable and changes only an in-band selection', () 
       ...context,
       deterministicSeed: `band-seed-${index}`,
     }
-    const scores = scorer.score(seededContext)
+    const scores = scoreWith(scorer, seededContext)
     validateCandidateScores(seededContext, scores, scorer.version)
     choices.set(structuredChoice(scores).candidateId, scores)
   }
@@ -336,8 +354,8 @@ test('seeded variation is replayable and changes only an in-band selection', () 
     deterministicSeed: 'stable-replay',
   }
   assert.deepEqual(
-    replayScorer.score(replayContext),
-    replayScorer.score(replayContext),
+    scoreWith(replayScorer, replayContext),
+    scoreWith(replayScorer, replayContext),
   )
 
   const outside = voteContext(
@@ -353,7 +371,7 @@ test('seeded variation is replayable and changes only an in-band selection', () 
     const scorer = createGoodProposalVoteScorer({
       selectionMode: 'seeded-band',
     })
-    const scores = scorer.score({
+    const scores = scoreWith(scorer, {
       ...outside,
       deterministicSeed: `outside-${index}`,
     })
@@ -387,7 +405,7 @@ test('seeded scorer snapshots its mode and rejects bucket or adjustment tamperin
   }
   const scorer = createGoodProposalVoteScorer(options)
   options.selectionMode = 'top-utility'
-  const scores = scorer.score(context)
+  const scores = scoreWith(scorer, context)
   validateCandidateScores(context, scores, scorer.version)
   assert.equal(scorer.version, GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION)
   assert.ok(scores.every(
@@ -425,10 +443,11 @@ test('names and seat rotation do not affect relative vote utility', () => {
     { evil: [1, 3], probability: 0.5 },
   ])
   const view = goodVoteView([0, 1])
-  const original = features(goodProposalVoteScorer.score(
+  const original = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(view, belief),
   ))
-  const renamed = features(goodProposalVoteScorer.score(voteContext({
+  const renamed = features(scoreWith(goodProposalVoteScorer, voteContext({
     ...view,
     name: 'Renamed self',
     players: view.players.map((player) => ({
@@ -473,7 +492,8 @@ test('names and seat rotation do not affect relative vote utility', () => {
       .map((marginal) => ({ ...marginal, seat: rotate(marginal.seat) }))
       .sort((left, right) => left.seat - right.seat),
   }
-  const rotated = features(goodProposalVoteScorer.score(
+  const rotated = features(scoreWith(
+    goodProposalVoteScorer,
     voteContext(rotatedView, rotatedBelief),
   ))
   assert.equal(rotated.currentCleanProbability, original.currentCleanProbability)
@@ -551,7 +571,8 @@ test('tampered vote features and joins degrade to compatibility', async () => {
     scorer: {
       ...goodProposalVoteScorer,
       score(context) {
-        return goodProposalVoteScorer.score(context).map((score, index) =>
+        return scoreWith(goodProposalVoteScorer, context)
+          .map((score, index) =>
           index === 0
             ? {
                 ...score,
@@ -577,7 +598,7 @@ test('tampered vote features and joins degrade to compatibility', async () => {
   ])
   const context = voteContext(goodVoteView([0, 1]), belief)
   assert.throws(
-    () => goodProposalVoteScorer.score({
+    () => scoreWith(goodProposalVoteScorer, {
       ...context,
       analysis: {
         ...context.analysis,
@@ -585,10 +606,10 @@ test('tampered vote features and joins degrade to compatibility', async () => {
           context.analysis.policyCandidateAssessments.slice(1),
       },
     }),
-    /one assessment per legal team/,
+    /every legal team/,
   )
   assert.throws(
-    () => goodProposalVoteScorer.score({
+    () => scoreWith(goodProposalVoteScorer, {
       ...context,
       analysis: {
         ...context.analysis,
@@ -624,25 +645,25 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
   const malformed = structuredClone(output)
   ;(malformed.trace!.candidateScores![0].features as GoodVoteFeatures)
     .selectionMode = 'top-utility'
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, malformed),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, malformed),
+    malformed.decision,
   )
   const formulaTamper = structuredClone(output)
   ;(
     formulaTamper.trace!.candidateScores![0].features as GoodVoteFeatures
   ).hammerPenalty += 0.01
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, formulaTamper),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, formulaTamper),
+    formulaTamper.decision,
   )
   const joinTamper = structuredClone(output)
   ;(
     joinTamper.trace!.candidateScores![0].features as GoodVoteFeatures
   ).bestAlternativeCandidateId = 'legal-candidates-v1:propose:0,1'
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, joinTamper),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(source.req, joinTamper),
+    joinTamper.decision,
   )
 })
 

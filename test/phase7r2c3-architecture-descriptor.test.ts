@@ -42,7 +42,7 @@ import {
 } from '../server/agents/policy/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
-  scoreCandidates,
+  compatibilityCandidateScores,
 } from '../server/agents/policy/score.ts'
 import {
   DECISION_PLAN_VERSION,
@@ -747,7 +747,7 @@ test('mutable planner and voice adapters never mutate the lifetime descriptor', 
   )
 })
 
-test('unmapped compatibility bridge preserves historical trace bytes and property order', async () => {
+test('custom compatibility bridge preserves deterministic trace bytes and property order', async () => {
   const source = readDecisionFixtures().find(
     (entry) => entry.id === 'merlin-opening-proposal',
   )!
@@ -756,7 +756,7 @@ test('unmapped compatibility bridge preserves historical trace bytes and propert
       seed: source.source.seed,
       scorer: {
         version: CANDIDATE_SCORER_VERSION,
-        score: scoreCandidates,
+        score: compatibilityCandidateScores,
       },
     }).decide(source.req, source.view),
   )
@@ -769,7 +769,7 @@ test('unmapped compatibility bridge preserves historical trace bytes and propert
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    '745537cd580d889eda9874ca7b50b03fb43ce1100e4e5e75b90c045f0dadb0db',
+    '21868371a8281cca2cc834f29c6d6d3eaddcebc35f53af5a9ce46976f287dc3b',
   )
   assert.deepEqual(Object.keys(output.trace!.componentVersions!), [
     'brain',

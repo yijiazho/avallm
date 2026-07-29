@@ -167,12 +167,12 @@ test('stdio rejects forged admitted planner reasons', async () => {
     ))
   const forged = structuredClone(trace!)
   forged.plannerReasonCodes = ['INVENTED_PRIVATE_REASON']
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       forged.request,
       { decision: forged.action, trace: forged },
       'phase4d-forged',
     ),
-    /invalid decision trace/,
+    forged.action,
   )
 })

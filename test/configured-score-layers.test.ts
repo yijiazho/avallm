@@ -25,6 +25,15 @@ import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
 import {
+  combineSituationAnalysisRequirements,
+  GOOD_PROPOSAL_ANALYSIS,
+  GOOD_VOTE_ANALYSIS,
+} from '../server/agents/analysis/situation-plan.ts'
+import {
+  createEvilRoleObjectiveScorer,
+  createGoodProposalVoteScorer,
+  createMorganaRoleScorer,
+  createRoleObjectiveScorer,
   evilRoleObjectiveScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
@@ -72,18 +81,118 @@ test('configured score seam owns family selection and registry construction', ()
     configuredScoreLayerTerminalFor({ ...morganaRoleScorer }),
     undefined,
   )
+  assert.equal(
+    createGoodProposalVoteScorer({ selectionMode: 'top-utility' }),
+    goodProposalVoteScorer,
+  )
+  assert.equal(
+    createRoleObjectiveScorer({ selectionMode: 'seeded-composite-band' }),
+    seededRoleObjectiveScorer,
+  )
+  assert.equal(
+    createEvilRoleObjectiveScorer({
+      selectionMode: 'seeded-role-utility-band',
+    }),
+    seededEvilRoleObjectiveScorer,
+  )
+  assert.equal(
+    createMorganaRoleScorer({
+      selectionMode: 'top-counterfeit-within-d2-band',
+    }),
+    morganaRoleScorer,
+  )
 })
 
-test('configured applicability remains narrow pending later families', () => {
-  assert.equal(configuredScoreLayersApplyToDecision('propose'), true)
-  assert.equal(configuredScoreLayersApplyToDecision('vote'), true)
+test('native family chains preserve exact predecessor order', () => {
+  const registry = createConfiguredScoreLayerRegistry()
+  assert.deepEqual(
+    registry.resolve({ terminal: GOOD_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: SEEDED_GOOD_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      SEEDED_GOOD_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: EVIL_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+      EVIL_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: SEEDED_EVIL_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      SEEDED_GOOD_ROLE_SCORE_LAYER,
+      SEEDED_EVIL_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: MORGANA_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+      EVIL_ROLE_SCORE_LAYER,
+      MORGANA_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: SEEDED_MORGANA_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      SEEDED_GOOD_ROLE_SCORE_LAYER,
+      SEEDED_EVIL_ROLE_SCORE_LAYER,
+      SEEDED_MORGANA_ROLE_SCORE_LAYER,
+    ],
+  )
+})
+
+test('native analysis requirements compile to one executable plan', () => {
+  assert.equal(combineSituationAnalysisRequirements([]), 'candidate-teams')
+  assert.equal(
+    combineSituationAnalysisRequirements([GOOD_PROPOSAL_ANALYSIS]),
+    'good-proposal',
+  )
+  assert.equal(
+    combineSituationAnalysisRequirements([
+      GOOD_PROPOSAL_ANALYSIS,
+      GOOD_VOTE_ANALYSIS,
+    ]),
+    'good-vote',
+  )
+  assert.throws(
+    () => combineSituationAnalysisRequirements([{
+      id: 'foreign',
+      version: 'v1',
+    }]),
+    /unsupported situation analysis requirement/,
+  )
+})
+
+test('default compatibility root owns every decision kind', () => {
   for (const kind of [
+    'propose',
+    'vote',
     'discuss',
     'finalize',
     'quest',
     'assassinate',
   ] as const) {
-    assert.equal(configuredScoreLayersApplyToDecision(kind), false)
+    assert.equal(configuredScoreLayersApplyToDecision(kind), true)
   }
 })
 

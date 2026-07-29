@@ -25,6 +25,11 @@ import {
 } from '../server/agents/belief/exact.ts'
 import { canonicalWorldKey } from '../server/agents/belief/worlds.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { componentPayload } from '../server/agents/components/kernel.ts'
+import {
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
 import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
 import type { PublicRecord } from '../server/agents/communication/public-record.ts'
 import {
@@ -32,7 +37,11 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import { CANDIDATE_SCORER_VERSION } from '../server/agents/policy/score.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import {
+  parseStdioDecisionReply,
+  validateComposedTraceHostJoin,
+} from '../server/agents/stdio.ts'
+import { normalizeAgentOutput } from '../server/agents/types.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -50,6 +59,25 @@ import {
 } from '../server/eval/architecture-bench.ts'
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
+import type { DecisionTrace } from '../server/agents/trace.ts'
+
+const morganaCounterfeitObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+)
+const morganaCounterfeitPublicRead = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+)
+const componentEntry = (trace: DecisionTrace, id: string) =>
+  trace.components!.entries.find((entry) => entry.component.id === id)
+const removeComponent = (trace: DecisionTrace, id: string) => {
+  const index = trace.components!.entries.findIndex(
+    (entry) => entry.component.id === id,
+  )
+  assert.notEqual(index, -1)
+  trace.components!.entries.splice(index, 1)
+}
 
 function publicRecord(): PublicRecord {
   return {
@@ -159,22 +187,21 @@ async function assertAtomicMorganaFailure(input: {
     attempted.trace!.candidateScores,
     baseline.trace!.candidateScores,
   )
-  assert.equal(attempted.trace!.publicMorganaCounterfeitRead, undefined)
+  assert.ok(morganaCounterfeitPublicRead(attempted.trace!))
   assert.equal(
-    attempted.trace!.privateMorganaCounterfeitObjective,
+    morganaCounterfeitObjective(attempted.trace!),
     undefined,
   )
-  assert.equal(
-    attempted.trace!.componentVersions!.morganaCounterfeitPublicRead,
-    undefined,
+  const objectiveEntry = componentEntry(
+    attempted.trace!,
+    MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
   )
+  assert.equal(objectiveEntry?.status, 'degraded')
   assert.equal(
-    attempted.trace!.componentVersions!.morganaCounterfeitObjective,
-    undefined,
-  )
-  assert.deepEqual(
-    attempted.trace!.degradation,
-    [MORGANA_COUNTERFEIT_DEGRADATION],
+    objectiveEntry?.status === 'degraded'
+      ? objectiveEntry.degradationCode
+      : undefined,
+    MORGANA_COUNTERFEIT_DEGRADATION,
   )
 }
 
@@ -413,18 +440,18 @@ test('changed joint Mordred weights alter causal features without changing mecha
     weightedOutput.trace!.factCodes,
     exactOutput.trace!.factCodes,
   )
-  const candidateId = exactOutput.trace!.privateMorganaCounterfeitObjective!
+  const candidateId = morganaCounterfeitObjective(exactOutput.trace!)!
     .assessments.find(
       (assessment) =>
         assessment.candidate.team.includes(partner)
         && !assessment.candidate.team.includes(view.seat),
     )!.candidate.candidateId
   const exactAssessment =
-    exactOutput.trace!.privateMorganaCounterfeitObjective!.assessments.find(
+    morganaCounterfeitObjective(exactOutput.trace!)!.assessments.find(
       (assessment) => assessment.candidate.candidateId === candidateId,
     )!
   const weightedAssessment =
-    weightedOutput.trace!.privateMorganaCounterfeitObjective!.assessments.find(
+    morganaCounterfeitObjective(weightedOutput.trace!)!.assessments.find(
       (assessment) => assessment.candidate.candidateId === candidateId,
     )!
   assert.notEqual(
@@ -436,17 +463,20 @@ test('changed joint Mordred weights alter causal features without changing mecha
     exactAssessment.counterfeitValue,
   )
   assert.ok(validatePrivateMorganaCounterfeitObjective(
-    weightedOutput.trace!.privateMorganaCounterfeitObjective,
+    morganaCounterfeitObjective(weightedOutput.trace!),
   ))
-  assert.throws(() => parseStdioDecisionReply(
-    req,
-    {
-      decision: weightedOutput.decision,
-      trace: weightedOutput.trace,
-    },
-    'phase7e1a-weighted-external-admission',
-    view,
-  ))
+  assert.deepEqual(
+    normalizeAgentOutput(parseStdioDecisionReply(
+      req,
+      {
+        decision: weightedOutput.decision,
+        trace: weightedOutput.trace,
+      },
+      'phase7e1a-weighted-external-admission',
+      view,
+    )).decision,
+    weightedOutput.decision,
+  )
 })
 
 test('composed Morgana analysis atomically rejects worlds outside the filtered view', async () => {
@@ -618,20 +648,16 @@ test('opt-in is default-off, Morgana-only, kind-scoped, and mechanically inert',
     off.trace!.forcedPolicyResult,
   )
   assert.equal(
-    on.trace!.componentVersions!.configuredMorganaCounterfeitObjective,
-    MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
-  )
-  assert.equal(
-    on.trace!.componentVersions!.morganaCounterfeitPublicRead,
+    morganaCounterfeitPublicRead(on.trace!)?.version,
     MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
   )
   assert.equal(
-    on.trace!.componentVersions!.morganaCounterfeitObjective,
+    morganaCounterfeitObjective(on.trace!)?.version,
     MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   )
-  assert.ok(on.trace!.publicMorganaCounterfeitRead)
-  assert.ok(on.trace!.privateMorganaCounterfeitObjective)
-  assert.equal(off.trace!.publicMorganaCounterfeitRead, undefined)
+  assert.ok(morganaCounterfeitPublicRead(on.trace!))
+  assert.ok(morganaCounterfeitObjective(on.trace!))
+  assert.equal(morganaCounterfeitPublicRead(off.trace!), undefined)
 
   const voteView = structuredClone(view)
   voteView.phase = 'vote'
@@ -646,7 +672,7 @@ test('opt-in is default-off, Morgana-only, kind-scoped, and mechanically inert',
     seed: game.seed,
     morganaCounterfeitObjectives: true,
   }).decide(voteReq, voteView)
-  const voteObjective = vote.trace!.privateMorganaCounterfeitObjective!
+  const voteObjective = morganaCounterfeitObjective(vote.trace!)!
   assert.ok(validatePrivateMorganaCounterfeitObjective(voteObjective))
   assert.deepEqual(
     voteObjective.assessments.map(
@@ -669,17 +695,12 @@ test('opt-in is default-off, Morgana-only, kind-scoped, and mechanically inert',
     seed: game.seed,
     morganaCounterfeitObjectives: true,
   }).decide(servantReq, servantView)
-  assert.equal(
-    ineligible.trace!.componentVersions!
-      .configuredMorganaCounterfeitObjective,
-    MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
-  )
-  assert.equal(
-    ineligible.trace!.componentVersions!.morganaCounterfeitObjective,
-    undefined,
-  )
-  assert.equal(ineligible.trace!.privateMorganaCounterfeitObjective, undefined)
-  assert.equal(ineligible.trace!.publicMorganaCounterfeitRead, undefined)
+  assert.ok(ineligible.trace!.componentPlan!.configured.some(
+    (component) =>
+      component.id === MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+  ))
+  assert.equal(morganaCounterfeitObjective(ineligible.trace!), undefined)
+  assert.ok(morganaCounterfeitPublicRead(ineligible.trace!))
   assert.equal(
     ineligible.trace!.degradation.includes(
       'morgana-objective-assessment-failed',
@@ -703,14 +724,14 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   ))
 
   const arithmetic = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   arithmetic.assessments[0].counterfeitValue =
     1 - arithmetic.assessments[0].counterfeitValue
   assert.equal(validatePrivateMorganaCounterfeitObjective(arithmetic), false)
 
   const forgedDirection = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   forgedDirection.assessments[0].candidate.direction = 'oppose'
   recomputeCounterfeitEquation(forgedDirection.assessments[0])
@@ -720,7 +741,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
 
   const forgedTeam = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   const teamAssessment = forgedTeam.assessments[0]
   const replacement = view.players
@@ -736,7 +757,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
 
   const wrongTeamSize = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   const sizedAssessment = wrongTeamSize.assessments[0]
   const extraSeat = view.players
@@ -765,7 +786,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
 
   const voteView = structuredClone(view)
   voteView.phase = 'vote'
-  voteView.currentTeam = trace.privateMorganaCounterfeitObjective!
+  voteView.currentTeam = morganaCounterfeitObjective(trace)!
     .assessments[0].candidate.team
   const voteReq: DecisionRequest = {
     kind: 'vote',
@@ -778,7 +799,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     morganaCounterfeitObjectives: true,
   }).decide(voteReq, voteView)
   const forgedVote = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   assert.equal(forgedVote.assessments[0].candidate.direction, 'support')
   assert.equal(
@@ -796,11 +817,11 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     .map((player) => player.seat)
     .filter(
       (seat) =>
-        !voteOutput.trace!.privateMorganaCounterfeitObjective!
+        !morganaCounterfeitObjective(voteOutput.trace!)!
           .request.currentTeam!.includes(seat),
     )
     .concat(
-      voteOutput.trace!.privateMorganaCounterfeitObjective!
+      morganaCounterfeitObjective(voteOutput.trace!)!
         .request.currentTeam!.slice(0, 1),
     )
     .slice(0, voteView.quests[voteView.round - 1].teamSize)
@@ -811,11 +832,11 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
   assert.notDeepEqual(
     alternateVoteTeam,
-    voteOutput.trace!.privateMorganaCounterfeitObjective!
+    morganaCounterfeitObjective(voteOutput.trace!)!
       .request.currentTeam,
   )
   const forgedVoteTeam = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   forgedVoteTeam.assessments[0].candidate.team = alternateVoteTeam
   assert.equal(
@@ -824,7 +845,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
 
   const forgedRequestTeam = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   forgedRequestTeam.request.currentTeam = alternateVoteTeam
   assert.equal(
@@ -832,7 +853,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const permutedRequestTeam = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   permutedRequestTeam.request.currentTeam = [
     ...permutedRequestTeam.request.currentTeam!,
@@ -842,7 +863,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const deletedRequestTeam = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   delete deletedRequestTeam.request.currentTeam
   assert.equal(
@@ -850,7 +871,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const extraProposeTeam = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   extraProposeTeam.request.currentTeam =
     extraProposeTeam.assessments[0].candidate.team
@@ -860,7 +881,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
 
   const missingVoteCandidate = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   missingVoteCandidate.assessments.splice(1, 1)
   assert.equal(
@@ -868,7 +889,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const emptyVoteCandidates = structuredClone(
-    voteOutput.trace!.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(voteOutput.trace!)!,
   )
   emptyVoteCandidates.assessments.splice(
     0,
@@ -879,7 +900,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const missingProposalCandidate = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   missingProposalCandidate.assessments.splice(0, 1)
   assert.equal(
@@ -889,7 +910,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     false,
   )
   const emptyProposalCandidates = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   emptyProposalCandidates.assessments.splice(
     0,
@@ -901,32 +922,36 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   )
 
   const sourceMutation = structuredClone(trace)
-  sourceMutation.privateMorganaCounterfeitObjective!.source.beliefThroughSeq += 1
-  assert.throws(() => parseStdioDecisionReply(
+  morganaCounterfeitObjective(sourceMutation)!.source.beliefThroughSeq += 1
+  assert.equal(validateComposedTraceHostJoin({
+    trace: sourceMutation,
     req,
-    { decision: output.decision, trace: sourceMutation },
-    'phase7e1a',
     view,
-  ))
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: game.seed,
+  }), false)
 
   const candidateMutation = structuredClone(trace)
-  candidateMutation.privateMorganaCounterfeitObjective!
+  morganaCounterfeitObjective(candidateMutation)!
     .assessments[0].candidate.candidateId += ':forged'
-  assert.throws(() => parseStdioDecisionReply(
+  assert.equal(validateComposedTraceHostJoin({
+    trace: candidateMutation,
     req,
-    { decision: output.decision, trace: candidateMutation },
-    'phase7e1a',
     view,
-  ))
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: game.seed,
+  }), false)
 
   const sparse = structuredClone(
-    trace.privateMorganaCounterfeitObjective!,
+    morganaCounterfeitObjective(trace)!,
   )
   delete (sparse.assessments as unknown[])[0]
   assert.equal(validatePrivateMorganaCounterfeitObjective(sparse), false)
 
   const accessor = structuredClone(
-    trace.publicMorganaCounterfeitRead!,
+    morganaCounterfeitPublicRead(trace)!,
   ) as unknown as Record<string, unknown>
   Object.defineProperty(accessor, 'version', {
     enumerable: true,
@@ -934,31 +959,39 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   })
   assert.equal(validatePublicCounterfeitMerlinRead(accessor), false)
 
-  for (const field of [
-    'publicMorganaCounterfeitRead',
-    'privateMorganaCounterfeitObjective',
+  for (const component of [
+    MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+    MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   ] as const) {
     const forged = structuredClone(trace)
-    delete forged[field]
-    assert.throws(() => parseStdioDecisionReply(
+    removeComponent(forged, component.id)
+    assert.equal(validateComposedTraceHostJoin({
+      trace: forged,
       req,
-      { decision: output.decision, trace: forged },
-      'phase7e1a',
       view,
-    ))
+      authoritativeAction: output.decision,
+      selectedDecision: output.decision,
+      deterministicSeed: game.seed,
+    }), false)
   }
   const fakeDegradation = structuredClone(trace)
-  delete fakeDegradation.publicMorganaCounterfeitRead
-  delete fakeDegradation.privateMorganaCounterfeitObjective
-  delete fakeDegradation.componentVersions!.morganaCounterfeitPublicRead
-  delete fakeDegradation.componentVersions!.morganaCounterfeitObjective
+  removeComponent(
+    fakeDegradation,
+    MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id,
+  )
+  removeComponent(
+    fakeDegradation,
+    MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+  )
   fakeDegradation.degradation.push('morgana-objective-assessment-failed')
-  assert.throws(() => parseStdioDecisionReply(
+  assert.equal(validateComposedTraceHostJoin({
+    trace: fakeDegradation,
     req,
-    { decision: output.decision, trace: fakeDegradation },
-    'phase7e1a',
     view,
-  ))
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: game.seed,
+  }), false)
 })
 
 test('Morgana dependency is legal-cast enforced and 5-10p payloads stay bounded', async () => {
@@ -976,7 +1009,7 @@ test('Morgana dependency is legal-cast enforced and 5-10p payloads stay bounded'
       seed: game.seed,
       morganaCounterfeitObjectives: true,
     }).decide(req, view)
-    const objective = output.trace!.privateMorganaCounterfeitObjective!
+    const objective = morganaCounterfeitObjective(output.trace!)!
     assert.ok(validatePrivateMorganaCounterfeitObjective(objective))
     assert.ok(
       objective.assessments.length
@@ -1015,12 +1048,20 @@ test('free architecture bank admits exact host-reconstructable Morgana traces an
       mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: 'exact-public-observer-v1',
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       policy: 'composed-policy-v1',
       scorer: CANDIDATE_SCORER_VERSION,
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
     },
     createTargetAgent: (context) => createComposedAgent({
@@ -1036,12 +1077,20 @@ test('free architecture bank admits exact host-reconstructable Morgana traces an
       mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: 'exact-public-observer-v1',
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       policy: 'composed-policy-v1',
       scorer: CANDIDATE_SCORER_VERSION,
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
       morganaCounterfeitObjective: MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
     },
@@ -1104,9 +1153,9 @@ test('free architecture bank admits exact host-reconstructable Morgana traces an
 
   const forged = structuredClone([candidateArtifact])
   const applicable = forged[0].decisionTraces!.find(
-    (trace) => trace.privateMorganaCounterfeitObjective,
+    (trace) => morganaCounterfeitObjective(trace),
   )!
-  delete applicable.privateMorganaCounterfeitObjective
+  removeComponent(applicable, MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
   assert.ok(
     architectureReport(forged).variants[0]
       .safety.traceAttributionViolations > 0,

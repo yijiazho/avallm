@@ -1791,7 +1791,7 @@ test('aggregate surface bytes are rejected incrementally before the cap is retai
   )
 })
 
-test('legacy scoring source remains isolated from native score-layer types', () => {
+test('custom scoring source remains isolated from native score-layer types', () => {
   const source = readFileSync(
     new URL(
       '../server/agents/policy/decision-frame.ts',
@@ -1799,20 +1799,21 @@ test('legacy scoring source remains isolated from native score-layer types', () 
     ),
     'utf8',
   )
-  const legacyStart = source.indexOf('export function withLegacyScoring(')
-  const legacyEnd = source.indexOf(
-    'export function projectScoredFrameForLegacy(',
+  const customStart = source.indexOf('export function withCustomScoring(')
+  const customEnd = source.indexOf(
+    'export function projectScoredFrameForCompatibility(',
   )
   const nativeStart = source.indexOf('export function withNativeScoreLayers(')
   const nativeEnd = source.indexOf('export function selectDecisionCandidate(')
-  assert.ok(legacyStart >= 0 && legacyEnd > legacyStart)
+  assert.ok(customStart >= 0 && customEnd > customStart)
   assert.ok(nativeStart >= 0 && nativeEnd > nativeStart)
-  const legacySource = source.slice(legacyStart, legacyEnd)
+  const customSource = source.slice(customStart, customEnd)
   const nativeSource = source.slice(nativeStart, nativeEnd)
 
-  assert.match(legacySource, /Immutable<ViableCandidate>/)
-  assert.match(legacySource, /structuredChoice\(/)
-  assert.doesNotMatch(legacySource, /NativeViableCandidate|ScoreLayerRow/)
+  assert.match(customSource, /finalizeScoredDecisionFrame\(/)
+  assert.match(customSource, /authority: 'custom'/)
+  assert.doesNotMatch(customSource, /structuredChoice\(/)
+  assert.doesNotMatch(customSource, /NativeViableCandidate|ScoreLayerRow/)
   assert.match(nativeSource, /Immutable<NativeViableCandidate>/)
   assert.doesNotMatch(nativeSource, /structuredChoice\(/)
 

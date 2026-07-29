@@ -14,7 +14,7 @@ const BASELINE_PATH = 'tools/strict-test-baseline.json'
 const CONFIG_PATH = 'tsconfig.server.json'
 const REQUIRED_STRICT_TOP_LEVEL = Object.freeze([
   'test/phase7r2c2-component-conformance.test.ts',
-  'test/phase7r3a2-good-score-layers.test.ts',
+  'test/phase7r3a4b-score-authority.test.ts',
 ])
 
 function normalizeRepoPath(value) {

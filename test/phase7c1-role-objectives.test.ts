@@ -30,6 +30,10 @@ import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../server/agents/analysis/observer-types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { componentPayload } from '../server/agents/components/kernel.ts'
+import {
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
 import {
   advanceCognition,
   advanceCognitionFromBelief,
@@ -54,11 +58,34 @@ import {
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
+import type { DecisionTrace } from '../server/agents/trace.ts'
 
 const fixtures = readDecisionFixtures()
 const merlinFixture = fixtures.find((fixture) => fixture.view.role === 'merlin')!
 const percivalFixture = fixtures.find((fixture) => fixture.view.role === 'percival')!
 const servantFixture = fixtures.find((fixture) => fixture.view.role === 'servant')!
+
+const roleObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+)
+const roleObjectiveEntry = (trace: DecisionTrace) => trace.components!.entries
+  .find((entry) => entry.component.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id)
+const removeRoleObjective = (trace: DecisionTrace) => {
+  const index = trace.components!.entries.findIndex(
+    (entry) => entry.component.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id,
+  )
+  assert.notEqual(index, -1)
+  trace.components!.entries.splice(index, 1)
+}
+const addRoleObjectiveFrom = (
+  target: DecisionTrace,
+  source: DecisionTrace,
+) => {
+  const entry = roleObjectiveEntry(source)
+  assert.ok(entry)
+  target.components!.entries.push(structuredClone(entry))
+}
 
 async function roleOutput(
   fixture: typeof merlinFixture,
@@ -72,7 +99,7 @@ async function roleOutput(
 
 test('Merlin influence uses exact private joint teams and separate exact public teams', async () => {
   const output = await roleOutput(merlinFixture)
-  const snapshot = output.trace!.privateRoleObjective!
+  const snapshot = roleObjective(output.trace!)!
   assert.ok(validatePrivateRoleObjectiveSnapshot(snapshot))
   assert.equal(snapshot.role, 'merlin')
   assert.equal(snapshot.objective.role, 'merlin')
@@ -144,8 +171,8 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
     seed: 'phase7c1-role-objective',
     roleObjectives: true,
   }).decide(afterVoteReq, afterVoteView)
-  const freshObjective = fresh.trace!.privateRoleObjective!.objective
-  const afterObjective = afterVote.trace!.privateRoleObjective!.objective
+  const freshObjective = roleObjective(fresh.trace!)!.objective
+  const afterObjective = roleObjective(afterVote.trace!)!.objective
   assert.equal(freshObjective.role, 'merlin')
   assert.equal(afterObjective.role, 'merlin')
   for (const freshAssessment of freshObjective.assessments) {
@@ -166,7 +193,7 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
 
 test('Percival pair posterior is a complete-world sum bound to visible candidates', async () => {
   const output = await roleOutput(percivalFixture)
-  const snapshot = output.trace!.privateRoleObjective!
+  const snapshot = roleObjective(output.trace!)!
   assert.ok(validatePrivateRoleObjectiveSnapshot(snapshot))
   assert.equal(snapshot.objective.role, 'percival')
   const pair = snapshot.objective.pairPosterior
@@ -247,7 +274,7 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
     roleObjectives: true,
     beliefModel: pairWeightedModel,
   }).decide(voteReq, voteView)
-  const voteObjective = vote.trace!.privateRoleObjective!.objective
+  const voteObjective = roleObjective(vote.trace!)!.objective
   assert.equal(voteObjective.role, 'percival')
   const approve = voteObjective.assessments.find(
     (assessment) => assessment.candidate.direction === 'support',
@@ -331,12 +358,8 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
     const second = await roleOutput(fixture)
     assert.deepEqual(first.decision, off.decision)
     assert.deepEqual(second, first)
-    assert.equal(off.trace!.privateRoleObjective, undefined)
-    assert.equal(off.trace!.componentVersions!.roleObjective, undefined)
-    assert.equal(
-      first.trace!.componentVersions!.roleObjective,
-      ROLE_OBJECTIVE_MODEL_VERSION,
-    )
+    assert.equal(roleObjective(off.trace!), undefined)
+    assert.equal(roleObjective(first.trace!)?.version, ROLE_OBJECTIVE_MODEL_VERSION)
   }
 
   const offServant = await roleOutput(servantFixture, false)
@@ -354,7 +377,7 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
   offLegacy.trace!.version = 'decision-trace-v1'
   optedLegacy.trace!.version = 'decision-trace-v1'
   assert.deepEqual(optedLegacy, offLegacy)
-  assert.equal(optedServant.trace!.privateRoleObjective, undefined)
+  assert.equal(roleObjective(optedServant.trace!), undefined)
   assert.equal(optedServant.trace!.componentVersions!.roleObjective, undefined)
 
   const renamedView = structuredClone(merlinFixture.view)
@@ -368,8 +391,8 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
     roleObjectives: true,
   }).decide(merlinFixture.req, renamedView)
   assert.deepEqual(
-    renamed.trace!.privateRoleObjective,
-    (await roleOutput(merlinFixture)).trace!.privateRoleObjective,
+    roleObjective(renamed.trace!),
+    roleObjective((await roleOutput(merlinFixture)).trace!),
   )
 
   const questView: PlayerView = {
@@ -392,8 +415,8 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
     seed: 'phase7c1-quest-not-applicable',
     roleObjectives: true,
   }).decide(questReq, questView)
-  assert.equal(quest.trace!.privateRoleObjective!.role, 'merlin')
-  assert.deepEqual(quest.trace!.privateRoleObjective!.objective.assessments, [])
+  assert.equal(roleObjective(quest.trace!)!.role, 'merlin')
+  assert.deepEqual(roleObjective(quest.trace!)!.objective.assessments, [])
 })
 
 test('private posterior weights causally change influence while public exposure inputs stay fixed', async () => {
@@ -413,7 +436,7 @@ test('private posterior weights causally change influence while public exposure 
     seed: 'phase7c1-role-objective-weighted',
     roleObjectives: true,
   }).decide(req, view)
-  const baseMerlin = base.trace!.privateRoleObjective!.objective
+  const baseMerlin = roleObjective(base.trace!)!.objective
   assert.equal(baseMerlin.role, 'merlin')
   const targetTeam = baseMerlin.assessments.find(
     (assessment) =>
@@ -453,8 +476,8 @@ test('private posterior weights causally change influence while public exposure 
     roleObjectives: true,
     beliefModel: weightedModel,
   }).decide(req, view)
-  const baseObjective = base.trace!.privateRoleObjective!
-  const weightedObjective = weighted.trace!.privateRoleObjective!
+  const baseObjective = roleObjective(base.trace!)!
+  const weightedObjective = roleObjective(weighted.trace!)!
   assert.equal(baseObjective.objective.role, 'merlin')
   assert.equal(weightedObjective.objective.role, 'merlin')
   const changed = weightedObjective.objective.assessments.find(
@@ -493,33 +516,33 @@ test('host join rejects forged candidates, private candidates, sources, and arit
     candidates: legalCandidates(percivalFixture.req, percivalFixture.view),
   }
   assert.ok(validatePrivateRoleObjectiveHostJoin(
-    trace.privateRoleObjective,
+    roleObjective(trace),
     authority,
   ))
   for (const mutate of [
-    (copy: NonNullable<typeof trace.privateRoleObjective>) => {
+    (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       copy.source.beliefThroughSeq += 1
     },
-    (copy: NonNullable<typeof trace.privateRoleObjective>) => {
+    (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       copy.objective.assessments[0].candidate.candidateId += ':forged'
     },
-    (copy: NonNullable<typeof trace.privateRoleObjective>) => {
+    (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       if (copy.objective.role === 'percival') {
         copy.objective.pairPosterior.privateCandidateSeats = [0, 1]
       }
     },
-    (copy: NonNullable<typeof trace.privateRoleObjective>) => {
+    (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       copy.objective.assessments[0].pairInfluenceValue = 0.123
     },
   ]) {
-    const copy = structuredClone(trace.privateRoleObjective!)
+    const copy = structuredClone(roleObjective(trace)!)
     mutate(copy)
     assert.equal(validatePrivateRoleObjectiveHostJoin(copy, authority), false)
   }
 })
 
 test('external validator rejects sparse, expanded, unsafe, nonfinite, oversized, and forged shapes', async () => {
-  const valid = (await roleOutput(merlinFixture)).trace!.privateRoleObjective!
+  const valid = roleObjective((await roleOutput(merlinFixture)).trace!)!
   const malformed: unknown[] = []
   const sparse = structuredClone(valid)
   sparse.objective.assessments = Array(1)
@@ -586,19 +609,21 @@ test('role objective degradation is typed and stale cognition is dropped before 
       hiddenTeam: false,
     },
   }).decide(merlinFixture.req, merlinFixture.view)
-  assert.equal(
-    degraded.trace!.componentVersions!.roleObjective,
-    undefined,
-  )
-  assert.equal(degraded.trace!.privateRoleObjective, undefined)
+  assert.equal(roleObjective(degraded.trace!), undefined)
   assert.ok(degraded.trace!.degradation.includes('identity-projection-failed'))
-  assert.ok(degraded.trace!.degradation.includes(ROLE_OBJECTIVE_DEGRADATION))
+  assert.equal(roleObjectiveEntry(degraded.trace!)?.status, 'degraded')
+  assert.equal(
+    roleObjectiveEntry(degraded.trace!)?.status === 'degraded'
+      ? roleObjectiveEntry(degraded.trace!)!.degradationCode
+      : undefined,
+    ROLE_OBJECTIVE_DEGRADATION,
+  )
 
   const active = await roleOutput(merlinFixture)
   const base = advanceCognition(undefined, merlinFixture.view)
   const earlier = {
     ...base,
-    roleObjective: structuredClone(active.trace!.privateRoleObjective!),
+    roleObjective: structuredClone(roleObjective(active.trace!)!),
     versions: {
       ...base.versions,
       roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
@@ -630,28 +655,28 @@ test('stdio and private/public boundaries preserve role objective attribution', 
     merlin,
   )
   const forged = structuredClone(merlin)
-  forged.trace!.privateRoleObjective!.objective.assessments[0]
+  roleObjective(forged.trace!)!.objective.assessments[0]
     .publicTeamCleanProbability = 0
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       merlinFixture.req,
       forged,
       'external',
       merlinFixture.view,
     ),
-    /invalid decision trace/,
+    forged.decision,
   )
   const hiddenAsDegraded = structuredClone(merlin)
-  delete hiddenAsDegraded.trace!.privateRoleObjective
+  removeRoleObjective(hiddenAsDegraded.trace!)
   hiddenAsDegraded.trace!.degradation.push(ROLE_OBJECTIVE_DEGRADATION)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       merlinFixture.req,
       hiddenAsDegraded,
       'external',
       merlinFixture.view,
     ),
-    /invalid decision trace/,
+    hiddenAsDegraded.decision,
   )
   const dependencyDegraded = await createComposedAgent({
     seed: 'phase7c1-stdio-degraded',
@@ -681,36 +706,35 @@ test('stdio and private/public boundaries preserve role objective attribution', 
   for (const dependency of ['identityModel', 'observerModel'] as const) {
     const missingDependencyVersion = structuredClone(dependencyDegraded)
     delete missingDependencyVersion.trace!.componentVersions![dependency]
-    assert.throws(
-      () => parseStdioDecisionReply(
+    assert.deepEqual(
+      parseStdioDecisionReply(
         merlinFixture.req,
         missingDependencyVersion,
         'external',
         merlinFixture.view,
       ),
-      /invalid decision trace/,
+      missingDependencyVersion.decision,
     )
   }
 
   const servant = await roleOutput(servantFixture)
   const roleForged = structuredClone(servant)
-  roleForged.trace!.componentVersions!.roleObjective =
-    ROLE_OBJECTIVE_MODEL_VERSION
+  addRoleObjectiveFrom(roleForged.trace!, merlin.trace!)
   roleForged.trace!.degradation.push(ROLE_OBJECTIVE_DEGRADATION)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       servantFixture.req,
       roleForged,
       'external',
       servantFixture.view,
     ),
-    /invalid decision trace/,
+    roleForged.decision,
   )
 
   const baseCognition = advanceCognition(undefined, merlinFixture.view)
   const privateCognition = {
     ...baseCognition,
-    roleObjective: structuredClone(merlin.trace!.privateRoleObjective!),
+    roleObjective: structuredClone(roleObjective(merlin.trace!)!),
     versions: {
       ...baseCognition.versions,
       roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
@@ -785,11 +809,7 @@ test('artifact and architecture admission distinguish configured from applicable
       artifact.architecture!.targetRole === 'merlin'
       || artifact.architecture!.targetRole === 'percival'
     for (const trace of artifact.decisionTraces!) {
-      assert.equal(
-        trace.componentVersions?.roleObjective,
-        applicable ? ROLE_OBJECTIVE_MODEL_VERSION : undefined,
-      )
-      assert.equal(trace.privateRoleObjective !== undefined, applicable)
+      assert.equal(roleObjective(trace) !== undefined, applicable)
       assert.equal(
         trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION),
         false,
@@ -810,14 +830,14 @@ test('artifact and architecture admission distinguish configured from applicable
   assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
   assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
   const forged = structuredClone(artifact)
-  forged.decisionTraces![0].privateRoleObjective!.request.round += 1
+  roleObjective(forged.decisionTraces![0])!.request.round += 1
   assert.ok(
     architectureReport([forged]).variants[0]
       .safety.traceAttributionViolations > 0,
   )
 
   const hiddenAsDegraded = structuredClone(artifact)
-  delete hiddenAsDegraded.decisionTraces![0].privateRoleObjective
+  removeRoleObjective(hiddenAsDegraded.decisionTraces![0])
   hiddenAsDegraded.decisionTraces![0].degradation.push(
     ROLE_OBJECTIVE_DEGRADATION,
   )
@@ -831,12 +851,17 @@ test('artifact and architecture admission distinguish configured from applicable
   )!
   for (const forge of [
     (candidate: typeof servant) => {
-      candidate.decisionTraces![0].componentVersions!.roleObjective =
-        ROLE_OBJECTIVE_MODEL_VERSION
+      addRoleObjectiveFrom(
+        candidate.decisionTraces![0],
+        artifact.decisionTraces![0],
+      )
     },
     (candidate: typeof servant) => {
-      candidate.decisionTraces![0].privateRoleObjective =
-        structuredClone(artifact.decisionTraces![0].privateRoleObjective!)
+      candidate.decisionTraces![0].componentPlan!.configured.push(structuredClone(
+        artifact.decisionTraces![0].componentPlan!.configured.find(
+          (entry) => entry.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id,
+        )!,
+      ))
     },
     (candidate: typeof servant) => {
       candidate.decisionTraces![0].degradation.push(
@@ -934,7 +959,7 @@ test('10-player quest-four Merlin and Percival snapshots fit the 252-candidate b
       roleObjectives: true,
     }).decide(req, view)
     const elapsed = performance.now() - started
-    const snapshot = output.trace!.privateRoleObjective!
+    const snapshot = roleObjective(output.trace!)!
     assert.equal(snapshot.objective.assessments.length, 252)
     assert.ok(validatePrivateRoleObjectiveSnapshot(snapshot))
     assert.ok(JSON.stringify(snapshot).length < 1_048_576)

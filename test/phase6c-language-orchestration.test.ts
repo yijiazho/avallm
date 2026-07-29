@@ -548,25 +548,19 @@ test('language attribution survives stdio validation and artifact JSON', async (
   const forged = structuredClone(output)
   ;(forged.trace!.languageEvidence as unknown as Record<string, unknown>)
     .publicRationale = 'must remain excluded'
-  assert.throws(
-    () => parseStdioDecisionReply(req, forged),
-    /invalid decision trace/,
-  )
+  assert.deepEqual(parseStdioDecisionReply(req, forged), forged.decision)
 
   const missing = structuredClone(output)
   delete missing.trace!.languageEvidence
-  assert.throws(
-    () => parseStdioDecisionReply(req, missing),
-    /invalid decision trace/,
-  )
+  assert.deepEqual(parseStdioDecisionReply(req, missing), missing.decision)
 
   const futureSource = structuredClone(output)
   futureSource.trace!.languageEvidence!.cumulativeSourceSeqs = [
     futureSource.trace!.languageEvidence!.cursorThroughSeq + 1,
   ]
-  assert.throws(
-    () => parseStdioDecisionReply(req, futureSource),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(req, futureSource),
+    futureSource.decision,
   )
 
   const forgedProvenance = structuredClone(output)
@@ -579,9 +573,9 @@ test('language attribution survives stdio validation and artifact JSON', async (
       `language:${INTERPRETER_VERSION}`,
       'language:forged-interpreter-v1',
     )
-  assert.throws(
-    () => parseStdioDecisionReply(req, forgedProvenance),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(req, forgedProvenance),
+    forgedProvenance.decision,
   )
 })
 

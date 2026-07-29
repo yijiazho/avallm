@@ -19,12 +19,14 @@ import {
 import {
   EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../server/agents/components/legacy-role-adapters.ts'
+import {
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-  createLegacyRoleAdapterRegistry,
-} from '../server/agents/components/legacy-role-adapters.ts'
+  createNativeScoreComponentRegistry,
+} from '../server/agents/components/native-score-components.ts'
 import {
   morganaRoleScorer,
   seededMorganaRoleScorer,
@@ -133,7 +135,7 @@ function questRequest(view: PlayerView): DecisionRequest {
   }
 }
 
-test('E1A/E1B generic entries exactly dual-write Morgana policy', async () => {
+test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
   const input = morganaProposal()
   const agent = createComposedAgent({
     seed: input.game.seed,
@@ -159,18 +161,12 @@ test('E1A/E1B generic entries exactly dual-write Morgana policy', async () => {
     || objective.status !== 'admitted'
     || utility.status !== 'admitted'
   ) throw new Error('expected admitted Morgana component chain')
-  assert.deepEqual(
-    read.envelope.payload,
-    trace.publicMorganaCounterfeitRead,
-  )
-  assert.deepEqual(
-    objective.envelope.payload,
-    trace.privateMorganaCounterfeitObjective,
-  )
-  assert.deepEqual(
-    utility.envelope.payload,
-    trace.privateMorganaRoleUtility,
-  )
+  assert.equal(trace.publicMorganaCounterfeitRead, undefined)
+  assert.equal(trace.privateMorganaCounterfeitObjective, undefined)
+  assert.equal(trace.privateMorganaRoleUtility, undefined)
+  assert.equal(trace.componentVersions!.morganaCounterfeitPublicRead, undefined)
+  assert.equal(trace.componentVersions!.morganaCounterfeitObjective, undefined)
+  assert.equal(trace.componentVersions!.morganaRoleUtility, undefined)
   for (const entry of [read, objective, utility]) {
     assert.equal(entry.verification, 'exact')
     assert.equal(entry.promotionEligible, true)
@@ -215,17 +211,18 @@ test('E1A/E1B generic entries exactly dual-write Morgana policy', async () => {
     scorer: morganaRoleScorer,
   }).decide(otherInput.req, otherInput.view)
   const forgedPayload = structuredClone(
-    otherOutput.trace!.privateMorganaCounterfeitObjective!,
+    (otherOutput.trace!.components!.entries.find(
+      (entry) =>
+        entry.component.id === MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+    ) as typeof forgedObjective).envelope.payload,
   )
   ;(forgedObjective.envelope as any).payload = forgedPayload
-  forgedDependency.privateMorganaCounterfeitObjective =
-    structuredClone(forgedPayload)
   ;(forgedObjective as any).payloadBytes = Buffer.byteLength(
     JSON.stringify(forgedPayload),
     'utf8',
   )
   assert.equal(
-    createLegacyRoleAdapterRegistry({
+    createNativeScoreComponentRegistry({
       goodObjectiveAllDecisionKinds: true,
     }).definition(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT)!
       .validateDetached(forgedPayload).admitted,
@@ -327,7 +324,7 @@ test('public E1 read resolves from public record without a Morgana flat projecti
     'utf8',
   )
   assert.equal(
-    createLegacyRoleAdapterRegistry({
+    createNativeScoreComponentRegistry({
       goodObjectiveAllDecisionKinds: true,
     }).definition(MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT)!
       .validateDetached(payload).admitted,
@@ -658,7 +655,13 @@ test('the 10-player 252-candidate E1 chain stays below the unchanged run cap', a
     scorer: morganaRoleScorer,
   }).decide(input.req, input.view)
   assert.equal(
-    output.trace!.privateMorganaRoleUtility!.candidates.length,
+    (output.trace!.components!.entries.find(
+      (entry) =>
+        entry.component.id === MORGANA_ROLE_UTILITY_COMPONENT.id,
+    ) as {
+      status: 'admitted'
+      envelope: { payload: { candidates: readonly unknown[] } }
+    }).envelope.payload.candidates.length,
     252,
   )
   const runBytes = Buffer.byteLength(

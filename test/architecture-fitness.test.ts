@@ -631,7 +631,35 @@ test('native score-layer preparation and execution stay locally owned', () => {
         'server/agents/policy/decision-frame.ts',
         'import { executePreparedScoreLayerRun, prepareScoreLayerRunLease } from "./score-layer/runner.ts"',
       ],
+      [
+        'server/agents/policy/score-layer/admission-replay.ts',
+        'import { executePreparedScoreLayerRun } from "./runner.ts"',
+      ],
+      [
+        'server/agents/admission/composed-trace.ts',
+        'import { replayNativeScoresForAdmission } from "../policy/score-layer/admission-replay.ts"',
+      ],
     ]),
+    [],
+  )
+})
+
+test('score admission replay uses only the configured family catalog', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/policy/score-layer/admission-replay.ts',
+        `import { GOOD_ROLE_SCORE_LAYER } from "../../score-layers/good.ts"
+         import * as evil from "../../score-layers/evil.ts"`,
+      ],
+    ]),
+    ['ARCH007', 'ARCH007'],
+  )
+  assert.deepEqual(
+    auditArchitectureSources([[
+      'server/agents/admission/composed-trace.ts',
+      'import { configuredScoreLayerChainForVersion } from "../score-layers/configured.ts"',
+    ]]),
     [],
   )
 })

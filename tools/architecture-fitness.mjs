@@ -15,8 +15,11 @@ const CONCRETE_SCORE_LAYER_PREFIX = 'server/agents/score-layers/'
 const CONFIGURED_SCORE_LAYER_SEAM =
   'server/agents/score-layers/configured'
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
+const SCORE_LAYER_ADMISSION_REPLAY =
+  'server/agents/policy/score-layer/admission-replay'
 const SCORE_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
+  'server/agents/policy/score-layer/admission-replay.ts',
 ])
 const FORBIDDEN_SCORE_LAYER_ROLE_LITERALS = new Set([
   'assassin',
@@ -433,7 +436,19 @@ export function auditArchitectureSources(sourceEntries) {
           'ARCH006',
           sourcePath,
           edge,
-          'the native score-layer runner is confined to DecisionFrame',
+          'the native score-layer runner is confined to live DecisionFrame and canonical admission replay',
+        ))
+        continue
+      }
+      if (
+        target === SCORE_LAYER_ADMISSION_REPLAY
+        && sourcePath !== 'server/agents/admission/composed-trace.ts'
+      ) {
+        violations.push(violation(
+          'ARCH006',
+          sourcePath,
+          edge,
+          'native score admission replay is confined to composed trace admission',
         ))
         continue
       }

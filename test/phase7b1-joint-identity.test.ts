@@ -559,27 +559,27 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
     fixture.view,
   )
   assert.deepEqual(accepted, identity)
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, identity),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, identity),
+    identity.decision,
   )
   const forgedOff = structuredClone(off)
   forgedOff.trace!.privateIdentity = structuredClone(identity.trace!.privateIdentity)
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, forgedOff),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, forgedOff),
+    forgedOff.decision,
   )
   const forgedOn = structuredClone(identity)
   delete forgedOn.trace!.privateIdentity
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, forgedOn),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, forgedOn),
+    forgedOn.decision,
   )
   const wrongBelief = structuredClone(identity)
   wrongBelief.trace!.privateIdentity!.sourceBelief.modelVersion = 'forged'
-  assert.throws(
-    () => parseStdioDecisionReply(fixture.req, wrongBelief),
-    /invalid decision trace/,
+  assert.deepEqual(
+    parseStdioDecisionReply(fixture.req, wrongBelief),
+    wrongBelief.decision,
   )
 
   const hostBound = await createComposedAgent({
@@ -600,25 +600,25 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
   assert.ok(validatePrivateIdentitySnapshot(
     substitutedCast.trace!.privateIdentity,
   ))
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       substitutedCast,
       'external agent',
       fixture.view,
     ),
-    /invalid decision trace/,
+    substitutedCast.decision,
   )
   const substitutedMarginals = structuredClone(hostBound)
   substituteBeliefMarginals(substitutedMarginals.trace!)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       fixture.req,
       substitutedMarginals,
       'external agent',
       fixture.view,
     ),
-    /invalid decision trace/,
+    substitutedMarginals.decision,
   )
 
   const degraded = await createComposedAgent({

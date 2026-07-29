@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   goodProposalScorer,
-  scoreCandidates,
+  compatibilityCandidateScores,
 } from '../server/agents/policy/score.ts'
 import {
   isAgentDecision,
@@ -151,11 +151,11 @@ test('generic observer roots stage only on causal use', async () => {
 
 test('candidate scoring is deterministic and JSON-safe', async () => {
   const source = fixture('merlin-opening-proposal')
-  let first: ReturnType<typeof scoreCandidates> | undefined
+  let first: ReturnType<typeof compatibilityCandidateScores> | undefined
   const scorer = {
     version: 'compatibility-scorer-v1',
-    score(context: Parameters<typeof scoreCandidates>[0]) {
-      const scores = scoreCandidates(context)
+    score(context: Parameters<typeof compatibilityCandidateScores>[0]) {
+      const scores = compatibilityCandidateScores(context)
       first ??= structuredClone(scores)
       return scores
     },
@@ -215,7 +215,7 @@ test('scorer viability must be a boolean', async () => {
     scorer: {
       version: 'malformed-scorer-v1',
       score(context) {
-        return scoreCandidates(context).map((score) => ({
+        return compatibilityCandidateScores(context).map((score) => ({
           ...score,
           version: 'malformed-scorer-v1',
           viable: 'yes',
@@ -380,7 +380,7 @@ test('revision reason and discussion speech are plan-driven without changing mec
     scorer: {
       version: 'revision-test-scorer-v1',
       score(context) {
-        return scoreCandidates(context).map((score, index) => {
+        return compatibilityCandidateScores(context).map((score, index) => {
           const candidate = context.candidates[index]
           const revise = candidate.decision.kind === 'finalize'
             && candidate.decision.stick === false
@@ -597,7 +597,7 @@ test('AgentOutput compatibility normalizes raw and trace-bearing decisions', () 
   assert.equal(normalizeAgentOutput(wrapped), wrapped)
 })
 
-test('stdio boundary accepts an optional valid trace envelope and rejects invalid trace data', () => {
+test('stdio boundary admits valid telemetry and strips invalid optional traces', () => {
   const source = fixture('servant-vote-after-evidence')
   const action = { kind: 'vote' as const, vote: 'approve' as const }
   const trace = {
@@ -618,47 +618,35 @@ test('stdio boundary accepts an optional valid trace envelope and rejects invali
     parseStdioDecisionReply(source.req, { decision: action, trace }),
     { decision: action, trace },
   )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  const stripsTrace = (reply: unknown) => assert.deepEqual(
+    parseStdioDecisionReply(source.req, reply),
+    action,
+  )
+  stripsTrace({
       decision: action,
       trace: { version: 'unknown', request: source.req, action },
-    }),
-    /invalid decision trace/,
-  )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  })
+  stripsTrace({
       decision: action,
       trace: { ...trace, forcedPolicyResult: {} },
-    }),
-    /invalid decision trace/,
-  )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  })
+  stripsTrace({
       decision: action,
       trace: {
         ...trace,
         viewerSeat: source.req.seat + 1,
         action: { kind: 'vote', vote: 'reject' },
       },
-    }),
-    /invalid decision trace/,
-  )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  })
+  stripsTrace({
       decision: action,
       trace: { ...trace, decisionId: 'colliding-id' },
-    }),
-    /invalid decision trace/,
-  )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  })
+  stripsTrace({
       decision: action,
       trace: { ...trace, topHypotheses: [{}] },
-    }),
-    /invalid decision trace/,
-  )
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+  })
+  stripsTrace({
       decision: action,
       trace: {
         ...trace,
@@ -666,8 +654,12 @@ test('stdio boundary accepts an optional valid trace envelope and rejects invali
           privateInfo: { knownEvil: [2, 3] },
         },
       },
+  })
+  assert.throws(
+    () => parseStdioDecisionReply(source.req, {
+      decision: { kind: 'propose', team: [0, 1] },
     }),
-    /invalid decision trace/,
+    /invalid decision/,
   )
 })
 
@@ -682,65 +674,45 @@ test('stdio boundary accepts the complete composed trace extension', async () =>
     parseStdioDecisionReply(source.req, output),
     output,
   )
+  const stripsTrace = (reply: typeof output) => assert.deepEqual(
+    parseStdioDecisionReply(source.req, reply),
+    reply.decision,
+  )
   const scorerMismatch = structuredClone(output)
   scorerMismatch.trace!.candidateScores = scorerMismatch.trace!.candidateScores!
     .map((score) => ({ ...score, version: 'wrong-scorer' }))
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, scorerMismatch),
-    /invalid decision trace/,
-  )
+  stripsTrace(scorerMismatch)
   const impossibleForced = structuredClone(output)
   impossibleForced.trace!.forcedPolicyResult = {
     ...impossibleForced.trace!.forcedPolicyResult!,
     applied: true,
     reasonCodes: [],
   }
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, impossibleForced),
-    /invalid decision trace/,
-  )
+  stripsTrace(impossibleForced)
   const forgedIntent = structuredClone(output)
   if (forgedIntent.trace!.communicationIntent?.uncertainty) {
     forgedIntent.trace!.communicationIntent.uncertainty.beliefThroughSeq += 1
   }
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, forgedIntent),
-    /invalid decision trace/,
-  )
+  stripsTrace(forgedIntent)
   const missingMode = structuredClone(output)
   delete missingMode.trace!.agentMode
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, missingMode),
-    /invalid decision trace/,
-  )
+  stripsTrace(missingMode)
   const missingIntent = structuredClone(output)
   delete missingIntent.trace!.communicationIntent
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, missingIntent),
-    /invalid decision trace/,
-  )
+  stripsTrace(missingIntent)
   const extraIntent = structuredClone(output)
   Object.assign(extraIntent.trace!.communicationIntent!, {
     privateInfo: { knownEvil: [2, 3] },
   })
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, extraIntent),
-    /invalid decision trace/,
-  )
+  stripsTrace(extraIntent)
   const duplicateTarget = structuredClone(output)
   const targets = duplicateTarget.trace!.communicationIntent!.targetSeats
   duplicateTarget.trace!.communicationIntent!.targetSeats = [
     ...targets,
     targets[0],
   ]
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, duplicateTarget),
-    /invalid decision trace/,
-  )
+  stripsTrace(duplicateTarget)
   const wrongMode = structuredClone(output)
   wrongMode.trace!.agentMode = 'hybrid'
-  assert.throws(
-    () => parseStdioDecisionReply(source.req, wrongMode),
-    /invalid decision trace/,
-  )
+  stripsTrace(wrongMode)
 })

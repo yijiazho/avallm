@@ -31,12 +31,14 @@ import type {
 import {
   canonicalDecisionFrame,
   commitDecision,
+  prepareNativeScoreLayers,
   selectDecisionCandidate,
   withDecisionAnalysis,
   withDecisionVoice,
   withLegacyD3QuestCard,
-  withLegacyScoring,
+  withCustomScoring,
   withLegalCandidates,
+  withNativeResolvedComponents,
   withResolvedComponents,
   withUniversalForcedPolicy,
   type ComponentsResolvedDecisionFrame,
@@ -195,7 +197,7 @@ function completeFromCurrentTrace(
     version: trace.componentVersions!.scorer,
     score: () => trace.candidateScores!,
   }
-  return withLegacyScoring(
+  return withCustomScoring(
     frame,
     () => ({
       deterministicSeed: seed,
@@ -447,7 +449,6 @@ test('one frame-bound scoring capability preserves both fallback outcomes', asyn
       expected: [
         'scorer-invalid-output',
         'role-objective-scorer-failed',
-        'base-scorer-invalid-output',
       ],
     },
   ]) {
@@ -590,6 +591,84 @@ test('real D3 is an explicit post-universal quarantine with exact attribution', 
   assert.equal(
     JSON.stringify(d3.componentRun.policyUse),
     JSON.stringify(output.trace!.components!.policyUse),
+  )
+})
+
+async function nativeD3Input(view: PlayerView, seed: string) {
+  const req = questRequest(view)
+  const agent = createComposedAgent({
+    seed,
+    evilQuestCardPolicy: 'robust-heterogeneous',
+  })
+  const candidate = withLegalCandidates(canonicalDecisionFrame(req, view))
+  const lease = prepareNativeScoreLayers(candidate, agent.resolvedBrain())
+  const analyzed = withDecisionAnalysis(
+    candidate,
+    reconstructCognition(view),
+    'candidate-teams',
+  )
+  const universal = withUniversalForcedPolicy(analyzed)
+  const resolved = await withNativeResolvedComponents(
+    universal,
+    agent.resolvedBrain(),
+    lease,
+    undefined,
+    (frame) => ({
+      providers: [
+        {
+          input: PRIVATE_SITUATION_INPUT,
+          provide: () =>
+            structuredClone(frame.analysis) as SituationAnalysis,
+        },
+        {
+          input: PRIVATE_FORCED_POLICY_INPUT,
+          provide: () =>
+            structuredClone(frame.universalForced) as ForcedPolicyResult,
+        },
+      ],
+    }),
+  )
+  return { lease, resolved }
+}
+
+test('D3 lease hop is construction-bound against forged, cross, and repeat frames', async () => {
+  const view = nondecisive(coordinatedQuestView(4, [4, 5]))
+  const first = await nativeD3Input(view, 'decision-frame-d3-bound-1')
+  const second = await nativeD3Input(view, 'decision-frame-d3-bound-2')
+  const forged = {
+    ...first.resolved,
+    effectiveForced: second.resolved.effectiveForced,
+    componentRun: second.resolved.componentRun,
+  } as ComponentsResolvedDecisionFrame
+  assert.throws(
+    () => withLegacyD3QuestCard(
+      forged,
+      EVIL_QUEST_CARD_ROBUST_COMPONENT,
+      first.lease,
+    ),
+    /not bound to the D3 input/,
+  )
+  assert.throws(
+    () => withLegacyD3QuestCard(
+      second.resolved,
+      EVIL_QUEST_CARD_ROBUST_COMPONENT,
+      first.lease,
+    ),
+    /not bound to the D3 input/,
+  )
+  const advanced = withLegacyD3QuestCard(
+    first.resolved,
+    EVIL_QUEST_CARD_ROBUST_COMPONENT,
+    first.lease,
+  )
+  assert.equal(advanced.stage, 'legacy-d3-quest-card')
+  assert.throws(
+    () => withLegacyD3QuestCard(
+      first.resolved,
+      EVIL_QUEST_CARD_ROBUST_COMPONENT,
+      first.lease,
+    ),
+    /not bound to the D3 input/,
   )
 })
 

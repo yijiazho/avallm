@@ -25,7 +25,7 @@ import { componentEnvelope } from './kernel.ts'
 import {
   PRIVATE_BELIEF_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
-} from './legacy-role-adapters.ts'
+} from './native-score-components.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../analysis/observer-types.ts'

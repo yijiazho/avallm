@@ -708,6 +708,7 @@ function currentArchitectureSafety(
         deterministicSeed: artifact.seed,
         expectComponentTrace: true,
         expectedComponentPlan: admission.plan,
+        expectedArchitectureIdentity: admission.identity,
       })
     ) {
       traceAttributionViolations++

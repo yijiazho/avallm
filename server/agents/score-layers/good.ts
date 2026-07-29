@@ -11,7 +11,7 @@ import {
 } from '../analysis/role-utility.ts'
 import {
   GOOD_ROLE_UTILITY_COMPONENT,
-} from '../components/legacy-role-adapters.ts'
+} from '../components/native-score-components.ts'
 import {
   createScoreLayerRegistry,
 } from '../policy/score-layer/registry.ts'
@@ -31,13 +31,20 @@ import {
 import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
+  GOOD_VOTE_UTILITY_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_UTILITY_CONSTANTS,
+  ROLE_OBJECTIVE_UTILITY_VERSION,
   stablePolicyBucket,
+  type GoodProposalFeatures,
+  type GoodVoteFeatures,
 } from '../policy/good-score-contract.ts'
 import {
   goodProposalScorer,
@@ -48,6 +55,7 @@ import {
   type CandidateScorer,
 } from '../policy/score.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
+import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
 
 export const COMPATIBILITY_SCORE_LAYER = scoreLayerToken(
@@ -94,11 +102,11 @@ export function goodScoreLayerTerminalFor(
   return undefined
 }
 
-/** A2 owns proposal and vote scoring only; later families own other decisions. */
+/** The total compatibility root owns every decision kind. */
 export function goodScoreLayersApplyToDecision(
-  kind: DecisionKind,
-): kind is 'propose' | 'vote' {
-  return kind === 'propose' || kind === 'vote'
+  _kind: DecisionKind,
+): boolean {
+  return true
 }
 
 const REMOVED_VALUE = -Number.MAX_SAFE_INTEGER
@@ -167,7 +175,26 @@ type VoteContext = Pick<
   'request' | 'view' | 'analysis' | 'hypotheticalTeamCandidates'
 >
 
-function voteUtility(context: VoteContext) {
+interface GoodVoteUtilityInputs {
+  readonly currentTeam: readonly number[]
+  readonly currentCleanProbability: number
+  readonly currentEvilCountDistribution: readonly number[]
+  readonly bestAlternativeCandidateId: string
+  readonly bestAlternativeTeam: readonly number[]
+  readonly bestAlternativeCleanProbability: number
+  readonly bestAlternativeEvilCountDistribution: readonly number[]
+  readonly futureQuestsRemain: boolean
+  readonly stake: number
+  readonly alternativeRealization: number
+  readonly hammerPenalty: number
+  readonly informationBonus: number
+  readonly approveUtility: number
+  readonly rejectUtility: number
+}
+
+function voteUtility(
+  context: VoteContext | DeterministicGoodBaseContext,
+): GoodVoteUtilityInputs {
   const projection = context.analysis.goodVote
   const surface = context.hypotheticalTeamCandidates
   if (
@@ -221,13 +248,15 @@ function voteUtility(context: VoteContext) {
     currentMatches.length !== 1
     || projection.currentCandidateId !== currentMatches[0][0]
     || !sameNumbers(projection.currentTeam.team, currentTeam)
-    || !best
-    || projection.bestAlternative.candidateId !== best.candidateId
-    || !sameNumbers(projection.bestAlternative.team, best.team)
-    || projection.bestAlternative.cleanProbability !== best.cleanProbability
     || projection.currentTeam.cleanProbability
       !== context.analysis.currentTeam?.cleanProbability
   ) throw new Error('good vote situation join mismatch')
+  if (
+    !best
+    || projection.bestAlternative.candidateId !== best.candidateId
+    || !sameNumbers(projection.bestAlternative.team, best.team)
+    || projection.bestAlternative.cleanProbability !== best.cleanProbability
+  ) throw new Error('good vote best-alternative join mismatch')
 
   const constants = GOOD_VOTE_UTILITY_CONSTANTS
   const futureQuestsRemain =
@@ -254,6 +283,20 @@ function voteUtility(context: VoteContext) {
       * (1 - projection.currentTeam.cleanProbability)
     : 0
   return Object.freeze({
+    currentTeam,
+    currentCleanProbability: projection.currentTeam.cleanProbability,
+    currentEvilCountDistribution:
+      projection.currentTeam.evilCountDistribution,
+    bestAlternativeCandidateId: projection.bestAlternative.candidateId,
+    bestAlternativeTeam: projection.bestAlternative.team,
+    bestAlternativeCleanProbability:
+      projection.bestAlternative.cleanProbability,
+    bestAlternativeEvilCountDistribution:
+      projection.bestAlternative.evilCountDistribution,
+    futureQuestsRemain,
+    stake,
+    alternativeRealization,
+    hammerPenalty,
     informationBonus,
     approveUtility:
       stake * projection.currentTeam.cleanProbability + informationBonus,
@@ -290,22 +333,10 @@ function admitsGood(
 function compatibilityRows(
   context: ScoreLayerExecutionContext,
 ): readonly ScoreLayerRowDraft[] {
-  const allowed = new Set(context.forced.allowedCandidateIds)
-  return context.candidates.map((candidate, index) => {
-    const viable = allowed.has(candidate.id)
-    const compatibility =
-      candidate.id === context.compatibilityCandidateId
-    return {
-      candidateId: candidate.id,
-      value: viable
-        ? (compatibility ? 1_000_000 : -index)
-        : REMOVED_VALUE,
-      viable,
-      reasonCodes: [
-        viable ? 'FORCED_POLICY_ALLOWED' : 'FORCED_POLICY_REMOVED',
-        ...(compatibility ? ['COMPATIBILITY_CHOICE'] : []),
-      ],
-    }
+  return calculateCompatibilityBase({
+    candidates: context.candidates,
+    allowedCandidateIds: context.forced.allowedCandidateIds,
+    compatibilityCandidateId: context.compatibilityCandidateId,
   })
 }
 
@@ -343,14 +374,33 @@ function goodDefinition(
     analysisRequirements: (context) =>
       requirementFor(context, supportsVote),
     admitAnalysis: (context) => admitsGood(context, supportsVote),
-    applies: (context) =>
-      context.view.alignment === 'good'
-      && (
-        context.request.kind === 'propose'
-        || (supportsVote && context.request.kind === 'vote')
-      ),
+    applies: () => true,
     execute(context) {
-      const deterministicRows = deterministicGoodBaseRows(context)
+      const inScope =
+        context.view.alignment === 'good'
+        && (
+          context.request.kind === 'propose'
+          || (supportsVote && context.request.kind === 'vote')
+        )
+      if (!inScope) {
+        const reason = mode === 'proposal-only'
+          ? 'GOOD_PROPOSAL_OUT_OF_SCOPE_COMPATIBILITY'
+          : 'GOOD_POLICY_OUT_OF_SCOPE_COMPATIBILITY'
+        return {
+          status: 'applied',
+          surface: context.surface.create({
+            scores: context.prior.scores.map((row) => ({
+              candidateId: row.candidateId,
+              value: row.value,
+              viable: row.viable,
+              reasonCodes: [...row.reasonCodes, reason],
+            })),
+            survivorCandidateIds: context.prior.survivorCandidateIds,
+          }),
+        }
+      }
+      const deterministicRows = calculateGoodPolicyRows(context, mode)
+        .map((row) => row.score)
       if (context.request.kind === 'propose') {
         return {
           status: 'applied',
@@ -363,67 +413,10 @@ function goodDefinition(
       if (!supportsVote || context.request.kind !== 'vote') {
         throw new Error('good score layer executed outside applicability')
       }
-      if (mode !== 'seeded-band') {
-        return {
-          status: 'applied',
-          surface: context.surface.create({
-            scores: deterministicRows,
-            survivorCandidateIds: context.prior.survivorCandidateIds,
-          }),
-        }
-      }
-      const allowed = new Set(context.forced.allowedCandidateIds)
-      const allowedRows = deterministicRows.filter((row) =>
-        allowed.has(row.candidateId))
-      const utility = voteUtility(context)
-      const inBand =
-        Math.abs(utility.approveUtility - utility.rejectUtility)
-          <= GOOD_VOTE_UTILITY_CONSTANTS.viableBand
-      const bandActive = inBand && allowedRows.length > 1
-      const maxBase = Math.max(...allowedRows.map((row) => row.value))
-      const seedBucket = bandActive
-        ? stablePolicyBucket([
-            context.deterministicSeed,
-            context.request.seat,
-            context.request.kind,
-            context.request.round,
-            context.request.proposalNum,
-            context.analysis.throughSeq,
-          ].join(':'))
-        : undefined
-      const seededVote = seedBucket === 0 ? 'approve' : 'reject'
       return {
         status: 'applied',
         surface: context.surface.create({
-          scores: context.candidates.map((candidate, index) => {
-            if (candidate.decision.kind !== 'vote') {
-              throw new Error('mixed vote candidate')
-            }
-            const base = deterministicRows[index]
-            if (!base || base.candidateId !== candidate.id) {
-              throw new Error('good vote base row join mismatch')
-            }
-            const forcedAllowed = allowed.has(candidate.id)
-            const selectedBySeed =
-              bandActive && candidate.decision.vote === seededVote
-            const selectionAdjustment = selectedBySeed
-              ? maxBase - base.value + 1e-9
-              : 0
-            return {
-              ...base,
-              value: forcedAllowed
-                ? base.value + selectionAdjustment
-                : REMOVED_VALUE,
-              viable: forcedAllowed && (bandActive || base.viable),
-              reasonCodes: bandActive
-                ? [
-                    ...base.reasonCodes.filter((reason) =>
-                      reason !== 'GOOD_VOTE_TOP_UTILITY'),
-                    'GOOD_VOTE_SEEDED_VIABLE_BAND',
-                  ]
-                : base.reasonCodes,
-            }
-          }),
+          scores: deterministicRows,
           survivorCandidateIds: context.prior.survivorCandidateIds,
         }),
       }
@@ -432,9 +425,34 @@ function goodDefinition(
   return Object.freeze(definition)
 }
 
-function deterministicGoodBaseRows(
-  context: ScoreLayerTransformContext,
-): readonly ScoreLayerRowDraft[] {
+export interface DeterministicGoodBaseRow {
+  readonly score: ScoreLayerRowDraft
+  readonly baseValue: number
+  readonly features: GoodProposalFeatures | GoodVoteFeatures
+}
+
+export interface DeterministicGoodBase {
+  readonly version: 'deterministic-good-base-v1'
+  readonly rows: readonly DeterministicGoodBaseRow[]
+}
+
+export type DeterministicGoodBaseContext = Pick<
+  ScoreLayerTransformContext,
+  'request' | 'view' | 'analysis' | 'candidates' | 'forced'
+> & {
+  readonly hypotheticalTeamCandidates?:
+    ScoreLayerTransformContext['hypotheticalTeamCandidates']
+}
+
+/**
+ * One typed owner for deterministic Phase 4 mechanics and their exact
+ * historical feature inputs. C2 consumes this base before applying its own
+ * role adjustment; compatibility projection may read features but cannot
+ * change the score rows.
+ */
+export function calculateDeterministicGoodBase(
+  context: DeterministicGoodBaseContext,
+): DeterministicGoodBase {
   const allowed = new Set(context.forced.allowedCandidateIds)
   if (context.request.kind === 'propose') {
     const assessments = new Map(
@@ -443,43 +461,74 @@ function deterministicGoodBaseRows(
         entry,
       ]),
     )
+    if (
+      assessments.size !== context.analysis.policyCandidateAssessments.length
+      || assessments.size !== context.candidates.length
+    ) throw new Error('good base assessment mismatch')
     const base = context.candidates.map((candidate) => {
       if (candidate.decision.kind !== 'propose') {
         throw new Error('good base received mixed proposal candidates')
       }
       const assessment = assessments.get(candidate.id)
-      if (!assessment) throw new Error('good base assessment missing')
+      if (
+        !assessment
+        || !sameNumbers(
+          canonicalTeam(candidate.decision.team),
+          assessment.team,
+        )
+      ) throw new Error('good base assessment mismatch')
       const forcedAllowed = allowed.has(candidate.id)
       return {
-        candidateId: candidate.id,
-        value: forcedAllowed ? assessment.cleanProbability : REMOVED_VALUE,
-        viable: forcedAllowed,
-        reasonCodes: [
-          forcedAllowed
-            ? 'FORCED_POLICY_ALLOWED'
-            : 'FORCED_POLICY_REMOVED',
-          'GOOD_PROPOSAL_JOINT_TEAM_CLEAN',
-        ],
+        score: {
+          candidateId: candidate.id,
+          value: forcedAllowed
+            ? assessment.cleanProbability
+            : REMOVED_VALUE,
+          viable: forcedAllowed,
+          reasonCodes: [
+            forcedAllowed
+              ? 'FORCED_POLICY_ALLOWED'
+              : 'FORCED_POLICY_REMOVED',
+            'GOOD_PROPOSAL_JOINT_TEAM_CLEAN',
+          ],
+        },
+        baseValue: assessment.cleanProbability,
+        features: {
+          version: GOOD_PROPOSAL_FEATURE_VERSION,
+          semantics: assessment.probabilitySemantics,
+          beliefModelVersion: assessment.beliefModelVersion,
+          beliefThroughSeq: assessment.beliefThroughSeq,
+          team: canonicalTeam(candidate.decision.team),
+          cleanProbability: assessment.cleanProbability,
+          evilCountDistribution: assessment.evilCountDistribution,
+        } satisfies GoodProposalFeatures,
       }
     })
-    const viable = base.filter((row) => row.viable)
-    const max = Math.max(...viable.map((row) => row.value))
+    const viable = base.filter((row) => row.score.viable)
+    const max = Math.max(...viable.map((row) => row.score.value))
     const topIds = viable
-      .filter((row) => row.value === max)
-      .map((row) => row.candidateId)
+      .filter((row) => row.score.value === max)
+      .map((row) => row.score.candidateId)
       .sort(compareCandidateIds)
-    return base.map((row) => ({
-      ...row,
-      reasonCodes: [
-        ...row.reasonCodes,
-        ...(row.viable && row.value === max
-          ? ['GOOD_PROPOSAL_MAX_TEAM_CLEAN']
-          : []),
-        ...(topIds.length > 1 && row.candidateId === topIds[0]
-          ? ['GOOD_PROPOSAL_CANONICAL_TIE_BREAK']
-          : []),
-      ],
-    }))
+    return Object.freeze({
+      version: 'deterministic-good-base-v1',
+      rows: Object.freeze(base.map((row) => Object.freeze({
+        ...row,
+        score: Object.freeze({
+          ...row.score,
+          reasonCodes: Object.freeze([
+            ...row.score.reasonCodes,
+            ...(row.score.viable && row.score.value === max
+              ? ['GOOD_PROPOSAL_MAX_TEAM_CLEAN']
+              : []),
+            ...(topIds.length > 1
+              && row.score.candidateId === topIds[0]
+              ? ['GOOD_PROPOSAL_CANONICAL_TIE_BREAK']
+              : []),
+          ]),
+        }),
+      }))),
+    })
   }
   if (context.request.kind !== 'vote') {
     throw new Error('good role base requires proposal or vote')
@@ -506,32 +555,190 @@ function deterministicGoodBaseRows(
     && values[candidate.decision.vote] === max)
     .map((candidate) => candidate.id)
     .sort(compareCandidateIds)[0]
-  return context.candidates.map((candidate) => {
+  const inViableBand =
+    Math.abs(utility.approveUtility - utility.rejectUtility)
+      <= GOOD_VOTE_UTILITY_CONSTANTS.viableBand
+  return Object.freeze({
+    version: 'deterministic-good-base-v1',
+    rows: Object.freeze(context.candidates.map((candidate) => {
     if (candidate.decision.kind !== 'vote') {
       throw new Error('good base received mixed vote candidates')
     }
     const forcedAllowed = allowed.has(candidate.id)
     const viable = forcedAllowed && candidate.id === topId
-    return {
-      candidateId: candidate.id,
-      value: forcedAllowed
-        ? values[candidate.decision.vote]
-        : REMOVED_VALUE,
-      viable,
-      reasonCodes: [
-        forcedAllowed ? 'FORCED_POLICY_ALLOWED' : 'FORCED_POLICY_REMOVED',
-        'GOOD_VOTE_CURRENT_TEAM_JOINT_CLEAN',
-        'GOOD_VOTE_BEST_ALTERNATIVE_JOINT_CLEAN',
-        'GOOD_VOTE_BOARD_STAKES',
-        'GOOD_VOTE_PROPOSAL_RUNWAY',
-        'GOOD_VOTE_HAMMER_RISK',
-        ...(utility.informationBonus > 0
-          ? ['GOOD_VOTE_INFORMATION_FUTURE_QUEST']
-          : []),
-        ...(viable ? ['GOOD_VOTE_TOP_UTILITY'] : []),
-      ],
-    }
+    const baseValue = values[candidate.decision.vote]
+    return Object.freeze({
+      score: Object.freeze({
+        candidateId: candidate.id,
+        value: forcedAllowed ? baseValue : REMOVED_VALUE,
+        viable,
+        reasonCodes: Object.freeze([
+          forcedAllowed ? 'FORCED_POLICY_ALLOWED' : 'FORCED_POLICY_REMOVED',
+          'GOOD_VOTE_CURRENT_TEAM_JOINT_CLEAN',
+          'GOOD_VOTE_BEST_ALTERNATIVE_JOINT_CLEAN',
+          'GOOD_VOTE_BOARD_STAKES',
+          'GOOD_VOTE_PROPOSAL_RUNWAY',
+          'GOOD_VOTE_HAMMER_RISK',
+          ...(utility.informationBonus > 0
+            ? ['GOOD_VOTE_INFORMATION_FUTURE_QUEST']
+            : []),
+          ...(viable ? ['GOOD_VOTE_TOP_UTILITY'] : []),
+        ]),
+      }),
+      baseValue,
+      features: Object.freeze({
+        version: GOOD_VOTE_FEATURE_VERSION,
+        utilityVersion: GOOD_VOTE_UTILITY_VERSION,
+        situationVersion: GOOD_VOTE_SITUATION_VERSION,
+        semantics: context.analysis.goodVote!.probabilitySemantics,
+        beliefModelVersion:
+          context.analysis.goodVote!.beliefModelVersion,
+        beliefThroughSeq: context.analysis.throughSeq,
+        currentTeam: utility.currentTeam,
+        currentCleanProbability: utility.currentCleanProbability,
+        currentEvilCountDistribution:
+          utility.currentEvilCountDistribution,
+        bestAlternativeCandidateId:
+          utility.bestAlternativeCandidateId,
+        bestAlternativeTeam: utility.bestAlternativeTeam,
+        bestAlternativeCleanProbability:
+          utility.bestAlternativeCleanProbability,
+        bestAlternativeEvilCountDistribution:
+          utility.bestAlternativeEvilCountDistribution,
+        boardScore: { ...context.analysis.score },
+        proposalNumber: context.analysis.proposalNumber,
+        rejectionsBeforeHammer:
+          context.analysis.rejectionsBeforeHammer,
+        futureQuestsRemain: utility.futureQuestsRemain,
+        stake: utility.stake,
+        alternativeRealization: utility.alternativeRealization,
+        hammerPenalty: utility.hammerPenalty,
+        informationBonus: utility.informationBonus,
+        approveUtility: utility.approveUtility,
+        rejectUtility: utility.rejectUtility,
+        baseUtility: baseValue,
+        selectionAdjustment: 0,
+        selectionMode: 'top-utility',
+        viableBand: GOOD_VOTE_UTILITY_CONSTANTS.viableBand,
+        inViableBand,
+      } satisfies GoodVoteFeatures),
+    })
+  })),
   })
+}
+
+/** Typed historical diagnostic projection backed by the good-family base. */
+export function calculateGoodProposalCandidateScores(
+  context: DeterministicGoodBaseContext,
+) {
+  return calculateDeterministicGoodBase(context).rows.map((row) => ({
+    version: GOOD_PROPOSAL_SCORER_VERSION,
+    ...row.score,
+    features: structuredClone(row.features),
+  }))
+}
+
+type GoodPolicyCalculationContext = DeterministicGoodBaseContext & {
+  readonly deterministicSeed: string
+}
+
+function calculateGoodPolicyRows(
+  context: GoodPolicyCalculationContext,
+  mode: GoodMode,
+): readonly DeterministicGoodBaseRow[] {
+  const base = calculateDeterministicGoodBase(context)
+  if (
+    context.request.kind !== 'vote'
+    || mode !== 'seeded-band'
+  ) return base.rows
+  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowedRows = base.rows.filter((row) =>
+    allowed.has(row.score.candidateId))
+  const features = base.rows[0]?.features
+  if (!features || features.version !== GOOD_VOTE_FEATURE_VERSION) {
+    throw new Error('seeded good vote requires vote features')
+  }
+  const bandActive =
+    features.inViableBand && allowedRows.length > 1
+  const maxBase = Math.max(
+    ...allowedRows.map((row) => row.score.value),
+  )
+  const seedBucket = bandActive
+    ? stablePolicyBucket([
+        context.deterministicSeed,
+        context.request.seat,
+        context.request.kind,
+        context.request.round,
+        context.request.proposalNum,
+        context.analysis.throughSeq,
+      ].join(':'))
+    : undefined
+  const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+  return base.rows.map((row, index) => {
+    const candidate = context.candidates[index]
+    if (
+      !candidate
+      || candidate.id !== row.score.candidateId
+      || candidate.decision.kind !== 'vote'
+      || row.features.version !== GOOD_VOTE_FEATURE_VERSION
+    ) throw new Error('seeded good vote base row join mismatch')
+    const forcedAllowed = allowed.has(candidate.id)
+    const selectedBySeed =
+      bandActive && candidate.decision.vote === seededVote
+    const selectionAdjustment = selectedBySeed
+      ? maxBase - row.score.value + 1e-9
+      : 0
+    return Object.freeze({
+      baseValue: row.baseValue,
+      score: Object.freeze({
+        ...row.score,
+        value: forcedAllowed
+          ? row.score.value + selectionAdjustment
+          : REMOVED_VALUE,
+        viable: forcedAllowed && (bandActive || row.score.viable),
+        reasonCodes: Object.freeze(bandActive
+          ? [
+              ...row.score.reasonCodes.filter((reason) =>
+                reason !== 'GOOD_VOTE_TOP_UTILITY'),
+              'GOOD_VOTE_SEEDED_VIABLE_BAND',
+            ]
+          : [...row.score.reasonCodes]),
+      }),
+      features: Object.freeze({
+        ...row.features,
+        selectionMode: 'seeded-band' as const,
+        selectionAdjustment,
+        ...(seedBucket === undefined ? {} : { seedBucket }),
+      }),
+    })
+  })
+}
+
+export function calculateGoodProposalVoteCandidateScores(
+  context: GoodPolicyCalculationContext,
+  scorer: CandidateScorer,
+) {
+  const mode: GoodMode =
+    scorer.version === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+      ? 'seeded-band'
+      : scorer.version === GOOD_PROPOSAL_VOTE_SCORER_VERSION
+        ? 'top-utility'
+        : scorer.version === GOOD_PROPOSAL_SCORER_VERSION
+          ? 'proposal-only'
+          : (() => {
+              throw new Error(`unsupported good scorer ${scorer.version}`)
+            })()
+  return calculateGoodPolicyRows(context, mode).map((row) => ({
+    version: scorer.version,
+    ...row.score,
+    features: structuredClone(row.features),
+  }))
+}
+
+function deterministicGoodBaseRows(
+  context: ScoreLayerTransformContext,
+): readonly ScoreLayerRowDraft[] {
+  return calculateDeterministicGoodBase(context).rows.map((row) => row.score)
 }
 
 function roleDefinition(

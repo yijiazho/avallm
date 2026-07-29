@@ -39,6 +39,7 @@ import type {
 import type { Seat } from '../engine/types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
+  COMPONENT_DECISION_TRACE_VERSION,
   type DecisionTrace,
 } from '../agents/trace.ts'
 import {
@@ -118,11 +119,21 @@ import {
   validateSuppressedEvilQuestCardPolicyHostJoin,
 } from '../agents/admission/composed-trace.ts'
 import {
+  componentPayload,
   decisionComponentPlan,
   type DecisionComponentPlan,
 } from '../agents/components/kernel.ts'
-import type {
+import {
+  EVIL_ROLE_UTILITY_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+} from '../agents/components/native-score-components.ts'
+import {
+  projectResolvedArchitectureIdentity,
+  type
   ResolvedArchitectureDescriptor,
+  type
   ResolvedComposedBrain,
 } from '../agents/components/resolved-brain.ts'
 import {
@@ -818,6 +829,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         }
         const mismatch = decisionTraces.find((trace) => {
           const traceVersions = trace.componentVersions
+          const currentComponentTrace =
+            trace.version === COMPONENT_DECISION_TRACE_VERSION
           const snapshot = targetSnapshots.get(trace.decisionId)
           const boundedLanguage =
             expectedComponents.languageEvidence
@@ -851,22 +864,37 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   ? {
                       expectComponentTrace: true,
                       expectedComponentPlan,
+                      expectedArchitectureIdentity:
+                        expectedArchitectureDescriptor
+                          ? projectResolvedArchitectureIdentity(
+                              expectedArchitectureDescriptor,
+                            )
+                          : undefined,
                     }
                   : {}),
               })
             )
             || traceVersions.belief !== trace.beliefModelVersion
-            || traceVersions.roleObjective !== (
-              actualRoleObjective === 'off'
-                ? undefined
-                : actualRoleObjective
+            || (
+              !currentComponentTrace
+              && traceVersions.roleObjective !== (
+                actualRoleObjective === 'off'
+                  ? undefined
+                  : actualRoleObjective
+              )
             )
             || traceVersions.configuredEvilQuestCardPolicy
               !== expectedComponents.evilQuestCardPolicy
-            || traceVersions.configuredMorganaCounterfeitObjective
-              !== expectedComponents.morganaCounterfeitObjective
-            || traceVersions.configuredMorganaRoleUtility
-              !== expectedComponents.morganaRoleUtility
+            || (
+              !currentComponentTrace
+              && traceVersions.configuredMorganaCounterfeitObjective
+                !== expectedComponents.morganaCounterfeitObjective
+            )
+            || (
+              !currentComponentTrace
+              && traceVersions.configuredMorganaRoleUtility
+                !== expectedComponents.morganaRoleUtility
+            )
             || (
               trace.request.kind === 'quest'
               && trace.request.seat === c.expectedTargetSeat
@@ -910,6 +938,15 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               )
             )
             || (() => {
+              // Current component traces already passed the trusted
+              // architecture-identity join and the one generic native score
+              // replay above. Descriptor metadata names the configured
+              // scorer, while the trace truthfully names the resolved layer.
+              if (currentComponentTrace) {
+                return expectedComponents.scorer
+                  !== expectedArchitectureDescriptor?.configuredPipeline
+                    .scoring.configuredScorer
+              }
               const rolePolicyApplicable =
                 roleUtilityConfigured
                 && roleObjectiveApplicable
@@ -919,9 +956,22 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 )
               const rolePolicyApplied =
                 rolePolicyApplicable
-                && trace.privateRoleUtility !== undefined
-                && !trace.degradation.includes(
-                  'role-objective-scorer-failed',
+                && (
+                  currentComponentTrace
+                    ? trace.components !== undefined
+                      && componentPayload(
+                        trace.components,
+                        GOOD_ROLE_UTILITY_COMPONENT,
+                      ) !== undefined
+                      && !trace.degradation.includes(
+                        'role-objective-scorer-failed',
+                      )
+                    : (
+                        trace.privateRoleUtility !== undefined
+                        && !trace.degradation.includes(
+                          'role-objective-scorer-failed',
+                        )
+                      )
                 )
               const evilPolicyApplicable =
                 evilRoleUtilityConfigured
@@ -932,9 +982,22 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 )
               const evilPolicyApplied =
                 evilPolicyApplicable
-                && trace.privateEvilRoleUtility !== undefined
-                && !trace.degradation.includes(
-                  'evil-role-objective-scorer-failed',
+                && (
+                  currentComponentTrace
+                    ? trace.components !== undefined
+                      && componentPayload(
+                        trace.components,
+                        EVIL_ROLE_UTILITY_COMPONENT,
+                      ) !== undefined
+                      && !trace.degradation.includes(
+                        'evil-role-objective-scorer-failed',
+                      )
+                    : (
+                        trace.privateEvilRoleUtility !== undefined
+                        && !trace.degradation.includes(
+                          'evil-role-objective-scorer-failed',
+                        )
+                      )
                 )
               const morganaPolicyApplied =
                 morganaRoleUtilityConfigured
@@ -943,9 +1006,28 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   trace.request.kind === 'propose'
                   || trace.request.kind === 'vote'
                 )
-                && trace.privateMorganaRoleUtility !== undefined
-                && !trace.degradation.includes(
-                  MORGANA_ROLE_UTILITY_DEGRADATION,
+                && (
+                  currentComponentTrace
+                    ? trace.components !== undefined
+                      && (
+                        componentPayload(
+                          trace.components,
+                          MORGANA_ROLE_UTILITY_COMPONENT,
+                        ) !== undefined
+                        || componentPayload(
+                          trace.components,
+                          MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+                        ) !== undefined
+                      )
+                      && !trace.degradation.includes(
+                        'morgana-role-objective-scorer-failed',
+                      )
+                    : (
+                        trace.privateMorganaRoleUtility !== undefined
+                        && !trace.degradation.includes(
+                          MORGANA_ROLE_UTILITY_DEGRADATION,
+                        )
+                      )
                 )
               const configuredSeeded =
                 expectedComponents.scorer
@@ -1001,6 +1083,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 )
             })()
             || (
+              !currentComponentTrace
+              &&
               morganaRoleUtilityConfigured
               && c.targetRole === 'morgana'
               && (
@@ -1068,6 +1152,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
             )
             || (
+              !currentComponentTrace
+              &&
               roleUtilityConfigured
               && roleObjectiveApplicable
               && (
@@ -1134,6 +1220,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
             )
             || (
+              !currentComponentTrace
+              &&
               evilRoleUtilityConfigured
               && evilRoleObjectiveApplicable
               && (
@@ -1315,6 +1403,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
             )
             || (
+              !currentComponentTrace
+              &&
               roleObjectiveApplicable
                 ? (
                     trace.privateRoleObjective === undefined
@@ -1376,6 +1466,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   )
             )
             || (
+              !currentComponentTrace
+              &&
               evilRoleObjectiveApplicable
                 ? (
                     trace.privateEvilRoleObjective === undefined

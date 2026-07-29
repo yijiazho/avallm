@@ -184,7 +184,7 @@ export interface NativeViableCandidate {
   readonly score: Immutable<ScoreLayerRow & { viable: true }>
 }
 
-export interface LegacyScoredPolicyProjection {
+export interface ScoredPolicyCompatibilityDto {
   readonly candidates: readonly PolicyCandidate[]
   readonly scores: readonly CandidateScore[]
   readonly forced: ForcedPolicyResult
@@ -252,10 +252,124 @@ export interface LegacyScoringResolution {
   readonly componentRun: DecisionComponentRun
 }
 
+/**
+ * Historical fields retained for trace and planner compatibility after the
+ * native score-layer surface has fixed every mechanical field.
+ */
+export interface NativeScoringCompatibilityProjection {
+  readonly scores: readonly CandidateScore[]
+  readonly scorerVersion: string
+  readonly degradation: readonly string[]
+}
+
+interface ScoredFrameResolution {
+  readonly authority: 'custom' | 'native'
+  readonly scores: readonly CandidateScore[]
+  readonly survivorCandidateIds: readonly string[]
+  readonly scorerVersion: string
+  readonly degradation: readonly string[]
+  readonly componentRun: DecisionComponentRun
+}
+
 export interface DecisionVoiceInput {
   readonly version: string
   readonly result: Decision
   readonly degradationCode?: string
+}
+
+function scoringContext(
+  frame:
+    | PostComponentDecisionFrame
+    | NativeScoreLayersResolvedDecisionFrame,
+  supplied: LegacyScoringBindings,
+): CandidateScoringContext {
+  return Object.freeze({
+    ...supplied,
+    request: legacy<DecisionRequest>(frame.request),
+    view: legacy<PlayerView>(frame.view),
+    analysis: legacy<SituationAnalysis>(frame.analysis),
+    candidates: legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
+    forced: legacy<ForcedPolicyResult>(frame.effectiveForced),
+    ...(frame.hypotheticalTeamCandidates
+      ? {
+          hypotheticalTeamCandidates:
+            legacy<readonly PolicyCandidate[]>(
+              frame.hypotheticalTeamCandidates,
+            ),
+        }
+      : {}),
+  })
+}
+
+/** Detached compatibility view; native mechanics remain outside this DTO. */
+export function projectScoringContext(
+  frame:
+    | PostComponentDecisionFrame
+    | NativeScoreLayersResolvedDecisionFrame,
+  supplied: LegacyScoringBindings,
+): CandidateScoringContext {
+  return structuredClone(scoringContext(frame, supplied))
+}
+
+function finalizeScoredDecisionFrame(
+  frame:
+    | PostComponentDecisionFrame
+    | NativeScoreLayersResolvedDecisionFrame,
+  context: CandidateScoringContext,
+  resolution: ScoredFrameResolution,
+): ScoredDecisionFrame {
+  if (resolution.authority === 'custom') {
+    validateCandidateScores(
+      context,
+      resolution.scores,
+      resolution.scorerVersion,
+    )
+  }
+  const nextRun = advanceDecisionComponentRun(
+    legacy<DecisionComponentRun>(frame.componentRun),
+    resolution.componentRun,
+  )
+  const scores = nonEmpty(
+    detachTrustedPolicyData(resolution.scores),
+    'scorer must return a nonempty surface',
+  )
+  if (!isDeepStrictEqual(
+    resolution.survivorCandidateIds,
+    frame.effectiveForced.allowedCandidateIds,
+  )) throw new Error('scored surface changed the effective forced survivors')
+  const survivors = new Map(
+    frame.legalCandidates
+      .filter((candidate) =>
+        resolution.survivorCandidateIds.includes(candidate.id))
+      .map((candidate) => [candidate.id, candidate]),
+  )
+  const viableCandidates = nonEmpty(
+    Object.freeze(scores.flatMap((score) => {
+      const candidate = survivors.get(score.candidateId)
+      return score.viable && candidate ? [{ candidate, score }] : []
+    })) as readonly Immutable<ViableCandidate>[],
+    'scorer must retain a viable forced survivor',
+  )
+  const structured = frame.effectiveForced.selectedCandidateId
+    ? scores.find((score) =>
+        score.candidateId === frame.effectiveForced.selectedCandidateId)
+    : structuredChoice(legacy<readonly CandidateScore[]>(scores))
+  if (!structured?.viable || !survivors.has(structured.candidateId)) {
+    throw new Error('structured policy selected a nonviable candidate')
+  }
+  return Object.freeze({
+    ...frame,
+    stage: 'scored',
+    componentRun: nextRun as Immutable<DecisionComponentRun>,
+    legacyD3: frame.stage === 'legacy-d3-quest-card'
+      ? frame.legacyD3
+      : null,
+    scores,
+    viableCandidates,
+    structuredCandidateId: structured.candidateId,
+    scorerVersion: resolution.scorerVersion,
+    degradation: detachTrustedPolicyData(resolution.degradation),
+  }) as ScoredDecisionFrame
 }
 
 function nonEmpty<T>(
@@ -404,6 +518,7 @@ type LegacyD3Token = ComponentToken<PrivateEvilQuestCardPolicy>
 export function withLegacyD3QuestCard(
   frame: ComponentsResolvedDecisionFrame,
   token: LegacyD3Token,
+  scoreLayerLease?: NativeScoreLayerLease,
 ): LegacyD3QuestCardDecisionFrame {
   if (
     (
@@ -440,7 +555,7 @@ export function withLegacyD3QuestCard(
     run,
     attributeComponentPolicyUse(run, token, 'action-selection'),
   )
-  return Object.freeze({
+  const next = Object.freeze({
     ...frame,
     stage: 'legacy-d3-quest-card',
     componentRun: attributed as Immutable<DecisionComponentRun>,
@@ -452,10 +567,18 @@ export function withLegacyD3QuestCard(
       selectedCandidateId,
     }),
   }) as LegacyD3QuestCardDecisionFrame
+  if (scoreLayerLease) {
+    LocalNativeScoreLayerLease.advanceLegacyD3(
+      scoreLayerLease,
+      frame,
+      next,
+    )
+  }
+  return next
 }
 
 /** Run the C4B scorer/fallback owner synchronously against one exact frame. */
-export function withLegacyScoring(
+export function withCustomScoring(
   frame: PostComponentDecisionFrame,
   bindings: (run: DecisionComponentRun) => LegacyScoringBindings,
   resolve: (
@@ -465,75 +588,28 @@ export function withLegacyScoring(
 ): ScoredDecisionFrame {
   const run = legacy<DecisionComponentRun>(frame.componentRun)
   const supplied = bindings(run)
-  const context: CandidateScoringContext = Object.freeze({
-    ...supplied,
-    request: legacy<DecisionRequest>(frame.request),
-    view: legacy<PlayerView>(frame.view),
-    analysis: legacy<SituationAnalysis>(frame.analysis),
-    candidates: legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
-    forced: legacy<ForcedPolicyResult>(frame.effectiveForced),
-    ...(frame.hypotheticalTeamCandidates
-      ? {
-          hypotheticalTeamCandidates:
-            legacy<readonly PolicyCandidate[]>(
-              frame.hypotheticalTeamCandidates,
-            ),
-        }
-      : {}),
-  })
+  const context = scoringContext(frame, supplied)
   const resolution = resolve(context, run)
-  validateCandidateScores(
-    context,
-    resolution.scores,
-    resolution.appliedScorer.version,
-  )
-  const nextRun = advanceDecisionComponentRun(run, resolution.componentRun)
-  const scores = nonEmpty(
-    detachTrustedPolicyData(resolution.scores),
-    'scorer must return a nonempty surface',
-  )
-  const survivors = new Map(
-    frame.forcedSurvivors.map((candidate) => [candidate.id, candidate]),
-  )
-  const viableCandidates = nonEmpty(
-    Object.freeze(scores.flatMap((score) => {
-      const candidate = survivors.get(score.candidateId)
-      return score.viable && candidate ? [{ candidate, score }] : []
-    })) as readonly Immutable<ViableCandidate>[],
-    'scorer must retain a viable forced survivor',
-  )
-  const structured = frame.effectiveForced.selectedCandidateId
-    ? scores.find((score) =>
-        score.candidateId === frame.effectiveForced.selectedCandidateId)
-    : structuredChoice(legacy<readonly CandidateScore[]>(scores))
-  if (!structured?.viable) {
-    throw new Error('structured policy selected a nonviable candidate')
-  }
-  return Object.freeze({
-    ...frame,
-    stage: 'scored',
-    componentRun: nextRun as Immutable<DecisionComponentRun>,
-    legacyD3: frame.stage === 'legacy-d3-quest-card'
-      ? frame.legacyD3
-      : null,
-    scores,
-    viableCandidates,
-    structuredCandidateId: structured.candidateId,
+  return finalizeScoredDecisionFrame(frame, context, {
+    authority: 'custom',
+    scores: [...resolution.scores],
+    survivorCandidateIds: frame.effectiveForced.allowedCandidateIds,
     scorerVersion: resolution.appliedScorer.version,
-    degradation: detachTrustedPolicyData(resolution.degradation),
-  }) as ScoredDecisionFrame
+    degradation: resolution.degradation,
+    componentRun: resolution.componentRun,
+  })
 }
 
 /** Detached DTO for the compatibility planner and plan builders. */
-export function projectScoredFrameForLegacy(
+export function projectScoredFrameForCompatibility(
   frame: ScoredDecisionFrame,
-): LegacyScoredPolicyProjection {
+): ScoredPolicyCompatibilityDto {
   return structuredClone({
     candidates: frame.legalCandidates,
     scores: frame.scores,
     forced: frame.effectiveForced,
     structuredCandidateId: frame.structuredCandidateId,
-  }) as LegacyScoredPolicyProjection
+  }) as ScoredPolicyCompatibilityDto
 }
 
 export interface NativeScoreLayerHostContext {
@@ -558,7 +634,7 @@ class LocalNativeScoreLayerLease {
   readonly #candidates: CandidateDecisionFrame['legalCandidates']
   readonly #lease: ScoreLayerRunLease
   #bindingStarted = false
-  #boundFrame: ComponentsResolvedDecisionFrame | undefined
+  #boundFrame: PostComponentDecisionFrame | undefined
 
   constructor(
     frame: CandidateDecisionFrame,
@@ -645,6 +721,34 @@ class LocalNativeScoreLayerLease {
       hypotheticalTeamCandidates: frame.hypotheticalTeamCandidates,
     })
   }
+
+  static advanceLegacyD3(
+    lease: NativeScoreLayerLease,
+    before: ComponentsResolvedDecisionFrame,
+    after: LegacyD3QuestCardDecisionFrame,
+  ): void {
+    if (!(lease instanceof LocalNativeScoreLayerLease)) {
+      throw new Error('native score layers require their local prepared lease')
+    }
+    if (lease.#boundFrame !== before) {
+      throw new Error('native score layer lease is not bound to the D3 input')
+    }
+    if (
+      after.stage !== 'legacy-d3-quest-card'
+      || after.request !== before.request
+      || after.view !== before.view
+      || after.legalCandidates !== before.legalCandidates
+      || after.analysis !== before.analysis
+      || after.belief !== before.belief
+      || after.universalForced !== before.universalForced
+      || after.forcedSurvivors !== before.forcedSurvivors
+      || after.hypotheticalTeamCandidates
+        !== before.hypotheticalTeamCandidates
+    ) {
+      throw new Error('native score layer lease received a foreign D3 frame')
+    }
+    lease.#boundFrame = after
+  }
 }
 
 /**
@@ -682,7 +786,7 @@ export async function withNativeResolvedComponents(
   )
 }
 
-/** Native ordered scoring shadows legacy decision authority through A4. */
+/** Resolve the sole built-in scoring authority through its ordered layers. */
 export function withNativeScoreLayers(
   frame: PostComponentDecisionFrame,
   lease: NativeScoreLayerLease,
@@ -748,6 +852,77 @@ export function withNativeScoreLayers(
     viableCandidates,
     structuredCandidateId: structured.candidateId,
   }) as NativeScoreLayersResolvedDecisionFrame
+}
+
+export function nativeScorerVersion(
+  frame: NativeScoreLayersResolvedDecisionFrame,
+): string {
+  const active = [...frame.scoreLayerRun.journal].reverse().find(
+    (entry) => entry.status === 'applied' || entry.status === 'generated',
+  )
+  if (!active) {
+    throw new Error('native score layers produced no active scorer')
+  }
+  return active.layer.version
+}
+
+/**
+ * Admit the native score-layer result into the one scored frame consumed by
+ * selection, planning, commitment, voice, and tracing. Compatibility data may
+ * add historical diagnostics only after an exact candidate join; it cannot
+ * replace any native mechanical field.
+ */
+export function withNativeScoringAuthority(
+  frame: NativeScoreLayersResolvedDecisionFrame,
+  bindings: LegacyScoringBindings,
+  compatibility: NativeScoringCompatibilityProjection,
+): ScoredDecisionFrame {
+  const scorerVersion = nativeScorerVersion(frame)
+  if (compatibility.scorerVersion !== scorerVersion) {
+    throw new Error('native scorer identity does not match compatibility data')
+  }
+  const historicalById = new Map(
+    compatibility.scores.map((score) => [score.candidateId, score]),
+  )
+  if (
+    historicalById.size !== compatibility.scores.length
+    || historicalById.size !== frame.scores.length
+  ) {
+    throw new Error('native scoring compatibility candidate set mismatch')
+  }
+  const scores = frame.scores.map((native): CandidateScore => {
+    const historical = historicalById.get(native.candidateId)
+    if (
+      !historical
+      || historical.value !== native.value
+      || historical.viable !== native.viable
+      || !isDeepStrictEqual(historical.reasonCodes, native.reasonCodes)
+    ) {
+      throw new Error(
+        `native scoring compatibility row mismatch for ${native.candidateId}`,
+      )
+    }
+    return {
+      ...structuredClone(historical),
+      version: scorerVersion,
+      candidateId: native.candidateId,
+      value: native.value,
+      viable: native.viable,
+      reasonCodes: [...native.reasonCodes],
+    }
+  })
+  return finalizeScoredDecisionFrame(
+    frame,
+    scoringContext(frame, bindings),
+    {
+      authority: 'native',
+      scores,
+      survivorCandidateIds: frame.survivorCandidateIds,
+      scorerVersion,
+      degradation: compatibility.degradation,
+      componentRun: legacy<DecisionComponentRun>(frame.componentRun),
+    },
+  )
 }
 
 export function selectDecisionCandidate(

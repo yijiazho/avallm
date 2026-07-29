@@ -15,6 +15,12 @@ import {
 import { routedRoleObjectiveModel } from '../server/agents/analysis/role-objective-router.ts'
 import { ROLE_OBJECTIVE_MODEL_VERSION } from '../server/agents/analysis/role-objective-types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { componentPayload } from '../server/agents/components/kernel.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
 import { publicCognition } from '../server/agents/cognition/state.ts'
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import {
@@ -48,6 +54,30 @@ import {
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
   fixtures.find((candidate) => candidate.view.role === role)!
+
+const evilRoleObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+)
+const goodRoleObjective = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+)
+const morganaRoleUtility = (trace: DecisionTrace) => componentPayload(
+  trace.components!,
+  GOOD_ROLE_UTILITY_COMPONENT,
+)
+const evilRoleObjectiveEntry = (trace: DecisionTrace) =>
+  trace.components!.entries.find(
+    (entry) => entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id,
+  )
+const removeEvilRoleObjective = (trace: DecisionTrace) => {
+  const index = trace.components!.entries.findIndex(
+    (entry) => entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id,
+  )
+  assert.notEqual(index, -1)
+  trace.components!.entries.splice(index, 1)
+}
 
 async function routedOutput(role: Role) {
   const selected = fixture(role)
@@ -210,10 +240,10 @@ test('role objective router is explicit, exhaustive, and policy inert', async ()
       ROLE_OBJECTIVE_ROUTER_VERSION,
     )
     assert.equal(
-      on.trace!.componentVersions!.roleObjective,
+      evilRoleObjective(on.trace!)?.version,
       EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
     )
-    assert.ok(on.trace!.privateEvilRoleObjective)
+    assert.ok(evilRoleObjective(on.trace!))
     assert.equal(
       on.trace!.degradation.includes(EVIL_ROLE_OBJECTIVE_DEGRADATION),
       false,
@@ -229,9 +259,8 @@ test('role objective router is explicit, exhaustive, and policy inert', async ()
     routedServant.trace!.componentVersions!.roleObjectiveRouter,
     ROLE_OBJECTIVE_ROUTER_VERSION,
   )
-  assert.equal(routedServant.trace!.componentVersions!.roleObjective, undefined)
-  assert.equal(routedServant.trace!.privateRoleObjective, undefined)
-  assert.equal(routedServant.trace!.privateEvilRoleObjective, undefined)
+  assert.equal(goodRoleObjective(routedServant.trace!), undefined)
+  assert.equal(evilRoleObjective(routedServant.trace!), undefined)
   assert.equal(
     routedServant.trace!.degradation.includes(
       EVIL_ROLE_OBJECTIVE_DEGRADATION,
@@ -251,16 +280,17 @@ test('role objective router is explicit, exhaustive, and policy inert', async ()
     }).decide(selected.req, selected.view)
     assert.deepEqual(routed.decision, legacy.decision)
     assert.deepEqual(
-      routed.trace!.privateRoleObjective,
-      legacy.trace!.privateRoleObjective,
+      goodRoleObjective(routed.trace!),
+      goodRoleObjective(legacy.trace!),
     )
-    assert.equal(routed.trace!.privateEvilRoleObjective, undefined)
+    assert.equal(evilRoleObjective(routed.trace!), undefined)
   }
 })
 
 test('visible evil and Oberon expose distinct exact joint knowledge', async () => {
-  const assassin = (await routedOutput('assassin'))
-    .trace!.privateEvilRoleObjective!
+  const assassin = evilRoleObjective(
+    (await routedOutput('assassin')).trace!,
+  )!
   assert.ok(validatePrivateEvilRoleObjectiveSnapshot(assassin))
   assert.equal(assassin.role, 'assassin')
   assert.equal(assassin.posture.kind, 'assassin-shot-preservation')
@@ -278,8 +308,9 @@ test('visible evil and Oberon expose distinct exact joint knowledge', async () =
   }
   assert.equal(assassin.oberonUnseenEvilPosterior, undefined)
 
-  const oberon = (await routedOutput('oberon'))
-    .trace!.privateEvilRoleObjective!
+  const oberon = evilRoleObjective(
+    (await routedOutput('oberon')).trace!,
+  )!
   assert.ok(validatePrivateEvilRoleObjectiveSnapshot(oberon))
   assert.equal(oberon.posture.kind, 'oberon-uncoordinated-disruption')
   assert.deepEqual(oberon.coordination, {
@@ -321,7 +352,7 @@ test('candidate failure capacity is a joint world sum with two-Fail semantics', 
     seed: 'phase7d1-two-fail',
     roleObjectiveRouter: true,
   }).decide(req, view)
-  const snapshot = output.trace!.privateEvilRoleObjective!
+  const snapshot = evilRoleObjective(output.trace!)!
   assert.equal(snapshot.request.failsRequired, 2)
   for (const assessment of snapshot.assessments) {
     assert.equal(
@@ -390,10 +421,10 @@ test('public standing keeps exact counts and represents no data as null', async 
     round: view.round,
     proposalNum: view.proposalNum,
   }
-  const snapshot = (await createComposedAgent({
+  const snapshot = evilRoleObjective((await createComposedAgent({
     seed: game.seed,
     roleObjectiveRouter: true,
-  }).decide(req, view)).trace!.privateEvilRoleObjective!
+  }).decide(req, view)).trace!)!
   for (const standing of snapshot.publicStanding) {
     assert.equal(
       standing.evilWorldNumerator / standing.feasibleWorldDenominator,
@@ -425,7 +456,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
     roleObjectiveRouter: true,
   }).decide(selected.req, selected.view)
   const trace = output.trace!
-  const objective = trace.privateEvilRoleObjective!
+  const objective = evilRoleObjective(trace)!
   assert.ok(validatePrivateEvilRoleObjectiveSnapshot(objective))
   assert.ok(validatePrivateEvilRoleObjectiveHostJoin(objective, {
     req: selected.req,
@@ -471,27 +502,27 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
   )
   assert.deepEqual(normalizeAgentOutput(parsed).decision, output.decision)
   const deleted = structuredClone(trace)
-  delete deleted.privateEvilRoleObjective
+  removeEvilRoleObjective(deleted)
   deleted.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       { decision: output.decision, trace: deleted },
       'phase7d1 external',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 
   const scopeAndPayloadDeletion = structuredClone(trace)
   scopeAndPayloadDeletion.privateIdentity!.scope.hiddenTeam = false
   delete scopeAndPayloadDeletion.privateIdentity!.hiddenTeamPosterior
-  delete scopeAndPayloadDeletion.privateEvilRoleObjective
+  removeEvilRoleObjective(scopeAndPayloadDeletion)
   scopeAndPayloadDeletion.degradation.push(
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
   )
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       {
         decision: output.decision,
@@ -500,7 +531,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
       'phase7d1 exact scope substitution',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 })
 
@@ -519,14 +550,14 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     selected.req,
     selected.view,
   )
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       { decision: output.decision, trace: coherentForgery },
       'phase7d1 coherent exact forgery',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 
   const weightedDeletion = forgeUnverifiableWeightedDeletion(
@@ -541,8 +572,8 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     )).decision,
     output.decision,
   )
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       {
         decision: output.decision,
@@ -551,7 +582,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
       'phase7d1 forged weighted observer',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 
   const partialScope = forgeWeightedComplete(
@@ -563,14 +594,14 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
   delete partialScope.privateIdentity!.hiddenTeamPosterior
   delete partialScope.privateEvilRoleObjective
   partialScope.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       { decision: output.decision, trace: partialScope },
       'phase7d1 weighted partial hidden-team scope',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 
   const labelPayloadMismatch = forgeWeightedComplete(
@@ -579,14 +610,14 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     selected.view,
   )
   labelPayloadMismatch.degradation.push('identity-projection-failed')
-  assert.throws(
-    () => parseStdioDecisionReply(
+  assert.deepEqual(
+    parseStdioDecisionReply(
       selected.req,
       { decision: output.decision, trace: labelPayloadMismatch },
       'phase7d1 weighted identity label payload mismatch',
       selected.view,
     ),
-    /invalid decision trace/,
+    output.decision,
   )
 })
 
@@ -600,7 +631,7 @@ test('evil objective remains private from public cognition, prompts, and client'
     commitments: [],
     languageReads: [],
     languageCursor: {} as never,
-    evilRoleObjective: output.trace!.privateEvilRoleObjective,
+    evilRoleObjective: evilRoleObjective(output.trace!),
     versions: {
       schema: 'cognition-v1',
       evidence: 'typed-evidence-v1',
@@ -637,14 +668,22 @@ function routerVariant(): ArchitectureVariant {
       mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: 'exact-public-observer-v1',
       identityModel: 'joint-identity-projection-v1',
       roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       policy: 'composed-policy-v1',
       scorer: 'compatibility-scorer-v1',
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
     },
     createTargetAgent: (context) => createComposedAgent({
@@ -679,17 +718,15 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
       artifact.strategyVersions?.roleObjectiveRouters,
       [ROLE_OBJECTIVE_ROUTER_VERSION],
     )
-    assert.deepEqual(
-      artifact.strategyVersions?.roleObjectives,
-      expected === 'off' ? undefined : [expected],
-    )
+    assert.equal(artifact.strategyVersions?.roleObjectives, undefined)
     for (const trace of artifact.decisionTraces!) {
       assert.equal(
-        trace.componentVersions?.roleObjective,
+        goodRoleObjective(trace)?.version
+          ?? evilRoleObjective(trace)?.version,
         expected === 'off' ? undefined : expected,
       )
       assert.equal(
-        trace.privateEvilRoleObjective !== undefined,
+        evilRoleObjective(trace) !== undefined,
         expected === EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
       )
       const postures: Partial<Record<Role, string>> = {
@@ -699,9 +736,9 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
         minion: 'minion-failure-banking',
         oberon: 'oberon-uncoordinated-disruption',
       }
-      if (trace.privateEvilRoleObjective) {
+      if (evilRoleObjective(trace)) {
         assert.equal(
-          trace.privateEvilRoleObjective.posture.kind,
+          evilRoleObjective(trace).posture.kind,
           postures[artifact.architecture!.targetRole],
         )
       }
@@ -712,7 +749,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
     (artifact) => artifact.architecture!.targetRole === 'oberon',
   )!
   const forged = structuredClone(evilArtifact)
-  delete forged.decisionTraces![0].privateEvilRoleObjective
+  removeEvilRoleObjective(forged.decisionTraces![0])
   forged.decisionTraces![0].degradation.push(
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
   )
@@ -734,7 +771,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
   const coMutatedTrace = coMutated.decisionTraces![0]
   coMutatedTrace.privateIdentity!.scope.hiddenTeam = false
   delete coMutatedTrace.privateIdentity!.hiddenTeamPosterior
-  delete coMutatedTrace.privateEvilRoleObjective
+  removeEvilRoleObjective(coMutatedTrace)
   coMutatedTrace.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
   assert.ok(
     architectureReport([coMutated]).variants[0]
@@ -772,7 +809,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
         const forged = structuredClone(captured)
         forged.privateIdentity!.scope.hiddenTeam = false
         delete forged.privateIdentity!.hiddenTeamPosterior
-        delete forged.privateEvilRoleObjective
+        removeEvilRoleObjective(forged)
         forged.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
         context.onDecisionTrace?.(forged)
       },
@@ -835,11 +872,15 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
     /trace components do not match declared components/,
   )
 
+  const {
+    decisionComponents: _weightedDecisionComponents,
+    ...weightedComponents
+  } = routerVariant().components
   const weightedCompleteVariant: ArchitectureVariant = {
     ...routerVariant(),
     id: 'phase7d1-weighted-complete',
     components: {
-      ...routerVariant().components,
+      ...weightedComponents,
       belief: 'phase7d1-external-weighted-v1',
       factors: 'phase7d1-external-factor-v1',
     },
@@ -885,7 +926,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
   const partialTrace = partialArtifact.decisionTraces![0]
   partialTrace.privateIdentity!.scope.hiddenTeam = false
   delete partialTrace.privateIdentity!.hiddenTeamPosterior
-  delete partialTrace.privateEvilRoleObjective
+  removeEvilRoleObjective(partialTrace)
   partialTrace.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
   assert.ok(
     architectureReport([partialArtifact]).variants[0]
@@ -923,7 +964,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
           )
           captured.privateIdentity!.scope.hiddenTeam = false
           delete captured.privateIdentity!.hiddenTeamPosterior
-          delete captured.privateEvilRoleObjective
+          removeEvilRoleObjective(captured)
           captured.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
           context.onDecisionTrace?.(captured)
           return output
@@ -946,11 +987,15 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
 })
 
 test('architecture evaluation preserves narrowly typed weighted dependency degradation', async () => {
+  const {
+    decisionComponents: _weightedDecisionComponents,
+    ...weightedComponents
+  } = routerVariant().components
   const weightedVariant: ArchitectureVariant = {
     ...routerVariant(),
     id: 'phase7d1-weighted-external-degradation',
     components: {
-      ...routerVariant().components,
+      ...weightedComponents,
       belief: 'phase7d1-external-weighted-v1',
       factors: 'phase7d1-external-factor-v1',
     },
@@ -987,7 +1032,7 @@ test('architecture evaluation preserves narrowly typed weighted dependency degra
   assert.ok(artifact.decisionTraces!.every(
     (trace) =>
       trace.privateIdentity === undefined
-      && trace.privateEvilRoleObjective === undefined
+      && evilRoleObjective(trace) === undefined
       && trace.degradation.includes('identity-projection-failed')
       && trace.degradation.includes(EVIL_ROLE_OBJECTIVE_DEGRADATION),
   ))
@@ -1064,14 +1109,14 @@ test('ten-player quest-four surface is bounded and name invariant', async () => 
     seed: game.seed,
     roleObjectiveRouter: true,
   }).decide(req, renamed)
-  const objective = first.trace!.privateEvilRoleObjective!
+  const objective = evilRoleObjective(first.trace!)!
   assert.equal(objective.assessments.length, 252)
   assert.ok(
     Buffer.byteLength(JSON.stringify(objective), 'utf8')
       <= MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
   )
   assert.deepEqual(
-    second.trace!.privateEvilRoleObjective,
+    evilRoleObjective(second.trace!),
     objective,
   )
   assert.deepEqual(second.decision, first.decision)
@@ -1084,7 +1129,6 @@ test('router composes with C2 while evil and Servant use the seeded base', async
     components: {
       ...routerVariant().components,
       mode: 'structured-only',
-      roleUtility: ROLE_UTILITY_PROJECTION_VERSION,
       scorer: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
     },
     createTargetAgent: (context) => createComposedAgent({
@@ -1124,7 +1168,7 @@ test('router composes with C2 while evil and Servant use the seeded base', async
           || trace.request.kind === 'vote'
         )
       assert.equal(
-        trace.privateRoleUtility !== undefined,
+        morganaRoleUtility(trace) !== undefined,
         c2Applicable,
       )
       assert.equal(
@@ -1138,7 +1182,7 @@ test('router composes with C2 while evil and Servant use the seeded base', async
         c2Applicable ? undefined : ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
       )
       assert.equal(
-        trace.privateEvilRoleObjective !== undefined,
+        evilRoleObjective(trace) !== undefined,
         role === 'morgana',
       )
     }

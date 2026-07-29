@@ -4,11 +4,16 @@ import {
   createComposedAgent,
 } from '../server/agents/composed.ts'
 import {
+  componentPayload,
   DECISION_COMPONENT_PLAN_VERSION,
   MAX_DECISION_COMPONENT_PLAN_JSON_BYTES,
   validateDecisionComponentPlan,
   type DecisionComponentPlan,
 } from '../server/agents/components/kernel.ts'
+import {
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+} from '../server/agents/components/native-score-components.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,
   DECISION_TRACE_VERSION,
@@ -53,15 +58,23 @@ function rolePolicyVariant(
       mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
+      beliefVisibility: 'none',
       factors: 'off',
       languageEvidence: 'off',
       observerModel: 'exact-public-observer-v1',
       identityModel: 'joint-identity-projection-v1',
+      decisionComponents: 'decision-component-run-v1',
+      analysis: 'situation-analysis-v1',
+      candidates: 'legal-candidates-v1',
+      forcedPolicy: 'forced-policy-v1',
       roleObjective: ROLE_OBJECTIVE_MODEL_VERSION,
       roleUtility: ROLE_UTILITY_PROJECTION_VERSION,
       policy: 'composed-policy-v1',
       scorer: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
       planner: 'planner-off',
+      prompt: 'composed-typed-context-v2',
+      renderer: 'composed-policy-renderer-v2',
+      communication: 'plan-voice-v2',
       voice: 'voice-off',
     },
     createTargetAgent(context) {
@@ -335,6 +348,22 @@ test('historical traces stay diagnostic without gaining trusted promotion', asyn
   const legacy = structuredClone(baseline)
   delete legacy.strategyVersions!.decisionComponents
   for (const trace of legacy.decisionTraces!) {
+    const objective = trace.components
+      ? componentPayload(trace.components, GOOD_ROLE_OBJECTIVE_COMPONENT)
+      : undefined
+    const utility = trace.components
+      ? componentPayload(trace.components, GOOD_ROLE_UTILITY_COMPONENT)
+      : undefined
+    if (objective) {
+      trace.privateRoleObjective = structuredClone(objective)
+      trace.componentVersions!.roleObjective =
+        ROLE_OBJECTIVE_MODEL_VERSION
+    }
+    if (utility) {
+      trace.privateRoleUtility = structuredClone(utility)
+      trace.componentVersions!.roleUtility =
+        ROLE_UTILITY_PROJECTION_VERSION
+    }
     trace.version = DECISION_TRACE_VERSION
     delete trace.componentPlan
     delete trace.components

@@ -2,13 +2,14 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3A4B score-authority cutover and deletion.
+**Current target phase:** Phase 7R3A4B implementation is complete under exit verification and
+checkpoint review; Phase 7R3B1 is next after that checkpoint.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
 D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
-four native Morgana components are complete and verified. The legacy
-writer remains downstream authority until A4B proves complete equality, cuts authority over,
-and deletes the temporary equality and compatibility writers. Phase 7R2C4's typed `DecisionFrame`
+four native Morgana components are complete and verified. A4B cut score authority over to the
+configured native chain, deleted the temporary equality and legacy score writers, and retained
+custom scoring as one bounded alternate upstream producer with native fallback. Phase 7R2C4's typed `DecisionFrame`
 spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
@@ -16,8 +17,9 @@ The fast-feedback and static-check slice, the admission/conformance foundation, 
 single-pass replay work are complete. The resolved descriptor now owns configured architecture
 identity across trace, artifact, and report surfaces, component host roots resolve only after a
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
-boundaries. Registered ordered score layers now shadow proposal and vote decisions while the
-staged frame and legacy writer remain the sole live decision authority through A4.
+boundaries. Registered ordered score layers now produce the sole built-in scored frame for every
+decision kind; one finalizer, selection path, and commit consume it. D3 remains the explicit
+quest-card input overlay pending R3B3.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -84,11 +86,12 @@ compose and difficult to measure independently.
 
 ## 3. Migration rules
 
-1. **Preserve a playable vertical path.** Every phase ends with complete games, legal fallbacks, and
-   replay tests.
-2. **Add an authoritative representation before deleting its predecessor.** Joint worlds land
-   before `roleCertainties` stops serving prompt code; typed cognition lands before scratchpad
-   authority is removed.
+1. **Preserve the playable default and safety kernel.** The checked-in default path, legal
+   fallback, and mandatory safety kernel stay executable. An opt-in migration target may be
+   temporarily incomplete inside its worktree while its authority is being replaced.
+2. **Move authority directly.** A target representation may replace an internal predecessor in
+   one bounded worktree chunk without prolonged dual compatibility. Public or persisted user data
+   and named evaluation baselines retain compatibility only when the chunk explicitly opts in.
 3. **One definition per executable rule.** When a forced-play rule moves into policy, prompt text
    renders the rule result rather than maintaining an independent trigger.
 4. **No truth joins in runtime code.** Belief metrics join with the true role deal only in offline
@@ -102,7 +105,30 @@ compose and difficult to measure independently.
 8. **Delete superseded paths.** Once a replacement passes its exit gate, remove duplicate policy
    and memory logic rather than leaving both active indefinitely.
 
-### 3.1 Parent-orchestrated execution
+### 3.1 Architecture-first worktree mode
+
+Internal TypeScript shapes, schemas, and traces do not receive compatibility adapters by default.
+Compatibility is opt-in and requires either real public or persisted user data, or a specifically
+named evaluation baseline. A migration worktree may therefore be temporarily red or incomplete
+while one authority changes hands. Landed `master` must compile and pass the mandatory kernel:
+hidden-information isolation, engine legality, forced-policy precedence, exact joint semantics,
+deterministic mechanical replay, public/private separation, voice/action coherence, and external
+action admission.
+
+Prefer direct target interfaces and deletion over adapters, dual writes, or parallel executable
+authorities. Tests should pin durable laws and hostile boundaries, not temporary internal property
+order or predecessor shapes. Broad regression and evaluation run at frozen architecture
+checkpoints rather than after every active edit. Each bounded chunk moves one authority; any work
+that cannot fit that transition enters the centralized ledger below. Code TODOs for deferred
+migration work cite the corresponding ledger ID.
+
+| ID | Deferred work | Reason and current risk | Owner/checkpoint | Exit condition | Status |
+|---|---|---|---|---|---|
+| MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay currently compile the same requirements in separate owners; drift can falsely reject another role or decision kind | R3B1 | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `open` |
+| MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Downstream callers can still re-parse open trace shapes; retained external diagnostics and identity-witnessed promotion are distinguished by call path rather than a closed result type | R3B1 | Artifact, report, and transport consumers accept closed admitted or diagnostic results without domain re-parsing | `open` |
+| MD-003 | Delete or isolate the remaining D3 legacy adapter and its two conformance exemptions | Robust and exact-quota D3 are the only legacy flat projection/binding exceptions | R3B3 | D3 uses the native component/policy boundary and both exemptions and flat projections are deleted | `open` |
+
+### 3.2 Parent-orchestrated execution
 
 Architecture phases should run as a sequence of bounded chunks under one parent orchestrator. The
 parent owns scope, integration, validation, tracker updates, and the decision to advance. A normal
@@ -130,7 +156,7 @@ ambiguity, a merge conflict that changes semantics, destructive action, paid cal
 permission, production-default promotion, or a checkpoint whose purpose is human play or
 qualitative judgment.
 
-### 3.2 Risk-tiered validation funnel
+### 3.3 Risk-tiered validation funnel
 
 Validation should find structural mistakes before paying the wall-clock cost of exhaustive banks
 and the complete repository suite. Higher player counts remain required at phase gates, but they do
@@ -160,7 +186,7 @@ and adversarial evidence needed for an independent verdict, but need not duplica
 suite unless the review contract or a finding makes that useful. CPU-heavy parent, reviewer, and
 bank runs should not contend in parallel when sequential execution will finish sooner.
 
-### 3.3 Parallel worktree protocol
+### 3.4 Parallel worktree protocol
 
 Parallel code writers are allowed, including within the same broad architectural area, when each
 writer has a separate Git worktree and branch. A shared checkout is suitable only for one writer;
@@ -188,7 +214,7 @@ non-blocking follow-up. Work that changes the same baseline, fixture corpus, sch
 promotion decision is integrated sequentially even when separate worktrees make concurrent coding
 safe.
 
-### 3.4 Chunk handoff contract
+### 3.5 Chunk handoff contract
 
 Every dispatched chunk should answer this template:
 
@@ -225,7 +251,7 @@ parallel manifest schema, refresh lifecycle, or dirty-tree digest. If provenance
 despite this narrower workflow, the next automation is a small clean-tree verifier wrapper, not a
 general handoff subsystem.
 
-### 3.5 Parallel non-blocking follow-ups
+### 3.6 Parallel non-blocking follow-ups
 
 Phase-local follow-up lists remain the source of architectural context. An open item enters this
 cross-phase register when it has explicit acceptance criteria and can proceed without changing the
@@ -2626,7 +2652,7 @@ kernel-admitted projection. It preserves E1B's exact forced survivor sentinel, c
 value, sole selected viable row, reason codes, seeded band selection, and forced-choice
 dominance. Quest-card policy remains outside the layer.
 
-The public counterfeit read, private counterfeit objective, and deterministic and seeded
+**Historical A4A checkpoint (closed by A4B).** The public counterfeit read, private counterfeit objective, and deterministic and seeded
 Morgana utility components now have canonical decoders and native conformance owners. Raw
 historical validators remain independent ingress boundaries; native decode happens after the
 kernel-owned bounded canonicalization at each generic trust transition. Admitted objective and
@@ -2634,8 +2660,8 @@ utility builders and host joins
 trust their already-admitted belief, public-read, counterfeit-objective, and evil-utility inputs
 instead of re-entering raw validation. The four definitions truthfully declare native execution,
 and the four remaining 7R3A conformance exemptions are retired. Their physical location,
-legacy flat trace bindings and writes, feature-rich legacy scorer, and downstream authority are
-unchanged for A4B.
+legacy flat trace bindings and writes, feature-rich legacy scorer, and downstream authority were
+then intentionally unchanged for A4B.
 
 The dedicated strict A4A lane uses `replayDecisionScenario` for a legal Morgana proposal and
 seeded Morgana vote. It proves filtered seat-view input, exact ordered chains and common rows,
@@ -2654,21 +2680,13 @@ tests, with 79 strict roots and 43 pinned exemptions, architecture fitness, the 
 score oracle, privacy and replay checks, and clean diff checks. The screenshot manifest remains
 pre-existing stale with no client diff in A4A, so it was not rewritten.
 
-**A4B is the exact remaining authority/deletion debt.** It must complete the whole-family
-equality audit, harden absent-graph admission while deleting flat projections, give C2's
-deterministic base its named typed contract, make the native staged frame the sole downstream
-score/selection writer, and remove the legacy good, evil, and Morgana scorer writers plus the
-temporary equality dispatch. It must also extract or delete transitional component definitions
-and trace bindings only with their flat projections, preserve historical read compatibility,
-and prove frozen decisions, prompts, replay, attribution, privacy, and baseline modes before
-claiming the 7R3A exit gate.
-
-A4B still owns decision authority and deletion. Native D2 and Morgana shadow the legacy scorer
-only through the bounded common row, survivor, structured-choice, and component-use equality
-adapter; the legacy frame remains the downstream writer. A4B must harden absent-graph admission,
-give C2's deterministic base its named typed contract, then remove the legacy good/evil/Morgana
-score writers, temporary equality dispatch, transitional flat projections and bindings, and
-physical component definitions only after the complete equality gate passes.
+**Historical A4A-to-A4B handoff (closed).** A4B owned the remaining authority/deletion debt:
+whole-family equality, absent-graph hardening, C2's named deterministic base contract, native
+scored-frame authority, and deletion of the legacy good, evil, Morgana, and equality writers.
+Those authority changes are now implemented. Current-v2 role payloads and attribution are generic,
+the native chain is the sole built-in producer, and exact promotion requires the out-of-band
+architecture identity plus one generic replay. Historical v1 remains a diagnostic reader, while
+the two D3 flat bindings are the named R3B3 quarantine rather than score authority.
 
 The A3 final parent gate passed 1,064 API-free correctness tests and three isolated performance
 tests, with 78 strict test roots, architecture fitness, and clean diff checks. A fresh final
@@ -3087,6 +3105,30 @@ here.
   tests, the applicable composed-agent banks, and a separate ten-case free `standard-v1` run.
   Inspector v2 remains explicitly deferred, and layer-owned operation budgets are required before
   7R3A lands.
+- Phase 7R3A4B score-authority cutover complete: the configured native score-layer chain is the
+  sole built-in score producer, while a caller-supplied custom scorer is one bounded alternate
+  upstream producer with the canonical native chain as its failure fallback. Both paths converge
+  on one scored-frame finalizer and one downstream selection path. The eight C1/C2/D1/D2/E1A/E1B
+  objective and utility components now live only in the generic current-v2 component run; the two
+  robust/exact-quota D3 components remain the explicitly quarantined flat compatibility
+  exemptions for R3B3. Current-v2 admission reconstructs exact component host inputs, the
+  host-declared scorer chain and scorer-sensitive analysis plan, universal and post-D3 effective
+  forced surfaces, every native
+  score layer and journal transition, survivors, score values, viability, reasons, component
+  reads, transitive attribution, structured choice, and selected action. It fails closed unless
+  an out-of-band resolved architecture identity passes its digest/graph join; a supplied expected
+  component plan is checked separately. The former role-specific current-v2 score replayers are
+  deleted, leaving one generic exact score replay. Seedless stdio traces are self-described
+  diagnostics:
+  structurally coherent reason rewrites or passive graph claims may remain attached, but they are
+  never promotion evidence; invalid optional telemetry is stripped without changing an otherwise
+  legal action. Ordinary external traces do not invent a scorer-specific exact replay; D3 is
+  reconstructed only when a quest trace actually claims or suppresses D3. Historical v1 flat
+  traces remain readable diagnostics and cannot become current
+  promotion evidence. The existing knowledge, leak, and view suites continue to own the
+  seat-filtered `PlayerView` boundary. D3 admission now constructs one exact host surface, applies
+  universal precedence before an admitted discretionary policy, and passes the resulting
+  effective forced surface into native replay; a pre-D3 surface substitution is rejected.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

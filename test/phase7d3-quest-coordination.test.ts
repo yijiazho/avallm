@@ -32,6 +32,11 @@ import { architectureReport } from '../server/eval/architecture-report.ts'
 import {
   CANDIDATE_SCORER_VERSION,
 } from '../server/agents/policy/score.ts'
+import {
+  candidateTeams,
+  legalCandidates,
+} from '../server/agents/policy/candidates.ts'
+import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -43,9 +48,18 @@ import { viewFor } from '../server/engine/view.ts'
 import { runGame } from '../server/sim/runner.ts'
 import { toArtifact } from '../server/eval/artifact.ts'
 import { createHeuristicAgent } from '../server/agents/heuristic.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
 
 const source = readDecisionFixtures()
   .find((fixture) => fixture.id === 'oberon-two-fail-quest')!
+const exactQuestPolicyIdentity = projectResolvedArchitectureIdentity(
+  createComposedAgent({
+  seed: 'identity',
+  evilQuestCardPolicy: 'visible-exact-quota',
+  }).resolvedBrain().description,
+)
 
 function coordinatedView(
   seat: Seat,
@@ -486,6 +500,7 @@ test('universal decisive Fail suppresses a conflicting exact-quota resolution', 
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: 'universal-before-exact-quota',
+    expectedArchitectureIdentity: exactQuestPolicyIdentity,
   }))
   assert.deepEqual(
     parseStdioDecisionReply(
@@ -521,6 +536,7 @@ test('D3 traces are host-reconstructed and mutation resistant', async () => {
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: 'host-only-seed',
+    expectedArchitectureIdentity: exactQuestPolicyIdentity,
   }))
   assert.deepEqual(
     parseStdioDecisionReply(
@@ -531,6 +547,29 @@ test('D3 traces are host-reconstructed and mutation resistant', async () => {
     ),
     output,
   )
+
+  const candidates = legalCandidates(req, view)
+  const policyCandidateTeams = candidateTeams(candidates, view)
+  const universalForced = applyForcedPolicy(
+    req,
+    view,
+    analyzeSituation(view, {
+      policyCandidateTeams,
+    }),
+    candidates,
+  )
+  assert.equal(universalForced.applied, false)
+  const preD3Surface = structuredClone(trace)
+  preD3Surface.forcedPolicyResult = universalForced
+  assert.equal(validateComposedTraceHostJoin({
+    trace: preD3Surface,
+    req,
+    view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: 'host-only-seed',
+    expectedArchitectureIdentity: exactQuestPolicyIdentity,
+  }), false)
 
   for (const mutate of [
     (copy: typeof trace) => {
@@ -563,6 +602,7 @@ test('D3 traces are host-reconstructed and mutation resistant', async () => {
       authoritativeAction: output.decision,
       selectedDecision: output.decision,
       deterministicSeed: 'host-only-seed',
+      expectedArchitectureIdentity: exactQuestPolicyIdentity,
     }), false)
   }
 })

@@ -12,7 +12,7 @@
           4
         ]
       },
-      "traceHash": "745537cd580d889eda9874ca7b50b03fb43ce1100e4e5e75b90c045f0dadb0db",
+      "traceHash": "21868371a8281cca2cc834f29c6d6d3eaddcebc35f53af5a9ce46976f287dc3b",
       "stages": [
         "cognition",
         "analysis",
@@ -31,7 +31,7 @@
         "say": "",
         "lean": "approve"
       },
-      "traceHash": "4058b3e38ba0a7052e4f9f1875b8f166abe37461f1fc0d35eaab790b729dfc45",
+      "traceHash": "f367c83ce83e1d3d854bd795afe0378f19334d4eeece3da9be9ad58408139053",
       "stages": [
         "cognition",
         "analysis",
@@ -49,7 +49,7 @@
         "kind": "vote",
         "vote": "reject"
       },
-      "traceHash": "3144b65f0b7352d44b87b7ea861236ae90d4b971e967ad420c41e740b284c5fd",
+      "traceHash": "9809a92b3b36cb277fc9dec258e50320d17401fd62d95c3e44d00906fb08da36",
       "stages": [
         "cognition",
         "analysis",
@@ -67,7 +67,7 @@
         "kind": "finalize",
         "stick": true
       },
-      "traceHash": "9ea309b1efcf87a0a9525e15832d2f42803c6e0f7fc628990c74282c4438ab62",
+      "traceHash": "c6a5e1dba9a3e3472a382be9d767ee6a472ebba32475e9fae8a001644edad643",
       "stages": [
         "cognition",
         "analysis",
@@ -85,7 +85,7 @@
         "kind": "quest",
         "card": "fail"
       },
-      "traceHash": "cbff790880dfab34fef3b59a6a8e6e3f0ec5c1d2814567fd2a402657fdcbcd6d",
+      "traceHash": "9307a1b4ceb6b740063ced71116e38c58c23935bde46de800a75081c425b3230",
       "stages": [
         "cognition",
         "analysis",
@@ -103,7 +103,7 @@
         "kind": "discuss",
         "say": ""
       },
-      "traceHash": "bdafef11c09b0f05b9668d51c0ad2db5b74178c6e67119febab5226ec3e73ca7",
+      "traceHash": "cd80706b38eb7402b5f8d18c628837b8923d770496a7b94238133c93382dae26",
       "stages": [
         "cognition",
         "analysis",
@@ -121,7 +121,7 @@
         "kind": "vote",
         "vote": "reject"
       },
-      "traceHash": "8868c05875c6fd2b8dac5fc8d03ba5311ce331dfd5b973c4463da45eff7d9bf1",
+      "traceHash": "f842850c80a375637f474dab843bce6de54701bfc540f486ad6bb254883126b5",
       "stages": [
         "cognition",
         "analysis",
@@ -139,7 +139,7 @@
         "kind": "assassinate",
         "target": 0
       },
-      "traceHash": "52d128e1e1c7e797cdfbf8123d3d5963c451b6db939e1acd693dd8baa53cdd67",
+      "traceHash": "d6f9a88138e7b14f9cba1f03aa00fabbe0cc57a305b80094c023c2342e9f40c1",
       "stages": [
         "cognition",
         "analysis",
@@ -160,7 +160,7 @@
           1
         ]
       },
-      "traceHash": "931555316b454d7cb4d63ecc6d60a39df9154e8f87ad67de9fea13d96a7ca851",
+      "traceHash": "bf77af00045a87dd463fdeda74bc0e7925db91beb1084d778b4c3af09d8b0bc5",
       "stages": [
         "cognition",
         "identity",
@@ -184,7 +184,7 @@
           4
         ]
       },
-      "traceHash": "3762fed02056112e420ed3a012b4a49e96d27f4cfd33601873bfd382e698eb79",
+      "traceHash": "0ec23481aefe7b66cc738af624048cde9897d91ee140b615acf3b440294086eb",
       "stages": [
         "cognition",
         "identity",
@@ -205,7 +205,7 @@
         "kind": "quest",
         "card": "success"
       },
-      "traceHash": "7e77ab4b205e35491a3975aa86781c28ea1fd47f0f70a437140ab5e98e820810",
+      "traceHash": "d72ecef34e6b270bf6ee5215e925487db770c506cf9ebd0f03f87d4ac1d08638",
       "stages": [
         "cognition",
         "analysis",
@@ -229,7 +229,7 @@
         "pitch": "I support this team.",
         "thinking": "Keep it concise."
       },
-      "traceHash": "867d8462d903a36e1fb6ccda1aecd9bb8d7dcfff2e4db102b1d4a552c36f66f8",
+      "traceHash": "a6b3759477d8975df4d3b21eb836bd522659ea594befa731f76ee1f113146254",
       "stages": [
         "cognition",
         "analysis",
@@ -252,7 +252,7 @@
           4
         ]
       },
-      "traceHash": "5a77ae46ec6992572d67e9195a53b8b336e2cc03ee309fc9b78944f203e92898",
+      "traceHash": "0a08c32d2dc82d0ed0ff0a7183f8312b41c2e47a044081e1c7c91910356cd33b",
       "stages": [
         "cognition",
         "analysis",
@@ -274,7 +274,7 @@
           4
         ]
       },
-      "traceHash": "275dbb6ffa46631b14373f5a8386f0328f2d241e32c73ad6285fb505fb131261",
+      "traceHash": "e09557739fe10339ade4e33b2dabaf5513d69f016b5a1ef2ff9970cd0b4ba3c1",
       "stages": [
         "cognition",
         "analysis",
@@ -296,7 +296,7 @@
           4
         ]
       },
-      "traceHash": "f953d05ee6c230269ced065797970aafeeb02dbb824169d7455ea03c45be8569",
+      "traceHash": "612f07bb6f9ce346f0d9435ebc8534b13c7caf0d5ed869bc2f9b982c6baef563",
       "stages": [
         "cognition",
         "analysis",
