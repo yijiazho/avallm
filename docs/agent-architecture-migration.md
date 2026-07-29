@@ -3,7 +3,7 @@
 **Status:** active tracking document.
 
 **Current target phase:** Phase 7R3B1B, followed by Phase 7R3B3. Phase 7R3A4B is complete at
-checkpoint `556f501`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
+checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
 D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
