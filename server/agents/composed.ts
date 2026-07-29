@@ -161,7 +161,6 @@ import {
   candidateTeams,
 } from './policy/candidates.ts'
 import {
-  EVIL_QUEST_ROBUST_POLICY_VERSION,
   type EvilQuestCardPolicyMode,
 } from './policy/evil-quest-card.ts'
 import {
@@ -1025,10 +1024,6 @@ export function createComposedAgent(
   ) {
     throw new Error('invalid evilQuestCardPolicy mode')
   }
-  const configuredEvilQuestCardPolicy =
-    evilQuestCardPolicyMode === 'robust-heterogeneous'
-      ? EVIL_QUEST_ROBUST_POLICY_VERSION
-      : undefined
   const configuredEvilQuestCardComponent =
     evilQuestCardPolicyMode === 'robust-heterogeneous'
       ? EVIL_QUEST_CARD_ROBUST_COMPONENT

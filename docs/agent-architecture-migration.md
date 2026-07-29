@@ -3256,7 +3256,11 @@ here.
   AvaLLM mode. R3B3B still owns the explicitly historical flat payload decoder, trace admission
   and evaluation readers, plus MD-004 facade cleanup. The exact-heavy behavior suite was deleted
   rather than preserved one-for-one; a small architecture-fitness test proves that the removed
-  mode, token, frame, and writer cannot return.
+  mode, token, frame, and writer cannot return. A compact robust-only law set retains the durable
+  visible-quota, decisive independent-Fail, seat-local determinism, heterogeneous-assumption,
+  Oberon, and private-surface contracts. It deliberately reuses the registry-wide native
+  conformance harness, R3B2B host-mutation coverage, and B4 stored-report mutation suite instead of
+  restoring a duplicate D3 architecture bank.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters
