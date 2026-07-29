@@ -20,6 +20,17 @@ import {
   MORDRED_BLINDNESS_OBJECTIVE_VERSION,
   type PrivateMordredBlindnessObjective,
 } from '../analysis/mordred-blindness-types.ts'
+import {
+  buildPrivateAssassinMerlinPosterior,
+  decodeCanonicalPrivateAssassinMerlinPosterior,
+  validateAdmittedPrivateAssassinMerlinPosteriorHostJoin,
+} from '../analysis/assassin-merlin-posterior.ts'
+import {
+  ASSASSIN_MERLIN_POSTERIOR_DEGRADATION,
+  ASSASSIN_MERLIN_POSTERIOR_VERSION,
+  MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
+  type PrivateAssassinMerlinPosterior,
+} from '../analysis/assassin-merlin-posterior-types.ts'
 import { legalCandidates } from '../policy/candidates.ts'
 import { componentEnvelope } from './kernel.ts'
 import {
@@ -50,6 +61,14 @@ ComponentToken<PrivateMordredBlindnessObjective> = Object.freeze({
   id: 'mordred-blindness-objective',
   version: MORDRED_BLINDNESS_OBJECTIVE_VERSION,
   kind: 'objective',
+  privacy: 'private',
+})
+
+export const ASSASSIN_MERLIN_POSTERIOR_COMPONENT:
+ComponentToken<PrivateAssassinMerlinPosterior> = Object.freeze({
+  id: 'assassin-merlin-posterior',
+  version: ASSASSIN_MERLIN_POSTERIOR_VERSION,
+  kind: 'projection',
   privacy: 'private',
 })
 
@@ -191,5 +210,59 @@ readonly DecisionComponentDefinition<any>[] {
     },
   }
 
-  return Object.freeze([treatment, objective])
+  const assassinPosterior: DecisionComponentDefinition<
+    PrivateAssassinMerlinPosterior
+  > = {
+    token: ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
+    source: 'native',
+    dependencies: [],
+    requiredHostInputs: [PRIVATE_BELIEF_INPUT],
+    hostRequirements: [],
+    maxPayloadBytes: MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
+    degradationCode: ASSASSIN_MERLIN_POSTERIOR_DEGRADATION,
+    applies(context) {
+      return context.privacy === 'private'
+        && context.view.role === 'assassin'
+        && context.view.rolesInPlay.includes('merlin')
+        && context.request.kind === 'assassinate'
+    },
+    execute(context) {
+      const host = privateNativeContext(context)
+      const payload = buildPrivateAssassinMerlinPosterior({
+        req: host.request,
+        view: host.view,
+        belief: host.hostInputs.require(PRIVATE_BELIEF_INPUT),
+      })
+      return {
+        status: 'produced',
+        envelope: componentEnvelope(
+          ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
+          payload,
+        ),
+      }
+    },
+    validateDetached(payload) {
+      const decoded =
+        decodeCanonicalPrivateAssassinMerlinPosterior(payload)
+      return decoded
+        ? admitted(decoded, decoded.source.beliefQuality === 'constraints-only')
+        : rejected(ASSASSIN_MERLIN_POSTERIOR_DEGRADATION)
+    },
+    admitHost({ payload, host }) {
+      const context = privateNativeContext(host)
+      const belief = context.hostInputs.require(PRIVATE_BELIEF_INPUT)
+      return validateAdmittedPrivateAssassinMerlinPosteriorHostJoin(
+        payload,
+        {
+          req: context.request,
+          view: context.view,
+          belief,
+        },
+      )
+        ? admitted(payload, belief.quality === 'constraints-only')
+        : rejected(ASSASSIN_MERLIN_POSTERIOR_DEGRADATION)
+    },
+  }
+
+  return Object.freeze([treatment, objective, assassinPosterior])
 }

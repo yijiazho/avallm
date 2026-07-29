@@ -51,7 +51,7 @@ function addProbability(
   accumulator.sum = next
 }
 
-function stableProbabilitySum<T>(
+export function stableProbabilitySum<T>(
   values: Iterable<T>,
   probabilityOf: (value: T) => number,
 ): number {

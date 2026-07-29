@@ -6,6 +6,7 @@ import {
 } from '../server/agents/components/canonical-json.ts'
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
+  ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
   MORDRED_BLINDNESS_COMPONENT,
 } from '../server/agents/components/native-role-components.ts'
 import {
@@ -141,6 +142,8 @@ import {
 const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'actor-target-treatment-read':
     { proof: 'mordred-native-family' },
+  'assassin-merlin-posterior':
+    { proof: 'assassin-native-family' },
   'evil-quest-card-robust':
     { proof: 'robust-quest-native-family' },
   'evil-role-objective':
@@ -165,6 +168,7 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
 
 const NATIVE_PROOF_OWNERS = new Map([
   [ACTOR_TARGET_TREATMENT_COMPONENT.id, 'mordred-native-family'],
+  [ASSASSIN_MERLIN_POSTERIOR_COMPONENT.id, 'assassin-native-family'],
   [MORDRED_BLINDNESS_COMPONENT.id, 'mordred-native-family'],
   [GOOD_ROLE_OBJECTIVE_COMPONENT.id, 'good-role-native-family'],
   [GOOD_ROLE_UTILITY_COMPONENT.id, 'good-role-native-family'],

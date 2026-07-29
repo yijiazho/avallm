@@ -589,6 +589,21 @@ These objectives share facts and beliefs but should not be compressed into one u
 In particular, a role label or descriptive posture that does not causally affect policy is not an
 implemented role objective.
 
+The Assassin posterior begins with the exact joint-world mass whose Merlin coordinate is each
+seat. It may then apply a small versioned public-behavior model, but the full relative log-weight
+span must remain capped at `ln(2)` before normalization. The first model uses only clean-team
+proposal rate and vote agreement, evaluated separately in every possible world by simulating what
+that world's Merlin sees: all evil except that world's Mordred. The versioned component contract
+defines this as a bounded, hand-authored reweighting of the exact prior, not a calibrated role
+probability. Those fixed semantics and deferred-input declarations live here rather than as
+repeated strings in every payload. Visible evil
+therefore retains zero Merlin prior while a seat that might be Oberon from the Assassin's legal
+view is not silently removed. Every completed proposal contributes proposal evidence, rejected
+proposals retain their revealed votes, and automatic approvals contribute no nonexistent votes.
+Trajectory and deliberate-noise features remain deferred until evaluation justifies them.
+Role-claim evidence also remains absent until a typed trusted extractor
+exists; raw prose, regular-expression claims, and generic language labels are not valid substitutes.
+
 Morgana's public "read as Merlin" feature must keep two different semantics visible. Public Merlin
 eligibility is an exact marginal from the public feasible-world model. Proposal and vote
 truth-tracking are bounded, deterministic behavior counts and proxies, not likelihoods or role
