@@ -15,7 +15,10 @@ import {
 } from '../server/agents/components/resolved-brain.ts'
 import {
   PRIVATE_BELIEF_INPUT,
+  PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/legacy-role-adapters.ts'
 import {
   buildPrivateActorTargetTreatmentRead,
@@ -37,6 +40,25 @@ import {
   observePublicRecord,
 } from '../server/agents/analysis/observer.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
+import {
+  projectJointIdentity,
+} from '../server/agents/belief/identity.ts'
+import {
+  buildRoleObjectiveSnapshot,
+  decodeCanonicalPrivateRoleObjectiveSnapshot,
+  roleObjectiveIdentityScope,
+  validatePrivateRoleObjectiveSnapshot,
+} from '../server/agents/analysis/role-objectives.ts'
+import {
+  buildRoleUtilityProjection,
+  decodeCanonicalPrivateRoleUtilityProjection,
+  MAX_ROLE_UTILITY_JSON_BYTES,
+  validateAdmittedPrivateRoleUtilityHostJoin,
+  validatePrivateRoleUtilityProjection,
+} from '../server/agents/analysis/role-utility.ts'
+import {
+  MAX_ROLE_OBJECTIVE_JSON_BYTES,
+} from '../server/agents/analysis/role-objective-types.ts'
 import {
   projectPublicRecord,
 } from '../server/agents/communication/public-record.ts'
@@ -60,9 +82,9 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'evil-role-utility':
     { legacyExemption: '7R3A native retirement pending' },
   'good-role-objective':
-    { legacyExemption: '7R3A native retirement pending' },
+    { fixture: 'merlin-proposal' },
   'good-role-utility':
-    { legacyExemption: '7R3A native retirement pending' },
+    { fixture: 'merlin-proposal' },
   'mordred-blindness-objective':
     { fixture: 'mordred-late-vote' },
   'morgana-counterfeit-public-read':
@@ -92,6 +114,44 @@ function nativeFixture() {
     candidates: legalCandidates(fixture.req, fixture.view),
   })
   return { fixture, record, observer, belief, treatment, objective }
+}
+
+function goodNativeFixture() {
+  const fixture = readDecisionFixtures().find(
+    (candidate) =>
+      candidate.view.role === 'merlin'
+      && candidate.req.kind === 'propose',
+  )
+  assert.ok(fixture)
+  const record = projectPublicRecord(fixture.view)
+  const observer = observePublicRecord(record)
+  const belief = exactBelief(fixture.view)
+  const identity = projectJointIdentity(
+    belief,
+    roleObjectiveIdentityScope('merlin', fixture.view.rolesInPlay),
+  )
+  const candidates = legalCandidates(fixture.req, fixture.view)
+  const objective = buildRoleObjectiveSnapshot({
+    req: fixture.req,
+    view: fixture.view,
+    identity,
+    observer,
+    candidates,
+  })
+  const utility = buildRoleUtilityProjection({
+    req: fixture.req,
+    view: fixture.view,
+    objective,
+    observer,
+    candidates,
+  })
+  return {
+    fixture,
+    observer,
+    identity,
+    objective,
+    utility,
+  }
 }
 
 test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
@@ -163,25 +223,97 @@ test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
 
 test('native decoders preserve raw-validator semantics after one boundary', () => {
   const { treatment, objective } = nativeFixture()
-  const fixtures = [
+  const good = goodNativeFixture()
+  assertNativeCodecContract({
+    label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
+    value: treatment,
+    maxBytes: MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
+    validate: validatePrivateActorTargetTreatmentRead,
+    decode: decodeCanonicalPrivateActorTargetTreatmentRead,
+    invalidValue: { ...treatment, matrixSemantics: 'forged' },
+  })
+  assertNativeCodecContract({
+    label: MORDRED_BLINDNESS_COMPONENT.id,
+    value: objective,
+    maxBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
+    validate: validatePrivateMordredBlindnessObjective,
+    decode: decodeCanonicalPrivateMordredBlindnessObjective,
+    invalidValue: { ...objective, role: 'merlin' },
+  })
+  assertNativeCodecContract({
+    label: GOOD_ROLE_OBJECTIVE_COMPONENT.id,
+    value: good.objective,
+    maxBytes: MAX_ROLE_OBJECTIVE_JSON_BYTES,
+    validate: validatePrivateRoleObjectiveSnapshot,
+    decode: decodeCanonicalPrivateRoleObjectiveSnapshot,
+    invalidValue: { ...good.objective, role: 'servant' },
+  })
+  assertNativeCodecContract({
+    label: GOOD_ROLE_UTILITY_COMPONENT.id,
+    value: good.utility,
+    maxBytes: MAX_ROLE_UTILITY_JSON_BYTES,
+    validate: validatePrivateRoleUtilityProjection,
+    decode: decodeCanonicalPrivateRoleUtilityProjection,
+    invalidValue: { ...good.utility, role: 'servant' },
+  })
+})
+
+test('native good-role family conforms through execution and host join', async () => {
+  const good = goodNativeFixture()
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [GOOD_ROLE_UTILITY_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  await assertNativeExecutionContract({
+    label: 'good role native family',
+    registry,
+    request: good.fixture.req,
+    view: good.fixture.view,
+    brain,
+    hostInputs: [
+      { input: PRIVATE_IDENTITY_INPUT, value: good.identity },
+      { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: good.observer },
+    ],
+    entries: [
+      {
+        token: GOOD_ROLE_OBJECTIVE_COMPONENT,
+        verification: 'exact',
+        promotionEligible: true,
+        missingRootFailure: 'host-input-unavailable',
+      },
+      {
+        token: GOOD_ROLE_UTILITY_COMPONENT,
+        verification: 'exact',
+        promotionEligible: true,
+        missingRootFailure: 'dependency-unavailable',
+      },
+    ],
+  })
+})
+
+test('admitted utility join trusts its already-admitted objective dependency', () => {
+  const good = goodNativeFixture()
+  const invalidAtRawBoundary = {
+    ...good.objective,
+    version: 'already-admitted-dependency',
+  } as unknown as typeof good.objective
+  assert.equal(
+    validatePrivateRoleObjectiveSnapshot(invalidAtRawBoundary),
+    false,
+  )
+  assert.equal(validateAdmittedPrivateRoleUtilityHostJoin(
+    good.utility,
     {
-      label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
-      value: treatment,
-      maxBytes: MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
-      validate: validatePrivateActorTargetTreatmentRead,
-      decode: decodeCanonicalPrivateActorTargetTreatmentRead,
-      invalidValue: { ...treatment, matrixSemantics: 'forged' },
+      req: good.fixture.req,
+      view: good.fixture.view,
+      objective: invalidAtRawBoundary,
+      observer: good.observer,
+      candidates: legalCandidates(good.fixture.req, good.fixture.view),
     },
-    {
-      label: MORDRED_BLINDNESS_COMPONENT.id,
-      value: objective,
-      maxBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
-      validate: validatePrivateMordredBlindnessObjective,
-      decode: decodeCanonicalPrivateMordredBlindnessObjective,
-      invalidValue: { ...objective, role: 'merlin' },
-    },
-  ] as const
-  for (const fixture of fixtures) assertNativeCodecContract(fixture)
+  ), true)
 })
 
 test('production registry has a fail-closed conformance inventory', () => {

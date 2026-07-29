@@ -25,6 +25,10 @@ import {
   validatePrivateRoleObjectiveSnapshot,
 } from './role-objectives.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
+import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
 
 export const ROLE_UTILITY_PROJECTION_VERSION =
   'merlin-percival-role-utility-v1'
@@ -147,39 +151,6 @@ function exactKeys(
     && actual.every((key, index) => key === expected[index])
 }
 
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? !denseArray(value)
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
-}
-
 function candidateDirectionSign(
   candidate: CandidatePublicCommitment,
 ): number {
@@ -226,19 +197,27 @@ function assessmentMap(
   return map
 }
 
-export function buildRoleUtilityProjection(input: {
+interface RoleUtilityProjectionInput {
   req: DecisionRequest
   view: PlayerView
   objective: PrivateRoleObjectiveSnapshot
   observer: PublicObserverSnapshot
   candidates: readonly PolicyCandidate[]
-}): PrivateRoleUtilityProjection {
+}
+
+function buildRoleUtilityProjectionInternal(
+  input: RoleUtilityProjectionInput,
+  objectiveAlreadyAdmitted: boolean,
+): PrivateRoleUtilityProjection {
   const { req, view, objective, observer, candidates } = input
   if (
     (req.kind !== 'propose' && req.kind !== 'vote')
     || (view.role !== 'merlin' && view.role !== 'percival')
     || objective.role !== view.role
-    || !validatePrivateRoleObjectiveSnapshot(objective)
+    || (
+      !objectiveAlreadyAdmitted
+      && !validatePrivateRoleObjectiveSnapshot(objective)
+    )
     || observer.playerCount !== view.playerCount
     || req.seat !== view.seat
   ) {
@@ -383,16 +362,31 @@ export function buildRoleUtilityProjection(input: {
   }
 }
 
-export function validatePrivateRoleUtilityProjection(
+export function buildRoleUtilityProjection(
+  input: RoleUtilityProjectionInput,
+): PrivateRoleUtilityProjection {
+  return buildRoleUtilityProjectionInternal(input, false)
+}
+
+/** Build from a component dependency already admitted by the kernel. */
+export function buildAdmittedRoleUtilityProjection(
+  input: RoleUtilityProjectionInput,
+): PrivateRoleUtilityProjection {
+  return buildRoleUtilityProjectionInternal(input, true)
+}
+
+function validatePrivateRoleUtilityProjectionShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateRoleUtilityProjection {
   try {
-    if (!plainDetachedData(value)) return false
-    const detached = structuredClone(value)
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_ROLE_UTILITY_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    const detached = canonical.payload
     if (
       !plainRecord(detached)
-      || Buffer.byteLength(JSON.stringify(detached), 'utf8')
-        > MAX_ROLE_UTILITY_JSON_BYTES
       || !exactKeys(detached, [
         'version', 'role', 'source', 'request', 'assessments',
       ])
@@ -605,6 +599,21 @@ export function validatePrivateRoleUtilityProjection(
   }
 }
 
+export function validatePrivateRoleUtilityProjection(
+  value: unknown,
+): value is PrivateRoleUtilityProjection {
+  return validatePrivateRoleUtilityProjectionShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateRoleUtilityProjection(
+  value: CanonicalJsonValue,
+): PrivateRoleUtilityProjection | undefined {
+  return validatePrivateRoleUtilityProjectionShape(value, false)
+    ? value as PrivateRoleUtilityProjection
+    : undefined
+}
+
 export function validatePrivateRoleUtilityHostJoin(
   value: unknown,
   input: {
@@ -628,6 +637,26 @@ export function validatePrivateRoleUtilityHostJoin(
   ) return false
   try {
     return isDeepStrictEqual(value, buildRoleUtilityProjection(input))
+  } catch {
+    return false
+  }
+}
+
+export function validateAdmittedPrivateRoleUtilityHostJoin(
+  value: PrivateRoleUtilityProjection,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    objective: PrivateRoleObjectiveSnapshot
+    observer: PublicObserverSnapshot
+    candidates: readonly PolicyCandidate[]
+  },
+): boolean {
+  try {
+    return isDeepStrictEqual(
+      value,
+      buildAdmittedRoleUtilityProjection(input),
+    )
   } catch {
     return false
   }

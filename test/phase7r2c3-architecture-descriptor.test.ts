@@ -42,6 +42,7 @@ import {
 } from '../server/agents/policy/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
+  scoreCandidates,
 } from '../server/agents/policy/score.ts'
 import {
   DECISION_PLAN_VERSION,
@@ -746,13 +747,17 @@ test('mutable planner and voice adapters never mutate the lifetime descriptor', 
   )
 })
 
-test('descriptor projection preserves default trace bytes and property order', async () => {
+test('unmapped compatibility bridge preserves historical trace bytes and property order', async () => {
   const source = readDecisionFixtures().find(
     (entry) => entry.id === 'merlin-opening-proposal',
   )!
   const output = normalizeAgentOutput(
     await createComposedAgent({
       seed: source.source.seed,
+      scorer: {
+        version: CANDIDATE_SCORER_VERSION,
+        score: scoreCandidates,
+      },
     }).decide(source.req, source.view),
   )
 
@@ -785,6 +790,33 @@ test('descriptor projection preserves default trace bytes and property order', a
     'communication',
     'voice',
   ])
+})
+
+test('exact default singleton truthfully reports deterministic native shadow identity', async () => {
+  const source = readDecisionFixtures().find(
+    (entry) => entry.id === 'merlin-opening-proposal',
+  )!
+  const firstAgent = createComposedAgent({ seed: source.source.seed })
+  const secondAgent = createComposedAgent({ seed: source.source.seed })
+  const first = normalizeAgentOutput(
+    await firstAgent.decide(source.req, source.view),
+  )
+  const second = normalizeAgentOutput(
+    await secondAgent.decide(source.req, source.view),
+  )
+  assert.deepEqual(first.decision, second.decision)
+  assert.equal(
+    first.trace!.architectureIdentityDigest,
+    second.trace!.architectureIdentityDigest,
+  )
+  assert.deepEqual(firstAgent.resolvedBrain().description.scoreLayerOrder, [{
+    id: 'compatibility-score',
+    version: CANDIDATE_SCORER_VERSION,
+  }])
+  assert.notEqual(
+    first.trace!.architectureIdentityDigest,
+    '073a48e094753e0af6f37559ded67bc1a655afb9acef8df9e44393d7f35dff06',
+  )
 })
 
 test('base trace projection fails closed on descriptor and run drift', async () => {

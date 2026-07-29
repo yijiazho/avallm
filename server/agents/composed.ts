@@ -6,6 +6,9 @@ import type {
 import { isDeepStrictEqual } from 'node:util'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
+import {
+  combineSituationAnalysisRequirements,
+} from './analysis/situation-plan.ts'
 import { observePublicRecord } from './analysis/observer.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
@@ -193,11 +196,22 @@ import {
   withLegacyD3QuestCard,
   withLegacyScoring,
   withLegalCandidates,
+  withNativeResolvedComponents,
+  withNativeScoreLayers,
+  prepareNativeScoreLayers,
   withResolvedComponents,
   withUniversalForcedPolicy,
   type LegacyPlannerResolution,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
+import {
+  createGoodScoreLayerRegistry,
+  goodScoreLayerTerminalFor,
+  goodScoreLayersApplyToDecision,
+} from './score-layers/good.ts'
+import {
+  assertGoodScoreLayerLegacyEquality,
+} from './score-layers/legacy-equality.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
@@ -1025,6 +1039,10 @@ export function createComposedAgent(
   let voice = snapshotVoice(options.voice)
   const compatibilityDecision =
     options.compatibilityDecision ?? heuristicDecide
+  const configuredScorerSource = options.scorer
+  const nativeGoodScoreLayerTerminal = goodScoreLayerTerminalFor(
+    configuredScorerSource,
+  )
   const scorer = snapshotScorer(options.scorer ?? {
     version: CANDIDATE_SCORER_VERSION,
     score: scoreCandidates,
@@ -1130,7 +1148,9 @@ export function createComposedAgent(
   const resolvedBrain = resolveComposedBrain({
     requestedComponents,
     hostCapabilities: [],
-    scoreLayerOrder: [],
+    ...(nativeGoodScoreLayerTerminal
+      ? { scoreLayerTerminal: nativeGoodScoreLayerTerminal }
+      : { scoreLayerOrder: [] }),
     decisionLayerOrder: [],
     executionMode: planner
       ? 'hybrid'
@@ -1206,7 +1226,7 @@ export function createComposedAgent(
         evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
       },
     },
-  }, componentRegistry)
+  }, componentRegistry, createGoodScoreLayerRegistry())
   const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
     projectResolvedArchitectureIdentity(resolvedBrain.description),
   )
@@ -1578,15 +1598,24 @@ export function createComposedAgent(
           && view.alignment === 'good'
         const canonicalFrame = canonicalDecisionFrame(req, view)
         const candidateFrame = withLegalCandidates(canonicalFrame)
+        const nativeScoreLayerLease =
+          resolvedBrain.scoreLayerChain
+          && goodScoreLayersApplyToDecision(req.kind)
+          ? prepareNativeScoreLayers(candidateFrame, resolvedBrain)
+          : undefined
         stage('candidates')
         const analyzedFrame = withDecisionAnalysis(
           candidateFrame,
           cognition,
-          wantsJointVoteAssessments
-            ? 'good-vote'
-            : wantsJointProposalAssessments
-              ? 'good-proposal'
-              : 'candidate-teams',
+          nativeScoreLayerLease
+            ? combineSituationAnalysisRequirements(
+                nativeScoreLayerLease.requirements,
+              )
+            : wantsJointVoteAssessments
+              ? 'good-vote'
+              : wantsJointProposalAssessments
+                ? 'good-proposal'
+                : 'candidate-teams',
         )
         const analysis = analyzedFrame.analysis
         const candidates = analyzedFrame.legalCandidates
@@ -1600,11 +1629,7 @@ export function createComposedAgent(
             (component) => component.id,
           ),
         )
-        const resolvedFrame = await withResolvedComponents(
-          universalFrame,
-          resolvedBrain,
-          undefined,
-          (exactFrame) => ({
+        const componentHost = (exactFrame: typeof universalFrame) => ({
             providers: [
               requiresHostInput(PRIVATE_IDENTITY_INPUT)
                 ? { input: PRIVATE_IDENTITY_INPUT, provide: () => privateIdentity }
@@ -1625,8 +1650,21 @@ export function createComposedAgent(
                 ? { input: PRIVATE_DETERMINISTIC_SEED_INPUT, provide: () => seed }
                 : undefined,
             ].filter((provider) => provider !== undefined),
-          }),
-        )
+          })
+        const resolvedFrame = nativeScoreLayerLease
+          ? await withNativeResolvedComponents(
+              universalFrame,
+              resolvedBrain,
+              nativeScoreLayerLease,
+              undefined,
+              componentHost,
+            )
+          : await withResolvedComponents(
+              universalFrame,
+              resolvedBrain,
+              undefined,
+              componentHost,
+            )
         let postComponentFrame: PostComponentDecisionFrame = resolvedFrame
         const componentRun = resolvedFrame.componentRun
         const genericPublicObserverApplicable =
@@ -1808,6 +1846,17 @@ export function createComposedAgent(
                 === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
               ? 'evil-role-objective-scorer-failed'
               : 'role-objective-scorer-failed'
+        const nativeScoredFrame =
+          nativeScoreLayerLease
+          ? withNativeScoreLayers(
+              postComponentFrame,
+              nativeScoreLayerLease,
+              {
+                deterministicSeed: seed,
+                compatibilityCandidateId,
+              },
+            )
+          : undefined
         const scoredFrame = withLegacyScoring(
           postComponentFrame,
           () => ({
@@ -1846,6 +1895,12 @@ export function createComposedAgent(
             }
           },
         )
+        if (nativeScoredFrame) {
+          assertGoodScoreLayerLegacyEquality(
+            nativeScoredFrame,
+            scoredFrame,
+          )
+        }
         const legacyScored = projectScoredFrameForLegacy(scoredFrame)
         stage('scoring')
 

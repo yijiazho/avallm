@@ -2,9 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3A ordered score layers. Phase 7R2C4's typed
-`DecisionFrame` spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete
-and approved:
+**Current target phase:** Phase 7R3A2 native good-side score layers. Phase 7R3A1's
+role-agnostic kernel and its A1.1 lease correction are complete. A2 is the first production
+client: the shared compatibility root, Phase 4 proposal/vote transforms, and C2
+Merlin/Percival transforms run as registered native layers in an exact shadow comparison while
+the legacy writer remains downstream authority until A4. Phase 7R2C4's typed `DecisionFrame`
+spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
 The fast-feedback and static-check slice, the admission/conformance foundation, and the
@@ -2343,6 +2346,17 @@ the next task is to repair the seam or narrow the state model before adding cove
 passes by teaching another downstream consumer to recognize the same invalid shape does not close
 the defect.
 
+The remaining systemic improvements are tracked explicitly rather than rediscovered inside each
+role migration:
+
+| ID | Owner / when | Improvement | Acceptance |
+|---|---|---|---|
+| DEV-001 | Phase 7 post-checkpoint, before the next large oracle expansion | Add a typed legal-replay `DecisionScenario` builder | Request, view, visible history, legal candidates, and expected action are derived from one authoritative replay; tests no longer hand-splice phase/request cursors or repeat role-shaped casts. |
+| DEV-002 | Every migration slice, starting in A2 | Ratchet strict typechecking over new and touched test/support code | All `test/support/**` and `test/typecheck/**` files plus named touched runtime contract tests are fail-closed in the default strict lane. A2 adds the shared typed score-oracle reader and its runtime/conformance tests. |
+| DEV-003 | Repository-hygiene checkpoint after 7R3A | Adopt a repository `.gitattributes` line-ending policy with controlled normalization | One reviewed normalization commit, no mixed-line-ending warnings, no behavior changes, and future diffs preserve the declared policy. |
+| DEV-004 | Inspector v2 after the generic policy-run DTO and A4 cutover | Derive Inspector and equality diagnostics from one admitted native run record | One bounded record supplies layer journal, candidates, policy gate, committed action, and equality deltas; no observability consumer reconstructs or relabels causal state independently. A2's bounded shadow diagnostic is the first private-only step, not the public schema. |
+| DEV-005 | After Phase 7 | Split this tracker into a concise authoritative active contract and append-only completed-phase history | Preserve stable anchors and inbound links, keep current gates and debt easy to find, and prevent the roughly 219 KB historical record from remaining the primary working surface. A2 changes only this stale current capsule. |
+
 This ordering is a response to measured change cost, not an attempt to reduce assurance. At this
 checkpoint agent source was about 33,500 lines and tests about 35,600 lines. The test tree had
 roughly 550 manual `structuredClone` mutations, 250 direct composed-agent constructions, and 24
@@ -2465,6 +2479,40 @@ silently escape typechecking.
 The corrected gate passes both independent oracles, 319 contract tests, 1,031 API-free correctness
 tests, three isolated performance tests, and screenshot freshness without a client-source change.
 
+**7R3A2 is active and implementation-complete pending the parent landing gate.** The exact
+built-in scorer singleton selects a family-owned chain; custom or malformed same-version scorers
+remain entirely legacy. Native preparation, component binding, and equality shadowing are scoped
+to proposal and vote decisions, so an independently configured D3 quest policy does not enter the
+A2 lease or shadow path. The native and legacy forks start from the same exact post-component
+frame, and the legacy result remains the only downstream decision/trace writer through A4.
+Phase 4A, Phase 4B, the seeded Phase 4 vote band, deterministic C2, and seeded C2 are covered,
+including out-of-scope delegation, forced-survivor monotonicity, deterministic replay, and exact
+comparison to A0's pinned scenarios. The temporary comparison now reports a bounded first
+candidate/field delta together with the configured chain, native journal, survivor sets,
+structured IDs, and component-use delta.
+
+The family laws are intentionally layered instead of restated. `A2 exact built-ins resolve
+canonical family-owned chains` covers exact singleton/custom-clone routing;
+`Phase 4A singleton covers proposal, delegated vote, descriptor, and forced survivors` covers
+applicability and hard-policy dominance; `role scorer is opt-in and ineligible decisions resolve
+exactly to base` covers C2 inapplicability; `malformed role output degrades to the matching base
+and compatibility is last` plus A0's `c2:malformed-falls-to-phase4` scenario cover ordered
+fallback; the good proposal/vote name and seat-rotation laws plus `seeded role votes vary only
+inside the combined band and replay exactly` cover metamorphic invariance and replay. The
+Phase 4 transform and C2 recomputation call one native deterministic good-base calculator; seeded
+Phase 4 and seeded C2 add only their bounded selection adjustments.
+
+The A2 simplification and change-surface audit is:
+
+| Audit question | A2 result | Remaining owner |
+|---|---|---|
+| Did composition gain concrete role or requirement-ID branches? | No. The analysis domain compiles opaque family requirements, and architecture fitness rejects concrete good-analysis IDs in `composed.ts`. | Preserve in A3/A4. |
+| Did a generic or observability schema gain role fields? | No. Native rows remain the four-field common score shape; architecture fitness rejects trace, report, stdio, and legacy `CandidateScore` dependencies from concrete score families. | A4 removes old write-side projections. |
+| Was hostile input admitted once? | Yes for migrated good objective/utility payloads: shared bounded canonical JSON precedes family decode and exact host join. The admitted utility child consumes its kernel-admitted objective dependency without revalidating it. | Apply the same substitution in A3/A4; historical external readers still admit independently. |
+| What duplicate machinery was removed? | Two manual detached-data walkers, the utility child's repeated objective validation, the utility child's redundant direct identity host root, two independent native Phase 4 formula implementations, and two conformance exemptions. | A4 retires the legacy good scorer writer and temporary equality adapter. |
+| What is the normal future change surface? | The family contract/constants, `score-layers/good.ts`, an owning analysis/component codec when needed, one registry inventory, and focused formula/contract fixtures. | A role feature that also edits central trace, stdio, report, artifact, and Inspector schemas is an architecture correction, not normal work. |
+| What legacy authority remains? | `withLegacyScoring`, good/role scorer implementations in `policy/score.ts`, feature-rich legacy score/trace projections, and the named A2-A4 equality adapter. The good objective/utility definitions are behaviorally native but still physically housed in `components/legacy-role-adapters.ts`; `source: 'native'` alone is not structural cleanup. Their admitted/degraded/inapplicable generic entries also retain an exact named flat-trace compatibility binding. | A4 extracts those definitions to a native owner, removes the compatibility binding and flat projection together, then performs the cutover and deletion audit. |
+
 Independent final review approved the original A1 snapshot after rejecting and correcting earlier
 versions that had reused the optional-field legacy score type, duplicated hostile parsing for
 trusted values, lacked exact host joins, or hid repeated scans. The parent gate passed strict
@@ -2495,6 +2543,21 @@ role-named current projections must decline as their owners migrate; duplicate s
 parsers must remain zero. The temporary oracle count becomes zero at the 7R3 exit audit. Net
 authority-family lines may rise for A2's first client, but A2's simplification audit and A4's
 cutover must explain or reduce the total rather than treating framework growth as success.
+
+The pre-freeze A2 scorecard is respectively `8`, `7`, `194`, `0`, `4.72` seconds on the same
+focused lane, `3`, and `+2623` production lines relative to A0 (`+845` since A1.1). The first
+production family necessarily adds concrete layers and the temporary equality edge, but removes
+two conformance exemptions without increasing legacy call sites, central role projections, or
+duplicate parsers. A4 owns the expected drop when the legacy good writer, equality edge, flat
+compatibility projections, and physical definitions under `legacy-role-adapters.ts` are deleted.
+
+The A2 pre-freeze evidence is strict server plus strict test-contract typechecking, clean
+architecture fitness, `134/134` focused tests, `328/328` contract-lane tests, and the complete
+API-free verifier at `1041/1041` correctness plus `3/3` isolated performance tests. The historical
+pre-C4 trace hashes remain unchanged through an explicitly unmapped compatibility clone; the exact
+default singleton separately reports the new native compatibility-root descriptor and stable
+digest. `git diff --check` passes, no client file differs from the A1.1 base, and screenshot
+freshness remains `bae3010696159ecb`.
 
 In 7R3B, D3 becomes a strategic decision layer that is reachable only after universal forced rules
 leave discretion. Generic-versus-legacy equality is required across all landed role paths before

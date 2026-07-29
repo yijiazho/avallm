@@ -3210,11 +3210,15 @@ function validGenericRoleComponents(
   const nativeDegradationCodes = new Set(
     PRODUCTION_COMPONENT_REGISTRY.definitions()
       .filter((definition) => definition.source === 'native')
+      .filter((definition) => {
+        const binding = bindingByKey.get(componentKey(definition.token))
+        return !binding || binding.ownsLegacyDegradation === false
+      })
       .map((definition) => definition.degradationCode),
   )
-  // Native failures live only on their generic run entry. Accepting the same
-  // code in the legacy flat degradation array would silently create a second
-  // role-specific write path and ambiguous provenance.
+  // Native failures without a named compatibility binding live only on their
+  // generic run entry. Migrated A2 components retain their historical flat
+  // projection until A4 removes the binding and old trace writer together.
   if (
     trace.degradation.some((code) => nativeDegradationCodes.has(code))
   ) return false

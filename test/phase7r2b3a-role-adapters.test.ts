@@ -97,7 +97,13 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
     && entry.verification === 'exact'
     && entry.promotionEligible))
   assert.ok(brain.configuredDefinitions.every(
-    (definition) => definition.source === 'legacy-adapter',
+    (definition) => definition.source === 'native',
+  ))
+  assert.doesNotThrow(() => parseStdioDecisionReply(
+    fixture.req,
+    output,
+    'phase7r2b3a admitted native compatibility projection',
+    fixture.view,
   ))
   const uses = new Map(
     trace.components!.policyUse.map((entry) => [
@@ -185,6 +191,12 @@ test('the independent plan witness preserves configured inapplicable adapters', 
     }],
   )
   assert.equal(output.trace!.components!.entries[0].status, 'inapplicable')
+  assert.doesNotThrow(() => parseStdioDecisionReply(
+    fixture.req,
+    output,
+    'phase7r2b3a inapplicable native compatibility projection',
+    fixture.view,
+  ))
 
   const erasedRun = structuredClone(output)
   erasedRun.trace!.components!.configured = []

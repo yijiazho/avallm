@@ -6,6 +6,9 @@ import type {
 } from '../../engine/types.ts'
 import { analyzeSituation } from '../analysis/situation.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
+import type {
+  SituationAnalysisPlan,
+} from '../analysis/situation-plan.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { CognitionState } from '../cognition/types.ts'
@@ -69,6 +72,8 @@ export const LEGACY_D3_QUEST_CARD_VERSION =
   'legacy-d3-quest-card-compatibility-v1'
 /** Engine and simulator seeds are short; keep native policy host state bounded. */
 export const MAX_NATIVE_SCORE_LAYER_SEED_LENGTH = 1_024
+/** @deprecated Analysis-domain plans replace this migration alias. */
+export type DecisionAnalysisPlan = SituationAnalysisPlan
 
 export type { Immutable } from './trusted-data.ts'
 export type NonEmptyReadonly<T> = readonly [T, ...T[]]
@@ -227,11 +232,6 @@ export interface LegacyVoicedOutputProjection {
   readonly plan: DecisionPlan
 }
 
-export type DecisionAnalysisPlan =
-  | 'candidate-teams'
-  | 'good-proposal'
-  | 'good-vote'
-
 /** 7R3 retires this compatibility adapter after scorer ownership extraction. */
 export type LegacyScoringBindings = Readonly<
   Pick<
@@ -309,7 +309,7 @@ export function withLegalCandidates(
 export function withDecisionAnalysis(
   frame: CandidateDecisionFrame,
   cognition: CognitionState,
-  plan: DecisionAnalysisPlan,
+  plan: SituationAnalysisPlan,
 ): AnalyzedDecisionFrame {
   const view = legacy<PlayerView>(frame.view)
   const cursor = visibleEventCursor(view)
@@ -681,7 +681,7 @@ export async function withNativeResolvedComponents(
   )
 }
 
-/** Future native scoring transition. The live path remains legacy until A2. */
+/** Native ordered scoring shadows legacy decision authority through A4. */
 export function withNativeScoreLayers(
   frame: PostComponentDecisionFrame,
   lease: NativeScoreLayerLease,

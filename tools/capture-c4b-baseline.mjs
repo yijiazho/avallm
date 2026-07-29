@@ -38,6 +38,10 @@ const [{ createComposedAgent }, { readDecisionFixtures }, score] =
     load('server/agents/policy/score.ts'),
   ])
 const fixtures = readDecisionFixtures()
+const compatibilityBridge = Object.freeze({
+  version: score.CANDIDATE_SCORER_VERSION,
+  score: score.scoreCandidates,
+})
 const digest = (value) => createHash('sha256')
   .update(JSON.stringify(value))
   .digest('hex')
@@ -67,6 +71,7 @@ async function capture(id, req, view, options) {
     : undefined
   const result = await createComposedAgent({
     ...options,
+    scorer: options.scorer ?? compatibilityBridge,
     ...(planner ? { planner } : {}),
     ...(voice ? { voice } : {}),
     onStage: (stage) => stages.push(stage),

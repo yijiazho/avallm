@@ -318,6 +318,48 @@ test('generic score-layer kernel cannot grow role-specific dependencies or branc
   )
 })
 
+test('concrete score families stay separate from observability and composition IDs', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/score-layers/trace-coupled.ts',
+        'import type { DecisionTrace } from "../trace.ts"',
+      ],
+      [
+        'server/agents/score-layers/report-coupled.ts',
+        'import { architectureReport } from "../../eval/architecture-report.ts"',
+      ],
+      [
+        'server/agents/score-layers/transport-coupled.ts',
+        'import { parseStdioDecisionReply } from "../stdio.ts"',
+      ],
+      [
+        'server/agents/score-layers/legacy-row.ts',
+        'import type { CandidateScore } from "../policy/types.ts"',
+      ],
+      [
+        'server/agents/score-layers/legacy-namespace.ts',
+        `import type * as Legacy from "../policy/types.ts"
+         type Row = Legacy.CandidateScore`,
+      ],
+      [
+        'server/agents/composed.ts',
+        `const proposal = "good-proposal-analysis"
+         const vote = "good-vote-analysis"`,
+      ],
+    ]),
+    [
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+    ],
+  )
+})
+
 test('native score-layer preparation and execution stay locally owned', () => {
   assert.deepEqual(
     rules([

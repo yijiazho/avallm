@@ -44,6 +44,10 @@ import {
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
+import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
 
 const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
 const roleRank = new Map(CANONICAL_ROLE_ORDER.map((role, index) => [role, index]))
@@ -61,45 +65,6 @@ const plainRecord = (value: unknown): value is Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
-}
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
 }
 
 function denseArray(value: unknown): value is unknown[] {
@@ -692,18 +657,17 @@ function validDistribution(value: unknown, teamSize: number): value is number[] 
     ) <= PROBABILITY_TOLERANCE
 }
 
-export function validatePrivateRoleObjectiveSnapshot(
+function validatePrivateRoleObjectiveSnapshotShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateRoleObjectiveSnapshot {
   try {
-    if (!plainDetachedData(value)) return false
-    const detached = structuredClone(value)
-    if (!plainRecord(detached)) return false
-    if (
-      Buffer.byteLength(JSON.stringify(detached), 'utf8')
-      > MAX_ROLE_OBJECTIVE_JSON_BYTES
-    ) return false
-    const snapshot = detached as Record<string, unknown>
+    const detached = hostileBoundary
+      ? canonicalizeJson(value, MAX_ROLE_OBJECTIVE_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!detached.ok) return false
+    if (!plainRecord(detached.payload)) return false
+    const snapshot = detached.payload as Record<string, unknown>
     const source = snapshot.source as Record<string, unknown>
     const request = snapshot.request as Record<string, unknown>
     const objective = snapshot.objective as Record<string, unknown>
@@ -1005,6 +969,21 @@ export function validatePrivateRoleObjectiveSnapshot(
   }
 }
 
+export function validatePrivateRoleObjectiveSnapshot(
+  value: unknown,
+): value is PrivateRoleObjectiveSnapshot {
+  return validatePrivateRoleObjectiveSnapshotShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateRoleObjectiveSnapshot(
+  value: CanonicalJsonValue,
+): PrivateRoleObjectiveSnapshot | undefined {
+  return validatePrivateRoleObjectiveSnapshotShape(value, false)
+    ? value as PrivateRoleObjectiveSnapshot
+    : undefined
+}
+
 export function validatePrivateRoleObjectiveHostJoin(
   value: unknown,
   input: {
@@ -1025,6 +1004,30 @@ export function validatePrivateRoleObjectiveHostJoin(
       ...input,
       observer: authoritativeObserver,
     }))
+  } catch {
+    return false
+  }
+}
+
+export function validateAdmittedPrivateRoleObjectiveHostJoin(
+  value: PrivateRoleObjectiveSnapshot,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    identity: PrivateIdentitySnapshot
+    observer: PublicObserverSnapshot
+    candidates: readonly PolicyCandidate[]
+  },
+): boolean {
+  try {
+    const authoritativeObserver = observePublicRecord(
+      projectPublicRecord(input.view),
+    )
+    return isDeepStrictEqual(input.observer, authoritativeObserver)
+      && isDeepStrictEqual(value, buildRoleObjectiveSnapshot({
+        ...input,
+        observer: authoritativeObserver,
+      }))
   } catch {
     return false
   }

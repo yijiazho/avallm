@@ -19,9 +19,9 @@ import {
 } from '../analysis/evil-objective-types.ts'
 import {
   buildRoleObjectiveSnapshot,
+  decodeCanonicalPrivateRoleObjectiveSnapshot,
   roleObjectiveIdentityScope,
-  validatePrivateRoleObjectiveHostJoin,
-  validatePrivateRoleObjectiveSnapshot,
+  validateAdmittedPrivateRoleObjectiveHostJoin,
 } from '../analysis/role-objectives.ts'
 import {
   MAX_ROLE_OBJECTIVE_JSON_BYTES,
@@ -39,13 +39,13 @@ import {
   validatePrivateEvilRoleUtilityProjection,
 } from '../analysis/evil-role-utility.ts'
 import {
-  buildRoleUtilityProjection,
+  buildAdmittedRoleUtilityProjection,
+  decodeCanonicalPrivateRoleUtilityProjection,
   MAX_ROLE_UTILITY_JSON_BYTES,
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
-  validatePrivateRoleUtilityHostJoin,
-  validatePrivateRoleUtilityProjection,
+  validateAdmittedPrivateRoleUtilityHostJoin,
 } from '../analysis/role-utility.ts'
 import {
   observePublicRecord,
@@ -296,6 +296,21 @@ function privateContext(context: DecisionComponentContext): {
     req: context.request,
     view: context.view,
     identity: context.hostInputs.require(PRIVATE_IDENTITY_INPUT),
+    observer: context.hostInputs.require(PRIVATE_PUBLIC_OBSERVER_INPUT),
+  }
+}
+
+function privateObserverContext(context: DecisionComponentContext): {
+  req: Readonly<DecisionRequest>
+  view: Readonly<PlayerView>
+  observer: PublicObserverSnapshot
+} {
+  if (context.privacy !== 'private') {
+    throw new Error('private role component received public context')
+  }
+  return {
+    req: context.request,
+    view: context.view,
     observer: context.hostInputs.require(PRIVATE_PUBLIC_OBSERVER_INPUT),
   }
 }
@@ -649,7 +664,7 @@ export function legacyRoleAdapterDefinitions(
     PrivateRoleObjectiveSnapshot
   > = {
     token: GOOD_ROLE_OBJECTIVE_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [],
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
@@ -682,13 +697,14 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateRoleObjectiveSnapshot(payload)
-        ? admitted(payload, exactQuality(payload))
+      const decoded = decodeCanonicalPrivateRoleObjectiveSnapshot(payload)
+      return decoded
+        ? admitted(decoded, exactQuality(decoded))
         : rejected(ROLE_OBJECTIVE_DEGRADATION)
     },
     admitHost({ payload, host }) {
       const { req, view, identity, observer } = privateContext(host)
-      return validatePrivateRoleObjectiveHostJoin(payload, {
+      return validateAdmittedPrivateRoleObjectiveHostJoin(payload, {
         req,
         view,
         identity,
@@ -704,10 +720,9 @@ export function legacyRoleAdapterDefinitions(
     PrivateRoleUtilityProjection
   > = {
     token: GOOD_ROLE_UTILITY_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [GOOD_ROLE_OBJECTIVE_COMPONENT],
     requiredHostInputs: [
-      PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
     hostRequirements: [],
@@ -719,8 +734,8 @@ export function legacyRoleAdapterDefinitions(
         && (context.request.kind === 'propose' || context.request.kind === 'vote')
     },
     execute(context) {
-      const { req, view, observer } = privateContext(context)
-      const payload = buildRoleUtilityProjection({
+      const { req, view, observer } = privateObserverContext(context)
+      const payload = buildAdmittedRoleUtilityProjection({
         req,
         view,
         objective: context.dependencies.require(GOOD_ROLE_OBJECTIVE_COMPONENT),
@@ -733,18 +748,18 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateRoleUtilityProjection(payload)
-        ? admitted(payload, true)
+      const decoded = decodeCanonicalPrivateRoleUtilityProjection(payload)
+      return decoded
+        ? admitted(decoded, true)
         : rejected(ROLE_UTILITY_DEGRADATION)
     },
     admitHost({ payload, host }) {
-      const { req, view, identity, observer } = privateContext(host)
+      const { req, view, observer } = privateObserverContext(host)
       const objective = host.dependencies.require(GOOD_ROLE_OBJECTIVE_COMPONENT)
-      return validatePrivateRoleUtilityHostJoin(payload, {
+      return validateAdmittedPrivateRoleUtilityHostJoin(payload, {
         req,
         view,
         objective,
-        identity,
         observer,
         candidates: legalCandidates(req, view),
       })

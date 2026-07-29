@@ -2,100 +2,22 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import test from 'node:test'
+import {
+  PHASE7R3A_MAX_PRETTY_FIXTURE_BYTES,
+  PHASE7R3A_MAX_SCENARIO_COUNT,
+  PHASE7R3A_MAX_SCENARIO_JSON_BYTES,
+  PHASE7R3A_MAX_TOTAL_SCENARIO_JSON_BYTES,
+  PHASE7R3A_SCORE_ORACLE_FILE,
+  readPhase7R3AScoreOracle,
+  type Phase7R3AOracleScenario,
+} from './support/phase7r3a-score-oracle.ts'
 
-const fixtureFile = 'test/fixtures/phase7r3a-score-equivalence.json'
+const fixtureFile = PHASE7R3A_SCORE_ORACLE_FILE
 const captureTool = 'tools/capture-phase7r3a-score-oracle.mjs'
 const expectedSource =
   'b9f710389d2dfad03ec03e85313f672872c2b825'
 const expectedScenarioSha256 =
   'ce3a51425cdac1d3ef342ba950e31f923a78d14bcf20639cd9237e8f98efe2f2'
-const maxScenarioCount = 16
-const maxScenarioJsonBytes = 64 * 1024
-const maxTotalScenarioJsonBytes = 384 * 1024
-const maxPrettyFixtureBytes = 768 * 1024
-
-interface OracleScenario {
-  id: string
-  coverage: string[]
-  input: {
-    configuration: string
-    seed: string
-    req: {
-      kind: string
-      seat: number
-      round: number
-      proposalNum: number
-    }
-    view: {
-      seat: number
-      role: string
-      phase: string
-      round: number
-      proposalNum: number
-      currentTeam?: number[]
-      proposals: {
-        round: number
-        proposalNum: number
-        team: number[]
-      }[]
-      events: {
-        seq: number
-        type: string
-        payload: Record<string, unknown>
-      }[]
-    }
-  }
-  expected: {
-    mechanicalDecision: { kind: string }
-    candidateScores: {
-      candidateId: string
-      viable: boolean
-      reasonCodes: string[]
-      evilRoleObjectiveFeatures?: {
-        utility?: { role?: string }
-      }
-    }[]
-    forcedPolicyResult: {
-      applied: boolean
-      allowedCandidateIds: string[]
-      selectedCandidateId?: string
-    }
-    structuredCandidateId: string
-    selectedCandidateId: string
-    selectedScoreReasonCodes: string[]
-    communicationStrategicReasonCodes: string[]
-    degradation: string[]
-    causalUse: {
-      configured: unknown[]
-      entries: unknown[]
-      policyUse: unknown[]
-    }
-    agentMode: string
-    componentPlan: unknown
-    componentVersions: unknown
-    appliedVersions: {
-      scorer: string
-    }
-    plannerInput: unknown | null
-    voiceInput: unknown | null
-  }
-}
-
-interface ScoreOracle {
-  schema: number
-  capturedFrom: string
-  sourceDirty: boolean
-  capturePolicy: string
-  excludedMigrationMetadata: string[]
-  bounds: {
-    scenarioCount: number
-    maxScenarioJsonBytes: number
-    totalScenarioJsonBytes: number
-  }
-  scenarios: OracleScenario[]
-  scenarioSha256: string
-}
-
 const digest = (value: unknown): string => createHash('sha256')
   .update(JSON.stringify(value))
   .digest('hex')
@@ -107,7 +29,9 @@ function sameTeam(left: unknown, right: unknown): boolean {
     && left.every((seat, index) => seat === right[index])
 }
 
-function assertCoherentStoredBoundary(scenario: OracleScenario): void {
+function assertCoherentStoredBoundary(
+  scenario: Phase7R3AOracleScenario,
+): void {
   const { req, view } = scenario.input
   assert.equal(req.seat, view.seat, scenario.id)
   assert.equal(req.round, view.round, scenario.id)
@@ -150,9 +74,7 @@ function assertCoherentStoredBoundary(scenario: OracleScenario): void {
 }
 
 test('Phase 7R3A score oracle is provenance-pinned and coverage-complete', () => {
-  const oracle = JSON.parse(
-    fs.readFileSync(fixtureFile, 'utf8'),
-  ) as ScoreOracle
+  const oracle = readPhase7R3AScoreOracle()
   assert.equal(oracle.schema, 1)
   assert.equal(oracle.capturedFrom, expectedSource)
   assert.equal(oracle.sourceDirty, false)
@@ -163,7 +85,7 @@ test('Phase 7R3A score oracle is provenance-pinned and coverage-complete', () =>
   ])
   assert.equal(oracle.scenarios.length, 16)
   assert.equal(oracle.bounds.scenarioCount, oracle.scenarios.length)
-  assert.ok(oracle.bounds.scenarioCount <= maxScenarioCount)
+  assert.ok(oracle.bounds.scenarioCount <= PHASE7R3A_MAX_SCENARIO_COUNT)
   const scenarioSizes = oracle.scenarios.map((scenario) =>
     Buffer.byteLength(JSON.stringify(scenario), 'utf8'))
   assert.equal(
@@ -174,11 +96,17 @@ test('Phase 7R3A score oracle is provenance-pinned and coverage-complete', () =>
     oracle.bounds.totalScenarioJsonBytes,
     Buffer.byteLength(JSON.stringify(oracle.scenarios), 'utf8'),
   )
-  assert.ok(oracle.bounds.maxScenarioJsonBytes <= maxScenarioJsonBytes)
   assert.ok(
-    oracle.bounds.totalScenarioJsonBytes <= maxTotalScenarioJsonBytes,
+    oracle.bounds.maxScenarioJsonBytes
+      <= PHASE7R3A_MAX_SCENARIO_JSON_BYTES,
   )
-  assert.ok(fs.statSync(fixtureFile).size <= maxPrettyFixtureBytes)
+  assert.ok(
+    oracle.bounds.totalScenarioJsonBytes
+      <= PHASE7R3A_MAX_TOTAL_SCENARIO_JSON_BYTES,
+  )
+  assert.ok(
+    fs.statSync(fixtureFile).size <= PHASE7R3A_MAX_PRETTY_FIXTURE_BYTES,
+  )
   assert.equal(oracle.scenarioSha256, expectedScenarioSha256)
   assert.equal(digest(oracle.scenarios), expectedScenarioSha256)
   assert.equal(

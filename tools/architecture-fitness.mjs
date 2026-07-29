@@ -11,6 +11,7 @@ const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/
 const ENGINE_TYPES = 'server/engine/types'
 const COMPONENT_KERNEL = 'server/agents/components/kernel'
 const GENERIC_SCORE_LAYER_PREFIX = 'server/agents/policy/score-layer/'
+const CONCRETE_SCORE_LAYER_PREFIX = 'server/agents/score-layers/'
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
 const SCORE_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
@@ -383,6 +384,22 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (!target) continue
       if (
+        sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
+        && (
+          target === 'server/agents/trace'
+          || target === 'server/eval/architecture-report'
+          || target === 'server/agents/stdio'
+        )
+      ) {
+        violations.push(violation(
+          'ARCH006',
+          sourcePath,
+          edge,
+          'concrete score-layer families cannot depend on observability transports or the legacy CandidateScore shape',
+        ))
+        continue
+      }
+      if (
         target === SCORE_LAYER_RUNNER
         && !SCORE_LAYER_EXECUTION_OWNERS.has(sourcePath)
       ) {
@@ -526,6 +543,32 @@ export function auditArchitectureSources(sourceEntries) {
       }
     }
     if (
+      sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
+      && inspected.identifiers.has('CandidateScore')
+    ) {
+      violations.push(violation(
+        'ARCH006',
+        sourcePath,
+        undefined,
+        'concrete score-layer families cannot use the legacy CandidateScore shape',
+      ))
+    }
+    if (sourcePath === 'server/agents/composed.ts') {
+      for (const literal of inspected.stringLiterals) {
+        if (
+          literal === 'good-proposal-analysis'
+          || literal === 'good-vote-analysis'
+        ) {
+          violations.push(violation(
+            'ARCH006',
+            sourcePath,
+            undefined,
+            `composition cannot branch on concrete analysis requirement ${literal}`,
+          ))
+        }
+      }
+    }
+    if (
       (
         sourcePath === `${GENERIC_SCORE_LAYER_PREFIX}preparation.ts`
         || sourcePath === `${GENERIC_SCORE_LAYER_PREFIX}runner.ts`
@@ -609,52 +652,24 @@ function collectServerSources(root) {
 
 function scoreLayerContractInventoryViolations(root) {
   const violations = []
-  const support = path.join(root, 'test', 'support')
-  const typecheck = path.join(root, 'test', 'typecheck')
-  for (const directory of [support, typecheck]) {
-    let children
-    try {
-      children = readdirSync(directory, { withFileTypes: true })
-    } catch (error) {
-      violations.push(violation(
-        'ARCH006',
-        normalizeRepoPath(path.relative(root, directory)),
-        undefined,
-        `cannot enumerate native score-layer typecheck inventory: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      ))
-      continue
-    }
-    for (const child of children) {
-      if (!child.isFile() || !child.name.endsWith('.ts')) continue
-      const absolute = path.join(directory, child.name)
-      const source = readFileSync(absolute, 'utf8')
-      const participates = source.includes('/score-layer/')
-        || source.includes('./score-layer-')
-      if (participates && !child.name.startsWith('score-layer-')) {
-        violations.push(violation(
-          'ARCH006',
-          normalizeRepoPath(path.relative(root, absolute)),
-          undefined,
-          'native score-layer support must use the score-layer-* strict-inventory prefix',
-        ))
-      }
-    }
-  }
   const configPath = path.join(root, 'tsconfig.score-layer-contract.json')
   const packagePath = path.join(root, 'package.json')
   try {
-    const config = readFileSync(configPath, 'utf8')
-    if (
-      !config.includes('"test/support/score-layer-*.ts"')
-      || !config.includes('"test/typecheck/score-layer-*.ts"')
-    ) {
+    const config = JSON.parse(readFileSync(configPath, 'utf8'))
+    const include = new Set(config.include ?? [])
+    const required = [
+      'test/support/**/*.ts',
+      'test/typecheck/**/*.ts',
+      'test/phase7r2c2-component-conformance.test.ts',
+      'test/phase7r3a2-good-score-layers.test.ts',
+    ]
+    for (const pattern of required) {
+      if (include.has(pattern)) continue
       violations.push(violation(
         'ARCH006',
         'tsconfig.score-layer-contract.json',
         undefined,
-        'native score-layer strict typecheck inventory must remain glob-based',
+        `strict score-layer inventory must include ${pattern}`,
       ))
     }
     const packageSource = readFileSync(packagePath, 'utf8')
