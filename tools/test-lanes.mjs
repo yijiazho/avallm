@@ -66,6 +66,7 @@ const LANES = Object.freeze({
     'decision-frame.test.ts',
     'decision-trace.test.ts',
     'knowledge.test.ts',
+    'native-score-diagnostics.test.ts',
     'phase7r2c4b-baseline.test.ts',
     'phase6c-language-orchestration.test.ts',
     'phase7a-public-observer.test.ts',

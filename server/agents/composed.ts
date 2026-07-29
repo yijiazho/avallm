@@ -1848,11 +1848,7 @@ export function createComposedAgent(
               ? withNativeScoringAuthority(
               nativeScoredFrame,
               scoringBindings,
-              {
-                scores: nativeDiagnostics!,
-                scorerVersion: nativeScorer!,
-                degradation,
-              },
+              { scores: nativeDiagnostics!, degradation },
             )
               : (() => {
                   throw new Error('native scorer fallback was not prepared')

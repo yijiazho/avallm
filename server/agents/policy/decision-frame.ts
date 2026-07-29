@@ -249,12 +249,14 @@ export interface LegacyScoringResolution {
 }
 
 /**
- * Historical fields retained for trace and planner compatibility after the
- * native score-layer surface has fixed every mechanical field.
+ * Additive private diagnostics for the native surface. Only the optional
+ * feature fields are read: every mechanical field comes from the native score
+ * layers, so a projection cannot restate value, viability, or reason codes.
+ * `test/native-score-diagnostics.test.ts` pins that additive contract, and
+ * trace admission independently replays the layers to verify the diagnostics.
  */
-export interface NativeScoringCompatibilityProjection {
+export interface NativeScoreDiagnostics {
   readonly scores: readonly CandidateScore[]
-  readonly scorerVersion: string
   readonly degradation: readonly string[]
 }
 
@@ -265,6 +267,12 @@ interface ScoredFrameResolution {
   readonly scorerVersion: string
   readonly degradation: readonly string[]
   readonly componentRun: DecisionComponentRun
+  /**
+   * The choice its own scoring authority already made. Selection validates
+   * this id rather than re-deriving the choice from a projected surface, so
+   * the native and compatibility authorities cannot disagree on a tie.
+   */
+  readonly structuredCandidateId: string
 }
 
 export interface DecisionVoiceInput {
@@ -359,11 +367,16 @@ function finalizeScoredDecisionFrame(
     })) as readonly Immutable<ViableCandidate>[],
     'scorer must retain a viable forced survivor',
   )
-  const structured = candidateBoundary.selectedCandidateId
-    ? scores.find((score) =>
-        score.candidateId === candidateBoundary.selectedCandidateId)
-    : structuredChoice(legacy<readonly CandidateScore[]>(scores))
-  if (!structured?.viable || !survivors.has(structured.candidateId)) {
+  const structured = scores.find((score) =>
+    score.candidateId === resolution.structuredCandidateId)
+  if (
+    !structured?.viable
+    || !survivors.has(structured.candidateId)
+    || (
+      candidateBoundary.selectedCandidateId !== undefined
+      && structured.candidateId !== candidateBoundary.selectedCandidateId
+    )
+  ) {
     throw new Error('structured policy selected a nonviable candidate')
   }
   return Object.freeze({
@@ -543,6 +556,18 @@ export function withResolvedDecisionLayers(
   return next
 }
 
+/**
+ * The custom scoring authority's own choice rule. Native score layers choose
+ * inside their run, so this rule belongs to caller-supplied scorers only.
+ */
+function customStructuredChoice(
+  candidateBoundary: Immutable<DecisionCandidateBoundary>,
+  scores: readonly CandidateScore[],
+): string {
+  return candidateBoundary.selectedCandidateId
+    ?? structuredChoice(scores).candidateId
+}
+
 /** Run the C4B scorer/fallback owner synchronously against one exact frame. */
 export function withCustomScoring(
   frame: PostComponentDecisionFrame,
@@ -556,14 +581,18 @@ export function withCustomScoring(
   const supplied = bindings(run)
   const context = scoringContext(frame, supplied)
   const resolution = resolve(context, run)
+  const candidateBoundary = candidateBoundaryFor(frame)
   return finalizeScoredDecisionFrame(frame, context, {
     authority: 'custom',
     scores: [...resolution.scores],
-    survivorCandidateIds:
-      candidateBoundaryFor(frame).survivorCandidateIds,
+    survivorCandidateIds: candidateBoundary.survivorCandidateIds,
     scorerVersion: resolution.appliedScorer.version,
     degradation: resolution.degradation,
     componentRun: resolution.componentRun,
+    structuredCandidateId: customStructuredChoice(
+      candidateBoundary,
+      resolution.scores,
+    ),
   })
 }
 
@@ -851,42 +880,34 @@ export function nativeDiagnosticOwnerVersion(
 
 /**
  * Admit the native score-layer result into the one scored frame consumed by
- * selection, planning, commitment, voice, and tracing. Compatibility data may
- * add historical diagnostics only after an exact candidate join; it cannot
- * replace any native mechanical field.
+ * selection, planning, commitment, voice, and tracing. The native surface owns
+ * every mechanical field and the choice its layers made; diagnostics only
+ * attach private per-candidate features.
  */
 export function withNativeScoringAuthority(
   frame: NativeScoreLayersResolvedDecisionFrame,
   bindings: LegacyScoringBindings,
-  compatibility: NativeScoringCompatibilityProjection,
+  diagnostics: NativeScoreDiagnostics,
 ): ScoredDecisionFrame {
   const scorerVersion = nativeScorerVersion(frame)
-  if (compatibility.scorerVersion !== scorerVersion) {
-    throw new Error('native scorer identity does not match compatibility data')
-  }
-  const historicalById = new Map(
-    compatibility.scores.map((score) => [score.candidateId, score]),
+  const diagnosticById = new Map(
+    diagnostics.scores.map((score) => [score.candidateId, score]),
   )
   if (
-    historicalById.size !== compatibility.scores.length
-    || historicalById.size !== frame.scores.length
+    diagnosticById.size !== diagnostics.scores.length
+    || diagnosticById.size !== frame.scores.length
   ) {
-    throw new Error('native scoring compatibility candidate set mismatch')
+    throw new Error('native scoring diagnostics do not cover the native surface')
   }
   const scores = frame.scores.map((native): CandidateScore => {
-    const historical = historicalById.get(native.candidateId)
-    if (
-      !historical
-      || historical.value !== native.value
-      || historical.viable !== native.viable
-      || !isDeepStrictEqual(historical.reasonCodes, native.reasonCodes)
-    ) {
+    const diagnostic = diagnosticById.get(native.candidateId)
+    if (!diagnostic) {
       throw new Error(
-        `native scoring compatibility row mismatch for ${native.candidateId}`,
+        `native scoring diagnostics omitted ${native.candidateId}`,
       )
     }
     return {
-      ...structuredClone(historical),
+      ...structuredClone(diagnostic),
       version: scorerVersion,
       candidateId: native.candidateId,
       value: native.value,
@@ -902,8 +923,9 @@ export function withNativeScoringAuthority(
       scores,
       survivorCandidateIds: frame.survivorCandidateIds,
       scorerVersion,
-      degradation: compatibility.degradation,
+      degradation: diagnostics.degradation,
       componentRun: legacy<DecisionComponentRun>(frame.componentRun),
+      structuredCandidateId: frame.structuredCandidateId,
     },
   )
 }
