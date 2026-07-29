@@ -40,3 +40,32 @@ npm run architecture-report -- data/eval/<run-id>.jsonl
 `--allow-paid` is intentionally required. Do not run that lane without explicit approval.
 Use a fresh output path for every run. The benchmark refuses a non-empty output file before
 starting so a rerun cannot spend money and then leave duplicate bank cells that the report rejects.
+
+## Phase 7 role-policy evidence
+
+The three `phase7-*-standard-v1` files are the API-free Phase 7 exit evidence:
+
+- `phase7-role-evidence-standard-v1.jsonl` is the raw 50-cell corpus: ten fixed
+  `standard-v1` cases by five logical arms. It preserves each isolated scorer's truthful raw
+  variant ID, descriptor, and resolved architecture identity.
+- `phase7-virtual-assassin-standard-v1.jsonl` contains twelve pretruth predictions from every evil
+  seat in four frozen histories. Each prediction is hashed before the true Merlin seat is joined.
+- `phase7-role-report-standard-v1.json` is the deterministic aggregate and six-row causal-authority
+  audit. It records outcomes descriptively and contains no timestamps or raw latency.
+
+Regenerate all three without provider calls:
+
+```text
+npm run phase7-role-report -- --generate
+```
+
+Check supplied raw evidence against the committed aggregate without replaying the bank:
+
+```text
+npm run phase7-role-report -- docs/baselines/phase7-role-evidence-standard-v1.jsonl docs/baselines/phase7-virtual-assassin-standard-v1.jsonl --check docs/baselines/phase7-role-report-standard-v1.json
+```
+
+The twelve virtual guesses are correlated observations from four histories, not twelve independent
+games, so their 2/12 descriptive accuracy has no promotion threshold. Likewise, the ten-case role
+bank proves deterministic architecture, attribution, isolation, and safety; its win counts are too
+small and too mechanically narrow to justify a production-default change.

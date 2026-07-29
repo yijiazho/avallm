@@ -1,0 +1,394 @@
+{
+  "schema": 1,
+  "version": "phase7-role-report-v1",
+  "inputs": {
+    "roleEvidenceDigest": "07a726d1470568c715dac8522917984ab8c60c85629d315cc871bc433a3f7a23",
+    "virtualAssassinDigest": "a9ff01c43e2b466597e94ee69580084872c9bef4c1b9bc6e74d2d9e8cbb2f550",
+    "roleAuthorityDigest": "c853a72b876f3f2a94b0203a35177f45af9be8eeb794f2ba231e9a5857988d9d"
+  },
+  "inventory": {
+    "cases": 10,
+    "rows": 50,
+    "logicalArms": [
+      "compatibility",
+      "base-composed",
+      "observer-only",
+      "isolated-role",
+      "full-role"
+    ],
+    "rawIdentities": {
+      "compatibility": [
+        {
+          "rawVariantId": "compatibility",
+          "rawAgentDescriptor": "phase7-role-eval:compatibility",
+          "configuredScorer": "compatibility-scorer-v1",
+          "identityDigests": [
+            "fc5749a8035d4a026f2881b7026fd72b625410ef2d90e5783c25687bd2f8e830"
+          ]
+        }
+      ],
+      "base-composed": [
+        {
+          "rawVariantId": "base-composed",
+          "rawAgentDescriptor": "phase7-role-eval:base-composed",
+          "configuredScorer": "good-proposal-vote-scorer-v1",
+          "identityDigests": [
+            "0ac8c86ffaebedc9f65c4d091b38159f0b1626fc4cf1abf63cb562e7a8014e1f"
+          ]
+        }
+      ],
+      "observer-only": [
+        {
+          "rawVariantId": "observer-only",
+          "rawAgentDescriptor": "phase7-role-eval:observer-only",
+          "configuredScorer": "good-proposal-vote-scorer-v1",
+          "identityDigests": [
+            "716366f7d60fb3cf87cfae93c71bab52b4b586e4d4b601ae7307a77df5def1c8"
+          ]
+        }
+      ],
+      "isolated-role": [
+        {
+          "rawVariantId": "isolated-assassin",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-assassin",
+          "configuredScorer": "assassin-merlin-target-scorer-v1",
+          "identityDigests": [
+            "88bd7c31aad5ea91e515ce5b540e9042bf3a15286e2a40e2612c26fcf552b2b4"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-good-base-servant",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-good-base-servant",
+          "configuredScorer": "good-proposal-vote-scorer-v1",
+          "identityDigests": [
+            "0ac8c86ffaebedc9f65c4d091b38159f0b1626fc4cf1abf63cb562e7a8014e1f"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-good-role-merlin",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-good-role-merlin",
+          "configuredScorer": "merlin-percival-role-scorer-v1",
+          "identityDigests": [
+            "c4541312e24039869c5d34c0438c8d35c7977c33ab56925a54d491900336f568"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-good-role-percival",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-good-role-percival",
+          "configuredScorer": "merlin-percival-role-scorer-v1",
+          "identityDigests": [
+            "c4541312e24039869c5d34c0438c8d35c7977c33ab56925a54d491900336f568"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-mordred",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-mordred",
+          "configuredScorer": "mordred-blindness-role-scorer-v1",
+          "identityDigests": [
+            "4da9091b5fdc5b80fd4d379fcb745f64bf6d825cdbddeea8f5cdf73ed75516cd"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-morgana",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-morgana",
+          "configuredScorer": "morgana-counterfeit-role-scorer-v1",
+          "identityDigests": [
+            "16ee65b7075b8965da2d6cdea68ff5eb9d39022f0cfc5c1982d7e273dd434dbf"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-shared-evil-minion",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-shared-evil-minion",
+          "configuredScorer": "evil-oberon-role-scorer-v1",
+          "identityDigests": [
+            "c5bf14978ba0c6e6bf79060c42dd34411ee784ff769b8efd7aea41a94438befd"
+          ]
+        },
+        {
+          "rawVariantId": "isolated-shared-evil-oberon",
+          "rawAgentDescriptor": "phase7-role-eval:isolated-shared-evil-oberon",
+          "configuredScorer": "evil-oberon-role-scorer-v1",
+          "identityDigests": [
+            "c5bf14978ba0c6e6bf79060c42dd34411ee784ff769b8efd7aea41a94438befd"
+          ]
+        }
+      ],
+      "full-role": [
+        {
+          "rawVariantId": "full-role",
+          "rawAgentDescriptor": "phase7-role-eval:full-role",
+          "configuredScorer": "full-role-policy-scorer-v1",
+          "identityDigests": [
+            "7ac79b47f9fa6a3ddc6a2edb13595501509c1ddd87370511656021738d254a82"
+          ]
+        }
+      ]
+    }
+  },
+  "arms": {
+    "compatibility": {
+      "games": 10,
+      "goodWins": 1,
+      "evilWins": 9,
+      "targetWins": 7,
+      "calls": 0,
+      "cost": 0,
+      "degradation": 0,
+      "forcedViolations": 0,
+      "exactAdmission": {
+        "eligibleRows": 10,
+        "decisions": 103,
+        "exact": 0,
+        "structural": 0,
+        "promotionEligible": true
+      },
+      "safety": {
+        "hiddenChecks": 10,
+        "hiddenViolations": 0,
+        "attributionChecks": 113,
+        "attributionViolations": 0
+      }
+    },
+    "base-composed": {
+      "games": 10,
+      "goodWins": 0,
+      "evilWins": 10,
+      "targetWins": 6,
+      "calls": 0,
+      "cost": 0,
+      "degradation": 0,
+      "forcedViolations": 0,
+      "exactAdmission": {
+        "eligibleRows": 10,
+        "decisions": 102,
+        "exact": 0,
+        "structural": 0,
+        "promotionEligible": true
+      },
+      "safety": {
+        "hiddenChecks": 10,
+        "hiddenViolations": 0,
+        "attributionChecks": 112,
+        "attributionViolations": 0
+      }
+    },
+    "observer-only": {
+      "games": 10,
+      "goodWins": 0,
+      "evilWins": 10,
+      "targetWins": 6,
+      "calls": 0,
+      "cost": 0,
+      "degradation": 0,
+      "forcedViolations": 0,
+      "exactAdmission": {
+        "eligibleRows": 10,
+        "decisions": 102,
+        "exact": 0,
+        "structural": 0,
+        "promotionEligible": true
+      },
+      "safety": {
+        "hiddenChecks": 10,
+        "hiddenViolations": 0,
+        "attributionChecks": 112,
+        "attributionViolations": 0
+      }
+    },
+    "isolated-role": {
+      "games": 10,
+      "goodWins": 0,
+      "evilWins": 10,
+      "targetWins": 6,
+      "calls": 0,
+      "cost": 0,
+      "degradation": 0,
+      "forcedViolations": 0,
+      "exactAdmission": {
+        "eligibleRows": 10,
+        "decisions": 88,
+        "exact": 153,
+        "structural": 0,
+        "promotionEligible": true
+      },
+      "safety": {
+        "hiddenChecks": 10,
+        "hiddenViolations": 0,
+        "attributionChecks": 98,
+        "attributionViolations": 0
+      }
+    },
+    "full-role": {
+      "games": 10,
+      "goodWins": 0,
+      "evilWins": 10,
+      "targetWins": 6,
+      "calls": 0,
+      "cost": 0,
+      "degradation": 0,
+      "forcedViolations": 0,
+      "exactAdmission": {
+        "eligibleRows": 10,
+        "decisions": 95,
+        "exact": 297,
+        "structural": 0,
+        "promotionEligible": true
+      },
+      "safety": {
+        "hiddenChecks": 10,
+        "hiddenViolations": 0,
+        "attributionChecks": 105,
+        "attributionViolations": 0
+      }
+    }
+  },
+  "mechanics": {
+    "baseObserverEquivalentCases": 10,
+    "baseObserverExpectedCases": 10,
+    "isolatedFullComparableCases": 6,
+    "isolatedFullEquivalentComparableCases": 6,
+    "isolatedFullEquivalentAllCases": 8,
+    "integratedFullRoleDifferenceCases": [
+      "8p-minion",
+      "9p-mordred"
+    ]
+  },
+  "authority": {
+    "version": "phase7-role-authority-v1",
+    "families": 6,
+    "rows": [
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "good-role",
+        "caseId": "good-role",
+        "targetRole": "merlin",
+        "requestKind": "propose",
+        "componentId": "good-role-objective",
+        "componentVersion": "merlin-percival-objectives-v1",
+        "causalStages": [
+          "candidate-score",
+          "action-selection"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "9a590c538bcc7c374358963585ea7600d9be0d75afb7a615f94eeed55b2992bf",
+        "referenceActionDigest": "9a590c538bcc7c374358963585ea7600d9be0d75afb7a615f94eeed55b2992bf",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      },
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "shared-evil-oberon",
+        "caseId": "shared-evil-oberon",
+        "targetRole": "oberon",
+        "requestKind": "propose",
+        "componentId": "evil-role-objective",
+        "componentVersion": "evil-oberon-objectives-v1",
+        "causalStages": [
+          "candidate-score",
+          "action-selection"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "dd75cc6e2fc06963e6fbb49fe54d719af7d287772cff57988f4045a2072f1e08",
+        "referenceActionDigest": "dd75cc6e2fc06963e6fbb49fe54d719af7d287772cff57988f4045a2072f1e08",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      },
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "morgana",
+        "caseId": "morgana",
+        "targetRole": "morgana",
+        "requestKind": "propose",
+        "componentId": "morgana-role-utility",
+        "componentVersion": "morgana-counterfeit-role-utility-v1",
+        "causalStages": [
+          "candidate-score",
+          "action-selection"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "edd2a0c19aefde9c6d5be71aef30f4af4b2f192a2ca2853e4d1e2e41c44ab10b",
+        "referenceActionDigest": "edd2a0c19aefde9c6d5be71aef30f4af4b2f192a2ca2853e4d1e2e41c44ab10b",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      },
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "mordred",
+        "caseId": "mordred",
+        "targetRole": "mordred",
+        "requestKind": "propose",
+        "componentId": "mordred-blindness-objective",
+        "componentVersion": "mordred-blindness-objective-v1",
+        "causalStages": [
+          "candidate-score",
+          "action-selection"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "921d2751bc5f00c2beda59bced564dd26c97a310732e9076a30ba492d975d2e6",
+        "referenceActionDigest": "921d2751bc5f00c2beda59bced564dd26c97a310732e9076a30ba492d975d2e6",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      },
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "assassin",
+        "caseId": "assassin-target",
+        "targetRole": "assassin",
+        "requestKind": "assassinate",
+        "componentId": "assassin-merlin-posterior",
+        "componentVersion": "assassin-merlin-posterior-v1",
+        "causalStages": [
+          "candidate-score",
+          "action-selection"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "04b0e71cbca84fe48c91f4e731e57e2ebe2bdfef8679a76d9bcf2c13497f432b",
+        "referenceActionDigest": "04b0e71cbca84fe48c91f4e731e57e2ebe2bdfef8679a76d9bcf2c13497f432b",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      },
+      {
+        "schema": 1,
+        "version": "phase7-role-authority-v1",
+        "family": "robust-d3",
+        "caseId": "robust-d3",
+        "targetRole": "assassin",
+        "requestKind": "quest",
+        "componentId": "evil-quest-card-robust",
+        "componentVersion": "evil-robust-heterogeneous-quest-policy-v1",
+        "causalStages": [
+          "strategic-decision"
+        ],
+        "trustedAdmission": "trusted-exact",
+        "actionDigest": "5d69839c9b3e6b15538e1923d93ef3e86a800e7d03dedee3fc7c94a49b856e44",
+        "referenceActionDigest": "5d69839c9b3e6b15538e1923d93ef3e86a800e7d03dedee3fc7c94a49b856e44",
+        "mechanicsEquivalent": true,
+        "fullRoleTerminal": true
+      }
+    ]
+  },
+  "virtualAssassin": {
+    "version": "phase7-virtual-assassin-v1",
+    "histories": 4,
+    "guesses": 12,
+    "hits": 2,
+    "accuracy": 0.16666666666666666,
+    "sampleUnit": "12-correlated-guesses-from-4-histories",
+    "promotionThreshold": null,
+    "pretruthDigestVerified": true
+  },
+  "exitGate": {
+    "completeInventory": true,
+    "apiFreeAndSafe": true,
+    "exactPromotionEvidence": true,
+    "mechanicsEquivalent": true,
+    "authorityCausal": true,
+    "virtualTruthJoinedAfterDigest": true,
+    "passed": true
+  }
+}

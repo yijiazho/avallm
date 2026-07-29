@@ -2,10 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7F2B after Assassin target authority landed at `02242c4`, F1
-assembled the complete deterministic role policy behind one immutable, role-independent scorer
-identity, and F2A added the frozen role-bank runner and virtual-Assassin evidence substrate.
-F2B owns the complete bank run, report, baseline comparison, and Phase 7 exit audit. Phase 7E2B's
+**Current target phase:** human evaluation checkpoint after Phase 7F2B completed the API-free
+architecture exit audit. Assassin target authority landed at `02242c4`, F1 assembled the complete
+deterministic role policy behind one immutable, role-independent scorer identity, F2A added the
+frozen role-bank runner and virtual-Assassin evidence substrate, and F2B committed the complete
+bank, report, baseline comparison, and six-family causal audit. No paid call or default promotion
+is part of this checkpoint. Phase 7E2B's
 bounded deterministic and seeded Mordred score layers are implemented and landed as opt-in paths:
 they specialize only D2-viable proposal and vote candidates using the admitted E2A objective,
 with no Mordred-specific central trace, evaluation, prompt, or communication field. Phase 7R3B is
@@ -322,7 +324,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | In progress; Phase 7R1 complete | Generic component boundary, Mordred substrate and policy, Assassin specialization, then role-bank audit |
+| 7. Role-specific observer and identity models | Complete (opt-in; human promotion/evaluation pending) | Generic component boundary, role specializations, full-role composition, and API-free role-bank audit |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -1439,7 +1441,7 @@ reviewable and ablatable:
     isolated scorer as an ablation. **Complete.**
 25. **Phase 7F2, evaluation and exit audit:** compare compatibility, base composed, observer,
     role-specific, and full configurations on a frozen API-free role bank, including virtual
-    Assassin guesses derived only from seat-filtered views.
+    Assassin guesses derived only from seat-filtered views. **Complete.**
 
 Every slice remains opt-in, records its component versions, preserves raw and compatibility
 baselines, and lands only after independent review plus focused and complete API-free validation.
@@ -2296,6 +2298,32 @@ unlabelled prediction, and join the true Merlin seat afterward. This includes or
 Oberon-isolated, and Mordred visibility shapes without passing a raw game, truth label, or paid
 probe schema to the predictor.
 
+### Phase 7F2B exit record
+
+The committed `standard-v1` role corpus contains exactly 50 terminal rows: ten cases by
+compatibility, base composed, observer-only, truthful isolated-role, and full-role arms. Every arm
+made zero calls, spent zero cost, recorded zero degradation and forced-policy violations, and
+passed hidden-information and attribution safety. All rows are promotion-eligible at the trusted
+component-admission boundary with zero structural-only admissions. Base and observer mechanics
+match in all ten cases.
+
+Whole-game isolated/full equality is specified for the six cases where robust D3 cannot apply:
+good target seats and Oberon. All six match. Eight of ten cases match overall; the 8-player Minion
+and 9-player Mordred games differ because the full arm intentionally adds robust heterogeneous D3
+to the isolated score-only arm. A separate six-row authority audit avoids conflating that integrated
+effect with role-score correctness: good role, shared evil/Oberon, Morgana, Mordred, Assassin, and
+robust D3 each produce the same mechanical action as their isolated reference, enter through
+trusted-exact admission, record the expected causal component stages, and terminate through the
+immutable full-role scorer.
+
+The virtual Assassin corpus preserves twelve guesses from all evil seats across four histories.
+Each unlabelled prediction digest is verified before the true Merlin seat is joined. The aggregate
+reports 2/12 accuracy only descriptively and explicitly treats the observations as correlated,
+with no promotion threshold. The deterministic report check reproduces the committed aggregate
+byte-for-byte from the two raw corpora. This closes the Phase 7 architecture gate, not the
+production or playing-strength gate: the ten mechanical games produced zero good-side wins in the
+four composed arms and are neither a tuning sample nor evidence for default promotion.
+
 ### Phase 7R2C development-leverage checkpoint
 
 E2A proved the generic component architecture, but it also exposed repeated implementation work
@@ -2921,7 +2949,7 @@ and decision layers the sole write path.
       regex parsing, and `roleKnowledgeTell` are not valid posterior inputs.
 - [x] Give the posterior bounded E3B assassination-target authority.
 - [ ] Keep the model interpretable until a learned alternative wins held-out tests.
-- [ ] Record virtual Assassin guesses for all evil seats to increase evaluation sample size.
+- [x] Record virtual Assassin guesses for all evil seats across the four frozen pretruth histories.
 
 ### Full-role composition
 
@@ -2929,7 +2957,7 @@ and decision layers the sole write path.
 - [x] Preserve isolated role scorers as independently measurable ablations.
 - [x] Prove irrelevant configured components remain unused and exact replay reconstructs the
       applied full stack.
-- [ ] Run the frozen Phase 7F role bank and virtual Assassin-guess evaluation.
+- [x] Run and commit the frozen Phase 7F role bank and virtual Assassin-guess evaluation.
 
 ### Exit gate
 
@@ -2994,9 +3022,9 @@ reader; those states are not deletion and are named below.
 | Forced-play triggers in prompt asks | **Structured path demoted to prose; raw-LLM experiment still active.** `forced-policy-v1` owns executable forced behavior for heuristic/fallback and composed policy. Frozen raw-LLM asks still influence that separate baseline but cannot override engine legality. | Delete duplicate target-mode triggers; retain raw-prompt bytes until an explicit baseline revision. |
 | Free-form scratchpad memory | **Active in the default raw-LLM agent.** Typed cognition, evidence, commitments, and plan memory exist for composed agents, but `createLlmAgent` still reinjects its private scratchpad. | Retire scratchpad-only authority when a composed brain is promoted; keep a named raw-LLM baseline if it remains useful. |
 | LLM-selected arbitrary proposal | **Active in the default raw-LLM agent.** The opt-in composed path uses legal candidate IDs, ordered policy, a committed plan, and voice that cannot reopen the mechanical action. | Require paired evaluation and human approval before default promotion; then demote arbitrary selection to the raw-LLM baseline. |
-| Generic evil policy for Mordred | **Demoted baseline/fallback authority.** The landed E2B scorers specialize D2-viable Mordred proposals and votes through the admitted blindness objective while the generic D2 scorer remains the explicit fallback and ablation. | Retain the generic evil baseline; evaluate the opt-in specialization in Phase 7F before any promotion. |
-| Generic assassination heuristic and prompt ranking | **Demoted baseline/fallback authority.** E3B gives the admitted E3A posterior bounded target authority in the opt-in composed scorer. The generic heuristic remains the compatibility, raw-LLM support, and degradation path. | Retain the independently attributable baseline; Phase 7F evaluates the specialization and virtual guesses before any promotion. |
-| Host-selected role scorer | **Removed from the full-role candidate.** F1 resolves one immutable scorer and complete deterministic layer chain at construction. Runtime role and decision applicability is owned by the registered layers. Isolated role scorers remain explicit ablations, not a switch inside the full scorer. | Run the Phase 7F2 role bank before considering promotion; do not delete the ablations or compatibility fallback. |
+| Generic evil policy for Mordred | **Demoted baseline/fallback authority.** The landed E2B scorers specialize D2-viable Mordred proposals and votes through the admitted blindness objective while the generic D2 scorer remains the explicit fallback and ablation. F2B records exact causal Mordred authority and isolated/full action equality. | Retain the generic evil baseline. Use larger qualitative and paired evaluation before considering promotion. |
+| Generic assassination heuristic and prompt ranking | **Demoted baseline/fallback authority.** E3B gives the admitted E3A posterior bounded target authority in the opt-in composed scorer. F2B records exact causal Assassin authority, isolated/full action equality, and twelve correlated pretruth guesses with descriptive 2/12 accuracy. | Retain the independently attributable baseline; improve or evaluate playing strength without treating the four virtual histories as a promotion sample. |
+| Host-selected role scorer | **Removed from the full-role candidate and verified.** F1 resolves one immutable scorer and complete deterministic layer chain at construction. Runtime role and decision applicability is owned by registered layers. F2B's six-family causal audit proves the terminal selects the same action as each isolated reference while the 50-cell corpus retains truthful isolated identities. | Keep isolated scorers as ablations and the compatibility fallback. Any default promotion remains a separate human decision. |
 | Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Deleted; MD-003 complete.** R3B3A removed executable authority. R3B3B1 removed the historical payload type and decoder, private adapter token and binding, flat trace fields, exact host join, evaluation reconstruction, artifact readers, and report readers. Old exact artifacts now use generic unknown, invalid, or nonpromotable handling; removed flat keys are rejected at canonical ingress. | Retain exact quota only as documented homogeneous research context. Robust heterogeneous D3 evidence comes from the trusted architecture descriptor, generic admitted component, and decision-layer journal. |
 | Boolean trace-admission wrappers | **Deleted; MD-004 complete.** Runtime, evaluation, and tests consume the closed trust-labeled admission union directly. The three retired export names remain only as architecture-fitness tombstones that reject fake imports, aliases, namespace access, dynamic imports, and re-exports. | Keep the tombstones while old integrations could attempt to restore a boolean admission bypass. |
 

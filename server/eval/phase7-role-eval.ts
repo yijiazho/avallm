@@ -240,7 +240,18 @@ export function phase7RoleVariantsFor(
       scorer: fullRolePolicyScorer,
       router: true,
       robustQuest: true,
-      components: routedComponents(fullRolePolicyScorer),
+      // Servant has no role-specific layer. The resolved identity remains
+      // the complete configured graph, while per-case labels match the
+      // components that can actually be causal for the target role.
+      components: role === 'servant'
+        ? {
+            ...commonComponents(
+              'structured-only',
+              fullRolePolicyScorer.version,
+            ),
+            observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
+          }
+        : routedComponents(fullRolePolicyScorer),
     }),
   ])
 }
