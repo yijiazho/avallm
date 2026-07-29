@@ -2,11 +2,12 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3A2 native good-side score layers. Phase 7R3A1's
-role-agnostic kernel and its A1.1 lease correction are complete. A2 is the first production
-client: the shared compatibility root, Phase 4 proposal/vote transforms, and C2
-Merlin/Percival transforms run as registered native layers in an exact shadow comparison while
-the legacy writer remains downstream authority until A4. Phase 7R2C4's typed `DecisionFrame`
+**Current target phase:** Phase 7R3A4 native Morgana scoring and score-authority cutover.
+Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
+compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
+D2 terminals are complete and verified. The legacy writer remains downstream authority until
+A4 migrates Morgana, proves complete equality, and deletes the temporary equality and
+compatibility writers. Phase 7R2C4's typed `DecisionFrame`
 spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
@@ -14,8 +15,8 @@ The fast-feedback and static-check slice, the admission/conformance foundation, 
 single-pass replay work are complete. The resolved descriptor now owns configured architecture
 identity across trace, artifact, and report surfaces, component host roots resolve only after a
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
-boundaries. The next work replaces compatibility scorer composition with registered ordered
-layers while preserving the staged frame as the sole live decision authority.
+boundaries. Registered ordered score layers now shadow proposal and vote decisions while the
+staged frame and legacy writer remain the sole live decision authority through A4.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -2501,7 +2502,7 @@ silently escape typechecking.
 The corrected gate passes both independent oracles, 319 contract tests, 1,031 API-free correctness
 tests, three isolated performance tests, and screenshot freshness without a client-source change.
 
-**7R3A2 is active and implementation-complete pending the parent landing gate.** The exact
+**7R3A2 is complete.** The exact
 built-in scorer singleton selects a family-owned chain; custom or malformed same-version scorers
 remain entirely legacy. Native preparation, component binding, and equality shadowing are scoped
 to proposal and vote decisions, so an independently configured D3 quest policy does not enter the
@@ -2580,6 +2581,51 @@ pre-C4 trace hashes remain unchanged through an explicitly unmapped compatibilit
 default singleton separately reports the new native compatibility-root descriptor and stable
 digest. `git diff --check` passes, no client file differs from the A1.1 base, and screenshot
 freshness remains `bae3010696159ecb`.
+
+**7R3A3 is complete.** Exact singleton identity
+selects one deterministic or seeded evil-family terminal; custom and malformed same-version
+scorers remain wholly legacy. The configured seam owns the only family catalog entry and supplies
+the matching C2 predecessors, producing the exact compatibility to Phase 4 to C2 to D2 chains.
+The D2 transform reads the already admitted evil utility once, preserves the existing `0.04`
+vote band, seed tuple, `1e-9` selection adjustment, canonical candidate ordering, forced-policy
+dominance, and Oberon self-only utility semantics. It never imports or recomputes the good family,
+and D3 quest policy remains outside the proposal/vote layer lease.
+
+D1 and D2 hostile payloads now cross the component kernel's bounded canonical JSON boundary once.
+Their family decoders validate the resulting canonical value, while exact host joins operate on
+typed admitted dependencies. The objective host join trusts the kernel-admitted identity root and
+exactly rebuilds from its typed fields; raw historical admission remains the separate owner that
+validates identity shape and marginal reconciliation. The utility child no longer revalidates its
+admitted objective or rescans either constructed payload with `JSON.stringify`; its vote
+alternative remains an authoritative host-built value rather than a second component dependency.
+Both definitions now declare native execution and their two conformance exemptions are retired
+through proof-owner coverage that executes the exact codec, host join, missing-root degradation,
+deterministic replay, and private projection contract for both tokens. Their physical
+definitions, flat trace bindings, feature-rich legacy scorer writer, `withLegacyScoring`, and
+historical read validators deliberately remain until A4.
+
+The strict A3 lane is the first production client of `replayDecisionScenario`: a legal seven-seat
+evil proposal and legal ten-seat seeded Mordred vote prove exact coordinates, filtered seat views,
+ordered journals, component reads and transitive attribution, deterministic replay, and hard
+survivor monotonicity. The four pinned A0 D2 role cases prove Assassin forced filtering, seeded
+Mordred voting, deterministic Minion voting, and Oberon forced selection. Separate cases prove
+Merlin and Percival delegation to matching C2, Servant delegation to matching Phase 4, custom
+clone exclusion, and malformed D2's unchanged frozen fallback. Metamorphic candidate-order,
+seed-band, two-Fail, name, and replay laws remain owned by
+`test/phase7d2-evil-policy.test.ts`; A3 consumes those laws rather than restating a weaker
+mutation matrix.
+
+A4 still owns decision authority and deletion. Native D2 shadows the legacy scorer only through
+the bounded common row, survivor, structured-choice, and component-use equality adapter; the
+legacy frame remains the downstream writer. A4 must migrate Morgana, harden absent-graph admission,
+give C2's deterministic base its named typed contract, then remove the legacy good/evil/Morgana
+score writers, temporary equality dispatch, transitional flat projections and bindings, and
+physical component definitions only after the complete equality gate passes.
+
+The final parent gate passed 1,064 API-free correctness tests and three isolated performance
+tests, with 78 strict test roots, architecture fitness, and clean diff checks. A fresh final
+review approved the exact corrected tree after rejecting and correcting false conformance
+certification and repeated validation of an already admitted identity root.
 
 The independent A2 review also assigned three nonblocking debts rather than extending the
 temporary migration edge:

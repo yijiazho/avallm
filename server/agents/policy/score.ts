@@ -49,6 +49,14 @@ import {
   type GoodProposalReasonCode,
 } from './good-score-contract.ts'
 import { compareCandidateIds } from './candidates.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS,
+  EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
+  type EvilRoleObjectiveSelectionMode,
+} from './evil-score-contract.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -70,18 +78,14 @@ export {
   type GoodProposalReasonCode,
 } from './good-score-contract.ts'
 
-export const EVIL_ROLE_OBJECTIVE_SCORER_VERSION =
-  'evil-oberon-role-scorer-v1'
-export const EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION =
-  'evil-oberon-role-seeded-band-v1'
-export const EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION =
-  'evil-oberon-role-score-features-v1'
-export const EVIL_ROLE_OBJECTIVE_UTILITY_VERSION =
-  'evil-oberon-role-score-utility-v1'
-
-export const EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS = Object.freeze({
-  viableBand: 0.04,
-})
+export {
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS,
+  EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
+  type EvilRoleObjectiveSelectionMode,
+} from './evil-score-contract.ts'
 
 export type GoodVoteSelectionMode = 'top-utility' | 'seeded-band'
 
@@ -194,10 +198,6 @@ export interface RoleObjectiveScoreFeatures {
   /** Exact/proxy inputs copied from the host-validated private projection. */
   utility: RoleUtilityAssessment
 }
-
-export type EvilRoleObjectiveSelectionMode =
-  | 'top-role-utility'
-  | 'seeded-role-utility-band'
 
 export interface EvilRoleObjectiveScoreFeatures {
   version: typeof EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION

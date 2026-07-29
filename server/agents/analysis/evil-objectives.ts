@@ -21,6 +21,10 @@ import {
 import { projectPublicRecord } from '../communication/public-record.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
+import {
   assessPublicJointTeams,
   observePublicRecord,
 } from './observer.ts'
@@ -65,45 +69,6 @@ function exactKeys(
   const keys = Object.keys(value)
   return keys.length === allowed.length
     && allowed.every((key) => Object.hasOwn(value, key))
-}
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
 }
 
 function denseArray(value: unknown): value is unknown[] {
@@ -537,26 +502,25 @@ export function buildEvilRoleObjectiveSnapshot(input: {
       oberonPosterior,
     }),
   }
-  if (
-    Buffer.byteLength(JSON.stringify(snapshot), 'utf8')
-      > MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES
-  ) throw new Error('evil objective exceeds its private payload bound')
   return snapshot
 }
 
-export function validatePrivateEvilRoleObjectiveSnapshot(
+function validatePrivateEvilRoleObjectiveSnapshotShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateEvilRoleObjectiveSnapshot {
-  if (!plainDetachedData(value)) return false
   try {
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    const detached = canonical.payload
     if (
-      Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES
-      || !value
-      || typeof value !== 'object'
-      || Array.isArray(value)
+      !detached
+      || typeof detached !== 'object'
+      || Array.isArray(detached)
     ) return false
-    const snapshot = value as unknown as Record<string, unknown>
+    const snapshot = detached as unknown as Record<string, unknown>
     if (
       !exactKeys(snapshot, [
         'version',
@@ -1007,6 +971,43 @@ export function validatePrivateEvilRoleObjectiveSnapshot(
   }
 }
 
+export function validatePrivateEvilRoleObjectiveSnapshot(
+  value: unknown,
+): value is PrivateEvilRoleObjectiveSnapshot {
+  return validatePrivateEvilRoleObjectiveSnapshotShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateEvilRoleObjectiveSnapshot(
+  value: CanonicalJsonValue,
+): PrivateEvilRoleObjectiveSnapshot | undefined {
+  return validatePrivateEvilRoleObjectiveSnapshotShape(value, false)
+    ? value as PrivateEvilRoleObjectiveSnapshot
+    : undefined
+}
+
+interface EvilRoleObjectiveHostJoinInput {
+  req: DecisionRequest
+  view: PlayerView
+  identity: PrivateIdentitySnapshot
+  observer: PublicObserverSnapshot
+  candidates: readonly PolicyCandidate[]
+}
+
+function validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(
+  value: PrivateEvilRoleObjectiveSnapshot,
+  input: EvilRoleObjectiveHostJoinInput,
+): boolean {
+  try {
+    return isDeepStrictEqual(
+      value,
+      buildEvilRoleObjectiveSnapshot(input),
+    )
+  } catch {
+    return false
+  }
+}
+
 export function validatePrivateEvilRoleObjectiveHostJoin(
   value: unknown,
   input: {
@@ -1018,40 +1019,46 @@ export function validatePrivateEvilRoleObjectiveHostJoin(
   },
 ): value is PrivateEvilRoleObjectiveSnapshot {
   if (!validatePrivateEvilRoleObjectiveSnapshot(value)) return false
-  try {
-    const hidden = input.identity.hiddenTeamPosterior
-    if (!hidden) return false
-    const marginals = Array.from(
-      { length: input.view.playerCount },
-      (_, seat) => {
-        const evilProbability = hidden.hypotheses.reduce(
-          (sum, hypothesis) =>
-            sum + (
-              hypothesis.evilSeats.includes(seat)
-                ? hypothesis.probability
-                : 0
-            ),
-          0,
-        )
-        return {
-          seat,
-          goodProbability: Math.max(0, Math.min(1, 1 - evilProbability)),
-          evilProbability: Math.max(0, Math.min(1, evilProbability)),
-        }
-      },
-    )
-    if (
-      !validatePrivateIdentityHostJoin(
-        input.identity,
-        input.view.rolesInPlay,
-        marginals,
+  const hidden = input.identity.hiddenTeamPosterior
+  if (!hidden) return false
+  const marginals = Array.from(
+    { length: input.view.playerCount },
+    (_, seat) => {
+      const evilProbability = hidden.hypotheses.reduce(
+        (sum, hypothesis) =>
+          sum + (
+            hypothesis.evilSeats.includes(seat)
+              ? hypothesis.probability
+              : 0
+          ),
+        0,
       )
-    ) return false
-    return isDeepStrictEqual(
-      value,
-      buildEvilRoleObjectiveSnapshot(input),
-    )
-  } catch {
-    return false
-  }
+      return {
+        seat,
+        goodProbability: Math.max(0, Math.min(1, 1 - evilProbability)),
+        evilProbability: Math.max(0, Math.min(1, evilProbability)),
+      }
+    },
+  )
+  return validatePrivateIdentityHostJoin(
+    input.identity,
+    input.view.rolesInPlay,
+    marginals,
+  ) && validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(
+    value,
+    input,
+  )
+}
+
+export function validateAdmittedPrivateEvilRoleObjectiveHostJoin(
+  value: PrivateEvilRoleObjectiveSnapshot,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    identity: PrivateIdentitySnapshot
+    observer: PublicObserverSnapshot
+    candidates: readonly PolicyCandidate[]
+  },
+): boolean {
+  return validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(value, input)
 }

@@ -8,8 +8,8 @@ import {
 } from '../analysis/types.ts'
 import {
   buildEvilRoleObjectiveSnapshot,
-  validatePrivateEvilRoleObjectiveHostJoin,
-  validatePrivateEvilRoleObjectiveSnapshot,
+  decodeCanonicalPrivateEvilRoleObjectiveSnapshot,
+  validateAdmittedPrivateEvilRoleObjectiveHostJoin,
 } from '../analysis/evil-objectives.ts'
 import {
   MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
@@ -30,13 +30,13 @@ import {
   type PrivateRoleObjectiveSnapshot,
 } from '../analysis/role-objective-types.ts'
 import {
-  buildEvilRoleUtilityProjection,
+  buildAdmittedEvilRoleUtilityProjection,
+  decodeCanonicalPrivateEvilRoleUtilityProjection,
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
   type PrivateEvilRoleUtilityProjection,
-  validatePrivateEvilRoleUtilityHostJoin,
-  validatePrivateEvilRoleUtilityProjection,
+  validateAdmittedPrivateEvilRoleUtilityHostJoin,
 } from '../analysis/evil-role-utility.ts'
 import {
   buildAdmittedRoleUtilityProjection,
@@ -772,7 +772,7 @@ export function legacyRoleAdapterDefinitions(
     PrivateEvilRoleObjectiveSnapshot
   > = {
     token: EVIL_ROLE_OBJECTIVE_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [],
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
@@ -800,13 +800,14 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateEvilRoleObjectiveSnapshot(payload)
-        ? admitted(payload, exactQuality(payload))
+      const decoded = decodeCanonicalPrivateEvilRoleObjectiveSnapshot(payload)
+      return decoded
+        ? admitted(decoded, exactQuality(decoded))
         : rejected(EVIL_ROLE_OBJECTIVE_DEGRADATION)
     },
     admitHost({ payload, host }) {
       const { req, view, identity, observer } = privateContext(host)
-      return validatePrivateEvilRoleObjectiveHostJoin(payload, {
+      return validateAdmittedPrivateEvilRoleObjectiveHostJoin(payload, {
         req,
         view,
         identity,
@@ -822,7 +823,7 @@ export function legacyRoleAdapterDefinitions(
     PrivateEvilRoleUtilityProjection
   > = {
     token: EVIL_ROLE_UTILITY_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [EVIL_ROLE_OBJECTIVE_COMPONENT],
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
@@ -851,7 +852,7 @@ export function legacyRoleAdapterDefinitions(
             candidates: alternativeCandidates,
           })
         : undefined
-      const payload = buildEvilRoleUtilityProjection({
+      const payload = buildAdmittedEvilRoleUtilityProjection({
         req,
         view,
         objective: context.dependencies.require(EVIL_ROLE_OBJECTIVE_COMPONENT),
@@ -864,8 +865,9 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateEvilRoleUtilityProjection(payload)
-        ? admitted(payload, true)
+      const decoded = decodeCanonicalPrivateEvilRoleUtilityProjection(payload)
+      return decoded
+        ? admitted(decoded, true)
         : rejected(EVIL_ROLE_UTILITY_DEGRADATION)
     },
     admitHost({ payload, host }) {
@@ -884,15 +886,13 @@ export function legacyRoleAdapterDefinitions(
           })
         : undefined
       const objective = host.dependencies.require(EVIL_ROLE_OBJECTIVE_COMPONENT)
-      return validatePrivateEvilRoleUtilityHostJoin(payload, {
+      return validateAdmittedPrivateEvilRoleUtilityHostJoin(payload, {
         req,
         view,
         objective,
-        identity,
-        observer,
         candidates,
-        ...(alternativeObjective && alternativeCandidates
-          ? { alternativeObjective, alternativeCandidates }
+        ...(alternativeObjective
+          ? { alternativeObjective }
           : {}),
       })
         ? admitted(payload, exactQuality(objective))

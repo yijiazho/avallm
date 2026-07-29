@@ -92,9 +92,10 @@ function boundedDiagnostic(value: Readonly<Record<string, unknown>>): string {
  * down to the common native mechanics without teaching the native DTO about
  * historical optional fields or out-of-scope attribution-only relabeling.
  */
-export function assertGoodScoreLayerLegacyEquality(
+function assertScoreLayerLegacyEquality(
   native: NativeScoreLayersResolvedDecisionFrame,
   legacy: ScoredDecisionFrame,
+  family: 'good' | 'evil',
 ): void {
   const legacyRows = legacy.scores.map((row) => ({
     candidateId: row.candidateId,
@@ -117,7 +118,7 @@ export function assertGoodScoreLayerLegacyEquality(
     )
   ) {
     throw new Error(
-      `native and legacy good score policies diverged: ${boundedDiagnostic({
+      `native and legacy ${family} score policies diverged: ${boundedDiagnostic({
         firstDifference: firstDifference(native, legacyRows, legacy),
         configuredChain: native.scoreLayerRun.configured,
         nativeJournal: native.scoreLayerRun.journal,
@@ -136,4 +137,18 @@ export function assertGoodScoreLayerLegacyEquality(
       })}`,
     )
   }
+}
+
+export function assertGoodScoreLayerLegacyEquality(
+  native: NativeScoreLayersResolvedDecisionFrame,
+  legacy: ScoredDecisionFrame,
+): void {
+  assertScoreLayerLegacyEquality(native, legacy, 'good')
+}
+
+export function assertEvilScoreLayerLegacyEquality(
+  native: NativeScoreLayersResolvedDecisionFrame,
+  legacy: ScoredDecisionFrame,
+): void {
+  assertScoreLayerLegacyEquality(native, legacy, 'evil')
 }

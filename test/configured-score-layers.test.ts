@@ -14,12 +14,18 @@ import {
   SEEDED_GOOD_ROLE_SCORE_LAYER,
 } from '../server/agents/score-layers/good.ts'
 import {
+  EVIL_ROLE_SCORE_LAYER,
+  SEEDED_EVIL_ROLE_SCORE_LAYER,
+} from '../server/agents/score-layers/evil.ts'
+import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
 import {
+  evilRoleObjectiveScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
   roleObjectiveScorer,
+  seededEvilRoleObjectiveScorer,
   seededGoodProposalVoteScorer,
   seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
@@ -35,9 +41,11 @@ test('configured score seam owns family selection and registry construction', ()
     ],
     [roleObjectiveScorer, GOOD_ROLE_SCORE_LAYER],
     [seededRoleObjectiveScorer, SEEDED_GOOD_ROLE_SCORE_LAYER],
+    [evilRoleObjectiveScorer, EVIL_ROLE_SCORE_LAYER],
+    [seededEvilRoleObjectiveScorer, SEEDED_EVIL_ROLE_SCORE_LAYER],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 6)
+  assert.equal(registry.size, 8)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
@@ -46,6 +54,10 @@ test('configured score seam owns family selection and registry construction', ()
   }
   assert.equal(
     configuredScoreLayerTerminalFor({ ...goodProposalScorer }),
+    undefined,
+  )
+  assert.equal(
+    configuredScoreLayerTerminalFor({ ...evilRoleObjectiveScorer }),
     undefined,
   )
 })

@@ -42,7 +42,29 @@ import {
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import {
   projectJointIdentity,
+  validatePrivateIdentitySnapshot,
 } from '../server/agents/belief/identity.ts'
+import {
+  buildEvilRoleObjectiveSnapshot,
+  decodeCanonicalPrivateEvilRoleObjectiveSnapshot,
+  validateAdmittedPrivateEvilRoleObjectiveHostJoin,
+  validatePrivateEvilRoleObjectiveHostJoin,
+  validatePrivateEvilRoleObjectiveSnapshot,
+} from '../server/agents/analysis/evil-objectives.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  EVIL_ROLE_UTILITY_COMPONENT,
+} from '../server/agents/components/legacy-role-adapters.ts'
+import {
+  MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
+} from '../server/agents/analysis/evil-objective-types.ts'
+import {
+  buildEvilRoleUtilityProjection,
+  decodeCanonicalPrivateEvilRoleUtilityProjection,
+  MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
+  validateAdmittedPrivateEvilRoleUtilityHostJoin,
+  validatePrivateEvilRoleUtilityProjection,
+} from '../server/agents/analysis/evil-role-utility.ts'
 import {
   buildRoleObjectiveSnapshot,
   decodeCanonicalPrivateRoleObjectiveSnapshot,
@@ -62,7 +84,10 @@ import {
 import {
   projectPublicRecord,
 } from '../server/agents/communication/public-record.ts'
-import { legalCandidates } from '../server/agents/policy/candidates.ts'
+import {
+  hypotheticalProposalCandidates,
+  legalCandidates,
+} from '../server/agents/policy/candidates.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import {
@@ -72,21 +97,21 @@ import {
 
 const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'actor-target-treatment-read':
-    { fixture: 'mordred-late-vote' },
+    { proof: 'mordred-native-family' },
   'evil-quest-card-exact-quota':
     { legacyExemption: '7R3B native retirement pending' },
   'evil-quest-card-robust':
     { legacyExemption: '7R3B native retirement pending' },
   'evil-role-objective':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'evil-role-native-family' },
   'evil-role-utility':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'evil-role-native-family' },
   'good-role-objective':
-    { fixture: 'merlin-proposal' },
+    { proof: 'good-role-native-family' },
   'good-role-utility':
-    { fixture: 'merlin-proposal' },
+    { proof: 'good-role-native-family' },
   'mordred-blindness-objective':
-    { fixture: 'mordred-late-vote' },
+    { proof: 'mordred-native-family' },
   'morgana-counterfeit-public-read':
     { legacyExemption: '7R3A native retirement pending' },
   'morgana-counterfeit-objective':
@@ -96,6 +121,30 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'morgana-role-utility':
     { legacyExemption: '7R3A native retirement pending' },
 })
+
+const NATIVE_PROOF_OWNERS = new Map([
+  [ACTOR_TARGET_TREATMENT_COMPONENT.id, 'mordred-native-family'],
+  [MORDRED_BLINDNESS_COMPONENT.id, 'mordred-native-family'],
+  [GOOD_ROLE_OBJECTIVE_COMPONENT.id, 'good-role-native-family'],
+  [GOOD_ROLE_UTILITY_COMPONENT.id, 'good-role-native-family'],
+  [EVIL_ROLE_OBJECTIVE_COMPONENT.id, 'evil-role-native-family'],
+  [EVIL_ROLE_UTILITY_COMPONENT.id, 'evil-role-native-family'],
+] as const)
+
+function assertProofCoverage(
+  proof: string,
+  exercisedTokens: readonly { readonly id: string }[],
+): void {
+  const owned = [...NATIVE_PROOF_OWNERS]
+    .filter(([, owner]) => owner === proof)
+    .map(([id]) => id)
+    .sort()
+  assert.deepEqual(
+    exercisedTokens.map((token) => token.id).sort(),
+    owned,
+    `${proof} must execute every and only its owned native tokens`,
+  )
+}
 
 function nativeFixture() {
   const fixture = readDecisionFixtures().find(
@@ -150,6 +199,55 @@ function goodNativeFixture() {
     observer,
     identity,
     objective,
+    utility,
+  }
+}
+
+function evilNativeFixture() {
+  const fixture = readDecisionFixtures().find(
+    (candidate) =>
+      candidate.id === 'mordred-late-vote'
+      && candidate.req.kind === 'vote',
+  )
+  assert.ok(fixture)
+  const observer = observePublicRecord(projectPublicRecord(fixture.view))
+  const belief = exactBelief(fixture.view)
+  const identity = projectJointIdentity(belief, {
+    roleQueries: [],
+    hiddenTeam: true,
+  })
+  const candidates = legalCandidates(fixture.req, fixture.view)
+  const objective = buildEvilRoleObjectiveSnapshot({
+    req: fixture.req,
+    view: fixture.view,
+    identity,
+    observer,
+    candidates,
+  })
+  const alternativeCandidates = hypotheticalProposalCandidates(fixture.view)
+  const alternativeObjective = buildEvilRoleObjectiveSnapshot({
+    req: { ...fixture.req, kind: 'propose' },
+    view: fixture.view,
+    identity,
+    observer,
+    candidates: alternativeCandidates,
+  })
+  const utility = buildEvilRoleUtilityProjection({
+    req: fixture.req,
+    view: fixture.view,
+    objective,
+    candidates,
+    alternativeObjective,
+  })
+  return {
+    fixture,
+    observer,
+    belief,
+    identity,
+    candidates,
+    objective,
+    alternativeCandidates,
+    alternativeObjective,
     utility,
   }
 }
@@ -224,6 +322,7 @@ test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
 test('native decoders preserve raw-validator semantics after one boundary', () => {
   const { treatment, objective } = nativeFixture()
   const good = goodNativeFixture()
+  const evil = evilNativeFixture()
   assertNativeCodecContract({
     label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
     value: treatment,
@@ -256,6 +355,22 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
     decode: decodeCanonicalPrivateRoleUtilityProjection,
     invalidValue: { ...good.utility, role: 'servant' },
   })
+  assertNativeCodecContract({
+    label: EVIL_ROLE_OBJECTIVE_COMPONENT.id,
+    value: evil.objective,
+    maxBytes: MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
+    validate: validatePrivateEvilRoleObjectiveSnapshot,
+    decode: decodeCanonicalPrivateEvilRoleObjectiveSnapshot,
+    invalidValue: { ...evil.objective, role: 'servant' },
+  })
+  assertNativeCodecContract({
+    label: EVIL_ROLE_UTILITY_COMPONENT.id,
+    value: evil.utility,
+    maxBytes: MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
+    validate: validatePrivateEvilRoleUtilityProjection,
+    decode: decodeCanonicalPrivateEvilRoleUtilityProjection,
+    invalidValue: { ...evil.utility, role: 'servant' },
+  })
 })
 
 test('native good-role family conforms through execution and host join', async () => {
@@ -267,6 +382,24 @@ test('native good-role family conforms through execution and host join', async (
     requestedComponents: [GOOD_ROLE_UTILITY_COMPONENT],
     configuredPipeline: testConfiguredPipeline(),
   }, registry)
+  const entries = [
+    {
+      token: GOOD_ROLE_OBJECTIVE_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: GOOD_ROLE_UTILITY_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+  ]
+  assertProofCoverage(
+    'good-role-native-family',
+    entries.map((entry) => entry.token),
+  )
   await assertNativeExecutionContract({
     label: 'good role native family',
     registry,
@@ -277,20 +410,48 @@ test('native good-role family conforms through execution and host join', async (
       { input: PRIVATE_IDENTITY_INPUT, value: good.identity },
       { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: good.observer },
     ],
-    entries: [
-      {
-        token: GOOD_ROLE_OBJECTIVE_COMPONENT,
-        verification: 'exact',
-        promotionEligible: true,
-        missingRootFailure: 'host-input-unavailable',
-      },
-      {
-        token: GOOD_ROLE_UTILITY_COMPONENT,
-        verification: 'exact',
-        promotionEligible: true,
-        missingRootFailure: 'dependency-unavailable',
-      },
+    entries,
+  })
+})
+
+test('native evil-role family conforms through execution and host join', async () => {
+  const evil = evilNativeFixture()
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [EVIL_ROLE_UTILITY_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  const entries = [
+    {
+      token: EVIL_ROLE_OBJECTIVE_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: EVIL_ROLE_UTILITY_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+  ]
+  assertProofCoverage(
+    'evil-role-native-family',
+    entries.map((entry) => entry.token),
+  )
+  await assertNativeExecutionContract({
+    label: 'evil role native family',
+    registry,
+    request: evil.fixture.req,
+    view: evil.fixture.view,
+    brain,
+    hostInputs: [
+      { input: PRIVATE_IDENTITY_INPUT, value: evil.identity },
+      { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: evil.observer },
     ],
+    entries,
   })
 })
 
@@ -316,7 +477,60 @@ test('admitted utility join trusts its already-admitted objective dependency', (
   ), true)
 })
 
-test('production registry has a fail-closed conformance inventory', () => {
+test('admitted evil joins trust kernel-admitted roots and dependencies', () => {
+  const evil = evilNativeFixture()
+  const invalidAtRawIdentityBoundary = {
+    ...evil.identity,
+    unadmittedExtra: true,
+  } as unknown as typeof evil.identity
+  assert.equal(
+    validatePrivateIdentitySnapshot(invalidAtRawIdentityBoundary),
+    false,
+  )
+  assert.equal(validatePrivateEvilRoleObjectiveHostJoin(
+    evil.objective,
+    {
+      req: evil.fixture.req,
+      view: evil.fixture.view,
+      identity: invalidAtRawIdentityBoundary,
+      observer: evil.observer,
+      candidates: evil.candidates,
+    },
+  ), false)
+  assert.equal(validateAdmittedPrivateEvilRoleObjectiveHostJoin(
+    evil.objective,
+    {
+      req: evil.fixture.req,
+      view: evil.fixture.view,
+      identity: invalidAtRawIdentityBoundary,
+      observer: evil.observer,
+      candidates: evil.candidates,
+    },
+  ), true)
+
+  const invalidAtRawObjectiveBoundary = {
+    ...evil.objective,
+    version: 'already-admitted-dependency',
+  } as unknown as typeof evil.objective
+  assert.equal(
+    validatePrivateEvilRoleObjectiveSnapshot(
+      invalidAtRawObjectiveBoundary,
+    ),
+    false,
+  )
+  assert.equal(validateAdmittedPrivateEvilRoleUtilityHostJoin(
+    evil.utility,
+    {
+      req: evil.fixture.req,
+      view: evil.fixture.view,
+      objective: invalidAtRawObjectiveBoundary,
+      candidates: evil.candidates,
+      alternativeObjective: evil.alternativeObjective,
+    },
+  ), true)
+})
+
+test('production registry has executable proof for every native token', () => {
   const registry = createProductionComponentRegistry({
     goodObjectiveAllDecisionKinds: true,
   })
@@ -331,10 +545,25 @@ test('production registry has a fail-closed conformance inventory', () => {
     assert.ok(inventory)
     assert.equal(
       definition.source === 'native',
-      Object.hasOwn(inventory, 'fixture'),
-      `${definition.token.id} must have a native fixture or legacy exemption`,
+      Object.hasOwn(inventory, 'proof'),
+      `${definition.token.id} must have a native proof or legacy exemption`,
     )
+    if (definition.source === 'native') {
+      assert.equal(
+        NATIVE_PROOF_OWNERS.get(definition.token.id),
+        (inventory as { proof: string }).proof,
+        `${definition.token.id} must name its executable proof owner`,
+      )
+    }
   }
+  assert.deepEqual(
+    [...NATIVE_PROOF_OWNERS.keys()].sort(),
+    registry.definitions()
+      .filter((definition) => definition.source === 'native')
+      .map((definition) => definition.token.id)
+      .sort(),
+    'proof coverage must equal the complete native registry',
+  )
 })
 
 test('native production family conforms through execution and host join', async () => {
@@ -353,6 +582,24 @@ test('native production family conforms through execution and host join', async 
       MORDRED_BLINDNESS_COMPONENT.id,
     ],
   )
+  const entries = [
+    {
+      token: ACTOR_TARGET_TREATMENT_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: MORDRED_BLINDNESS_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+  ]
+  assertProofCoverage(
+    'mordred-native-family',
+    entries.map((entry) => entry.token),
+  )
   await assertNativeExecutionContract({
     label: 'mordred native family',
     registry,
@@ -363,19 +610,6 @@ test('native production family conforms through execution and host join', async 
       { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: observer },
       { input: PRIVATE_BELIEF_INPUT, value: belief },
     ],
-    entries: [
-      {
-        token: ACTOR_TARGET_TREATMENT_COMPONENT,
-        verification: 'exact',
-        promotionEligible: true,
-        missingRootFailure: 'host-input-unavailable',
-      },
-      {
-        token: MORDRED_BLINDNESS_COMPONENT,
-        verification: 'exact',
-        promotionEligible: true,
-        missingRootFailure: 'dependency-unavailable',
-      },
-    ],
+    entries,
   })
 })

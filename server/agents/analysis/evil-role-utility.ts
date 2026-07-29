@@ -21,6 +21,10 @@ import {
   validatePrivateEvilRoleObjectiveSnapshot,
 } from './evil-objectives.ts'
 import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
+import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   type EvilCandidateObjective,
   type EvilObjectiveRole,
@@ -237,19 +241,25 @@ function candidateTeam(
   throw new Error('evil role utility candidate lacks a team')
 }
 
-export function buildEvilRoleUtilityProjection(input: {
+interface EvilRoleUtilityProjectionInput {
   req: DecisionRequest
   view: PlayerView
   objective: PrivateEvilRoleObjectiveSnapshot
   candidates: readonly PolicyCandidate[]
   alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
-}): PrivateEvilRoleUtilityProjection {
+}
+
+function buildEvilRoleUtilityProjectionInternal(
+  input: EvilRoleUtilityProjectionInput,
+  admittedObjective: boolean,
+): PrivateEvilRoleUtilityProjection {
   const { req, view, objective, candidates, alternativeObjective } = input
   if (
     (req.kind !== 'propose' && req.kind !== 'vote')
     || view.alignment !== 'evil'
     || objective.role !== view.role
-    || !validatePrivateEvilRoleObjectiveSnapshot(objective)
+    || (!admittedObjective
+      && !validatePrivateEvilRoleObjectiveSnapshot(objective))
     || objective.assessmentApplicability !== 'team-candidates'
     || req.seat !== view.seat
     || candidates.length === 0
@@ -478,75 +488,45 @@ export function buildEvilRoleUtilityProjection(input: {
     },
     assessments,
   }
-  if (
-    Buffer.byteLength(JSON.stringify(projection), 'utf8')
-      > MAX_EVIL_ROLE_UTILITY_JSON_BYTES
-  ) throw new Error('evil role utility exceeds its private payload bound')
   return projection
 }
 
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  if (
-    Array.isArray(value)
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (Array.isArray(value) && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  seen.delete(value)
-  return true
+export function buildEvilRoleUtilityProjection(
+  input: EvilRoleUtilityProjectionInput,
+): PrivateEvilRoleUtilityProjection {
+  return buildEvilRoleUtilityProjectionInternal(input, false)
 }
 
-function exactKeys(
-  value: object,
-  keys: readonly string[],
-): boolean {
+/** Build from an objective dependency already admitted by the kernel. */
+export function buildAdmittedEvilRoleUtilityProjection(
+  input: EvilRoleUtilityProjectionInput,
+): PrivateEvilRoleUtilityProjection {
+  return buildEvilRoleUtilityProjectionInternal(input, true)
+}
+
+function exactKeys(value: object, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort()
   const expected = [...keys].sort()
   return actual.length === expected.length
     && actual.every((key, index) => key === expected[index])
 }
 
-export function validatePrivateEvilRoleUtilityProjection(
+function validatePrivateEvilRoleUtilityProjectionShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateEvilRoleUtilityProjection {
-  if (!plainDetachedData(value)) return false
   try {
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_EVIL_ROLE_UTILITY_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    const detached = canonical.payload
     if (
-      Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_EVIL_ROLE_UTILITY_JSON_BYTES
-      || !value
-      || typeof value !== 'object'
-      || Array.isArray(value)
+      !detached
+      || typeof detached !== 'object'
+      || Array.isArray(detached)
     ) return false
-    const projection = value as PrivateEvilRoleUtilityProjection
+    const projection = detached as PrivateEvilRoleUtilityProjection
     if (
       !exactKeys(projection, [
         'version', 'role', 'source', 'request', 'assessments',
@@ -945,6 +925,21 @@ export function validatePrivateEvilRoleUtilityProjection(
   }
 }
 
+export function validatePrivateEvilRoleUtilityProjection(
+  value: unknown,
+): value is PrivateEvilRoleUtilityProjection {
+  return validatePrivateEvilRoleUtilityProjectionShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateEvilRoleUtilityProjection(
+  value: CanonicalJsonValue,
+): PrivateEvilRoleUtilityProjection | undefined {
+  return validatePrivateEvilRoleUtilityProjectionShape(value, false)
+    ? value as PrivateEvilRoleUtilityProjection
+    : undefined
+}
+
 export function validatePrivateEvilRoleUtilityHostJoin(
   value: unknown,
   input: {
@@ -987,6 +982,26 @@ export function validatePrivateEvilRoleUtilityHostJoin(
   ) return false
   try {
     return isDeepStrictEqual(value, buildEvilRoleUtilityProjection(input))
+  } catch {
+    return false
+  }
+}
+
+export function validateAdmittedPrivateEvilRoleUtilityHostJoin(
+  value: PrivateEvilRoleUtilityProjection,
+  input: {
+    req: DecisionRequest
+    view: PlayerView
+    objective: PrivateEvilRoleObjectiveSnapshot
+    candidates: readonly PolicyCandidate[]
+    alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
+  },
+): boolean {
+  try {
+    return isDeepStrictEqual(
+      value,
+      buildEvilRoleUtilityProjectionInternal(input, true),
+    )
   } catch {
     return false
   }

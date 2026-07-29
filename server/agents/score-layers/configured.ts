@@ -12,11 +12,18 @@ import {
 } from '../policy/score-layer/registry.ts'
 import type { ScoreLayerToken } from '../policy/score-layer/types.ts'
 import {
+  GOOD_ROLE_SCORE_LAYER,
+  SEEDED_GOOD_ROLE_SCORE_LAYER,
   goodScoreLayerDefinitions,
   goodScoreLayerTerminalFor,
   goodScoreLayersApplyToDecision,
 } from './good.ts'
 import {
+  evilScoreLayerDefinitions,
+  evilScoreLayerTerminalFor,
+} from './evil.ts'
+import {
+  assertEvilScoreLayerLegacyEquality,
   assertGoodScoreLayerLegacyEquality,
 } from './legacy-equality.ts'
 
@@ -30,7 +37,8 @@ import {
 export function configuredScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
-  return goodScoreLayerTerminalFor(scorer)
+  return evilScoreLayerTerminalFor(scorer)
+    ?? goodScoreLayerTerminalFor(scorer)
 }
 
 export function configuredScoreLayersApplyToDecision(
@@ -42,6 +50,10 @@ export function configuredScoreLayersApplyToDecision(
 export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
   return createScoreLayerRegistry([
     ...goodScoreLayerDefinitions(),
+    ...evilScoreLayerDefinitions({
+      deterministic: GOOD_ROLE_SCORE_LAYER,
+      seeded: SEEDED_GOOD_ROLE_SCORE_LAYER,
+    }),
   ])
 }
 
@@ -53,5 +65,13 @@ export function assertConfiguredScoreLayerLegacyEquality(
   native: NativeScoreLayersResolvedDecisionFrame,
   legacy: ScoredDecisionFrame,
 ): void {
-  assertGoodScoreLayerLegacyEquality(native, legacy)
+  const terminal = native.scoreLayerRun.configured.at(-1)
+  if (
+    terminal?.id === 'evil-role-score'
+    || terminal?.id === 'seeded-evil-role-score'
+  ) {
+    assertEvilScoreLayerLegacyEquality(native, legacy)
+  } else {
+    assertGoodScoreLayerLegacyEquality(native, legacy)
+  }
 }
