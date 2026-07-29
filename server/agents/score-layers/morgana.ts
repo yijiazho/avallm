@@ -93,13 +93,15 @@ function morganaDefinition(
           candidate,
         ]),
       )
-      const allowed = new Set(context.forced.allowedCandidateIds)
+      const allowed = new Set(
+        context.candidateBoundary.survivorCandidateIds,
+      )
       if (
         rows.size !== context.candidates.length
         || !allowed.has(projection.selectedCandidateId)
         || (
-          context.forced.selectedCandidateId !== undefined
-          && context.forced.selectedCandidateId
+          context.candidateBoundary.selectedCandidateId !== undefined
+          && context.candidateBoundary.selectedCandidateId
             !== projection.selectedCandidateId
         )
       ) throw new Error('Morgana score layer received inconsistent selection')

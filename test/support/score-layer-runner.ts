@@ -8,6 +8,9 @@ import type {
   ScoreLayerRunLease,
   ScoreLayerRunPreparation,
 } from '../../server/agents/policy/score-layer/types.ts'
+import type {
+  DecisionCandidateBoundary,
+} from '../../server/agents/policy/decision-layer/types.ts'
 
 /**
  * Explicit low-level seam for generic kernel laws. Production policy must
@@ -21,7 +24,16 @@ export function prepareScoreLayerRunForTest(
 
 export function runPreparedScoreLayersForTest(
   lease: ScoreLayerRunLease,
-  completion: ScoreLayerRunCompletion,
+  completion: Omit<ScoreLayerRunCompletion, 'candidateBoundary'> & {
+    readonly candidateBoundary?: DecisionCandidateBoundary
+  },
 ): ScoreLayerRun {
-  return executePreparedScoreLayerRun(lease, completion)
+  return executePreparedScoreLayerRun(lease, {
+    ...completion,
+    candidateBoundary: completion.candidateBoundary ?? {
+      survivorCandidateIds: completion.forced.allowedCandidateIds,
+      selectedCandidateId: completion.forced.selectedCandidateId,
+      reasonCodes: completion.forced.reasonCodes,
+    },
+  })
 }

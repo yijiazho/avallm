@@ -7,6 +7,7 @@ import {
   MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
   type EvilQuestCardPolicyMode,
   type PrivateEvilQuestCardPolicy,
+  decodeCanonicalRobustEvilQuestCardPolicy,
   validatePrivateEvilQuestCardPolicy,
   validatePrivateEvilQuestCardPolicyHostJoin,
 } from '../policy/evil-quest-card.ts'
@@ -138,7 +139,6 @@ function d3Binding(
 
 export const LEGACY_ROLE_ADAPTER_TRACE_BINDINGS:
 readonly LegacyRoleAdapterTraceBinding[] = Object.freeze([
-  d3Binding(EVIL_QUEST_CARD_ROBUST_COMPONENT),
   d3Binding(EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT),
 ])
 
@@ -154,7 +154,9 @@ function questCardDefinition(
 ): DecisionComponentDefinition<PrivateEvilQuestCardPolicy> {
   return {
     token,
-    source: 'legacy-adapter',
+    source: mode === 'robust-heterogeneous'
+      ? 'native'
+      : 'legacy-adapter',
     dependencies: [],
     requiredHostInputs: [
       PRIVATE_SITUATION_INPUT,
@@ -191,14 +193,19 @@ function questCardDefinition(
       }
     },
     validateDetached(payload) {
-      return validatePrivateEvilQuestCardPolicy(payload)
-        && payload.mode === mode
-        && payload.policyVersion === token.version
+      const decoded = mode === 'robust-heterogeneous'
+        ? decodeCanonicalRobustEvilQuestCardPolicy(payload)
+        : validatePrivateEvilQuestCardPolicy(payload)
+          ? payload
+          : undefined
+      return decoded
+        && decoded.mode === mode
+        && decoded.policyVersion === token.version
         ? {
             admitted: true,
-            payload,
+            payload: decoded,
             verification: 'exact',
-            promotionEligible: payload.promotionEvidenceEligible,
+            promotionEligible: decoded.promotionEvidenceEligible,
           }
         : rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
     },

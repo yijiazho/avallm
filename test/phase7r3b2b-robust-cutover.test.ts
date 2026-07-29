@@ -1,0 +1,228 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { createComposedAgent } from '../server/agents/composed.ts'
+import {
+  ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
+} from '../server/agents/decision-layers/robust-evil-quest-card.ts'
+import {
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../server/agents/components/legacy-role-adapters.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
+import {
+  validateComposedTraceHostJoin,
+} from '../server/agents/admission/composed-trace.ts'
+import {
+  parseStdioDecisionReply,
+} from '../server/agents/stdio.ts'
+import {
+  normalizeAgentOutput,
+} from '../server/agents/types.ts'
+import {
+  readDecisionFixtures,
+} from '../server/eval/decision-fixtures.ts'
+import type {
+  DecisionRequest,
+  PlayerView,
+} from '../server/engine/types.ts'
+
+function robustQuestFixture(decisive = false): {
+  req: DecisionRequest
+  view: PlayerView
+} {
+  const source = readDecisionFixtures()
+    .find((fixture) => fixture.id === 'oberon-two-fail-quest')!
+  const view = structuredClone(source.view)
+  view.seat = 4
+  view.name = view.players[4].name
+  view.role = 'assassin'
+  view.alignment = 'evil'
+  view.privateInfo = { evilPartners: [5] }
+  if (!decisive) {
+    view.quests[0] = {
+      ...view.quests[0],
+      result: 'success',
+      failCount: 0,
+    }
+    view.quests[1] = {
+      ...view.quests[1],
+      result: 'fail',
+      failCount: 1,
+    }
+    view.quests[2] = {
+      ...view.quests[2],
+      result: undefined,
+      failCount: undefined,
+    }
+  }
+  return {
+    req: { ...source.req, seat: view.seat },
+    view,
+  }
+}
+
+test('robust D3 owns one strategic boundary and no legacy flat authority', async () => {
+  const { req, view } = robustQuestFixture()
+  const plannerInputs: string[][] = []
+  const agent = createComposedAgent({
+    seed: 'phase7r3b2b-native-authority',
+    evilQuestCardPolicy: 'robust-heterogeneous',
+    scorer: {
+      version: 'hostile-reopen-v1',
+      score(context) {
+        return context.candidates.map((candidate) => ({
+          version: 'hostile-reopen-v1',
+          candidateId: candidate.id,
+          value: candidate.decision.kind === 'quest'
+              && candidate.decision.card === 'fail'
+            ? 1_000
+            : 0,
+          viable: true,
+          reasonCodes: [],
+        }))
+      },
+    },
+    planner: {
+      version: 'hostile-planner-v1',
+      async choose(input) {
+        plannerInputs.push(
+          input.context.viableCandidates.map((candidate) => candidate.id),
+        )
+        return {
+          candidateId: 'legal-candidates-v1:quest:fail',
+          reasonCodes: ['HOSTILE_REOPEN'],
+        }
+      },
+    },
+  })
+  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const trace = output.trace!
+  const surface = trace.decisionLayerRun!.surface
+
+  assert.deepEqual(trace.decisionLayerRun!.configured, [
+    ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
+  ])
+  assert.equal(trace.decisionLayerRun!.journal[0].status, 'applied')
+  assert.deepEqual(surface.survivorCandidateIds, [
+    surface.selectedCandidateId,
+  ])
+  assert.equal(trace.chosenCandidateId, surface.selectedCandidateId)
+  assert.equal(trace.componentVersions!.evilQuestCardPolicy, undefined)
+  assert.equal(
+    trace.componentVersions!.configuredEvilQuestCardPolicy,
+    undefined,
+  )
+  assert.equal(trace.privateEvilQuestCardPolicy, undefined)
+  assert.ok(trace.degradation.includes('scorer-invalid-output'))
+  assert.deepEqual(
+    plannerInputs,
+    [],
+    'a committed strategic singleton does not invoke a reopening planner',
+  )
+  assert.deepEqual(
+    trace.components!.policyUse.find(
+      (entry) =>
+        entry.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+    )?.stages,
+    ['strategic-decision'],
+  )
+  assert.ok(validateComposedTraceHostJoin({
+    trace,
+    req,
+    view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: 'phase7r3b2b-native-authority',
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+  }))
+})
+
+test('universal selection suppresses robust execution and component use', async () => {
+  const { req, view } = robustQuestFixture(true)
+  const output = normalizeAgentOutput(
+    await createComposedAgent({
+      seed: 'phase7r3b2b-universal-suppression',
+      evilQuestCardPolicy: 'robust-heterogeneous',
+    }).decide(req, view),
+  )
+  const run = output.trace!.decisionLayerRun!
+  const use = output.trace!.components!.policyUse.find(
+    (entry) => entry.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+  )!
+
+  assert.equal(run.journal[0].status, 'suppressed')
+  assert.equal(run.operations.layersExecuted, 0)
+  assert.equal(run.operations.componentPayloadReads, 0)
+  assert.equal(use.used, false)
+  assert.deepEqual(use.stages, [])
+})
+
+test('exact quota remains the sole legacy D3 compatibility path', async () => {
+  const { req, view } = robustQuestFixture()
+  const output = normalizeAgentOutput(
+    await createComposedAgent({
+      seed: 'phase7r3b2b-exact-quarantine',
+      evilQuestCardPolicy: 'visible-exact-quota',
+    }).decide(req, view),
+  )
+
+  assert.deepEqual(output.trace!.decisionLayerRun!.configured, [])
+  assert.deepEqual(output.trace!.decisionLayerRun!.journal, [])
+  assert.ok(output.trace!.componentVersions!.evilQuestCardPolicy)
+  assert.ok(output.trace!.componentVersions!.configuredEvilQuestCardPolicy)
+  assert.ok(output.trace!.privateEvilQuestCardPolicy)
+})
+
+test('stdio strips forged robust telemetry without discarding its legal action', async () => {
+  const { req, view } = robustQuestFixture()
+  const output = normalizeAgentOutput(
+    await createComposedAgent({
+      seed: 'phase7r3b2b-stdio',
+      evilQuestCardPolicy: 'robust-heterogeneous',
+    }).decide(req, view),
+  )
+  const forged = structuredClone(output.trace!)
+  const forgedSurface = forged.decisionLayerRun!.surface as {
+    selectedCandidateId?: string
+  }
+  forgedSurface.selectedCandidateId =
+    forgedSurface.selectedCandidateId?.endsWith(':fail')
+      ? 'legal-candidates-v1:quest:success'
+      : 'legal-candidates-v1:quest:fail'
+
+  assert.deepEqual(
+    parseStdioDecisionReply(
+      req,
+      { decision: output.decision, trace: forged },
+      'forged robust trace',
+      view,
+    ),
+    output.decision,
+  )
+})
+
+test('robust concrete authority stays outside universal and frame kernels', () => {
+  const forced = readFileSync(
+    new URL('../server/agents/policy/forced.ts', import.meta.url),
+    'utf8',
+  )
+  const frame = readFileSync(
+    new URL('../server/agents/policy/decision-frame.ts', import.meta.url),
+    'utf8',
+  )
+  const concrete = readFileSync(
+    new URL(
+      '../server/agents/decision-layers/robust-evil-quest-card.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  assert.doesNotMatch(forced, /ROBUST_EVIL|robust-heterogeneous/)
+  assert.doesNotMatch(frame, /ROBUST_EVIL|robust-heterogeneous/)
+  assert.equal([...concrete.matchAll(/candidateIdForDecision\(/g)].length, 1)
+})

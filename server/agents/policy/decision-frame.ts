@@ -16,7 +16,6 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import type { CognitionState } from '../cognition/types.ts'
 import {
   EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../components/legacy-role-adapters.ts'
 import {
   advanceDecisionComponentRun,
@@ -37,6 +36,7 @@ import {
   runDecisionLayers,
 } from './decision-layer/runner.ts'
 import type {
+  DecisionCandidateBoundary,
   DecisionLayerRun,
 } from './decision-layer/types.ts'
 import type {
@@ -122,6 +122,7 @@ interface DecisionLayerSurface {
 }
 
 interface ScoreSurface {
+  readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
   readonly scores: NonEmptyReadonly<Immutable<CandidateScore>>
   readonly viableCandidates: NonEmptyReadonly<Immutable<ViableCandidate>>
   readonly structuredCandidateId: string
@@ -188,6 +189,7 @@ export type ScoredDecisionFrame = Stage<'scored', ScoredData>
 type NativeScoreLayersResolvedData =
   CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface & {
     readonly decisionLayerRun: Immutable<DecisionLayerRun>
+    readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
     readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
     readonly scoreLayerRun: Immutable<ScoreLayerRun>
     readonly survivorCandidateIds: readonly string[]
@@ -208,6 +210,7 @@ export interface ScoredPolicyCompatibilityDto {
   readonly candidates: readonly PolicyCandidate[]
   readonly scores: readonly CandidateScore[]
   readonly forced: ForcedPolicyResult
+  readonly candidateBoundary: DecisionCandidateBoundary
   readonly structuredCandidateId: string
 }
 
@@ -311,6 +314,9 @@ function scoringContext(
     analysis: legacy<SituationAnalysis>(frame.analysis),
     candidates: legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
     forced: legacy<ForcedPolicyResult>(frame.effectiveForced),
+    candidateBoundary: legacy<DecisionCandidateBoundary>(
+      candidateBoundaryFor(frame),
+    ),
     ...(frame.hypotheticalTeamCandidates
       ? {
           hypotheticalTeamCandidates:
@@ -319,6 +325,32 @@ function scoringContext(
             ),
         }
       : {}),
+  })
+}
+
+/**
+ * Native paths consume the exact strategic surface object. Exact quota is
+ * the only remaining compatibility exception and projects its legacy forced
+ * selection until R3B3 removes that path.
+ */
+function candidateBoundaryFor(
+  frame:
+    | PostComponentDecisionFrame
+    | NativeScoreLayersResolvedDecisionFrame,
+): Immutable<DecisionCandidateBoundary> {
+  if ('candidateBoundary' in frame) return frame.candidateBoundary
+  if (frame.stage !== 'legacy-d3-quest-card') {
+    return frame.decisionLayerRun.surface
+  }
+  return detachTrustedPolicyData({
+    survivorCandidateIds: frame.effectiveForced.allowedCandidateIds,
+    ...(frame.effectiveForced.selectedCandidateId === undefined
+      ? {}
+      : {
+          selectedCandidateId:
+            frame.effectiveForced.selectedCandidateId,
+        }),
+    reasonCodes: frame.effectiveForced.reasonCodes,
   })
 }
 
@@ -354,10 +386,11 @@ function finalizeScoredDecisionFrame(
     detachTrustedPolicyData(resolution.scores),
     'scorer must return a nonempty surface',
   )
+  const candidateBoundary = candidateBoundaryFor(frame)
   if (!isDeepStrictEqual(
     resolution.survivorCandidateIds,
-    frame.effectiveForced.allowedCandidateIds,
-  )) throw new Error('scored surface changed the effective forced survivors')
+    candidateBoundary.survivorCandidateIds,
+  )) throw new Error('scored surface changed the hard candidate survivors')
   const survivors = new Map(
     frame.legalCandidates
       .filter((candidate) =>
@@ -371,9 +404,9 @@ function finalizeScoredDecisionFrame(
     })) as readonly Immutable<ViableCandidate>[],
     'scorer must retain a viable forced survivor',
   )
-  const structured = frame.effectiveForced.selectedCandidateId
+  const structured = candidateBoundary.selectedCandidateId
     ? scores.find((score) =>
-        score.candidateId === frame.effectiveForced.selectedCandidateId)
+        score.candidateId === candidateBoundary.selectedCandidateId)
     : structuredChoice(legacy<readonly CandidateScore[]>(scores))
   if (!structured?.viable || !survivors.has(structured.candidateId)) {
     throw new Error('structured policy selected a nonviable candidate')
@@ -382,6 +415,7 @@ function finalizeScoredDecisionFrame(
     ...frame,
     stage: 'scored',
     componentRun: nextRun as Immutable<DecisionComponentRun>,
+    candidateBoundary,
     legacyD3: frame.stage === 'legacy-d3-quest-card'
       ? frame.legacyD3
       : null,
@@ -566,8 +600,7 @@ export function withLegacyD3QuestCard(
 ): LegacyD3QuestCardDecisionFrame {
   if (
     (
-      token !== EVIL_QUEST_CARD_ROBUST_COMPONENT
-      && token !== EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT
+      token !== EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT
     )
     || frame.request.kind !== 'quest'
     || frame.view.alignment !== 'evil'
@@ -637,7 +670,8 @@ export function withCustomScoring(
   return finalizeScoredDecisionFrame(frame, context, {
     authority: 'custom',
     scores: [...resolution.scores],
-    survivorCandidateIds: frame.effectiveForced.allowedCandidateIds,
+    survivorCandidateIds:
+      candidateBoundaryFor(frame).survivorCandidateIds,
     scorerVersion: resolution.appliedScorer.version,
     degradation: resolution.degradation,
     componentRun: resolution.componentRun,
@@ -652,6 +686,7 @@ export function projectScoredFrameForCompatibility(
     candidates: frame.legalCandidates,
     scores: frame.scores,
     forced: frame.effectiveForced,
+    candidateBoundary: frame.candidateBoundary,
     structuredCandidateId: frame.structuredCandidateId,
   }) as ScoredPolicyCompatibilityDto
 }
@@ -762,6 +797,7 @@ class LocalNativeScoreLayerLease {
       analysis: frame.analysis,
       candidates: frame.legalCandidates,
       forced: frame.effectiveForced,
+      candidateBoundary: candidateBoundaryFor(frame),
       componentRun: frame.componentRun,
       deterministicSeed: host.deterministicSeed,
       compatibilityCandidateId: host.compatibilityCandidateId,
@@ -906,9 +942,10 @@ export function withNativeScoreLayers(
     })) as readonly Immutable<NativeViableCandidate>[],
     'native score layers must retain a viable hard survivor',
   )
-  const structured = frame.effectiveForced.selectedCandidateId
+  const candidateBoundary = candidateBoundaryFor(frame)
+  const structured = candidateBoundary.selectedCandidateId
     ? scores.find((score) =>
-        score.candidateId === frame.effectiveForced.selectedCandidateId)
+        score.candidateId === candidateBoundary.selectedCandidateId)
     : viableCandidates.map((entry) => entry.score).reduce((best, score) =>
         score.value > best.value
           || (
@@ -924,6 +961,7 @@ export function withNativeScoreLayers(
     ...frame,
     stage: 'native-score-layers-resolved',
     componentRun: run.componentRun,
+    candidateBoundary,
     legacyD3: frame.stage === 'legacy-d3-quest-card'
       ? frame.legacyD3
       : null,
@@ -1015,8 +1053,8 @@ export function selectDecisionCandidate(
 ): SelectedDecisionFrame {
   if (
     planner.kind === 'accepted'
-    && frame.effectiveForced.selectedCandidateId !== undefined
-  ) throw new Error('planner cannot override an effective forced choice')
+    && frame.candidateBoundary.selectedCandidateId !== undefined
+  ) throw new Error('planner cannot override a hard policy choice')
   const id = planner.kind === 'accepted'
     ? planner.candidateId
     : frame.structuredCandidateId
@@ -1026,7 +1064,7 @@ export function selectDecisionCandidate(
   if (!selected) throw new Error('planner selected a nonviable candidate')
   const componentRun = (
       planner.kind !== 'accepted'
-      && frame.effectiveForced.selectedCandidateId === undefined
+      && frame.candidateBoundary.selectedCandidateId === undefined
       && frame.legacyD3 === null
       && attributeStructuredChoice
     )

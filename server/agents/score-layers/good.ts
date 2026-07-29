@@ -335,7 +335,7 @@ function compatibilityRows(
 ): readonly ScoreLayerRowDraft[] {
   return calculateCompatibilityBase({
     candidates: context.candidates,
-    allowedCandidateIds: context.forced.allowedCandidateIds,
+    allowedCandidateIds: context.candidateBoundary.survivorCandidateIds,
     compatibilityCandidateId: context.compatibilityCandidateId,
   })
 }
@@ -351,7 +351,8 @@ const compatibilityRootDefinition: ScoreLayerRootDefinition = {
       status: 'generated',
       surface: context.surface.create({
         scores: compatibilityRows(context),
-        survivorCandidateIds: context.forced.allowedCandidateIds,
+        survivorCandidateIds:
+          context.candidateBoundary.survivorCandidateIds,
       }),
     }
   },
@@ -438,7 +439,12 @@ export interface DeterministicGoodBase {
 
 export type DeterministicGoodBaseContext = Pick<
   ScoreLayerTransformContext,
-  'request' | 'view' | 'analysis' | 'candidates' | 'forced'
+  | 'request'
+  | 'view'
+  | 'analysis'
+  | 'candidates'
+  | 'candidateBoundary'
+  | 'forced'
 > & {
   readonly hypotheticalTeamCandidates?:
     ScoreLayerTransformContext['hypotheticalTeamCandidates']
@@ -453,7 +459,9 @@ export type DeterministicGoodBaseContext = Pick<
 export function calculateDeterministicGoodBase(
   context: DeterministicGoodBaseContext,
 ): DeterministicGoodBase {
-  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowed = new Set(
+    context.candidateBoundary.survivorCandidateIds,
+  )
   if (context.request.kind === 'propose') {
     const assessments = new Map(
       context.analysis.policyCandidateAssessments.map((entry) => [
@@ -651,7 +659,9 @@ function calculateGoodPolicyRows(
     context.request.kind !== 'vote'
     || mode !== 'seeded-band'
   ) return base.rows
-  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowed = new Set(
+    context.candidateBoundary.survivorCandidateIds,
+  )
   const allowedRows = base.rows.filter((row) =>
     allowed.has(row.score.candidateId))
   const features = base.rows[0]?.features
@@ -780,7 +790,9 @@ function roleDefinition(
         utilityById.size !== context.candidates.length
         || priorById.size !== context.candidates.length
       ) throw new Error('good role layer requires complete surfaces')
-      const allowed = new Set(context.forced.allowedCandidateIds)
+      const allowed = new Set(
+        context.candidateBoundary.survivorCandidateIds,
+      )
       const survivors = context.candidates.filter((candidate) =>
         allowed.has(candidate.id))
       const survivorMean = survivors.reduce((sum, candidate) => {
@@ -815,7 +827,8 @@ function roleDefinition(
         .filter((row) => row.combinedValue === maxCombined)
         .map((row) => row.candidate.id)
         .sort(compareCandidateIds)[0]
-      const forcedSelection = context.forced.selectedCandidateId
+      const forcedSelection =
+        context.candidateBoundary.selectedCandidateId
       const voteRows = context.request.kind === 'vote' ? allowedRows : []
       const inBand = voteRows.length === 2
         && Math.abs(

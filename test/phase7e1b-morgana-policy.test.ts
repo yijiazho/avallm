@@ -711,13 +711,14 @@ test('E1B leaves the independent robust D3 quest-card path unchanged', async () 
   }).decide(req, view)
   assert.deepEqual(layered.decision, baseline.decision)
   assert.deepEqual(
-    layered.trace!.privateEvilQuestCardPolicy,
-    baseline.trace!.privateEvilQuestCardPolicy,
+    layered.trace!.decisionLayerRun!.surface,
+    baseline.trace!.decisionLayerRun!.surface,
   )
   assert.equal(
     layered.trace!.componentVersions!.evilQuestCardPolicy,
-    EVIL_QUEST_ROBUST_POLICY_VERSION,
+    undefined,
   )
+  assert.equal(layered.trace!.privateEvilQuestCardPolicy, undefined)
   assert.equal(morganaUtility(layered.trace!), undefined)
 })
 

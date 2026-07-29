@@ -98,7 +98,9 @@ function projectGood(
     const seeded =
       scorerVersion === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
       && context.request.kind === 'vote'
-    const allowed = new Set(context.forced.allowedCandidateIds)
+    const allowed = new Set(
+      context.candidateBoundary.survivorCandidateIds,
+    )
     const voteFeatures = base.rows[0]?.features.version
       === GOOD_VOTE_FEATURE_VERSION
       ? base.rows[0].features
@@ -159,7 +161,9 @@ function projectGood(
   const utilityById = new Map(
     projection.assessments.map((entry) => [entry.candidateId, entry]),
   )
-  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowed = new Set(
+    context.candidateBoundary.survivorCandidateIds,
+  )
   const survivorMeanRoleValue = context.candidates
     .filter((candidate) => allowed.has(candidate.id))
     .reduce((sum, candidate) => {
@@ -194,7 +198,9 @@ function projectGood(
     ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
   const seeded = scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
   const bandActive =
-    !context.forced.selectedCandidateId && seeded && inViableBand
+    !context.candidateBoundary.selectedCandidateId
+      && seeded
+      && inViableBand
   const seedBucket = bandActive
     ? stablePolicyBucket([
         context.deterministicSeed,
@@ -276,7 +282,9 @@ function projectEvil(
     utilityById.size !== rows.length
     || rows.some((row) => !utilityById.has(row.candidateId))
   ) throw new Error('evil diagnostic candidate join mismatch')
-  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowed = new Set(
+    context.candidateBoundary.survivorCandidateIds,
+  )
   const voteRows = requestKind === 'vote'
     ? projection.assessments.filter((entry) =>
         allowed.has(entry.candidateId))
@@ -288,7 +296,9 @@ function projectEvil(
   const seeded =
     scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
   const bandActive =
-    !context.forced.selectedCandidateId && seeded && inViableBand
+    !context.candidateBoundary.selectedCandidateId
+      && seeded
+      && inViableBand
   const seedBucket = bandActive
     ? stablePolicyBucket([
         context.deterministicSeed,

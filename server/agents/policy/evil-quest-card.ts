@@ -9,6 +9,11 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
+import {
+  denseOwnDataArrayValues,
+  exactOwnDataRecord,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
 
 export const EVIL_QUEST_CARD_POLICY_VERSION =
   'evil-quest-card-policy-v1'
@@ -329,6 +334,148 @@ export function validatePrivateEvilQuestCardPolicy(
   } catch {
     return false
   }
+}
+
+const ROBUST_REASON_CODES: readonly EvilQuestCardPolicyReason[] = [
+  'INSUFFICIENT_VISIBLE_QUOTA_SUCCESS',
+  'ROBUST_DECISIVE_FAIL',
+  'ROBUST_LOCAL_SLOW_PLAY_FAIL',
+  'ROBUST_LOCAL_SLOW_PLAY_HOLD',
+]
+
+/**
+ * Robust-only native decoder after the component kernel's canonical,
+ * byte-bounded ingress. Exact-quota's historical optional-field codec stays
+ * isolated in validatePrivateEvilQuestCardPolicy until R3B3.
+ */
+export function decodeCanonicalRobustEvilQuestCardPolicy(
+  value: CanonicalJsonValue,
+): PrivateEvilQuestCardPolicy | undefined {
+  const common = [
+    'version', 'policyVersion', 'mode', 'coordinationAssumption',
+    'populationAssumption', 'mixedTableSafe',
+    'promotionEvidenceEligible', 'request', 'role', 'applicable',
+    'sourceContext', 'sourceFingerprint', 'failsRequired',
+    'decisiveBoard', 'visibleEvilCount', 'visibleEvilAboardCount',
+    'reason',
+  ] as const
+  const variants = [
+    common,
+    [...common, 'selectedCard'],
+    [
+      ...common,
+      'slowPlayProbability',
+      'slowPlayBucket',
+      'localSlowPlayFail',
+      'selectedCard',
+    ],
+  ] as const
+  const policy = variants
+    .map((keys) => exactOwnDataRecord(value, keys))
+    .find((record) => record !== undefined)
+  if (!policy) return undefined
+  const request = exactOwnDataRecord(policy.request, [
+    'kind', 'seat', 'round', 'proposalNum',
+  ])
+  const context = exactOwnDataRecord(policy.sourceContext, [
+    'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
+    'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
+    'priorProposals',
+  ])
+  if (!request || !context) return undefined
+  const playerCount = context.playerCount
+  const currentTeam = denseOwnDataArrayValues(context.currentTeam, 10)
+  const priorQuests = denseOwnDataArrayValues(context.priorQuests, 5)
+  const priorProposals =
+    denseOwnDataArrayValues(context.priorProposals, 25)
+  const seat = (candidate: unknown): candidate is Seat =>
+    Number.isSafeInteger(candidate)
+      && Number.isSafeInteger(playerCount)
+      && Number(candidate) >= 0
+      && Number(candidate) < Number(playerCount)
+  const roles: readonly Role[] = [
+    'merlin', 'percival', 'servant', 'minion', 'morgana',
+    'mordred', 'oberon', 'assassin',
+  ]
+  if (
+    policy.version !== EVIL_QUEST_CARD_POLICY_VERSION
+    || policy.policyVersion !== EVIL_QUEST_ROBUST_POLICY_VERSION
+    || policy.mode !== 'robust-heterogeneous'
+    || policy.coordinationAssumption !== 'none'
+    || policy.populationAssumption !== 'heterogeneous-independent'
+    || policy.mixedTableSafe !== true
+    || policy.promotionEvidenceEligible !== true
+    || request.kind !== 'quest'
+    || !seat(request.seat)
+    || !Number.isSafeInteger(request.round)
+    || !Number.isSafeInteger(request.proposalNum)
+    || typeof policy.role !== 'string'
+    || !roles.includes(policy.role as Role)
+    || policy.applicable !== true
+    || context.version !== EVIL_QUEST_PUBLIC_CONTEXT_VERSION
+    || !Number.isSafeInteger(playerCount)
+    || Number(playerCount) < 5
+    || Number(playerCount) > 10
+    || !Number.isSafeInteger(context.round)
+    || !Number.isSafeInteger(context.proposalNum)
+    || !seat(context.leaderSeat)
+    || !currentTeam
+    || new Set(currentTeam).size !== currentTeam.length
+    || !currentTeam.every(seat)
+    || !Number.isSafeInteger(context.teamSize)
+    || context.teamSize !== currentTeam.length
+    || !Number.isSafeInteger(context.failsRequired)
+    || Number(context.failsRequired) < 1
+    || !priorQuests
+    || !priorQuests.every((entry) => typeof entry === 'string')
+    || !priorProposals
+    || !priorProposals.every((entry) => typeof entry === 'string')
+    || typeof policy.sourceFingerprint !== 'string'
+    || !/^[0-9a-f]{8}$/.test(policy.sourceFingerprint)
+    || policy.failsRequired !== context.failsRequired
+    || typeof policy.decisiveBoard !== 'boolean'
+    || !Number.isSafeInteger(policy.visibleEvilCount)
+    || Number(policy.visibleEvilCount) < 1
+    || !Number.isSafeInteger(policy.visibleEvilAboardCount)
+    || Number(policy.visibleEvilAboardCount) < 0
+    || Number(policy.visibleEvilAboardCount)
+      > Number(policy.visibleEvilCount)
+    || typeof policy.reason !== 'string'
+    || !ROBUST_REASON_CODES.includes(
+      policy.reason as EvilQuestCardPolicyReason,
+    )
+    || (
+      policy.selectedCard !== 'success'
+      && policy.selectedCard !== 'fail'
+    )
+    || policy.selectedCard !== (
+      policy.reason === 'ROBUST_DECISIVE_FAIL'
+      || policy.reason === 'ROBUST_LOCAL_SLOW_PLAY_FAIL'
+        ? 'fail'
+        : 'success'
+    )
+  ) return undefined
+  const slow = policy.slowPlayProbability !== undefined
+  if (
+    slow !== (
+      policy.reason === 'ROBUST_LOCAL_SLOW_PLAY_FAIL'
+      || policy.reason === 'ROBUST_LOCAL_SLOW_PLAY_HOLD'
+    )
+    || (
+      slow
+      && (
+        typeof policy.slowPlayProbability !== 'number'
+        || policy.slowPlayProbability < 0
+        || policy.slowPlayProbability > 1
+        || typeof policy.slowPlayBucket !== 'number'
+        || policy.slowPlayBucket < 0
+        || policy.slowPlayBucket > 1
+        || policy.localSlowPlayFail
+          !== (policy.reason === 'ROBUST_LOCAL_SLOW_PLAY_FAIL')
+      )
+    )
+  ) return undefined
+  return value as unknown as PrivateEvilQuestCardPolicy
 }
 
 function policyVersion(

@@ -1381,23 +1381,37 @@ function legacyArchitectureSafety(
         && !['merlin', 'percival', 'servant', 'oberon']
           .includes(meta.targetRole)
           ? (
-              declaresEvilQuestCardPolicy
+              declaredEvilQuestCardPolicy
+                === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
                 ? !(
-                    (
-                      versions.evilQuestCardPolicy
-                        === declaredEvilQuestCardPolicy
-                      && trace.privateEvilQuestCardPolicy?.policyVersion
-                        === declaredEvilQuestCardPolicy
-                    )
-                    || (
-                      traceAdmission.facts.evilQuestCardPolicy.state
-                        === 'universally-suppressed'
-                    )
+                  (
+                    versions.evilQuestCardPolicy
+                      === declaredEvilQuestCardPolicy
+                    && trace.privateEvilQuestCardPolicy?.policyVersion
+                      === declaredEvilQuestCardPolicy
                   )
-                : (
-                    versions.evilQuestCardPolicy !== undefined
-                    || trace.privateEvilQuestCardPolicy !== undefined
+                  || (
+                    traceAdmission.facts.evilQuestCardPolicy.state
+                      === 'universally-suppressed'
                   )
+                )
+                : declaredEvilQuestCardPolicy
+                    === EVIL_QUEST_ROBUST_POLICY_VERSION
+                  ? (
+                      versions.evilQuestCardPolicy !== undefined
+                      || versions.configuredEvilQuestCardPolicy !== undefined
+                      || trace.privateEvilQuestCardPolicy !== undefined
+                      || ![
+                        'resolved',
+                        'universally-suppressed',
+                      ].includes(
+                        traceAdmission.facts.evilQuestCardPolicy.state,
+                      )
+                    )
+                  : (
+                      versions.evilQuestCardPolicy !== undefined
+                      || trace.privateEvilQuestCardPolicy !== undefined
+                    )
             )
           : (
               versions.evilQuestCardPolicy !== undefined
@@ -1405,7 +1419,12 @@ function legacyArchitectureSafety(
             )
       )
       || versions.configuredEvilQuestCardPolicy
-        !== declaredEvilQuestCardPolicy
+        !== (
+          declaredEvilQuestCardPolicy
+            === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+            ? declaredEvilQuestCardPolicy
+            : undefined
+        )
       || versions.configuredMorganaCounterfeitObjective
         !== (
           declaresMorganaCounterfeit

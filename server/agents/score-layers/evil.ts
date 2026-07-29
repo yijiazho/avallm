@@ -94,7 +94,9 @@ function evilDefinition(
         || utilityById.size !== context.candidates.length
       ) throw new Error('evil role layer requires a complete utility surface')
 
-      const allowed = new Set(context.forced.allowedCandidateIds)
+      const allowed = new Set(
+        context.candidateBoundary.survivorCandidateIds,
+      )
       const allowedRows = context.candidates.map((candidate) => {
         const utility = utilityById.get(candidate.id)
         if (
@@ -115,7 +117,7 @@ function evilDefinition(
         .filter(({ utility }) => utility.roleValue === maxValue)
         .map(({ candidate }) => candidate.id)
         .sort(compareCandidateIds)[0]
-      const forcedSelection = context.forced.selectedCandidateId
+      const forcedSelection = context.candidateBoundary.selectedCandidateId
       if (forcedSelection && !allowed.has(forcedSelection)) {
         throw new Error('evil role layer received invalid forced selection')
       }

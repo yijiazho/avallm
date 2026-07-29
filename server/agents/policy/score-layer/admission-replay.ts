@@ -4,6 +4,9 @@ import type { DecisionComponentRun } from '../../components/kernel.ts'
 import type { DecisionComponentDefinition } from '../../components/types.ts'
 import { detachTrustedPolicyData } from '../trusted-data.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from '../types.ts'
+import type {
+  DecisionCandidateBoundary,
+} from '../decision-layer/types.ts'
 import {
   executePreparedScoreLayerRun,
   prepareScoreLayerRunLease,
@@ -21,6 +24,7 @@ export interface NativeScoreAdmissionReplayInput {
   readonly analysis: SituationAnalysis
   readonly candidates: readonly PolicyCandidate[]
   readonly hypotheticalTeamCandidates?: readonly PolicyCandidate[]
+  readonly candidateBoundary: DecisionCandidateBoundary
   readonly forced: ForcedPolicyResult
   readonly deterministicSeed: string
   readonly compatibilityCandidateId: string
@@ -56,6 +60,7 @@ export function replayNativeScoresForAdmission(
   const run = executePreparedScoreLayerRun(lease, {
     analysis: detachTrustedPolicyData(input.analysis),
     candidates: detachTrustedPolicyData(input.candidates),
+    candidateBoundary: detachTrustedPolicyData(input.candidateBoundary),
     forced: detachTrustedPolicyData(input.forced),
     deterministicSeed: input.deterministicSeed,
     compatibilityCandidateId: input.compatibilityCandidateId,

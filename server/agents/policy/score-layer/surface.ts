@@ -16,6 +16,7 @@ const CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/
 
 export interface ScoreLayerSurfaceWork {
   forcedCandidateIdsVisited: number
+  candidateBoundaryIdsVisited: number
   legalCandidatesVisited: number
   surfaceBuildAttempts: number
   surfacePriorSurvivorsVisited: number
@@ -104,6 +105,58 @@ export function canonicalForcedPolicy(
   }) as Immutable<ScoreLayerRunCompletion['forced']>
 }
 
+export function canonicalCandidateBoundary(
+  input: Pick<
+    ScoreLayerRunCompletion,
+    'candidateBoundary' | 'candidates'
+  >,
+  operations: ScoreLayerSurfaceWork,
+): Immutable<ScoreLayerRunCompletion['candidateBoundary']> {
+  const source = input.candidateBoundary.survivorCandidateIds
+  if (source.length === 0 || source.length > input.candidates.length) {
+    throw new Error('candidate boundary must retain a legal candidate')
+  }
+  const retained = new Set<string>()
+  for (const id of source) {
+    operations.candidateBoundaryIdsVisited++
+    if (typeof id !== 'string' || retained.has(id)) {
+      throw new Error('candidate boundary ids must be unique strings')
+    }
+    retained.add(id)
+  }
+  const canonical: string[] = []
+  const legalIds = new Set<string>()
+  for (const candidate of input.candidates) {
+    operations.legalCandidatesVisited++
+    if (legalIds.has(candidate.id)) {
+      throw new Error('legal score candidates must have unique ids')
+    }
+    legalIds.add(candidate.id)
+    if (!retained.has(candidate.id)) continue
+    if (candidate.id !== source[canonical.length]) {
+      throw new Error(
+        'candidate boundary is not in canonical legal order',
+      )
+    }
+    canonical.push(candidate.id)
+  }
+  if (canonical.length !== source.length) {
+    throw new Error('candidate boundary contains an unknown candidate')
+  }
+  const selected = input.candidateBoundary.selectedCandidateId
+  if (selected !== undefined && !retained.has(selected)) {
+    throw new Error('candidate boundary selected outside its survivors')
+  }
+  if (selected !== undefined && canonical.length !== 1) {
+    throw new Error('candidate boundary selection must be its sole survivor')
+  }
+  return Object.freeze({
+    survivorCandidateIds: Object.freeze(canonical),
+    ...(selected === undefined ? {} : { selectedCandidateId: selected }),
+    reasonCodes: input.candidateBoundary.reasonCodes,
+  }) as Immutable<ScoreLayerRunCompletion['candidateBoundary']>
+}
+
 export interface ScoreLayerSurfaceLease {
   readonly factory: ScoreLayerSurfaceFactory
   accepts(surface: Immutable<ScoreLayerSurface>): boolean
@@ -116,7 +169,7 @@ export interface ScoreLayerSurfaceRuntime {
 
 export function createScoreLayerSurfaceRuntime(
   candidates: ScoreLayerRunCompletion['candidates'],
-  forced: Immutable<ScoreLayerRunCompletion['forced']>,
+  boundary: Immutable<ScoreLayerRunCompletion['candidateBoundary']>,
   operations: ScoreLayerSurfaceWork,
 ): ScoreLayerSurfaceRuntime {
   const provenance = new WeakMap<object, object>()
@@ -139,7 +192,7 @@ export function createScoreLayerSurfaceRuntime(
 
           const allowedPrior =
             priorSurface?.survivorCandidateIds
-            ?? forced.allowedCandidateIds
+            ?? boundary.survivorCandidateIds
           const survivors: string[] = []
           const survivorSet = new Set<string>()
           let priorIndex = 0
@@ -175,7 +228,7 @@ export function createScoreLayerSurfaceRuntime(
               && value
                 !== priorSurface.survivorCandidateIds[survivors.length]
             ) changedFromPrior = true
-            if (value === forced.selectedCandidateId) selectedSeen = true
+            if (value === boundary.selectedCandidateId) selectedSeen = true
             survivorBytes += jsonStringBytes(value)
               + (survivors.length === 0 ? 0 : 1)
             survivorSet.add(value)
@@ -186,9 +239,9 @@ export function createScoreLayerSurfaceRuntime(
             && survivors.length !== allowedPrior.length
           ) throw new Error('score layer root changed forced survivors')
           if (
-            forced.selectedCandidateId !== undefined
+            boundary.selectedCandidateId !== undefined
             && !selectedSeen
-          ) throw new Error('score layer removed the forced selection')
+          ) throw new Error('score layer removed the hard selection')
 
           const rows: ScoreLayerRow[] = []
           let rowsBytes = 0
@@ -204,8 +257,8 @@ export function createScoreLayerSurfaceRuntime(
               || source.reasonCodes.length > MAX_SCORE_LAYER_REASON_CODES
               || (!survivorSet.has(source.candidateId) && source.viable)
               || (
-                forced.selectedCandidateId !== undefined
-                && source.candidateId !== forced.selectedCandidateId
+                boundary.selectedCandidateId !== undefined
+                && source.candidateId !== boundary.selectedCandidateId
                 && source.viable
               )
             ) throw new Error('invalid score layer row draft')
@@ -262,8 +315,8 @@ export function createScoreLayerSurfaceRuntime(
               survivorSet.has(row.candidateId)
               && row.viable
               && (
-                forced.selectedCandidateId === undefined
-                || row.candidateId === forced.selectedCandidateId
+                boundary.selectedCandidateId === undefined
+                || row.candidateId === boundary.selectedCandidateId
               )
             ) viableSurvivors++
             rows.push(row)

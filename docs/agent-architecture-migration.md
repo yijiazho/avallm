@@ -2,8 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B2B, followed by Phase 7R3B3. Phase 7R3B2A's generic
-ordered strategic decision-layer seam is complete. Phase 7R3A4B is complete at
+**Current target phase:** Phase 7R3B3. Phase 7R3B2B moved the heterogeneous-safe D3
+policy onto the generic strategic decision-layer seam; exact quota is the sole remaining
+legacy D3 compatibility path. Phase 7R3B2A's generic ordered strategic seam is complete.
+Phase 7R3A4B is complete at
 checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3B1B's closed, trust-labeled trace admission boundary is complete.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
@@ -20,8 +22,9 @@ single-pass replay work are complete. The resolved descriptor now owns configure
 identity across trace, artifact, and report surfaces, component host roots resolve only after a
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
 boundaries. Registered ordered score layers now produce the sole built-in scored frame for every
-decision kind; one finalizer, selection path, and commit consume it. D3 remains the explicit
-quest-card input overlay pending the R3B2B robust cutover and R3B3 exact-quota cleanup.
+decision kind; one finalizer, selection path, and commit consume it. Robust D3 now commits
+through the strategic decision-layer boundary; the homogeneous exact-quota research mode remains
+the explicit quest-card compatibility overlay pending R3B3 cleanup.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -128,7 +131,7 @@ migration work cite the corresponding ledger ID.
 |---|---|---|---|---|---|
 | MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay previously assembled candidate teams, joint assessments, and vote alternatives separately, allowing drift to falsely reject another role or decision kind | R3B1A | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `complete` |
 | MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Whole hostile traces now cross one bounded canonical snapshot before any field read, then host admission returns trusted exact, external diagnostic, finalized-artifact diagnostic, or typed rejection; replay lookup sees only the frozen candidate and stdio, benchmark, and report aggregation consume the admitted snapshot | R3B1B | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `complete` |
-| MD-003 | Delete or isolate the remaining D3 legacy adapter and its two conformance exemptions | Robust and exact-quota D3 are the only legacy flat projection/binding exceptions | R3B3 | D3 uses the native component/policy boundary and both exemptions and flat projections are deleted | `open` |
+| MD-003 | Delete or isolate the remaining exact-quota D3 legacy adapter and its conformance exemption | Exact quota is the sole legacy flat projection/binding exception; robust D3 is native | R3B3 | Exact quota is deleted or isolated behind a historical research reader, and its runtime flat projection and exemption are removed | `open` |
 | MD-004 | Delete historical boolean trace-admission test facades | Formula and D3 compatibility tests still call three boolean wrappers over the closed result; architecture fitness prevents runtime and evaluation code from importing them, so they are not executable trust authorities | R3B3 | Tests consume the closed union directly and all three compatibility exports are deleted with the remaining D3 flat reader | `open` |
 
 ### 3.2 Parent-orchestrated execution
@@ -1731,11 +1734,13 @@ stored-report evaluation even if metadata falsely claims a verified homogeneous 
 Phase 7F may add genuine all-seat provenance for research measurement, but exact quota cannot
 become the mixed-table production policy.
 
-The typed quest-card directive is consumed by forced policy before scoring or planning. Engine
-legality remains final, Oberon retains independent behavior, and no D3 payload enters prompts,
-voice, public cognition, client data, or public logs. Configured and resolved policy identities
-remain separate. Stdio, architecture generation, stored reporting, and artifacts reconstruct and
-join the directive, forced reason, selected card, and applied card while rejecting seed
+The heterogeneous-safe typed quest-card directive is now consumed by the registered strategic
+decision layer after universal forced policy and before scoring or planning. Exact quota remains
+the sole quarantined forced-policy compatibility overlay until R3B3. Engine legality remains
+final, Oberon retains independent behavior, and no D3 payload enters prompts, voice, public
+cognition, client data, or public logs. Configured and resolved policy identities remain
+separate. Stdio, architecture generation, stored reporting, and artifacts reconstruct and join
+the component, strategic layer, selected card, and applied card while rejecting seed
 dependence, mode swaps, illegal cross-mode fields, forged context, count, order, designation,
 bucket, action, deletion, manifest, or degradation data.
 
@@ -2820,6 +2825,7 @@ Migration is not complete while superseded authority remains active.
 | LLM-generated arbitrary proposal as production default | Phase 4 hybrid candidate planner passes | Candidate IDs and committed plan |
 | Prompt dossier and compatibility certainties as the default belief visibility | Phase 3 typed rendering covers their contracts; Phase 4 policy consumes the same analysis | Typed analysis rendered for policy and prompt |
 | Generic "most good" assassination reasoning | Phase 7 target model passes | Merlin posterior |
+| Exact-quota D3 flat trace fields, forced-policy overlay, and legacy binding | Phase 7R3B3 isolates or deletes the homogeneous research convention | Native component plus strategic decision layer for mixed-table-safe D3; historical research reader only if retained |
 
 Removal means deleting or demoting the old authority, not merely adding a new path beside it.
 
@@ -3196,6 +3202,32 @@ here.
   preexisting legacy
   overlay in this checkpoint; R3B2B owns the robust authority cutover and R3B3 still owns
   exact-quota quarantine plus MD-003 and MD-004.
+- Phase 7R3B2B robust D3 authority cutover complete: `robust-heterogeneous` configures
+  `evil-quest-card-robust-strategic@evil-robust-heterogeneous-quest-decision-v1`
+  as the first production concrete decision layer. Its admitted native component is the only
+  cognition writer, and the layer is the only mechanical writer. Universal forced selection
+  suppresses the layer before applicability, execution, component reads, reasons, or attribution;
+  otherwise its factory-minted singleton becomes the actual downstream candidate boundary for
+  native scoring, custom-scoring fallback, planner gating, committed plans, communication
+  reasons, trace admission, and evaluation. The universal `ForcedPolicyResult` remains a separate
+  fact and authority.
+  Current robust traces omit `configuredEvilQuestCardPolicy`,
+  `componentVersions.evilQuestCardPolicy`, and `privateEvilQuestCardPolicy`; generic component
+  admission plus the registered layer journal and surface carry the evidence instead. Exact quota
+  alone retains `withLegacyD3QuestCard`, the effective-forced compatibility projection, flat
+  trace binding, and the remaining D3 conformance exemption for R3B3. Score-run operation
+  accounting now distinguishes universal forced candidates from the strategic candidate
+  boundary.
+  Robust transport uses one semantic decoder at the native component admission boundary, after
+  the component kernel's strict canonical and byte-bounded ingress. Downstream decision, scoring,
+  planning, trace, and evaluation code consume the admitted value and do not repeat the raw-shape
+  predicate. The historical optional-field validator remains only for exact quota until R3B3;
+  this checkpoint deliberately does not introduce a schema framework.
+  Focused validation covers native component conformance, strategic authority, universal
+  suppression with zero reads, exact-path quarantine, custom scorer and planner non-reopening,
+  stdio legal-action retention after forged telemetry, host replay, architecture fitness, the
+  free D3 architecture bank, and the frozen robust trace change. The contract verifier is the
+  chunk gate; the parent owns the post-rebase complete suite and broad banks.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

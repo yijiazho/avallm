@@ -160,6 +160,11 @@ export function applyForcedPolicy(
     }
     const questPolicy = options.evilQuestCardPolicy
     if (view.role !== 'oberon' && questPolicy?.selectedCard) {
+      if (questPolicy.mode !== 'visible-exact-quota') {
+        throw new Error(
+          'universal forced policy cannot execute strategic quest policy',
+        )
+      }
       const reasonByPolicy = {
         EXACT_QUOTA_DESIGNATED_FAIL:
           'EVIL_EXACT_QUOTA_DESIGNATED_FAIL',
@@ -169,12 +174,6 @@ export function applyForcedPolicy(
           'EVIL_INSUFFICIENT_VISIBLE_QUOTA_HOLD',
         SHARED_SLOW_PLAY_HOLD:
           'EVIL_SHARED_SLOW_PLAY_HOLD',
-        ROBUST_DECISIVE_FAIL:
-          'EVIL_ROBUST_DECISIVE_FAIL',
-        ROBUST_LOCAL_SLOW_PLAY_FAIL:
-          'EVIL_ROBUST_LOCAL_SLOW_PLAY_FAIL',
-        ROBUST_LOCAL_SLOW_PLAY_HOLD:
-          'EVIL_ROBUST_LOCAL_SLOW_PLAY_HOLD',
       } satisfies Partial<Record<
         typeof questPolicy.reason,
         ForcedPlayReasonCode

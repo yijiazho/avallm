@@ -165,12 +165,20 @@ import {
   createDecisionLayerAdmissionAuthority,
   type AdmittedDecisionLayerTrace,
 } from '../policy/decision-layer/admission-replay.ts'
+import type {
+  DecisionCandidateBoundary,
+  DecisionLayerRun,
+} from '../policy/decision-layer/types.ts'
 import {
   createConfiguredDecisionLayerRegistry,
 } from '../decision-layers/configured.ts'
 import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../components/legacy-role-adapters.ts'
+import {
+  ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
+} from '../decision-layers/robust-evil-quest-card.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
@@ -2280,6 +2288,24 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     const projection = communicationFactProjection(facts)
     const strategicReasons = intent.strategicReasonCodes
     const claimCodes = intent.claimCodes
+    const decisionLayerRun =
+      trace.decisionLayerRun as Record<string, unknown> | undefined
+    const decisionLayerSurface =
+      decisionLayerRun?.surface as Record<string, unknown> | undefined
+    const committedPolicyReasons = stringArray(
+      decisionLayerSurface?.reasonCodes,
+    )
+      ? decisionLayerSurface.reasonCodes
+      : []
+    const availableStrategicReasons = [
+      ...(chosenScore
+        ? selectedStrategicReasonCodes(
+            chosenScore as unknown as CandidateScore,
+            scores as unknown as CandidateScore[],
+          )
+        : []),
+      ...committedPolicyReasons,
+    ]
     if (
       !exactKeys(intent, [
         'version',
@@ -2316,11 +2342,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || new Set(strategicReasons).size !== strategicReasons.length
       || !chosenScore
       || strategicReasons.some(
-        (reason) =>
-          !selectedStrategicReasonCodes(
-            chosenScore as unknown as CandidateScore,
-            scores as unknown as CandidateScore[],
-          ).includes(reason),
+        (reason) => !availableStrategicReasons.includes(reason),
       )
       || intent.tone !== 'natural'
       || (
@@ -3198,6 +3220,8 @@ function currentTraceOmitsMigratedFlatState(
 ): boolean {
   if (trace.version === DECISION_TRACE_VERSION) return true
   const versions = trace.componentVersions
+  const hasStrategicQuestPolicy =
+    trace.decisionLayerRun?.configured.length !== 0
   return (
     trace.privateRoleObjective === undefined
     && trace.privateEvilRoleObjective === undefined
@@ -3214,6 +3238,14 @@ function currentTraceOmitsMigratedFlatState(
     && versions?.configuredMorganaCounterfeitObjective === undefined
     && versions?.morganaRoleUtility === undefined
     && versions?.configuredMorganaRoleUtility === undefined
+    && (
+      !hasStrategicQuestPolicy
+      || (
+        trace.privateEvilQuestCardPolicy === undefined
+        && versions?.evilQuestCardPolicy === undefined
+        && versions?.configuredEvilQuestCardPolicy === undefined
+      )
+    )
     && !trace.degradation.some((code) =>
       MIGRATED_FLAT_DEGRADATIONS.has(code))
   )
@@ -3223,6 +3255,14 @@ function expectedNativeTraceStages(
   componentId: string,
   trace: DecisionTrace,
 ): readonly string[] | undefined {
+  const strategic = trace.decisionLayerRun?.journal.some(
+    (entry) =>
+      entry.status === 'applied'
+      && entry.attributedComponents.some(
+        (component) => component.id === componentId,
+      ),
+  )
+  if (strategic) return ['strategic-decision']
   if (!NATIVE_SCORE_COMPONENT_IDS.has(componentId)) return undefined
   const scores = trace.candidateScores ?? []
   const goodRole =
@@ -3525,7 +3565,8 @@ function validGenericRoleComponents(
       || !use.stages.every(
         (stage) =>
           stage === 'candidate-score'
-          || stage === 'action-selection',
+          || stage === 'action-selection'
+          || stage === 'strategic-decision',
       )
       || new Set(use.stages).size !== use.stages.length
       || (
@@ -3802,11 +3843,29 @@ function validExactComposedTraceHostJoin(
       view,
       expectedArchitectureIdentity,
     )
+    const decisionLayerReplay =
+      policyHostSurface && expectedArchitectureIdentity
+        ? replayExactDecisionLayerHostJoin(
+            trace,
+            decisionLayerAdmission,
+            req,
+            view,
+            policyHostSurface,
+            expectedArchitectureIdentity,
+          )
+        : undefined
+    const strategicHostSurface =
+      policyHostSurface && decisionLayerReplay
+        ? {
+            ...policyHostSurface,
+            candidateBoundary: decisionLayerReplay.surface,
+          }
+        : policyHostSurface
     const d3HostSurface = exactEvilQuestCardHostSurface(
       trace,
       req,
       view,
-      policyHostSurface,
+      strategicHostSurface,
     )
     const genericRoleComponentsValid = validGenericRoleComponents(trace, view)
     const genericRoleHostJoinValid = validGenericRoleComponentsHostJoin(
@@ -3833,14 +3892,7 @@ function validExactComposedTraceHostJoin(
         expectedArchitectureIdentity !== undefined
         && (
           !policyHostSurface
-          || !validExactDecisionLayerHostJoin(
-            trace,
-            decisionLayerAdmission,
-            req,
-            view,
-            policyHostSurface,
-            expectedArchitectureIdentity,
-          )
+          || !decisionLayerReplay
         )
       )
       || (
@@ -4208,13 +4260,19 @@ function validTrustedPassiveComponentAttribution(
   trace: DecisionTrace,
 ): boolean {
   if (!trace.components) return false
-  const d3Ids = new Set(
+  const legacyIds = new Set(
     LEGACY_ROLE_ADAPTER_TRACE_BINDINGS.map((binding) => binding.token.id),
+  )
+  const strategicIds = new Set(
+    PRODUCTION_DECISION_LAYER_REGISTRY.definitions()
+      .flatMap((definition) =>
+        definition.requiredComponents.map((component) => component.id)),
   )
   return trace.components.policyUse.every(
     (use) =>
       NATIVE_SCORE_COMPONENT_IDS.has(use.component.id)
-      || d3Ids.has(use.component.id)
+      || legacyIds.has(use.component.id)
+      || strategicIds.has(use.component.id)
       || (!use.used && use.stages.length === 0),
   )
 }
@@ -4241,6 +4299,7 @@ function nativeScoreSelectionSurvived(trace: DecisionTrace): boolean {
     && trace.chosenCandidateId === trace.structuredCandidateId
     && trace.forcedPolicyResult?.selectedCandidateId === undefined
     && trace.privateEvilQuestCardPolicy?.selectedCard === undefined
+    && trace.decisionLayerRun?.surface.selectedCandidateId === undefined
     && !plannerSelectionAccepted
 }
 
@@ -4297,6 +4356,7 @@ function expectedNativeDiagnostics(
         }
       : {}),
     forced: context.forced,
+    candidateBoundary: context.candidateBoundary,
     deterministicSeed: context.deterministicSeed,
     compatibilityCandidateId,
     componentDefinitions: PRODUCTION_COMPONENT_REGISTRY.definitions(),
@@ -4359,6 +4419,7 @@ function validateExactNativeScoreSurface(
       analysis,
       hypotheticalTeamCandidates,
       effectiveForced: forced,
+      candidateBoundary,
     } = d3HostSurface
     const scorerVersion = trace.componentVersions?.scorer
     const configuredScorer =
@@ -4382,6 +4443,7 @@ function validateExactNativeScoreSurface(
         ? { hypotheticalTeamCandidates }
         : {}),
       forced,
+      candidateBoundary,
     }, trace, chain)
     const expectedConfiguredAttribution =
       expected.resolvedScorerVersion === configuredScorer
@@ -4392,8 +4454,10 @@ function validateExactNativeScoreSurface(
       && scorerVersion === expected.resolvedScorerVersion
       && trace.componentVersions?.configuredScorer
         === expectedConfiguredAttribution
-      && trace.structuredCandidateId
-        === structuredChoice(expected.scores).candidateId
+      && trace.structuredCandidateId === (
+        candidateBoundary.selectedCandidateId
+        ?? structuredChoice(expected.scores).candidateId
+      )
       && validNativeScoreAttribution(trace, expected.componentRun)
   } catch {
     return false
@@ -4621,6 +4685,7 @@ interface ExactPolicyHostSurface {
     ReturnType<typeof hypotheticalProposalCandidates>
   readonly universalForced: ForcedPolicyResult
   readonly effectiveForced: ForcedPolicyResult
+  readonly candidateBoundary: DecisionCandidateBoundary
 }
 
 function trustedNativeScoreChain(
@@ -4696,6 +4761,16 @@ function exactPolicyHostSurface(
         : {}),
       universalForced,
       effectiveForced: universalForced,
+      candidateBoundary: {
+        survivorCandidateIds: universalForced.allowedCandidateIds,
+        ...(universalForced.selectedCandidateId === undefined
+          ? {}
+          : {
+              selectedCandidateId:
+                universalForced.selectedCandidateId,
+            }),
+        reasonCodes: universalForced.reasonCodes,
+      },
     }
   } catch {
     return undefined
@@ -4707,27 +4782,27 @@ function exactPolicyHostSurface(
  * identity. Detached traces can remain diagnostic, but cannot invent exact
  * order, journal, operation accounting, or causal component use.
  */
-function validExactDecisionLayerHostJoin(
+function replayExactDecisionLayerHostJoin(
   trace: DecisionTrace,
   admission: AdmittedDecisionLayerTrace | undefined,
   req: DecisionRequest,
   view: PlayerView,
   surface: ExactPolicyHostSurface,
   identity: ResolvedArchitectureIdentity,
-): boolean {
+): DecisionLayerRun | undefined {
   try {
     if (
       trace.version !== COMPONENT_DECISION_TRACE_VERSION
       || !trace.components
       || !trace.decisionLayerRun
       || !admission
-    ) return false
+    ) return undefined
     const componentDefinitions = identity.components.eligible.map(
       (ref) => PRODUCTION_COMPONENT_REGISTRY.definition(ref),
     )
     if (componentDefinitions.some(
       (definition) => definition === undefined,
-    )) return false
+    )) return undefined
     return DECISION_LAYER_ADMISSION.replay({
       registry: PRODUCTION_DECISION_LAYER_REGISTRY,
       configured: identity.decisionLayerOrder,
@@ -4741,9 +4816,9 @@ function validExactDecisionLayerHostJoin(
       ),
       componentRun: trace.components,
       claimed: admission,
-    }) !== undefined
+    })
   } catch {
-    return false
+    return undefined
   }
 }
 
@@ -4785,10 +4860,8 @@ function exactEvilQuestCardHostSurface(
       || !applicable
       || component !== policy.policyVersion
       || configured !== policy.policyVersion
-      || (
-        configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-        && configured !== EVIL_QUEST_ROBUST_POLICY_VERSION
-      )
+      || configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+      || policy.mode !== 'visible-exact-quota'
       || !validatePrivateEvilQuestCardPolicyHostJoin(policy, {
         req,
         view,
@@ -4821,6 +4894,11 @@ function exactEvilQuestCardHostSurface(
     return {
       ...baseSurface,
       effectiveForced,
+      candidateBoundary: {
+        survivorCandidateIds: effectiveForced.allowedCandidateIds,
+        selectedCandidateId: selectedId,
+        reasonCodes: effectiveForced.reasonCodes,
+      },
     }
   } catch {
     return undefined
@@ -4842,7 +4920,6 @@ function validSuppressedEvilQuestCardPolicyHostJoin(
   return (
     (
       configured === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      || configured === EVIL_QUEST_ROBUST_POLICY_VERSION
     )
     && applicable
     && trace.componentVersions?.evilQuestCardPolicy === undefined
@@ -5121,7 +5198,61 @@ function evilQuestCardAdmissionState(
   trace: Readonly<DecisionTrace>,
   req: DecisionRequest,
   view?: PlayerView,
+  identity?: ResolvedArchitectureIdentity,
 ): EvilQuestCardAdmissionState {
+  const robustConfigured = identity?.decisionLayerOrder.some(
+    (layer) =>
+      layer.id === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.id
+      && layer.version === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.version,
+  )
+    && identity.components.configured.some(
+      (component) =>
+        component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id
+        && component.version === EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+    )
+  if (robustConfigured) {
+    const journal = trace.decisionLayerRun?.journal.find(
+      (entry) =>
+        entry.layer.id === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.id
+        && entry.layer.version
+          === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.version,
+    )
+    const component = trace.components?.entries.find(
+      (entry) =>
+        entry.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id
+        && entry.component.version
+          === EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+    )
+    if (
+      journal?.status === 'applied'
+      && component?.status === 'admitted'
+      && journal.attributedComponents.some(
+        (ref) =>
+          ref.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id
+          && ref.version === EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+      )
+    ) {
+      return Object.freeze({
+        state: 'resolved',
+        configuredVersion: EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+        resolvedVersion: EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+      })
+    }
+    if (
+      journal?.status === 'suppressed'
+      && journal.suppressionCode === 'universal-policy-selected'
+      && component?.status === 'suppressed'
+    ) {
+      return Object.freeze({
+        state: 'universally-suppressed',
+        configuredVersion: EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+      })
+    }
+    return Object.freeze({
+      state: 'configured-inactive',
+      configuredVersion: EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+    })
+  }
   const configured =
     trace.componentVersions?.configuredEvilQuestCardPolicy
   if (configured === undefined) {
@@ -5162,6 +5293,10 @@ function promotionEvidenceEligible(
 ): boolean {
   return trace.version === COMPONENT_DECISION_TRACE_VERSION
     && trace.components !== undefined
+    && trace.decisionLayerRun !== undefined
+    && trace.decisionLayerRun.journal.every(
+      (entry) => entry.status !== 'degraded',
+    )
     && trace.components.entries.every((entry) =>
       entry.status !== 'degraded'
       && (
@@ -5298,6 +5433,7 @@ export function admitCanonicalDecisionTrace(
       trace,
       input.req,
       input.view,
+      input.expectedArchitectureIdentity,
     ),
   })
   if (

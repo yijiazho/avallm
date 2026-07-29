@@ -616,6 +616,11 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     candidates,
     hypotheticalTeamCandidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
     deterministicSeed: 'phase7c2-role-policy',
     compatibilityCandidateId: candidates[0].id,
     expectedScorerVersion: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -632,6 +637,11 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     candidates,
     hypotheticalTeamCandidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
     roleUtility: forcedUtility,
   }, replay.rows, ROLE_OBJECTIVE_SEEDED_SCORER_VERSION)
   const forcedSurvivors = forcedScores.filter((score) => score.viable)

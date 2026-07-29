@@ -664,24 +664,18 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
     for (const trace of artifact.decisionTraces!) {
       assert.equal(
         trace.componentVersions!.configuredEvilQuestCardPolicy,
-        EVIL_QUEST_ROBUST_POLICY_VERSION,
+        undefined,
       )
-      const resolved =
-        trace.componentVersions!.evilQuestCardPolicy
-      assert.ok(
-        resolved === undefined
-        || resolved === EVIL_QUEST_ROBUST_POLICY_VERSION,
-      )
-      assert.equal(
-        trace.privateEvilQuestCardPolicy?.policyVersion,
-        resolved,
-      )
+      assert.equal(trace.componentVersions!.evilQuestCardPolicy, undefined)
+      assert.equal(trace.privateEvilQuestCardPolicy, undefined)
     }
   }
 
   const evilArtifact = artifacts.find((artifact) =>
     artifact.decisionTraces!.some(
-      (trace) => trace.privateEvilQuestCardPolicy,
+      (trace) => trace.decisionLayerRun?.journal.some(
+        (entry) => entry.status === 'applied',
+      ),
     ))!
   const replayCase = ARCHITECTURE_BANK.find(
     (candidate) =>
@@ -695,28 +689,55 @@ test('free architecture bank attributes robust D3 and rejects artifact mutations
   assert.deepEqual(replayed.log, evilArtifact.log)
   for (const mutate of [
     (copy: typeof evilArtifact) => {
-      copy.decisionTraces!.find(
-        (trace) => trace.privateEvilQuestCardPolicy,
-      )!.privateEvilQuestCardPolicy!.slowPlayBucket = 0.999
-    },
-    (copy: typeof evilArtifact) => {
-      delete copy.decisionTraces!.find(
-        (trace) => trace.privateEvilQuestCardPolicy,
-      )!.privateEvilQuestCardPolicy
+      const trace = copy.decisionTraces!.find(
+        (candidate) => candidate.decisionLayerRun?.journal.some(
+          (entry) => entry.status === 'applied',
+        ),
+      )!
+      const component = trace.components!.entries.find(
+        (entry) => entry.component.id === 'evil-quest-card-robust',
+      )!
+      if (component.status === 'admitted') {
+        component.envelope.payload.slowPlayBucket = 0.999
+      }
     },
     (copy: typeof evilArtifact) => {
       const trace = copy.decisionTraces!.find(
-        (candidate) => candidate.privateEvilQuestCardPolicy,
+        (candidate) => candidate.decisionLayerRun?.journal.some(
+          (entry) => entry.status === 'applied',
+        ),
       )!
-      delete trace.privateEvilQuestCardPolicy
-      delete trace.componentVersions!.evilQuestCardPolicy
+      ;(trace.decisionLayerRun!.surface as {
+        selectedCandidateId?: string
+      }).selectedCandidateId = trace.decisionLayerRun!.surface
+        .selectedCandidateId === 'quest:fail'
+        ? 'quest:success'
+        : 'quest:fail'
     },
     (copy: typeof evilArtifact) => {
-      const policy = copy.decisionTraces!.find(
-        (trace) => trace.privateEvilQuestCardPolicy,
-      )!.privateEvilQuestCardPolicy!
-      policy.designation = [policy.request.seat]
-      policy.orderedVisibleEvilAboard = [policy.request.seat]
+      const trace = copy.decisionTraces!.find(
+        (candidate) => candidate.decisionLayerRun?.journal.some(
+          (entry) => entry.status === 'applied',
+        ),
+      )!
+      const use = trace.components!.policyUse.find(
+        (entry) => entry.component.id === 'evil-quest-card-robust',
+      )!
+      ;(use as { used: boolean; stages: string[] }).used = false
+      ;(use as { used: boolean; stages: string[] }).stages = []
+    },
+    (copy: typeof evilArtifact) => {
+      const trace = copy.decisionTraces!.find(
+        (candidate) => candidate.decisionLayerRun?.journal.some(
+          (entry) => entry.status === 'applied',
+        ),
+      )!
+      const journal = trace.decisionLayerRun!.journal.find(
+        (entry) => entry.status === 'applied',
+      )!
+      ;(journal as { reasonCodes: string[] }).reasonCodes = [
+        'EVIL_ROBUST_DECISIVE_FAIL',
+      ]
     },
   ]) {
     const forged = structuredClone(evilArtifact)

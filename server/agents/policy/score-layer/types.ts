@@ -18,6 +18,9 @@ import type {
   ForcedPolicyResult,
   PolicyCandidate,
 } from '../types.ts'
+import type {
+  DecisionCandidateBoundary,
+} from '../decision-layer/types.ts'
 
 declare const SCORE_LAYER_TOKEN_BRAND: unique symbol
 declare const SCORE_LAYER_SURFACE_BRAND: unique symbol
@@ -87,6 +90,9 @@ export interface ScoreLayerApplicabilityContext {
   readonly view: Immutable<PlayerView>
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]
+  /** Hard survivors after universal policy and strategic decision layers. */
+  readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
+  /** Universal policy remains separately attributable and is never relabeled. */
   readonly forced: Immutable<ForcedPolicyResult>
   readonly deterministicSeed: string
   readonly compatibilityCandidateId: string
@@ -217,6 +223,7 @@ export interface ScoreLayerOperationCounts {
   readonly analysisAdmissionEvaluations: number
   readonly analysisAdmissionFailures: number
   readonly forcedCandidateIdsVisited: number
+  readonly candidateBoundaryIdsVisited: number
   readonly legalCandidatesVisited: number
   readonly applicabilityEvaluations: number
   readonly layersExecuted: number
@@ -262,6 +269,7 @@ export interface ScoreLayerRun {
 export interface ScoreLayerRunCompletion {
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]
+  readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
   readonly forced: Immutable<ForcedPolicyResult>
   readonly deterministicSeed: string
   readonly compatibilityCandidateId: string

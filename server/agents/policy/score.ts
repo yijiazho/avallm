@@ -6,6 +6,9 @@ import {
   type SituationAnalysis,
 } from '../analysis/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
+import type {
+  DecisionCandidateBoundary,
+} from './decision-layer/types.ts'
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
@@ -606,7 +609,9 @@ export function validateCandidateScores(
   const candidatesById = new Map(
     context.candidates.map((candidate) => [candidate.id, candidate]),
   )
-  const allowed = new Set(context.forced.allowedCandidateIds)
+  const allowed = new Set(
+    context.candidateBoundary.survivorCandidateIds,
+  )
   const goodProposalSemantics =
     (
       scorerVersion === GOOD_PROPOSAL_SCORER_VERSION
@@ -796,9 +801,10 @@ export function validateCandidateScores(
     throw new Error('candidate scorer removed every forced-policy candidate')
   }
   if (
-    context.forced.selectedCandidateId
+    context.candidateBoundary.selectedCandidateId
     && !viable.some(
-      (score) => score.candidateId === context.forced.selectedCandidateId,
+      (score) =>
+        score.candidateId === context.candidateBoundary.selectedCandidateId,
     )
   ) {
     throw new Error('candidate scorer removed the forced selection')
@@ -820,6 +826,9 @@ export interface CandidateScoringContext {
   evilRoleUtility?: PrivateEvilRoleUtilityProjection
   /** Private, host-derived E1B Morgana policy input. */
   morganaRoleUtility?: PrivateMorganaRoleUtilityProjection
+  /** Hard candidate authority after universal and strategic policy. */
+  candidateBoundary: DecisionCandidateBoundary
+  /** Universal forced policy remains a separate attribution surface. */
   forced: ForcedPolicyResult
   compatibilityCandidateId?: string
 }
@@ -830,7 +839,7 @@ export function compatibilityCandidateScores(
 ): readonly CandidateScore[] {
   return calculateCompatibilityBase({
     candidates: context.candidates,
-    allowedCandidateIds: context.forced.allowedCandidateIds,
+    allowedCandidateIds: context.candidateBoundary.survivorCandidateIds,
     compatibilityCandidateId: context.compatibilityCandidateId,
   }).map((row) => ({
     version: CANDIDATE_SCORER_VERSION,

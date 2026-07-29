@@ -136,6 +136,11 @@ function scoringContext(
     analysis,
     candidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
   }
 }
 
@@ -251,7 +256,15 @@ test('forced policy remains authoritative over higher posterior value', () => {
     allowedCandidateIds: [forcedId],
     selectedCandidateId: forcedId,
   }
-  const context = { ...base, forced }
+  const context = {
+    ...base,
+    forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
+  }
   const scores = scoreGoodProposalCandidates(context)
   validateCandidateScores(context, scores, GOOD_PROPOSAL_SCORER_VERSION)
   assert.equal(scoreForTeam(context, [0, 1]).value, -Number.MAX_SAFE_INTEGER)

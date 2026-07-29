@@ -419,6 +419,11 @@ test('forced vote selection dominates D2 and malformed D2 falls through C2 to Ph
     candidates,
     hypotheticalTeamCandidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
     deterministicSeed: 'phase7d2-evil-policy',
     compatibilityCandidateId: candidates[0].id,
     expectedScorerVersion: EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -435,6 +440,11 @@ test('forced vote selection dominates D2 and malformed D2 falls through C2 to Ph
     candidates,
     hypotheticalTeamCandidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
     evilRoleUtility: evilUtility(ordinary.trace!)!,
   }, replay.rows, EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION)
   assert.deepEqual(

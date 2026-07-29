@@ -226,6 +226,10 @@ import {
   createConfiguredDecisionLayerRegistry,
 } from './decision-layers/configured.ts'
 import {
+  ROBUST_EVIL_QUEST_CARD_DECISION_DEGRADATION,
+  ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
+} from './decision-layers/robust-evil-quest-card.ts'
+import {
   projectConfiguredScoreDiagnostics,
 } from './policy/score-compatibility.ts'
 import {
@@ -1114,7 +1118,10 @@ export function createComposedAgent(
     ...(configuredScoreLayerTerminal
       ? { scoreLayerTerminal: configuredScoreLayerTerminal }
       : { scoreLayerOrder: [] }),
-    decisionLayerOrder: [],
+    decisionLayerOrder:
+      evilQuestCardPolicyMode === 'robust-heterogeneous'
+        ? [ROBUST_EVIL_QUEST_CARD_DECISION_LAYER]
+        : [],
     executionMode: planner
       ? 'hybrid'
       : scorer.version === CANDIDATE_SCORER_VERSION
@@ -1737,14 +1744,35 @@ export function createComposedAgent(
             componentRun,
             configuredEvilQuestCardComponent,
           )
-          if (privateEvilQuestCardPolicy) {
+          if (
+            privateEvilQuestCardPolicy
+            && evilQuestCardPolicyMode === 'visible-exact-quota'
+          ) {
             stage('quest-card-policy')
             postComponentFrame = withLegacyD3QuestCard(
               resolvedFrame,
-              configuredEvilQuestCardComponent,
+              EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
               nativeScoreLayerLease,
             )
           } else if (
+            evilQuestCardPolicyMode === 'robust-heterogeneous'
+          ) {
+            const robustJournal = resolvedFrame.decisionLayerRun.journal.find(
+              (entry) =>
+                entry.layer.id
+                  === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.id
+                && entry.layer.version
+                  === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.version,
+            )
+            if (robustJournal?.status === 'degraded') {
+              degradation.push(
+                ROBUST_EVIL_QUEST_CARD_DECISION_DEGRADATION,
+              )
+            }
+            if (privateEvilQuestCardPolicy) stage('quest-card-policy')
+          } else if (
+            evilQuestCardPolicyMode === 'visible-exact-quota'
+            &&
             !universalForced.applied
             && req.kind === 'quest'
             && view.alignment === 'evil'
@@ -1891,8 +1919,7 @@ export function createComposedAgent(
         let plannerResolution: LegacyPlannerResolution = { kind: 'not-run' }
         if (
           activePlanner
-          && !forced.selectedCandidateId
-          && scoredFrame.legacyD3 === null
+          && !scoredFrame.candidateBoundary.selectedCandidateId
         ) {
           stage('planner')
           try {
@@ -2010,6 +2037,7 @@ export function createComposedAgent(
           compatibilityScored.scores,
           plannerCommunication,
           plannerReasonCodes,
+          scoredFrame.candidateBoundary.reasonCodes,
         )
         const planStrategicReasons = plannerReasonCodes
           ?? selectedStrategicReasonCodes(
@@ -2024,6 +2052,7 @@ export function createComposedAgent(
           policyId: COMPOSED_POLICY_VERSION,
           reasons: [
             ...forced.reasonCodes,
+            ...scoredFrame.candidateBoundary.reasonCodes,
             ...planStrategicReasons,
           ],
           beliefThroughSeq: cognition.throughSeq,
@@ -2117,8 +2146,12 @@ export function createComposedAgent(
           privateIdentity,
           !!decisionIdentityScope,
           routerConfigured,
-          configuredEvilQuestCardPolicy,
-          privateEvilQuestCardPolicy,
+          evilQuestCardPolicyMode === 'visible-exact-quota'
+            ? configuredEvilQuestCardPolicy
+            : undefined,
+          evilQuestCardPolicyMode === 'visible-exact-quota'
+            ? privateEvilQuestCardPolicy
+            : undefined,
         )
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {

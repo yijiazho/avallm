@@ -347,11 +347,15 @@ export function defaultCommunicationIntent(
   scoreSurface?: readonly CandidateScore[],
   direction?: PlannerCommunicationDirection,
   selectedReasons?: readonly string[],
+  committedPolicyReasons: readonly string[] = [],
 ): CommunicationIntent | undefined {
   const { safeFactCodes, conceal } = communicationFactProjection(factCodes)
-  const availableReasons = selectedScore
-    ? selectedStrategicReasonCodes(selectedScore, scoreSurface)
-    : []
+  const availableReasons = [...new Set([
+    ...(selectedScore
+      ? selectedStrategicReasonCodes(selectedScore, scoreSurface)
+      : []),
+    ...committedPolicyReasons,
+  ])]
   const strategicReasonCodes = selectedReasons === undefined
     ? availableReasons
     : selectedReasons.filter((reason) => availableReasons.includes(reason))

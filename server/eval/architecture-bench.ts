@@ -912,8 +912,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   : actualRoleObjective
               )
             )
-            || traceVersions.configuredEvilQuestCardPolicy
-              !== expectedComponents.evilQuestCardPolicy
+            || (
+              !currentComponentTrace
+              && traceVersions.configuredEvilQuestCardPolicy
+                !== expectedComponents.evilQuestCardPolicy
+            )
             || (
               !currentComponentTrace
               && traceVersions.configuredMorganaCounterfeitObjective
@@ -930,7 +933,22 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               && !['merlin', 'percival', 'servant', 'oberon']
                 .includes(c.targetRole)
                 ? (
-                    expectedComponents.evilQuestCardPolicy === undefined
+                    expectedComponents.evilQuestCardPolicy
+                      === EVIL_QUEST_ROBUST_POLICY_VERSION
+                      && currentComponentTrace
+                      ? (
+                          traceVersions.evilQuestCardPolicy !== undefined
+                          || traceVersions.configuredEvilQuestCardPolicy
+                            !== undefined
+                          || trace.privateEvilQuestCardPolicy !== undefined
+                          || ![
+                            'resolved',
+                            'universally-suppressed',
+                          ].includes(
+                            traceAdmission.facts.evilQuestCardPolicy.state,
+                          )
+                        )
+                      : expectedComponents.evilQuestCardPolicy === undefined
                       ? (
                           traceVersions.evilQuestCardPolicy !== undefined
                           || trace.privateEvilQuestCardPolicy !== undefined

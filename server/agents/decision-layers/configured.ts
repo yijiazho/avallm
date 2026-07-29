@@ -2,13 +2,17 @@ import {
   createDecisionLayerRegistry,
   type DecisionLayerRegistry,
 } from '../policy/decision-layer/registry.ts'
+import {
+  ROBUST_EVIL_QUEST_CARD_DECISION_LAYER_DEFINITION,
+} from './robust-evil-quest-card.ts'
 
 /**
- * Production strategic-layer registry. R3B2A intentionally leaves this empty
- * while establishing the sole runtime and replay seam; R3B2B registers robust
- * heterogeneous quest policy here.
+ * Production strategic-layer registry. Construction still chooses the exact
+ * ordered subset, so registering a layer does not implicitly enable it.
  */
 export function createConfiguredDecisionLayerRegistry():
 DecisionLayerRegistry {
-  return createDecisionLayerRegistry([])
+  return createDecisionLayerRegistry([
+    ROBUST_EVIL_QUEST_CARD_DECISION_LAYER_DEFINITION,
+  ])
 }

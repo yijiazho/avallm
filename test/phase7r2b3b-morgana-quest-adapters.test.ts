@@ -493,7 +493,12 @@ test('D3 generic status and promotion remain policy-owned', async () => {
     const use = output.trace!.components!.policyUse.find(
       (candidate) => candidate.component.id === token.id,
     )!
-    assert.deepEqual(use.stages, ['action-selection'])
+    assert.deepEqual(
+      use.stages,
+      mode === 'robust-heterogeneous'
+        ? ['strategic-decision']
+        : ['action-selection'],
+    )
   }
 
   const forcedView = coordinatedQuestView(4, [4, 5])

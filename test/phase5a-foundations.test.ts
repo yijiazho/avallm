@@ -152,13 +152,19 @@ test('non-uniform world weights drive every posterior projection', () => {
   assert.ok(analysis.policyCandidateAssessments.every(
     (assessment) => assessment.probabilitySemantics === 'weighted-joint',
   ))
+  const forced = applyForcedPolicy(request, view, analysis, candidates)
   const context = {
     deterministicSeed: 'phase5a-weighted',
     request,
     view,
     analysis,
     candidates,
-    forced: applyForcedPolicy(request, view, analysis, candidates),
+    forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
     compatibilityCandidateId: candidateIdForDecision(
       heuristicDecide(request, view, 'phase5a-weighted'),
     ),

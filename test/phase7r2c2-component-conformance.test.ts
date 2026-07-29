@@ -19,6 +19,7 @@ import {
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
   PRIVATE_FORCED_POLICY_INPUT,
+  PRIVATE_SITUATION_INPUT,
   PRIVATE_DETERMINISTIC_SEED_INPUT,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
@@ -26,6 +27,7 @@ import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/legacy-role-adapters.ts'
 import {
   buildPrivateActorTargetTreatmentRead,
@@ -115,9 +117,13 @@ import {
 import {
   applyForcedPolicy,
 } from '../server/agents/policy/forced.ts'
+import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import {
-  analyzeSituation,
-} from '../server/agents/analysis/situation.ts'
+  buildPrivateEvilQuestCardPolicy,
+  decodeCanonicalRobustEvilQuestCardPolicy,
+  MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
+  validatePrivateEvilQuestCardPolicy,
+} from '../server/agents/policy/evil-quest-card.ts'
 import {
   hypotheticalProposalCandidates,
   legalCandidates,
@@ -137,7 +143,7 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'evil-quest-card-exact-quota':
     { legacyExemption: '7R3B native retirement pending' },
   'evil-quest-card-robust':
-    { legacyExemption: '7R3B native retirement pending' },
+    { proof: 'robust-quest-native-family' },
   'evil-role-objective':
     { proof: 'evil-role-native-family' },
   'evil-role-utility':
@@ -169,6 +175,10 @@ const NATIVE_PROOF_OWNERS = new Map([
   [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id, 'morgana-native-family'],
   [MORGANA_ROLE_UTILITY_COMPONENT.id, 'morgana-native-family'],
   [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id, 'morgana-native-family'],
+  [
+    EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+    'robust-quest-native-family',
+  ],
 ] as const)
 
 function assertProofCoverage(
@@ -290,6 +300,54 @@ function evilNativeFixture() {
     alternativeObjective,
     utility,
   }
+}
+
+function robustQuestNativeFixture() {
+  const source = readDecisionFixtures().find(
+    (candidate) => candidate.id === 'oberon-two-fail-quest',
+  )
+  assert.ok(source)
+  const view = structuredClone(source.view)
+  view.seat = 4
+  view.name = view.players.find((player) => player.seat === 4)!.name
+  view.role = 'assassin'
+  view.alignment = 'evil'
+  view.privateInfo = {
+    evilPartners: [5],
+  }
+  view.quests[0] = {
+    ...view.quests[0],
+    result: 'success',
+    failCount: 0,
+  }
+  view.quests[1] = {
+    ...view.quests[1],
+    result: 'fail',
+    failCount: 1,
+  }
+  view.quests[2] = {
+    ...view.quests[2],
+    result: undefined,
+    failCount: undefined,
+  }
+  const req = {
+    kind: 'quest' as const,
+    seat: view.seat,
+    round: view.round,
+    proposalNum: view.proposalNum,
+  }
+  const analysis = analyzeSituation(view, {
+    belief: exactBelief(view),
+  })
+  const candidates = legalCandidates(req, view)
+  const forced = applyForcedPolicy(req, view, analysis, candidates)
+  const policy = buildPrivateEvilQuestCardPolicy({
+    req,
+    view,
+    analysis,
+    mode: 'robust-heterogeneous',
+  })
+  return { req, view, analysis, forced, policy }
 }
 
 function morganaNativeFixture() {
@@ -511,6 +569,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   const good = goodNativeFixture()
   const evil = evilNativeFixture()
   const morgana = morganaNativeFixture()
+  const robust = robustQuestNativeFixture()
   assertNativeCodecContract({
     label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
     value: treatment,
@@ -588,6 +647,49 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
       invalidValue: { ...utility, role: 'merlin' },
     })
   }
+  assertNativeCodecContract({
+    label: EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+    value: robust.policy,
+    maxBytes: MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
+    validate: validatePrivateEvilQuestCardPolicy,
+    decode: decodeCanonicalRobustEvilQuestCardPolicy,
+    invalidValue: {
+      ...robust.policy,
+      coordinationAssumption: 'homogeneous-common-policy-required',
+    },
+  })
+})
+
+test('native robust quest family conforms through execution and host join', async () => {
+  const robust = robustQuestNativeFixture()
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [EVIL_QUEST_CARD_ROBUST_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  const entries = [{
+    token: EVIL_QUEST_CARD_ROBUST_COMPONENT,
+    verification: 'exact' as const,
+    promotionEligible: true,
+    missingRootFailure: 'host-input-unavailable',
+  }]
+  assertProofCoverage('robust-quest-native-family', [
+    EVIL_QUEST_CARD_ROBUST_COMPONENT,
+  ])
+  await assertNativeExecutionContract({
+    label: 'robust quest native family',
+    registry,
+    request: robust.req,
+    view: robust.view,
+    brain,
+    hostInputs: [
+      { input: PRIVATE_SITUATION_INPUT, value: robust.analysis },
+      { input: PRIVATE_FORCED_POLICY_INPUT, value: robust.forced },
+    ],
+    entries,
+  })
 })
 
 test('native good-role family conforms through execution and host join', async () => {

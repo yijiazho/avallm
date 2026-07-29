@@ -178,6 +178,11 @@ function voteContext(
     candidates,
     hypotheticalTeamCandidates,
     forced,
+    candidateBoundary: {
+      survivorCandidateIds: forced.allowedCandidateIds,
+      selectedCandidateId: forced.selectedCandidateId,
+      reasonCodes: forced.reasonCodes,
+    },
   }
 }
 

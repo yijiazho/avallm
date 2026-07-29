@@ -284,6 +284,7 @@ test('native family replays retain concrete journal and transitive component att
         ? { hypotheticalTeamCandidates }
         : {}),
       forced: output.trace!.forcedPolicyResult!,
+      candidateBoundary: output.trace!.decisionLayerRun!.surface,
       deterministicSeed: entry.seed,
       compatibilityCandidateId: candidates[0].id,
       expectedScorerVersion: scorerVersion,
@@ -334,6 +335,7 @@ test('native family replays retain concrete journal and transitive component att
         ? { hypotheticalTeamCandidates }
         : {}),
       forced: output.trace!.forcedPolicyResult!,
+      candidateBoundary: output.trace!.decisionLayerRun!.surface,
       deterministicSeed: entry.seed,
       compatibilityCandidateId: candidates[0].id,
       expectedScorerVersion: scorerVersion,
@@ -589,7 +591,7 @@ test('A4B source has one downstream writer and exact survivor admission', () => 
   assert.match(composed, /selectDecisionCandidate\(\s*scoredFrame,/)
   assert.match(
     frame,
-    /isDeepStrictEqual\(\s*resolution\.survivorCandidateIds,\s*frame\.effectiveForced\.allowedCandidateIds/,
+    /isDeepStrictEqual\(\s*resolution\.survivorCandidateIds,\s*candidateBoundary\.survivorCandidateIds/,
   )
   assert.doesNotMatch(composed, /withLegacyScoring|legacyScoredFrame/)
 })

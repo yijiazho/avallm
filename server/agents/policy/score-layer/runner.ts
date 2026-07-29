@@ -13,6 +13,7 @@ import {
   type PreparedScoreLayerRequirements,
 } from './preparation.ts'
 import {
+  canonicalCandidateBoundary,
   canonicalForcedPolicy,
   createScoreLayerSurfaceRuntime,
 } from './surface.ts'
@@ -123,6 +124,7 @@ interface MutableOperationCounts {
   analysisAdmissionEvaluations: number
   analysisAdmissionFailures: number
   forcedCandidateIdsVisited: number
+  candidateBoundaryIdsVisited: number
   legalCandidatesVisited: number
   applicabilityEvaluations: number
   layersExecuted: number
@@ -230,6 +232,7 @@ function runPreparedScoreLayers(
     analysisAdmissionEvaluations: 0,
     analysisAdmissionFailures: 0,
     forcedCandidateIdsVisited: 0,
+    candidateBoundaryIdsVisited: 0,
     legalCandidatesVisited: 0,
     applicabilityEvaluations: 0,
     layersExecuted: 0,
@@ -254,11 +257,13 @@ function runPreparedScoreLayers(
     surfaceBytesConstructed: 0,
   }
   const canonicalForced = canonicalForcedPolicy(input, operations)
+  const candidateBoundary = canonicalCandidateBoundary(input, operations)
   const baseContext: ScoreLayerApplicabilityContext = Object.freeze({
     request: input.request,
     view: input.view,
     analysis: input.analysis,
     candidates: input.candidates,
+    candidateBoundary,
     forced: canonicalForced,
     deterministicSeed: input.deterministicSeed,
     compatibilityCandidateId: input.compatibilityCandidateId,
@@ -272,7 +277,7 @@ function runPreparedScoreLayers(
   )
   const surfaceRuntime = createScoreLayerSurfaceRuntime(
     input.candidates,
-    canonicalForced,
+    candidateBoundary,
     operations,
   )
   const journal: ScoreLayerJournalEntry[] = []

@@ -28,7 +28,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "1b65769b2762c8c95682dbc6bd2e0b04b88c1759b0d1453ce7ab85446cec0813",
+      "sha256": "2a52b6e2aeaa4a131fb4f83c696aa69a3ec819ef8fea795bd6d4ee66f9504f4c",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -63,12 +63,12 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "e2c9e2ebc0c4ac936a3ca24fe00169fda4693c4077d09c77f824d6aa4d973ecd",
+      "sha256": "287c9cfff0f0103e7c0e117618ae7f75128f068edeefb65758dc35c9e68895ea",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "67205d42e884df9d05758f2187830ab1f44bdc012ea81c02bf032f5b11b4bfee",
+      "sha256": "8a79a5b76ce5d4f053bad0c352d5e1efa75c0a789017fe3d0ca36e80fadf17fd",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -83,7 +83,7 @@
     },
     {
       "path": "test/phase5a-foundations.test.ts",
-      "sha256": "b1601de7666541257865645665c7fdd7474988be17764f869642056ae25e5cfd",
+      "sha256": "6930054b570a9a45588d02a4f4b3bd4fdbbc00e604399e1ae37d838f410624b8",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -113,7 +113,7 @@
     },
     {
       "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "8b0df981a37ca27e3707c08b60d83837824d03f7c4c0b9c6edfa87685a203430",
+      "sha256": "4bd7adf17ad3f47f0ce0a13ab8f240de804eb6e45d423601cff2e322cb35e8ee",
       "rationale": "Legacy role-policy fixtures need current union narrowing."
     },
     {
@@ -123,12 +123,12 @@
     },
     {
       "path": "test/phase7d2-evil-policy.test.ts",
-      "sha256": "401361d61625458c7d16f1c91705ec73b81abbd6a2e11471bcb5af895615bb11",
+      "sha256": "e155732a5a7bcc4d66abab6e716891866c677ef61825e535e51e39f81e96e01b",
       "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7d3-quest-coordination.test.ts",
-      "sha256": "cc62d2f3d2d7aa785a68d3d6b2dfe6d941e6fd71ef4763ff0c0fd2254143d5a8",
+      "sha256": "3f0d5cfcf15f6d3a967ba658f7c4504e6996e98d1a7f6ec2e0fbd0b6eefb01a4",
       "rationale": "Legacy quest fixtures intentionally mutate readonly contracts."
     },
     {
@@ -138,7 +138,7 @@
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "7b914e7acdf8af1bdb959df9446a6f4593c57653c765dbebe08be6b358258233",
+      "sha256": "f88a06e61bb06f607179cd21ad8237cc3df88d6555560146c8a7f365e235a5a2",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {
@@ -168,7 +168,7 @@
     },
     {
       "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
-      "sha256": "d828ff0d04bf7263d9c335c3756659e4523ddf072ff7b81b9fa5cbab1517e0c6",
+      "sha256": "3318ee76c1adc9a4a49f2131e8d6191cc5ea7a60d5bf232eec009e0102501d83",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
@@ -193,7 +193,7 @@
     },
     {
       "path": "test/phase7r3a1-score-layer.test.ts",
-      "sha256": "ac17f16218b27408cd8bf039402fadd8d4f7ebf15b0c38bf17a01deb817b1952",
+      "sha256": "cbeed041f4690df9bf28c97a0916af7968ea1c0582dba8d5a951be32531780d7",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

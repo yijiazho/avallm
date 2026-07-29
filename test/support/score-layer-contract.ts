@@ -39,8 +39,15 @@ export function assertScoreLayerRunContract(
     input.forced.allowedCandidateIds.length,
   )
   assert.equal(
+    run.operations.candidateBoundaryIdsVisited,
+    (
+      input.candidateBoundary?.survivorCandidateIds
+      ?? input.forced.allowedCandidateIds
+    ).length,
+  )
+  assert.equal(
     run.operations.legalCandidatesVisited,
-    input.candidates.length,
+    input.candidates.length * 2,
   )
   assert.ok(
     run.operations.applicabilityEvaluations

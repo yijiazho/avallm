@@ -66,6 +66,7 @@ import {
   withLegalCandidates,
   withNativeResolvedComponents,
   withNativeScoreLayers,
+  withResolvedDecisionLayers,
   withUniversalForcedPolicy,
 } from '../server/agents/policy/decision-frame.ts'
 import { detachTrustedPolicyData } from '../server/agents/policy/trusted-data.ts'
@@ -882,7 +883,8 @@ test('layers may reselect within hard survivors and accepted reads attribute dep
     analysisAdmissionEvaluations: 4,
     analysisAdmissionFailures: 0,
     forcedCandidateIdsVisited: 2,
-    legalCandidatesVisited: 3,
+    candidateBoundaryIdsVisited: 2,
+    legalCandidatesVisited: 6,
     applicabilityEvaluations: 3,
     layersExecuted: 4,
     componentLookupAttempts: 3,
@@ -1310,7 +1312,8 @@ test('undeclared and missing reads fail or remain unattributed with definition-o
     analysisAdmissionEvaluations: 4,
     analysisAdmissionFailures: 0,
     forcedCandidateIdsVisited: 2,
-    legalCandidatesVisited: 3,
+    candidateBoundaryIdsVisited: 2,
+    legalCandidatesVisited: 6,
     applicabilityEvaluations: 3,
     layersExecuted: 4,
     componentLookupAttempts: 3,
@@ -1908,12 +1911,17 @@ test('native frame seam installs one honestly admitted root score authority', as
     brain,
     lease,
   )
+  const decisionLayers = withResolvedDecisionLayers(
+    components,
+    brain,
+    lease,
+  )
   const compatibilityCandidateId = legal.legalCandidates[0].id
   assert.deepEqual(Object.keys(lease), ['version', 'requirements'])
   assert.equal('chain' in lease, false)
   assert.equal('run' in lease, false)
   assert.throws(
-    () => withNativeScoreLayers(components, {
+    () => withNativeScoreLayers(decisionLayers, {
       version: 'native-score-layer-lease-v1',
       requirements: lease.requirements,
     } as unknown as NativeScoreLayerLease, {
@@ -1924,8 +1932,10 @@ test('native frame seam installs one honestly admitted root score authority', as
   )
   assert.throws(
     () => withNativeScoreLayers({
-      ...components,
-      request: detachTrustedPolicyData(structuredClone(components.request)),
+      ...decisionLayers,
+      request: detachTrustedPolicyData(
+        structuredClone(decisionLayers.request),
+      ),
     }, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
@@ -1934,8 +1944,8 @@ test('native frame seam installs one honestly admitted root score authority', as
   )
   assert.throws(
     () => withNativeScoreLayers({
-      ...components,
-      view: detachTrustedPolicyData(structuredClone(components.view)),
+      ...decisionLayers,
+      view: detachTrustedPolicyData(structuredClone(decisionLayers.view)),
     }, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
@@ -1946,35 +1956,35 @@ test('native frame seam installs one honestly admitted root score authority', as
   const foreignLegal = withLegalCandidates(foreignCanonical)
   const foreignLease = prepareNativeScoreLayers(foreignLegal, brain)
   assert.throws(
-    () => withNativeScoreLayers(components, foreignLease, {
+    () => withNativeScoreLayers(decisionLayers, foreignLease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
     /no bound component frame/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: '',
       compatibilityCandidateId,
     }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: '   ',
       compatibilityCandidateId,
     }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: 'x'.repeat(1_025),
       compatibilityCandidateId,
     }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId: 'not-a-legal-candidate',
     }),
@@ -1986,20 +1996,29 @@ test('native frame seam installs one honestly admitted root score authority', as
     brain,
     parallelLease,
   )
+  const parallelDecisionLayers = withResolvedDecisionLayers(
+    parallelComponents,
+    brain,
+    parallelLease,
+  )
   assert.throws(
-    () => withNativeScoreLayers(parallelComponents, lease, {
+    () => withNativeScoreLayers(parallelDecisionLayers, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
     /different component frame/,
   )
   const [native, parallelNative] = await Promise.all([
-    Promise.resolve().then(() => withNativeScoreLayers(components, lease, {
+    Promise.resolve().then(() => withNativeScoreLayers(
+      decisionLayers,
+      lease,
+      {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
-    })),
+      },
+    )),
     Promise.resolve().then(() => withNativeScoreLayers(
-      parallelComponents,
+      parallelDecisionLayers,
       parallelLease,
       {
         deterministicSeed: fixture.source.seed,
@@ -2012,7 +2031,7 @@ test('native frame seam installs one honestly admitted root score authority', as
     native.structuredCandidateId,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
@@ -2089,6 +2108,11 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
     brainA,
     lease,
   )
+  const decisionLayers = withResolvedDecisionLayers(
+    components,
+    brainA,
+    lease,
+  )
   await assert.rejects(
     () => withNativeResolvedComponents(forcedFrame, brainA, lease),
     /already bound/,
@@ -2096,7 +2120,7 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
 
   const unboundLease = prepareNativeScoreLayers(legal, brainA)
   assert.throws(
-    () => withNativeScoreLayers(components, unboundLease, {
+    () => withNativeScoreLayers(decisionLayers, unboundLease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
@@ -2120,13 +2144,13 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
     1,
   )
 
-  const scored = withNativeScoreLayers(components, lease, {
+  const scored = withNativeScoreLayers(decisionLayers, lease, {
     deterministicSeed: fixture.source.seed,
     compatibilityCandidateId,
   })
   assert.equal(scored.stage, 'native-score-layers-resolved')
   assert.throws(
-    () => withNativeScoreLayers(components, lease, {
+    () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
