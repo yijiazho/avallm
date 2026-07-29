@@ -446,7 +446,13 @@ function uiSourceHash() {
   const h = crypto.createHash('sha256')
   for (const f of uiSourceFiles()) {
     h.update(path.relative(root, f).split(path.sep).join('/') + '\0')
-    h.update(fs.readFileSync(f))
+    // Normalize line endings: hash the CONTENT, not the bytes on this disk. Git
+    // stores these files with LF but checks them out with CRLF on Windows, so
+    // hashing raw bytes made the fingerprint a property of who last checked the
+    // tree out rather than of the source. A plain `git rebase` was enough to
+    // rewrite the working copy and report the gallery stale with no edit at all,
+    // and the hash could never agree between a Windows worktree and CI.
+    h.update(fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
     h.update('\0')
   }
   return h.digest('hex').slice(0, 16)
