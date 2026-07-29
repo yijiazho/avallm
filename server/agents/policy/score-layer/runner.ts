@@ -26,6 +26,7 @@ import type {
   ScoreLayerJournalEntry,
   ScoreLayerOperationCounts,
   ScoreLayerRef,
+  ResolvedScoreLayerChain,
   ScoreLayerRootResult,
   ScoreLayerRun,
   ScoreLayerRunCompletion,
@@ -115,6 +116,52 @@ export function executePreparedScoreLayerRun(
   completion: ScoreLayerRunCompletion,
 ): ScoreLayerRun {
   return LocalScoreLayerRunLease.consume(lease, completion)
+}
+
+/**
+ * Resolve diagnostic semantics independently from authoritative scorer
+ * identity. Only an explicitly declared attribution terminal may delegate to
+ * its last active predecessor.
+ */
+export function scoreLayerDiagnosticOwnerVersion(
+  run: ScoreLayerRun,
+  chain: ResolvedScoreLayerChain,
+): string {
+  if (
+    run.configured.length !== chain.order.length
+    || run.journal.length !== chain.definitions.length
+  ) throw new Error('score diagnostic ownership requires one resolved chain')
+  let activeIndex = -1
+  for (let index = 0; index < run.journal.length; index++) {
+    const configured = run.configured[index]
+    const definition = chain.definitions[index]
+    const entry = run.journal[index]
+    if (
+      configured.id !== definition.token.id
+      || configured.version !== definition.token.version
+      || entry.layer.id !== configured.id
+      || entry.layer.version !== configured.version
+    ) throw new Error('score diagnostic ownership chain mismatch')
+    if (entry.status === 'applied' || entry.status === 'generated') {
+      activeIndex = index
+    }
+  }
+  if (activeIndex < 0) {
+    throw new Error('score diagnostic ownership requires an active scorer')
+  }
+  const active = run.journal[activeIndex]
+  const definition = chain.definitions[activeIndex]
+  if (
+    definition.kind !== 'transform'
+    || definition.diagnosticOwner !== 'predecessor'
+  ) return active.layer.version
+  for (let index = activeIndex - 1; index >= 0; index--) {
+    const prior = run.journal[index]
+    if (prior.status === 'applied' || prior.status === 'generated') {
+      return prior.layer.version
+    }
+  }
+  return active.layer.version
 }
 
 interface MutableOperationCounts {

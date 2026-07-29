@@ -2,9 +2,9 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E3B after the inert E3A posterior landed at `6d0be37`. E3B adds
-bounded, opt-in assassination authority through the generic score-layer seam without adding a
-second model or central Assassin fields. Phase 7E2B's
+**Current target phase:** Phase 7F2 after Assassin target authority landed at `02242c4` and F1
+assembled the complete deterministic role policy behind one immutable, role-independent scorer
+identity. F2 runs the frozen API-free role-bank evaluation. Phase 7E2B's
 bounded deterministic and seeded Mordred score layers are implemented and landed as opt-in paths:
 they specialize only D2-viable proposal and vote candidates using the admitted E2A objective,
 with no Mordred-specific central trace, evaluation, prompt, or communication field. Phase 7R3B is
@@ -36,7 +36,8 @@ Phase 7R1 restored universal forced-policy authority ahead of optional D3 strate
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
 report joins, and the complete generic-component exit gate. Mordred policy, Assassin
-specialization, and the Phase 7 role-bank evaluation follow. The Phase 5C population sign flip
+specialization, and full-role composition are complete; the Phase 7 role-bank evaluation follows.
+The Phase 5C population sign flip
 remains recorded, and win-rate tuning is still intentionally deferred until the architecture is
 complete enough to evaluate as a whole.
 
@@ -1429,9 +1430,13 @@ reviewable and ablatable:
     forced-policy dominance. **Complete and landed at `d25ca29`.**
 23. **Phase 7E3, Assassin specialization:** first add a mechanically inert, capped, interpretable
     Merlin posterior distinct from generic goodness (E3A), then give it bounded assassination
-    target authority only after its privacy and math are approved (E3B). **E3A complete and
-    landed at `6d0be37`; E3B implementation candidate.**
-24. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
+    target authority only after its privacy and math are approved (E3B). **Complete: E3A landed
+    at `6d0be37` and E3B landed at `02242c4`.**
+24. **Phase 7F1, full-role composition:** configure the deterministic good, shared evil/Oberon,
+    Morgana, Mordred, and Assassin layers once for the lifetime of one scorer. Per-decision
+    applicability, not a host-level role switch, determines which layers execute. Keep every
+    isolated scorer as an ablation. **Complete.**
+25. **Phase 7F2, evaluation and exit audit:** compare compatibility, base composed, observer,
     role-specific, and full configurations on a frozen API-free role bank, including virtual
     Assassin guesses derived only from seat-filtered views.
 
@@ -2241,6 +2246,29 @@ evaluation, reports, stdio, prompts, or communication. Generic featureless diagn
 membership, causal attribution, replay, privacy, and degradation contracts own those concerns.
 The compact E3B test adds only the unique policy laws; shared matrices are not duplicated.
 
+### Phase 7F1 implementation record
+
+F1 adds `full-role-policy-scorer-v1`, one immutable configured scorer whose registered
+deterministic chain is compatibility, good proposal/vote, good-role, shared evil/Oberon, Morgana,
+Mordred, Assassin, and a zero-component full-stack attribution terminal. The concrete transforms
+remain mutually exclusive by their own applicability contracts. An irrelevant role component may
+therefore be configured but is neither executed nor attributed for a decision. The terminal
+preserves candidate values, viability, survivors, and the mechanical choice; its sole private
+`FULL_ROLE_STACK_ATTRIBUTION` reason distinguishes the full scorer from the last applicable
+specialization without claiming role evidence or entering public communication. Its generic
+predecessor-diagnostic declaration makes runtime and exact replay derive semantic diagnostics
+from the last prior active layer while retaining the full terminal as authoritative scorer.
+Good-side strategic reasons, posterior uncertainty, and communication intent therefore remain
+identical to the isolated specialization rather than collapsing to a featureless surface.
+
+The isolated Morgana, Mordred, and Assassin scorers remain independently selectable. Deterministic
+Mordred now has an inapplicable Morgana predecessor, and deterministic Assassin has inapplicable
+Morgana and Mordred predecessors, so their resolved architecture identities truthfully describe
+the complete registered prefix while their decisions remain unchanged. One compact integration
+matrix covers full-versus-isolated mechanics for good, shared evil, Morgana, Mordred, and Assassin
+play, unused-component attribution, and exact host replay. Role formulas, hard boundaries,
+degradation, privacy, and transport laws remain owned by the existing reusable suites.
+
 One boundary cleanup is intentionally not folded into E2A. Existing host-root validators establish
 trusted typed values, but `validateBeliefForMordred` still rechecks admitted belief internals and
 the treatment host join rebuilds the canonical public observer for exact comparison. Phase 7R2C
@@ -2874,6 +2902,14 @@ and decision layers the sole write path.
 - [ ] Keep the model interpretable until a learned alternative wins held-out tests.
 - [ ] Record virtual Assassin guesses for all evil seats to increase evaluation sample size.
 
+### Full-role composition
+
+- [x] Configure all deterministic role layers behind one role-independent scorer identity.
+- [x] Preserve isolated role scorers as independently measurable ablations.
+- [x] Prove irrelevant configured components remain unused and exact replay reconstructs the
+      applied full stack.
+- [ ] Run the frozen Phase 7F role bank and virtual Assassin-guess evaluation.
+
 ### Exit gate
 
 Each special role has an explicit objective and appropriate posterior or observer. None is
@@ -2939,6 +2975,7 @@ reader; those states are not deletion and are named below.
 | LLM-selected arbitrary proposal | **Active in the default raw-LLM agent.** The opt-in composed path uses legal candidate IDs, ordered policy, a committed plan, and voice that cannot reopen the mechanical action. | Require paired evaluation and human approval before default promotion; then demote arbitrary selection to the raw-LLM baseline. |
 | Generic evil policy for Mordred | **Demoted baseline/fallback authority.** The landed E2B scorers specialize D2-viable Mordred proposals and votes through the admitted blindness objective while the generic D2 scorer remains the explicit fallback and ablation. | Retain the generic evil baseline; evaluate the opt-in specialization in Phase 7F before any promotion. |
 | Generic assassination heuristic and prompt ranking | **Demoted baseline/fallback authority.** E3B gives the admitted E3A posterior bounded target authority in the opt-in composed scorer. The generic heuristic remains the compatibility, raw-LLM support, and degradation path. | Retain the independently attributable baseline; Phase 7F evaluates the specialization and virtual guesses before any promotion. |
+| Host-selected role scorer | **Removed from the full-role candidate.** F1 resolves one immutable scorer and complete deterministic layer chain at construction. Runtime role and decision applicability is owned by the registered layers. Isolated role scorers remain explicit ablations, not a switch inside the full scorer. | Run the Phase 7F2 role bank before considering promotion; do not delete the ablations or compatibility fallback. |
 | Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Deleted; MD-003 complete.** R3B3A removed executable authority. R3B3B1 removed the historical payload type and decoder, private adapter token and binding, flat trace fields, exact host join, evaluation reconstruction, artifact readers, and report readers. Old exact artifacts now use generic unknown, invalid, or nonpromotable handling; removed flat keys are rejected at canonical ingress. | Retain exact quota only as documented homogeneous research context. Robust heterogeneous D3 evidence comes from the trusted architecture descriptor, generic admitted component, and decision-layer journal. |
 | Boolean trace-admission wrappers | **Deleted; MD-004 complete.** Runtime, evaluation, and tests consume the closed trust-labeled admission union directly. The three retired export names remain only as architecture-fitness tombstones that reject fake imports, aliases, namespace access, dynamic imports, and re-exports. | Keep the tombstones while old integrations could attempt to restore a boolean admission bypass. |
 

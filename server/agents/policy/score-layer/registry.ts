@@ -86,6 +86,10 @@ function freezeDefinition(
         typeof definition.applies !== 'function'
         || typeof definition.degradationCode !== 'string'
         || !ID_PATTERN.test(definition.degradationCode)
+        || (
+          definition.diagnosticOwner !== undefined
+          && definition.diagnosticOwner !== 'predecessor'
+        )
       )
     )
   ) {
@@ -152,6 +156,9 @@ function freezeDefinition(
       ? {
           predecessor: predecessor!,
           degradationCode: definition.degradationCode,
+          ...(definition.diagnosticOwner
+            ? { diagnosticOwner: definition.diagnosticOwner }
+            : {}),
           applies: definition.applies.bind(definition),
         }
       : {}),

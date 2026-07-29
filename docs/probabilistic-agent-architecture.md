@@ -410,6 +410,17 @@ use. Component payloads are tagged by component identity, version, kind, and pri
 stored in unrelated role-specific fields. Private cognition remains private even when the
 component metadata is included in an artifact manifest.
 
+The north-star structured agent configures one immutable full-role brain for its lifetime. It does
+not select a Morgana scorer, then a Mordred scorer, then an Assassin scorer in host code. Instead,
+the resolved brain contains the ordered good, shared evil/Oberon, and special-role layers; each
+layer's typed applicability contract decides whether it executes for a particular seat and
+request. Irrelevant layers and components remain visible as configured intent but have no causal
+use. An identity-only composition terminal may retain full-brain trace identity while explicitly
+delegating diagnostic semantics to its last active predecessor; that delegation must be derived
+from the admitted ordered run, not reconstructed from the acting role. Separate single-role
+configurations remain valuable ablations and degradation baselines, not the production
+composition mechanism.
+
 Admission belongs to the component boundary. Runtime, stdio, architecture-bank generation, stored
 report replay, and artifact validation invoke the same registered reconstruction and validation
 rules instead of independently mirroring each component's equations. Admission distinguishes an

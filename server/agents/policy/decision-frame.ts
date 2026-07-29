@@ -25,6 +25,7 @@ import type { ResolvedComposedBrain } from '../components/resolved-brain.ts'
 import {
   executePreparedScoreLayerRun,
   prepareScoreLayerRunLease,
+  scoreLayerDiagnosticOwnerVersion,
 } from './score-layer/runner.ts'
 import {
   runDecisionLayers,
@@ -34,6 +35,7 @@ import type {
   DecisionLayerRun,
 } from './decision-layer/types.ts'
 import type {
+  ResolvedScoreLayerChain,
   ScoreLayerAnalysisRef,
   ScoreLayerRow,
   ScoreLayerRun,
@@ -838,6 +840,13 @@ export function nativeScorerVersion(
     throw new Error('native score layers produced no active scorer')
   }
   return active.layer.version
+}
+
+export function nativeDiagnosticOwnerVersion(
+  frame: NativeScoreLayersResolvedDecisionFrame,
+  chain: ResolvedScoreLayerChain,
+): string {
+  return scoreLayerDiagnosticOwnerVersion(frame.scoreLayerRun, chain)
 }
 
 /**

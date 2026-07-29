@@ -72,6 +72,9 @@ import {
 import {
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
 } from './assassin-score-contract.ts'
+import {
+  FULL_ROLE_POLICY_SCORER_VERSION,
+} from './full-role-score-contract.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -115,6 +118,10 @@ export {
 export {
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
 } from './assassin-score-contract.ts'
+
+export {
+  FULL_ROLE_POLICY_SCORER_VERSION,
+} from './full-role-score-contract.ts'
 
 export interface CandidateScore {
   version: string
@@ -1077,3 +1084,12 @@ const ASSASSIN_MERLIN_TARGET_SCORER_DESCRIPTOR: CandidateScorer =
 /** Opt-in E3B scorer. Ineligible or degraded runs use the D2 base chain. */
 export const assassinMerlinTargetScorer =
   ASSASSIN_MERLIN_TARGET_SCORER_DESCRIPTOR
+
+/**
+ * One role-independent scorer identity for the complete deterministic role
+ * stack. Concrete applicability remains owned by registered score layers.
+ */
+export const fullRolePolicyScorer: CandidateScorer = Object.freeze({
+  version: FULL_ROLE_POLICY_SCORER_VERSION,
+  baseScorer: morganaRoleScorer,
+})

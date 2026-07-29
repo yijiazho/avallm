@@ -1893,7 +1893,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
             ROLE_OBJECTIVE_SCORER_VERSION,
             ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-          ].includes(score.version as typeof GOOD_PROPOSAL_SCORER_VERSION)
+          ].some((owner) =>
+            scorerAdmitsDiagnosticOwner(score.version, owner))
           || score.candidateId !== (
             `${LEGAL_CANDIDATE_VERSION}:propose:`
             + (features.team as number[]).join(',')
@@ -1926,7 +1927,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
             ROLE_OBJECTIVE_SCORER_VERSION,
             ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-          ].includes(score.version as typeof GOOD_PROPOSAL_VOTE_SCORER_VERSION)
+          ].some((owner) =>
+            scorerAdmitsDiagnosticOwner(score.version, owner))
           || base === undefined
           || features.baseUtility !== base
           || (
@@ -2293,7 +2295,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || ![
         ROLE_OBJECTIVE_SCORER_VERSION,
         ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-      ].includes(components?.scorer as typeof ROLE_OBJECTIVE_SCORER_VERSION)
+      ].some((owner) =>
+        scorerAdmitsDiagnosticOwner(components?.scorer, owner))
     ) return false
     const utilities = new Map(
       (roleProjection.assessments as Array<Record<string, unknown>>)
@@ -2368,7 +2371,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     const firstRole =
       roleFeatureScores[0].roleObjectiveFeatures as Record<string, unknown>
     if (
-      components?.scorer !== expectedScorer
+      !scorerAdmitsDiagnosticOwner(components?.scorer, expectedScorer)
       || !selectedByValue
       || selectedByValue.candidateId !== structured
       || roleFeatureScores.some((score) => {
@@ -2469,9 +2472,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || ![
         EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
         EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-      ].includes(
-        components?.scorer as typeof EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
-      )
+      ].some((owner) =>
+        scorerAdmitsDiagnosticOwner(components?.scorer, owner))
     ) return false
     const utilities = new Map(
       (projection.assessments as Array<Record<string, unknown>>)
@@ -2533,7 +2535,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       && inBand
     const seededBucket = first.seedBucket
     if (
-      components?.scorer !== expectedScorer
+      !scorerAdmitsDiagnosticOwner(components?.scorer, expectedScorer)
       || evilRoleFeatureScores.some((score) => {
         const feature =
           score.evilRoleObjectiveFeatures as Record<string, unknown>
@@ -2624,7 +2626,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       || !validatePrivateMorganaRoleUtilityProjection(projection)
       || morganaRoleFeatureScores.length !== scores.length
       || rows.size !== scores.length
-      || components?.scorer !== expectedScorer
+      || !scorerAdmitsDiagnosticOwner(components?.scorer, expectedScorer)
       || structured !== selectedId
       || chosen !== selectedId
       || morganaRoleFeatureScores.filter(
@@ -2783,7 +2785,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
       : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
     if (
-      components?.scorer !== expectedScorer
+      !scorerAdmitsDiagnosticOwner(components?.scorer, expectedScorer)
       || !available.length
       || !selectedByValue
       || selectedByValue.candidateId !== structured
@@ -3959,6 +3961,25 @@ function configuredNativeScorerVersion(version: string): boolean {
   }
 }
 
+function scorerAdmitsDiagnosticOwner(
+  authoritativeVersion: unknown,
+  ownerVersion: string,
+): boolean {
+  if (authoritativeVersion === ownerVersion) return true
+  if (typeof authoritativeVersion !== 'string') return false
+  try {
+    const chain = configuredScoreLayerChainForVersion(authoritativeVersion)
+    const terminal = chain.definitions.at(-1)
+    return terminal?.kind === 'transform'
+      && terminal.diagnosticOwner === 'predecessor'
+      && chain.order.slice(0, -1).some(
+        (layer) => layer.version === ownerVersion,
+      )
+  } catch {
+    return false
+  }
+}
+
 function nativeScoreSelectionSurvived(trace: DecisionTrace): boolean {
   const plannerSelectionAccepted =
     trace.plannerCandidateId !== undefined
@@ -4031,8 +4052,9 @@ function expectedNativeDiagnostics(
     componentRun: trace.components,
   })
   const scorerVersion = replay.resolvedScorerVersion
+  const diagnosticOwnerVersion = replay.diagnosticOwnerVersion
   const morganaToken =
-    scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
+    diagnosticOwnerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
       ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
       : MORGANA_ROLE_UTILITY_COMPONENT
   const diagnosticContext: CandidateScoringContext = {
@@ -4068,6 +4090,7 @@ function expectedNativeDiagnostics(
       replay.rows,
       scorerVersion,
       chain.order.map((layer) => layer.version),
+      diagnosticOwnerVersion,
     ),
     componentRun: replay.componentRun,
     resolvedScorerVersion: scorerVersion,

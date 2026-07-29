@@ -29,6 +29,9 @@ import {
   ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
 } from '../server/agents/score-layers/assassin.ts'
 import {
+  FULL_ROLE_POLICY_SCORE_LAYER,
+} from '../server/agents/score-layers/full-role.ts'
+import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
 import {
@@ -57,6 +60,7 @@ import {
   seededMordredBlindnessRoleScorer,
   seededRoleObjectiveScorer,
   assassinMerlinTargetScorer,
+  fullRolePolicyScorer,
 } from '../server/agents/policy/score.ts'
 
 test('configured score seam owns family selection and registry construction', () => {
@@ -80,9 +84,10 @@ test('configured score seam owns family selection and registry construction', ()
       SEEDED_MORDRED_ROLE_SCORE_LAYER,
     ],
     [assassinMerlinTargetScorer, ASSASSIN_MERLIN_TARGET_SCORE_LAYER],
+    [fullRolePolicyScorer, FULL_ROLE_POLICY_SCORE_LAYER],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 13)
+  assert.equal(registry.size, 14)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
@@ -107,6 +112,10 @@ test('configured score seam owns family selection and registry construction', ()
   )
   assert.equal(
     configuredScoreLayerTerminalFor({ ...assassinMerlinTargetScorer }),
+    undefined,
+  )
+  assert.equal(
+    configuredScoreLayerTerminalFor({ ...fullRolePolicyScorer }),
     undefined,
   )
   assert.equal(
@@ -200,6 +209,7 @@ test('native family chains preserve exact predecessor order', () => {
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
+      MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
     ],
   )
@@ -220,7 +230,22 @@ test('native family chains preserve exact predecessor order', () => {
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
+      MORGANA_ROLE_SCORE_LAYER,
+      MORDRED_ROLE_SCORE_LAYER,
       ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: FULL_ROLE_POLICY_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+      EVIL_ROLE_SCORE_LAYER,
+      MORGANA_ROLE_SCORE_LAYER,
+      MORDRED_ROLE_SCORE_LAYER,
+      ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
+      FULL_ROLE_POLICY_SCORE_LAYER,
     ],
   )
 })

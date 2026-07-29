@@ -204,6 +204,7 @@ import {
   withNativeScoreLayers,
   withNativeScoringAuthority,
   prepareNativeScoreLayers,
+  nativeDiagnosticOwnerVersion,
   nativeScorerVersion,
   withResolvedDecisionLayers,
   withResolvedComponents,
@@ -1820,16 +1821,27 @@ export function createComposedAgent(
             if (roleScorerFailed) degradation.push(fallbackDegradation)
           }
         }
-        const nativeDiagnostics = nativeScoredFrame
-          ? projectConfiguredScoreDiagnostics(
+        const nativeScorer = nativeScoredFrame
+          ? nativeScorerVersion(nativeScoredFrame)
+          : undefined
+        const nativeDiagnosticOwner = nativeScoredFrame
+          ? nativeDiagnosticOwnerVersion(
+              nativeScoredFrame,
+              resolvedBrain.scoreLayerChain!,
+            )
+          : undefined
+        const nativeDiagnostics =
+          nativeScoredFrame && nativeScorer && nativeDiagnosticOwner
+            ? projectConfiguredScoreDiagnostics(
               projectScoringContext(nativeScoredFrame, scoringBindings),
               nativeScoredFrame.scores,
-              nativeScorerVersion(nativeScoredFrame),
+              nativeScorer,
               nativeScoredFrame.scoreLayerRun.configured.map(
                 (layer) => layer.version,
               ),
+              nativeDiagnosticOwner,
             )
-          : undefined
+            : undefined
         const scoredFrame = customScoredFrame
           ?? (
             nativeScoredFrame
@@ -1838,7 +1850,7 @@ export function createComposedAgent(
               scoringBindings,
               {
                 scores: nativeDiagnostics!,
-                scorerVersion: nativeScorerVersion(nativeScoredFrame),
+                scorerVersion: nativeScorer!,
                 degradation,
               },
             )

@@ -169,6 +169,11 @@ extends ScoreLayerDefinitionBase {
   /** One predecessor produces a chain; multiple parents are not representable. */
   readonly predecessor: ScoreLayerRef
   readonly degradationCode: string
+  /**
+   * Attribute diagnostics to the last active predecessor while retaining this
+   * layer as the authoritative scorer identity.
+   */
+  readonly diagnosticOwner?: 'predecessor'
   applies(context: ScoreLayerApplicabilityContext): boolean
   execute(context: ScoreLayerTransformContext): ScoreLayerTransformResult
 }
