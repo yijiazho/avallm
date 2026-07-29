@@ -520,6 +520,12 @@ test('generic exact replay rejects order, journal, selection, and budget drift',
     undefined,
   )
   assert.equal(hostileReads, 0)
+  const revoked = Proxy.revocable({}, {})
+  revoked.revoke()
+  assert.equal(
+    authority.admitCanonical(revoked.proxy as any),
+    undefined,
+  )
 
   const mutations = [
     (value: any) => value.configured.reverse(),
@@ -563,6 +569,24 @@ test('generic exact replay rejects order, journal, selection, and budget drift',
     ['strategic-decision', 'candidate-score'],
   )
   assert.ok(replay(structuredClone(claimed), nonTerminalStage))
+  const wrongPosition = withStages(
+    run.componentRun,
+    FIXTURE_COMPONENT.id,
+    ['candidate-score', 'strategic-decision'],
+  )
+  assert.equal(
+    replay(structuredClone(claimed), wrongPosition),
+    undefined,
+  )
+  const duplicateStage = withStages(
+    run.componentRun,
+    FIXTURE_COMPONENT.id,
+    ['strategic-decision', 'strategic-decision'],
+  )
+  assert.equal(
+    replay(structuredClone(claimed), duplicateStage),
+    undefined,
+  )
 
   const extra = withStages(
     run.componentRun,

@@ -769,7 +769,7 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    '7e4d08cd88db8d6530793bcdc62134585259c3634e07fd4e3075f767afcc2602',
+    'dae252b42f352e227e94c1eb35956ca0b912cae559cf2c751eaf1760afc94536',
   )
   assert.deepEqual(Object.keys(output.trace!.componentVersions!), [
     'brain',

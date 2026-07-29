@@ -60,20 +60,28 @@ function frozenRecord(
   value: unknown,
   keys: readonly string[],
 ): Readonly<Record<string, unknown>> | undefined {
-  return value
-    && typeof value === 'object'
-    && Object.isFrozen(value)
-    ? exactOwnDataRecord(value, keys)
-    : undefined
+  try {
+    const record = exactOwnDataRecord(value, keys)
+    return record && Object.isFrozen(value)
+      ? record
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function frozenArray(
   value: unknown,
   maxLength = 65_536,
 ): readonly unknown[] | undefined {
-  return Array.isArray(value) && Object.isFrozen(value)
-    ? denseOwnDataArrayValues(value, maxLength)
-    : undefined
+  try {
+    const values = denseOwnDataArrayValues(value, maxLength)
+    return values && Object.isFrozen(value)
+      ? values
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function ref(value: unknown): value is DecisionLayerRef {
@@ -347,6 +355,20 @@ function journalAttributionKeys(
       : []))
 }
 
+function validStrategicStageShape(
+  run: DecisionComponentRun,
+  expected: ReadonlySet<string>,
+): boolean {
+  return run.policyUse.every((entry) => {
+    const key = componentIdentityKey(entry.component)
+    const indices = entry.stages.flatMap((stage, index) =>
+      stage === DECISION_LAYER_POLICY_USE_STAGE ? [index] : [])
+    return expected.has(key)
+      ? indices.length === 1 && indices[0] === 0
+      : indices.length === 0
+  })
+}
+
 function sameSet(
   left: ReadonlySet<string>,
   right: ReadonlySet<string>,
@@ -387,6 +409,11 @@ DecisionLayerAdmissionAuthority {
         const baseComponentRun = withoutStrategicAttribution(
           input.componentRun,
         )
+        const journalStrategic = journalAttributionKeys(claimed)
+        if (!validStrategicStageShape(
+          input.componentRun,
+          journalStrategic,
+        )) return undefined
         const replay = runDecisionLayers({
           order,
           request: input.request,
@@ -406,7 +433,6 @@ DecisionLayerAdmissionAuthority {
         const replayStrategic = strategicAttributionKeys(
           replay.componentRun,
         )
-        const journalStrategic = journalAttributionKeys(claimed)
         if (
           !sameSet(claimedStrategic, replayStrategic)
           || !sameSet(claimedStrategic, journalStrategic)

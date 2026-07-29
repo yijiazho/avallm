@@ -3191,8 +3191,9 @@ here.
   result without a second sanitizer. Exact replay removes only the decision-layer-owned causal
   stage, reconstructs it, and proves the applied-journal attribution union exactly matches final
   single-owned component attribution while preserving every other stage. Focused validation
-  passed all six strategic-layer cases plus the existing score and trace-admission laws. Both
-  robust and exact-quota D3 remain wholly on the preexisting legacy
+  passed all six strategic-layer cases plus the existing score and trace-admission laws; the
+  contract gate passed all 358 tests. Both robust and exact-quota D3 remain wholly on the
+  preexisting legacy
   overlay in this checkpoint; R3B2B owns the robust authority cutover and R3B3 still owns
   exact-quota quarantine plus MD-003 and MD-004.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
