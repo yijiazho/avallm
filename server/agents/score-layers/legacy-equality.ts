@@ -95,7 +95,7 @@ function boundedDiagnostic(value: Readonly<Record<string, unknown>>): string {
 function assertScoreLayerLegacyEquality(
   native: NativeScoreLayersResolvedDecisionFrame,
   legacy: ScoredDecisionFrame,
-  family: 'good' | 'evil',
+  family: 'good' | 'evil' | 'Morgana',
 ): void {
   const legacyRows = legacy.scores.map((row) => ({
     candidateId: row.candidateId,
@@ -151,4 +151,11 @@ export function assertEvilScoreLayerLegacyEquality(
   legacy: ScoredDecisionFrame,
 ): void {
   assertScoreLayerLegacyEquality(native, legacy, 'evil')
+}
+
+export function assertMorganaScoreLayerLegacyEquality(
+  native: NativeScoreLayersResolvedDecisionFrame,
+  legacy: ScoredDecisionFrame,
+): void {
+  assertScoreLayerLegacyEquality(native, legacy, 'Morgana')
 }

@@ -2,12 +2,13 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3A4 native Morgana scoring and score-authority cutover.
+**Current target phase:** Phase 7R3A4B score-authority cutover and deletion.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
-D2 terminals are complete and verified. The legacy writer remains downstream authority until
-A4 migrates Morgana, proves complete equality, and deletes the temporary equality and
-compatibility writers. Phase 7R2C4's typed `DecisionFrame`
+D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
+four native Morgana components are complete and verified. The legacy
+writer remains downstream authority until A4B proves complete equality, cuts authority over,
+and deletes the temporary equality and compatibility writers. Phase 7R2C4's typed `DecisionFrame`
 spine and behavior-preserving runtime wiring are complete. Phase 7E2A is complete and approved:
 the first production-native graph adds a reusable
 actor-target treatment read plus a private Mordred blindness objective without policy authority.
@@ -2615,14 +2616,61 @@ seed-band, two-Fail, name, and replay laws remain owned by
 `test/phase7d2-evil-policy.test.ts`; A3 consumes those laws rather than restating a weaker
 mutation matrix.
 
-A4 still owns decision authority and deletion. Native D2 shadows the legacy scorer only through
-the bounded common row, survivor, structured-choice, and component-use equality adapter; the
-legacy frame remains the downstream writer. A4 must migrate Morgana, harden absent-graph admission,
+**7R3A4A is complete.** Exact deterministic
+and seeded Morgana scorer singletons select matching terminals above D2; same-version clones,
+custom scorers, and malformed scorers remain wholly legacy. The configured seam is the sole
+catalog owner and supplies the deterministic or seeded D2 predecessor, producing the exact
+compatibility to Phase 4 to C2 to D2 to Morgana chain. The transform applies only to Morgana
+proposal and vote decisions, reads only its matching utility component, and trusts the
+kernel-admitted projection. It preserves E1B's exact forced survivor sentinel, counterfeit
+value, sole selected viable row, reason codes, seeded band selection, and forced-choice
+dominance. Quest-card policy remains outside the layer.
+
+The public counterfeit read, private counterfeit objective, and deterministic and seeded
+Morgana utility components now have canonical decoders and native conformance owners. Raw
+historical validators remain independent ingress boundaries; native decode happens after the
+kernel-owned bounded canonicalization at each generic trust transition. Admitted objective and
+utility builders and host joins
+trust their already-admitted belief, public-read, counterfeit-objective, and evil-utility inputs
+instead of re-entering raw validation. The four definitions truthfully declare native execution,
+and the four remaining 7R3A conformance exemptions are retired. Their physical location,
+legacy flat trace bindings and writes, feature-rich legacy scorer, and downstream authority are
+unchanged for A4B.
+
+The dedicated strict A4A lane uses `replayDecisionScenario` for a legal Morgana proposal and
+seeded Morgana vote. It proves filtered seat-view input, exact ordered chains and common rows,
+sole selected ID, journal reads, transitive component attribution, deterministic replay, and
+forced-survivor monotonicity. The frozen A0 deterministic proposal, seeded vote, and malformed
+fallback cells remain exact. Separate coverage proves non-Morgana delegation to D2 and exact
+singleton clone exclusion. Existing E1A and E1B suites remain the owners of the broader public
+read, counterfeit math, seeded-band, degradation, payload-bound, and private trace laws.
+
+Independent review rejected a false belief-root trust proof before approval: its original
+mutation was still accepted by the raw root validator. The corrected test uses a genuinely
+rejected root and public-read dependency, reconstructs through the admitted-only builder, and
+proves the exact admitted host join without removing the necessary seat/world semantic join.
+The final parent gate passed 1,071 API-free correctness tests and three isolated performance
+tests, with 79 strict roots and 43 pinned exemptions, architecture fitness, the complete frozen
+score oracle, privacy and replay checks, and clean diff checks. The screenshot manifest remains
+pre-existing stale with no client diff in A4A, so it was not rewritten.
+
+**A4B is the exact remaining authority/deletion debt.** It must complete the whole-family
+equality audit, harden absent-graph admission while deleting flat projections, give C2's
+deterministic base its named typed contract, make the native staged frame the sole downstream
+score/selection writer, and remove the legacy good, evil, and Morgana scorer writers plus the
+temporary equality dispatch. It must also extract or delete transitional component definitions
+and trace bindings only with their flat projections, preserve historical read compatibility,
+and prove frozen decisions, prompts, replay, attribution, privacy, and baseline modes before
+claiming the 7R3A exit gate.
+
+A4B still owns decision authority and deletion. Native D2 and Morgana shadow the legacy scorer
+only through the bounded common row, survivor, structured-choice, and component-use equality
+adapter; the legacy frame remains the downstream writer. A4B must harden absent-graph admission,
 give C2's deterministic base its named typed contract, then remove the legacy good/evil/Morgana
 score writers, temporary equality dispatch, transitional flat projections and bindings, and
 physical component definitions only after the complete equality gate passes.
 
-The final parent gate passed 1,064 API-free correctness tests and three isolated performance
+The A3 final parent gate passed 1,064 API-free correctness tests and three isolated performance
 tests, with 78 strict test roots, architecture fitness, and clean diff checks. A fresh final
 review approved the exact corrected tree after rejecting and correcting false conformance
 certification and repeated validation of an already admitted identity root.

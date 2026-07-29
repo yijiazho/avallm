@@ -17,8 +17,14 @@ import {
   PRIVATE_BELIEF_INPUT,
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
+  PRIVATE_FORCED_POLICY_INPUT,
+  PRIVATE_DETERMINISTIC_SEED_INPUT,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
 } from '../server/agents/components/legacy-role-adapters.ts'
 import {
   buildPrivateActorTargetTreatmentRead,
@@ -82,12 +88,41 @@ import {
   MAX_ROLE_OBJECTIVE_JSON_BYTES,
 } from '../server/agents/analysis/role-objective-types.ts'
 import {
+  buildAdmittedMorganaCounterfeitObjective,
+  buildMorganaCounterfeitObjective,
+  buildPublicCounterfeitMerlinRead,
+  decodeCanonicalPrivateMorganaCounterfeitObjective,
+  decodeCanonicalPublicCounterfeitMerlinRead,
+  validateAdmittedPrivateMorganaCounterfeitHostJoin,
+  validatePrivateMorganaCounterfeitObjective,
+  validatePublicCounterfeitMerlinRead,
+} from '../server/agents/analysis/morgana-counterfeit.ts'
+import {
+  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+} from '../server/agents/analysis/morgana-counterfeit-types.ts'
+import {
+  buildAdmittedMorganaRoleUtilityProjection,
+  buildMorganaRoleUtilityProjection,
+  decodeCanonicalPrivateMorganaRoleUtilityProjection,
+  MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
+  validateAdmittedPrivateMorganaRoleUtilityHostJoin,
+  validatePrivateMorganaRoleUtilityProjection,
+} from '../server/agents/analysis/morgana-role-utility.ts'
+import {
   projectPublicRecord,
 } from '../server/agents/communication/public-record.ts'
+import {
+  applyForcedPolicy,
+} from '../server/agents/policy/forced.ts'
+import {
+  analyzeSituation,
+} from '../server/agents/analysis/situation.ts'
 import {
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
+import { createGame } from '../server/engine/game.ts'
+import { viewFor } from '../server/engine/view.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import {
@@ -113,13 +148,13 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'mordred-blindness-objective':
     { proof: 'mordred-native-family' },
   'morgana-counterfeit-public-read':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'morgana-native-family' },
   'morgana-counterfeit-objective':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'morgana-native-family' },
   'morgana-role-utility-seeded':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'morgana-native-family' },
   'morgana-role-utility':
-    { legacyExemption: '7R3A native retirement pending' },
+    { proof: 'morgana-native-family' },
 })
 
 const NATIVE_PROOF_OWNERS = new Map([
@@ -129,6 +164,10 @@ const NATIVE_PROOF_OWNERS = new Map([
   [GOOD_ROLE_UTILITY_COMPONENT.id, 'good-role-native-family'],
   [EVIL_ROLE_OBJECTIVE_COMPONENT.id, 'evil-role-native-family'],
   [EVIL_ROLE_UTILITY_COMPONENT.id, 'evil-role-native-family'],
+  [MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id, 'morgana-native-family'],
+  [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id, 'morgana-native-family'],
+  [MORGANA_ROLE_UTILITY_COMPONENT.id, 'morgana-native-family'],
+  [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id, 'morgana-native-family'],
 ] as const)
 
 function assertProofCoverage(
@@ -252,6 +291,98 @@ function evilNativeFixture() {
   }
 }
 
+function morganaNativeFixture() {
+  let game: ReturnType<typeof createGame> | undefined
+  for (let attempt = 0; attempt < 1_000; attempt++) {
+    const candidate = createGame({
+      seed: `phase7r3a4-conformance-${attempt}`,
+      playerCount: 9,
+    })
+    if (candidate.players[candidate.leaderSeat].role === 'morgana') {
+      game = candidate
+      break
+    }
+  }
+  assert.ok(game)
+  const view = viewFor(game, game.leaderSeat)
+  assert.equal(view.role, 'morgana')
+  const req = {
+    kind: 'propose' as const,
+    seat: view.seat,
+    round: view.round,
+    proposalNum: view.proposalNum,
+  }
+  const record = projectPublicRecord(view)
+  const observer = observePublicRecord(record)
+  const belief = exactBelief(view)
+  const identity = projectJointIdentity(belief, {
+    roleQueries: [],
+    hiddenTeam: true,
+  })
+  const candidates = legalCandidates(req, view)
+  const evilObjective = buildEvilRoleObjectiveSnapshot({
+    req,
+    view,
+    identity,
+    observer,
+    candidates,
+  })
+  const evilUtility = buildEvilRoleUtilityProjection({
+    req,
+    view,
+    objective: evilObjective,
+    candidates,
+  })
+  const publicRead = buildPublicCounterfeitMerlinRead(record)
+  const objective = buildMorganaCounterfeitObjective({
+    req,
+    view,
+    belief,
+    publicRead,
+    candidates,
+  })
+  const forced = applyForcedPolicy(
+    req,
+    view,
+    analyzeSituation(view, { belief }),
+    candidates,
+  )
+  const deterministicSeed = game.seed
+  const utility = buildMorganaRoleUtilityProjection({
+    req,
+    view,
+    candidates,
+    forced,
+    counterfeitObjective: objective,
+    evilRoleUtility: evilUtility,
+    selectionMode: 'top-counterfeit-within-d2-band',
+    deterministicSeed,
+  })
+  const seededUtility = buildMorganaRoleUtilityProjection({
+    req,
+    view,
+    candidates,
+    forced,
+    counterfeitObjective: objective,
+    evilRoleUtility: evilUtility,
+    selectionMode: 'seeded-near-equal-vote-within-d2-band',
+    deterministicSeed,
+  })
+  return {
+    req,
+    view,
+    observer,
+    belief,
+    identity,
+    forced,
+    deterministicSeed,
+    publicRead,
+    objective,
+    utility,
+    seededUtility,
+  }
+}
+
 test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
   const source = { z: [{ b: 2, a: 1 }], a: true }
   const result = canonicalizeJson(source, 1_000)
@@ -323,6 +454,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   const { treatment, objective } = nativeFixture()
   const good = goodNativeFixture()
   const evil = evilNativeFixture()
+  const morgana = morganaNativeFixture()
   assertNativeCodecContract({
     label: ACTOR_TARGET_TREATMENT_COMPONENT.id,
     value: treatment,
@@ -371,6 +503,35 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
     decode: decodeCanonicalPrivateEvilRoleUtilityProjection,
     invalidValue: { ...evil.utility, role: 'servant' },
   })
+  assertNativeCodecContract({
+    label: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id,
+    value: morgana.publicRead,
+    maxBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+    validate: validatePublicCounterfeitMerlinRead,
+    decode: decodeCanonicalPublicCounterfeitMerlinRead,
+    invalidValue: { ...morgana.publicRead, playerCount: 4 },
+  })
+  assertNativeCodecContract({
+    label: MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
+    value: morgana.objective,
+    maxBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+    validate: validatePrivateMorganaCounterfeitObjective,
+    decode: decodeCanonicalPrivateMorganaCounterfeitObjective,
+    invalidValue: { ...morgana.objective, role: 'merlin' },
+  })
+  for (const [token, utility] of [
+    [MORGANA_ROLE_UTILITY_COMPONENT, morgana.utility],
+    [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT, morgana.seededUtility],
+  ] as const) {
+    assertNativeCodecContract({
+      label: token.id,
+      value: utility,
+      maxBytes: MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
+      validate: validatePrivateMorganaRoleUtilityProjection,
+      decode: decodeCanonicalPrivateMorganaRoleUtilityProjection,
+      invalidValue: { ...utility, role: 'merlin' },
+    })
+  }
 })
 
 test('native good-role family conforms through execution and host join', async () => {
@@ -455,6 +616,81 @@ test('native evil-role family conforms through execution and host join', async (
   })
 })
 
+test('native Morgana family conforms through execution and host join', async () => {
+  const morgana = morganaNativeFixture()
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [
+      MORGANA_ROLE_UTILITY_COMPONENT,
+      MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+    ],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  const entries = [
+    {
+      token: EVIL_ROLE_OBJECTIVE_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: EVIL_ROLE_UTILITY_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+    {
+      token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'admitted',
+    },
+    {
+      token: MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+    {
+      token: MORGANA_ROLE_UTILITY_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'dependency-unavailable',
+    },
+  ]
+  assertProofCoverage(
+    'morgana-native-family',
+    entries.map((entry) => entry.token).filter((token) =>
+      token.id.startsWith('morgana-')),
+  )
+  await assertNativeExecutionContract({
+    label: 'Morgana native family',
+    registry,
+    request: morgana.req,
+    view: morgana.view,
+    brain,
+    hostInputs: [
+      { input: PRIVATE_IDENTITY_INPUT, value: morgana.identity },
+      { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: morgana.observer },
+      { input: PRIVATE_BELIEF_INPUT, value: morgana.belief },
+      { input: PRIVATE_FORCED_POLICY_INPUT, value: morgana.forced },
+      {
+        input: PRIVATE_DETERMINISTIC_SEED_INPUT,
+        value: morgana.deterministicSeed,
+      },
+    ],
+    entries,
+  })
+})
+
 test('admitted utility join trusts its already-admitted objective dependency', () => {
   const good = goodNativeFixture()
   const invalidAtRawBoundary = {
@@ -528,6 +764,69 @@ test('admitted evil joins trust kernel-admitted roots and dependencies', () => {
       alternativeObjective: evil.alternativeObjective,
     },
   ), true)
+})
+
+test('admitted Morgana objective join trusts admitted roots and dependency', () => {
+  const morgana = morganaNativeFixture()
+  const admittedBelief = {
+    ...morgana.belief,
+    modelVersion: '',
+  } as unknown as typeof morgana.belief
+  const admittedPublicRead = {
+    ...morgana.publicRead,
+    version: 'already-admitted-public-read',
+  } as unknown as typeof morgana.publicRead
+  assert.throws(() => projectJointIdentity(admittedBelief, {
+    roleQueries: [],
+    hiddenTeam: true,
+  }))
+  assert.equal(validatePublicCounterfeitMerlinRead(admittedPublicRead), false)
+  const input = {
+    req: morgana.req,
+    view: morgana.view,
+    belief: admittedBelief,
+    publicRead: admittedPublicRead,
+    candidates: legalCandidates(morgana.req, morgana.view),
+  }
+  const payload = buildAdmittedMorganaCounterfeitObjective(input)
+  assert.equal(validatePrivateMorganaCounterfeitObjective(payload), false)
+  assert.equal(validateAdmittedPrivateMorganaCounterfeitHostJoin(
+    payload,
+    input,
+  ), true)
+})
+
+test('admitted Morgana utility join trusts both admitted dependencies', () => {
+  const morgana = morganaNativeFixture()
+  const objective = {
+    ...morgana.objective,
+    version: 'already-admitted-counterfeit-objective',
+  } as unknown as typeof morgana.objective
+  const evilRoleUtility = {
+    ...morgana.utility.evilRoleUtility,
+    version: 'already-admitted-evil-utility',
+  } as unknown as typeof morgana.utility.evilRoleUtility
+  assert.equal(validatePrivateMorganaCounterfeitObjective(objective), false)
+  assert.equal(validatePrivateEvilRoleUtilityProjection(evilRoleUtility), false)
+  const input = {
+    req: morgana.req,
+    view: morgana.view,
+    candidates: legalCandidates(morgana.req, morgana.view),
+    forced: morgana.forced,
+    counterfeitObjective: objective,
+    evilRoleUtility,
+    selectionMode: 'top-counterfeit-within-d2-band' as const,
+    deterministicSeed: morgana.deterministicSeed,
+  }
+  const payload = buildAdmittedMorganaRoleUtilityProjection(input)
+  assert.equal(
+    validatePrivateMorganaRoleUtilityProjection(payload),
+    false,
+  )
+  assert.equal(
+    validateAdmittedPrivateMorganaRoleUtilityHostJoin(payload, input),
+    true,
+  )
 })
 
 test('production registry has executable proof for every native token', () => {

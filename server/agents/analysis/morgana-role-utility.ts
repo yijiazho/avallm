@@ -15,11 +15,17 @@ import {
   compareCandidateIds,
 } from '../policy/candidates.ts'
 import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
+import {
+  decodeCanonicalPrivateEvilRoleUtilityProjection,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   validatePrivateEvilRoleUtilityProjection,
   type PrivateEvilRoleUtilityProjection,
 } from './evil-role-utility.ts'
 import {
+  decodeCanonicalPrivateMorganaCounterfeitObjective,
   validatePrivateMorganaCounterfeitObjective,
 } from './morgana-counterfeit.ts'
 import {
@@ -98,46 +104,6 @@ export interface PrivateMorganaRoleUtilityProjection {
 const plainRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  seen.delete(value)
-  return true
-}
-
 const exactKeys = (
   value: Record<string, unknown>,
   keys: readonly string[],
@@ -215,7 +181,7 @@ function sameRequest(
   )
 }
 
-export function buildMorganaRoleUtilityProjection(input: {
+interface MorganaRoleUtilityProjectionInput {
   req: DecisionRequest
   view: PlayerView
   candidates: readonly PolicyCandidate[]
@@ -224,7 +190,12 @@ export function buildMorganaRoleUtilityProjection(input: {
   evilRoleUtility: PrivateEvilRoleUtilityProjection
   selectionMode: MorganaRoleSelectionMode
   deterministicSeed: string
-}): PrivateMorganaRoleUtilityProjection {
+}
+
+function buildMorganaRoleUtilityProjectionInternal(
+  input: MorganaRoleUtilityProjectionInput,
+  admittedDependencies: boolean,
+): PrivateMorganaRoleUtilityProjection {
   const {
     req,
     view,
@@ -240,8 +211,13 @@ export function buildMorganaRoleUtilityProjection(input: {
   }
   if (
     !sameRequest(counterfeitObjective, evilRoleUtility, req, view)
-    || !validatePrivateMorganaCounterfeitObjective(counterfeitObjective)
-    || !validatePrivateEvilRoleUtilityProjection(evilRoleUtility)
+    || (
+      !admittedDependencies
+      && (
+        !validatePrivateMorganaCounterfeitObjective(counterfeitObjective)
+        || !validatePrivateEvilRoleUtilityProjection(evilRoleUtility)
+      )
+    )
     || candidates.length === 0
     || candidates.length > MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS
     || forced.allowedCandidateIds.length === 0
@@ -424,13 +400,20 @@ export function buildMorganaRoleUtilityProjection(input: {
     evilRoleUtility: structuredClone(evilRoleUtility),
     candidates: rows,
   }
-  if (
-    Buffer.byteLength(JSON.stringify(projection), 'utf8')
-      > MAX_MORGANA_ROLE_UTILITY_JSON_BYTES
-  ) {
-    throw new Error('Morgana role utility exceeds JSON bound')
-  }
   return projection
+}
+
+export function buildMorganaRoleUtilityProjection(
+  input: MorganaRoleUtilityProjectionInput,
+): PrivateMorganaRoleUtilityProjection {
+  return buildMorganaRoleUtilityProjectionInternal(input, false)
+}
+
+/** Build from dependencies and roots already admitted by the kernel. */
+export function buildAdmittedMorganaRoleUtilityProjection(
+  input: MorganaRoleUtilityProjectionInput,
+): PrivateMorganaRoleUtilityProjection {
+  return buildMorganaRoleUtilityProjectionInternal(input, true)
 }
 
 const safeInteger = (value: unknown): value is number =>
@@ -440,15 +423,18 @@ const seatArray = (value: unknown): value is readonly Seat[] =>
   Array.isArray(value)
   && value.every((seat) => safeInteger(seat) && seat >= 0)
 
-export function validatePrivateMorganaRoleUtilityProjection(
+function validatePrivateMorganaRoleUtilityProjectionShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateMorganaRoleUtilityProjection {
   try {
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_MORGANA_ROLE_UTILITY_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    value = canonical.payload
     if (
-      !plainDetachedData(value)
-      || !plainRecord(value)
-      || Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_MORGANA_ROLE_UTILITY_JSON_BYTES
+      !plainRecord(value)
       || !exactKeys(value, [
         'version', 'role', 'source', 'request', 'selectionMode',
         'd2ViableBand', 'seededVoteCounterfeitBand', 'maxD2RoleValue',
@@ -509,23 +495,28 @@ export function validatePrivateMorganaRoleUtilityProjection(
         && value.seedBucket !== 1
       )
       || typeof value.selectedCandidateId !== 'string'
-      || !validatePrivateMorganaCounterfeitObjective(
-        value.counterfeitObjective,
-      )
-      || !validatePrivateEvilRoleUtilityProjection(value.evilRoleUtility)
       || !Array.isArray(value.candidates)
       || Object.keys(value.candidates).length !== value.candidates.length
       || value.candidates.length === 0
       || value.candidates.length > MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS
     ) return false
+    const counterfeitObjective =
+      decodeCanonicalPrivateMorganaCounterfeitObjective(
+        value.counterfeitObjective as CanonicalJsonValue,
+      )
+    const evilRoleUtility =
+      decodeCanonicalPrivateEvilRoleUtilityProjection(
+        value.evilRoleUtility as CanonicalJsonValue,
+      )
+    if (!counterfeitObjective || !evilRoleUtility) return false
     const d2ById = new Map(
-      value.evilRoleUtility.assessments.map((assessment) => [
+      evilRoleUtility.assessments.map((assessment) => [
         assessment.candidateId,
         assessment,
       ]),
     )
     const counterfeitById = new Map(
-      value.counterfeitObjective.assessments.map((assessment) => [
+      counterfeitObjective.assessments.map((assessment) => [
         assessment.candidate.candidateId,
         assessment,
       ]),
@@ -534,35 +525,35 @@ export function validatePrivateMorganaRoleUtilityProjection(
       ? value.request.currentTeam
       : undefined
     if (
-      value.counterfeitObjective.role !== 'morgana'
-      || value.evilRoleUtility.role !== 'morgana'
+      counterfeitObjective.role !== 'morgana'
+      || evilRoleUtility.role !== 'morgana'
       || value.source.beliefModelVersion
-        !== value.counterfeitObjective.source.beliefModelVersion
+        !== counterfeitObjective.source.beliefModelVersion
       || value.source.beliefModelVersion
-        !== value.evilRoleUtility.source.beliefModelVersion
+        !== evilRoleUtility.source.beliefModelVersion
       || value.source.beliefThroughSeq
-        !== value.counterfeitObjective.source.beliefThroughSeq
+        !== counterfeitObjective.source.beliefThroughSeq
       || value.source.beliefThroughSeq
-        !== value.evilRoleUtility.source.beliefThroughSeq
+        !== evilRoleUtility.source.beliefThroughSeq
       || value.source.playerCount
-        !== value.counterfeitObjective.source.playerCount
+        !== counterfeitObjective.source.playerCount
       || value.source.playerCount
-        !== value.evilRoleUtility.source.playerCount
-      || value.request.seat !== value.counterfeitObjective.request.seat
-      || value.request.seat !== value.evilRoleUtility.request.seat
-      || value.request.kind !== value.counterfeitObjective.request.kind
-      || value.request.kind !== value.evilRoleUtility.request.kind
-      || value.request.round !== value.counterfeitObjective.request.round
-      || value.request.round !== value.evilRoleUtility.request.round
+        !== evilRoleUtility.source.playerCount
+      || value.request.seat !== counterfeitObjective.request.seat
+      || value.request.seat !== evilRoleUtility.request.seat
+      || value.request.kind !== counterfeitObjective.request.kind
+      || value.request.kind !== evilRoleUtility.request.kind
+      || value.request.round !== counterfeitObjective.request.round
+      || value.request.round !== evilRoleUtility.request.round
       || value.request.proposalNum
-        !== value.counterfeitObjective.request.proposalNum
+        !== counterfeitObjective.request.proposalNum
       || value.request.proposalNum
-        !== value.evilRoleUtility.request.proposalNum
+        !== evilRoleUtility.request.proposalNum
       || (
         value.request.kind === 'vote'
         && !sameTeam(
           requestTeam,
-          value.counterfeitObjective.request.currentTeam,
+          counterfeitObjective.request.currentTeam,
         )
       )
       || d2ById.size !== value.candidates.length
@@ -667,8 +658,9 @@ export function validatePrivateMorganaRoleUtilityProjection(
               value.seedBucket === 0 ? 'approve' : 'reject'
             }`
       )
+    const selectedCandidateId = value.selectedCandidateId
     const selected = value.candidates.find(
-      (candidate) => candidate.candidateId === value.selectedCandidateId,
+      (candidate) => candidate.candidateId === selectedCandidateId,
     )
     return !!selected
       && selected.inD2ViableBand
@@ -683,9 +675,24 @@ export function validatePrivateMorganaRoleUtilityProjection(
   }
 }
 
+export function validatePrivateMorganaRoleUtilityProjection(
+  value: unknown,
+): value is PrivateMorganaRoleUtilityProjection {
+  return validatePrivateMorganaRoleUtilityProjectionShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateMorganaRoleUtilityProjection(
+  value: CanonicalJsonValue,
+): PrivateMorganaRoleUtilityProjection | undefined {
+  return validatePrivateMorganaRoleUtilityProjectionShape(value, false)
+    ? value as PrivateMorganaRoleUtilityProjection
+    : undefined
+}
+
 export function validatePrivateMorganaRoleUtilityHostJoin(
   value: unknown,
-  input: Parameters<typeof buildMorganaRoleUtilityProjection>[0],
+  input: MorganaRoleUtilityProjectionInput,
 ): value is PrivateMorganaRoleUtilityProjection {
   if (
     !validatePrivateMorganaRoleUtilityProjection(value)
@@ -698,6 +705,20 @@ export function validatePrivateMorganaRoleUtilityHostJoin(
     return isDeepStrictEqual(
       value,
       buildMorganaRoleUtilityProjection(input),
+    )
+  } catch {
+    return false
+  }
+}
+
+export function validateAdmittedPrivateMorganaRoleUtilityHostJoin(
+  value: PrivateMorganaRoleUtilityProjection,
+  input: MorganaRoleUtilityProjectionInput,
+): boolean {
+  try {
+    return isDeepStrictEqual(
+      value,
+      buildMorganaRoleUtilityProjectionInternal(input, true),
     )
   } catch {
     return false

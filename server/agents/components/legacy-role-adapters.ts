@@ -73,12 +73,12 @@ import {
   exactBelief,
 } from '../belief/exact.ts'
 import {
+  buildAdmittedMorganaCounterfeitObjective,
   buildPublicCounterfeitMerlinRead,
-  buildMorganaCounterfeitObjective,
-  validatePrivateMorganaCounterfeitHostJoin,
-  validatePrivateMorganaCounterfeitObjective,
-  validatePublicCounterfeitMerlinRead,
-  validatePublicCounterfeitMerlinReadHostJoin,
+  decodeCanonicalPrivateMorganaCounterfeitObjective,
+  decodeCanonicalPublicCounterfeitMerlinRead,
+  validateAdmittedPrivateMorganaCounterfeitHostJoin,
+  validateAdmittedPublicCounterfeitMerlinReadHostJoin,
 } from '../analysis/morgana-counterfeit.ts'
 import {
   MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
@@ -89,7 +89,8 @@ import {
   type PublicCounterfeitMerlinReadSnapshot,
 } from '../analysis/morgana-counterfeit-types.ts'
 import {
-  buildMorganaRoleUtilityProjection,
+  buildAdmittedMorganaRoleUtilityProjection,
+  decodeCanonicalPrivateMorganaRoleUtilityProjection,
   MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -97,8 +98,7 @@ import {
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   type MorganaRoleSelectionMode,
   type PrivateMorganaRoleUtilityProjection,
-  validatePrivateMorganaRoleUtilityHostJoin,
-  validatePrivateMorganaRoleUtilityProjection,
+  validateAdmittedPrivateMorganaRoleUtilityHostJoin,
 } from '../analysis/morgana-role-utility.ts'
 import {
   candidateTeams,
@@ -904,7 +904,7 @@ export function legacyRoleAdapterDefinitions(
     PublicCounterfeitMerlinReadSnapshot
   > = {
     token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [],
     requiredHostInputs: [],
     hostRequirements: [],
@@ -933,13 +933,14 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePublicCounterfeitMerlinRead(payload)
-        ? admitted(payload, true)
+      const decoded = decodeCanonicalPublicCounterfeitMerlinRead(payload)
+      return decoded
+        ? admitted(decoded, true)
         : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
     },
     admitHost({ payload, host }) {
       return host.privacy === 'public'
-        && validatePublicCounterfeitMerlinReadHostJoin(
+        && validateAdmittedPublicCounterfeitMerlinReadHostJoin(
           payload,
           host.publicRecord,
         )
@@ -952,7 +953,7 @@ export function legacyRoleAdapterDefinitions(
     PrivateMorganaCounterfeitObjective
   > = {
     token: MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT],
     requiredHostInputs: [
       PRIVATE_BELIEF_INPUT,
@@ -972,7 +973,7 @@ export function legacyRoleAdapterDefinitions(
       if (context.privacy !== 'private') {
         throw new Error('Morgana adapter received public context')
       }
-      const payload = buildMorganaCounterfeitObjective({
+      const payload = buildAdmittedMorganaCounterfeitObjective({
         req: context.request,
         view: context.view,
         belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
@@ -990,10 +991,12 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateMorganaCounterfeitObjective(payload)
+      const decoded =
+        decodeCanonicalPrivateMorganaCounterfeitObjective(payload)
+      return decoded
         ? admitted(
-            payload,
-            payload.source.beliefQuality === 'constraints-only',
+            decoded,
+            decoded.source.beliefQuality === 'constraints-only',
           )
         : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
     },
@@ -1002,7 +1005,7 @@ export function legacyRoleAdapterDefinitions(
         return rejected(MORGANA_COUNTERFEIT_DEGRADATION)
       }
       const belief = host.hostInputs.require(PRIVATE_BELIEF_INPUT)
-      return validatePrivateMorganaCounterfeitHostJoin(payload, {
+      return validateAdmittedPrivateMorganaCounterfeitHostJoin(payload, {
         req: host.request,
         view: host.view,
         belief,
@@ -1021,7 +1024,7 @@ export function legacyRoleAdapterDefinitions(
     selectionMode: MorganaRoleSelectionMode,
   ): DecisionComponentDefinition<PrivateMorganaRoleUtilityProjection> => ({
     token,
-    source: 'legacy-adapter',
+    source: 'native',
     dependencies: [
       EVIL_ROLE_UTILITY_COMPONENT,
       MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
@@ -1049,7 +1052,7 @@ export function legacyRoleAdapterDefinitions(
       if (context.privacy !== 'private') {
         throw new Error('Morgana utility adapter received public context')
       }
-      const payload = buildMorganaRoleUtilityProjection({
+      const payload = buildAdmittedMorganaRoleUtilityProjection({
         req: context.request,
         view: context.view,
         candidates: legalCandidates(context.request, context.view),
@@ -1071,10 +1074,12 @@ export function legacyRoleAdapterDefinitions(
       }
     },
     validateDetached(payload) {
-      return validatePrivateMorganaRoleUtilityProjection(payload)
+      const decoded =
+        decodeCanonicalPrivateMorganaRoleUtilityProjection(payload)
+      return decoded
         ? admitted(
-            payload,
-            payload.counterfeitObjective.source.beliefQuality
+            decoded,
+            decoded.counterfeitObjective.source.beliefQuality
               === 'constraints-only',
           )
         : rejected(MORGANA_ROLE_UTILITY_DEGRADATION)
@@ -1086,7 +1091,7 @@ export function legacyRoleAdapterDefinitions(
       const objective = host.dependencies.require(
         MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
       )
-      return validatePrivateMorganaRoleUtilityHostJoin(payload, {
+      return validateAdmittedPrivateMorganaRoleUtilityHostJoin(payload, {
         req: host.request,
         view: host.view,
         candidates: legalCandidates(host.request, host.view),

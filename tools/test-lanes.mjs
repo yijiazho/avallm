@@ -92,6 +92,7 @@ const LANES = Object.freeze({
     'phase7r3a1-score-layer.test.ts',
     'phase7r3a2-good-score-layers.test.ts',
     'phase7r3a3-evil-score-layers.test.ts',
+    'phase7r3a4-morgana-score-layers.test.ts',
   ]),
   eval: Object.freeze([
     'architecture-bank.test.ts',

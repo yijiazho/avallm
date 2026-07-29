@@ -30,6 +30,10 @@ import { projectPublicRecord } from '../communication/public-record.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import { candidateIdForDecision } from '../policy/candidates.ts'
 import {
+  canonicalizeJson,
+  type CanonicalJsonValue,
+} from '../components/canonical-json.ts'
+import {
   MAX_MORGANA_COUNTERFEIT_ASSESSMENTS,
   MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
@@ -44,45 +48,6 @@ import {
 
 const plainRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
-}
 
 const denseArray = (value: unknown): value is unknown[] =>
   Array.isArray(value)
@@ -419,13 +384,46 @@ function validateBeliefForMorgana(
   }
 }
 
-export function buildMorganaCounterfeitObjective(input: {
+/**
+ * Bind a kernel-admitted belief root to this exact seat view without
+ * repeating the root codec's structural and probability validation.
+ */
+function validateAdmittedBeliefForMorgana(
+  belief: BeliefSnapshot,
+  view: PlayerView,
+): void {
+  const cast = canonicalRoleMultiset(view.rolesInPlay)
+  if (
+    belief.throughSeq !== visibleEventCursor(view)
+    || belief.worlds.some((weighted) => {
+      const roles = weighted.world.roleBySeat
+      return (
+        roles[view.seat] !== 'morgana'
+        || !isDeepStrictEqual(canonicalRoleMultiset(roles), cast)
+        || !worldSatisfiesView(
+          view,
+          weighted.world,
+          { questRecord: 'all' },
+        )
+      )
+    })
+  ) {
+    throw new Error('counterfeit objective requires Morgana-bound joint worlds')
+  }
+}
+
+interface MorganaCounterfeitObjectiveInput {
   req: DecisionRequest
   view: PlayerView
   belief: BeliefSnapshot
   publicRead: PublicCounterfeitMerlinReadSnapshot
   candidates: readonly PolicyCandidate[]
-}): PrivateMorganaCounterfeitObjective {
+}
+
+function buildMorganaCounterfeitObjectiveInternal(
+  input: MorganaCounterfeitObjectiveInput,
+  admittedInputs: boolean,
+): PrivateMorganaCounterfeitObjective {
   const { req, view, belief, publicRead, candidates } = input
   if (
     view.role !== 'morgana'
@@ -438,11 +436,20 @@ export function buildMorganaCounterfeitObjective(input: {
   ) {
     throw new Error('counterfeit objective is inapplicable to this decision')
   }
-  validateBeliefForMorgana(belief, view)
+  if (admittedInputs) {
+    validateAdmittedBeliefForMorgana(belief, view)
+  } else {
+    validateBeliefForMorgana(belief, view)
+  }
   const record = projectPublicRecord(view)
   const observer = observePublicRecord(record)
-  const authoritativeRead = buildPublicCounterfeitMerlinRead(record, observer)
-  if (!isDeepStrictEqual(publicRead, authoritativeRead)) {
+  if (
+    !admittedInputs
+    && !isDeepStrictEqual(
+      publicRead,
+      buildPublicCounterfeitMerlinRead(record, observer),
+    )
+  ) {
     throw new Error('counterfeit objective received inconsistent public read')
   }
   const failsRequired = view.quests[view.round - 1]?.failsRequired
@@ -574,13 +581,20 @@ export function buildMorganaCounterfeitObjective(input: {
     actingSeatRead: structuredClone(read),
     assessments,
   }
-  if (
-    Buffer.byteLength(JSON.stringify(snapshot), 'utf8')
-      > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
-  ) {
-    throw new Error('counterfeit objective exceeds its private payload bound')
-  }
   return snapshot
+}
+
+export function buildMorganaCounterfeitObjective(
+  input: MorganaCounterfeitObjectiveInput,
+): PrivateMorganaCounterfeitObjective {
+  return buildMorganaCounterfeitObjectiveInternal(input, false)
+}
+
+/** Build after the kernel has admitted the belief and public-read inputs. */
+export function buildAdmittedMorganaCounterfeitObjective(
+  input: MorganaCounterfeitObjectiveInput,
+): PrivateMorganaCounterfeitObjective {
+  return buildMorganaCounterfeitObjectiveInternal(input, true)
 }
 
 function validFraction(value: unknown): value is CounterfeitObservationFraction {
@@ -669,13 +683,18 @@ function validReadRow(
   )
 }
 
-export function validatePublicCounterfeitMerlinRead(
+function validatePublicCounterfeitMerlinReadShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PublicCounterfeitMerlinReadSnapshot {
   try {
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_MORGANA_COUNTERFEIT_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    value = canonical.payload
     if (
-      !plainDetachedData(value)
-      || !plainRecord(value)
+      !plainRecord(value)
       || !exactKeys(value, [
         'version',
         'observerModelVersion',
@@ -696,10 +715,6 @@ export function validatePublicCounterfeitMerlinRead(
     ) return false
     const playerCount = value.playerCount as number
     const denominator = value.feasibleWorldCount as number
-    if (
-      Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
-    ) return false
     const rows = value.seats as unknown[]
     if (
       rows.some(
@@ -728,6 +743,21 @@ export function validatePublicCounterfeitMerlinRead(
   } catch {
     return false
   }
+}
+
+export function validatePublicCounterfeitMerlinRead(
+  value: unknown,
+): value is PublicCounterfeitMerlinReadSnapshot {
+  return validatePublicCounterfeitMerlinReadShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPublicCounterfeitMerlinRead(
+  value: CanonicalJsonValue,
+): PublicCounterfeitMerlinReadSnapshot | undefined {
+  return validatePublicCounterfeitMerlinReadShape(value, false)
+    ? value as PublicCounterfeitMerlinReadSnapshot
+    : undefined
 }
 
 function validDistribution(value: unknown, teamSize: number): value is number[] {
@@ -771,15 +801,18 @@ function canonicalRoles(
   }
 }
 
-export function validatePrivateMorganaCounterfeitObjective(
+function validatePrivateMorganaCounterfeitObjectiveShape(
   value: unknown,
+  hostileBoundary: boolean,
 ): value is PrivateMorganaCounterfeitObjective {
   try {
+    const canonical = hostileBoundary
+      ? canonicalizeJson(value, MAX_MORGANA_COUNTERFEIT_JSON_BYTES)
+      : { ok: true as const, payload: value }
+    if (!canonical.ok) return false
+    value = canonical.payload
     if (
-      !plainDetachedData(value)
-      || !plainRecord(value)
-      || Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_MORGANA_COUNTERFEIT_JSON_BYTES
+      !plainRecord(value)
       || !exactKeys(value, [
         'version',
         'role',
@@ -1020,12 +1053,34 @@ export function validatePrivateMorganaCounterfeitObjective(
   }
 }
 
+export function validatePrivateMorganaCounterfeitObjective(
+  value: unknown,
+): value is PrivateMorganaCounterfeitObjective {
+  return validatePrivateMorganaCounterfeitObjectiveShape(value, true)
+}
+
+/** Decode after the component kernel's one canonical JSON boundary. */
+export function decodeCanonicalPrivateMorganaCounterfeitObjective(
+  value: CanonicalJsonValue,
+): PrivateMorganaCounterfeitObjective | undefined {
+  return validatePrivateMorganaCounterfeitObjectiveShape(value, false)
+    ? value as PrivateMorganaCounterfeitObjective
+    : undefined
+}
+
 export function validatePublicCounterfeitMerlinReadHostJoin(
   value: unknown,
   record: PublicRecord,
 ): value is PublicCounterfeitMerlinReadSnapshot {
   return validatePublicCounterfeitMerlinRead(value)
-    && isDeepStrictEqual(value, buildPublicCounterfeitMerlinRead(record))
+    && validateAdmittedPublicCounterfeitMerlinReadHostJoin(value, record)
+}
+
+export function validateAdmittedPublicCounterfeitMerlinReadHostJoin(
+  value: PublicCounterfeitMerlinReadSnapshot,
+  record: PublicRecord,
+): boolean {
+  return isDeepStrictEqual(value, buildPublicCounterfeitMerlinRead(record))
 }
 
 export function validatePrivateMorganaCounterfeitHostJoin(
@@ -1044,4 +1099,18 @@ export function validatePrivateMorganaCounterfeitHostJoin(
       projectPublicRecord(input.view),
     )
     && isDeepStrictEqual(value, buildMorganaCounterfeitObjective(input))
+}
+
+export function validateAdmittedPrivateMorganaCounterfeitHostJoin(
+  value: PrivateMorganaCounterfeitObjective,
+  input: MorganaCounterfeitObjectiveInput,
+): boolean {
+  try {
+    return isDeepStrictEqual(
+      value,
+      buildMorganaCounterfeitObjectiveInternal(input, true),
+    )
+  } catch {
+    return false
+  }
 }

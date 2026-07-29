@@ -19,13 +19,20 @@ import {
   goodScoreLayersApplyToDecision,
 } from './good.ts'
 import {
+  EVIL_ROLE_SCORE_LAYER,
+  SEEDED_EVIL_ROLE_SCORE_LAYER,
   evilScoreLayerDefinitions,
   evilScoreLayerTerminalFor,
 } from './evil.ts'
 import {
   assertEvilScoreLayerLegacyEquality,
   assertGoodScoreLayerLegacyEquality,
+  assertMorganaScoreLayerLegacyEquality,
 } from './legacy-equality.ts'
+import {
+  morganaScoreLayerDefinitions,
+  morganaScoreLayerTerminalFor,
+} from './morgana.ts'
 
 /**
  * The deliberately small composition seam for concrete score families.
@@ -37,7 +44,8 @@ import {
 export function configuredScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
-  return evilScoreLayerTerminalFor(scorer)
+  return morganaScoreLayerTerminalFor(scorer)
+    ?? evilScoreLayerTerminalFor(scorer)
     ?? goodScoreLayerTerminalFor(scorer)
 }
 
@@ -54,6 +62,10 @@ export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
       deterministic: GOOD_ROLE_SCORE_LAYER,
       seeded: SEEDED_GOOD_ROLE_SCORE_LAYER,
     }),
+    ...morganaScoreLayerDefinitions({
+      deterministic: EVIL_ROLE_SCORE_LAYER,
+      seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
+    }),
   ])
 }
 
@@ -67,6 +79,11 @@ export function assertConfiguredScoreLayerLegacyEquality(
 ): void {
   const terminal = native.scoreLayerRun.configured.at(-1)
   if (
+    terminal?.id === 'morgana-role-score'
+    || terminal?.id === 'seeded-morgana-role-score'
+  ) {
+    assertMorganaScoreLayerLegacyEquality(native, legacy)
+  } else if (
     terminal?.id === 'evil-role-score'
     || terminal?.id === 'seeded-evil-role-score'
   ) {
