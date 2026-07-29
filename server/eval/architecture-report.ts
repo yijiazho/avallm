@@ -719,6 +719,19 @@ function hasComponentManifestClaim(
 const PRIVATE_ARCHITECTURE_TELEMETRY =
   /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|evilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/
 
+/**
+ * Retired schemas remain privacy signatures after their semantic readers are
+ * deleted. Public logs must never regain these private D3 payload names merely
+ * because current trace admission treats them as closed-ingress tombstones.
+ */
+const RETIRED_PRIVATE_D3_TELEMETRY =
+  /privateEvilQuestCardPolicy|configuredEvilQuestCardPolicy|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint/
+
+function containsPrivateArchitectureTelemetry(value: string): boolean {
+  return PRIVATE_ARCHITECTURE_TELEMETRY.test(value)
+    || RETIRED_PRIVATE_D3_TELEMETRY.test(value)
+}
+
 function currentArchitectureSafety(
   artifact: GameArtifact,
   meta: ArchitectureRunMetadata,
@@ -729,7 +742,7 @@ function currentArchitectureSafety(
   traceCandidates: readonly DecisionTraceSnapshotResult[],
 ): ArchitectureSafetyAdmission {
   let hiddenInformationChecks = 1
-  let hiddenInformationViolations = PRIVATE_ARCHITECTURE_TELEMETRY.test(
+  let hiddenInformationViolations = containsPrivateArchitectureTelemetry(
     JSON.stringify(
       artifact.log.filter((event) => event.visibility === 'public'),
     ),
@@ -881,7 +894,7 @@ function legacyArchitectureSafety(
   const publicLog = JSON.stringify(
     artifact.log.filter((event) => event.visibility === 'public'),
   )
-  if (PRIVATE_ARCHITECTURE_TELEMETRY.test(publicLog)) {
+  if (containsPrivateArchitectureTelemetry(publicLog)) {
     hiddenInformationViolations++
   }
   const rejectedSnapshots = traceCandidates.filter(
@@ -1287,7 +1300,7 @@ function legacyArchitectureSafety(
       ...(
         pendingTrace.version !== COMPONENT_DECISION_TRACE_VERSION
         && pendingStrictComposedTrace
-          ? { requireLegacyExactHostJoin: true }
+          ? { diagnosticVerification: 'exact' as const }
           : {}
       ),
     })

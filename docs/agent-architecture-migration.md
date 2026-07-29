@@ -1395,16 +1395,14 @@ reviewable and ablatable:
       **Complete.**
 20. **Phase 7R3A, ordered score layers:** express the shared base scorer and the landed C2, D2, and
     E1 transformations as registered ordered layers with explicit dependencies and fallback.
-21. **Phase 7R3B, strategic decision layers and write-side cleanup:** move D3 behind universal
-    forced policy as a registered strategic layer, remove superseded role-specific write paths
-    after equality is proved, and retain read compatibility for old artifacts. Replace D3's
-    transitional implicit state combinations with a discriminated compatibility read model that
-    represents inapplicable, suppressed, degraded, exact-admitted, and robust-admitted historical
-    states explicitly before deleting the write side. The native path must use the shared bounded
-    admission boundary and separate exact-quota and heterogeneous-safe decoded variants; it must
-    delete D3's local detached-data walk, exact-key parser, and optional-field mega-validator.
-    Historical payload support remains a read-only adapter and cannot become the codec used by new
-    in-process policy.
+21. **Phase 7R3B, strategic decision layers and historical cleanup:** robust heterogeneous D3
+    runs behind universal forced policy as a registered strategic layer and uses the shared
+    bounded generic component admission boundary. Exact quota is research history only: its
+    executable authority, flat payload semantics, decoder, adapter, admission reconstruction, and
+    evaluation readers are deleted. Old artifacts that declare those removed fields or unknown
+    policy identities are invalid or nonpromotable rather than semantically reconstructed.
+    Retired private field names remain privacy tombstones so deletion cannot make an old private
+    payload safe to expose in public logs.
     - **7R3B2A, generic strategic seam:** register and resolve a role-agnostic ordered
       decision-layer contract, execute its monotone survivor/selection surface after universal
       policy and components, and replay its journal, component reads, causal use, and bounded
@@ -3272,6 +3270,8 @@ here.
   attribution. Current JSON carrying any removed flat D3 key is rejected at the closed canonical
   ingress; unknown policy declarations remain invalid and nonpromotable without reconstructing
   their historical semantics. Exact quota remains research history only. MD-003 is complete.
+  Retired private D3 field names remain explicit public-log privacy tombstones: deleting a
+  semantic schema cannot make its former private payload safe to expose.
   Two zero-caller boolean wrappers were deleted; R3B3B2 owns the remaining test migration and
   `validateComposedTraceHostJoin` deletion under MD-004.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A

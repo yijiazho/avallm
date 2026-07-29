@@ -126,6 +126,39 @@ function asLegacyArtifact(artifact: GameArtifact): GameArtifact {
   return legacy
 }
 
+function asDescriptorlessV1Artifact(
+  artifact: GameArtifact,
+): GameArtifact {
+  const legacy = asLegacyArtifact(artifact)
+  delete legacy.strategyVersions!.decisionComponents
+  for (const trace of legacy.decisionTraces!) {
+    const objective = componentPayload(
+      trace.components!,
+      GOOD_ROLE_OBJECTIVE_COMPONENT,
+    )
+    const utility = componentPayload(
+      trace.components!,
+      GOOD_ROLE_UTILITY_COMPONENT,
+    )
+    if (objective) {
+      trace.privateRoleObjective = structuredClone(objective)
+      trace.componentVersions!.roleObjective =
+        ROLE_OBJECTIVE_MODEL_VERSION
+    }
+    if (utility) {
+      trace.privateRoleUtility = structuredClone(utility)
+      trace.componentVersions!.roleUtility =
+        ROLE_UTILITY_PROJECTION_VERSION
+    }
+    trace.version = DECISION_TRACE_VERSION
+    delete trace.componentPlan
+    delete trace.components
+    delete trace.decisionLayerRun
+    delete trace.componentVersions!.decisionComponents
+  }
+  return legacy
+}
+
 function summary(artifact: GameArtifact) {
   return architectureReport([artifact]).variants[0]
 }
@@ -345,30 +378,9 @@ test('historical traces stay diagnostic without gaining trusted promotion', asyn
   )
   assert.equal(preB4Summary.decisionComponents, undefined)
 
-  const legacy = structuredClone(baseline)
-  delete legacy.strategyVersions!.decisionComponents
-  for (const trace of legacy.decisionTraces!) {
-    const objective = trace.components
-      ? componentPayload(trace.components, GOOD_ROLE_OBJECTIVE_COMPONENT)
-      : undefined
-    const utility = trace.components
-      ? componentPayload(trace.components, GOOD_ROLE_UTILITY_COMPONENT)
-      : undefined
-    if (objective) {
-      trace.privateRoleObjective = structuredClone(objective)
-      trace.componentVersions!.roleObjective =
-        ROLE_OBJECTIVE_MODEL_VERSION
-    }
-    if (utility) {
-      trace.privateRoleUtility = structuredClone(utility)
-      trace.componentVersions!.roleUtility =
-        ROLE_UTILITY_PROJECTION_VERSION
-    }
-    trace.version = DECISION_TRACE_VERSION
-    delete trace.componentPlan
-    delete trace.components
-    delete trace.componentVersions!.decisionComponents
-  }
+  const legacy = asDescriptorlessV1Artifact(
+    await trustedArtifact(),
+  )
   const legacySummary = summary(legacy)
   assert.equal(legacySummary.safety.traceAttributionViolations, 0)
   assert.equal(legacySummary.safety.promotionEvidenceEligible, false)
@@ -377,6 +389,24 @@ test('historical traces stay diagnostic without gaining trusted promotion', asyn
     false,
   )
   assert.equal(legacySummary.decisionComponents, undefined)
+})
+
+test('descriptor-less v1 report admission requires exact generic replay', async () => {
+  const cleanArtifact = asDescriptorlessV1Artifact(
+    await trustedArtifact(),
+  )
+  const clean = summary(cleanArtifact)
+  assert.equal(clean.safety.traceAttributionViolations, 0)
+  assert.equal(clean.safety.promotionEvidenceEligible, false)
+
+  const mismatchedArtifact = structuredClone(cleanArtifact)
+  const trace = mismatchedArtifact.decisionTraces!.find(
+    (candidate) => candidate.forcedPolicyResult !== undefined,
+  )!
+  trace.forcedPolicyResult!.reasonCodes = ['HAMMER_TEAM_AUTOMATIC']
+  const mismatch = summary(mismatchedArtifact)
+  assert.ok(mismatch.safety.traceAttributionViolations > 0)
+  assert.equal(mismatch.safety.promotionEvidenceEligible, false)
 })
 
 test('external self-described v2 graph cannot mint a trusted manifest', async () => {
@@ -443,6 +473,26 @@ test('generic component telemetry in a public event is a hidden-information viol
   }
   const result = summary(artifact)
   assert.ok(result.safety.hiddenInformationViolations > 0)
+  assert.equal(result.safety.promotionEvidenceEligible, false)
+})
+
+test('retired private D3 field names remain public-log leak tombstones', async () => {
+  const artifact = await trustedArtifact()
+  const baseline = summary(artifact)
+  const event = artifact.log.find(
+    (candidate) => candidate.visibility === 'public',
+  )!
+  ;(event.payload as Record<string, unknown>).privateEvilQuestCardPolicy = {
+    configuredEvilQuestCardPolicy: 'retired',
+    orderedVisibleEvilAboard: [0],
+    visibleEvilAboardCount: 1,
+    sourceFingerprint: 'private',
+  }
+  const result = summary(artifact)
+  assert.equal(
+    result.safety.hiddenInformationViolations,
+    baseline.safety.hiddenInformationViolations + 1,
+  )
   assert.equal(result.safety.promotionEvidenceEligible, false)
 })
 

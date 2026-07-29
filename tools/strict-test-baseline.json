@@ -173,7 +173,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "06e5fca7c08fa3842f1808eee5e7ef3976c67718ec4184a2c8a9c94fbbefa447",
+      "sha256": "4541518666cad6d014dbae5aeaf3a9b0fe25445aacc34aade3c24c7e0e5d8b0c",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {
