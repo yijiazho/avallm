@@ -51,6 +51,7 @@ const LANES = Object.freeze({
     'situation-analysis.test.ts',
     'speech-cap.test.ts',
     'stdio.test.ts',
+    'strict-test-ratchet.test.ts',
     'talk-default.test.ts',
     'talk-norms.test.ts',
     'transcript.test.ts',

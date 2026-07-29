@@ -2352,8 +2352,8 @@ role migration:
 | ID | Owner / when | Improvement | Acceptance |
 |---|---|---|---|
 | DEV-001 | Phase 7 post-checkpoint, before the next large oracle expansion | Add a typed legal-replay `DecisionScenario` builder | Request, view, visible history, legal candidates, and expected action are derived from one authoritative replay; tests no longer hand-splice phase/request cursors or repeat role-shaped casts. |
-| DEV-002 | Every migration slice, starting in A2 | Ratchet strict typechecking over new and touched test/support code | All `test/support/**` and `test/typecheck/**` files plus named touched runtime contract tests are fail-closed in the default strict lane. A2 adds the shared typed score-oracle reader and its runtime/conformance tests. |
-| DEV-003 | Repository-hygiene checkpoint after 7R3A | Adopt a repository `.gitattributes` line-ending policy with controlled normalization | One reviewed normalization commit, no mixed-line-ending warnings, no behavior changes, and future diffs preserve the declared policy. |
+| DEV-002 | **Gate installed after A2; exemptions burn down with each slice** | Ratchet strict typechecking over new and touched test/support code | `tools/strict-test-ratchet.mjs` is the single inventory authority in `typecheck` and every verifier level. At installation, 73 roots pass strictly and 43 legacy top-level tests have LF-normalized content hashes plus reviewed rationales. Every new top-level test is strict automatically; all eight `test/support/**` and `test/typecheck/**` files are always strict; changed or deleted exemptions fail closed. Repository fitness uses TypeScript's config parser and rejects any test file resolved from another root `tsconfig`, including `include`, `files`, globs, and inherited settings; config diagnostics and nonempty root project references fail closed rather than allowing a nested inventory to bypass the owner. The ratchet, verification funnel, and architecture-fitness tests themselves are strict roots. |
+| DEV-003 | **LF policy installed after A2; controlled legacy normalization remains pending** | Adopt repository line-ending and editor policies without mixing mechanical rewrites into behavior commits | `.gitattributes` declares extension-scoped LF text and explicit binary formats; `.editorconfig` declares UTF-8, LF, final newlines, and trailing-whitespace behavior without imposing indentation. The policy commit performs no `git add --renormalize`, no bulk normalization, and changes no unrelated tracked bytes. The one known pre-policy CRLF blob, `server/eval/report.ts`, has a narrow temporary `-text` exception so the policy cannot silently rewrite it; remove that exception only in a separately reviewed normalization commit. |
 | DEV-004 | Inspector v2 after the generic policy-run DTO and A4 cutover | Derive Inspector and equality diagnostics from one admitted native run record | One bounded record supplies layer journal, candidates, policy gate, committed action, and equality deltas; no observability consumer reconstructs or relabels causal state independently. A2's bounded shadow diagnostic is the first private-only step, not the public schema. |
 | DEV-005 | After Phase 7 | Split this tracker into a concise authoritative active contract and append-only completed-phase history | Preserve stable anchors and inbound links, keep current gates and debt easy to find, and prevent the roughly 219 KB historical record from remaining the primary working surface. A2 changes only this stale current capsule. |
 
@@ -2558,6 +2558,21 @@ pre-C4 trace hashes remain unchanged through an explicitly unmapped compatibilit
 default singleton separately reports the new native compatibility-root descriptor and stable
 digest. `git diff --check` passes, no client file differs from the A1.1 base, and screenshot
 freshness remains `bae3010696159ecb`.
+
+The independent A2 review also assigned three nonblocking debts rather than extending the
+temporary migration edge:
+
+- **A3 or a focused development follow-up owns explicit candidate-ID ordering.** Replace
+  `score-layers/good.ts` use of locale-sensitive comparison with the same explicit code-point
+  comparator used by authoritative analysis, and prove cross-host deterministic tie-breaking.
+- **A4 owns absent-graph hardening with flat-projection deletion.** Complete role validators
+  currently reject a flat projection or degradation whose bound component is absent from the
+  configured graph, but generic trace admission does not independently enforce that relationship.
+  Harden the generic admission join while A4 removes the transitional flat writer, rather than
+  teaching another downstream consumer to infer the missing graph edge.
+- **A4 owns the C2 deterministic-base exception.** Give the deterministic Phase 4 base used by
+  C2 a named typed contract and concise rationale, then remove or narrow the exception as the good
+  family becomes the sole write path. The exception must not become an alternate scoring owner.
 
 In 7R3B, D3 becomes a strategic decision layer that is reachable only after universal forced rules
 leave discretion. Generic-versus-legacy equality is required across all landed role paths before

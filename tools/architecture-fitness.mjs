@@ -650,43 +650,137 @@ function collectServerSources(root) {
   return entries.sort(([left], [right]) => left.localeCompare(right))
 }
 
-function scoreLayerContractInventoryViolations(root) {
+export function checkStrictTestRatchetOwnership(root = process.cwd()) {
   const violations = []
-  const configPath = path.join(root, 'tsconfig.score-layer-contract.json')
   const packagePath = path.join(root, 'package.json')
+  const authority = 'tools/strict-test-ratchet.mjs'
+  const inventoryMarkers = [
+    ['strict-test', 'baseline.json'].join('-'),
+    ['test', 'support', '**', '*.ts'].join('/'),
+    ['test', 'typecheck', '**', '*.ts'].join('/'),
+  ]
+
   try {
-    const config = JSON.parse(readFileSync(configPath, 'utf8'))
-    const include = new Set(config.include ?? [])
-    const required = [
-      'test/support/**/*.ts',
-      'test/typecheck/**/*.ts',
-      'test/phase7r2c2-component-conformance.test.ts',
-      'test/phase7r3a2-good-score-layers.test.ts',
-    ]
-    for (const pattern of required) {
-      if (include.has(pattern)) continue
-      violations.push(violation(
-        'ARCH006',
-        'tsconfig.score-layer-contract.json',
-        undefined,
-        `strict score-layer inventory must include ${pattern}`,
-      ))
-    }
-    const packageSource = readFileSync(packagePath, 'utf8')
-    if (!packageSource.includes('tsc -p tsconfig.score-layer-contract.json')) {
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
+    if (
+      packageJson.scripts?.typecheck
+      !== 'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs'
+    ) {
       violations.push(violation(
         'ARCH006',
         'package.json',
         undefined,
-        'the default typecheck must execute the native score-layer contract lane',
+        'the default typecheck must use the single strict test ratchet authority',
       ))
     }
   } catch (error) {
     violations.push(violation(
       'ARCH006',
-      'tsconfig.score-layer-contract.json',
+      'package.json',
       undefined,
-      `cannot read native score-layer typecheck inventory: ${
+      `cannot verify the default strict-test gate: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    ))
+  }
+
+  try {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (
+        !entry.isFile()
+        || !/^tsconfig(?:\.[^.]+)*\.json$/.test(entry.name)
+      ) continue
+      const configPath = path.join(root, entry.name)
+      const readResult = ts.readConfigFile(configPath, ts.sys.readFile)
+      if (readResult.error) {
+        violations.push(violation(
+          'ARCH006',
+          entry.name,
+          undefined,
+          `cannot read TypeScript config: ${
+            ts.flattenDiagnosticMessageText(readResult.error.messageText, '\n')
+          }`,
+        ))
+        continue
+      }
+      const config = readResult.config
+      if (
+        Object.hasOwn(config, 'references')
+        && (!Array.isArray(config.references) || config.references.length > 0)
+      ) {
+        violations.push(violation(
+          'ARCH006',
+          entry.name,
+          undefined,
+          'root TypeScript project references are rejected because they can hide a second test inventory',
+        ))
+      }
+      const parsed = ts.parseJsonConfigFileContent(
+        config,
+        ts.sys,
+        root,
+        undefined,
+        configPath,
+      )
+      if (parsed.errors.length) {
+        violations.push(violation(
+          'ARCH006',
+          entry.name,
+          undefined,
+          `TypeScript config is invalid: ${parsed.errors.map((diagnostic) =>
+            ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+          ).join('; ')}`,
+        ))
+        continue
+      }
+      const testRoot = path.resolve(root, 'test')
+      const hasTestRoot = parsed.fileNames.some((fileName) => {
+        const relative = path.relative(testRoot, fileName).replaceAll('\\', '/')
+        return relative !== '..' && !relative.startsWith('../')
+      })
+      if (hasTestRoot) {
+        violations.push(violation(
+          'ARCH006',
+          entry.name,
+          undefined,
+          `strict test roots belong to ${authority}, not ${entry.name}`,
+        ))
+      }
+    }
+  } catch (error) {
+    violations.push(violation(
+      'ARCH006',
+      'tsconfig*.json',
+      undefined,
+      `cannot audit duplicate strict-test inventories: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    ))
+  }
+
+  try {
+    for (const entry of readdirSync(path.join(root, 'tools'), {
+      withFileTypes: true,
+    })) {
+      if (!entry.isFile() || !entry.name.endsWith('.mjs')) continue
+      const relative = `tools/${entry.name}`
+      if (relative === authority) continue
+      const source = readFileSync(path.join(root, relative), 'utf8')
+      if (inventoryMarkers.some((marker) => source.includes(marker))) {
+        violations.push(violation(
+          'ARCH006',
+          relative,
+          undefined,
+          `strict test inventory details belong only to ${authority}`,
+        ))
+      }
+    }
+  } catch (error) {
+    violations.push(violation(
+      'ARCH006',
+      'tools',
+      undefined,
+      `cannot audit strict-test tool ownership: ${
         error instanceof Error ? error.message : String(error)
       }`,
     ))
@@ -708,7 +802,7 @@ export function checkRepositoryArchitecture(root = process.cwd()) {
   }
   return Object.freeze([
     ...auditArchitectureSources(entries),
-    ...scoreLayerContractInventoryViolations(root),
+    ...checkStrictTestRatchetOwnership(root),
   ])
 }
 

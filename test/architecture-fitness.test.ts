@@ -1,11 +1,52 @@
 import assert from 'node:assert/strict'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import test from 'node:test'
 
-import {
+// Architecture fitness is an executable JavaScript tool, not a server module.
+// @ts-expect-error The test supplies the narrow runtime contract below.
+import * as architectureModule from '../tools/architecture-fitness.mjs'
+
+interface ArchitectureViolation {
+  readonly rule: string
+  readonly importer: string
+  readonly specifier?: string
+  readonly line?: number
+  readonly message: string
+}
+
+const {
   auditArchitectureSources,
   checkRepositoryArchitecture,
+  checkStrictTestRatchetOwnership,
   inspectSource,
-} from '../tools/architecture-fitness.mjs'
+} = architectureModule as {
+  auditArchitectureSources(
+    sources: ReadonlyArray<readonly [string, unknown]>,
+  ): readonly ArchitectureViolation[]
+  checkRepositoryArchitecture(root?: string): readonly ArchitectureViolation[]
+  checkStrictTestRatchetOwnership(
+    root?: string,
+  ): readonly ArchitectureViolation[]
+  inspectSource(path: string, source: string): {
+    readonly edges: readonly {
+      readonly kind: 'import' | 'export'
+      readonly specifier: string
+      readonly names: readonly string[]
+      readonly namespace: boolean
+      readonly line: number
+    }[]
+  }
+}
 
 function rules(sources: ReadonlyArray<readonly [string, unknown]>): string[] {
   return auditArchitectureSources(sources).map((violation) => violation.rule)
@@ -13,6 +54,120 @@ function rules(sources: ReadonlyArray<readonly [string, unknown]>): string[] {
 
 test('repository sources satisfy the coarse architecture fitness rules', () => {
   assert.deepEqual(checkRepositoryArchitecture(), [])
+})
+
+test('the strict test ratchet is the only test typecheck inventory', () => {
+  assert.equal(existsSync('tsconfig.score-layer-contract.json'), false)
+
+  const testConfigOwners = readdirSync('.')
+    .filter((file) => /^tsconfig(?:\.[^.]+)*\.json$/.test(file))
+    .filter((file) => {
+      const config = JSON.parse(readFileSync(file, 'utf8'))
+      return (config.include ?? []).some(
+        (pattern: unknown) =>
+          typeof pattern === 'string' && /^test[\\/]/.test(pattern),
+      )
+    })
+  assert.deepEqual(testConfigOwners, [])
+
+  const baselineOwners = readdirSync('tools')
+    .filter((file) => file.endsWith('.mjs'))
+    .filter((file) =>
+      readFileSync(`tools/${file}`, 'utf8')
+        .includes('strict-test-baseline.json'))
+  assert.deepEqual(baselineOwners, ['strict-test-ratchet.mjs'])
+
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf8'))
+  assert.equal(
+    packageJson.scripts.typecheck,
+    'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs',
+  )
+  assert.doesNotMatch(
+    readFileSync('tools/architecture-fitness.mjs', 'utf8'),
+    /scoreLayerContractInventoryViolations/,
+  )
+})
+
+test('strict test ownership rejects hidden roots, references, and malformed shapes', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'avalon-strict-ownership-'))
+  try {
+    mkdirSync(path.join(root, 'tools'))
+    writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({
+        scripts: {
+          typecheck:
+            'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs',
+        },
+      }),
+    )
+    writeFileSync(path.join(root, 'tools', 'strict-test-ratchet.mjs'), '')
+    mkdirSync(path.join(root, 'server'))
+    mkdirSync(path.join(root, 'test'))
+    writeFileSync(path.join(root, 'server', 'placeholder.ts'), 'export {}\n')
+    writeFileSync(path.join(root, 'test', 'hidden.test.ts'), 'export {}\n')
+    writeFileSync(
+      path.join(root, 'tsconfig.server.json'),
+      JSON.stringify({
+        compilerOptions: { strict: true },
+        include: ['server/**/*.ts'],
+      }),
+    )
+    assert.deepEqual(checkStrictTestRatchetOwnership(root), [])
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({ files: ['test\\hidden.test.ts'] }),
+    )
+    let violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /strict test roots/)
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({ include: ['**/*.test.ts'] }),
+    )
+    violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /strict test roots/)
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({ include: ['*/**/*.test.ts'] }),
+    )
+    violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /strict test roots/)
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({ include: ['./test/**/*.test.ts'] }),
+    )
+    violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /strict test roots/)
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({
+        files: ['server/placeholder.ts'],
+        references: [{ path: './nested' }],
+      }),
+    )
+    violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /project references are rejected/)
+
+    writeFileSync(
+      path.join(root, 'tsconfig.hidden.json'),
+      JSON.stringify({ include: {}, files: 'test/hidden.test.ts' }),
+    )
+    violations = checkStrictTestRatchetOwnership(root)
+    assert.equal(violations.length, 1)
+    assert.match(violations[0].message, /TypeScript config is invalid/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('TypeScript AST recognizes multiline imports and export-from declarations', () => {

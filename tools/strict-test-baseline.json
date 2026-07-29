@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "exemptions": [
+    {
+      "path": "test/architecture-performance.test.ts",
+      "sha256": "25b4ee1e02ccee3dda13ab803e1340780d0d02ca0409c03c2b35362c5105bbd5",
+      "rationale": "Legacy environment fixture uses a narrowed process.env shape."
+    },
+    {
+      "path": "test/certainties.test.ts",
+      "sha256": "6487625523e512887ec45785dd8a26b2b9ae1c8e47da6c9b506d0fade32a5e67",
+      "rationale": "Legacy fixture exercises a retired decision-kind spelling."
+    },
+    {
+      "path": "test/cognition.test.ts",
+      "sha256": "bf18175649813efe8f47630c921cf55e4560016d3391ffcee8fdc54671d1441d",
+      "rationale": "Legacy fixture exercises a retired phase spelling."
+    },
+    {
+      "path": "test/compat-certainties.test.ts",
+      "sha256": "081091a0df58fe410b273ca421a7493b49fa4856fec9c0143085e13368b79ae9",
+      "rationale": "Legacy compatibility fixture exercises a retired decision-kind spelling."
+    },
+    {
+      "path": "test/composed-agent.test.ts",
+      "sha256": "50e0dcbff7a72ad8657f3e481db58f5a084c8ee073cfe48d112a902f1746eb35",
+      "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
+    },
+    {
+      "path": "test/decision-frame.test.ts",
+      "sha256": "13c74533b7604f12b1a21ba7355c3bb886e97584c61691662c9318a4baef227a",
+      "rationale": "Legacy frame fixtures need discriminated-union narrowing."
+    },
+    {
+      "path": "test/discuss-stakes.test.ts",
+      "sha256": "ef724ded20b5b49735b75838b162e901dbf552eecbf1c31f23a909ca6024214f",
+      "rationale": "Legacy fixture exercises a retired decision-kind spelling."
+    },
+    {
+      "path": "test/endgame-norm.test.ts",
+      "sha256": "a7ffa9bf1e3487c342c54e350ce1a937d72c67f254bcf62d43d89c7e2207c13e",
+      "rationale": "Legacy fixture exercises a retired decision-kind spelling."
+    },
+    {
+      "path": "test/eval.test.ts",
+      "sha256": "7cfea96a29ad0342db25883fb01e486d62f406522361cc42847bc606baae6c6e",
+      "rationale": "Legacy evaluation fixtures omit a newer talk configuration field."
+    },
+    {
+      "path": "test/facts.test.ts",
+      "sha256": "1b7bc151dc4fa55c33a898c3858ded739ec0fbff1e6125c800d3f0de1d8b14ed",
+      "rationale": "Legacy fact fixture widens role literals to strings."
+    },
+    {
+      "path": "test/forced-play.test.ts",
+      "sha256": "b7a17c04c6c2ae3636153e6e6254ce223420b2e5d992723a7018cde936cc5c37",
+      "rationale": "Legacy forced-play fixture omits a newer talk configuration field."
+    },
+    {
+      "path": "test/forced-policy.test.ts",
+      "sha256": "38711ea8e5f41cf2379a268f4dfec1658c386345e9dbd06ae551e082371dd550",
+      "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
+    },
+    {
+      "path": "test/good-proposal-scorer.test.ts",
+      "sha256": "403ff310d2fa0799fde696f30c7445284340d19c793832916b9b7b95ff3d1545",
+      "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
+    },
+    {
+      "path": "test/good-vote-scorer.test.ts",
+      "sha256": "faad8c5c4444c38c9f30ef48f7b6b8ba25906f92f5723cdb802f5c73dfd58642",
+      "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
+    },
+    {
+      "path": "test/norms.test.ts",
+      "sha256": "30dc1cab154e589ba15a2546c5a4763efb4ee8b1d95d7ff17118e34cb3ba0922",
+      "rationale": "Legacy norms fixture omits a newer talk configuration field."
+    },
+    {
+      "path": "test/phase4c-intent-planner.test.ts",
+      "sha256": "07715526abd95f40ecb28e5779c450332a30ae794fe9469012742dc515c3f07f",
+      "rationale": "Legacy planner fixtures need feature and decision union narrowing."
+    },
+    {
+      "path": "test/phase5a-foundations.test.ts",
+      "sha256": "f7d6ca615dbb19271fc1e84b4cd6f9c6e72577039c499f1c1f4c460c876b8596",
+      "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase6d-active-language-eval.test.ts",
+      "sha256": "780599c61806ba3d8409d94b14d9d2fa176be0262e4b68c75a7f21e0ec509cee",
+      "rationale": "Legacy language evaluation fixtures need current union narrowing."
+    },
+    {
+      "path": "test/phase7a-public-observer.test.ts",
+      "sha256": "194c5c0596c0f6604f139a69e9e29d1889a7607894f0c2dd6647c6797aa775f6",
+      "rationale": "Legacy observer fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7b1-joint-identity.test.ts",
+      "sha256": "4ffe271b85b239173bd117919ec80ff4677c9edd673a5465e5d3df24637f529c",
+      "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7b2-plan-coherence.test.ts",
+      "sha256": "e49ffb8aca347944c1002be865250f4818cc4d9a69354558c136e4c42869d256",
+      "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7c1-role-objectives.test.ts",
+      "sha256": "04c22fb2f7e3ebf0bc9973e7a7792094bb5355061024df21e639a4ba1aa0ba16",
+      "rationale": "Legacy role fixtures need current union narrowing and mutation typing."
+    },
+    {
+      "path": "test/phase7c2-role-policy.test.ts",
+      "sha256": "66c21672719b539d34ebfc0ebed98200d4e5557c2f26f9ad2cc796064c8c8b6f",
+      "rationale": "Legacy role-policy fixtures need current union narrowing."
+    },
+    {
+      "path": "test/phase7d1-evil-objectives.test.ts",
+      "sha256": "97fe65573714aadee51a4234bc905643130d828fb4fe7751f2a904cc8102fad8",
+      "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7d2-evil-policy.test.ts",
+      "sha256": "adc2ea6542590da472d71ea313955e4c185a48da202615161c8f916fcb003c95",
+      "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
+    },
+    {
+      "path": "test/phase7d3-quest-coordination.test.ts",
+      "sha256": "78a9f8fb7f0ada1c2bb439049e2208d39448000597c8706bd41dcfc04e250be8",
+      "rationale": "Legacy quest fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7e1a-morgana-counterfeit.test.ts",
+      "sha256": "958868b042352769bf0a767d7c5eea6d299726e8337735ab44a42ad045ea0126",
+      "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7e1b-morgana-policy.test.ts",
+      "sha256": "3f22ff2cac6fb07f916535d39382edb695ebe3fcc2bcc72a20ed9e5a8cbea251",
+      "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
+    },
+    {
+      "path": "test/phase7e2a-mordred-hostile.test.ts",
+      "sha256": "d3c9faca25de32242ce3dd5fde0c321bf44e6d5380020149b3c79831b7aac54d",
+      "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7e2a-mordred-native.test.ts",
+      "sha256": "8da083bf616d05667240fda948365c4bbacac321eafccb25674805acf48486db",
+      "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
+    },
+    {
+      "path": "test/phase7r2b1-component-registry.test.ts",
+      "sha256": "0bbed1696a0cd0796fa036dcc81c3bd45d608e5942d26de234ffcab5314d8a75",
+      "rationale": "Legacy registry fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7r2b2-component-kernel.test.ts",
+      "sha256": "a41b3bfef397e5f02a341f6f3828c90c81eb8a5ad055b4cb423ff1f1f69d84d5",
+      "rationale": "Legacy kernel fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7r2b3a-role-adapters.test.ts",
+      "sha256": "4172a67c00033555e0e2be1686f4ede76a15e13dbc8dc6db70b2dee719c3e65d",
+      "rationale": "Legacy adapter fixtures need current trace union narrowing."
+    },
+    {
+      "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
+      "sha256": "3dfee55e22ef18e83fa61a3f745fe4ef3724c446d89c5aca14e93cf6f81409d8",
+      "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
+    },
+    {
+      "path": "test/phase7r2b4-artifact-manifest.test.ts",
+      "sha256": "af18ec6ba470b6d22733e19d34a5df25b777e12b3ba75d68120be41386bc739d",
+      "rationale": "Legacy artifact fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7r2b4-hostile-artifact.test.ts",
+      "sha256": "6a5bc45485d6662ce6b2ee67f2e90200d3fad429a27817bd0cd69db891b966ec",
+      "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
+    },
+    {
+      "path": "test/phase7r2c3-architecture-descriptor.test.ts",
+      "sha256": "49e3efa17e2726e4973e21e922da55206c45e6aba57fee8412927e46c7746b73",
+      "rationale": "Legacy descriptor fixtures need current role-query literal typing."
+    },
+    {
+      "path": "test/phase7r2c3-replay-timeline.test.ts",
+      "sha256": "0291eebaf7b3f56a3fd5d294044e647de557d6948aa7ee395a790fd00e046279",
+      "rationale": "Legacy replay fixture needs visibility union narrowing."
+    },
+    {
+      "path": "test/phase7r3a1-score-layer.test.ts",
+      "sha256": "2196138bdfaeda3996f374490f5b7a8e89677fa9b61b3994acf1be16a5738576",
+      "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
+    },
+    {
+      "path": "test/prompts.test.ts",
+      "sha256": "3bf2f43955a2588c83b8fda5ad2a2b60ec63d50d485d19cfbdd3a09cd8a80c3c",
+      "rationale": "Legacy prompt fixture exercises a retired phase spelling."
+    },
+    {
+      "path": "test/public-record.test.ts",
+      "sha256": "1e037085b2c534fc102db521029a3bd127184a0e7132edeba5bd0d38d883d646",
+      "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
+    },
+    {
+      "path": "test/record-line.test.ts",
+      "sha256": "dc6cf8d22460e820043433970a1d12ce2da4b7e46bb057159d56a5a24e9a2ad0",
+      "rationale": "Legacy fixture exercises a retired decision-kind spelling."
+    },
+    {
+      "path": "test/screens.test.ts",
+      "sha256": "5ad88a5a02ebf0a39ee4eb3f1eca79cb639dcd7a747ae8ae8aa5005df7c02e80",
+      "rationale": "Legacy JavaScript-tool import lacks declarations; migrate this harness separately."
+    }
+  ]
+}

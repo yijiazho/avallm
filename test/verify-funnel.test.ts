@@ -2,16 +2,35 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import {
+// Verification is an executable JavaScript tool, not a server module.
+// @ts-expect-error The test supplies the narrow runtime contract below.
+import * as verificationModule from '../tools/verify.mjs'
+
+const {
   runVerification,
   verificationPlan,
-} from '../tools/verify.mjs'
+} = verificationModule as {
+  verificationPlan(requested: string): readonly {
+    readonly label: string
+    readonly args: string[]
+  }[]
+  runVerification(
+    requested: string,
+    spawn?: (
+      command: string,
+      args: string[],
+    ) => { status: number | null; error?: Error },
+    isAvailable?: (path: string) => boolean,
+    reportError?: (message: string) => void,
+  ): number
+}
 
 const TYPECHECK = [
   'node_modules/typescript/bin/tsc',
   '-p',
   'tsconfig.server.json',
 ]
+const TEST_RATCHET = ['tools/strict-test-ratchet.mjs']
 const ARCHITECTURE = ['tools/architecture-fitness.mjs']
 const INVENTORY = ['tools/test-lanes.mjs', '--check']
 
@@ -40,6 +59,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('quick').map((step) => step.args),
     [
       TYPECHECK,
+      TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
@@ -49,6 +69,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('contract').map((step) => step.args),
     [
       TYPECHECK,
+      TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
@@ -59,6 +80,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('full').map((step) => step.args),
     [
       TYPECHECK,
+      TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
       ['tools/test-lanes.mjs', 'full'],
@@ -70,23 +92,24 @@ test('verification fails closed before tests when lane inventory fails', () => {
   const calls: string[][] = []
   const status = runVerification('full', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 3 ? 17 : 0 }
+    return { status: calls.length === 4 ? 17 : 0 }
   }, () => true)
 
   assert.equal(status, 17)
-  assert.deepEqual(calls, [TYPECHECK, ARCHITECTURE, INVENTORY])
+  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET, ARCHITECTURE, INVENTORY])
 })
 
 test('verification stops at the first failing test lane', () => {
   const calls: string[][] = []
   const status = runVerification('contract', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 4 ? 23 : 0 }
+    return { status: calls.length === 5 ? 23 : 0 }
   }, () => true)
 
   assert.equal(status, 23)
   assert.deepEqual(calls, [
     TYPECHECK,
+    TEST_RATCHET,
     ARCHITECTURE,
     INVENTORY,
     ['tools/test-lanes.mjs', 'fast'],
@@ -132,11 +155,26 @@ test('verification stops before test inventory when architecture fails', () => {
     'quick',
     (_command, args) => {
       calls.push(args)
-      return { status: calls.length === 2 ? 19 : 0 }
+      return { status: calls.length === 3 ? 19 : 0 }
     },
     () => true,
   )
 
   assert.equal(status, 19)
-  assert.deepEqual(calls, [TYPECHECK, ARCHITECTURE])
+  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET, ARCHITECTURE])
+})
+
+test('verification stops before architecture when the strict test ratchet fails', () => {
+  const calls: string[][] = []
+  const status = runVerification(
+    'quick',
+    (_command, args) => {
+      calls.push(args)
+      return { status: calls.length === 2 ? 29 : 0 }
+    },
+    () => true,
+  )
+
+  assert.equal(status, 29)
+  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET])
 })
