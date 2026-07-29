@@ -273,6 +273,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-004 | Phase 6 | Add an active-language architecture evaluation bank and dynamic belief matcher | Separate stable configured belief-pipeline identity from the actual per-decision snapshot version; run a public-dialogue fake-interpreter cell with calls greater than zero, accept its mixed mechanical/bounded snapshots, and preserve exact attribution, zero cost, and report validation. | `landed` |
 | NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `landed` |
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `landed` |
+| NB-007 | Phase 7 correctness | Stabilize exact identity projection on large joint support | One compensated accumulator covers source normalization, grouped role and hidden-team mass, and detached lattice admission. The actual 10-player `phase4-good-v1` vote with 58,080 uniform worlds now reaches trusted-exact admission without rounding, tolerance widening, special casing, or invalid-mass renormalization. | `landed` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -1408,10 +1409,10 @@ reviewable and ablatable:
       operation counts from out-of-band identity. **Complete.**
     - **7R3B2B, robust authority cutover:** register the heterogeneous-safe D3 policy as the first
       production decision layer, prove behavior equality and universal dominance, then delete its
-      legacy overlay, flat binding, and exemption. **Current target.**
+      legacy overlay, flat binding, and exemption. **Complete.**
     - **7R3B3, exact-quota quarantine cleanup:** isolate or delete the homogeneous research
       convention's remaining runtime adapter and compatibility facades, close MD-003 and MD-004,
-      and retain only explicitly historical read compatibility.
+      and retain only explicitly historical read compatibility. **Current target.**
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
@@ -2814,20 +2815,24 @@ Every phase should update the applicable rows.
 
 ## 15. Removal ledger
 
-Migration is not complete while superseded authority remains active.
+Migration is not complete while a superseded path can still make a target-agent decision. A path
+may remain deliberately as the checked-in default, fallback, compatibility baseline, or historical
+reader; those states are not deletion and are named below.
 
-| Current path | Remove or reduce when | Replacement |
+| Path | Current status and evidence | Next gate |
 |---|---|---|
-| `RoleCertainties` compatibility renderer | Phase 3 typed rendering covers its prompt contract and equivalence tests pass | `BeliefSnapshot` plus typed analysis |
-| Scalar `suspicion()` as primary good-side belief | Phase 4 structured policy passes | Team and player posterior projections |
-| Forced-play triggers duplicated in prompt asks | Phase 3 central rules land | Executable forced policy plus rendered result |
-| Free-form scratchpad as authoritative memory | Phase 6 typed cognition lands | `CognitionState` |
-| LLM-generated arbitrary proposal as production default | Phase 4 hybrid candidate planner passes | Candidate IDs and committed plan |
-| Prompt dossier and compatibility certainties as the default belief visibility | Phase 3 typed rendering covers their contracts; Phase 4 policy consumes the same analysis | Typed analysis rendered for policy and prompt |
-| Generic "most good" assassination reasoning | Phase 7 target model passes | Merlin posterior |
-| Exact-quota D3 flat trace fields, forced-policy overlay, and legacy binding | Phase 7R3B3 isolates or deletes the homogeneous research convention | Native component plus strategic decision layer for mixed-table-safe D3; historical research reader only if retained |
+| Compatibility certainties and prompt dossier | **Demoted derivation, active raw-LLM rendering.** `RoleCertainties` is projected from exact belief and typed analysis, and the dossier renders the shared `PublicRecord`; both still appear in the default raw-LLM prompt and remain measurable compatibility surfaces. | Retain while raw LLM is the default/baseline. A future default promotion may isolate or delete the renderer only with prompt-equivalence and baseline evidence. |
+| Scalar `suspicion()` policy | **Retained baseline/fallback authority.** It remains in `heuristic-policy-v2`, including server and simulator fallback, rather than serving as the target agent's probabilistic belief. The composed scorer keeps the compatibility choice explicitly attributable. | Preserve the forever-fallback and named ablation. Do not let scalar suspicion become an untraced input to native policy. |
+| Forced-play triggers in prompt asks | **Structured path demoted to prose; raw-LLM experiment still active.** `forced-policy-v1` owns executable forced behavior for heuristic/fallback and composed policy. Frozen raw-LLM asks still influence that separate baseline but cannot override engine legality. | Delete duplicate target-mode triggers; retain raw-prompt bytes until an explicit baseline revision. |
+| Free-form scratchpad memory | **Active in the default raw-LLM agent.** Typed cognition, evidence, commitments, and plan memory exist for composed agents, but `createLlmAgent` still reinjects its private scratchpad. | Retire scratchpad-only authority when a composed brain is promoted; keep a named raw-LLM baseline if it remains useful. |
+| LLM-selected arbitrary proposal | **Active in the default raw-LLM agent.** The opt-in composed path uses legal candidate IDs, ordered policy, a committed plan, and voice that cannot reopen the mechanical action. | Require paired evaluation and human approval before default promotion; then demote arbitrary selection to the raw-LLM baseline. |
+| Generic evil policy for Mordred | **Active placeholder authority; Mordred substrate complete.** The native private Merlin-blindness objective and public treatment read are mechanically inert, while generic D2 evil policy still decides proposals and votes. | Phase 7E2B gives the admitted Mordred objective bounded causal authority after R3B3, with forced-policy and generic-evil fallback preserved. |
+| Generic assassination heuristic and prompt ranking | **Active pending replacement.** No separate Assassin Merlin posterior exists, so heuristic and raw-LLM paths still rank candidates with generic behavioral signals. | Phase 7E3 adds an interpretable, seat-filtered Merlin posterior; Phase 7F evaluates it and virtual guesses. |
+| Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Open isolation/deletion debt (MD-003).** Robust heterogeneous D3 is native and writes through the registered strategic layer; exact quota is the sole opt-in legacy D3 writer and binding. | Phase 7R3B3 deletes the runtime convention or confines it to an explicitly historical research reader, then removes its flat projection and exemption. |
+| Three boolean trace-admission wrappers | **Open test-only deletion debt (MD-004).** Runtime and evaluation consume the closed trust-labeled admission union; only historical formula/D3 tests call these facades. | Phase 7R3B3 migrates those tests to the closed result and deletes the wrappers. |
 
-Removal means deleting or demoting the old authority, not merely adding a new path beside it.
+Removal means deleting or isolating old authority, not merely adding a new path beside it. A
+retained baseline must stay independently attributable and must not silently feed native policy.
 
 ---
 
@@ -3202,6 +3207,13 @@ here.
   preexisting legacy
   overlay in this checkpoint; R3B2B owns the robust authority cutover and R3B3 still owns
   exact-quota quarantine plus MD-003 and MD-004.
+- NB-007 large-support identity normalization: replaced naive identity-boundary sums with one
+  compensated accumulator for source normalization, grouped role and hidden-team mass, and
+  detached lattice validation. The actual 10-player `phase4-good-v1` vote at
+  `decision:3:vote:q3:p1:v70` now projects all 58,080 uniform worlds and reaches trusted-exact
+  admission. Exact joint entries, the `1e-12` tolerance, canonical ordering, and invalid-mass
+  rejection are unchanged; the fix does not round, widen tolerance, special-case the fixture, or
+  renormalize invalid input.
 - Phase 7R3B2B robust D3 authority cutover complete: `robust-heterogeneous` configures
   `evil-quest-card-robust-strategic@evil-robust-heterogeneous-quest-decision-v1`
   as the first production concrete decision layer. Its admitted native component is the only
