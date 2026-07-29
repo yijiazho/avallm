@@ -47,6 +47,7 @@ import {
   seededRoleObjectiveScorer,
   type CandidateScorer,
 } from '../policy/score.ts'
+import { compareCandidateIds } from '../policy/candidates.ts'
 import type { DecisionKind } from '../../engine/types.ts'
 
 export const COMPATIBILITY_SCORE_LAYER = scoreLayerToken(
@@ -214,7 +215,7 @@ function voteUtility(context: VoteContext) {
     .filter((entry) => entry.candidateId !== projection.currentCandidateId)
     .sort((left, right) =>
       right.cleanProbability - left.cleanProbability
-      || left.candidateId.localeCompare(right.candidateId))
+      || compareCandidateIds(left.candidateId, right.candidateId))
   const best = alternatives[0]
   if (
     currentMatches.length !== 1
@@ -466,7 +467,7 @@ function deterministicGoodBaseRows(
     const topIds = viable
       .filter((row) => row.value === max)
       .map((row) => row.candidateId)
-      .sort()
+      .sort(compareCandidateIds)
     return base.map((row) => ({
       ...row,
       reasonCodes: [
@@ -504,7 +505,7 @@ function deterministicGoodBaseRows(
     candidate.decision.kind === 'vote'
     && values[candidate.decision.vote] === max)
     .map((candidate) => candidate.id)
-    .sort()[0]
+    .sort(compareCandidateIds)[0]
   return context.candidates.map((candidate) => {
     if (candidate.decision.kind !== 'vote') {
       throw new Error('good base received mixed vote candidates')
@@ -606,7 +607,7 @@ function roleDefinition(
       const canonicalTopId = allowedRows
         .filter((row) => row.combinedValue === maxCombined)
         .map((row) => row.candidate.id)
-        .sort()[0]
+        .sort(compareCandidateIds)[0]
       const forcedSelection = context.forced.selectedCandidateId
       const voteRows = context.request.kind === 'vote' ? allowedRows : []
       const inBand = voteRows.length === 2
@@ -693,6 +694,10 @@ const definitions: readonly ScoreLayerDefinition[] = Object.freeze([
   ),
 ])
 
+export function goodScoreLayerDefinitions(): readonly ScoreLayerDefinition[] {
+  return definitions
+}
+
 export function createGoodScoreLayerRegistry() {
-  return createScoreLayerRegistry(definitions)
+  return createScoreLayerRegistry(goodScoreLayerDefinitions())
 }

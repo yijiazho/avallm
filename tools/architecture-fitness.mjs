@@ -12,6 +12,8 @@ const ENGINE_TYPES = 'server/engine/types'
 const COMPONENT_KERNEL = 'server/agents/components/kernel'
 const GENERIC_SCORE_LAYER_PREFIX = 'server/agents/policy/score-layer/'
 const CONCRETE_SCORE_LAYER_PREFIX = 'server/agents/score-layers/'
+const CONFIGURED_SCORE_LAYER_SEAM =
+  'server/agents/score-layers/configured'
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
 const SCORE_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
@@ -383,6 +385,30 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (!target) continue
+      const sourceIsConcreteScoreFamily =
+        sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
+        && moduleIdentity(sourcePath) !== CONFIGURED_SCORE_LAYER_SEAM
+      const targetIsConcreteScoreFamily =
+        target.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
+        && target !== CONFIGURED_SCORE_LAYER_SEAM
+      if (
+        (
+          targetIsConcreteScoreFamily
+          && moduleIdentity(sourcePath) !== CONFIGURED_SCORE_LAYER_SEAM
+        )
+        || (
+          sourceIsConcreteScoreFamily
+          && target.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
+        )
+      ) {
+        violations.push(violation(
+          'ARCH007',
+          sourcePath,
+          edge,
+          'concrete score-family selection and equality aggregation are confined to score-layers/configured.ts',
+        ))
+        continue
+      }
       if (
         sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)
         && (

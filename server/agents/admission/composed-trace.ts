@@ -132,6 +132,7 @@ import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   candidateIdForDecision,
   candidateTeams,
+  compareCandidateIds,
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../policy/candidates.ts'
@@ -2499,11 +2500,14 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
         (score.roleObjectiveFeatures as Record<string, unknown>)
           .combinedValue === maxCombined)
       .map((score) => score.candidateId as string)
-      .sort()[0]
+      .sort(compareCandidateIds)[0]
     const viable = roleFeatureScores.filter((score) => score.viable === true)
     const selectedByValue = viable.slice().sort((left, right) =>
       Number(right.value) - Number(left.value)
-      || String(left.candidateId).localeCompare(String(right.candidateId)))[0]
+      || compareCandidateIds(
+        String(left.candidateId),
+        String(right.candidateId),
+      ))[0]
     const forcedSelected = forced.selectedCandidateId as string | undefined
     const bandActive =
       !forcedSelected
@@ -2665,7 +2669,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
         (score.evilRoleObjectiveFeatures as Record<string, unknown>)
           .roleValue === maxValue)
       .map((score) => score.candidateId as string)
-      .sort()[0]
+      .sort(compareCandidateIds)[0]
     const viable = evilRoleFeatureScores.filter(
       (score) => score.viable === true,
     )
@@ -2914,12 +2918,15 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
           (score.features as Record<string, unknown>).baseUtility === maxBase,
       )
       .map((score) => score.candidateId as string)
-      .sort()[0]
+      .sort(compareCandidateIds)[0]
     const selectedByValue = viable
       .slice()
       .sort((left, right) =>
         (right.value as number) - (left.value as number)
-        || String(left.candidateId).localeCompare(String(right.candidateId)))[0]
+        || compareCandidateIds(
+          String(left.candidateId),
+          String(right.candidateId),
+        ))[0]
     const bandActive =
       mode === 'seeded-band'
       && first.inViableBand === true

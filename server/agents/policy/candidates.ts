@@ -22,6 +22,15 @@ const phaseForKind: Record<DecisionKind, PlayerView['phase']> = {
   assassinate: 'assassination',
 }
 
+/**
+ * Canonical candidate-ID order. JavaScript relational string comparison is a
+ * deterministic lexicographic order over UTF-16 code units and never consults
+ * the host locale.
+ */
+export function compareCandidateIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
 function combinations(items: readonly Seat[], size: number): readonly Seat[][] {
   const result: Seat[][] = []
   const selected: Seat[] = []

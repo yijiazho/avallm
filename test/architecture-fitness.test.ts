@@ -515,6 +515,69 @@ test('concrete score families stay separate from observability and composition I
   )
 })
 
+test('configured score seam exclusively aggregates concrete families', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/composed.ts',
+        'import { createGoodScoreLayerRegistry } from "./score-layers/good.ts"',
+      ],
+      [
+        'server/agents/policy/decision-frame.ts',
+        'import { family as selected } from "../score-layers/good.ts"',
+      ],
+      [
+        'server/agents/components/family.ts',
+        'import * as family from "../score-layers/good.ts"',
+      ],
+      [
+        'server/agents/policy/family.ts',
+        'export { family } from "../score-layers/good.ts"',
+      ],
+      [
+        'server/agents/composed-dynamic.ts',
+        'const family = await import("./score-layers/good.ts")',
+      ],
+      [
+        'server/agents/composed-require.ts',
+        'const family = require("./score-layers/good.ts")',
+      ],
+      [
+        'server/agents/score-layers/evil.ts',
+        'import { GOOD } from "./good.ts"',
+      ],
+      [
+        'server/agents/score-layers/good.ts',
+        'export * from "./configured.ts"',
+      ],
+    ]),
+    [
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+      'ARCH007',
+    ],
+  )
+  assert.deepEqual(
+    auditArchitectureSources([
+      [
+        'server/agents/score-layers/configured.ts',
+        `import { GOOD } from "./good.ts"
+         import * as equality from "./legacy-equality.ts"`,
+      ],
+      [
+        'server/agents/composed.ts',
+        'import { registry } from "./score-layers/configured.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
 test('native score-layer preparation and execution stay locally owned', () => {
   assert.deepEqual(
     rules([

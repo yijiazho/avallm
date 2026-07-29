@@ -48,6 +48,7 @@ import {
   stablePolicyBucket,
   type GoodProposalReasonCode,
 } from './good-score-contract.ts'
+import { compareCandidateIds } from './candidates.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -439,11 +440,7 @@ function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
     )
     .sort((left, right) =>
       right.cleanProbability - left.cleanProbability
-      || (
-        left.candidateId < right.candidateId
-          ? -1
-          : left.candidateId > right.candidateId ? 1 : 0
-      ))
+      || compareCandidateIds(left.candidateId, right.candidateId))
   const best = alternatives[0]
   if (
     !best
@@ -780,7 +777,7 @@ export function validateCandidateScores(
     const topId = allowedVoteScores
       .filter(({ features }) => features.baseUtility === maxBase)
       .map(({ score }) => score.candidateId)
-      .sort()[0]
+      .sort(compareCandidateIds)[0]
     const selectionMode: GoodVoteSelectionMode =
       scorerVersion === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
         ? 'seeded-band'
@@ -918,7 +915,7 @@ export function structuredChoice(
     score.value > best.value
       || (
         score.value === best.value
-        && score.candidateId < best.candidateId
+        && compareCandidateIds(score.candidateId, best.candidateId) < 0
       )
       ? score
       : best)
@@ -1012,7 +1009,7 @@ export function scoreGoodProposalCandidates(
   const bestIds = viable
     .filter((score) => score.value === bestValue)
     .map((score) => score.candidateId)
-    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+    .sort(compareCandidateIds)
   return scored.map((score) => ({
     ...score,
     reasonCodes: [
@@ -1113,7 +1110,7 @@ function scoreGoodProposalVoteCandidates(
         { kind: 'vote' }
       >).vote] === maxBase)
     .map((candidate) => candidate.id)
-    .sort()[0]
+    .sort(compareCandidateIds)[0]
   const inViableBand =
     Math.abs(utility.approveUtility - utility.rejectUtility)
     <= GOOD_VOTE_UTILITY_CONSTANTS.viableBand
@@ -1350,7 +1347,7 @@ function scoreRoleObjectiveCandidates(
   const canonicalTopId = allowedRows
     .filter(({ combinedValue }) => combinedValue === maxCombined)
     .map(({ candidate }) => candidate.id)
-    .sort()[0]
+    .sort(compareCandidateIds)[0]
   const forcedSelection = context.forced.selectedCandidateId
   if (forcedSelection && !allowed.has(forcedSelection)) {
     throw new Error('role-objective scorer received invalid forced selection')
@@ -1553,7 +1550,7 @@ function scoreEvilRoleObjectiveCandidates(
   const canonicalTopId = allowedRows
     .filter(({ utility }) => utility.roleValue === maxValue)
     .map(({ candidate }) => candidate.id)
-    .sort()[0]
+    .sort(compareCandidateIds)[0]
   const forcedSelection = context.forced.selectedCandidateId
   if (forcedSelection && !allowed.has(forcedSelection)) {
     throw new Error(

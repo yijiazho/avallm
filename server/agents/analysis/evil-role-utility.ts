@@ -6,6 +6,7 @@ import type {
 } from '../../engine/types.ts'
 import { MAX_PROPOSALS } from '../../engine/rules.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
+import { compareCandidateIds } from '../policy/candidates.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
   type PrivateIdentitySnapshot,
@@ -275,7 +276,7 @@ export function buildEvilRoleUtilityProjection(input: {
         .sort((left, right) =>
           right.teamFailureCapabilityProbability
             - left.teamFailureCapabilityProbability
-          || left.candidateId.localeCompare(right.candidateId))
+          || compareCandidateIds(left.candidateId, right.candidateId))
     : []
   const bestAlternative = alternatives[0]
   if (

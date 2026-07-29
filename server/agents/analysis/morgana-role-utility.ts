@@ -10,7 +10,10 @@ import {
   type PolicyCandidate,
   type ForcedPolicyResult,
 } from '../policy/types.ts'
-import { candidateIdForDecision } from '../policy/candidates.ts'
+import {
+  candidateIdForDecision,
+  compareCandidateIds,
+} from '../policy/candidates.ts'
 import {
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   validatePrivateEvilRoleUtilityProjection,
@@ -173,7 +176,7 @@ function rankByCounterfeit(
   const ordered = [...rows].sort(
     (left, right) =>
       right.counterfeitValue - left.counterfeitValue
-      || left.candidateId.localeCompare(right.candidateId),
+      || compareCandidateIds(left.candidateId, right.candidateId),
   )
   return new Map(ordered.map((row, index) => [row.candidateId, index + 1]))
 }
@@ -324,7 +327,7 @@ export function buildMorganaRoleUtilityProjection(input: {
     (left, right) =>
       right.counterfeitAssessment.counterfeitValue
         - left.counterfeitAssessment.counterfeitValue
-      || left.candidate.id.localeCompare(right.candidate.id),
+      || compareCandidateIds(left.candidate.id, right.candidate.id),
   )[0]
   const voteBand =
     req.kind === 'vote'
@@ -630,7 +633,7 @@ export function validatePrivateMorganaRoleUtilityProjection(
     const ranked = [...bandRows].sort(
       (left, right) =>
         right.counterfeitValue - left.counterfeitValue
-        || left.candidateId.localeCompare(right.candidateId),
+        || compareCandidateIds(left.candidateId, right.candidateId),
     )
     if (
       Math.abs(value.maxD2RoleValue - maxD2) > 1e-12

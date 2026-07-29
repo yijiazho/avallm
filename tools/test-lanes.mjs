@@ -60,6 +60,8 @@ const LANES = Object.freeze({
     'vote-lean.test.ts',
   ]),
   contract: Object.freeze([
+    'configured-score-layers.test.ts',
+    'decision-scenario.test.ts',
     'decision-frame.test.ts',
     'decision-trace.test.ts',
     'knowledge.test.ts',

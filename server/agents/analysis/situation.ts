@@ -22,6 +22,7 @@ import type {
   HiddenWorld,
 } from '../belief/types.ts'
 import type { Evidence } from '../cognition/types.ts'
+import { compareCandidateIds } from '../policy/candidates.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
   GOOD_VOTE_SITUATION_VERSION,
@@ -475,11 +476,7 @@ export function analyzeSituation(
       .filter((assessment) => assessment.candidateId !== currentMatches[0].candidateId)
       .sort((left, right) =>
         right.cleanProbability - left.cleanProbability
-        || (
-          left.candidateId < right.candidateId
-            ? -1
-            : left.candidateId > right.candidateId ? 1 : 0
-        ))
+        || compareCandidateIds(left.candidateId, right.candidateId))
     if (!alternatives.length) {
       throw new Error('good vote analysis requires a different legal alternative')
     }

@@ -40,6 +40,7 @@ import type {
 import {
   candidateIdForDecision,
   candidateTeams,
+  compareCandidateIds,
   hypotheticalProposalCandidates,
   legalCandidates,
   validateCandidateRequest,
@@ -727,7 +728,7 @@ export function withNativeScoreLayers(
         score.value > best.value
           || (
             score.value === best.value
-            && score.candidateId < best.candidateId
+            && compareCandidateIds(score.candidateId, best.candidateId) < 0
           )
           ? score
           : best)

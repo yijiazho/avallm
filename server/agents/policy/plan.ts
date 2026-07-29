@@ -10,6 +10,7 @@ import {
   type GoodProposalFeatures,
   type GoodVoteFeatures,
 } from './score.ts'
+import { compareCandidateIds } from './candidates.ts'
 
 export const DECISION_PLAN_VERSION = 'decision-plan-v2'
 export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v2'
@@ -162,7 +163,7 @@ export function selectedStrategicReasonCodes(
                 === best,
           )
           .map((candidate) => candidate.candidateId)
-          .sort()
+          .sort(compareCandidateIds)
         if (tied.length > 1 && tied[0] === score.candidateId) {
           reasons.push('GOOD_PROPOSAL_CANONICAL_TIE_BREAK')
         }

@@ -205,13 +205,11 @@ import {
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
 import {
-  createGoodScoreLayerRegistry,
-  goodScoreLayerTerminalFor,
-  goodScoreLayersApplyToDecision,
-} from './score-layers/good.ts'
-import {
-  assertGoodScoreLayerLegacyEquality,
-} from './score-layers/legacy-equality.ts'
+  assertConfiguredScoreLayerLegacyEquality,
+  configuredScoreLayerTerminalFor,
+  configuredScoreLayersApplyToDecision,
+  createConfiguredScoreLayerRegistry,
+} from './score-layers/configured.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
@@ -1040,7 +1038,7 @@ export function createComposedAgent(
   const compatibilityDecision =
     options.compatibilityDecision ?? heuristicDecide
   const configuredScorerSource = options.scorer
-  const nativeGoodScoreLayerTerminal = goodScoreLayerTerminalFor(
+  const configuredScoreLayerTerminal = configuredScoreLayerTerminalFor(
     configuredScorerSource,
   )
   const scorer = snapshotScorer(options.scorer ?? {
@@ -1148,8 +1146,8 @@ export function createComposedAgent(
   const resolvedBrain = resolveComposedBrain({
     requestedComponents,
     hostCapabilities: [],
-    ...(nativeGoodScoreLayerTerminal
-      ? { scoreLayerTerminal: nativeGoodScoreLayerTerminal }
+    ...(configuredScoreLayerTerminal
+      ? { scoreLayerTerminal: configuredScoreLayerTerminal }
       : { scoreLayerOrder: [] }),
     decisionLayerOrder: [],
     executionMode: planner
@@ -1226,7 +1224,7 @@ export function createComposedAgent(
         evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
       },
     },
-  }, componentRegistry, createGoodScoreLayerRegistry())
+  }, componentRegistry, createConfiguredScoreLayerRegistry())
   const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
     projectResolvedArchitectureIdentity(resolvedBrain.description),
   )
@@ -1600,7 +1598,7 @@ export function createComposedAgent(
         const candidateFrame = withLegalCandidates(canonicalFrame)
         const nativeScoreLayerLease =
           resolvedBrain.scoreLayerChain
-          && goodScoreLayersApplyToDecision(req.kind)
+          && configuredScoreLayersApplyToDecision(req.kind)
           ? prepareNativeScoreLayers(candidateFrame, resolvedBrain)
           : undefined
         stage('candidates')
@@ -1896,7 +1894,7 @@ export function createComposedAgent(
           },
         )
         if (nativeScoredFrame) {
-          assertGoodScoreLayerLegacyEquality(
+          assertConfiguredScoreLayerLegacyEquality(
             nativeScoredFrame,
             scoredFrame,
           )

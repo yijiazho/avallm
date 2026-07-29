@@ -2351,11 +2351,33 @@ role migration:
 
 | ID | Owner / when | Improvement | Acceptance |
 |---|---|---|---|
-| DEV-001 | Phase 7 post-checkpoint, before the next large oracle expansion | Add a typed legal-replay `DecisionScenario` builder | Request, view, visible history, legal candidates, and expected action are derived from one authoritative replay; tests no longer hand-splice phase/request cursors or repeat role-shaped casts. |
+| DEV-001 | **Installed after A2; A3 is the first mandatory consumer** | Add a typed legal-replay `DecisionScenario` helper | The small non-fluent helper clones its input game once, validates exact request coordinates through `expectedDecisions`, advances only through `applyDecisionWithOutcome`, and returns only a detached request, seat-filtered `PlayerView`, and visible event cursor. The request/decision mapped union rejects mismatched kinds at compile time. A3's new strict contract test must derive its decision surface this way rather than splice phases or request cursors. |
 | DEV-002 | **Gate installed after A2; exemptions burn down with each slice** | Ratchet strict typechecking over new and touched test/support code | `tools/strict-test-ratchet.mjs` is the single inventory authority in `typecheck` and every verifier level. At installation, 73 roots pass strictly and 43 legacy top-level tests have LF-normalized content hashes plus reviewed rationales. Every new top-level test is strict automatically; all eight `test/support/**` and `test/typecheck/**` files are always strict; changed or deleted exemptions fail closed. Repository fitness uses TypeScript's config parser and rejects any test file resolved from another root `tsconfig`, including `include`, `files`, globs, and inherited settings; config diagnostics and nonempty root project references fail closed rather than allowing a nested inventory to bypass the owner. The ratchet, verification funnel, and architecture-fitness tests themselves are strict roots. |
 | DEV-003 | **LF policy installed after A2; controlled legacy normalization remains pending** | Adopt repository line-ending and editor policies without mixing mechanical rewrites into behavior commits | `.gitattributes` declares extension-scoped LF text and explicit binary formats; `.editorconfig` declares UTF-8, LF, final newlines, and trailing-whitespace behavior without imposing indentation. The policy commit performs no `git add --renormalize`, no bulk normalization, and changes no unrelated tracked bytes. The one known pre-policy CRLF blob, `server/eval/report.ts`, has a narrow temporary `-text` exception so the policy cannot silently rewrite it; remove that exception only in a separately reviewed normalization commit. |
 | DEV-004 | Inspector v2 after the generic policy-run DTO and A4 cutover | Derive Inspector and equality diagnostics from one admitted native run record | One bounded record supplies layer journal, candidates, policy gate, committed action, and equality deltas; no observability consumer reconstructs or relabels causal state independently. A2's bounded shadow diagnostic is the first private-only step, not the public schema. |
 | DEV-005 | After Phase 7 | Split this tracker into a concise authoritative active contract and append-only completed-phase history | Preserve stable anchors and inbound links, keep current gates and debt easy to find, and prevent the roughly 219 KB historical record from remaining the primary working surface. A2 changes only this stale current capsule. |
+
+`DecisionScenario.source.seed` is test-only replay provenance. The deterministic game seed can
+reconstruct the hidden deal, so this DTO must not be reused for external agents, Inspector, client,
+or any seat-visible production payload. Those boundaries require their own explicitly filtered
+provenance contract.
+
+The same post-A2 gate installs `score-layers/configured.ts` as the one normal score-family
+selection surface. It owns terminal selection, registry construction, decision applicability, and
+the temporary A0/A2 equality dispatch. `composed.ts` imports only this seam; generic policy and
+component code cannot import concrete families, and concrete families cannot import one another.
+Fail-closed ARCH007 checks named, aliased, namespace, export-from, dynamic-import, and `require`
+edges. A3 adds one evil catalog entry at this seam; edits to composition, trace, report, stdio, or
+Inspector for family selection are a seam failure during 7R3.
+
+The post-A2 gate also closes the deterministic-order debt:
+`policy/candidates.ts::compareCandidateIds` is the one owner for candidate selection ties across
+analysis, legacy policy, native policy, validation, and planning. It specifies deterministic
+lexicographic UTF-16 code-unit order, not Unicode code-point or host locale collation, and has a
+focused ordering law. The root TypeScript project remains
+intentionally non-composite: the strict-test ratchet rejects nonempty `references` in any root
+configuration it audits, because a referenced project could become a second test-inventory owner.
+Shared test/support code is compiled directly under the repository's one server option set.
 
 This ordering is a response to measured change cost, not an attempt to reduce assurance. At this
 checkpoint agent source was about 33,500 lines and tests about 35,600 lines. The test tree had
@@ -2562,9 +2584,10 @@ freshness remains `bae3010696159ecb`.
 The independent A2 review also assigned three nonblocking debts rather than extending the
 temporary migration edge:
 
-- **A3 or a focused development follow-up owns explicit candidate-ID ordering.** Replace
-  `score-layers/good.ts` use of locale-sensitive comparison with the same explicit code-point
-  comparator used by authoritative analysis, and prove cross-host deterministic tie-breaking.
+- **Closed by the post-A2 systemic gate: explicit candidate-ID ordering.**
+  `policy/candidates.ts::compareCandidateIds` now owns deterministic lexicographic UTF-16
+  code-unit ordering for candidate selection ties. Native and legacy good policy, evil and
+  Morgana utility, the staged frame, planning, and trace admission consume that one owner.
 - **A4 owns absent-graph hardening with flat-projection deletion.** Complete role validators
   currently reject a flat projection or degradation whose bound component is absent from the
   configured graph, but generic trace admission does not independently enforce that relationship.
