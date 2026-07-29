@@ -38,6 +38,11 @@ import {
   mordredScoreLayerDefinitions,
   mordredScoreLayerTerminalFor,
 } from './mordred.ts'
+import {
+  ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
+  assassinScoreLayerDefinitions,
+  assassinScoreLayerTerminalFor,
+} from './assassin.ts'
 
 /**
  * The deliberately small composition seam for concrete score families.
@@ -49,7 +54,8 @@ import {
 export function configuredScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
-  return mordredScoreLayerTerminalFor(scorer)
+  return assassinScoreLayerTerminalFor(scorer)
+    ?? mordredScoreLayerTerminalFor(scorer)
     ?? morganaScoreLayerTerminalFor(scorer)
     ?? evilScoreLayerTerminalFor(scorer)
     ?? goodScoreLayerTerminalFor(scorer)
@@ -87,6 +93,7 @@ const CONFIGURED_TERMINAL_BY_VERSION = new Map<string, ScoreLayerToken>([
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
   MORDRED_ROLE_SCORE_LAYER,
   SEEDED_MORDRED_ROLE_SCORE_LAYER,
+  ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
 ].map((token) => [token.version, token]))
 
 export function configuredScoreLayerTerminalForVersion(
@@ -129,5 +136,6 @@ export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
       deterministic: EVIL_ROLE_SCORE_LAYER,
       seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
     }),
+    ...assassinScoreLayerDefinitions(EVIL_ROLE_SCORE_LAYER),
   ])
 }

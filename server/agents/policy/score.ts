@@ -69,6 +69,9 @@ import {
   MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
   type MordredBlindnessRoleSelectionMode,
 } from './mordred-score-contract.ts'
+import {
+  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
+} from './assassin-score-contract.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -108,6 +111,10 @@ export {
   MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS,
   type MordredBlindnessRoleSelectionMode,
 } from './mordred-score-contract.ts'
+
+export {
+  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
+} from './assassin-score-contract.ts'
 
 export interface CandidateScore {
   version: string
@@ -1060,3 +1067,13 @@ export const mordredBlindnessRoleScorer =
 
 export const seededMordredBlindnessRoleScorer =
   SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
+
+const ASSASSIN_MERLIN_TARGET_SCORER_DESCRIPTOR: CandidateScorer =
+  Object.freeze({
+    version: ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
+    baseScorer: evilRoleObjectiveScorer,
+  })
+
+/** Opt-in E3B scorer. Ineligible or degraded runs use the D2 base chain. */
+export const assassinMerlinTargetScorer =
+  ASSASSIN_MERLIN_TARGET_SCORER_DESCRIPTOR

@@ -604,6 +604,13 @@ Trajectory and deliberate-noise features remain deferred until evaluation justif
 Role-claim evidence also remains absent until a typed trusted extractor
 exists; raw prose, regular-expression claims, and generic language labels are not valid substitutes.
 
+The first Assassin target policy is deliberately smaller than the posterior model. A private,
+registered score layer consumes only the admitted posterior, considers only hard-policy survivors,
+and chooses the maximum posterior mass with canonical candidate-ID ties. Engine legality and any
+hard selected candidate remain authoritative. Missing or malformed posterior data falls through
+the ordinary deterministic evil and compatibility chain, and neither posterior values nor private
+reason codes enter communication. There is no seeded assassination variant.
+
 Morgana's public "read as Merlin" feature must keep two different semantics visible. Public Merlin
 eligibility is an exact marginal from the public feasible-world model. Proposal and vote
 truth-tracking are bounded, deterministic behavior counts and proxies, not likelihoods or role

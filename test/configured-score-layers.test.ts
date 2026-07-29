@@ -26,6 +26,9 @@ import {
   SEEDED_MORDRED_ROLE_SCORE_LAYER,
 } from '../server/agents/score-layers/mordred.ts'
 import {
+  ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
+} from '../server/agents/score-layers/assassin.ts'
+import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
 import {
@@ -53,6 +56,7 @@ import {
   seededMorganaRoleScorer,
   seededMordredBlindnessRoleScorer,
   seededRoleObjectiveScorer,
+  assassinMerlinTargetScorer,
 } from '../server/agents/policy/score.ts'
 
 test('configured score seam owns family selection and registry construction', () => {
@@ -75,9 +79,10 @@ test('configured score seam owns family selection and registry construction', ()
       seededMordredBlindnessRoleScorer,
       SEEDED_MORDRED_ROLE_SCORE_LAYER,
     ],
+    [assassinMerlinTargetScorer, ASSASSIN_MERLIN_TARGET_SCORE_LAYER],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 12)
+  assert.equal(registry.size, 13)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
@@ -98,6 +103,10 @@ test('configured score seam owns family selection and registry construction', ()
   )
   assert.equal(
     configuredScoreLayerTerminalFor({ ...mordredBlindnessRoleScorer }),
+    undefined,
+  )
+  assert.equal(
+    configuredScoreLayerTerminalFor({ ...assassinMerlinTargetScorer }),
     undefined,
   )
   assert.equal(
@@ -202,6 +211,16 @@ test('native family chains preserve exact predecessor order', () => {
       SEEDED_GOOD_ROLE_SCORE_LAYER,
       SEEDED_EVIL_ROLE_SCORE_LAYER,
       SEEDED_MORDRED_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: ASSASSIN_MERLIN_TARGET_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+      EVIL_ROLE_SCORE_LAYER,
+      ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
     ],
   )
 })

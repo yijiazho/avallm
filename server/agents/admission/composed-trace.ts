@@ -3036,21 +3036,34 @@ function expectedNativeTraceStages(
       const scorer = trace.componentVersions?.scorer
       if (!scorer) return undefined
       const chain = configuredScoreLayerChainForVersion(scorer)
-      const requested = new Map<string, ComponentToken>()
+      const terminal = chain.definitions.at(-1)
+      if (!terminal) return undefined
+      const terminalRequested = new Map<string, ComponentToken>()
+      for (const component of terminal.requiredComponents) {
+        terminalRequested.set(componentKey(component), component)
+      }
+      const chainRequested = new Map<string, ComponentToken>()
       for (const definition of chain.definitions) {
         for (const component of definition.requiredComponents) {
-          requested.set(componentKey(component), component)
+          chainRequested.set(componentKey(component), component)
         }
       }
-      const activeIds = requested.size === 0
+      const resolvedIds = (
+        requested: ReadonlyMap<string, ComponentToken>,
+      ): Set<string> => requested.size === 0
         ? new Set<string>()
         : new Set(PRODUCTION_COMPONENT_REGISTRY.resolve({
             requested: [...requested.values()],
           }).configured.map((component) => component.id))
-      return activeIds.has(componentId)
-        ? nativeScoreSelectionSurvived(trace)
+      const terminalIds = resolvedIds(terminalRequested)
+      if (terminalIds.has(componentId)) {
+        return nativeScoreSelectionSurvived(trace)
           ? ['candidate-score', 'action-selection']
           : ['candidate-score']
+      }
+      const chainIds = resolvedIds(chainRequested)
+      return chainIds.has(componentId)
+        ? undefined
         : []
     } catch {
       return undefined

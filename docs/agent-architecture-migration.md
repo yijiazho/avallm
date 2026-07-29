@@ -2,7 +2,9 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E3A after Phase 7E2B landed at `d25ca29`. Phase 7E2B's
+**Current target phase:** Phase 7E3B after the inert E3A posterior landed at `6d0be37`. E3B adds
+bounded, opt-in assassination authority through the generic score-layer seam without adding a
+second model or central Assassin fields. Phase 7E2B's
 bounded deterministic and seeded Mordred score layers are implemented and landed as opt-in paths:
 they specialize only D2-viable proposal and vote candidates using the admitted E2A objective,
 with no Mordred-specific central trace, evaluation, prompt, or communication field. Phase 7R3B is
@@ -1427,8 +1429,8 @@ reviewable and ablatable:
     forced-policy dominance. **Complete and landed at `d25ca29`.**
 23. **Phase 7E3, Assassin specialization:** first add a mechanically inert, capped, interpretable
     Merlin posterior distinct from generic goodness (E3A), then give it bounded assassination
-    target authority only after its privacy and math are approved (E3B). **E3A implementation
-    candidate; parent full-suite and landing gate pending.**
+    target authority only after its privacy and math are approved (E3B). **E3A complete and
+    landed at `6d0be37`; E3B implementation candidate.**
 24. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
     role-specific, and full configurations on a frozen API-free role bank, including virtual
     Assassin guesses derived only from seat-filtered views.
@@ -2223,6 +2225,22 @@ math, Mordred/Oberon information laws, compact codec, generic native execution/p
 and independence from truth outside the captured seat view. Generic hostile transport, replay,
 artifact, report, and stdio matrices remain covered by the shared component harnesses.
 
+### Phase 7E3B implementation record
+
+E3B registers the deterministic
+`assassin-merlin-target-score@assassin-merlin-target-scorer-v1` transform above the deterministic
+D2 evil chain. It applies only to an Assassin choosing an assassination target with Merlin in the
+cast and requires only the admitted E3A posterior. Within hard-policy survivors it selects maximum
+posterior mass with canonical candidate-ID ties; an existing hard selection still dominates. Only
+the selected target remains score-viable. Missing, inapplicable, or malformed posterior input
+degrades through the ordinary D2 and compatibility chain.
+
+The scorer is opt-in and has no seeded variant. Its reason codes and posterior remain private, and
+it adds no Assassin-specific field or branch to candidate scores, situation analysis, admission,
+evaluation, reports, stdio, prompts, or communication. Generic featureless diagnostics, registry
+membership, causal attribution, replay, privacy, and degradation contracts own those concerns.
+The compact E3B test adds only the unique policy laws; shared matrices are not duplicated.
+
 One boundary cleanup is intentionally not folded into E2A. Existing host-root validators establish
 trusted typed values, but `validateBeliefForMordred` still rechecks admitted belief internals and
 the treatment host join rebuilds the canonical public observer for exact comparison. Phase 7R2C
@@ -2852,7 +2870,7 @@ and decision layers the sole write path.
       hand-authored model merely to match the research feature list.
 - [ ] Add role-claim evidence only after a typed trusted role-claim extractor exists. Raw prose,
       regex parsing, and `roleKnowledgeTell` are not valid posterior inputs.
-- [ ] Give the posterior bounded E3B assassination-target authority.
+- [x] Give the posterior bounded E3B assassination-target authority.
 - [ ] Keep the model interpretable until a learned alternative wins held-out tests.
 - [ ] Record virtual Assassin guesses for all evil seats to increase evaluation sample size.
 
@@ -2920,7 +2938,7 @@ reader; those states are not deletion and are named below.
 | Free-form scratchpad memory | **Active in the default raw-LLM agent.** Typed cognition, evidence, commitments, and plan memory exist for composed agents, but `createLlmAgent` still reinjects its private scratchpad. | Retire scratchpad-only authority when a composed brain is promoted; keep a named raw-LLM baseline if it remains useful. |
 | LLM-selected arbitrary proposal | **Active in the default raw-LLM agent.** The opt-in composed path uses legal candidate IDs, ordered policy, a committed plan, and voice that cannot reopen the mechanical action. | Require paired evaluation and human approval before default promotion; then demote arbitrary selection to the raw-LLM baseline. |
 | Generic evil policy for Mordred | **Demoted baseline/fallback authority.** The landed E2B scorers specialize D2-viable Mordred proposals and votes through the admitted blindness objective while the generic D2 scorer remains the explicit fallback and ablation. | Retain the generic evil baseline; evaluate the opt-in specialization in Phase 7F before any promotion. |
-| Generic assassination heuristic and prompt ranking | **Active pending E3B replacement.** E3A adds a private, mechanically inert Merlin posterior, so heuristic and raw-LLM paths still own target selection. | Phase 7E3B gives the admitted posterior bounded target authority; Phase 7F evaluates it and virtual guesses. |
+| Generic assassination heuristic and prompt ranking | **Demoted baseline/fallback authority.** E3B gives the admitted E3A posterior bounded target authority in the opt-in composed scorer. The generic heuristic remains the compatibility, raw-LLM support, and degradation path. | Retain the independently attributable baseline; Phase 7F evaluates the specialization and virtual guesses before any promotion. |
 | Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Deleted; MD-003 complete.** R3B3A removed executable authority. R3B3B1 removed the historical payload type and decoder, private adapter token and binding, flat trace fields, exact host join, evaluation reconstruction, artifact readers, and report readers. Old exact artifacts now use generic unknown, invalid, or nonpromotable handling; removed flat keys are rejected at canonical ingress. | Retain exact quota only as documented homogeneous research context. Robust heterogeneous D3 evidence comes from the trusted architecture descriptor, generic admitted component, and decision-layer journal. |
 | Boolean trace-admission wrappers | **Deleted; MD-004 complete.** Runtime, evaluation, and tests consume the closed trust-labeled admission union directly. The three retired export names remain only as architecture-fitness tombstones that reject fake imports, aliases, namespace access, dynamic imports, and re-exports. | Keep the tombstones while old integrations could attempt to restore a boolean admission bypass. |
 
