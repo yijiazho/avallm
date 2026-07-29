@@ -200,28 +200,28 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
 
 // Votes only happen on proposals 1-4 — the 5th ("hammer") proposal is
 // approved automatically by the engine, so no hammer warning is needed here.
+//
+// The vote is a round token, not a card. Tabletop Avalon hands you a vote chip
+// whose two faces are a lit disc and a dark one, and keeping that shape is what
+// stops this moment reading as the quest: the quest hand is the only tarot card
+// on the bar. Lit against unlit is also a VALUE contrast, so it survives
+// grayscale, a dim phone, and colour blindness — which the lapis/oxblood pair
+// these buttons used to share with the quest cards did not.
 function Vote({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
   const team = (view.currentTeam ?? []).map((s) => s === view.seat ? 'You' : view.players[s].name).join(' · ')
   return (
     <div className="action-bar your-turn" data-kind="vote">
-      <TurnTag>Play a card</TurnTag>
+      <TurnTag>Your vote</TurnTag>
       <span className="action-label">Approve <b className="team-gold">{team}</b> for quest {view.round}?</span>
       <span className="bar-spacer" />
-      <div className="playcards">
-        <button className="play approve" data-t="vote-approve" title="The Chariot: approve, send them forth" onClick={() => onDecide({ kind: 'vote', vote: 'approve' })}>
-          <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
-          <span className="pnum">VII</span>
-          <span className="pem-frame"><Emblem id="chariot" className="pem" /></span>
-          {/* arcanum name on desktop, plain verdict on mobile (where numeral + subtitle are hidden) */}
-          <span className="pt vote-title"><span className="ptx-arc">The Chariot</span><span className="ptx-plain">Approve</span></span>
-          <span className="ps">send them forth</span>
+      <div className="votetokens">
+        <button className="vtoken full" data-t="vote-approve" title="Full moon: approve, send them forth" onClick={() => onDecide({ kind: 'vote', vote: 'approve' })}>
+          <span className="vt-word">Aye</span>
+          <span className="vt-sub">send them forth</span>
         </button>
-        <button className="play reject" data-t="vote-reject" title="The Hanged Man: reject, force a new leader" onClick={() => onDecide({ kind: 'vote', vote: 'reject' })}>
-          <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
-          <span className="pnum">XII</span>
-          <span className="pem-frame"><Emblem id="hanged" className="pem" /></span>
-          <span className="pt vote-title"><span className="ptx-arc">The Hanged Man</span><span className="ptx-plain">Reject</span></span>
-          <span className="ps">force a new leader</span>
+        <button className="vtoken new" data-t="vote-reject" title="New moon: reject, force a new leader" onClick={() => onDecide({ kind: 'vote', vote: 'reject' })}>
+          <span className="vt-word">Nay</span>
+          <span className="vt-sub">force a new leader</span>
         </button>
       </div>
     </div>
@@ -237,15 +237,18 @@ function QuestCard({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<
         Play your card in secret{good ? ' (good must play Success)' : ''}:
       </span>
       <span className="bar-spacer" />
+      {/* `success`/`fail`, not `approve`/`reject`: the quest owns the play cards
+          outright now. The vote used to share these exact classes, which is why
+          the two moments were literally the same picture. */}
       <div className="playcards">
-        <button className="play approve" data-t="quest-success" onClick={() => onDecide({ kind: 'quest', card: 'success' })}>
+        <button className="play success" data-t="quest-success" onClick={() => onDecide({ kind: 'quest', card: 'success' })}>
           <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
           <span className="pnum">XIX</span>
           <span className="pem-frame"><Emblem id="laurel" className="pem" /></span>
           <span className="pt">Success</span>
         </button>
         {!good && (
-          <button className="play reject" data-t="quest-fail" onClick={() => onDecide({ kind: 'quest', card: 'fail' })}>
+          <button className="play fail" data-t="quest-fail" onClick={() => onDecide({ kind: 'quest', card: 'fail' })}>
             <span className="pc-star tl">✦</span><span className="pc-star br">✦</span>
             <span className="pnum">XVI</span>
             <span className="pem-frame"><Emblem id="dagger" className="pem" /></span>
@@ -276,7 +279,7 @@ function Assassinate({ view, onDecide }: { view: PlayerView; onDecide: (d: Recor
             >{p.name}</button>
           ))}
         </div>
-        <button className="play reject compact" data-t="assassinate" disabled={target === null}
+        <button className="play fail compact" data-t="assassinate" disabled={target === null}
           onClick={() => onDecide({ kind: 'assassinate', target })}>
           <Emblem id="dagger" className="pem" /><span className="pt">Assassinate</span>
         </button>

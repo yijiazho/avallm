@@ -64,8 +64,8 @@ cartouche, engraved emblem in an oval frame, title plate, corner stars. Emblems 
 | Quest fail — **Sabotaged** | — | dagger (Evil sigil) | fail count on title plate |
 | Spectator — **The Witness** | 0 | open book | unaligned; the Fool's position |
 | Seat sigils — **celestial bodies** | — | ☿ ♊ ☉ ☽ ♃ ♄ … | pick O2 (2026-07-23): each agent is a body in the constellation, brand-colored; humans are ⊕ Earth; autopilot is ⚙ the Clockwork; custom agents draw deterministically from the outer pool (`celestialFor` in Arcana.tsx). Unicode for now — converting the chosen set to SVG is an open polish item. |
-| Vote approve | AYE | laurel | also good's forced Success card |
-| Vote reject | NAY | dagger | |
+| Vote approve | — | **full moon** | not an arcanum: the vote is a round token, after the tabletop vote chip. Lit disc. |
+| Vote reject | — | **new moon** | unlit disc with an earthshine rim. |
 | Leader marker | ♛ | crown | passes clockwise |
 
 Roman-numeral in-jokes are intentional; role *names* in prose stay the standard Avalon
@@ -76,10 +76,19 @@ names (Merlin, Percival…) — the arcana titles are the cards' display dress, 
 - **Palette**: night `#14112a` · night-2 `#1b173a` · panel `#201c42` · line `#363057` ·
   bone `#eae2d0` / dim `#a7a094` / faint `#6f6a84` · gold `#c9a84c` (deep `#8a7230`) ·
   lapis (good) `#6f8fd9` · oxblood (evil) `#c25e54` · lacquer wood `#201625`/`#322238` ·
-  felt `#1c2138`. Model brand colors: ds `#6b83ff`, gm `#4fb39c`, hk `#e08a67`,
+  felt `#1c2138`. The vote's own pair: lit `#e8dcb4` (deep `#c0af82`) · unlit `#6f6a92`
+  (ink `#a49dc8`). Model brand colors: ds `#6b83ff`, gm `#4fb39c`, hk `#e08a67`,
   km `#45c4d8`, gl `#a97fe6`, gp `#67b377`.
 - **Color roles**: gold = structure/attention/leader; lapis & oxblood = allegiance ONLY
-  (fixes audit X2); model colors = identity chips/ticks.
+  (fixes audit X2); lit/unlit = the vote, everywhere it appears (bar token, seat chip,
+  flipped ballot, lean pill, tally, record grid); model colors = identity chips/ticks.
+  The vote pair exists because `--ok`/`--bad` used to alias lapis/oxblood, so "approve"
+  and "quest success" rendered as the same blue card from the same CSS rule — the vote
+  and the quest were literally one picture. Lit-vs-unlit is a *value* contrast, so it
+  also survives grayscale, low brightness, and color blindness, which the old pair did
+  not. Deliberate near-collision to keep an eye on: Morgana (The Mirror, XVIII) is drawn
+  as facing crescents; the vote discs are full/new, a different shape in a different
+  place (a token on the bar, never an emblem on a card).
 - **Type**: display + body `Constantia, "Palatino Linotype", Georgia, serif`; records,
   labels, model slugs `Consolas / Cascadia Mono` (machine voice). Small-caps + tracked
   uppercase for plates and labels.

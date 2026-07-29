@@ -32,7 +32,11 @@ const COMPONENTS = [
   'role-oberon', 'role-spectator', 'name-editor',
   'quest-party', 'quest-party-mission', 'quest-party-awaiting', // proposed team named in the aside
 
-  'act-propose', 'act-finalize', 'act-quest-good', 'act-quest-evil', 'act-assassinate',
+  // act-vote is deterministic here even though the playthrough also hits `vote`:
+  // the tokens need a fixed frame to diff against the quest cards. See gallery.tsx.
+  'act-vote', 'act-propose', 'act-finalize', 'act-quest-good', 'act-quest-evil', 'act-assassinate',
+  // the vote either side of resolution; a live run catches one or the other by timing
+  'feed-vote-sealing', 'feed-vote-reveal',
   'tip-seat', 'tip-quest', // hover-only tooltips (off on touch)
   'reveal-assassin', // end-game reveal on an Assassin miss (deal, struck card, target line)
 ]

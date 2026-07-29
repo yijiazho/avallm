@@ -5,6 +5,9 @@
     "components/act-propose.jpg",
     "components/act-quest-evil.jpg",
     "components/act-quest-good.jpg",
+    "components/act-vote.jpg",
+    "components/feed-vote-reveal.jpg",
+    "components/feed-vote-sealing.jpg",
     "components/name-editor.jpg",
     "components/quest-party-awaiting.jpg",
     "components/quest-party-mission.jpg",
@@ -26,7 +29,6 @@
     "desktop/lobby-host.jpg",
     "desktop/propose.jpg",
     "desktop/quest-ballot.jpg",
-    "desktop/quest-card.jpg",
     "desktop/reconnect-banner.jpg",
     "desktop/record-sheet.jpg",
     "desktop/reveal-thinking.jpg",
@@ -54,5 +56,5 @@
     "mobile/vote-ballot.jpg",
     "mobile/vote.jpg"
   ],
-  "sourceHash": "bae3010696159ecb"
+  "sourceHash": "f3caf02742c75421"
 }

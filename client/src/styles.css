@@ -18,8 +18,18 @@
   --gold-deep: #8a7230;
   --good: #6f8fd9;
   --evil: #c25e54;
-  --ok: #6f8fd9;   /* approval / success shares the good hue */
-  --bad: #c25e54;
+  /* The vote's own pair, deliberately NOT the allegiance hues. A vote is table
+     procedure, not a faction, and it fires up to five times a round; lapis and
+     oxblood are reserved for who you ARE (and for the quest card, where the
+     result genuinely is a faction). These used to be `--ok: #6f8fd9` / `--bad:
+     #c25e54` aliases, which is precisely how "approve" and "quest success" ended
+     up the same blue rectangle.
+     Full moon vs new moon, after the tabletop vote chip: a VALUE contrast, so it
+     still reads in grayscale, at low brightness, and for a colourblind player. */
+  --lit: #e8dcb4;
+  --lit-deep: #c0af82;
+  --unlit: #6f6a92;      /* rims and fills */
+  --unlit-ink: #a49dc8;  /* unlit text, on the night ground */
   --lacquer: #201625;
   --lacquer-lit: #322238;
   --felt: #1c2138;
@@ -105,7 +115,7 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder { color: var(--faint); }
 
-.error { color: var(--bad); margin-top: 0.75em; }
+.error { color: var(--evil); margin-top: 0.75em; }
 
 /* ---- landing (interim skin — full arcane setup is a separate work item) ---- */
 .landing {
@@ -289,8 +299,8 @@ input::placeholder { color: var(--faint); }
 /* Rejected proposals recede — dim the header and the whole column */
 .hg-prop.rejected { opacity: 0.45; }
 .hg-cell.rejected { opacity: 0.5; }
-.hg-cell.yes { color: var(--ok); }
-.hg-cell.no { color: var(--bad); }
+.hg-cell.yes { color: var(--lit); }
+.hg-cell.no { color: var(--unlit-ink); }
 /* Team membership is the solid gold block you scan first; the vote mark rides on top.
    Specificity beats the row-hover background so the fill survives hover. */
 .history-grid tbody td.hg-cell.on-team { background: var(--gold); color: #241c0e; font-weight: 700; }
@@ -640,8 +650,8 @@ input::placeholder { color: var(--faint); }
   from { opacity: 0; transform: translate(-50%, -22px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
-.seat-lean.a { color: #9cd0a4; border-color: rgba(111, 143, 217, 0.65); }
-.seat-lean.r { color: #e6a49a; border-color: rgba(194, 94, 84, 0.65); }
+.seat-lean.a { color: var(--lit); border-color: color-mix(in srgb, var(--lit) 50%, transparent); }
+.seat-lean.r { color: var(--unlit-ink); border-color: color-mix(in srgb, var(--unlit) 70%, transparent); }
 .seat-lean.u { color: var(--dim); border-color: var(--line); }
 .seat .votechip {
   position: absolute; right: -7px; top: -7px;
@@ -649,8 +659,8 @@ input::placeholder { color: var(--faint); }
   display: flex; align-items: center; justify-content: center;
   font: 700 0.6rem var(--mono); border: 1.5px solid; background: #0d1018;
 }
-.votechip.approve { color: #9cd0a4; border-color: var(--good); }
-.votechip.reject { color: #e6a49a; border-color: var(--evil); }
+.votechip.approve { color: #2b2410; border-color: var(--lit); background: radial-gradient(circle at 36% 32%, #fbf3dc, #cbbb8e); }
+.votechip.reject { color: var(--unlit-ink); border-color: rgba(224, 194, 106, 0.42); background: #110e24; }
 .seat-under { min-height: 0.9rem; }
 .seat .seat-md, .seat .next-tag {
   font: 500 0.62rem var(--mono); color: var(--dim); letter-spacing: 0.03em;
@@ -764,8 +774,8 @@ input::placeholder { color: var(--faint); }
 .tooltip .t-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.74rem; line-height: 1.35; }
 .tooltip .t-row .k { font: 500 0.56rem var(--mono); letter-spacing: 0.06em; color: var(--faint); text-transform: uppercase; flex-shrink: 0; padding-top: 2px; }
 .tooltip .t-row .v { color: var(--text); text-align: right; }
-.tooltip .t-row .v.aye { color: #9cd0a4; }
-.tooltip .t-row .v.nay { color: #e6a49a; }
+.tooltip .t-row .v.aye { color: var(--lit); }
+.tooltip .t-row .v.nay { color: var(--unlit-ink); }
 .tooltip .t-row .v.gold { color: var(--gold-lt); }
 .tooltip .t-row .v.dim { color: var(--dim); font-style: italic; font-size: 0.7rem; }
 @media (hover: none) { .tooltip { display: none; } }
@@ -862,8 +872,8 @@ main aside > * { flex-shrink: 0; }
   font: 600 0.58rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
   padding: 2px 6px; border: 1px solid; border-radius: 2px; margin-left: 8px; vertical-align: 1px;
 }
-.leanmark.a { color: #9cd0a4; border-color: rgba(111, 143, 217, 0.55); }
-.leanmark.r { color: #e6a49a; border-color: rgba(194, 94, 84, 0.55); }
+.leanmark.a { color: var(--lit); border-color: color-mix(in srgb, var(--lit) 45%, transparent); }
+.leanmark.r { color: var(--unlit-ink); border-color: color-mix(in srgb, var(--unlit) 65%, transparent); }
 .leanmark.u { color: var(--dim); border-color: var(--line); }
 .feed-speaker { font-weight: 700; margin-right: 0.5rem; display: inline-flex; align-items: center; gap: 0.35rem; }
 /* the live-edge ghost row: a pending line while a bot decides — same
@@ -877,9 +887,9 @@ main aside > * { flex-shrink: 0; }
 @keyframes dotpulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 
 /* ---- sealing ballots (vote + quest) & the assassination beat ---- */
-/* the sealing ballots share the vote reveal's row layout, card box, columns and
+/* the sealing ballots share the vote reveal's row layout, token box, columns and
    seat-labels (align-items/gap/label all match .votereveal), so the sealing row
-   and the reveal read as one continuous element — same cards, same positions. */
+   and the reveal read as one continuous element — same tokens, same positions. */
 .feed-row.ballot {
   display: flex; align-items: flex-start; gap: 9px; flex-wrap: wrap;
   border-left: 2px solid var(--gold-deep); background: rgba(201, 168, 76, 0.05);
@@ -888,12 +898,15 @@ main aside > * { flex-shrink: 0; }
 }
 .ballot .ballot-prog { align-self: center; }
 .ballot-prog { font: 500 0.72rem var(--mono); color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
-/* a sealing ballot (.vslot) and a flip card (.vflip) are the same size & card-
-   back, so the card you watch seal is visibly the card that flips to aye/nay.
-   The value stays secret until the reveal — the card-back never shows aye/nay. */
-.vslot { position: relative; width: 30px; height: 40px; }
+/* A sealing ballot (.vslot) and a flipping one (.vflip) are the same size and
+   the same back, so the token you watch seal is visibly the token that turns to
+   aye/nay. The value stays secret until the reveal — the back never shows it.
+   Discs, not cards: the vote is a round chip everywhere it appears (the bar
+   token, the seat chip, here), and the tarot card belongs to the quest alone.
+   Turning a disc on its Y axis also reads as the coin flip it now is. */
+.vslot { position: relative; width: 32px; height: 32px; }
 .vslot, .vf-front {
-  border-radius: 4px;
+  border-radius: 50%;
   background:
     repeating-linear-gradient(45deg, rgba(201, 168, 76, 0.16) 0 2px, transparent 2px 7px),
     repeating-linear-gradient(-45deg, rgba(201, 168, 76, 0.16) 0 2px, transparent 2px 7px),
@@ -957,10 +970,10 @@ main aside > * { flex-shrink: 0; }
 }
 .vcards { display: inline-flex; gap: 6px; }
 .vcardcol { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-/* A gentle perspective (large distance): the card keeps ~its true width through
+/* A gentle perspective (large distance): the disc keeps ~its true width through
    the whole turn, so a flipping ballot never bulges past its box into a
-   neighbour's gap — the row spacing stays steady as the cards flip. */
-.vflip { display: inline-block; width: 30px; height: 40px; perspective: 700px; }
+   neighbour's gap — the row spacing stays steady as the tokens turn. */
+.vflip { display: inline-block; width: 32px; height: 32px; perspective: 700px; }
 .vflip .vf-inner {
   position: relative; display: block; width: 100%; height: 100%;
   transform-style: preserve-3d;
@@ -968,18 +981,28 @@ main aside > * { flex-shrink: 0; }
 }
 .vf-front, .vf-back {
   position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-  border-radius: 4px; display: grid; place-items: center; font: 700 0.74rem var(--mono);
+  border-radius: 50%; display: grid; place-items: center; font: 700 0.72rem var(--mono);
 }
-/* .vf-front's card-back (size, ring, ✦) is shared with .vslot above, so the
-   sealed ballot and the flip-card front are the same card. */
+/* .vf-front's back (size, ring, ✦) is shared with .vslot above, so the sealed
+   ballot and the flipping one are the same token. */
 .vf-back { transform: rotateY(180deg); border: 1px solid var(--line); background: var(--night-2); }
-.vflip.aye .vf-back { color: #9cd0a4; border-color: var(--good); background: rgba(111, 143, 217, 0.15); }
-.vflip.nay .vf-back { color: #e6a49a; border-color: var(--evil); background: rgba(194, 94, 84, 0.15); }
+.vflip.aye .vf-back {
+  color: #2b2410; border-color: #f0e5c6;
+  background:
+    radial-gradient(circle at 72% 76%, rgba(150, 133, 92, 0.45), transparent 40%),
+    radial-gradient(circle at 36% 30%, #fbf3dc, var(--lit) 55%, var(--lit-deep) 100%);
+  box-shadow: 0 0 10px rgba(240, 230, 195, 0.3), inset 0 -2px 4px rgba(120, 104, 66, 0.35);
+}
+.vflip.nay .vf-back {
+  color: var(--unlit-ink); border-color: rgba(224, 194, 106, 0.4);
+  background: radial-gradient(circle at 40% 34%, #262046, #16122c 72%);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+}
 @keyframes voteflip { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
 .vcard-name { font: 500 0.5rem var(--mono); color: var(--faint); max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .votereveal .votes-result { align-self: center; font: 700 0.72rem var(--mono); letter-spacing: 0.1em; animation: revealfade 0.4s ease 0.95s both; }
-.votereveal .votes-result.ok { color: #9cd0a4; }
-.votereveal .votes-result.bad { color: #e6a49a; }
+.votereveal .votes-result.ok { color: var(--lit); }
+.votereveal .votes-result.bad { color: var(--unlit-ink); }
 @keyframes revealfade { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
 
 /* ---- quest reveal (Q1): gather → shuffle → single flip to the aggregate ---- */
@@ -1066,8 +1089,8 @@ main aside > * { flex-shrink: 0; }
    override color/size; these carry the base spacing) */
 .votes-lbl { font: 600 0.58rem var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
 .votes-result { font: 700 0.72rem var(--mono); letter-spacing: 0.12em; margin-left: 4px; }
-.votes-result.ok { color: #9cd0a4; }
-.votes-result.bad { color: #e6a49a; }
+.votes-result.ok { color: var(--lit); }
+.votes-result.bad { color: var(--unlit-ink); }
 .feed-row.moment {
   margin: 0.6rem 0; padding: 0.55rem 1rem 0.5rem; text-align: center;
   border-top: 1px solid; border-bottom: 1px solid;
@@ -1308,7 +1331,7 @@ footer .error::before {
   55% { left: 100%; opacity: 1; }
   62%, 100% { left: 100%; opacity: 0; }
 }
-.youredge.waits .playcards { animation: handrise 0.45s ease both; }
+.youredge.waits .playcards, .youredge.waits .votetokens { animation: handrise 0.45s ease both; }
 @keyframes handrise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* the bar spans full-bleed (the table edge); its content centers like main/chrome */
 .edge-inner { display: flex; align-items: center; gap: 1rem; width: 100%; max-width: 1400px; margin: 0 auto; }
@@ -1380,8 +1403,8 @@ footer .error::before {
 }
 .lean-seg-btn:last-child { border-right: 0; }
 .lean-seg-btn:hover { filter: none; color: var(--dim); }
-.lean-seg-btn.approve.active { color: #9cd0a4; background: rgba(111, 143, 217, 0.18); }
-.lean-seg-btn.reject.active { color: #e6a49a; background: rgba(194, 94, 84, 0.18); }
+.lean-seg-btn.approve.active { color: var(--lit); background: color-mix(in srgb, var(--lit) 16%, transparent); }
+.lean-seg-btn.reject.active { color: var(--unlit-ink); background: color-mix(in srgb, var(--unlit) 22%, transparent); }
 .lean-seg-btn.unsure.active { color: var(--gold-lt); background: rgba(201, 168, 76, 0.16); }
 .say-btn {
   font: 700 0.82rem var(--serif); letter-spacing: 0.1em; text-transform: uppercase;
@@ -1428,11 +1451,11 @@ footer .error::before {
   width: 100%; text-align: center; padding-top: 5px; border-top: 1px solid;
 }
 .play .ps { font: 400 0.48rem var(--mono); letter-spacing: 0.08em; opacity: 0.8; text-transform: none; margin-top: 2px; }
-/* vote cards name the arcanum on desktop (smaller, so the longer name fits the plate),
-   and fall back to the plain verdict on mobile where the numeral + subtitle are hidden */
-.play .pt.vote-title { font-size: 0.62rem; letter-spacing: 0.05em; line-height: 1.2; }
-.ptx-plain { display: none; }
-.play.approve {
+/* `success`/`fail`, not `approve`/`reject`. The vote used to share these two
+   rules, so the vote hand and the quest hand were the same picture in the same
+   corner twice a round. The quest owns the play cards now, and lapis/oxblood
+   mean what the tokens say they mean: allegiance. */
+.play.success {
   color: #e6ecfa; border-color: var(--good);
   background:
     radial-gradient(90px 130px at 50% 32%, rgba(111, 143, 217, 0.14), transparent 70%),
@@ -1440,9 +1463,9 @@ footer .error::before {
   box-shadow: inset 0 0 0 2.5px #232c52, inset 0 0 0 3.5px var(--good), 0 8px 18px rgba(0, 0, 0, 0.55);
   transform: rotate(-2deg);
 }
-.play.approve .pt { border-top-color: rgba(111, 143, 217, 0.5); }
-.play.approve .pem-frame::before { border-color: var(--good); }
-.play.reject {
+.play.success .pt { border-top-color: rgba(111, 143, 217, 0.5); }
+.play.success .pem-frame::before { border-color: var(--good); }
+.play.fail {
   color: #f7e2dd; border-color: var(--evil);
   background:
     radial-gradient(90px 130px at 50% 32%, rgba(194, 94, 84, 0.14), transparent 70%),
@@ -1450,14 +1473,80 @@ footer .error::before {
   box-shadow: inset 0 0 0 2.5px #4c2321, inset 0 0 0 3.5px var(--evil), 0 8px 18px rgba(0, 0, 0, 0.55);
   transform: rotate(2deg);
 }
-.play.reject .pt { border-top-color: rgba(194, 94, 84, 0.5); }
-.play.reject .pem-frame::before { border-color: var(--evil); }
-.play.approve:hover { transform: rotate(-1deg) translateY(-6px); filter: none; }
-.play.reject:hover { transform: rotate(1deg) translateY(-6px); filter: none; }
+.play.fail .pt { border-top-color: rgba(194, 94, 84, 0.5); }
+.play.fail .pem-frame::before { border-color: var(--evil); }
+.play.success:hover { transform: rotate(-1deg) translateY(-6px); filter: none; }
+.play.fail:hover { transform: rotate(1deg) translateY(-6px); filter: none; }
 .play.compact { min-height: 0; flex-direction: row; width: auto; padding: 0.55rem 1rem; transform: none; gap: 8px; margin-top: 0; }
 .play.compact .pt { border-top: none; width: auto; padding-top: 0; }
 .play.compact:hover { transform: translateY(-2px); }
 .play:disabled { transform: none; }
+
+/* ---- vote tokens — the moon you press, not a card you play ----
+   A round chip, after the tabletop game's vote token. Round against rectangular
+   is resolved by the eye before colour is, so the vote and the quest stop
+   colliding even in peripheral vision; and lit against unlit is a value
+   contrast, which survives grayscale and colour blindness. */
+.votetokens { display: flex; gap: 0.9rem; position: relative; z-index: 1; }
+.vtoken {
+  width: 88px; height: 88px; border-radius: 50%; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  position: relative; flex-shrink: 0;
+  /* the chip lifts off the edge, but not as far as a card raised from the hand */
+  margin-top: -16px;
+  font-family: var(--serif);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.vt-word { font: 700 0.72rem var(--serif); letter-spacing: 0.2em; text-transform: uppercase; }
+.vt-sub {
+  font: 400 0.44rem var(--mono); letter-spacing: 0.06em; opacity: 0.82;
+  text-align: center; max-width: 56px; line-height: 1.25; text-transform: none;
+}
+.vtoken.full {
+  color: #2b2410;
+  background:
+    radial-gradient(circle at 74% 78%, rgba(150, 133, 92, 0.5), transparent 38%),
+    radial-gradient(circle at 30% 26%, rgba(255, 253, 240, 0.9), transparent 46%),
+    radial-gradient(circle at 42% 38%, #fbf3dc, var(--lit) 52%, var(--lit-deep) 100%);
+  border: 1px solid #f0e5c6;
+  box-shadow:
+    0 0 26px rgba(240, 230, 195, 0.32),
+    inset 0 -3px 8px rgba(120, 104, 66, 0.4),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6),
+    0 6px 14px rgba(0, 0, 0, 0.5);
+}
+/* craters, so the lit face reads as a body rather than a coin */
+.vtoken.full::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(circle at 62% 32%, rgba(150, 134, 96, 0.3), transparent 16%),
+    radial-gradient(circle at 34% 62%, rgba(150, 134, 96, 0.24), transparent 13%),
+    radial-gradient(circle at 52% 76%, rgba(150, 134, 96, 0.18), transparent 9%);
+}
+.vtoken.new {
+  color: var(--unlit-ink);
+  background: radial-gradient(circle at 40% 34%, #262046, #16122c 72%);
+  border: 1px solid rgba(224, 194, 106, 0.42);
+  box-shadow:
+    inset 0 0 22px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(224, 194, 106, 0.14),
+    0 6px 14px rgba(0, 0, 0, 0.5);
+}
+/* earthshine: the unlit disc is still a body, not a hole */
+.vtoken.new::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 12px rgba(224, 194, 106, 0.18);
+}
+/* the global button:hover brightness would wash the new moon out */
+.vtoken:hover { transform: translateY(-5px); filter: none; }
+.vtoken.full:hover {
+  box-shadow:
+    0 0 34px rgba(240, 230, 195, 0.48),
+    inset 0 -3px 8px rgba(120, 104, 66, 0.4),
+    inset 0 2px 4px rgba(255, 255, 255, 0.6),
+    0 10px 18px rgba(0, 0, 0, 0.5);
+}
+.vtoken:disabled { transform: none; }
 
 /* ---- reveal ---- */
 .reveal { display: flex; flex-direction: column; gap: 0.7rem; }
@@ -1500,8 +1589,8 @@ footer .error::before {
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
 }
-.think-row.card-fail b { color: var(--bad); }
-.think-row.card-success b { color: var(--ok); }
+.think-row.card-fail b { color: var(--evil); }
+.think-row.card-success b { color: var(--good); }
 
 /* ---- motion: cards land, results flip ---- */
 .feed-row.moment { animation: momentIn 0.45s ease both; }
@@ -1518,9 +1607,9 @@ footer .error::before {
 @media (prefers-reduced-motion: reduce) {
   .qcard.current { animation: none; }
   .fartable .mote, .fartable .tw, .seat, .seat .seat-lean,
-  .youredge.waits::after, .youredge.waits .playcards { animation: none; }
+  .youredge.waits::after, .youredge.waits .playcards, .youredge.waits .votetokens { animation: none; }
   .thinking-dots { animation: none; opacity: 1; }
-  .play, .play.approve:hover, .play.reject:hover { transition: none; }
+  .play, .play.success:hover, .play.fail:hover, .vtoken, .vtoken:hover { transition: none; }
   .c-line, .tr-dots i, .feed-row.moment, .qcard.face { animation: none; }
   .turn-tag { animation: none; }
   .flip { animation: none !important; }
@@ -1707,7 +1796,7 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
 .cta-inner .inplay .evil { color: var(--evil); }
 .cta-spacer { flex: 1; }
 .cta-msg { font-size: 0.78rem; color: var(--dim); text-align: right; }
-.cta-msg.err { color: var(--bad); }
+.cta-msg.err { color: var(--evil); }
 .field-required.missing input { border-color: var(--gold-deep); }
 .field-required.missing input::placeholder { color: var(--gold); opacity: 0.85; }
 .cta {
@@ -1935,20 +2024,20 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
      all three onto one row instead would save no height and cost the say field
      most of its width. */
   .playcards { width: 100%; gap: 0.6rem; }
-  .play, .play.approve, .play.reject {
+  .play, .play.success, .play.fail {
     width: auto; flex: 1; min-height: 0; flex-direction: row; gap: 8px;
     padding: 0.8rem 0.5rem; transform: none; margin-top: 0;
     align-items: center; justify-content: center;
   }
+  /* the tokens stay discs — a squashed moon is just a button again */
+  .votetokens { width: 100%; justify-content: center; gap: 1.6rem; }
+  .vtoken { width: 80px; height: 80px; margin-top: 0; }
+  .vt-sub { max-width: 52px; }
   .play .pem { width: 19px; height: 19px; }
   .play .pem-frame { flex: 0 0 auto; width: auto; min-height: 0; margin: 0; }
   .play .pem-frame::before { display: none; }
   .play .pt { width: auto; border-top: none; padding-top: 0; }
   .play .pnum, .play .ps, .play .pc-star { display: none; }
-  /* mobile hides the numeral + subtitle, so the vote card shows the plain verdict at full size */
-  .play .pt.vote-title { font-size: 0.74rem; letter-spacing: 0.12em; }
-  .ptx-arc { display: none; }
-  .ptx-plain { display: inline; }
   .landing { margin: 6vh auto; }
 
   /* setup */
@@ -2027,3 +2116,12 @@ label.field input, label.field select { width: 100%; margin-top: 4px; font-size:
    (The table zone no longer clips its tooltips — see .fartable — so no overflow
    override is needed here.) */
 .gallery-stage[data-variant^="tip-"] { min-height: 0; justify-content: center; padding: 78px 20px; }
+/* Action-bar variants crop the whole stage too. The played hand rises 34px above
+   the table edge (.play margin-top), so cropping to .youredge shears the tops off
+   the cards — give the stage just enough headroom to frame the raised hand. */
+.gallery-stage[data-variant^="act-"] { min-height: 0; padding: 52px 20px 0; }
+/* Feed variants crop the transcript panel itself. In game the feed fills the
+   remaining column height; here it should size to its rows instead, so the shot
+   is the specimen and not a screenful of empty panel. */
+.gallery-stage[data-variant^="feed-"] { min-height: 0; justify-content: flex-start; }
+.gallery-stage[data-variant^="feed-"] main { flex: 0 0 auto; }

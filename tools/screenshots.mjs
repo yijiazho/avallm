@@ -373,6 +373,22 @@ async function galleryRun(browser) {
     // The reveal spread flips its cards in with staggered delays (~3s for a full
     // table); let them land face-up before the shot, like the live reveal capture.
     if (id.startsWith('reveal')) await sleep(3300)
+    // Then wait on the mount animations themselves. The action bar's hand-rise
+    // (.youredge.waits .playcards / .votetokens) runs `both` from opacity 0, so
+    // shooting straight after waitForSelector catches the hand mid-fade and banks
+    // a ghost — that is how act-quest-evil ended up translucent in an earlier
+    // gallery. Awaiting the real animations covers every present and future
+    // fixture without another per-variant sleep. Infinite ambient loops (card
+    // glow, edge sweep, thinking dots) never settle, so they are excluded, and
+    // the whole wait is capped so a stray animation can't hang the run.
+    await page.evaluate(() => Promise.race([
+      Promise.all(
+        document.getAnimations()
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => {})),
+      ),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]))
     if (hover) { await page.hover(hover); await sleep(150) } // reveal the hover-only tooltip
     const file = path.join(dir, `${id}.jpg`)
     await el.screenshot({ path: file, type: 'jpeg', quality: 82 })

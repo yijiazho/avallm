@@ -11,7 +11,7 @@
 // before shooting (for the seat/quest tooltips).
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import type { AgentInfo, DecisionRequest, PlayerView, RevealPayload } from './types.ts'
+import type { AgentInfo, DecisionRequest, GameEvent, PlayerView, RevealPayload } from './types.ts'
 import { NameEditor } from './components/NameEditor.tsx'
 import { QuestParty } from './components/QuestParty.tsx'
 import { RoleCard } from './components/RoleCard.tsx'
@@ -19,6 +19,7 @@ import { SpectatorCard } from './components/SpectatorCard.tsx'
 import { ActionBar } from './components/ActionBar.tsx'
 import { QuestBoard } from './components/QuestBoard.tsx'
 import { TableSeats } from './components/TableSeats.tsx'
+import { Feed } from './components/Feed.tsx'
 import { Reveal } from './components/Reveal.tsx'
 import { ArcanaDefs } from './components/Arcana.tsx'
 import './styles.css'
@@ -129,6 +130,37 @@ const Edge = ({ role, children }: { role: string; children: React.ReactNode }) =
 
 const Table = ({ children }: { children: React.ReactNode }) => <div className="fartable">{children}</div>
 
+// The feed sits directly in <main> in App.tsx, and .feed-wrap leans on that flex
+// context for its width, so the wrapper has to be a real <main>.
+const FeedZone = ({ children }: { children: React.ReactNode }) => <main>{children}</main>
+
+// One vote, shot either side of the moment it resolves. Both fixtures share the
+// same lead-in events on purpose: the sealing row and the reveal row are built to
+// read as one continuous beat (same token box, same columns, same seat order — see
+// PendingIndicator in Feed.tsx), and the pair is the only way to see that hold.
+// The vote is a disc in both states; the quest, two rows down, is still a card.
+const voteLeadIn: GameEvent[] = [
+  { seq: 1, type: 'proposal', payload: { leader: 2, team: [0, 3], round: 1, proposalNum: 1, pitch: 'Two quiet seats. No reason to overthink the first one.' }, visibility: 'public' },
+  { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet.", lean: 'approve' }, visibility: 'public' },
+  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.', lean: 'reject' }, visibility: 'public' },
+  { seq: 4, type: 'utterance', payload: { seat: 6, lean: 'approve' }, visibility: 'public' },
+  { seq: 5, type: 'proposalLocked', payload: { leader: 2 }, visibility: 'public' },
+]
+// Mixed 4-3 so both faces of the token are on screen at once, and approved so the
+// tally reads in the lit colour.
+const voteRevealEvent: GameEvent = {
+  seq: 6, type: 'voteReveal',
+  payload: {
+    approved: true,
+    votes: [
+      { seat: 0, vote: 'approve' }, { seat: 1, vote: 'reject' }, { seat: 2, vote: 'approve' },
+      { seat: 3, vote: 'approve' }, { seat: 4, vote: 'reject' }, { seat: 5, vote: 'approve' },
+      { seat: 6, vote: 'reject' },
+    ],
+  },
+  visibility: 'public',
+}
+
 type Variant = { id: string; sel: string; hover?: string; node: React.ReactNode }
 const VARIANTS: Variant[] = [
   // Role cards — one per distinct privateInfo branch: Merlin sees evil, Percival
@@ -153,12 +185,25 @@ const VARIANTS: Variant[] = [
   { id: 'quest-party-awaiting', sel: '.qparty', node: <Aside><QuestParty view={v({ phase: 'proposal', round: 2, proposalNum: 1, leaderSeat: 2 })} bots={bots} /></Aside> },
   // Action bar — states a real game reaches only by luck (whether the human leads,
   // is picked onto an approved team, is dealt evil, or is the Assassin after a good
-  // win). `discuss` and `vote` are left to the playthrough — every player hits those.
-  { id: 'act-propose', sel: '.youredge', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'proposal' })} ask={ask('propose')} onDecide={noop} /></Edge> },
-  { id: 'act-finalize', sel: '.youredge', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'finalize', leaderSeat: 0, currentTeam: [0, 2] })} ask={ask('finalize')} onDecide={noop} /></Edge> },
-  { id: 'act-quest-good', sel: '.youredge', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'quest' })} ask={ask('quest')} onDecide={noop} /></Edge> },
-  { id: 'act-quest-evil', sel: '.youredge', node: <Edge role="The Knife · Assassin"><ActionBar view={v({ role: 'assassin', alignment: 'evil', phase: 'quest' })} ask={ask('quest')} onDecide={noop} /></Edge> },
-  { id: 'act-assassinate', sel: '.youredge', node: <Edge role="The Knife · Assassin"><ActionBar view={v({ role: 'assassin', alignment: 'evil', phase: 'assassination' })} ask={ask('assassinate')} onDecide={noop} /></Edge> },
+  // win). `discuss` is left to the playthrough — every player hits it.
+  //
+  // `act-vote` is here despite every player voting, because the vote tokens are the
+  // one hand that is NOT a play card: the playthrough's vote.jpg catches them beside
+  // a random deal's chatter, which is a poor diff surface for a component whose whole
+  // job is to look unlike the quest cards. This shoots the two side by side, fixed.
+  { id: 'act-vote', sel: '.gallery-stage', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'vote', leaderSeat: 2, currentTeam: [0, 3] })} ask={ask('vote')} onDecide={noop} /></Edge> },
+  { id: 'act-propose', sel: '.gallery-stage', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'proposal' })} ask={ask('propose')} onDecide={noop} /></Edge> },
+  { id: 'act-finalize', sel: '.gallery-stage', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'finalize', leaderSeat: 0, currentTeam: [0, 2] })} ask={ask('finalize')} onDecide={noop} /></Edge> },
+  { id: 'act-quest-good', sel: '.gallery-stage', node: <Edge role="Loyal Servant · Good"><ActionBar view={v({ phase: 'quest' })} ask={ask('quest')} onDecide={noop} /></Edge> },
+  { id: 'act-quest-evil', sel: '.gallery-stage', node: <Edge role="The Knife · Assassin"><ActionBar view={v({ role: 'assassin', alignment: 'evil', phase: 'quest' })} ask={ask('quest')} onDecide={noop} /></Edge> },
+  { id: 'act-assassinate', sel: '.gallery-stage', node: <Edge role="The Knife · Assassin"><ActionBar view={v({ role: 'assassin', alignment: 'evil', phase: 'assassination' })} ask={ask('assassinate')} onDecide={noop} /></Edge> },
+  // The vote, either side of resolution. A live playthrough shoots whichever of the
+  // two it happens to catch (the harness's `vote-ballot` lands on one or the other by
+  // timing alone), so neither half is reliably captured — and the flipped ballots are
+  // where the vote's lit/unlit language has to hold up against the quest's lapis and
+  // oxblood two rows further down.
+  { id: 'feed-vote-sealing', sel: '.feed', node: <FeedZone><Feed view={v({ phase: 'vote', round: 1, proposalNum: 1, leaderSeat: 2, currentTeam: [0, 3], events: voteLeadIn })} bots={bots} acting={[4, 5]} waitingOn={['You']} /></FeedZone> },
+  { id: 'feed-vote-reveal', sel: '.feed', node: <FeedZone><Feed view={v({ phase: 'quest', round: 1, proposalNum: 1, leaderSeat: 2, currentTeam: [0, 3], events: [...voteLeadIn, voteRevealEvent] })} bots={bots} /></FeedZone> },
   // Hover-only tooltips (off on touch) — the harness hovers the named element, then
   // crops the whole stage (see the tip- CSS: table-zone clip dropped, headroom added)
   // so the side/up-placed tooltip is fully in frame.
