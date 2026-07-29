@@ -611,8 +611,10 @@ competence while making the special-role objective genuinely causal and separate
 Coordination policy must also be valid for heterogeneous tables containing humans, raw LLMs, and
 other agent types. A deployable evil agent cannot assume that teammates share its algorithm,
 timing convention, seed, or capability handshake. Independent robust play is therefore the
-production direction. An exact-quota convention may remain as a clearly labeled homogeneous
-research ceiling, but mixed-table results from it are not promotion evidence.
+production direction. An exact-quota convention remains useful as a clearly labeled homogeneous
+research ceiling, but it is deliberately not an executable AvaLLM mode. It depends on a shared
+pre-game convention that heterogeneous agents and humans cannot be assumed to follow, so its
+results are not production or mixed-table promotion evidence.
 
 ---
 

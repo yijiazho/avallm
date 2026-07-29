@@ -1,6 +1,6 @@
 import {
-  legacyRoleAdapterDefinitions,
-} from './legacy-role-adapters.ts'
+  EVIL_QUEST_CARD_ROBUST_COMPONENT_DEFINITION,
+} from './robust-evil-quest-card.ts'
 import {
   SCORE_COMPONENT_HOST_INPUTS,
   nativeScoreComponentDefinitions,
@@ -23,7 +23,7 @@ export function createProductionComponentRegistry(
   return createDecisionComponentRegistry(
     [
       ...nativeScoreComponentDefinitions(configuration),
-      ...legacyRoleAdapterDefinitions(),
+      EVIL_QUEST_CARD_ROBUST_COMPONENT_DEFINITION,
       ...nativeRoleComponentDefinitions(),
     ],
     { hostInputs: SCORE_COMPONENT_HOST_INPUTS },

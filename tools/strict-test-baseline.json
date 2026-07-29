@@ -28,7 +28,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "2a52b6e2aeaa4a131fb4f83c696aa69a3ec819ef8fea795bd6d4ee66f9504f4c",
+        "sha256": "7bae8b649622046ce4f6809151a771f7bb328386243f6e22ff8a191ecd833b5c",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "38711ea8e5f41cf2379a268f4dfec1658c386345e9dbd06ae551e082371dd550",
+        "sha256": "296b10580726178d5a74e99f317536745915037131f180d7461fdb39bd1f1430",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
@@ -127,11 +127,6 @@
       "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
     },
     {
-      "path": "test/phase7d3-quest-coordination.test.ts",
-      "sha256": "3f0d5cfcf15f6d3a967ba658f7c4504e6996e98d1a7f6ec2e0fbd0b6eefb01a4",
-      "rationale": "Legacy quest fixtures intentionally mutate readonly contracts."
-    },
-    {
       "path": "test/phase7e1a-morgana-counterfeit.test.ts",
       "sha256": "323226c0827446c754dca4de64463fb10d6d623fdd218109023be1a2c061f6f8",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
@@ -168,7 +163,7 @@
     },
     {
       "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
-      "sha256": "3318ee76c1adc9a4a49f2131e8d6191cc5ea7a60d5bf232eec009e0102501d83",
+      "sha256": "e94c49ea3d24518f1c142c8baef7f039880e39d16c722e4ffa18b0f84c2a8c35",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {

@@ -15,19 +15,13 @@ import { visibleEventCursor } from '../belief/exact.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { CognitionState } from '../cognition/types.ts'
 import {
-  EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-} from '../components/legacy-role-adapters.ts'
-import {
   advanceDecisionComponentRun,
-  attributeComponentPolicyUse,
-  componentPayload,
   runDecisionComponents,
   type DecisionComponentInvocation,
   type DecisionComponentRun,
   type DecisionComponentTrustedHostInputProviders,
 } from '../components/kernel.ts'
 import type { ResolvedComposedBrain } from '../components/resolved-brain.ts'
-import type { ComponentToken } from '../components/types.ts'
 import {
   executePreparedScoreLayerRun,
   prepareScoreLayerRunLease,
@@ -51,7 +45,6 @@ import {
   legalCandidates,
   validateCandidateRequest,
 } from './candidates.ts'
-import type { PrivateEvilQuestCardPolicy } from './evil-quest-card.ts'
 import { applyForcedPolicy } from './forced.ts'
 import {
   DECISION_PLAN_VERSION,
@@ -75,8 +68,6 @@ import type {
 } from './types.ts'
 
 export const DECISION_FRAME_VERSION = 'decision-frame-v1'
-export const LEGACY_D3_QUEST_CARD_VERSION =
-  'legacy-d3-quest-card-compatibility-v1'
 /** Engine and simulator seeds are short; keep native policy host state bounded. */
 export const MAX_NATIVE_SCORE_LAYER_SEED_LENGTH = 1_024
 /** @deprecated Analysis-domain plans replace this migration alias. */
@@ -152,25 +143,8 @@ export type DecisionLayersResolvedDecisionFrame =
       & DecisionLayerSurface
   >
 
-export interface LegacyD3QuestCardState {
-  readonly version: typeof LEGACY_D3_QUEST_CARD_VERSION
-  readonly component: Readonly<{ id: string; version: string }>
-  readonly policy: Immutable<PrivateEvilQuestCardPolicy>
-  readonly selectedCandidateId: string
-}
-
-export type LegacyD3QuestCardDecisionFrame =
-  Stage<
-    'legacy-d3-quest-card',
-    CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
-      & DecisionLayerSurface & {
-      readonly legacyD3: Immutable<LegacyD3QuestCardState>
-    }
-  >
-
 export type PostComponentDecisionFrame =
-  | DecisionLayersResolvedDecisionFrame
-  | LegacyD3QuestCardDecisionFrame
+  DecisionLayersResolvedDecisionFrame
 
 export interface ViableCandidate {
   readonly candidate: Immutable<PolicyCandidate>
@@ -179,10 +153,7 @@ export interface ViableCandidate {
 
 type ScoredData =
   CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
-  & DecisionLayerSurface
-  & ScoreSurface & {
-    readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
-  }
+  & DecisionLayerSurface & ScoreSurface
 
 export type ScoredDecisionFrame = Stage<'scored', ScoredData>
 
@@ -190,7 +161,6 @@ type NativeScoreLayersResolvedData =
   CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface & {
     readonly decisionLayerRun: Immutable<DecisionLayerRun>
     readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
-    readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
     readonly scoreLayerRun: Immutable<ScoreLayerRun>
     readonly survivorCandidateIds: readonly string[]
     readonly scores: NonEmptyReadonly<Immutable<ScoreLayerRow>>
@@ -328,30 +298,13 @@ function scoringContext(
   })
 }
 
-/**
- * Native paths consume the exact strategic surface object. Exact quota is
- * the only remaining compatibility exception and projects its legacy forced
- * selection until R3B3 removes that path.
- */
 function candidateBoundaryFor(
   frame:
     | PostComponentDecisionFrame
     | NativeScoreLayersResolvedDecisionFrame,
 ): Immutable<DecisionCandidateBoundary> {
   if ('candidateBoundary' in frame) return frame.candidateBoundary
-  if (frame.stage !== 'legacy-d3-quest-card') {
-    return frame.decisionLayerRun.surface
-  }
-  return detachTrustedPolicyData({
-    survivorCandidateIds: frame.effectiveForced.allowedCandidateIds,
-    ...(frame.effectiveForced.selectedCandidateId === undefined
-      ? {}
-      : {
-          selectedCandidateId:
-            frame.effectiveForced.selectedCandidateId,
-        }),
-    reasonCodes: frame.effectiveForced.reasonCodes,
-  })
+  return frame.decisionLayerRun.surface
 }
 
 /** Detached compatibility view; native mechanics remain outside this DTO. */
@@ -416,9 +369,6 @@ function finalizeScoredDecisionFrame(
     stage: 'scored',
     componentRun: nextRun as Immutable<DecisionComponentRun>,
     candidateBoundary,
-    legacyD3: frame.stage === 'legacy-d3-quest-card'
-      ? frame.legacyD3
-      : null,
     scores,
     viableCandidates,
     structuredCandidateId: structured.candidateId,
@@ -591,69 +541,6 @@ export function withResolvedDecisionLayers(
   return next
 }
 
-type LegacyD3Token = ComponentToken<PrivateEvilQuestCardPolicy>
-
-export function withLegacyD3QuestCard(
-  frame: DecisionLayersResolvedDecisionFrame,
-  token: LegacyD3Token,
-  scoreLayerLease?: NativeScoreLayerLease,
-): LegacyD3QuestCardDecisionFrame {
-  if (
-    (
-      token !== EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT
-    )
-    || frame.request.kind !== 'quest'
-    || frame.view.alignment !== 'evil'
-    || frame.view.role === 'oberon'
-    || frame.universalForced.selectedCandidateId !== undefined
-  ) throw new Error('legacy D3 is ineligible after universal policy')
-  const run = legacy<DecisionComponentRun>(frame.componentRun)
-  const policy = componentPayload(run, token)
-  if (
-    !policy?.applicable
-    || !policy.selectedCard
-    || !isDeepStrictEqual(policy.request, frame.request)
-  ) throw new Error('legacy D3 component did not produce a bound policy')
-  const effectiveForced = detachTrustedPolicyData(applyForcedPolicy(
-    legacy<DecisionRequest>(frame.request),
-    legacy<PlayerView>(frame.view),
-    legacy<SituationAnalysis>(frame.analysis),
-    legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
-    { evilQuestCardPolicy: policy },
-  ))
-  const selectedCandidateId = candidateIdForDecision({
-    kind: 'quest',
-    card: policy.selectedCard,
-  })
-  if (effectiveForced.selectedCandidateId !== selectedCandidateId) {
-    throw new Error('legacy D3 did not resolve the effective forced choice')
-  }
-  const attributed = advanceDecisionComponentRun(
-    run,
-    attributeComponentPolicyUse(run, token, 'action-selection'),
-  )
-  const next = Object.freeze({
-    ...frame,
-    stage: 'legacy-d3-quest-card',
-    componentRun: attributed as Immutable<DecisionComponentRun>,
-    effectiveForced,
-    legacyD3: detachTrustedPolicyData<LegacyD3QuestCardState>({
-      version: LEGACY_D3_QUEST_CARD_VERSION,
-      component: { id: token.id, version: token.version },
-      policy,
-      selectedCandidateId,
-    }),
-  }) as LegacyD3QuestCardDecisionFrame
-  if (scoreLayerLease) {
-    LocalNativeScoreLayerLease.advanceLegacyD3(
-      scoreLayerLease,
-      frame,
-      next,
-    )
-  }
-  return next
-}
-
 /** Run the C4B scorer/fallback owner synchronously against one exact frame. */
 export function withCustomScoring(
   frame: PostComponentDecisionFrame,
@@ -805,35 +692,6 @@ class LocalNativeScoreLayerLease {
     })
   }
 
-  static advanceLegacyD3(
-    lease: NativeScoreLayerLease,
-    before: DecisionLayersResolvedDecisionFrame,
-    after: LegacyD3QuestCardDecisionFrame,
-  ): void {
-    if (!(lease instanceof LocalNativeScoreLayerLease)) {
-      throw new Error('native score layers require their local prepared lease')
-    }
-    if (lease.#boundFrame !== before) {
-      throw new Error('native score layer lease is not bound to the D3 input')
-    }
-    if (
-      after.stage !== 'legacy-d3-quest-card'
-      || after.request !== before.request
-      || after.view !== before.view
-      || after.legalCandidates !== before.legalCandidates
-      || after.analysis !== before.analysis
-      || after.belief !== before.belief
-      || after.universalForced !== before.universalForced
-      || after.forcedSurvivors !== before.forcedSurvivors
-      || after.hypotheticalTeamCandidates
-        !== before.hypotheticalTeamCandidates
-      || after.decisionLayerRun !== before.decisionLayerRun
-    ) {
-      throw new Error('native score layer lease received a foreign D3 frame')
-    }
-    lease.#boundFrame = after
-  }
-
   static advanceDecisionLayers(
     lease: NativeScoreLayerLease,
     before: ComponentsResolvedDecisionFrame,
@@ -962,9 +820,6 @@ export function withNativeScoreLayers(
     stage: 'native-score-layers-resolved',
     componentRun: run.componentRun,
     candidateBoundary,
-    legacyD3: frame.stage === 'legacy-d3-quest-card'
-      ? frame.legacyD3
-      : null,
     scoreLayerRun: run as Immutable<ScoreLayerRun>,
     survivorCandidateIds: run.surface.survivorCandidateIds,
     scores,
@@ -1065,7 +920,6 @@ export function selectDecisionCandidate(
   const componentRun = (
       planner.kind !== 'accepted'
       && frame.candidateBoundary.selectedCandidateId === undefined
-      && frame.legacyD3 === null
       && attributeStructuredChoice
     )
     ? advanceDecisionComponentRun(

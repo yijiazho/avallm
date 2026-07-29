@@ -17,9 +17,8 @@ import {
   publicDecisionComponentRun,
 } from '../server/agents/components/kernel.ts'
 import {
-  EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/robust-evil-quest-card.ts'
 import {
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
@@ -461,45 +460,29 @@ test('seeded E1B has its own plan identity and host descriptor', async () => {
   }))
 })
 
-test('D3 generic status and promotion remain policy-owned', async () => {
+test('robust D3 generic status and promotion remain policy-owned', async () => {
   const discretionaryView = nondecisive(
     coordinatedQuestView(4, [4, 5]),
   )
   const req = questRequest(discretionaryView)
-  for (const [mode, token, promotionEligible] of [
-    [
-      'robust-heterogeneous',
-      EVIL_QUEST_CARD_ROBUST_COMPONENT,
-      true,
-    ],
-    [
-      'visible-exact-quota',
-      EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-      false,
-    ],
-  ] as const) {
-    const output = await createComposedAgent({
-      seed: `phase7r2b3b-${mode}`,
-      evilQuestCardPolicy: mode,
-    }).decide(req, discretionaryView)
-    const entry = output.trace!.components!.entries.find(
-      (candidate) => candidate.component.id === token.id,
-    )!
-    assert.equal(entry.status, 'admitted')
-    if (entry.status === 'admitted') {
-      assert.equal(entry.verification, 'exact')
-      assert.equal(entry.promotionEligible, promotionEligible)
-    }
-    const use = output.trace!.components!.policyUse.find(
-      (candidate) => candidate.component.id === token.id,
-    )!
-    assert.deepEqual(
-      use.stages,
-      mode === 'robust-heterogeneous'
-        ? ['strategic-decision']
-        : ['action-selection'],
-    )
+  const output = await createComposedAgent({
+    seed: 'phase7r2b3b-robust-heterogeneous',
+    evilQuestCardPolicy: 'robust-heterogeneous',
+  }).decide(req, discretionaryView)
+  const entry = output.trace!.components!.entries.find(
+    (candidate) =>
+      candidate.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+  )!
+  assert.equal(entry.status, 'admitted')
+  if (entry.status === 'admitted') {
+    assert.equal(entry.verification, 'exact')
+    assert.equal(entry.promotionEligible, true)
   }
+  const use = output.trace!.components!.policyUse.find(
+    (candidate) =>
+      candidate.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
+  )!
+  assert.deepEqual(use.stages, ['strategic-decision'])
 
   const forcedView = coordinatedQuestView(4, [4, 5])
   const forcedReq = questRequest(forcedView)
@@ -507,13 +490,13 @@ test('D3 generic status and promotion remain policy-owned', async () => {
     seed: 'phase7r2b3b-suppressed',
     evilQuestCardPolicy: 'robust-heterogeneous',
   }).decide(forcedReq, forcedView)
-  const entry = forced.trace!.components!.entries.find(
+  const forcedEntry = forced.trace!.components!.entries.find(
     (candidate) =>
       candidate.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
   )!
-  assert.equal(entry.status, 'suppressed')
-  if (entry.status === 'suppressed') {
-    assert.equal(entry.reasonCode, 'universal-forced-policy')
+  assert.equal(forcedEntry.status, 'suppressed')
+  if (forcedEntry.status === 'suppressed') {
+    assert.equal(forcedEntry.reasonCode, 'universal-forced-policy')
   }
   assert.equal(forced.trace!.privateEvilQuestCardPolicy, undefined)
   assert.deepEqual(

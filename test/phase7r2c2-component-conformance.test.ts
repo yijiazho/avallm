@@ -27,8 +27,10 @@ import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/legacy-role-adapters.ts'
+import {
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../server/agents/components/robust-evil-quest-card.ts'
 import {
   buildPrivateActorTargetTreatmentRead,
   decodeCanonicalPrivateActorTargetTreatmentRead,
@@ -140,8 +142,6 @@ import {
 const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
   'actor-target-treatment-read':
     { proof: 'mordred-native-family' },
-  'evil-quest-card-exact-quota':
-    { legacyExemption: '7R3B native retirement pending' },
   'evil-quest-card-robust':
     { proof: 'robust-quest-native-family' },
   'evil-role-objective':
@@ -345,7 +345,6 @@ function robustQuestNativeFixture() {
     req,
     view,
     analysis,
-    mode: 'robust-heterogeneous',
   })
   return { req, view, analysis, forced, policy }
 }

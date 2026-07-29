@@ -1,6 +1,6 @@
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
-} from '../components/legacy-role-adapters.ts'
+} from '../components/robust-evil-quest-card.ts'
 import {
   candidateIdForDecision,
 } from '../policy/candidates.ts'

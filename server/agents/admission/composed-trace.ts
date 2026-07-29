@@ -174,8 +174,10 @@ import {
 } from '../decision-layers/configured.ts'
 import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
-  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../components/legacy-role-adapters.ts'
+import {
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../components/robust-evil-quest-card.ts'
 import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
 } from '../decision-layers/robust-evil-quest-card.ts'
@@ -3584,11 +3586,14 @@ function validGenericRoleComponents(
   for (const binding of LEGACY_ROLE_ADAPTER_TRACE_BINDINGS) {
     const key = componentKey(binding.token)
     const definition =
-      PRODUCTION_COMPONENT_REGISTRY.definition(binding.token)!
+      PRODUCTION_COMPONENT_REGISTRY.definition(binding.token)
     const hasLegacy =
       binding.payload(trace) !== undefined
       || binding.declaredVersion(trace) !== undefined
-      || trace.degradation.includes(definition.degradationCode)
+      || (
+        definition !== undefined
+        && trace.degradation.includes(definition.degradationCode)
+      )
     if (
       hasLegacy
       && configuredKeys.includes(key)
@@ -4845,11 +4850,7 @@ function exactEvilQuestCardHostSurface(
     && view.role !== 'oberon'
   try {
     if (!baseSurface) return undefined
-    const {
-      candidates,
-      analysis,
-      universalForced,
-    } = baseSurface
+    const { universalForced } = baseSurface
     if (!policy && component === undefined) {
       if (configured && applicable && !universalForced.applied) {
         return undefined
@@ -4859,51 +4860,10 @@ function exactEvilQuestCardHostSurface(
       }
       return baseSurface
     }
-    if (
-      !policy
-      || !applicable
-      || component !== policy.policyVersion
-      || configured !== policy.policyVersion
-      || configured !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      || policy.mode !== 'visible-exact-quota'
-      || !validatePrivateEvilQuestCardPolicyHostJoin(policy, {
-        req,
-        view,
-        analysis,
-        mode: policy.mode,
-      })
-      || universalForced.applied
-    ) return undefined
-    const effectiveForced = applyForcedPolicy(
-      req,
-      view,
-      analysis,
-      candidates,
-      { evilQuestCardPolicy: policy },
-    )
-    const selectedId = candidateIdForDecision({
-      kind: 'quest',
-      card: policy.selectedCard!,
-    })
-    if (
-      !policy.applicable
-      || policy.selectedCard === undefined
-      || !isDeepStrictEqual(trace.forcedPolicyResult, effectiveForced)
-      || effectiveForced.selectedCandidateId !== selectedId
-      || trace.structuredCandidateId !== selectedId
-      || trace.chosenCandidateId !== selectedId
-      || trace.action.kind !== 'quest'
-      || trace.action.card !== policy.selectedCard
-    ) return undefined
-    return {
-      ...baseSurface,
-      effectiveForced,
-      candidateBoundary: {
-        survivorCandidateIds: effectiveForced.allowedCandidateIds,
-        selectedCandidateId: selectedId,
-        reasonCodes: effectiveForced.reasonCodes,
-      },
-    }
+    // R3B3A removed the executable exact-quota authority. Historical traces
+    // with its flat payload remain recognizable by the outer bounded decoder,
+    // but cannot be reconstructed as current exact policy evidence.
+    return undefined
   } catch {
     return undefined
   }

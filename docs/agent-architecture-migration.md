@@ -2,9 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B3. Phase 7R3B2B moved the heterogeneous-safe D3
-policy onto the generic strategic decision-layer seam; exact quota is the sole remaining
-legacy D3 compatibility path. Phase 7R3B2A's generic ordered strategic seam is complete.
+**Current target phase:** Phase 7R3B3B. Phase 7R3B3A deleted exact quota from executable
+runtime authority; only an explicitly historical trace-reader facade remains for R3B3B cleanup.
+Phase 7R3B2B moved the heterogeneous-safe D3 policy onto the generic strategic decision-layer
+seam, and Phase 7R3B2A's generic ordered strategic seam is complete.
 Phase 7R3A4B is complete at
 checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3B1B's closed, trust-labeled trace admission boundary is complete.
@@ -23,8 +24,8 @@ identity across trace, artifact, and report surfaces, component host roots resol
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
 boundaries. Registered ordered score layers now produce the sole built-in scored frame for every
 decision kind; one finalizer, selection path, and commit consume it. Robust D3 now commits
-through the strategic decision-layer boundary; the homogeneous exact-quota research mode remains
-the explicit quest-card compatibility overlay pending R3B3 cleanup.
+through the strategic decision-layer boundary. The homogeneous exact-quota finding remains
+documented research context but is no longer an executable AvaLLM mode.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -131,7 +132,7 @@ migration work cite the corresponding ledger ID.
 |---|---|---|---|---|---|
 | MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay previously assembled candidate teams, joint assessments, and vote alternatives separately, allowing drift to falsely reject another role or decision kind | R3B1A | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `complete` |
 | MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Whole hostile traces now cross one bounded canonical snapshot before any field read, then host admission returns trusted exact, external diagnostic, finalized-artifact diagnostic, or typed rejection; replay lookup sees only the frozen candidate and stdio, benchmark, and report aggregation consume the admitted snapshot | R3B1B | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `complete` |
-| MD-003 | Delete or isolate the remaining exact-quota D3 legacy adapter and its conformance exemption | Exact quota is the sole legacy flat projection/binding exception; robust D3 is native | R3B3 | Exact quota is deleted or isolated behind a historical research reader, and its runtime flat projection and exemption are removed | `open` |
+| MD-003 | Delete or isolate the remaining exact-quota D3 legacy adapter and its conformance exemption | R3B3A deleted every executable exact-quota writer and registry path; only the historical flat payload decoder, admission reader, evaluation readers, and facade exemption remain | R3B3B | Historical flat compatibility is removed or isolated from current admission and evaluation, and its exemption is closed | `in_progress` |
 | MD-004 | Delete historical boolean trace-admission test facades | Formula and D3 compatibility tests still call three boolean wrappers over the closed result; architecture fitness prevents runtime and evaluation code from importing them, so they are not executable trust authorities | R3B3 | Tests consume the closed union directly and all three compatibility exports are deleted with the remaining D3 flat reader | `open` |
 
 ### 3.2 Parent-orchestrated execution
@@ -1410,9 +1411,12 @@ reviewable and ablatable:
     - **7R3B2B, robust authority cutover:** register the heterogeneous-safe D3 policy as the first
       production decision layer, prove behavior equality and universal dominance, then delete its
       legacy overlay, flat binding, and exemption. **Complete.**
-    - **7R3B3, exact-quota quarantine cleanup:** isolate or delete the homogeneous research
-      convention's remaining runtime adapter and compatibility facades, close MD-003 and MD-004,
-      and retain only explicitly historical read compatibility. **Current target.**
+    - **7R3B3A, exact-quota executable-authority deletion:** delete the homogeneous convention
+      from runtime configuration, construction, registration, forced policy, decision frames,
+      candidate-boundary production, and trace writing. **Complete.**
+    - **7R3B3B, historical D3 read/facade cleanup:** remove or migrate the remaining flat payload
+      decoder, admission and evaluation readers, and boolean compatibility facades; close MD-003
+      and MD-004. **Current target.**
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
@@ -1727,18 +1731,15 @@ Fails on a decisive sinkable quest, and otherwise uses an acting-seat-local publ
 Zero, one, multiple, or subquota Fails are accepted consequences of heterogeneous play rather than
 silently assuming cooperative teammates.
 
-`visible-evil-exact-quota-homogeneous-research-v1` remains available only as an explicitly
-homogeneous comparison. Its canonical cohort, order, common gate, and designation require every
-visible evil seat to run the same convention. It declares that assumption, is marked mixed-table
-unsafe and promotion-ineligible, and every exact artifact is rejected by current generation and
-stored-report evaluation even if metadata falsely claims a verified homogeneous population.
-Phase 7F may add genuine all-seat provenance for research measurement, but exact quota cannot
-become the mixed-table production policy.
+`visible-evil-exact-quota-homogeneous-research-v1` records the historical homogeneous comparison.
+Its canonical cohort, order, common gate, and designation required every visible evil seat to run
+the same convention. R3B3A removed it from executable AvaLLM configuration because that assumption
+is invalid for heterogeneous agents and humans. Historical readers remain temporarily isolated
+for R3B3B cleanup; the research finding does not become mixed-table production policy.
 
 The heterogeneous-safe typed quest-card directive is now consumed by the registered strategic
-decision layer after universal forced policy and before scoring or planning. Exact quota remains
-the sole quarantined forced-policy compatibility overlay until R3B3. Engine legality remains
-final, Oberon retains independent behavior, and no D3 payload enters prompts, voice, public
+decision layer after universal forced policy and before scoring or planning. Engine legality
+remains final, Oberon retains independent behavior, and no D3 payload enters prompts, voice, public
 cognition, client data, or public logs. Configured and resolved policy identities remain
 separate. Stdio, architecture generation, stored reporting, and artifacts reconstruct and join
 the component, strategic layer, selected card, and applied card while rejecting seed
@@ -2828,7 +2829,7 @@ reader; those states are not deletion and are named below.
 | LLM-selected arbitrary proposal | **Active in the default raw-LLM agent.** The opt-in composed path uses legal candidate IDs, ordered policy, a committed plan, and voice that cannot reopen the mechanical action. | Require paired evaluation and human approval before default promotion; then demote arbitrary selection to the raw-LLM baseline. |
 | Generic evil policy for Mordred | **Active placeholder authority; Mordred substrate complete.** The native private Merlin-blindness objective and public treatment read are mechanically inert, while generic D2 evil policy still decides proposals and votes. | Phase 7E2B gives the admitted Mordred objective bounded causal authority after R3B3, with forced-policy and generic-evil fallback preserved. |
 | Generic assassination heuristic and prompt ranking | **Active pending replacement.** No separate Assassin Merlin posterior exists, so heuristic and raw-LLM paths still rank candidates with generic behavioral signals. | Phase 7E3 adds an interpretable, seat-filtered Merlin posterior; Phase 7F evaluates it and virtual guesses. |
-| Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Open isolation/deletion debt (MD-003).** Robust heterogeneous D3 is native and writes through the registered strategic layer; exact quota is the sole opt-in legacy D3 writer and binding. | Phase 7R3B3 deletes the runtime convention or confines it to an explicitly historical research reader, then removes its flat projection and exemption. |
+| Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Executable authority deleted; historical read facade remains (MD-003).** R3B3A removed the exact mode from runtime configuration, production registration, policy construction, forced policy, decision frames, scoring leases, and trace writing. Robust heterogeneous D3 is the only executable quest-card strategy. The old flat payload type, bounded decoder, admission reader, and evaluation readers remain clearly historical only. | Phase 7R3B3B removes or migrates the historical flat trace/admission/evaluation facade, closes the remaining conformance exemption, and marks MD-003 complete. |
 | Three boolean trace-admission wrappers | **Open test-only deletion debt (MD-004).** Runtime and evaluation consume the closed trust-labeled admission union; only historical formula/D3 tests call these facades. | Phase 7R3B3 migrates those tests to the closed result and deletes the wrappers. |
 
 Removal means deleting or isolating old authority, not merely adding a new path beside it. A
@@ -3243,6 +3244,19 @@ here.
   stdio legal-action retention after forged telemetry, host replay, architecture fitness, the
   free D3 architecture bank, and the frozen robust trace change. The contract verifier is the
   chunk gate; the parent owns the post-rebase complete suite and broad banks.
+- Phase 7R3B3A exact-quota executable-authority deletion: removed
+  `visible-exact-quota` from the composed-agent option type and runtime validation, deleted its
+  component definition and production registration, removed exact policy generation and shared
+  designation helpers, and deleted the strategic option from universal forced policy. The
+  `legacy-d3-quest-card` frame, lease transition, effective-forced overlay, synthesized candidate
+  boundary, and flat trace writer are gone. Every runtime candidate boundary now comes from the
+  registered decision-layer run, while `ForcedPolicyResult` remains independent. The robust token
+  and definition now live in a native robust component module and remain the only executable D3
+  authority. Exact quota remains documented as a homogeneous research ceiling, not a runnable
+  AvaLLM mode. R3B3B still owns the explicitly historical flat payload decoder, trace admission
+  and evaluation readers, plus MD-004 facade cleanup. The exact-heavy behavior suite was deleted
+  rather than preserved one-for-one; a small architecture-fitness test proves that the removed
+  mode, token, frame, and writer cannot return.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

@@ -27,9 +27,7 @@ export const MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES = 8_192
 export const EVIL_QUEST_CARD_POLICY_DEGRADATION =
   'evil-quest-card-policy-failed'
 
-export type EvilQuestCardPolicyMode =
-  | 'visible-exact-quota'
-  | 'robust-heterogeneous'
+export type EvilQuestCardPolicyMode = 'robust-heterogeneous'
 
 export type EvilQuestCardPolicyReason =
   | 'EXACT_QUOTA_DESIGNATED_FAIL'
@@ -60,7 +58,11 @@ export interface PrivateEvilQuestCardPolicy {
   policyVersion:
     | typeof EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
     | typeof EVIL_QUEST_ROBUST_POLICY_VERSION
-  mode: EvilQuestCardPolicyMode
+  /**
+   * `visible-exact-quota` is accepted only by the historical trace reader.
+   * AvaLLM runtime configuration exposes robust heterogeneous mode alone.
+   */
+  mode: EvilQuestCardPolicyMode | 'visible-exact-quota'
   coordinationAssumption: 'homogeneous-common-policy-required' | 'none'
   populationAssumption:
     | 'homogeneous-all-evil-required'
@@ -219,8 +221,10 @@ export function validatePrivateEvilQuestCardPolicy(
         policy.mode !== 'visible-exact-quota'
         && policy.mode !== 'robust-heterogeneous'
       )
-      || policy.policyVersion !== policyVersion(
-        policy.mode as EvilQuestCardPolicyMode,
+      || policy.policyVersion !== (
+        policy.mode === 'visible-exact-quota'
+          ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
+          : EVIL_QUEST_ROBUST_POLICY_VERSION
       )
       || !request
       || typeof request !== 'object'
@@ -478,14 +482,6 @@ export function decodeCanonicalRobustEvilQuestCardPolicy(
   return value as unknown as PrivateEvilQuestCardPolicy
 }
 
-function policyVersion(
-  mode: EvilQuestCardPolicyMode,
-): PrivateEvilQuestCardPolicy['policyVersion'] {
-  return mode === 'visible-exact-quota'
-    ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-    : EVIL_QUEST_ROBUST_POLICY_VERSION
-}
-
 function canonicalVisibleEvil(view: PlayerView): readonly Seat[] {
   if (view.alignment !== 'evil' || view.role === 'oberon') return []
   return [...new Set([
@@ -548,23 +544,6 @@ function fingerprint(context: EvilQuestPublicContext): string {
   return fnv1a(contextKey(context)).toString(16).padStart(8, '0')
 }
 
-function rotateVisibleAboard(
-  context: EvilQuestPublicContext,
-  visibleEvilSeats: readonly Seat[],
-  visibleEvilAboard: readonly Seat[],
-): readonly Seat[] {
-  if (!visibleEvilSeats.length) return []
-  const offset = fnv1a([
-    EVIL_QUEST_CARD_POLICY_VERSION,
-    'homogeneous-designation',
-    contextKey(context),
-  ].join(':')) % visibleEvilSeats.length
-  return [
-    ...visibleEvilSeats.slice(offset),
-    ...visibleEvilSeats.slice(0, offset),
-  ].filter((seat) => visibleEvilAboard.includes(seat))
-}
-
 function slowPlayProbability(context: EvilQuestPublicContext): number {
   return context.teamSize === 2 ? 0.15
     : context.round === 1 ? 0.4
@@ -575,18 +554,13 @@ function bucket(key: string): number {
   return fnv1a(key) / 0x1_0000_0000
 }
 
-/**
- * Private, deterministic quest-card policy. Exact quota is an explicitly
- * homogeneous research ceiling. Robust mode makes no teammate-coordination
- * assumption and uses only seat-local randomness off decisive boards.
- */
+/** Private deterministic policy with no teammate-coordination assumption. */
 export function buildPrivateEvilQuestCardPolicy(input: {
   req: DecisionRequest
   view: PlayerView
   analysis: SituationAnalysis
-  mode: EvilQuestCardPolicyMode
 }): PrivateEvilQuestCardPolicy {
-  const { req, view, analysis, mode } = input
+  const { req, view, analysis } = input
   const context = evilQuestPublicContext(req, view, analysis.failsRequired)
   const visibleEvilSeats = canonicalVisibleEvil(view)
   const team = new Set(context.currentTeam)
@@ -594,10 +568,6 @@ export function buildPrivateEvilQuestCardPolicy(input: {
     visibleEvilSeats.filter((seat) => team.has(seat))
   const failsRequired = analysis.failsRequired
   const decisiveBoard = analysis.matchPoint.good || analysis.matchPoint.evil
-  const exact = mode === 'visible-exact-quota'
-  const orderedVisibleEvilAboard = exact
-    ? rotateVisibleAboard(context, visibleEvilSeats, visibleEvilAboard)
-    : []
   const common: Omit<
     PrivateEvilQuestCardPolicy,
     'applicable' | 'reason' | 'selectedCard'
@@ -605,16 +575,12 @@ export function buildPrivateEvilQuestCardPolicy(input: {
       | 'sharedSlowPlayGateOpen' | 'localSlowPlayFail'
   > = {
     version: EVIL_QUEST_CARD_POLICY_VERSION,
-    policyVersion: policyVersion(mode),
-    mode,
-    coordinationAssumption: exact
-      ? 'homogeneous-common-policy-required' as const
-      : 'none' as const,
-    populationAssumption: exact
-      ? 'homogeneous-all-evil-required' as const
-      : 'heterogeneous-independent' as const,
-    mixedTableSafe: !exact,
-    promotionEvidenceEligible: !exact,
+    policyVersion: EVIL_QUEST_ROBUST_POLICY_VERSION,
+    mode: 'robust-heterogeneous',
+    coordinationAssumption: 'none',
+    populationAssumption: 'heterogeneous-independent',
+    mixedTableSafe: true,
+    promotionEvidenceEligible: true,
     request: { ...req },
     role: view.role,
     sourceContext: context,
@@ -623,20 +589,12 @@ export function buildPrivateEvilQuestCardPolicy(input: {
     decisiveBoard,
     visibleEvilCount: visibleEvilSeats.length,
     visibleEvilAboardCount: visibleEvilAboard.length,
-    ...(exact
-      ? {
-          visibleEvilSeats,
-          visibleEvilAboard,
-          orderedVisibleEvilAboard,
-        }
-      : {}),
   }
 
   if (req.kind !== 'quest' || view.alignment !== 'evil') {
     return {
       ...common,
       applicable: false,
-      ...(exact ? { designation: [] } : {}),
       reason: 'OUT_OF_SCOPE',
     }
   }
@@ -644,7 +602,6 @@ export function buildPrivateEvilQuestCardPolicy(input: {
     return {
       ...common,
       applicable: false,
-      ...(exact ? { designation: [] } : {}),
       reason: 'OBERON_UNCOORDINATED',
     }
   }
@@ -652,12 +609,11 @@ export function buildPrivateEvilQuestCardPolicy(input: {
     return {
       ...common,
       applicable: true,
-      ...(exact ? { designation: [] } : {}),
       reason: 'INSUFFICIENT_VISIBLE_QUOTA_SUCCESS',
       selectedCard: 'success',
     }
   }
-  if (!exact && decisiveBoard) {
+  if (decisiveBoard) {
     return {
       ...common,
       applicable: true,
@@ -665,27 +621,12 @@ export function buildPrivateEvilQuestCardPolicy(input: {
       selectedCard: 'fail',
     }
   }
-  if (exact && decisiveBoard) {
-    const designation =
-      orderedVisibleEvilAboard.slice(0, failsRequired)
-        .sort((a, b) => a - b)
-    const designated = designation.includes(view.seat)
-    return {
-      ...common,
-      applicable: true,
-      designation,
-      reason: designated
-        ? 'EXACT_QUOTA_DESIGNATED_FAIL'
-        : 'EXACT_QUOTA_NONDESIGNATED_SUCCESS',
-      selectedCard: designated ? 'fail' : 'success',
-    }
-  }
 
   const probability = slowPlayProbability(context)
   const slowPlayBucket = bucket([
     EVIL_QUEST_CARD_POLICY_VERSION,
-    exact ? 'homogeneous-slow-play' : 'robust-seat-local-slow-play',
-    ...(exact ? [] : [view.seat]),
+    'robust-seat-local-slow-play',
+    view.seat,
     contextKey(context),
   ].join(':'))
   const slowPlayGateOpen = slowPlayBucket < probability
@@ -693,44 +634,21 @@ export function buildPrivateEvilQuestCardPolicy(input: {
     return {
       ...common,
       applicable: true,
-      ...(exact ? { designation: [] } : {}),
       slowPlayProbability: probability,
       slowPlayBucket,
-      ...(exact
-        ? { sharedSlowPlayGateOpen: false }
-        : { localSlowPlayFail: false }),
-      reason: exact
-        ? 'SHARED_SLOW_PLAY_HOLD'
-        : 'ROBUST_LOCAL_SLOW_PLAY_HOLD',
+      localSlowPlayFail: false,
+      reason: 'ROBUST_LOCAL_SLOW_PLAY_HOLD',
       selectedCard: 'success',
     }
   }
-  if (!exact) {
-    return {
-      ...common,
-      applicable: true,
-      slowPlayProbability: probability,
-      slowPlayBucket,
-      localSlowPlayFail: true,
-      reason: 'ROBUST_LOCAL_SLOW_PLAY_FAIL',
-      selectedCard: 'fail',
-    }
-  }
-
-  const designation =
-    orderedVisibleEvilAboard.slice(0, failsRequired).sort((a, b) => a - b)
-  const designated = designation.includes(view.seat)
   return {
     ...common,
     applicable: true,
-    designation,
     slowPlayProbability: probability,
     slowPlayBucket,
-    sharedSlowPlayGateOpen: true,
-    reason: designated
-      ? 'EXACT_QUOTA_DESIGNATED_FAIL'
-      : 'EXACT_QUOTA_NONDESIGNATED_SUCCESS',
-    selectedCard: designated ? 'fail' : 'success',
+    localSlowPlayFail: true,
+    reason: 'ROBUST_LOCAL_SLOW_PLAY_FAIL',
+    selectedCard: 'fail',
   }
 }
 
@@ -740,7 +658,6 @@ export function validatePrivateEvilQuestCardPolicyHostJoin(
     req: DecisionRequest
     view: PlayerView
     analysis: SituationAnalysis
-    mode: EvilQuestCardPolicyMode
   },
 ): boolean {
   try {

@@ -9,9 +9,10 @@ import {
 import {
   PRIVATE_FORCED_POLICY_INPUT,
   PRIVATE_SITUATION_INPUT,
-  EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-  EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/legacy-role-adapters.ts'
+import {
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../server/agents/components/robust-evil-quest-card.ts'
 import {
   componentEnvelope,
   componentPayload,
@@ -36,7 +37,6 @@ import {
   selectDecisionCandidate,
   withDecisionAnalysis,
   withDecisionVoice,
-  withLegacyD3QuestCard,
   withCustomScoring,
   withLegalCandidates,
   withNativeResolvedComponents,
@@ -604,91 +604,6 @@ test('real robust D3 is native strategic authority with exact attribution', asyn
   assert.equal(
     JSON.stringify(resolved.componentRun.policyUse),
     JSON.stringify(output.trace!.components!.policyUse),
-  )
-})
-
-async function nativeD3Input(view: PlayerView, seed: string) {
-  const req = questRequest(view)
-  const agent = createComposedAgent({
-    seed,
-    evilQuestCardPolicy: 'visible-exact-quota',
-  })
-  const candidate = withLegalCandidates(canonicalDecisionFrame(req, view))
-  const lease = prepareNativeScoreLayers(candidate, agent.resolvedBrain())
-  const analyzed = withDecisionAnalysis(
-    candidate,
-    reconstructCognition(view),
-    'candidate-teams',
-  )
-  const universal = withUniversalForcedPolicy(analyzed)
-  const resolved = await withNativeResolvedComponents(
-    universal,
-    agent.resolvedBrain(),
-    lease,
-    undefined,
-    (frame) => ({
-      providers: [
-        {
-          input: PRIVATE_SITUATION_INPUT,
-          provide: () =>
-            structuredClone(frame.analysis) as SituationAnalysis,
-        },
-        {
-          input: PRIVATE_FORCED_POLICY_INPUT,
-          provide: () =>
-            structuredClone(frame.universalForced) as ForcedPolicyResult,
-        },
-      ],
-    }),
-  )
-  return {
-    lease,
-    resolved: withResolvedDecisionLayers(
-      resolved,
-      agent.resolvedBrain(),
-      lease,
-    ),
-  }
-}
-
-test('exact-quota quarantine lease hop remains construction-bound', async () => {
-  const view = nondecisive(coordinatedQuestView(4, [4, 5]))
-  const first = await nativeD3Input(view, 'decision-frame-d3-bound-1')
-  const second = await nativeD3Input(view, 'decision-frame-d3-bound-2')
-  const forged = {
-    ...first.resolved,
-    effectiveForced: second.resolved.effectiveForced,
-    componentRun: second.resolved.componentRun,
-  } as ReturnType<typeof withResolvedDecisionLayers>
-  assert.throws(
-    () => withLegacyD3QuestCard(
-      forged,
-      EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-      first.lease,
-    ),
-    /not bound to the D3 input/,
-  )
-  assert.throws(
-    () => withLegacyD3QuestCard(
-      second.resolved,
-      EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-      first.lease,
-    ),
-    /not bound to the D3 input/,
-  )
-  const advanced = withLegacyD3QuestCard(
-    first.resolved,
-    EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-    first.lease,
-  )
-  assert.equal(advanced.stage, 'legacy-d3-quest-card')
-  assert.throws(
-    () => withLegacyD3QuestCard(
-      first.resolved,
-      EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-      first.lease,
-    ),
-    /not bound to the D3 input/,
   )
 })
 

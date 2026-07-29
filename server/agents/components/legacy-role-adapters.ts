@@ -1,33 +1,10 @@
 import type { PlayerView } from '../../engine/types.ts'
 import {
-  buildPrivateEvilQuestCardPolicy,
-  EVIL_QUEST_CARD_POLICY_DEGRADATION,
   EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
-  EVIL_QUEST_ROBUST_POLICY_VERSION,
-  MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
-  type EvilQuestCardPolicyMode,
   type PrivateEvilQuestCardPolicy,
-  decodeCanonicalRobustEvilQuestCardPolicy,
-  validatePrivateEvilQuestCardPolicy,
-  validatePrivateEvilQuestCardPolicyHostJoin,
 } from '../policy/evil-quest-card.ts'
-import { componentEnvelope } from './kernel.ts'
-import {
-  createDecisionComponentRegistry,
-  type DecisionComponentRegistry,
-} from './registry.ts'
-import type {
-  ComponentAdmissionResult,
-  ComponentToken,
-  DecisionComponentDefinition,
-} from './types.ts'
 import type { DecisionTrace } from '../trace.ts'
-import {
-  PRIVATE_FORCED_POLICY_INPUT,
-  PRIVATE_SITUATION_INPUT,
-  SCORE_COMPONENT_HOST_INPUTS,
-  type NativeScoreComponentConfiguration,
-} from './native-score-components.ts'
+import type { ComponentToken } from './types.ts'
 
 export {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
@@ -47,18 +24,12 @@ export {
   SCORE_COMPONENT_HOST_INPUTS as LEGACY_ROLE_ADAPTER_HOST_INPUTS,
 } from './native-score-components.ts'
 
-export interface LegacyRoleAdapterConfiguration
-  extends NativeScoreComponentConfiguration {}
-
-export const EVIL_QUEST_CARD_ROBUST_COMPONENT:
-ComponentToken<PrivateEvilQuestCardPolicy> = Object.freeze({
-  id: 'evil-quest-card-robust',
-  version: EVIL_QUEST_ROBUST_POLICY_VERSION,
-  kind: 'decision-rule',
-  privacy: 'private',
-})
-
-export const EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT:
+/**
+ * Read-only identity for traces emitted before R3B3A. It is deliberately
+ * private to this historical admission bridge: no production registry can
+ * request or execute it.
+ */
+const HISTORICAL_EXACT_QUOTA_COMPONENT:
 ComponentToken<PrivateEvilQuestCardPolicy> = Object.freeze({
   id: 'evil-quest-card-exact-quota',
   version: EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
@@ -86,18 +57,9 @@ export interface LegacyRoleAdapterTraceBinding {
   }> | undefined
 }
 
-function evilQuestCardStages(trace: DecisionTrace): readonly string[] {
-  const selected = trace.privateEvilQuestCardPolicy?.selectedCard
-  return selected !== undefined
-    && trace.action.kind === 'quest'
-    && trace.action.card === selected
-    ? ['action-selection']
-    : []
-}
-
-function d3Binding(
-  token: ComponentToken<PrivateEvilQuestCardPolicy>,
-): LegacyRoleAdapterTraceBinding {
+function historicalExactQuotaBinding():
+LegacyRoleAdapterTraceBinding {
+  const token = HISTORICAL_EXACT_QUOTA_COMPONENT
   return Object.freeze({
     token,
     payload: (trace: DecisionTrace) =>
@@ -108,7 +70,14 @@ function d3Binding(
       trace.componentVersions?.evilQuestCardPolicy === token.version
         ? token.version
         : undefined,
-    policyStages: evilQuestCardStages,
+    policyStages: (trace: DecisionTrace) => {
+      const selected = trace.privateEvilQuestCardPolicy?.selectedCard
+      return selected !== undefined
+        && trace.action.kind === 'quest'
+        && trace.action.card === selected
+        ? ['action-selection']
+        : []
+    },
     suppressionReason: (trace: DecisionTrace) =>
       trace.componentVersions?.configuredEvilQuestCardPolicy === token.version
       && trace.privateEvilQuestCardPolicy === undefined
@@ -137,125 +106,11 @@ function d3Binding(
   })
 }
 
+/**
+ * Historical trace-reader metadata only. R3B3B removes this facade together
+ * with the old flat trace projection and evaluation readers.
+ */
 export const LEGACY_ROLE_ADAPTER_TRACE_BINDINGS:
 readonly LegacyRoleAdapterTraceBinding[] = Object.freeze([
-  d3Binding(EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT),
+  historicalExactQuotaBinding(),
 ])
-
-function rejected(
-  degradationCode: string,
-): ComponentAdmissionResult<PrivateEvilQuestCardPolicy> {
-  return { admitted: false, degradationCode }
-}
-
-function questCardDefinition(
-  token: ComponentToken<PrivateEvilQuestCardPolicy>,
-  mode: EvilQuestCardPolicyMode,
-): DecisionComponentDefinition<PrivateEvilQuestCardPolicy> {
-  return {
-    token,
-    source: mode === 'robust-heterogeneous'
-      ? 'native'
-      : 'legacy-adapter',
-    dependencies: [],
-    requiredHostInputs: [
-      PRIVATE_SITUATION_INPUT,
-      PRIVATE_FORCED_POLICY_INPUT,
-    ],
-    hostRequirements: [],
-    maxPayloadBytes: MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
-    degradationCode: EVIL_QUEST_CARD_POLICY_DEGRADATION,
-    applies(context) {
-      return context.privacy === 'private'
-        && context.request.kind === 'quest'
-        && context.view.alignment === 'evil'
-        && context.view.role !== 'oberon'
-    },
-    execute(context) {
-      if (context.privacy !== 'private') {
-        throw new Error('evil quest-card adapter received public context')
-      }
-      const forced = context.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT)
-      if (forced.applied) {
-        return {
-          status: 'suppressed',
-          reasonCode: 'universal-forced-policy',
-        }
-      }
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(token, buildPrivateEvilQuestCardPolicy({
-          req: context.request,
-          view: context.view,
-          analysis: context.hostInputs.require(PRIVATE_SITUATION_INPUT),
-          mode,
-        })),
-      }
-    },
-    validateDetached(payload) {
-      const decoded = mode === 'robust-heterogeneous'
-        ? decodeCanonicalRobustEvilQuestCardPolicy(payload)
-        : validatePrivateEvilQuestCardPolicy(payload)
-          ? payload
-          : undefined
-      return decoded
-        && decoded.mode === mode
-        && decoded.policyVersion === token.version
-        ? {
-            admitted: true,
-            payload: decoded,
-            verification: 'exact',
-            promotionEligible: decoded.promotionEvidenceEligible,
-          }
-        : rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
-    },
-    admitSuppressed({ reasonCode, host }) {
-      return host.privacy === 'private'
-        && reasonCode === 'universal-forced-policy'
-        && host.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT).applied
-    },
-    admitHost({ payload, host }) {
-      if (host.privacy !== 'private') {
-        return rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
-      }
-      const forced = host.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT)
-      return !forced.applied
-        && validatePrivateEvilQuestCardPolicyHostJoin(payload, {
-          req: host.request,
-          view: host.view,
-          analysis: host.hostInputs.require(PRIVATE_SITUATION_INPUT),
-          mode,
-        })
-        ? {
-            admitted: true,
-            payload,
-            verification: 'exact',
-            promotionEligible: payload.promotionEvidenceEligible,
-          }
-        : rejected(EVIL_QUEST_CARD_POLICY_DEGRADATION)
-    },
-  }
-}
-
-export function legacyRoleAdapterDefinitions():
-readonly DecisionComponentDefinition<any>[] {
-  return Object.freeze([
-    questCardDefinition(
-      EVIL_QUEST_CARD_ROBUST_COMPONENT,
-      'robust-heterogeneous',
-    ),
-    questCardDefinition(
-      EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-      'visible-exact-quota',
-    ),
-  ])
-}
-
-export function createLegacyRoleAdapterRegistry(
-  configuration: LegacyRoleAdapterConfiguration,
-): DecisionComponentRegistry {
-  return createDecisionComponentRegistry(
-    legacyRoleAdapterDefinitions(),
-    { hostInputs: SCORE_COMPONENT_HOST_INPUTS },
-  )
-}

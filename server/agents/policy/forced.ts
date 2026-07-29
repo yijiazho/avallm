@@ -17,9 +17,6 @@ import {
   type ForcedPolicyResult,
   type PolicyCandidate,
 } from './types.ts'
-import type {
-  PrivateEvilQuestCardPolicy,
-} from './evil-quest-card.ts'
 
 const ids = (candidates: readonly PolicyCandidate[]): readonly string[] =>
   candidates.map((candidate) => candidate.id)
@@ -115,14 +112,6 @@ export function applyForcedPolicy(
   view: PlayerView,
   analysis: SituationAnalysis,
   candidates: readonly PolicyCandidate[],
-  options: {
-    /**
-     * An explicitly configured private quest-card policy supplies the evil
-     * quest choice. This owner validates capacity and selects the sole legal
-     * candidate before any scorer or planner can act.
-     */
-    evilQuestCardPolicy?: PrivateEvilQuestCardPolicy
-  } = {},
 ): ForcedPolicyResult {
   if (candidates.some((candidate) => candidate.kind !== req.kind)) {
     throw new Error(`forced policy received mixed candidates for ${req.kind}`)
@@ -157,44 +146,6 @@ export function applyForcedPolicy(
       if (analysis.matchPoint.good) reasons.push('GOOD_MATCH_POINT_FAIL_REQUIRED')
       if (analysis.matchPoint.evil) reasons.push('EVIL_MATCH_POINT_FAIL_AVAILABLE')
       return select(candidates, { kind: 'quest', card: 'fail' }, reasons)
-    }
-    const questPolicy = options.evilQuestCardPolicy
-    if (view.role !== 'oberon' && questPolicy?.selectedCard) {
-      if (questPolicy.mode !== 'visible-exact-quota') {
-        throw new Error(
-          'universal forced policy cannot execute strategic quest policy',
-        )
-      }
-      const reasonByPolicy = {
-        EXACT_QUOTA_DESIGNATED_FAIL:
-          'EVIL_EXACT_QUOTA_DESIGNATED_FAIL',
-        EXACT_QUOTA_NONDESIGNATED_SUCCESS:
-          'EVIL_EXACT_QUOTA_UNDESIGNATED_SUCCESS',
-        INSUFFICIENT_VISIBLE_QUOTA_SUCCESS:
-          'EVIL_INSUFFICIENT_VISIBLE_QUOTA_HOLD',
-        SHARED_SLOW_PLAY_HOLD:
-          'EVIL_SHARED_SLOW_PLAY_HOLD',
-      } satisfies Partial<Record<
-        typeof questPolicy.reason,
-        ForcedPlayReasonCode
-      >>
-      const hasMappedReason = (
-        reason: typeof questPolicy.reason,
-      ): reason is keyof typeof reasonByPolicy =>
-        Object.hasOwn(reasonByPolicy, reason)
-      const reason = hasMappedReason(questPolicy.reason)
-        ? reasonByPolicy[questPolicy.reason]
-        : undefined
-      if (!reason || (questPolicy.selectedCard === 'fail' && !canSink)) {
-        throw new Error(
-          `invalid forced quest-policy directive: ${questPolicy.reason}`,
-        )
-      }
-      return select(
-        candidates,
-        { kind: 'quest', card: questPolicy.selectedCard },
-        [reason],
-      )
     }
   }
 

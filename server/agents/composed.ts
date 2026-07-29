@@ -87,9 +87,8 @@ import {
   type DecisionComponentRun,
 } from './components/kernel.ts'
 import {
-  EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
-} from './components/legacy-role-adapters.ts'
+} from './components/robust-evil-quest-card.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
@@ -162,11 +161,8 @@ import {
   candidateTeams,
 } from './policy/candidates.ts'
 import {
-  EVIL_QUEST_CARD_POLICY_DEGRADATION,
-  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
   type EvilQuestCardPolicyMode,
-  type PrivateEvilQuestCardPolicy,
 } from './policy/evil-quest-card.ts'
 import {
   COMMUNICATION_CLAIM_CODES,
@@ -202,7 +198,6 @@ import {
   selectedMechanicalDecision,
   withDecisionAnalysis,
   withDecisionVoice,
-  withLegacyD3QuestCard,
   withCustomScoring,
   withLegalCandidates,
   withNativeResolvedComponents,
@@ -346,10 +341,7 @@ export interface ComposedAgentOptions {
    * inert and resolves only for Morgana proposal and vote decisions.
    */
   morganaCounterfeitObjectives?: boolean
-  /**
-   * Opt-in Phase 7D3 private quest-card convention. It is independent of the
-   * proposal/vote role scorer and never reaches communication.
-   */
+  /** Opt-in heterogeneous-safe private evil quest-card strategy. */
   evilQuestCardPolicy?: EvilQuestCardPolicyMode
   /** Opt-in Phase 7B2 private selected/applied plan memory. */
   planMemory?: boolean
@@ -823,8 +815,6 @@ function composedTrace(
   privateIdentity?: PrivateIdentitySnapshot,
   identityEnabled = false,
   roleObjectiveRouterEnabled = false,
-  configuredEvilQuestCardPolicy?: string,
-  privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy,
 ): DecisionTrace {
   const baseVersions = projectBaseTraceComponentVersions(
     descriptor,
@@ -886,15 +876,6 @@ function composedTrace(
       ...(roleObjectiveRouterEnabled
         ? { roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION }
         : {}),
-      ...(privateEvilQuestCardPolicy
-        ? {
-            evilQuestCardPolicy:
-              privateEvilQuestCardPolicy.policyVersion,
-          }
-        : {}),
-      ...(configuredEvilQuestCardPolicy
-        ? { configuredEvilQuestCardPolicy }
-        : {}),
       ...baseVersions.suffix,
     },
     ...(planMemoryEnabled
@@ -924,12 +905,6 @@ function composedTrace(
       : {}),
     ...(privateIdentity
       ? { privateIdentity: structuredClone(privateIdentity) }
-      : {}),
-    ...(privateEvilQuestCardPolicy
-      ? {
-          privateEvilQuestCardPolicy:
-            structuredClone(privateEvilQuestCardPolicy),
-        }
       : {}),
   }
 }
@@ -1046,23 +1021,18 @@ export function createComposedAgent(
   const evilQuestCardPolicyMode = options.evilQuestCardPolicy
   if (
     evilQuestCardPolicyMode !== undefined
-    && evilQuestCardPolicyMode !== 'visible-exact-quota'
     && evilQuestCardPolicyMode !== 'robust-heterogeneous'
   ) {
     throw new Error('invalid evilQuestCardPolicy mode')
   }
   const configuredEvilQuestCardPolicy =
-    evilQuestCardPolicyMode === 'visible-exact-quota'
-      ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      : evilQuestCardPolicyMode === 'robust-heterogeneous'
-        ? EVIL_QUEST_ROBUST_POLICY_VERSION
-        : undefined
+    evilQuestCardPolicyMode === 'robust-heterogeneous'
+      ? EVIL_QUEST_ROBUST_POLICY_VERSION
+      : undefined
   const configuredEvilQuestCardComponent =
-    evilQuestCardPolicyMode === 'visible-exact-quota'
-      ? EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT
-      : evilQuestCardPolicyMode === 'robust-heterogeneous'
-        ? EVIL_QUEST_CARD_ROBUST_COMPONENT
-        : undefined
+    evilQuestCardPolicyMode === 'robust-heterogeneous'
+      ? EVIL_QUEST_CARD_ROBUST_COMPONENT
+      : undefined
   const configuredMorganaRoleUtilityComponent =
     morganaRoleUtilityConfigured
       ? scorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
@@ -1591,8 +1561,6 @@ export function createComposedAgent(
         const analysis = analyzedFrame.analysis
         const candidates = analyzedFrame.legalCandidates
         stage('analysis')
-        let privateEvilQuestCardPolicy:
-          PrivateEvilQuestCardPolicy | undefined
         const universalFrame = withUniversalForcedPolicy(analyzedFrame)
         const universalForced = universalFrame.universalForced
         const configuredComponentIds = new Set(
@@ -1641,7 +1609,7 @@ export function createComposedAgent(
           resolvedBrain,
           nativeScoreLayerLease,
         )
-        let postComponentFrame: PostComponentDecisionFrame = resolvedFrame
+        const postComponentFrame: PostComponentDecisionFrame = resolvedFrame
         const componentRun = resolvedFrame.componentRun
         const genericPublicObserverApplicable =
           componentRun.entries.some(
@@ -1740,23 +1708,11 @@ export function createComposedAgent(
           }
         }
         if (configuredEvilQuestCardComponent) {
-          privateEvilQuestCardPolicy = componentPayload(
+          const privateEvilQuestCardPolicy = componentPayload(
             componentRun,
             configuredEvilQuestCardComponent,
           )
-          if (
-            privateEvilQuestCardPolicy
-            && evilQuestCardPolicyMode === 'visible-exact-quota'
-          ) {
-            stage('quest-card-policy')
-            postComponentFrame = withLegacyD3QuestCard(
-              resolvedFrame,
-              EVIL_QUEST_CARD_EXACT_QUOTA_COMPONENT,
-              nativeScoreLayerLease,
-            )
-          } else if (
-            evilQuestCardPolicyMode === 'robust-heterogeneous'
-          ) {
+          if (evilQuestCardPolicyMode === 'robust-heterogeneous') {
             const robustJournal = resolvedFrame.decisionLayerRun.journal.find(
               (entry) =>
                 entry.layer.id
@@ -1770,15 +1726,6 @@ export function createComposedAgent(
               )
             }
             if (privateEvilQuestCardPolicy) stage('quest-card-policy')
-          } else if (
-            evilQuestCardPolicyMode === 'visible-exact-quota'
-            &&
-            !universalForced.applied
-            && req.kind === 'quest'
-            && view.alignment === 'evil'
-            && view.role !== 'oberon'
-          ) {
-            degradation.push(EVIL_QUEST_CARD_POLICY_DEGRADATION)
           }
         }
         const forced = postComponentFrame.effectiveForced
@@ -2147,12 +2094,6 @@ export function createComposedAgent(
           privateIdentity,
           !!decisionIdentityScope,
           routerConfigured,
-          evilQuestCardPolicyMode === 'visible-exact-quota'
-            ? configuredEvilQuestCardPolicy
-            : undefined,
-          evilQuestCardPolicyMode === 'visible-exact-quota'
-            ? privateEvilQuestCardPolicy
-            : undefined,
         )
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {

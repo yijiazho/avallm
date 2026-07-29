@@ -289,11 +289,11 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
       },
     },
     {
-      id: 'd3-exact',
+      id: 'd3-robust',
       req: d3Req,
       view: d3View,
       seed: d3Game.seed,
-      options: { evilQuestCardPolicy: 'visible-exact-quota' as const },
+      options: { evilQuestCardPolicy: 'robust-heterogeneous' as const },
     },
   ] as const
 

@@ -7,7 +7,7 @@ import {
 } from '../server/agents/decision-layers/robust-evil-quest-card.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/robust-evil-quest-card.ts'
 import {
   projectResolvedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
@@ -230,20 +230,14 @@ test('universal selection suppresses robust execution and component use', async 
   assert.deepEqual(use.stages, [])
 })
 
-test('exact quota remains the sole legacy D3 compatibility path', async () => {
-  const { req, view } = robustQuestFixture()
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: 'phase7r3b2b-exact-quarantine',
-      evilQuestCardPolicy: 'visible-exact-quota',
-    }).decide(req, view),
+test('removed exact quota cannot be configured as a runtime mode', () => {
+  assert.throws(
+    () => createComposedAgent({
+      seed: 'phase7r3b3a-exact-removed',
+      evilQuestCardPolicy: 'visible-exact-quota' as never,
+    }),
+    /invalid evilQuestCardPolicy mode/,
   )
-
-  assert.deepEqual(output.trace!.decisionLayerRun!.configured, [])
-  assert.deepEqual(output.trace!.decisionLayerRun!.journal, [])
-  assert.ok(output.trace!.componentVersions!.evilQuestCardPolicy)
-  assert.ok(output.trace!.componentVersions!.configuredEvilQuestCardPolicy)
-  assert.ok(output.trace!.privateEvilQuestCardPolicy)
 })
 
 test('stdio strips forged robust telemetry without discarding its legal action', async () => {

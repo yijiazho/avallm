@@ -49,9 +49,8 @@ export interface DecisionLayerSurface {
 
 /**
  * Unbranded downstream view of the hard strategic candidate boundary.
- * Current native decisions pass DecisionLayerRun.surface itself. The only
- * synthesized implementation is the explicitly quarantined exact-quota
- * compatibility path, which R3B3 deletes.
+ * Runtime decisions pass DecisionLayerRun.surface itself; no alternate
+ * strategic writer synthesizes this boundary.
  */
 export interface DecisionCandidateBoundary {
   readonly survivorCandidateIds: readonly string[]

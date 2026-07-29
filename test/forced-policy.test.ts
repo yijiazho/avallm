@@ -6,10 +6,6 @@ import {
   candidateTeams,
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
-import {
-  buildPrivateEvilQuestCardPolicy,
-  type PrivateEvilQuestCardPolicy,
-} from '../server/agents/policy/evil-quest-card.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import { FORCED_POLICY_VERSION } from '../server/agents/policy/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
@@ -49,7 +45,6 @@ const asMinion = (
 function policyResult(
   req: DecisionRequest,
   view: PlayerView,
-  evilQuestCardPolicy?: PrivateEvilQuestCardPolicy,
 ) {
   const candidates = legalCandidates(req, view)
   const cognition = reconstructCognition(view)
@@ -61,29 +56,8 @@ function policyResult(
   return {
     candidates,
     analysis,
-    forced: applyForcedPolicy(req, view, analysis, candidates, {
-      evilQuestCardPolicy,
-    }),
+    forced: applyForcedPolicy(req, view, analysis, candidates),
   }
-}
-
-function questPolicy(
-  req: DecisionRequest,
-  view: PlayerView,
-): PrivateEvilQuestCardPolicy {
-  const candidates = legalCandidates(req, view)
-  const cognition = reconstructCognition(view)
-  const analysis = analyzeSituation(view, {
-    belief: cognition.belief,
-    evidence: cognition.evidence,
-    policyCandidateTeams: candidateTeams(candidates, view),
-  })
-  return buildPrivateEvilQuestCardPolicy({
-    req,
-    view,
-    analysis,
-    mode: 'robust-heterogeneous',
-  })
 }
 
 const withoutUtterances = (view: PlayerView): PlayerView => ({
@@ -153,51 +127,9 @@ test('both known Fails are selected on a decisive two-Fail quest', () => {
   assert.ok(result.forced.reasonCodes.includes('GOOD_MATCH_POINT_FAIL_REQUIRED'))
 })
 
-test('universal quest rules dominate adversarial strategic directives', () => {
-  const base = fixture('oberon-two-fail-quest')
-  const offTeam = base.view.players
-    .map((player) => player.seat)
-    .filter((seat) =>
-      seat !== base.view.seat && !base.view.currentTeam!.includes(seat))
-  const cannotSink = asMinion(base.view, offTeam.slice(0, 2))
-  const impossibleFail = {
-    ...questPolicy(base.req, cannotSink),
-    applicable: true,
-    reason: 'ROBUST_LOCAL_SLOW_PLAY_FAIL' as const,
-    selectedCard: 'fail' as const,
-  }
-  const held = policyResult(base.req, cannotSink, impossibleFail)
-  assert.match(held.forced.selectedCandidateId!, /quest:success$/)
-  assert.deepEqual(
-    held.forced.reasonCodes,
-    ['EVIL_QUEST_CARD_CANNOT_SINK'],
-  )
-
-  const partner = base.view.currentTeam!
-    .find((seat) => seat !== base.view.seat)!
-  const decisive = asMinion(base.view, [partner, offTeam[0]])
-  const strategicHold = {
-    ...questPolicy(base.req, decisive),
-    applicable: true,
-    reason: 'ROBUST_LOCAL_SLOW_PLAY_HOLD' as const,
-    selectedCard: 'success' as const,
-  }
-  const failed = policyResult(base.req, decisive, strategicHold)
-  assert.match(failed.forced.selectedCandidateId!, /quest:fail$/)
-  assert.deepEqual(failed.forced.reasonCodes, [
-    'GOOD_MATCH_POINT_FAIL_REQUIRED',
-  ])
-})
-
 test('Oberon stays outside coordinated quest policy but obeys decisive rules', () => {
   const base = fixture('oberon-two-fail-quest')
-  const adversarialPolicy = {
-    ...questPolicy(base.req, base.view),
-    applicable: true,
-    reason: 'ROBUST_LOCAL_SLOW_PLAY_HOLD' as const,
-    selectedCard: 'success' as const,
-  }
-  const ordinary = policyResult(base.req, base.view, adversarialPolicy)
+  const ordinary = policyResult(base.req, base.view)
   assert.equal(ordinary.forced.applied, false)
   assert.equal(ordinary.forced.selectedCandidateId, undefined)
 
@@ -206,7 +138,7 @@ test('Oberon stays outside coordinated quest policy but obeys decisive rules', (
       ? { ...quest, failsRequired: 1 }
       : quest)
   const decisiveView = { ...base.view, quests }
-  const decisive = policyResult(base.req, decisiveView, adversarialPolicy)
+  const decisive = policyResult(base.req, decisiveView)
   assert.match(decisive.forced.selectedCandidateId!, /quest:fail$/)
   assert.deepEqual(decisive.forced.reasonCodes, [
     'GOOD_MATCH_POINT_FAIL_REQUIRED',
