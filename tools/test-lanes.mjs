@@ -110,6 +110,7 @@ const LANES = Object.freeze({
     'phase5b-quest-factor.test.ts',
     'phase5c-vote-conversion.test.ts',
     'phase6d-active-language-eval.test.ts',
+    'phase7f2a-role-eval.test.ts',
     'phase7r2c3-replay-timeline.test.ts',
     'replay.test.ts',
     'seat-view-inspector-ui.test.ts',

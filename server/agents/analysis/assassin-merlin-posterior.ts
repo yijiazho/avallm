@@ -95,7 +95,25 @@ export function buildPrivateAssassinMerlinPosterior(input: {
     || req.proposalNum !== view.proposalNum
     || belief.throughSeq !== visibleEventCursor(view)
   ) throw new Error('Assassin Merlin posterior is inapplicable')
+  return buildPrivateEvilSeatMerlinPosterior({ view, belief })
+}
 
+/**
+ * PlayerView-only E3A predictor core. Evaluation may ask any evil seat for an
+ * unlabelled Merlin prediction, while the production wrapper above retains
+ * strict Assassin request and phase applicability.
+ */
+export function buildPrivateEvilSeatMerlinPosterior(input: {
+  view: PlayerView
+  belief: BeliefSnapshot
+}): PrivateAssassinMerlinPosterior {
+  const { view, belief } = input
+  if (
+    view.alignment !== 'evil'
+    || ROLE_ALIGNMENT[view.role] !== 'evil'
+    || !view.rolesInPlay.includes('merlin')
+    || belief.throughSeq !== visibleEventCursor(view)
+  ) throw new Error('evil-seat Merlin predictor is inapplicable')
   const actions = resolvedActions(view)
   const byMerlin = Array.from(
     { length: view.playerCount },
@@ -105,10 +123,10 @@ export function buildPrivateAssassinMerlinPosterior(input: {
     const merlin = weighted.world.roleBySeat.indexOf('merlin')
     if (
       merlin < 0
-      || weighted.world.roleBySeat[view.seat] !== 'assassin'
+      || weighted.world.roleBySeat[view.seat] !== view.role
       || !Number.isFinite(weighted.probability)
       || weighted.probability <= 0
-    ) throw new Error('Assassin posterior requires legal positive worlds')
+    ) throw new Error('evil-seat predictor requires legal positive worlds')
     byMerlin[merlin].push(weighted)
   }
   const visiblePartners = new Set(view.privateInfo.evilPartners ?? [])

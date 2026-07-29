@@ -1,0 +1,30 @@
+[
+  {
+    "id": "5p-visible-pair",
+    "seed": "phase7-virtual-assassin-5",
+    "playerCount": 5,
+    "roles": ["merlin", "percival", "servant", "morgana", "assassin"],
+    "successfulProposalPrefix": [[0, 1], [0, 1, 2], [0, 1]]
+  },
+  {
+    "id": "7p-oberon",
+    "seed": "phase7-virtual-assassin-7",
+    "playerCount": 7,
+    "roles": ["merlin", "percival", "servant", "servant", "morgana", "assassin", "oberon"],
+    "successfulProposalPrefix": [[0, 1], [0, 1, 2], [0, 1, 2]]
+  },
+  {
+    "id": "9p-mordred",
+    "seed": "phase7-virtual-assassin-9",
+    "playerCount": 9,
+    "roles": ["merlin", "percival", "servant", "servant", "servant", "servant", "morgana", "assassin", "mordred"],
+    "successfulProposalPrefix": [[0, 1, 2], [0, 1, 2, 3], [0, 1, 2, 3]]
+  },
+  {
+    "id": "10p-mordred-oberon",
+    "seed": "phase7-virtual-assassin-10",
+    "playerCount": 10,
+    "roles": ["merlin", "percival", "servant", "servant", "servant", "servant", "morgana", "assassin", "mordred", "oberon"],
+    "successfulProposalPrefix": [[0, 1, 2], [0, 1, 2, 3], [0, 1, 2, 3]]
+  }
+]

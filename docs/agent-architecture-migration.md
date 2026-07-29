@@ -2,9 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7F2 after Assassin target authority landed at `02242c4` and F1
+**Current target phase:** Phase 7F2B after Assassin target authority landed at `02242c4`, F1
 assembled the complete deterministic role policy behind one immutable, role-independent scorer
-identity. F2 runs the frozen API-free role-bank evaluation. Phase 7E2B's
+identity, and F2A added the frozen role-bank runner and virtual-Assassin evidence substrate.
+F2B owns the complete bank run, report, baseline comparison, and Phase 7 exit audit. Phase 7E2B's
 bounded deterministic and seeded Mordred score layers are implemented and landed as opt-in paths:
 they specialize only D2-viable proposal and vote candidates using the admitted E2A objective,
 with no Mordred-specific central trace, evaluation, prompt, or communication field. Phase 7R3B is
@@ -2274,6 +2275,26 @@ trusted typed values, but `validateBeliefForMordred` still rechecks admitted bel
 the treatment host join rebuilds the canonical public observer for exact comparison. Phase 7R2C
 will make the parse/canonicalize-once boundary explicit before 7R3A, so downstream component
 builders can trust admitted values without allowing raw or merely cast TypeScript objects through.
+
+### Phase 7F2A evaluation-substrate record
+
+F2A adds one API-free runner over the unchanged `standard-v1` cases and existing
+`runArchitectureBench` plus `architectureReport` contracts. Each case has exactly five logical
+arms: compatibility, deterministic good proposal/vote base, the same base with the public observer,
+a role-specific isolated scorer whose raw ID names its actual scorer family, and the immutable
+full-role scorer with robust heterogeneous D3 enabled. Raw evidence is deterministic JSONL sorted
+by case and logical arm. Each row retains the host-owned architecture identity digest, target role
+and seat, outcome, log and mechanical-decision digests, calls, cost, degradation, forced-play
+violations, exact component admission, safety counts, and terminal status. It deliberately excludes
+timestamps and raw latency. This is F2B input, not a report or promotion claim.
+
+The E3A posterior now exposes its unchanged mathematics through a PlayerView-only evil-seat
+predictor core. The production wrapper remains strict to an Assassin at the assassination request.
+Four frozen 5, 7, 9, and 10-player successful-quest prefixes detach every seat view before any
+prediction. All twelve evil seats select themselves only from their view role, freeze and hash an
+unlabelled prediction, and join the true Merlin seat afterward. This includes ordinary visible-evil,
+Oberon-isolated, and Mordred visibility shapes without passing a raw game, truth label, or paid
+probe schema to the predictor.
 
 ### Phase 7R2C development-leverage checkpoint
 
