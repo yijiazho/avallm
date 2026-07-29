@@ -2189,10 +2189,11 @@ The cross-review findings establish these development guardrails for the rest of
 1. **Bound before traversal.** Admission rejects impossible declared array sizes and exhausts a
    byte-derived work budget while walking; it never performs an unbounded walk and checks the size
    afterward.
-2. **Canonicalize every ingress, then decode once.** Host roots, component payloads, traces, and
-   external reconstruction all enter through the same hostile-data boundary. One component-owned
-   semantic decoder produces the typed value. Downstream builders, policy, reports, and debug
-   projections consume that value without reparsing or relying on casts.
+2. **Canonicalize external ingress, then trust typed capabilities.** Host roots, component
+   payloads, traces, and external reconstruction enter through the hostile-data boundary. One
+   component-owned decoder produces the typed value. Internally constructed frames and one-shot
+   capabilities carry identity and sequencing by construction; downstream policy consumes them
+   without another hostile walk, serialization round trip, global provenance map, or cast.
 3. **Reject unsupported attribution explicitly.** An unknown observer, mode, component token, or
    lane classification is an error or an attributable degradation. It must never be relabeled as
    `off`, absent, or otherwise valid.
@@ -2239,15 +2240,18 @@ The cross-review findings establish these development guardrails for the rest of
     until the wiring chunk replaces them; a seam does not justify changing behavior.
 14. **Expire every parallel authority.** Its next chunk names and deletes the old writer, then
     reviews net complexity instead of merely celebrating the new abstraction.
-15. **Carry provenance from construction.** A stage initiates dependent work against its own
-    detached inputs and passes the exact completed frame to trusted-provider factories. Do not
-    pre-run work for later attachment, add global provenance registries, or rely on downstream
-    deep revalidation.
+15. **Carry provenance from construction.** A stage initiates dependent work against its exact
+    immutable inputs and carries a local one-shot lease through the later typed frame. The lease
+    exposes only bounded planning requirements, verifies the exact resolved brain, delegates once
+    to the existing component transition, binds its exact returned frame, and owns consumption in
+    closure-private state. Do not pre-run work for later attachment, add global provenance
+    registries, serialize a provenance token, or rely on downstream deep revalidation.
 16. **Ratchet compatibility debt.** Native code adds no legacy walker, central role field,
     optional compatibility bag, or unowned cast; every exception names its retirement owner.
 17. **Build typed semantic scenarios.** Normal tests use scenario builders; only the generic
-    contract kit constructs hostile raw values. A second repeated proof pattern triggers shared
-    automation.
+    contract kit constructs hostile raw values. Extract shared automation after a third use or
+    when two uses demonstrably enforce the same invariant; superficial repetition alone is not an
+    abstraction trigger.
 18. **Treat assertion changes as behavior decisions.** They require explicit justification and
     cannot be inverted merely to bless a refactor. A change-surface or complexity-budget breach
     stops new cross-layer branching.
@@ -2260,6 +2264,10 @@ The cross-review findings establish these development guardrails for the rest of
     Native families use the shared contract kit and typed scenarios. Net-additive central
     replacement work requires an explicit retained-authority explanation, and owner-local
     operation counts are preferred to development-host wall-clock assertions.
+21. **Keep new frameworks provisional through first production use.** A generic seam is not
+    settled merely because its synthetic contract is green. Its first real role family must use
+    it without a central ID switch, then a simplification audit removes unused generality,
+    duplicate authority, and construction proofs that the staged types already guarantee.
 
 The development model follows a proof pyramid rather than using end-to-end mutation matrices as
 the first line of defense:
@@ -2292,7 +2300,8 @@ invalid states through large mutation matrices or complete simulations:
    Only the first two states need hostile-shape walking. In-process constructors return the
    host-joined type directly; downstream policy and projections never serialize, cast, or parse it
    again. Independent external boundaries still admit independently, but internal module boundaries
-   do not pretend trusted values are hostile input.
+   do not pretend trusted values are hostile input. Internal sequencing uses typed, invocation-
+   local capabilities rather than serializable provenance records.
 2. **Represent variants as variants.** Mode-, stage-, and applicability-dependent values use
    discriminated unions with exact members, not one interface containing many optional fields.
    Constructors make illegal combinations unrepresentable. Codecs prove transport shape; small
@@ -2407,8 +2416,9 @@ become a parallel metadata author.
 **7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
 score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
 valid forced-policy survivor surface, declares its dependencies and fallback, and cannot revive a
-removed candidate. The native score row contains only common mechanical fields: version,
-candidate identity, scalar value, viability, and bounded reason codes. Good-role, evil-role, and
+removed candidate. The native score surface carries one enforced `score-layer-surface-v1` schema
+version; each row contains only candidate identity, scalar value, viability, and bounded reason
+codes. The exact journal layer token owns producer attribution. Good-role, evil-role, and
 Morgana feature records remain in their owning analysis or component output and may enter an exact
 historical projection only through a named compatibility adapter. They do not become optional
 fields on the new common score type.
@@ -2417,38 +2427,74 @@ Layer output is constructed once by an invocation-bound factory that enforces th
 surface, hard-survivor monotonicity, forced-choice dominance, finite bounded values, exact row
 shape, and reason/string/aggregate limits. The runner accepts that constructed value and does not
 reparse trusted in-process output as hostile JSON. Request- and view-dependent analysis needs are
-resolved by a bounded preflight carried into the same run: opaque requirement references are
-generic, failed transform preflights degrade only that transform, and all evaluations appear in
-the journal and operation counts. Concrete analysis-profile combination belongs at the family
-edge, not in the generic registry.
+resolved by a bounded lease prepared from the exact candidate frame: opaque requirement references
+are available before analysis, failed transform preparation degrades only that transform, and all
+evaluations appear in the journal and operation counts. The same closure-private capability verifies
+the exact resolved brain, delegates once to the existing component transition, binds the exact
+returned component frame, and can be consumed only against that frame. Concrete analysis-profile
+combination belongs at the family edge, not in the generic registry.
 
-**7R3A0 and 7R3A1 are complete.** A0 froze an independent sixteen-scenario compatibility oracle at
+**7R3A0 is complete; 7R3A1 is provisional after its A1.1 architecture correction.** A0 froze an
+independent sixteen-scenario compatibility oracle at
 `d7789a2`; its expected decisions are reconstructed from legal replay rather than from the scorer
 being replaced. A1 adds the role-agnostic native score-layer kernel without changing the live
 composed path or its empty production layer order. The kernel has one registered root, ordered
-monotone transforms, an invocation-bound preflight and family admission join, an exact immutable
+monotone transforms, an invocation-local one-shot lease and family admission join, an exact immutable
 surface factory, canonical forced-policy projection, and run-wide component-use attribution.
 Concrete layer dependencies are derived into the component request graph, so callers cannot omit
 the matching component while still constructing a valid brain.
 
 The A1 implementation applies the systemic model above rather than adding another central
-validator. Generic rows contain only candidate identity, value, viability, version, and bounded
-reason codes. The runner is split by transformation owner into registry, preflight, component
+validator. Generic rows contain only candidate identity, value, viability, and bounded reason
+codes; one surface schema version and the journal token replace arbitrary per-row producer
+versions. The runner is split by transformation owner into registry, requirement preparation, component
 closure, surface construction, and orchestration modules. Component payloads and definitions are
-indexed once; survivor lookup is set-based; cycle and dependency walks are iterative; all
+indexed once; survivor lookup is set-based; cycle and dependency walks are iterative; all retained
 candidate-, layer-, requirement-, graph-, attribution-, and byte-dependent work has an explicit
-counter. Stress laws cover a 4,000-layer registry, a 12,000-node dependency chain without stack
+counter. Construction-proven chain and component-run facts are not rescanned merely to produce
+more counters. Stress laws cover a 4,000-layer registry, a 12,000-node dependency chain without stack
 growth, and sparse component reads. Architecture fitness rejects role identifiers or legacy
 scorer dependencies in the generic kernel.
 
-Independent final review approved the exact A1 snapshot after rejecting and correcting earlier
+A1.1 subsequently corrected three interface defects: module-global preflight provenance became a
+minimal local lease whose narrow wrapper binds the exact brain and sole component-transition result;
+the trusted runner stopped deeply revalidating the resolved brain and staged frame; and transform
+applicability plus surface schema/provenance each gained one authority. The
+strict native contract lane is glob-inventoried so later `score-layer-*` family helpers cannot
+silently escape typechecking.
+The corrected gate passes both independent oracles, 319 contract tests, 1,031 API-free correctness
+tests, three isolated performance tests, and screenshot freshness without a client-source change.
+
+Independent final review approved the original A1 snapshot after rejecting and correcting earlier
 versions that had reused the optional-field legacy score type, duplicated hostile parsing for
 trusted values, lacked exact host joins, or hid repeated scans. The parent gate passed strict
 typechecking, architecture fitness, both independent compatibility oracles, 1,026 API-free
 correctness tests, and three isolated performance tests. The legacy scoring function and
-`composed.ts` remain source-identical to A0. 7R3A2 next migrates the good-role family onto this
-kernel; 7R3A3 follows with the generic evil family, then 7R3A4 owns Morgana and remaining
-write-side cleanup before the 7R3A equality and deletion audit.
+`composed.ts` remain source-identical to A0. A1 remains provisional until A2 is its first production
+client and completes a simplification audit. Before A2 receives live decision authority, the
+native selected/plan/trace projection seam must be specified; this correction deliberately does
+not create that downstream authority, and A4 cannot cut over until the seam is the sole current
+writer. 7R3A3 follows with the generic evil family, then 7R3A4 owns Morgana and remaining write-side
+cleanup before the 7R3A equality and deletion audit.
+
+The compact Phase 7 scorecard is run from the repository root after each authority chunk:
+
+```powershell
+(rg -n "legacyExemption: '7R3[AB]" test/phase7r2c2-component-conformance.test.ts | Measure-Object).Count
+(rg -n "withLegacyScoring\(|scoreCandidates\(" server/agents | Measure-Object).Count
+$p=@('server/agents/admission/composed-trace.ts','server/eval/architecture-report.ts','server/agents/communication/composed-renderer.ts'); (rg -n "roleObjective|evilRole|morganaRole" $p | Measure-Object).Count
+(rg -n "canonicalRunInputs|structuredClone|JSON\.parse|canonicalizeJson|exactOwnDataRecord|denseOwnDataArrayValues" server/agents/policy/score-layer server/agents/score-layers 2>$null | Measure-Object).Count
+(Measure-Command { npm.cmd run typecheck; node tools/architecture-fitness.mjs; node --test test/architecture-fitness.test.ts test/phase7r3a1-score-layer.test.ts }).TotalSeconds
+$o=@('tools/capture-phase7r3a-score-oracle.mjs','test/fixtures/phase7r3a-score-equivalence.json','test/phase7r3a-score-equivalence-oracle.test.ts'); ($o | Where-Object { Test-Path $_ }).Count
+$n=0; git diff --numstat d7789a2 -- server/agents/policy/score-layer server/agents/score-layers server/agents/policy/legacy-scoring.ts | ForEach-Object { $x=$_ -split "`t"; if($x[0]-match '^\d+$' -and $x[1]-match '^\d+$'){$n+=[int]$x[0]-[int]$x[1]} }; $n
+```
+
+The A1.1 checkpoint is respectively `10`, `7`, `194`, `0`, under `10` seconds on the
+development host, `3`, and `+1778` production lines relative to A0. Exemptions, legacy calls, and
+role-named current projections must decline as their owners migrate; duplicate score-layer
+parsers must remain zero. The temporary oracle count becomes zero at the 7R3 exit audit. Net
+authority-family lines may rise for A2's first client, but A2's simplification audit and A4's
+cutover must explain or reduce the total rather than treating framework growth as success.
 
 In 7R3B, D3 becomes a strategic decision layer that is reachable only after universal forced rules
 leave discretion. Generic-versus-legacy equality is required across all landed role paths before

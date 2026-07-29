@@ -11,6 +11,10 @@ const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/
 const ENGINE_TYPES = 'server/engine/types'
 const COMPONENT_KERNEL = 'server/agents/components/kernel'
 const GENERIC_SCORE_LAYER_PREFIX = 'server/agents/policy/score-layer/'
+const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
+const SCORE_LAYER_EXECUTION_OWNERS = new Set([
+  'server/agents/policy/decision-frame.ts',
+])
 const FORBIDDEN_SCORE_LAYER_ROLE_LITERALS = new Set([
   'assassin',
   'evil',
@@ -379,6 +383,18 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (!target) continue
       if (
+        target === SCORE_LAYER_RUNNER
+        && !SCORE_LAYER_EXECUTION_OWNERS.has(sourcePath)
+      ) {
+        violations.push(violation(
+          'ARCH006',
+          sourcePath,
+          edge,
+          'the native score-layer runner is confined to DecisionFrame',
+        ))
+        continue
+      }
+      if (
         sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
         && (
           target.startsWith('server/agents/analysis/')
@@ -509,6 +525,23 @@ export function auditArchitectureSources(sourceEntries) {
         }
       }
     }
+    if (
+      (
+        sourcePath === `${GENERIC_SCORE_LAYER_PREFIX}preparation.ts`
+        || sourcePath === `${GENERIC_SCORE_LAYER_PREFIX}runner.ts`
+      )
+      && (
+        inspected.identifiers.has('WeakMap')
+        || inspected.identifiers.has('WeakSet')
+      )
+    ) {
+      violations.push(violation(
+        'ARCH006',
+        sourcePath,
+        undefined,
+        'score-layer preparation and execution cannot use global provenance registries',
+      ))
+    }
 
     if (!TRUSTED_RUNTIME_OWNERS.has(sourcePath)) {
       for (const identifier of TRUSTED_RUNTIME_IDENTIFIERS) {
@@ -574,6 +607,78 @@ function collectServerSources(root) {
   return entries.sort(([left], [right]) => left.localeCompare(right))
 }
 
+function scoreLayerContractInventoryViolations(root) {
+  const violations = []
+  const support = path.join(root, 'test', 'support')
+  const typecheck = path.join(root, 'test', 'typecheck')
+  for (const directory of [support, typecheck]) {
+    let children
+    try {
+      children = readdirSync(directory, { withFileTypes: true })
+    } catch (error) {
+      violations.push(violation(
+        'ARCH006',
+        normalizeRepoPath(path.relative(root, directory)),
+        undefined,
+        `cannot enumerate native score-layer typecheck inventory: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      ))
+      continue
+    }
+    for (const child of children) {
+      if (!child.isFile() || !child.name.endsWith('.ts')) continue
+      const absolute = path.join(directory, child.name)
+      const source = readFileSync(absolute, 'utf8')
+      const participates = source.includes('/score-layer/')
+        || source.includes('./score-layer-')
+      if (participates && !child.name.startsWith('score-layer-')) {
+        violations.push(violation(
+          'ARCH006',
+          normalizeRepoPath(path.relative(root, absolute)),
+          undefined,
+          'native score-layer support must use the score-layer-* strict-inventory prefix',
+        ))
+      }
+    }
+  }
+  const configPath = path.join(root, 'tsconfig.score-layer-contract.json')
+  const packagePath = path.join(root, 'package.json')
+  try {
+    const config = readFileSync(configPath, 'utf8')
+    if (
+      !config.includes('"test/support/score-layer-*.ts"')
+      || !config.includes('"test/typecheck/score-layer-*.ts"')
+    ) {
+      violations.push(violation(
+        'ARCH006',
+        'tsconfig.score-layer-contract.json',
+        undefined,
+        'native score-layer strict typecheck inventory must remain glob-based',
+      ))
+    }
+    const packageSource = readFileSync(packagePath, 'utf8')
+    if (!packageSource.includes('tsc -p tsconfig.score-layer-contract.json')) {
+      violations.push(violation(
+        'ARCH006',
+        'package.json',
+        undefined,
+        'the default typecheck must execute the native score-layer contract lane',
+      ))
+    }
+  } catch (error) {
+    violations.push(violation(
+      'ARCH006',
+      'tsconfig.score-layer-contract.json',
+      undefined,
+      `cannot read native score-layer typecheck inventory: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    ))
+  }
+  return violations
+}
+
 export function checkRepositoryArchitecture(root = process.cwd()) {
   let entries
   try {
@@ -586,7 +691,10 @@ export function checkRepositoryArchitecture(root = process.cwd()) {
       error instanceof Error ? error.message : String(error),
     )])
   }
-  return auditArchitectureSources(entries)
+  return Object.freeze([
+    ...auditArchitectureSources(entries),
+    ...scoreLayerContractInventoryViolations(root),
+  ])
 }
 
 const isMain = process.argv[1]

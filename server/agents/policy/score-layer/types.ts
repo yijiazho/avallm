@@ -21,6 +21,7 @@ import type {
 
 declare const SCORE_LAYER_TOKEN_BRAND: unique symbol
 declare const SCORE_LAYER_SURFACE_BRAND: unique symbol
+declare const SCORE_LAYER_RUN_LEASE_BRAND: unique symbol
 
 export interface ScoreLayerRef {
   readonly id: string
@@ -40,6 +41,7 @@ export function scoreLayerToken(
 }
 
 export interface ScoreLayerSurface {
+  readonly version: 'score-layer-surface-v1'
   readonly scores: readonly Immutable<ScoreLayerRow>[]
   /**
    * Hard policy survivors in legal-candidate order. Layers may narrow this
@@ -51,7 +53,6 @@ export interface ScoreLayerSurface {
 
 /** Common native score row. Family-owned diagnostics stay outside this seam. */
 export interface ScoreLayerRow {
-  readonly version: string
   readonly candidateId: string
   readonly value: number
   readonly viable: boolean
@@ -59,7 +60,6 @@ export interface ScoreLayerRow {
 }
 
 export interface ScoreLayerRowDraft {
-  readonly version: string
   readonly candidateId: string
   readonly value: number
   readonly viable: boolean
@@ -137,9 +137,6 @@ export type ScoreLayerTransformResult =
   | Readonly<{
       status: 'applied'
       surface: Immutable<ScoreLayerSurface>
-    }>
-  | Readonly<{
-      status: 'inapplicable'
     }>
   | Readonly<{
       status: 'degraded'
@@ -230,6 +227,7 @@ export interface ScoreLayerOperationCounts {
   /** Unique admitted payloads placed in the invocation cache. */
   readonly componentPayloadsMaterialized: number
   readonly componentDefinitionIndexEntriesVisited: number
+  readonly scoreLayerComponentRequirementsIndexed: number
   readonly componentClosureRootsVisited: number
   readonly componentDependencyEdgesVisited: number
   readonly componentClosureComponentsEmitted: number
@@ -246,9 +244,10 @@ export interface ScoreLayerOperationCounts {
   readonly surfaceBytesConstructed: number
 }
 
-export interface ScoreLayerPreflight {
-  readonly version: 'score-layer-preflight-v1'
+export interface ScoreLayerRunLease {
+  readonly version: 'score-layer-run-lease-v1'
   readonly requirements: readonly ScoreLayerAnalysisRef[]
+  readonly [SCORE_LAYER_RUN_LEASE_BRAND]: true
 }
 
 export interface ScoreLayerRun {
@@ -260,13 +259,7 @@ export interface ScoreLayerRun {
   readonly operations: ScoreLayerOperationCounts
 }
 
-export interface ScoreLayerRunInput {
-  readonly chain: ResolvedScoreLayerChain
-  readonly preflight: ScoreLayerPreflight
-  readonly componentDefinitions:
-    readonly DecisionComponentDefinition<any>[]
-  readonly request: Immutable<DecisionRequest>
-  readonly view: Immutable<PlayerView>
+export interface ScoreLayerRunCompletion {
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]
   readonly forced: Immutable<ForcedPolicyResult>
@@ -276,4 +269,12 @@ export interface ScoreLayerRunInput {
     | readonly Immutable<PolicyCandidate>[]
     | null
   readonly componentRun: Immutable<DecisionComponentRun>
+}
+
+export interface ScoreLayerRunPreparation {
+  readonly chain: ResolvedScoreLayerChain
+  readonly componentDefinitions:
+    readonly DecisionComponentDefinition<any>[]
+  readonly request: Immutable<DecisionRequest>
+  readonly view: Immutable<PlayerView>
 }

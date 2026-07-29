@@ -537,11 +537,18 @@ role wants to do about it.
 8. Commit a `DecisionPlan`.
 9. Generate any public explanation from that plan.
 
-Score and decision layers transform a typed prior surface. Each layer declares its inputs,
-applicability, version, and fallback. It may narrow or rank the candidates that survived universal
-forced policy, but it cannot revive a removed candidate, mutate the committed engine action, or
-silently bypass a stronger shared objective. If a layer is missing, inapplicable, malformed, or
-degraded, execution continues from the last valid surface and records that resolution.
+Score and decision layers transform a typed prior surface. The score surface has one schema
+version, while the execution journal's exact layer token identifies the producer; rows do not
+carry arbitrary producer versions. Each layer declares its inputs, one applicability predicate,
+version, and fallback. Its execution may apply a surface or degrade, but it cannot independently
+redeclare itself inapplicable. It may narrow or rank the candidates that survived universal forced
+policy, but it cannot revive a removed candidate, mutate the committed engine action, or silently
+bypass a stronger shared objective. If a layer is missing, inapplicable, malformed, or degraded,
+execution continues from the last valid surface and records that resolution. Analysis
+requirements are exposed before analysis through an invocation-local one-shot capability. That
+capability verifies the exact resolved brain, delegates once to the sole component transition,
+binds its exact returned frame, and may execute only against that frame, without a global
+provenance map or second hostile-data parse.
 
 Universal rules and strategic rules remain distinct even when both choose an action directly.
 Good always playing Success, evil being unable to sink a quest, and decisive match-point play are

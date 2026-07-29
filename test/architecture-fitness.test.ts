@@ -318,6 +318,64 @@ test('generic score-layer kernel cannot grow role-specific dependencies or branc
   )
 })
 
+test('native score-layer preparation and execution stay locally owned', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/composed.ts',
+        'import { executePreparedScoreLayerRun } from "./policy/score-layer/runner.ts"',
+      ],
+      [
+        'server/agents/composed-namespace.ts',
+        'import * as runner from "./policy/score-layer/runner.ts"',
+      ],
+      [
+        'server/agents/composed-alias.ts',
+        'import { executePreparedScoreLayerRun as run } from "./policy/score-layer/runner.ts"',
+      ],
+      [
+        'server/agents/composed-default.ts',
+        'import runner from "./policy/score-layer/runner.ts"',
+      ],
+      [
+        'server/agents/composed-dynamic.ts',
+        'const runner = await import("./policy/score-layer/runner.ts")',
+      ],
+      [
+        'server/agents/composed-require.ts',
+        'const runner = require("./policy/score-layer/runner.ts")',
+      ],
+      [
+        'server/agents/composed-export.ts',
+        'export * from "./policy/score-layer/runner.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/preparation.ts',
+        'const PROVENANCE = new WeakMap<object, object>()',
+      ],
+    ]),
+    [
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+      'ARCH006',
+    ],
+  )
+  assert.deepEqual(
+    auditArchitectureSources([
+      [
+        'server/agents/policy/decision-frame.ts',
+        'import { executePreparedScoreLayerRun, prepareScoreLayerRunLease } from "./score-layer/runner.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
 test('trusted provider capabilities remain inside composition and kernel', () => {
   assert.deepEqual(
     auditArchitectureSources([

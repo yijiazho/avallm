@@ -1,7 +1,7 @@
 import type { Immutable } from '../trusted-data.ts'
 import type {
   ScoreLayerRow,
-  ScoreLayerRunInput,
+  ScoreLayerRunCompletion,
   ScoreLayerSurface,
   ScoreLayerSurfaceDraft,
   ScoreLayerSurfaceFactory,
@@ -10,8 +10,8 @@ import type {
 export const MAX_SCORE_LAYER_SURFACE_JSON_BYTES = 1_048_576
 export const MAX_SCORE_LAYER_REASON_CODES = 32
 export const MAX_SCORE_LAYER_STRING_BYTES = 256
+export const SCORE_LAYER_SURFACE_VERSION = 'score-layer-surface-v1'
 
-const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
 const CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/
 
 export interface ScoreLayerSurfaceWork {
@@ -34,8 +34,7 @@ function fixedRowBytes(
   reasonBytes: number,
 ): number {
   return 2
-    + jsonStringBytes('version') + 1 + jsonStringBytes(row.version)
-    + 1 + jsonStringBytes('candidateId') + 1
+    + jsonStringBytes('candidateId') + 1
       + jsonStringBytes(row.candidateId)
     + 1 + jsonStringBytes('value') + 1
       + Buffer.byteLength(JSON.stringify(row.value), 'utf8')
@@ -51,14 +50,16 @@ function fixedSurfaceBytes(
 ): number {
   const scoreBytes = 2 + rowsBytes + Math.max(0, rowCount - 1)
   return 2
-    + jsonStringBytes('scores') + 1 + scoreBytes
+    + jsonStringBytes('version') + 1
+      + jsonStringBytes(SCORE_LAYER_SURFACE_VERSION)
+    + 1 + jsonStringBytes('scores') + 1 + scoreBytes
     + 1 + jsonStringBytes('survivorCandidateIds') + 1 + survivorBytes
 }
 
 export function canonicalForcedPolicy(
-  input: ScoreLayerRunInput,
+  input: Pick<ScoreLayerRunCompletion, 'candidates' | 'forced'>,
   operations: ScoreLayerSurfaceWork,
-): Immutable<ScoreLayerRunInput['forced']> {
+): Immutable<ScoreLayerRunCompletion['forced']> {
   const source = input.forced.allowedCandidateIds
   if (source.length === 0 || source.length > input.candidates.length) {
     throw new Error('forced policy must retain a legal candidate')
@@ -100,7 +101,7 @@ export function canonicalForcedPolicy(
     ...(input.forced.selectedCandidateId === undefined
       ? {}
       : { selectedCandidateId: input.forced.selectedCandidateId }),
-  }) as Immutable<ScoreLayerRunInput['forced']>
+  }) as Immutable<ScoreLayerRunCompletion['forced']>
 }
 
 export interface ScoreLayerSurfaceLease {
@@ -114,8 +115,8 @@ export interface ScoreLayerSurfaceRuntime {
 }
 
 export function createScoreLayerSurfaceRuntime(
-  candidates: ScoreLayerRunInput['candidates'],
-  forced: Immutable<ScoreLayerRunInput['forced']>,
+  candidates: ScoreLayerRunCompletion['candidates'],
+  forced: Immutable<ScoreLayerRunCompletion['forced']>,
   operations: ScoreLayerSurfaceWork,
 ): ScoreLayerSurfaceRuntime {
   const provenance = new WeakMap<object, object>()
@@ -196,12 +197,7 @@ export function createScoreLayerSurfaceRuntime(
             operations.surfaceRowsVisited++
             const source = draft.scores[index]
             if (
-              typeof source.version !== 'string'
-              || source.version.length > MAX_SCORE_LAYER_STRING_BYTES
-              || !VERSION_PATTERN.test(source.version)
-              || Buffer.byteLength(source.version, 'utf8')
-                > MAX_SCORE_LAYER_STRING_BYTES
-              || source.candidateId !== candidates[index].id
+              source.candidateId !== candidates[index].id
               || typeof source.value !== 'number'
               || !Number.isFinite(source.value)
               || typeof source.viable !== 'boolean'
@@ -217,8 +213,7 @@ export function createScoreLayerSurfaceRuntime(
             if (
               priorRow
               && (
-                source.version !== priorRow.version
-                || source.candidateId !== priorRow.candidateId
+                source.candidateId !== priorRow.candidateId
                 || !Object.is(source.value, priorRow.value)
                 || source.viable !== priorRow.viable
                 || source.reasonCodes.length !== priorRow.reasonCodes.length
@@ -249,7 +244,6 @@ export function createScoreLayerSurfaceRuntime(
               reasons.push(reason)
             }
             const row: ScoreLayerRow = Object.freeze({
-              version: source.version,
               candidateId: source.candidateId,
               value: source.value,
               viable: source.viable,
@@ -289,6 +283,7 @@ export function createScoreLayerSurfaceRuntime(
             throw new Error('score layer surface exceeds retained byte bound')
           }
           const surface = Object.freeze({
+            version: SCORE_LAYER_SURFACE_VERSION,
             scores: Object.freeze(rows),
             survivorCandidateIds: Object.freeze(survivors),
           }) as Immutable<ScoreLayerSurface>

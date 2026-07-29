@@ -13,8 +13,6 @@ import {
 } from '../server/agents/components/resolved-brain.ts'
 import {
   MAX_SCORE_LAYER_SURFACE_JSON_BYTES,
-  preflightScoreLayers,
-  runScoreLayers,
 } from '../server/agents/policy/score-layer/runner.ts'
 import {
   createScoreLayerComponentRuntime,
@@ -26,7 +24,9 @@ import {
   type ScoreLayerDefinition,
   type ScoreLayerRef,
   type ScoreLayerRootDefinition,
-  type ScoreLayerRunInput,
+  type ScoreLayerRunCompletion,
+  type ScoreLayerRunLease,
+  type ScoreLayerRunPreparation,
   type ScoreLayerSurface,
   type ScoreLayerSurfaceDraft,
   type ScoreLayerRowDraft,
@@ -60,16 +60,22 @@ import {
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
   canonicalDecisionFrame,
+  prepareNativeScoreLayers,
+  type NativeScoreLayerLease,
   withDecisionAnalysis,
   withLegalCandidates,
+  withNativeResolvedComponents,
   withNativeScoreLayers,
-  withResolvedComponents,
   withUniversalForcedPolicy,
 } from '../server/agents/policy/decision-frame.ts'
 import { detachTrustedPolicyData } from '../server/agents/policy/trusted-data.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import { assertScoreLayerRunContract } from './support/score-layer-contract.ts'
+import {
+  prepareScoreLayerRunForTest,
+  runPreparedScoreLayersForTest,
+} from './support/score-layer-runner.ts'
 
 const token = (id: string): ScoreLayerToken => scoreLayerToken(id, 'v1')
 
@@ -105,14 +111,16 @@ const candidates = detachTrustedPolicyData([
 
 function scores(
   viable: readonly boolean[],
-  version = 'test-score-v1',
+  marker?: string,
 ): readonly ScoreLayerRowDraft[] {
   return candidates.map((candidate, index) => ({
-    version,
     candidateId: candidate.id,
     value: viable[index] ? 10 - index : -100,
     viable: viable[index],
-    reasonCodes: [`REASON_${index}`],
+    reasonCodes: [
+      `REASON_${index}`,
+      ...(marker ? [marker] : []),
+    ],
   }))
 }
 
@@ -230,7 +238,6 @@ function transformDefinition(
     context: Parameters<ScoreLayerTransformDefinition['execute']>[0],
   ) =>
     | Readonly<{ status: 'applied'; surface: ScoreLayerSurfaceDraft }>
-    | Readonly<{ status: 'inapplicable' }>
     | Readonly<{ status: 'degraded' }>,
   requiredComponents: readonly ComponentToken[] = [],
 ): ScoreLayerTransformDefinition {
@@ -271,10 +278,11 @@ const forced = detachTrustedPolicyData({
 function surface(
   viable: readonly boolean[],
   survivorCandidateIds: readonly string[] = ['a', 'b'],
-  version = 'test-score-v1',
+  marker?: string,
 ) {
   return {
-    scores: scores(viable, version),
+    version: 'score-layer-surface-v1' as const,
+    scores: scores(viable, marker),
     survivorCandidateIds,
   }
 }
@@ -283,19 +291,39 @@ function jsonBytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8')
 }
 
+interface ScoreLayerTestRunInput
+extends ScoreLayerRunPreparation, ScoreLayerRunCompletion {
+  readonly lease: ScoreLayerRunLease
+}
+
+function runScoreLayers(input: ScoreLayerTestRunInput) {
+  return runPreparedScoreLayersForTest(input.lease, {
+    analysis: input.analysis,
+    candidates: input.candidates,
+    forced: input.forced,
+    componentRun: input.componentRun,
+    deterministicSeed: input.deterministicSeed,
+    compatibilityCandidateId: input.compatibilityCandidateId,
+    hypotheticalTeamCandidates: input.hypotheticalTeamCandidates,
+  })
+}
+
 function runInput(
   definitions: readonly ScoreLayerDefinition[],
-): ScoreLayerRunInput {
+): ScoreLayerTestRunInput {
   const registry = createScoreLayerRegistry(definitions)
   const chain = registry.resolve({
     terminal: definitions.at(-1)!.token,
   })
-  return {
+  const preparation: ScoreLayerRunPreparation = {
     chain,
-    preflight: preflightScoreLayers(chain, { request, view }),
     componentDefinitions,
     request,
     view,
+  }
+  return {
+    ...preparation,
+    lease: prepareScoreLayerRunForTest(preparation),
     analysis,
     candidates,
     forced,
@@ -306,16 +334,29 @@ function runInput(
   }
 }
 
+function prepareLease(
+  chain: ScoreLayerRunPreparation['chain'],
+  suppliedRequest = request,
+  suppliedView = view,
+): ScoreLayerRunLease {
+  return prepareScoreLayerRunForTest({
+    chain,
+    componentDefinitions,
+    request: suppliedRequest,
+    view: suppliedView,
+  })
+}
+
 test('terminal resolution derives one immutable canonical single-root chain', () => {
   const root = rootDefinition(() => ({
     status: 'generated',
     surface: surface([true, false, false]),
   }))
   const left = transformDefinition(token('left'), ROOT, () => ({
-    status: 'inapplicable',
+    status: 'degraded',
   }))
   const right = transformDefinition(token('right'), ROOT, () => ({
-    status: 'inapplicable',
+    status: 'degraded',
   }))
   const registry = createScoreLayerRegistry([right, root, left])
   const chain = registry.resolve({ terminal: right.token })
@@ -351,7 +392,7 @@ test('construction rejects duplicate, unknown, missing, and cyclic layers', () =
   }))
   const transform = (layer: ScoreLayerToken, predecessor: ScoreLayerRef) =>
     transformDefinition(layer, predecessor, () => ({
-      status: 'inapplicable',
+      status: 'degraded',
     }))
   assert.throws(
     () => createScoreLayerRegistry([root, root]),
@@ -432,7 +473,7 @@ test('registry resolves a long predecessor chain in one global cycle pass', () =
     definitions.push(transformDefinition(
       layer,
       predecessor,
-      () => ({ status: 'inapplicable' }),
+      () => ({ status: 'degraded' }),
     ))
     predecessor = layer
   }
@@ -520,7 +561,7 @@ test('analysis requirements remain layer-owned and seat/request dependent', () =
   }))
   const vote = {
     ...transformDefinition(RERANK, ROOT, () => ({
-      status: 'inapplicable',
+      status: 'degraded',
     })),
     analysisRequirements: ({ request, view }) =>
       request.kind === 'vote' && view.alignment === 'good'
@@ -530,19 +571,20 @@ test('analysis requirements remain layer-owned and seat/request dependent', () =
   const registry = createScoreLayerRegistry([root, vote])
   const chain = registry.resolve({ terminal: vote.token })
   assert.deepEqual(
-    preflightScoreLayers(chain, { request, view }).requirements,
+    prepareLease(chain).requirements,
     [{ id: 'future-opaque-profile', version: 'v47' }],
   )
   assert.deepEqual(
-    preflightScoreLayers(chain, {
+    prepareLease(
+      chain,
       request,
-      view: detachTrustedPolicyData({ ...view, alignment: 'evil' }),
-    }).requirements,
+      detachTrustedPolicyData({ ...view, alignment: 'evil' }),
+    ).requirements,
     [],
   )
 })
 
-test('analysis preflight is frame-bound and disables only failing transforms', () => {
+test('analysis preparation is one-shot and disables only failing transforms', () => {
   let applies = 0
   let executes = 0
   const root = rootDefinition(() => ({
@@ -552,10 +594,10 @@ test('analysis preflight is frame-bound and disables only failing transforms', (
   const disabled = {
     ...transformDefinition(RERANK, ROOT, () => {
       executes++
-      return { status: 'inapplicable' as const }
+      return { status: 'degraded' as const }
     }),
     analysisRequirements: () => {
-      throw new Error('test preflight failure')
+      throw new Error('test preparation failure')
     },
     applies: () => {
       applies++
@@ -581,19 +623,12 @@ test('analysis preflight is frame-bound and disables only failing transforms', (
   assert.equal(run.operations.layersExecuted, 1)
   assert.throws(
     () => runScoreLayers(input),
-    /preflight was already consumed/,
-  )
-  assert.throws(
-    () => runScoreLayers({
-      ...input,
-      request: detachTrustedPolicyData(structuredClone(request)),
-    }),
-    /preflight does not belong to this frame/,
+    /run lease was already consumed/,
   )
 
   const hugeRef = {
     ...transformDefinition(RERANK, ROOT, () => ({
-      status: 'inapplicable' as const,
+      status: 'degraded' as const,
     })),
     analysisRequirements: () => [{
       id: 'x'.repeat(100_000),
@@ -614,9 +649,30 @@ test('analysis preflight is frame-bound and disables only failing transforms', (
   const registry = createScoreLayerRegistry([brokenRoot])
   const chain = registry.resolve({ terminal: brokenRoot.token })
   assert.throws(
-    () => preflightScoreLayers(chain, { request, view }),
-    /root analysis preflight failed/,
+    () => prepareLease(chain),
+    /root analysis preparation failed/,
   )
+})
+
+test('preparation uses no module-global provenance or downstream parser', () => {
+  const preparationSource = readFileSync(
+    new URL(
+      '../server/agents/policy/score-layer/preparation.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  const runnerSource = readFileSync(
+    new URL(
+      '../server/agents/policy/score-layer/runner.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  assert.doesNotMatch(preparationSource, /\b(?:WeakMap|WeakSet)\b/)
+  assert.doesNotMatch(preparationSource, /\b(?:PROVENANCE|CONSUMED)\b/)
+  assert.doesNotMatch(runnerSource, /\bcanonicalRunInputs\b/)
+  assert.doesNotMatch(runnerSource, /\bstructuredClone\b/)
 })
 
 test('family-owned admission proves requested analysis before applicability', () => {
@@ -633,7 +689,7 @@ test('family-owned admission proves requested analysis before applicability', ()
   const mismatched = {
     ...transformDefinition(RERANK, ROOT, () => {
       executes++
-      return { status: 'inapplicable' as const }
+      return { status: 'degraded' as const }
     }),
     analysisRequirements: () => [PROFILE],
     admitAnalysis: () => false,
@@ -708,6 +764,47 @@ test('family-owned admission proves requested analysis before applicability', ()
   assert.throws(
     () => runScoreLayers(failedRootInput),
     /root analysis admission failed/,
+  )
+})
+
+test('applies is the sole transform inapplicability authority', () => {
+  let skippedExecution = 0
+  const skipped = {
+    ...transformDefinition(RERANK, ROOT, () => {
+      skippedExecution++
+      return { status: 'degraded' as const }
+    }),
+    applies: () => false,
+  }
+  const skippedRun = runScoreLayers(runInput([
+    rootDefinition(() => ({
+      status: 'generated',
+      surface: surface([true, false, false]),
+    })),
+    skipped,
+  ]))
+  assert.equal(skippedExecution, 0)
+  assert.equal(skippedRun.journal[1].status, 'inapplicable')
+
+  const forged = {
+    ...transformDefinition(RERANK, ROOT, () => ({
+      status: 'degraded' as const,
+    })),
+    execute: () => ({ status: 'inapplicable' }),
+  } as unknown as ScoreLayerTransformDefinition
+  const forgedRun = runScoreLayers(runInput([
+    rootDefinition(() => ({
+      status: 'generated',
+      surface: surface([true, false, false]),
+    })),
+    forged,
+  ]))
+  assert.equal(forgedRun.journal[1].status, 'degraded')
+  assert.equal(
+    forgedRun.journal[1].status === 'degraded'
+      ? forgedRun.journal[1].failureCode
+      : undefined,
+    'malformed-result',
   )
 })
 
@@ -891,9 +988,13 @@ test('component indexing and batch attribution scale with graph plus emitted clo
     }, [terminal]),
   ]
   const base = runInput(scoreDefinitions)
-  const input: ScoreLayerRunInput = {
+  const preparation: ScoreLayerRunPreparation = {
     ...base,
     componentDefinitions: Object.freeze(definitions),
+  }
+  const input: ScoreLayerTestRunInput = {
+    ...preparation,
+    lease: prepareScoreLayerRunForTest(preparation),
     componentRun: stressRun,
   }
   const run = runScoreLayers(input)
@@ -1081,9 +1182,13 @@ test('sparse layer reads scan component entries and policy use only once', () =>
     predecessor = layer
   }
   const base = runInput(scoreDefinitions)
-  const input: ScoreLayerRunInput = {
+  const preparation: ScoreLayerRunPreparation = {
     ...base,
     componentDefinitions: Object.freeze(definitions),
+  }
+  const input: ScoreLayerTestRunInput = {
+    ...preparation,
+    lease: prepareScoreLayerRunForTest(preparation),
     componentRun: sparseRun,
   }
   const run = runScoreLayers(input)
@@ -1225,7 +1330,7 @@ test('undeclared and missing reads fail or remain unattributed with definition-o
     surfacePriorSurvivorsVisited: 6,
     surfaceDraftSurvivorsVisited: 6,
     surfaceRowsVisited: 9,
-    surfaceReasonsVisited: 9,
+    surfaceReasonsVisited: 15,
     surfaceBytesConstructed:
       jsonBytes(surface([true, false, false]))
       + jsonBytes(surface([true, false, false], ['a', 'b'], 'missing-v1'))
@@ -1266,6 +1371,10 @@ test('late-row invalidity is counted exactly and total root failures are program
     () => runScoreLayers(brokenRoot),
     /total score layer root failed/,
   )
+  assert.throws(
+    () => runScoreLayers(brokenRoot),
+    /run lease was already consumed/,
+  )
 })
 
 test('candidate identity and order are invariant across transforms', () => {
@@ -1297,7 +1406,7 @@ test('forced survivors join once to the exact canonical legal candidate surface'
   const inputWith = (
     allowedCandidateIds: readonly string[],
     selectedCandidateId?: string,
-  ): ScoreLayerRunInput => ({
+  ): ScoreLayerTestRunInput => ({
     ...runInput([definition]),
     forced: detachTrustedPolicyData({
       version: FORCED_POLICY_VERSION,
@@ -1401,7 +1510,7 @@ test('factory attempts and constructed bytes distinguish an unused surface from 
     })),
     {
       ...transformDefinition(RETRY, ROOT, () => ({
-        status: 'inapplicable',
+        status: 'degraded',
       })),
       execute(context) {
         context.surface.create(
@@ -1410,7 +1519,7 @@ test('factory attempts and constructed bytes distinguish an unused surface from 
         context.surface.create(
           surface([true, false, false], ['a', 'b'], 'retry-v1'),
         )
-        return { status: 'inapplicable' }
+        return { status: 'degraded' }
       },
     },
   ])
@@ -1429,7 +1538,7 @@ test('factory attempts and constructed bytes distinguish an unused surface from 
   )
 })
 
-test('runner rejects forged chain edges and component graph drift', () => {
+test('trusted lease execution does not reparse substituted wrapper fields', () => {
   const input = runInput([
     rootDefinition(() => ({
       status: 'generated',
@@ -1447,57 +1556,64 @@ test('runner rejects forged chain edges and component graph drift', () => {
     ...transform,
     predecessor: token('unrelated-root'),
   }
-  assert.throws(
-    () => runScoreLayers({
-      ...input,
-      chain: {
-        ...input.chain,
-        definitions: [input.chain.definitions[0], forgedTransform],
-      },
-    }),
-    /resolved canonical chain/,
-  )
-  assert.throws(
-    () => runScoreLayers({
-      ...input,
-      componentDefinitions: [...input.componentDefinitions].reverse(),
-    }),
-    /resolved canonical chain/,
-  )
-  const substitutedKind: DecisionComponentDefinition = {
-    ...input.componentDefinitions[0],
-    token: {
-      ...input.componentDefinitions[0].token,
-      kind: 'projection',
+  const run = runScoreLayers({
+    ...input,
+    chain: {
+      ...input.chain,
+      definitions: [input.chain.definitions[0], forgedTransform],
     },
+    componentDefinitions: [...input.componentDefinitions].reverse(),
+  })
+  assert.deepEqual(run.configured, input.chain.order)
+})
+
+test('trusted lease snapshots its preparation wrapper references', () => {
+  const root = rootDefinition(() => ({
+    status: 'generated',
+    surface: surface([true, false, false]),
+  }))
+  const registry = createScoreLayerRegistry([root])
+  const chain = registry.resolve({ terminal: root.token })
+  const preparation: {
+    chain: ScoreLayerRunPreparation['chain']
+    componentDefinitions: ScoreLayerRunPreparation['componentDefinitions']
+    request: ScoreLayerRunPreparation['request']
+    view: ScoreLayerRunPreparation['view']
+  } = {
+    chain,
+    componentDefinitions,
+    request,
+    view,
   }
-  assert.throws(
-    () => runScoreLayers({
-      ...input,
-      componentDefinitions: [
-        substitutedKind,
-        ...input.componentDefinitions.slice(1),
-      ],
-    }),
-    /resolved canonical chain/,
-  )
-  const substitutedPrivacy: DecisionComponentDefinition = {
-    ...input.componentDefinitions[0],
-    token: {
-      ...input.componentDefinitions[0].token,
-      privacy: 'public',
-    },
+  const lease = prepareScoreLayerRunForTest(preparation)
+  const replacementRoot = {
+    ...root,
+    token: token('replacement-root'),
   }
-  assert.throws(
-    () => runScoreLayers({
-      ...input,
-      componentDefinitions: [
-        substitutedPrivacy,
-        ...input.componentDefinitions.slice(1),
-      ],
-    }),
-    /resolved canonical chain/,
+  preparation.chain = createScoreLayerRegistry([replacementRoot]).resolve({
+    terminal: replacementRoot.token,
+  })
+  preparation.componentDefinitions = []
+  preparation.request = detachTrustedPolicyData(
+    { kind: 'discuss' } as DecisionRequest,
   )
+  preparation.view = detachTrustedPolicyData({
+    seat: 9,
+    alignment: 'evil',
+  } as PlayerView)
+
+  const run = runPreparedScoreLayersForTest(lease, {
+    analysis,
+    candidates,
+    forced,
+    componentRun,
+    deterministicSeed: 'preparation-snapshot-test',
+    compatibilityCandidateId: 'a',
+    hypotheticalTeamCandidates: null,
+  })
+
+  assert.deepEqual(run.configured, chain.order)
+  assert.equal(run.journal[0].layer.id, root.token.id)
 })
 
 test('wrong-length typed outputs do not visit excess candidate rows', () => {
@@ -1511,7 +1627,6 @@ test('wrong-length typed outputs do not visit excess candidate rows', () => {
       status: 'applied',
       surface: {
         scores: Array.from({ length: 100_000 }, (_, index) => ({
-          version: 'huge-v1',
           candidateId: String(index),
           value: 0,
           viable: false,
@@ -1552,15 +1667,15 @@ test('typed surface bounds reject huge reason arrays and strings before iteratio
   assert.equal(hugeRun.operations.surfaceRowsVisited, 4)
   assert.equal(hugeRun.operations.surfaceReasonsVisited, 3)
 
-  const hugeVersion = surface([true, false, false], ['a'])
-  hugeVersion.scores[0] = {
-    ...hugeVersion.scores[0],
-    version: 'v'.repeat(100_000),
+  const hugeString = surface([true, false, false], ['a'])
+  hugeString.scores[0] = {
+    ...hugeString.scores[0],
+    reasonCodes: ['v'.repeat(100_000)],
   }
-  const hugeVersionRun = execute(hugeVersion)
-  assert.equal(hugeVersionRun.journal[1].status, 'degraded')
-  assert.equal(hugeVersionRun.operations.surfaceRowsVisited, 4)
-  assert.equal(hugeVersionRun.operations.surfaceReasonsVisited, 3)
+  const hugeStringRun = execute(hugeString)
+  assert.equal(hugeStringRun.journal[1].status, 'degraded')
+  assert.equal(hugeStringRun.operations.surfaceRowsVisited, 4)
+  assert.equal(hugeStringRun.operations.surfaceReasonsVisited, 4)
 })
 
 test('surface factory emits one canonical property order', () => {
@@ -1569,7 +1684,6 @@ test('surface factory emits one canonical property order', () => {
     viable: row.viable,
     value: row.value,
     candidateId: row.candidateId,
-    version: row.version,
   }))
   const input = runInput([
     rootDefinition(() => ({
@@ -1583,11 +1697,11 @@ test('surface factory emits one canonical property order', () => {
   const run = runScoreLayers(input)
   assert.deepEqual(
     Object.keys(run.surface),
-    ['scores', 'survivorCandidateIds'],
+    ['version', 'scores', 'survivorCandidateIds'],
   )
   assert.deepEqual(
     Object.keys(run.surface.scores[0]),
-    ['version', 'candidateId', 'value', 'viable', 'reasonCodes'],
+    ['candidateId', 'value', 'viable', 'reasonCodes'],
   )
   assert.equal(
     run.operations.surfaceBytesConstructed,
@@ -1603,8 +1717,8 @@ test('aggregate surface bytes are rejected incrementally before the cap is retai
   )) as unknown as readonly PolicyCandidate[]
   const survivorIds = manyCandidates.map((candidate) => candidate.id)
   const rootSurface = {
+    version: 'score-layer-surface-v1' as const,
     scores: manyCandidates.map((candidate) => ({
-      version: 'bulk-root-v1',
       candidateId: candidate.id,
       value: 1,
       viable: true,
@@ -1621,7 +1735,6 @@ test('aggregate surface bytes are rejected incrementally before the cap is retai
       status: 'applied',
       surface: {
         scores: manyCandidates.map((candidate) => ({
-          version: 'bulk-transform-v1',
           candidateId: candidate.id,
           value: 2,
           viable: true,
@@ -1638,8 +1751,14 @@ test('aggregate surface bytes are rejected incrementally before the cap is retai
     entries: Object.freeze([]),
     policyUse: Object.freeze([]),
   })
-  const input: ScoreLayerRunInput = {
+  const preparation: ScoreLayerRunPreparation = {
     ...base,
+    componentDefinitions: Object.freeze([]),
+  }
+  const input: ScoreLayerTestRunInput = {
+    ...preparation,
+    lease: prepareScoreLayerRunForTest(preparation),
+    analysis: base.analysis,
     candidates: manyCandidates,
     forced: detachTrustedPolicyData({
       version: FORCED_POLICY_VERSION,
@@ -1647,8 +1766,10 @@ test('aggregate surface bytes are rejected incrementally before the cap is retai
       reasonCodes: [],
       allowedCandidateIds: survivorIds,
     } as ForcedPolicyResult),
-    componentDefinitions: Object.freeze([]),
     componentRun: emptyComponentRun,
+    deterministicSeed: base.deterministicSeed,
+    compatibilityCandidateId: base.compatibilityCandidateId,
+    hypotheticalTeamCandidates: base.hypotheticalTeamCandidates,
   }
   const run = runScoreLayers(input)
 
@@ -1735,7 +1856,6 @@ test('native frame seam installs one honestly admitted root score authority', as
         status: 'generated',
         surface: {
           scores: context.candidates.map((candidate, index) => ({
-            version: 'frame-seam-root-v1',
             candidateId: candidate.id,
             value: candidate.id === context.compatibilityCandidateId
               ? 1_000
@@ -1769,51 +1889,134 @@ test('native frame seam installs one honestly admitted root score authority', as
     scoreLayerOrder: [nativeRoot.token],
   }, createDecisionComponentRegistry([]), scoreRegistry)
   const canonical = canonicalDecisionFrame(fixture.req, fixture.view)
-  const preflight = preflightScoreLayers(brain.scoreLayerChain!, {
-    request: canonical.request,
-    view: canonical.view,
-  })
   const legal = withLegalCandidates(canonical)
+  const lease = prepareNativeScoreLayers(legal, brain)
+  assert.ok(Object.isFrozen(lease))
+  assert.deepEqual(lease.requirements, [{
+    id: 'situation-analysis',
+    version: SITUATION_ANALYSIS_VERSION,
+  }])
   const analyzed = withDecisionAnalysis(
     legal,
     reconstructCognition(fixture.view),
     'candidate-teams',
   )
   const forcedFrame = withUniversalForcedPolicy(analyzed)
-  const components = await withResolvedComponents(forcedFrame, brain)
+  const components = await withNativeResolvedComponents(
+    forcedFrame,
+    brain,
+    lease,
+  )
   const compatibilityCandidateId = legal.legalCandidates[0].id
+  assert.deepEqual(Object.keys(lease), ['version', 'requirements'])
+  assert.equal('chain' in lease, false)
+  assert.equal('run' in lease, false)
   assert.throws(
-    () => withNativeScoreLayers(components, brain, {
+    () => withNativeScoreLayers(components, {
+      version: 'native-score-layer-lease-v1',
+      requirements: lease.requirements,
+    } as unknown as NativeScoreLayerLease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /local prepared lease/,
+  )
+  assert.throws(
+    () => withNativeScoreLayers({
+      ...components,
+      request: detachTrustedPolicyData(structuredClone(components.request)),
+    }, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /different component frame/,
+  )
+  assert.throws(
+    () => withNativeScoreLayers({
+      ...components,
+      view: detachTrustedPolicyData(structuredClone(components.view)),
+    }, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /different component frame/,
+  )
+  const foreignCanonical = canonicalDecisionFrame(fixture.req, fixture.view)
+  const foreignLegal = withLegalCandidates(foreignCanonical)
+  const foreignLease = prepareNativeScoreLayers(foreignLegal, brain)
+  assert.throws(
+    () => withNativeScoreLayers(components, foreignLease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /no bound component frame/,
+  )
+  assert.throws(
+    () => withNativeScoreLayers(components, lease, {
       deterministicSeed: '',
       compatibilityCandidateId,
-    }, preflight),
+    }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, brain, {
+    () => withNativeScoreLayers(components, lease, {
       deterministicSeed: '   ',
       compatibilityCandidateId,
-    }, preflight),
+    }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, brain, {
+    () => withNativeScoreLayers(components, lease, {
       deterministicSeed: 'x'.repeat(1_025),
       compatibilityCandidateId,
-    }, preflight),
+    }),
     /nonempty bounded seed/,
   )
   assert.throws(
-    () => withNativeScoreLayers(components, brain, {
+    () => withNativeScoreLayers(components, lease, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId: 'not-a-legal-candidate',
-    }, preflight),
+    }),
     /legal compatibility candidate/,
   )
-  const native = withNativeScoreLayers(components, brain, {
-    deterministicSeed: fixture.source.seed,
-    compatibilityCandidateId,
-  }, preflight)
+  const parallelLease = prepareNativeScoreLayers(legal, brain)
+  const parallelComponents = await withNativeResolvedComponents(
+    forcedFrame,
+    brain,
+    parallelLease,
+  )
+  assert.throws(
+    () => withNativeScoreLayers(parallelComponents, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /different component frame/,
+  )
+  const [native, parallelNative] = await Promise.all([
+    Promise.resolve().then(() => withNativeScoreLayers(components, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    })),
+    Promise.resolve().then(() => withNativeScoreLayers(
+      parallelComponents,
+      parallelLease,
+      {
+        deterministicSeed: fixture.source.seed,
+        compatibilityCandidateId,
+      },
+    )),
+  ])
+  assert.equal(
+    parallelNative.structuredCandidateId,
+    native.structuredCandidateId,
+  )
+  assert.throws(
+    () => withNativeScoreLayers(components, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /run lease was already consumed/,
+  )
 
   assert.equal(native.stage, 'native-score-layers-resolved')
   assert.equal(native.structuredCandidateId, compatibilityCandidateId)
@@ -1833,4 +2036,146 @@ test('native frame seam installs one honestly admitted root score authority', as
     brain.description.scoreLayerOrder,
     [{ id: ROOT.id, version: ROOT.version }],
   )
+})
+
+test('native component binding is brain-local, exact, one-shot, and concurrent-safe', async () => {
+  const fixture = readDecisionFixtures()[0]
+  const nativeRoot = rootDefinition((context) => {
+    const allowed = new Set(context.forced.allowedCandidateIds)
+    return {
+      status: 'generated',
+      surface: {
+        scores: context.candidates.map((candidate, index) => ({
+          candidateId: candidate.id,
+          value: -index,
+          viable: allowed.has(candidate.id),
+          reasonCodes: ['BINDING_LAW'],
+        })),
+        survivorCandidateIds: context.forced.allowedCandidateIds,
+      },
+    }
+  })
+  const scoreRegistry = createScoreLayerRegistry([nativeRoot])
+  const emptyRegistry = createDecisionComponentRegistry([])
+  const config = {
+    configuredPipeline: testConfiguredPipeline(),
+    scoreLayerTerminal: nativeRoot.token,
+    scoreLayerOrder: [nativeRoot.token],
+  }
+  const brainA = resolveComposedBrain(config, emptyRegistry, scoreRegistry)
+  const brainB = resolveComposedBrain(config, emptyRegistry, scoreRegistry)
+  assert.notEqual(brainA, brainB)
+  assert.deepEqual(brainA.description.components, brainB.description.components)
+  assert.deepEqual(brainA.description.components.configured, [])
+
+  const canonical = canonicalDecisionFrame(fixture.req, fixture.view)
+  const legal = withLegalCandidates(canonical)
+  const analyzed = withDecisionAnalysis(
+    legal,
+    reconstructCognition(fixture.view),
+    'candidate-teams',
+  )
+  const forcedFrame = withUniversalForcedPolicy(analyzed)
+  const compatibilityCandidateId = legal.legalCandidates[0].id
+  const lease = prepareNativeScoreLayers(legal, brainA)
+
+  await assert.rejects(
+    () => withNativeResolvedComponents(forcedFrame, brainB, lease),
+    /different brain/,
+  )
+  const components = await withNativeResolvedComponents(
+    forcedFrame,
+    brainA,
+    lease,
+  )
+  await assert.rejects(
+    () => withNativeResolvedComponents(forcedFrame, brainA, lease),
+    /already bound/,
+  )
+
+  const unboundLease = prepareNativeScoreLayers(legal, brainA)
+  assert.throws(
+    () => withNativeScoreLayers(components, unboundLease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /no bound component frame/,
+  )
+
+  const concurrentLease = prepareNativeScoreLayers(legal, brainA)
+  const concurrentBindings = await Promise.allSettled([
+    withNativeResolvedComponents(forcedFrame, brainA, concurrentLease),
+    withNativeResolvedComponents(forcedFrame, brainA, concurrentLease),
+  ])
+  assert.equal(
+    concurrentBindings.filter((result) => result.status === 'fulfilled').length,
+    1,
+  )
+  assert.equal(
+    concurrentBindings.filter((result) =>
+      result.status === 'rejected'
+      && result.reason instanceof Error
+      && /already bound/.test(result.reason.message)).length,
+    1,
+  )
+
+  const scored = withNativeScoreLayers(components, lease, {
+    deterministicSeed: fixture.source.seed,
+    compatibilityCandidateId,
+  })
+  assert.equal(scored.stage, 'native-score-layers-resolved')
+  assert.throws(
+    () => withNativeScoreLayers(components, lease, {
+      deterministicSeed: fixture.source.seed,
+      compatibilityCandidateId,
+    }),
+    /run lease was already consumed/,
+  )
+
+  const componentRoot = rootDefinition(() => ({
+    status: 'generated',
+    surface: surface([true, false, false]),
+  }), [BASE_COMPONENT])
+  const componentScoreRegistry = createScoreLayerRegistry([componentRoot])
+  const overlappingRegistry = createDecisionComponentRegistry([
+    componentDefinition(BASE_COMPONENT),
+  ])
+  const componentConfig = {
+    configuredPipeline: testConfiguredPipeline(),
+    scoreLayerTerminal: componentRoot.token,
+    scoreLayerOrder: [componentRoot.token],
+  }
+  const componentBrainA = resolveComposedBrain(
+    componentConfig,
+    overlappingRegistry,
+    componentScoreRegistry,
+  )
+  const componentBrainB = resolveComposedBrain(
+    componentConfig,
+    overlappingRegistry,
+    componentScoreRegistry,
+  )
+  assert.deepEqual(
+    componentBrainA.description.components,
+    componentBrainB.description.components,
+  )
+  assert.deepEqual(
+    componentBrainA.description.components.configured.map((entry) => entry.id),
+    [BASE_COMPONENT.id],
+  )
+  const componentLease = prepareNativeScoreLayers(legal, componentBrainA)
+  await assert.rejects(
+    () => withNativeResolvedComponents(
+      forcedFrame,
+      componentBrainB,
+      componentLease,
+    ),
+    /different brain/,
+  )
+  const componentFrame = await withNativeResolvedComponents(
+    forcedFrame,
+    componentBrainA,
+    componentLease,
+  )
+  assert.equal(componentFrame.stage, 'components-resolved')
 })

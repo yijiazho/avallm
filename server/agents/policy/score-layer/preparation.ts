@@ -2,18 +2,15 @@ import type {
   ResolvedScoreLayerChain,
   ScoreLayerAnalysisRef,
   ScoreLayerAnalysisRequirementContext,
-  ScoreLayerPreflight,
-  ScoreLayerRunInput,
 } from './types.ts'
 
-export const SCORE_LAYER_PREFLIGHT_VERSION = 'score-layer-preflight-v1'
 export const MAX_SCORE_LAYER_ANALYSIS_REFS = 64
 export const MAX_SCORE_LAYER_ANALYSIS_STRING_LENGTH = 256
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
 
-export type ScoreLayerPreflightEntry =
+export type ScoreLayerPreparationEntry =
   | Readonly<{
       status: 'ready'
       requirements: readonly ScoreLayerAnalysisRef[]
@@ -23,42 +20,12 @@ export type ScoreLayerPreflightEntry =
       requirements: readonly ScoreLayerAnalysisRef[]
     }>
 
-export interface ScoreLayerPreflightProvenance {
-  readonly chain: ResolvedScoreLayerChain
-  readonly request: ScoreLayerRunInput['request']
-  readonly view: ScoreLayerRunInput['view']
-  readonly entries: readonly ScoreLayerPreflightEntry[]
+export interface PreparedScoreLayerRequirements {
+  readonly entries: readonly ScoreLayerPreparationEntry[]
+  readonly requirements: readonly ScoreLayerAnalysisRef[]
   readonly evaluations: number
   readonly failures: number
   readonly refsVisited: number
-}
-
-const PROVENANCE = new WeakMap<object, ScoreLayerPreflightProvenance>()
-const CONSUMED = new WeakSet<object>()
-
-export function canonicalScoreLayerChain(
-  chain: ResolvedScoreLayerChain,
-): boolean {
-  if (
-    chain.order.length === 0
-    || chain.order.length !== chain.definitions.length
-    || chain.order.some((entry, index) =>
-      entry.id !== chain.definitions[index].token.id
-      || entry.version !== chain.definitions[index].token.version)
-    || chain.terminal.id !== chain.order.at(-1)?.id
-    || chain.terminal.version !== chain.order.at(-1)?.version
-    || chain.definitions[0].kind !== 'root'
-  ) return false
-  for (let index = 1; index < chain.definitions.length; index++) {
-    const definition = chain.definitions[index]
-    const predecessor = chain.order[index - 1]
-    if (
-      definition.kind !== 'transform'
-      || definition.predecessor.id !== predecessor.id
-      || definition.predecessor.version !== predecessor.version
-    ) return false
-  }
-  return true
 }
 
 function canonicalAnalysisRefs(
@@ -98,18 +65,18 @@ function canonicalAnalysisRefs(
   })
 }
 
-export function preflightScoreLayers(
+export function prepareScoreLayerRequirements(
   chain: ResolvedScoreLayerChain,
   context: ScoreLayerAnalysisRequirementContext,
-): ScoreLayerPreflight {
+): PreparedScoreLayerRequirements {
   if (
-    !canonicalScoreLayerChain(chain)
+    chain.definitions.length === 0
     || !context
     || typeof context !== 'object'
     || !Object.isFrozen(context.request)
     || !Object.isFrozen(context.view)
-  ) throw new Error('score layer preflight requires one immutable frame')
-  const entries: ScoreLayerPreflightEntry[] = []
+  ) throw new Error('score layer preparation requires one immutable frame')
+  const entries: ScoreLayerPreparationEntry[] = []
   const requirements = new Map<string, ScoreLayerAnalysisRef>()
   const requirementList: ScoreLayerAnalysisRef[] = []
   let evaluations = 0
@@ -135,7 +102,7 @@ export function preflightScoreLayers(
     if (!admitted) {
       failures++
       if (definition.kind === 'root') {
-        throw new Error('total score layer root analysis preflight failed')
+        throw new Error('total score layer root analysis preparation failed')
       }
       entries.push(Object.freeze({
         status: 'disabled',
@@ -156,36 +123,11 @@ export function preflightScoreLayers(
       requirements: admitted,
     }))
   }
-  const preflight: ScoreLayerPreflight = Object.freeze({
-    version: SCORE_LAYER_PREFLIGHT_VERSION,
-    requirements: Object.freeze(requirementList),
-  })
-  PROVENANCE.set(preflight, Object.freeze({
-    chain,
-    request: context.request,
-    view: context.view,
+  return Object.freeze({
     entries: Object.freeze(entries),
+    requirements: Object.freeze(requirementList),
     evaluations,
     failures,
     refsVisited,
-  }))
-  return preflight
-}
-
-export function consumeScoreLayerPreflight(
-  input: ScoreLayerRunInput,
-): ScoreLayerPreflightProvenance {
-  const provenance = PROVENANCE.get(input.preflight)
-  if (
-    !provenance
-    || provenance.chain !== input.chain
-    || provenance.request !== input.request
-    || provenance.view !== input.view
-    || provenance.entries.length !== input.chain.definitions.length
-  ) throw new Error('score layer preflight does not belong to this frame')
-  if (CONSUMED.has(input.preflight)) {
-    throw new Error('score layer preflight was already consumed')
-  }
-  CONSUMED.add(input.preflight)
-  return provenance
+  })
 }

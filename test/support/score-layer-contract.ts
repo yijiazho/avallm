@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict'
 import type {
   ScoreLayerRun,
-  ScoreLayerRunInput,
+  ScoreLayerRunCompletion,
+  ScoreLayerRunPreparation,
   ScoreLayerSurface,
 } from '../../server/agents/policy/score-layer/types.ts'
 
+export interface ScoreLayerContractInput
+extends ScoreLayerRunPreparation, ScoreLayerRunCompletion {}
+
 /** Shared structural and operation-budget laws for native score-layer families. */
 export function assertScoreLayerRunContract(
-  input: ScoreLayerRunInput,
+  input: ScoreLayerContractInput,
   run: ScoreLayerRun,
   constructedSurfaces: readonly ScoreLayerSurface[],
 ): void {
@@ -118,6 +122,7 @@ export function assertScoreLayerRunContract(
   assert.ok(Object.isFrozen(run.configured))
   assert.ok(Object.isFrozen(run.journal))
   assert.ok(Object.isFrozen(run.surface))
+  assert.equal(run.surface.version, 'score-layer-surface-v1')
   assert.ok(Object.isFrozen(run.surface.scores))
   assert.ok(Object.isFrozen(run.surface.survivorCandidateIds))
   assert.ok(Object.isFrozen(run.componentRun))
