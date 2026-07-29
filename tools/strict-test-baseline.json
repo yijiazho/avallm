@@ -98,7 +98,7 @@
     },
     {
       "path": "test/phase7b1-joint-identity.test.ts",
-      "sha256": "80df4372dbe50ad94425c095fdd4f522a037c2ee493d8dab9477909ccd6f7101",
+      "sha256": "fcd8b4f667b0f2c27efa00740df06897a52b6cc0d6072538d286c45748767b2f",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {

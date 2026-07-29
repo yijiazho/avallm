@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs'
 import { performance } from 'node:perf_hooks'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import {
+  admitDecisionTrace,
+} from '../server/agents/admission/composed-trace.ts'
+import {
   JOINT_IDENTITY_MODEL_VERSION,
   projectJointIdentity,
   validatePrivateIdentityHostJoin,
@@ -20,6 +23,12 @@ import type {
   WeightedWorld,
 } from '../server/agents/belief/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import {
+  decisionComponentPlan,
+} from '../server/agents/components/kernel.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
 import { publicCognition } from '../server/agents/cognition/state.ts'
 import {
   advanceCognition,
@@ -44,6 +53,15 @@ import {
 } from '../server/eval/architecture-bench.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import {
+  phase4PolicyVariants,
+} from '../server/eval/phase4-policy-bench.ts'
+import {
+  PHASE4_POLICY_BANK,
+} from '../server/eval/phase4-policy-bank.ts'
+import {
+  authoritativeDecisionReplay,
+} from '../server/eval/trace-replay.ts'
 
 const ROLES: readonly Role[] = [
   'merlin',
@@ -249,20 +267,31 @@ test('duplicate-role seat sets and canonical ordering ignore input permutations'
 })
 
 test('identity projection rejects invalid support, scope, and output lattices', () => {
-  assert.throws(
-    () => projectJointIdentity(
-      { ...CORRELATED, worlds: [
-        { ...CORRELATED.worlds[0], probability: 0 },
-        ...CORRELATED.worlds.slice(1),
-      ] },
-      FULL_SCOPE,
-    ),
-    /invalid weighted world/,
-  )
+  for (const invalid of [0, -0.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () => projectJointIdentity(
+        { ...CORRELATED, worlds: [
+          { ...CORRELATED.worlds[0], probability: invalid },
+          ...CORRELATED.worlds.slice(1),
+        ] },
+        FULL_SCOPE,
+      ),
+      /invalid weighted world/,
+    )
+  }
   assert.throws(
     () => projectJointIdentity(
       { ...CORRELATED, worlds: CORRELATED.worlds.map(
         (weighted) => ({ ...weighted, probability: weighted.probability / 2 }),
+      ) },
+      FULL_SCOPE,
+    ),
+    /normalized positive support/,
+  )
+  assert.throws(
+    () => projectJointIdentity(
+      { ...CORRELATED, worlds: CORRELATED.worlds.map(
+        (weighted) => ({ ...weighted, probability: weighted.probability * 2 }),
       ) },
       FULL_SCOPE,
     ),
@@ -507,6 +536,65 @@ test('projection is deterministic, seat-rotation equivariant, and bounded for 5-
   expected.hiddenTeamPosterior!.hypotheses.sort((a, b) =>
     a.evilSeats.join('.').localeCompare(b.evilSeats.join('.')))
   assert.deepEqual(rotated, expected)
+})
+
+test('large exact uniform support preserves identity and trusted trace admission', async () => {
+  const bankCase = PHASE4_POLICY_BANK.find(
+    (candidate) => candidate.id === '10p-servant-0',
+  )
+  assert.ok(bankCase)
+  const compatibility = phase4PolicyVariants().find(
+    (variant) => variant.id === 'compatibility',
+  )
+  assert.ok(compatibility)
+  const [artifact] = await runArchitectureBench({
+    variants: [compatibility],
+    cases: [bankCase],
+    bankId: 'phase7b1-large-uniform-support',
+  })
+  const traces = artifact.decisionTraces ?? []
+  const trace = traces.find(
+    (candidate) =>
+      candidate.decisionId === 'decision:3:vote:q3:p1:v70',
+  )
+  assert.ok(trace)
+  const replay = authoritativeDecisionReplay(
+    artifact,
+    bankCase.expectedTargetSeat,
+    traces,
+  )
+  const snapshot = replay.snapshots.get(trace.decisionId)
+  assert.ok(snapshot)
+  const belief = exactBelief(snapshot.view)
+  assert.equal(belief.worlds.length, 58_080)
+  const identity = projectJointIdentity(belief, {
+    roleQueries: [{ roles: ['merlin'] }],
+    hiddenTeam: true,
+  })
+  assert.ok(validatePrivateIdentitySnapshot(identity))
+  assert.ok(validatePrivateIdentityHostJoin(
+    identity,
+    snapshot.view.rolesInPlay,
+    belief.playerMarginals,
+  ))
+
+  const witness = createComposedAgent({ seed: bankCase.seed })
+  const resolved = witness.resolvedBrain()
+  const admission = admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace,
+    req: snapshot.req,
+    view: snapshot.view,
+    authoritativeAction: snapshot.original,
+    deterministicSeed: bankCase.seed,
+    expectedComponentPlan: decisionComponentPlan(resolved),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      resolved.description,
+    ),
+    expectComponentTrace: true,
+  })
+  assert.equal(admission.kind, 'trusted-exact')
+  assert.equal(admission.promotionEvidenceEligible, true)
 })
 
 test('composed identity is orthogonal, private, attributable, and mechanically inert', async () => {
@@ -828,7 +916,7 @@ test('architecture bench, report, and artifacts bind identity metadata to payloa
       cases: ARCHITECTURE_BANK.slice(0, 1),
       bankId: 'phase7b1-identity-forged',
     }),
-    /trace components do not match declared components/,
+    /trace admission rejected: finalized-diagnostic-invalid/,
   )
   await assert.rejects(
     () => runArchitectureBench({

@@ -25,6 +25,46 @@ const roleRank = new Map(
   CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
 )
 
+/**
+ * Neumaier compensated summation for bounded probability support.
+ *
+ * Exact uniform beliefs can contain tens of thousands of worlds. Naive
+ * left-to-right addition can accumulate more error than the strict
+ * normalization tolerance even when every entry is exactly the same 1/N
+ * value. Compensation preserves the caller's probabilities without rounding,
+ * renormalizing, or widening the validation tolerance.
+ */
+interface CompensatedProbability {
+  sum: number
+  compensation: number
+}
+
+function addProbability(
+  accumulator: CompensatedProbability,
+  probability: number,
+): void {
+  const next = accumulator.sum + probability
+  accumulator.compensation +=
+    Math.abs(accumulator.sum) >= Math.abs(probability)
+      ? (accumulator.sum - next) + probability
+      : (probability - next) + accumulator.sum
+  accumulator.sum = next
+}
+
+function stableProbabilitySum<T>(
+  values: Iterable<T>,
+  probabilityOf: (value: T) => number,
+): number {
+  const accumulator: CompensatedProbability = {
+    sum: 0,
+    compensation: 0,
+  }
+  for (const value of values) {
+    addProbability(accumulator, probabilityOf(value))
+  }
+  return accumulator.sum + accumulator.compensation
+}
+
 export interface RoleIdentityQuery {
   /** A multiset. Repeated roles request the seats holding every queried copy. */
   roles: readonly Role[]
@@ -153,6 +193,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
   playerCount: number
   rolesInPlay: readonly Role[]
   castCounts: ReadonlyMap<Role, number>
+  projectionTotal: number
 } {
   if (
     !snapshot
@@ -169,7 +210,6 @@ function validateBelief(snapshot: BeliefSnapshot): {
   }
 
   let playerCount: number | undefined
-  let total = 0
   const worldKeys = new Set<string>()
   let expectedRoleCounts: Map<Role, number> | undefined
   let expectedEvilCount: number | undefined
@@ -222,8 +262,11 @@ function validateBelief(snapshot: BeliefSnapshot): {
     if (evilCount !== expectedEvilCount) {
       throw new Error('identity projection worlds disagree on hidden-team size')
     }
-    total += weighted.probability
   }
+  const total = stableProbabilitySum(
+    snapshot.worlds,
+    (weighted) => weighted.probability,
+  )
   if (
     !Number.isFinite(total)
     || Math.abs(total - 1) > PROBABILITY_TOLERANCE
@@ -247,6 +290,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
     playerCount: playerCount!,
     rolesInPlay,
     castCounts: roleMultisetCounts(rolesInPlay),
+    projectionTotal: total,
   }
 }
 
@@ -280,16 +324,22 @@ function projectRolePosterior(
 ): RoleIdentityPosterior {
   const grouped = new Map<string, {
     assignments: readonly CanonicalRoleAssignment[]
-    probability: number
+    sum: number
+    compensation: number
   }>()
   for (const weighted of snapshot.worlds) {
     const assignments = assignmentFor(weighted.world.roleBySeat, query.counts)
     const key = assignmentKey(assignments)
-    const prior = grouped.get(key)
-    grouped.set(key, {
-      assignments: prior?.assignments ?? assignments,
-      probability: (prior?.probability ?? 0) + weighted.probability,
-    })
+    let accumulated = grouped.get(key)
+    if (!accumulated) {
+      accumulated = {
+        assignments,
+        sum: 0,
+        compensation: 0,
+      }
+      grouped.set(key, accumulated)
+    }
+    addProbability(accumulated, weighted.probability)
     if (grouped.size > MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR) {
       throw new Error(
         `identity query ${query.queryKey} exceeds the bounded hypothesis limit`,
@@ -306,7 +356,8 @@ function projectRolePosterior(
           role: assignment.role,
           seats: [...assignment.seats],
         })),
-        probability: hypothesis.probability / total,
+        probability:
+          (hypothesis.sum + hypothesis.compensation) / total,
       })),
   }
 }
@@ -315,17 +366,26 @@ function projectHiddenTeam(
   snapshot: BeliefSnapshot,
   total: number,
 ): HiddenTeamPosterior {
-  const grouped = new Map<string, { evilSeats: readonly Seat[]; probability: number }>()
+  const grouped = new Map<string, {
+    evilSeats: readonly Seat[]
+    sum: number
+    compensation: number
+  }>()
   for (const weighted of snapshot.worlds) {
     const evilSeats = weighted.world.alignmentBySeat
       .map((alignment, seat) => alignment === 'evil' ? seat : -1)
       .filter((seat) => seat >= 0)
     const key = evilSeats.join('.')
-    const prior = grouped.get(key)
-    grouped.set(key, {
-      evilSeats: prior?.evilSeats ?? evilSeats,
-      probability: (prior?.probability ?? 0) + weighted.probability,
-    })
+    let accumulated = grouped.get(key)
+    if (!accumulated) {
+      accumulated = {
+        evilSeats,
+        sum: 0,
+        compensation: 0,
+      }
+      grouped.set(key, accumulated)
+    }
+    addProbability(accumulated, weighted.probability)
     if (grouped.size > MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR) {
       throw new Error('hidden-team identity exceeds the bounded hypothesis limit')
     }
@@ -335,7 +395,8 @@ function projectHiddenTeam(
       .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
       .map(([, hypothesis]) => ({
         evilSeats: [...hypothesis.evilSeats],
-        probability: hypothesis.probability / total,
+        probability:
+          (hypothesis.sum + hypothesis.compensation) / total,
       })),
   }
 }
@@ -378,10 +439,7 @@ export function projectJointIdentity(
   if (canonicalQueries.length === 0 && !scope.hiddenTeam) {
     throw new Error('identity projection scope must request at least one posterior')
   }
-  const total = snapshot.worlds.reduce(
-    (sum, weighted) => sum + weighted.probability,
-    0,
-  )
+  const total = source.projectionTotal
   return {
     version: JOINT_IDENTITY_MODEL_VERSION,
     sourceBelief: {
@@ -399,10 +457,19 @@ export function projectJointIdentity(
       hiddenTeam: scope.hiddenTeam,
     },
     rolePosteriors: canonicalQueries.map(
-      (query) => projectRolePosterior(snapshot, query, total),
+      (query) => projectRolePosterior(
+        snapshot,
+        query,
+        total,
+      ),
     ),
     ...(scope.hiddenTeam
-      ? { hiddenTeamPosterior: projectHiddenTeam(snapshot, total) }
+      ? {
+          hiddenTeamPosterior: projectHiddenTeam(
+            snapshot,
+            total,
+          ),
+        }
       : {}),
   }
 }
@@ -468,12 +535,12 @@ function validProbabilityLattice(
   return hypotheses.length > 0
     && hypotheses.length <= MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR
     && Math.abs(
-      hypotheses.reduce(
-        (sum, hypothesis) =>
-          sum + (typeof hypothesis.probability === 'number'
+      stableProbabilitySum(
+        hypotheses,
+        (hypothesis) =>
+          typeof hypothesis.probability === 'number'
             ? hypothesis.probability
-            : Number.NaN),
-        0,
+            : Number.NaN,
       ) - 1,
     ) <= PROBABILITY_TOLERANCE
 }

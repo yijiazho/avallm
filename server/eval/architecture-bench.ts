@@ -843,6 +843,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         } else {
           tracedComponents.push('belief')
         }
+        let traceAdmissionRejection: string | undefined
         const mismatch = canonicalCandidates.find((candidate) => {
           const pendingTrace = candidate.trace
           const snapshot = targetSnapshots.get(pendingTrace.decisionId)
@@ -880,7 +881,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 : {}
             ),
           })
-          if (traceAdmission.kind === 'rejected') return true
+          if (traceAdmission.kind === 'rejected') {
+            traceAdmissionRejection = traceAdmission.reason
+            return true
+          }
           const trace = traceAdmission.trace
           const strictComposedTrace = (
             trace.agentMode === 'compatibility'
@@ -1565,7 +1569,12 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           throw new Error(
             `custom architecture variant ${variant.id} trace components do not match declared components in ${c.id} at ${mismatch?.trace.decisionId ?? 'missing-trace'}`
             + `: expected ${JSON.stringify(expectedComponents)}, `
-            + `actual ${JSON.stringify(actual)}`,
+            + `actual ${JSON.stringify(actual)}`
+            + (
+              traceAdmissionRejection
+                ? `; trace admission rejected: ${traceAdmissionRejection}`
+                : ''
+            ),
           )
         }
       }
