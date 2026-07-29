@@ -1,0 +1,278 @@
+import {
+  attributeComponentPolicyUseBatch,
+  indexDecisionComponentPayloads,
+  type DecisionComponentRun,
+} from '../../components/kernel.ts'
+import { componentIdentityKey } from '../../components/registry.ts'
+import type {
+  ComponentRef,
+  ComponentToken,
+  DecisionComponentDefinition,
+} from '../../components/types.ts'
+import type { Immutable } from '../trusted-data.ts'
+import type {
+  ScoreLayerComponentReader,
+  ScoreLayerDefinition,
+} from './types.ts'
+
+export const SCORE_LAYER_POLICY_USE_STAGE = 'candidate-score'
+
+export interface ScoreLayerComponentWork {
+  componentLookupAttempts: number
+  componentPayloadIndexEntriesVisited: number
+  componentPayloadReads: number
+  componentPayloadsMaterialized: number
+  componentDefinitionIndexEntriesVisited: number
+  scoreLayerComponentRequirementsIndexed: number
+  componentClosureRootsVisited: number
+  componentDependencyEdgesVisited: number
+  componentClosureComponentsEmitted: number
+  componentAttributionUnionTokensVisited: number
+  componentAttributionTokensVisited: number
+  componentAttributionEntriesVisited: number
+  componentAttributionPolicyUseEntriesVisited: number
+}
+
+interface CachedPayload {
+  readonly payload: unknown
+}
+
+export interface ScoreLayerReadJournal {
+  readonly lookups: Map<string, ComponentRef>
+  readonly reads: Map<string, ComponentRef>
+}
+
+export function scoreLayerReadJournal(): ScoreLayerReadJournal {
+  return {
+    lookups: new Map(),
+    reads: new Map(),
+  }
+}
+
+function frozenComponentRef(ref: ComponentRef): ComponentRef {
+  return Object.freeze({ id: ref.id, version: ref.version })
+}
+
+export function frozenScoreLayerReadRefs(
+  values: ReadonlyMap<string, ComponentRef>,
+): readonly ComponentRef[] {
+  return Object.freeze([...values.values()])
+}
+
+interface ComponentClosure {
+  readonly tokens: readonly ComponentToken[]
+  readonly refs: readonly ComponentRef[]
+}
+
+export interface ScoreLayerComponentRuntime {
+  reader(
+    definition: ScoreLayerDefinition,
+    journal: ScoreLayerReadJournal,
+  ): ScoreLayerComponentReader
+  attribute(
+    reads: ReadonlyMap<string, ComponentRef>,
+  ): readonly ComponentRef[]
+  finalize(
+    run: Immutable<DecisionComponentRun>,
+  ): Immutable<DecisionComponentRun>
+}
+
+export function createScoreLayerComponentRuntime(
+  componentDefinitions: readonly DecisionComponentDefinition<any>[],
+  componentRun: Immutable<DecisionComponentRun>,
+  scoreLayerDefinitions: readonly ScoreLayerDefinition[],
+  operations: ScoreLayerComponentWork,
+): ScoreLayerComponentRuntime {
+  const payloadIndex = indexDecisionComponentPayloads(componentRun)
+  operations.componentPayloadIndexEntriesVisited =
+    payloadIndex.entriesVisited
+
+  const definitions = new Map<
+    string,
+    DecisionComponentDefinition<any>
+  >()
+  for (const definition of componentDefinitions) {
+    operations.componentDefinitionIndexEntriesVisited++
+    const key = componentIdentityKey(definition.token)
+    if (definitions.has(key)) {
+      throw new Error(`score layer component graph repeats ${key}`)
+    }
+    definitions.set(key, definition)
+  }
+
+  const declaredByLayer = new Map<
+    string,
+    ReadonlyMap<string, ComponentToken>
+  >()
+  for (const layer of scoreLayerDefinitions) {
+    const declared = new Map<string, ComponentToken>()
+    for (const token of layer.requiredComponents) {
+      operations.scoreLayerComponentRequirementsIndexed++
+      declared.set(componentIdentityKey(token), token)
+    }
+    declaredByLayer.set(componentIdentityKey(layer.token), declared)
+  }
+
+  const cache = new Map<string, CachedPayload>()
+  const acceptedAttributionTokens = new Map<string, ComponentToken>()
+  const acceptedAttributionTokenList: ComponentToken[] = []
+
+  const closureFor = (
+    reads: ReadonlyMap<string, ComponentRef>,
+  ): ComponentClosure => {
+    const closure = new Set<string>()
+    const visiting = new Set<string>()
+    const tokens: ComponentToken[] = []
+    const refs: ComponentRef[] = []
+    interface ClosureFrame {
+      readonly key: string
+      readonly definition: DecisionComponentDefinition<any>
+      dependencyIndex: number
+    }
+    const visit = (rootKey: string): void => {
+      if (closure.has(rootKey)) return
+      const rootDefinition = definitions.get(rootKey)
+      if (!rootDefinition) {
+        throw new Error(`score layer read unknown component ${rootKey}`)
+      }
+      const stack: ClosureFrame[] = [{
+        key: rootKey,
+        definition: rootDefinition,
+        dependencyIndex: 0,
+      }]
+      visiting.add(rootKey)
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1]
+        if (frame.dependencyIndex < frame.definition.dependencies.length) {
+          const dependency =
+            frame.definition.dependencies[frame.dependencyIndex]
+          frame.dependencyIndex++
+          operations.componentDependencyEdgesVisited++
+          const dependencyKey = componentIdentityKey(dependency)
+          if (closure.has(dependencyKey)) continue
+          if (visiting.has(dependencyKey)) {
+            throw new Error(
+              `score layer component graph contains cycle at ${dependencyKey}`,
+            )
+          }
+          const dependencyDefinition = definitions.get(dependencyKey)
+          if (!dependencyDefinition) {
+            throw new Error(
+              `score layer read unknown component ${dependencyKey}`,
+            )
+          }
+          visiting.add(dependencyKey)
+          stack.push({
+            key: dependencyKey,
+            definition: dependencyDefinition,
+            dependencyIndex: 0,
+          })
+          continue
+        }
+        stack.pop()
+        visiting.delete(frame.key)
+        closure.add(frame.key)
+        operations.componentClosureComponentsEmitted++
+        tokens.push(frame.definition.token)
+        refs.push(frozenComponentRef(frame.definition.token))
+      }
+    }
+    for (const key of reads.keys()) {
+      operations.componentClosureRootsVisited++
+      visit(key)
+    }
+    return Object.freeze({
+      tokens: Object.freeze(tokens),
+      refs: Object.freeze(refs),
+    })
+  }
+
+  return Object.freeze({
+    reader(
+      definition: ScoreLayerDefinition,
+      journal: ScoreLayerReadJournal,
+    ): ScoreLayerComponentReader {
+      const declared = declaredByLayer.get(
+        componentIdentityKey(definition.token),
+      )
+      if (!declared) {
+        throw new Error('score layer definition was not indexed')
+      }
+      const read = <Payload>(
+        token: ComponentToken<Payload>,
+      ): Immutable<Payload> | undefined => {
+        operations.componentLookupAttempts++
+        const key = componentIdentityKey(token)
+        journal.lookups.set(key, frozenComponentRef(token))
+        const exact = declared.get(key)
+        if (
+          !exact
+          || exact.kind !== token.kind
+          || exact.privacy !== token.privacy
+        ) {
+          throw new Error(
+            `score layer attempted undeclared component read ${key}`,
+          )
+        }
+        let cached = cache.get(key)
+        if (!cached) {
+          operations.componentPayloadReads++
+          const payload = payloadIndex.payload(exact)
+          cached = Object.freeze({ payload })
+          cache.set(key, cached)
+          if (payload !== undefined) {
+            operations.componentPayloadsMaterialized++
+          }
+        }
+        if (cached.payload !== undefined) {
+          journal.reads.set(key, frozenComponentRef(exact))
+        }
+        return cached.payload as Immutable<Payload> | undefined
+      }
+      return Object.freeze({
+        get: read,
+        require<Payload>(
+          token: ComponentToken<Payload>,
+        ): Immutable<Payload> {
+          const payload = read(token)
+          if (payload === undefined) {
+            throw new Error(
+              `score layer requires unavailable component ${
+                componentIdentityKey(token)
+              }`,
+            )
+          }
+          return payload
+        },
+      })
+    },
+    attribute(
+      reads: ReadonlyMap<string, ComponentRef>,
+    ) {
+      const closure = closureFor(reads)
+      for (const token of closure.tokens) {
+        operations.componentAttributionUnionTokensVisited++
+        const key = componentIdentityKey(token)
+        if (!acceptedAttributionTokens.has(key)) {
+          acceptedAttributionTokens.set(key, token)
+          acceptedAttributionTokenList.push(token)
+        }
+      }
+      return closure.refs
+    },
+    finalize(run: Immutable<DecisionComponentRun>) {
+      const attribution = attributeComponentPolicyUseBatch(
+        run,
+        acceptedAttributionTokenList,
+        SCORE_LAYER_POLICY_USE_STAGE,
+      )
+      operations.componentAttributionTokensVisited +=
+        attribution.work.tokensVisited
+      operations.componentAttributionEntriesVisited +=
+        attribution.work.entriesVisited
+      operations.componentAttributionPolicyUseEntriesVisited +=
+        attribution.work.policyUseEntriesVisited
+      return attribution.run as Immutable<DecisionComponentRun>
+    },
+  })
+}

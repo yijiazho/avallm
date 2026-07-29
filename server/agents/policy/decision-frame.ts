@@ -24,6 +24,12 @@ import {
 } from '../components/kernel.ts'
 import type { ResolvedComposedBrain } from '../components/resolved-brain.ts'
 import type { ComponentToken } from '../components/types.ts'
+import { runScoreLayers } from './score-layer/runner.ts'
+import type {
+  ScoreLayerRow,
+  ScoreLayerPreflight,
+  ScoreLayerRun,
+} from './score-layer/types.ts'
 import {
   candidateIdForDecision,
   candidateTeams,
@@ -57,6 +63,8 @@ import type {
 export const DECISION_FRAME_VERSION = 'decision-frame-v1'
 export const LEGACY_D3_QUEST_CARD_VERSION =
   'legacy-d3-quest-card-compatibility-v1'
+/** Engine and simulator seeds are short; keep native policy host state bounded. */
+export const MAX_NATIVE_SCORE_LAYER_SEED_LENGTH = 1_024
 
 export type { Immutable } from './trusted-data.ts'
 export type NonEmptyReadonly<T> = readonly [T, ...T[]]
@@ -147,6 +155,24 @@ type ScoredData =
   }
 
 export type ScoredDecisionFrame = Stage<'scored', ScoredData>
+
+type NativeScoreLayersResolvedData =
+  CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface & {
+    readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
+    readonly scoreLayerRun: Immutable<ScoreLayerRun>
+    readonly survivorCandidateIds: readonly string[]
+    readonly scores: NonEmptyReadonly<Immutable<ScoreLayerRow>>
+    readonly viableCandidates:
+      NonEmptyReadonly<Immutable<NativeViableCandidate>>
+    readonly structuredCandidateId: string
+  }
+export type NativeScoreLayersResolvedDecisionFrame =
+  Stage<'native-score-layers-resolved', NativeScoreLayersResolvedData>
+
+export interface NativeViableCandidate {
+  readonly candidate: Immutable<PolicyCandidate>
+  readonly score: Immutable<ScoreLayerRow & { viable: true }>
+}
 
 export interface LegacyScoredPolicyProjection {
   readonly candidates: readonly PolicyCandidate[]
@@ -503,6 +529,96 @@ export function projectScoredFrameForLegacy(
     forced: frame.effectiveForced,
     structuredCandidateId: frame.structuredCandidateId,
   }) as LegacyScoredPolicyProjection
+}
+
+export interface NativeScoreLayerHostContext {
+  readonly deterministicSeed: string
+  readonly compatibilityCandidateId: string
+}
+
+/** Future native scoring transition. The live path remains legacy until A2. */
+export function withNativeScoreLayers(
+  frame: PostComponentDecisionFrame,
+  brain: ResolvedComposedBrain,
+  host: NativeScoreLayerHostContext,
+  preflight: ScoreLayerPreflight,
+): NativeScoreLayersResolvedDecisionFrame {
+  if (!brain.scoreLayerChain) {
+    throw new Error('native score layers require a resolved score-layer chain')
+  }
+  if (
+    typeof host.deterministicSeed !== 'string'
+    || !host.deterministicSeed.trim()
+    || host.deterministicSeed.length > MAX_NATIVE_SCORE_LAYER_SEED_LENGTH
+  ) throw new Error('native score layers require a nonempty bounded seed')
+  const legalCandidateIds = new Set(
+    frame.legalCandidates.map((candidate) => candidate.id),
+  )
+  if (!legalCandidateIds.has(host.compatibilityCandidateId)) {
+    throw new Error(
+      'native score layers require a legal compatibility candidate',
+    )
+  }
+  const run = runScoreLayers({
+    chain: brain.scoreLayerChain,
+    preflight,
+    componentDefinitions: brain.configuredDefinitions,
+    request: frame.request,
+    view: frame.view,
+    analysis: frame.analysis,
+    candidates: frame.legalCandidates,
+    forced: frame.effectiveForced,
+    componentRun: frame.componentRun,
+    deterministicSeed: host.deterministicSeed,
+    compatibilityCandidateId: host.compatibilityCandidateId,
+    hypotheticalTeamCandidates: frame.hypotheticalTeamCandidates,
+  })
+  const scores = nonEmpty(
+    run.surface.scores,
+    'native score layers must produce a nonempty score surface',
+  )
+  const survivorIds = new Set(run.surface.survivorCandidateIds)
+  const survivors = new Map(
+    frame.legalCandidates
+      .filter((candidate) => survivorIds.has(candidate.id))
+      .map((candidate) => [candidate.id, candidate]),
+  )
+  const viableCandidates = nonEmpty(
+    Object.freeze(scores.flatMap((score) => {
+      const candidate = survivors.get(score.candidateId)
+      return score.viable && candidate
+        ? [Object.freeze({ candidate, score })]
+        : []
+    })) as readonly Immutable<NativeViableCandidate>[],
+    'native score layers must retain a viable hard survivor',
+  )
+  const structured = frame.effectiveForced.selectedCandidateId
+    ? scores.find((score) =>
+        score.candidateId === frame.effectiveForced.selectedCandidateId)
+    : viableCandidates.map((entry) => entry.score).reduce((best, score) =>
+        score.value > best.value
+          || (
+            score.value === best.value
+            && score.candidateId < best.candidateId
+          )
+          ? score
+          : best)
+  if (!structured?.viable || !survivors.has(structured.candidateId)) {
+    throw new Error('native score layers selected a nonviable hard survivor')
+  }
+  return Object.freeze({
+    ...frame,
+    stage: 'native-score-layers-resolved',
+    componentRun: run.componentRun,
+    legacyD3: frame.stage === 'legacy-d3-quest-card'
+      ? frame.legacyD3
+      : null,
+    scoreLayerRun: run as Immutable<ScoreLayerRun>,
+    survivorCandidateIds: run.surface.survivorCandidateIds,
+    scores,
+    viableCandidates,
+    structuredCandidateId: structured.candidateId,
+  }) as NativeScoreLayersResolvedDecisionFrame
 }
 
 export function selectDecisionCandidate(

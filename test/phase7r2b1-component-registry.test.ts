@@ -464,7 +464,7 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   }
   const resolved = resolveComposedBrain({
     requestedComponents: requested,
-    scoreLayerOrder: [{ id: 'objective', version: 'v1' }],
+    scoreLayerOrder: [],
     configuredPipeline: testConfiguredPipeline(),
     compatibility,
   }, registry)
@@ -486,7 +486,7 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   )
   assert.deepEqual(
     resolved.description.scoreLayerOrder.map((entry) => entry.id),
-    ['objective'],
+    [],
   )
   assert.deepEqual(resolved.description.migration.compatibility, {
     requests: {

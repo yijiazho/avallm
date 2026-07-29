@@ -10,6 +10,21 @@ import ts from 'typescript'
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/
 const ENGINE_TYPES = 'server/engine/types'
 const COMPONENT_KERNEL = 'server/agents/components/kernel'
+const GENERIC_SCORE_LAYER_PREFIX = 'server/agents/policy/score-layer/'
+const FORBIDDEN_SCORE_LAYER_ROLE_LITERALS = new Set([
+  'assassin',
+  'evil',
+  'good',
+  'merlin',
+  'minion',
+  'mordred',
+  'morgana',
+  'oberon',
+  'percival',
+  'servant',
+])
+const FORBIDDEN_SCORE_LAYER_IDENTIFIER =
+  /(?:Assassin|EvilRole|GoodRole|Merlin|Minion|Mordred|Morgana|Oberon|Percival|RoleObjective|Servant)/i
 const FORBIDDEN_AGENT_ENGINE_MODULES = new Set([
   'server/engine/game',
   'server/engine/view',
@@ -121,6 +136,7 @@ export function inspectSource(sourcePath, source) {
 
   const edges = []
   const identifiers = new Set()
+  const stringLiterals = new Set()
   function addEdge(node, kind, specifier, names, namespace) {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast))
     edges.push({
@@ -139,6 +155,7 @@ export function inspectSource(sourcePath, source) {
   }
   function visit(node) {
     if (ts.isIdentifier(node)) identifiers.add(node.text)
+    if (ts.isStringLiteralLike(node)) stringLiterals.add(node.text)
 
     if (ts.isImportDeclaration(node)) {
       const specifier = literalModule(node.moduleSpecifier)
@@ -220,6 +237,7 @@ export function inspectSource(sourcePath, source) {
   return Object.freeze({
     edges: Object.freeze(edges),
     identifiers,
+    stringLiterals,
   })
 }
 
@@ -361,6 +379,39 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (!target) continue
       if (
+        sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
+        && (
+          target.startsWith('server/agents/analysis/')
+          && target !== 'server/agents/analysis/types'
+        )
+      ) {
+        violations.push(violation(
+          'ARCH005',
+          sourcePath,
+          edge,
+          'generic score-layer code cannot import role-specific analysis modules',
+        ))
+        continue
+      }
+      if (
+        sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
+        && (
+          target === 'server/agents/components/legacy-role-adapters'
+          || target === 'server/agents/components/native-role-components'
+          || target.startsWith('server/agents/score-layers/')
+          || target === 'server/agents/policy/score'
+          || target === 'server/agents/policy/legacy-scoring'
+        )
+      ) {
+        violations.push(violation(
+          'ARCH005',
+          sourcePath,
+          edge,
+          'generic score-layer code cannot import concrete layers, legacy scorers, or role tokens',
+        ))
+        continue
+      }
+      if (
         isEngine(sourcePath)
         && (
           target.startsWith('server/agents/')
@@ -433,6 +484,29 @@ export function auditArchitectureSources(sourceEntries) {
           edge,
           'component-kernel namespace access is confined to the in-process composition/kernel boundary',
         ))
+      }
+    }
+
+    if (sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)) {
+      for (const identifier of inspected.identifiers) {
+        if (FORBIDDEN_SCORE_LAYER_IDENTIFIER.test(identifier)) {
+          violations.push(violation(
+            'ARCH005',
+            sourcePath,
+            undefined,
+            `generic score-layer code contains role-named identifier ${identifier}`,
+          ))
+        }
+      }
+      for (const literal of inspected.stringLiterals) {
+        if (FORBIDDEN_SCORE_LAYER_ROLE_LITERALS.has(literal.toLowerCase())) {
+          violations.push(violation(
+            'ARCH005',
+            sourcePath,
+            undefined,
+            `generic score-layer code contains role-named branch literal ${literal}`,
+          ))
+        }
       }
     }
 

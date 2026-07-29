@@ -1417,6 +1417,40 @@ export async function runDecisionComponents(
   })
 }
 
+export interface DecisionComponentPayloadIndex {
+  readonly entriesVisited: number
+  payload<Payload>(token: ComponentToken<Payload>): Payload | undefined
+}
+
+/** Build one invocation-local exact-tag index for repeated policy reads. */
+export function indexDecisionComponentPayloads(
+  run: DecisionComponentRun,
+): DecisionComponentPayloadIndex {
+  const entries = new Map<string, DecisionComponentEntry>()
+  let entriesVisited = 0
+  for (const entry of run.entries) {
+    entriesVisited++
+    const key = componentIdentityKey(entry.component)
+    if (entries.has(key)) {
+      throw new Error(`component run repeats entry ${key}`)
+    }
+    entries.set(key, entry)
+  }
+  return Object.freeze({
+    entriesVisited,
+    payload<Payload>(
+      token: ComponentToken<Payload>,
+    ): Payload | undefined {
+      const entry = entries.get(componentIdentityKey(token))
+      return entry?.kind === token.kind
+        && entry.privacy === token.privacy
+        && entry.status === 'admitted'
+        ? entry.envelope.payload as Payload
+        : undefined
+    },
+  })
+}
+
 export function componentPayload<Payload>(
   run: DecisionComponentRun,
   token: ComponentToken<Payload>,
@@ -1431,6 +1465,110 @@ export function componentPayload<Payload>(
   return entry?.status === 'admitted'
     ? entry.envelope.payload as Payload
     : undefined
+}
+
+export interface DecisionComponentPolicyAttributionWork {
+  readonly tokensVisited: number
+  readonly entriesVisited: number
+  readonly policyUseEntriesVisited: number
+}
+
+export interface DecisionComponentPolicyAttributionBatch {
+  readonly run: DecisionComponentRun
+  readonly work: DecisionComponentPolicyAttributionWork
+}
+
+/**
+ * Attribute one accepted policy layer in one entry-validation pass and one
+ * policy-use projection pass, independent of the number of component tokens.
+ */
+export function attributeComponentPolicyUseBatch(
+  run: DecisionComponentRun,
+  tokens: readonly ComponentToken[],
+  stage: string,
+): DecisionComponentPolicyAttributionBatch {
+  if (!canonicalCode(stage)) {
+    throw new Error('component policy-use stage must be canonical')
+  }
+  if (tokens.length === 0) {
+    return Object.freeze({
+      run,
+      work: Object.freeze({
+        tokensVisited: 0,
+        entriesVisited: 0,
+        policyUseEntriesVisited: 0,
+      }),
+    })
+  }
+  const requested = new Map<string, ComponentToken>()
+  let tokensVisited = 0
+  for (const token of tokens) {
+    tokensVisited++
+    const key = componentIdentityKey(token)
+    const prior = requested.get(key)
+    if (
+      prior
+      && (prior.kind !== token.kind || prior.privacy !== token.privacy)
+    ) {
+      throw new Error(`component policy attribution substitutes tag ${key}`)
+    }
+    if (!prior) requested.set(key, token)
+  }
+
+  const admitted = new Set<string>()
+  let entriesVisited = 0
+  for (const entry of run.entries) {
+    entriesVisited++
+    const key = componentIdentityKey(entry.component)
+    const token = requested.get(key)
+    if (!token) continue
+    if (
+      entry.kind !== token.kind
+      || entry.privacy !== token.privacy
+      || entry.status !== 'admitted'
+    ) {
+      throw new Error(
+        `cannot attribute policy use to unadmitted component ${key}`,
+      )
+    }
+    admitted.add(key)
+  }
+  if (admitted.size !== requested.size) {
+    const missing = [...requested.keys()].find((key) => !admitted.has(key))!
+    throw new Error(
+      `cannot attribute policy use to unadmitted component ${missing}`,
+    )
+  }
+
+  const projected = new Set<string>()
+  let policyUseEntriesVisited = 0
+  const policyUse = run.policyUse.map((attribution) => {
+    policyUseEntriesVisited++
+    const key = componentIdentityKey(attribution.component)
+    if (!requested.has(key)) return attribution
+    projected.add(key)
+    return Object.freeze({
+      component: frozenRef(attribution.component),
+      used: true,
+      stages: attribution.stages.includes(stage)
+        ? attribution.stages
+        : Object.freeze([...attribution.stages, stage]),
+    })
+  })
+  if (projected.size !== requested.size) {
+    throw new Error('component run policy-use projection is incomplete')
+  }
+  return Object.freeze({
+    run: Object.freeze({
+      ...run,
+      policyUse: Object.freeze(policyUse),
+    }),
+    work: Object.freeze({
+      tokensVisited,
+      entriesVisited,
+      policyUseEntriesVisited,
+    }),
+  })
 }
 
 export function attributeComponentPolicyUse(

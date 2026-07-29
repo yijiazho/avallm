@@ -1360,7 +1360,11 @@ reviewable and ablatable:
     after equality is proved, and retain read compatibility for old artifacts. Replace D3's
     transitional implicit state combinations with a discriminated compatibility read model that
     represents inapplicable, suppressed, degraded, exact-admitted, and robust-admitted historical
-    states explicitly before deleting the write side.
+    states explicitly before deleting the write side. The native path must use the shared bounded
+    admission boundary and separate exact-quota and heterogeneous-safe decoded variants; it must
+    delete D3's local detached-data walk, exact-key parser, and optional-field mega-validator.
+    Historical payload support remains a read-only adapter and cannot become the codec used by new
+    in-process policy.
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
@@ -2279,6 +2283,57 @@ the first line of defense:
 6. **The complete API-free suite is the landing proof.** It is not the default tool for locating a
    local defect.
 
+The remaining work follows a **systemic development operating model**. Its purpose is to move
+correctness earlier, where types and narrow contracts can prove it cheaply, instead of discovering
+invalid states through large mutation matrices or complete simulations:
+
+1. **Draw the trust boundary once.** External JSON moves through four explicit states:
+   `unknown -> bounded canonical data -> component-decoded DTO -> host-joined domain value`.
+   Only the first two states need hostile-shape walking. In-process constructors return the
+   host-joined type directly; downstream policy and projections never serialize, cast, or parse it
+   again. Independent external boundaries still admit independently, but internal module boundaries
+   do not pretend trusted values are hostile input.
+2. **Represent variants as variants.** Mode-, stage-, and applicability-dependent values use
+   discriminated unions with exact members, not one interface containing many optional fields.
+   Constructors make illegal combinations unrepresentable. Codecs prove transport shape; small
+   semantic refinements prove relationships within one member; the host join proves equality to
+   authoritative request, view, belief, and analysis.
+3. **Return diagnostic failures at boundaries.** New native codecs return bounded structured
+   failures with component, path, and reason for tests and debug tools. A boolean accept/reject
+   projection may exist for a wire contract, but it does not erase the diagnostic internally.
+   This avoids debugging a large validator by adding one mutation and one branch at a time.
+4. **Budget change surface, not just runtime.** A native policy family normally changes its
+   descriptor, codec, formula, local tests, and one registry inventory. Review stops for an
+   architecture correction if the change adds a role-named branch or field to a generic
+   orchestrator/projection, a second parser for an existing shape, a second policy writer, or
+   synchronized edits across trace, stdio, artifact, report, and Inspector. Those are interface
+   failures, not an expected role checklist.
+5. **Make the compiler and local laws the inner loop.** The default sequence is strict typecheck,
+   owner-local formula and contract tests, deterministic algebraic or metamorphic laws, one small
+   composition fixture, then the contract and complete lanes before landing. Full games and paid
+   calls evaluate play quality after the architecture is coherent; they are not the primary way to
+   find schema, ordering, attribution, or authority defects.
+6. **Migrate by substitution and deletion.** Every replacement slice names the old writer,
+   validator, exemption, and fixture it will remove. A slice that only adds a parallel path is
+   incomplete unless its retained authority has an explicit next owner and near-term deletion
+   point. Net central complexity, not new abstraction count, is the review measure.
+7. **Decompose hotspots by transformation ownership.** File size alone does not trigger a split,
+   but a module that admits, semantically decodes, host-joins, executes, and projects the same value
+   has multiple owners and should be separated along those transitions. The current
+   `admission/composed-trace.ts`, `eval/architecture-report.ts`, `composed.ts`, and `policy/score.ts`
+   are migration hotspots; new features do not extend them merely because they already contain
+   adjacent compatibility code.
+8. **Keep orchestration sequential at authority changes.** Separate worktrees can build independent
+   tooling, fixture capture, or owner-local components in parallel. Changes to the same registry,
+   staged frame, schema version, compatibility oracle, or live decision authority remain
+   sequential and are reviewed on the exact rebased tree. This avoids spending validation time on
+   combinations that can never be landed safely.
+
+These are stop conditions for the parent orchestrator, not style suggestions. When one is tripped,
+the next task is to repair the seam or narrow the state model before adding coverage. A test that
+passes by teaching another downstream consumer to recognize the same invalid shape does not close
+the defect.
+
 This ordering is a response to measured change cost, not an attempt to reduce assurance. At this
 checkpoint agent source was about 33,500 lines and tests about 35,600 lines. The test tree had
 roughly 550 manual `structuredClone` mutations, 250 direct composed-agent constructions, and 24
@@ -2352,16 +2407,59 @@ become a parallel metadata author.
 **7R3 converts policy composition after the component kernel is stable.** In 7R3A, the shared base
 score and C2, D2, and E1 policies become ordered registered layers. Each layer receives the last
 valid forced-policy survivor surface, declares its dependencies and fallback, and cannot revive a
-removed candidate. In 7R3B, D3 becomes a strategic decision layer that is reachable only after
-universal forced rules leave discretion. Generic-versus-legacy equality is required across all
-landed role paths before legacy write-side wrappers and optional fields are removed. Historical
-artifact read compatibility remains after that cleanup. E2B and Assassin policy do not begin
-until these ordered layers are the sole write path. Residual compatibility debt deliberately
-survives 7R2B: role booleans and scorer selection in composed-agent options; role-specific scorer
-wrappers, contexts, and common-score feature fields; flat role component versions and private
-payloads in traces and cognition; role-specific stages and branches; manifest role arrays and
-variant maps; and legacy stdio reads. 7R3 removes their write-side authority only after dual-write
-equality is proved, while retaining the historical read path.
+removed candidate. The native score row contains only common mechanical fields: version,
+candidate identity, scalar value, viability, and bounded reason codes. Good-role, evil-role, and
+Morgana feature records remain in their owning analysis or component output and may enter an exact
+historical projection only through a named compatibility adapter. They do not become optional
+fields on the new common score type.
+
+Layer output is constructed once by an invocation-bound factory that enforces the complete legal
+surface, hard-survivor monotonicity, forced-choice dominance, finite bounded values, exact row
+shape, and reason/string/aggregate limits. The runner accepts that constructed value and does not
+reparse trusted in-process output as hostile JSON. Request- and view-dependent analysis needs are
+resolved by a bounded preflight carried into the same run: opaque requirement references are
+generic, failed transform preflights degrade only that transform, and all evaluations appear in
+the journal and operation counts. Concrete analysis-profile combination belongs at the family
+edge, not in the generic registry.
+
+**7R3A0 and 7R3A1 are complete.** A0 froze an independent sixteen-scenario compatibility oracle at
+`d7789a2`; its expected decisions are reconstructed from legal replay rather than from the scorer
+being replaced. A1 adds the role-agnostic native score-layer kernel without changing the live
+composed path or its empty production layer order. The kernel has one registered root, ordered
+monotone transforms, an invocation-bound preflight and family admission join, an exact immutable
+surface factory, canonical forced-policy projection, and run-wide component-use attribution.
+Concrete layer dependencies are derived into the component request graph, so callers cannot omit
+the matching component while still constructing a valid brain.
+
+The A1 implementation applies the systemic model above rather than adding another central
+validator. Generic rows contain only candidate identity, value, viability, version, and bounded
+reason codes. The runner is split by transformation owner into registry, preflight, component
+closure, surface construction, and orchestration modules. Component payloads and definitions are
+indexed once; survivor lookup is set-based; cycle and dependency walks are iterative; all
+candidate-, layer-, requirement-, graph-, attribution-, and byte-dependent work has an explicit
+counter. Stress laws cover a 4,000-layer registry, a 12,000-node dependency chain without stack
+growth, and sparse component reads. Architecture fitness rejects role identifiers or legacy
+scorer dependencies in the generic kernel.
+
+Independent final review approved the exact A1 snapshot after rejecting and correcting earlier
+versions that had reused the optional-field legacy score type, duplicated hostile parsing for
+trusted values, lacked exact host joins, or hid repeated scans. The parent gate passed strict
+typechecking, architecture fitness, both independent compatibility oracles, 1,026 API-free
+correctness tests, and three isolated performance tests. The legacy scoring function and
+`composed.ts` remain source-identical to A0. 7R3A2 next migrates the good-role family onto this
+kernel; 7R3A3 follows with the generic evil family, then 7R3A4 owns Morgana and remaining
+write-side cleanup before the 7R3A equality and deletion audit.
+
+In 7R3B, D3 becomes a strategic decision layer that is reachable only after universal forced rules
+leave discretion. Generic-versus-legacy equality is required across all landed role paths before
+legacy write-side wrappers and optional fields are removed. Historical artifact read compatibility
+remains after that cleanup. E2B and Assassin policy do not begin until these ordered layers are the
+sole write path. Residual compatibility debt deliberately survives 7R2B: role booleans and scorer
+selection in composed-agent options; role-specific scorer wrappers, contexts, and common-score
+feature fields; flat role component versions and private payloads in traces and cognition;
+role-specific stages and branches; manifest role arrays and variant maps; and legacy stdio reads.
+7R3 removes their write-side authority only after dual-write equality is proved, while retaining
+the historical read path.
 
 ### Mordred
 

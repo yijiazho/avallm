@@ -251,6 +251,73 @@ test('generic policies and components cannot import artifact/report shapes', () 
   )
 })
 
+test('generic score-layer kernel cannot grow role-specific dependencies or branches', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/policy/score-layer/role-import.ts',
+        'import { utility } from "../../analysis/morgana-role-utility.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/token-import.ts',
+        'import { TOKEN } from "../../components/legacy-role-adapters.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/role-branch.ts',
+        'const selected = view.role === "merlin"',
+      ],
+      [
+        'server/agents/policy/score-layer/role-name.ts',
+        'function applyMorganaRolePolicy() {}',
+      ],
+      [
+        'server/agents/policy/score-layer/lower-morgana.ts',
+        'const morganaUtility = 1',
+      ],
+      [
+        'server/agents/policy/score-layer/lower-evil.ts',
+        'const evilRolePolicy = 1',
+      ],
+      [
+        'server/agents/policy/score-layer/lower-merlin.ts',
+        'const merlinScore = 1',
+      ],
+      [
+        'server/agents/policy/score-layer/legacy-score-import.ts',
+        'import { scoreCandidates } from "../score.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/legacy-wrapper-import.ts',
+        'import { withLegacyScoring } from "../legacy-scoring.ts"',
+      ],
+    ]),
+    [
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+      'ARCH005',
+    ],
+  )
+  assert.deepEqual(
+    auditArchitectureSources([
+      [
+        'server/agents/score-layers/morgana.ts',
+        'import type { ScoreLayerDefinition } from "../policy/score-layer/types.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/types.ts',
+        'import type { SituationAnalysis } from "../../analysis/types.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
 test('trusted provider capabilities remain inside composition and kernel', () => {
   assert.deepEqual(
     auditArchitectureSources([
