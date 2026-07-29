@@ -41,6 +41,12 @@ const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
 ])
 const TRACE_ADMISSION_OWNER =
   'server/agents/admission/composed-trace'
+// Historical decision-trace-v1 role-specific projections live behind one
+// isolated reader. Only the generic admission owner may consult it, so a new
+// role never grows a flat v1 validator and no other consumer can revive the
+// retired flat shapes.
+const LEGACY_ROLE_TRACE_READER =
+  'server/agents/admission/legacy-role-trace-v1'
 const CANONICAL_JSON_OWNER =
   'server/agents/components/canonical-json'
 const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
@@ -434,6 +440,18 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           edge,
           'runtime and evaluation consumers must switch on the closed trace admission result',
+        ))
+        continue
+      }
+      if (
+        target === LEGACY_ROLE_TRACE_READER
+        && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
+      ) {
+        violations.push(violation(
+          'ARCH012',
+          sourcePath,
+          edge,
+          'historical v1 role trace projections stay behind the isolated legacy reader',
         ))
         continue
       }

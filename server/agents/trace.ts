@@ -172,19 +172,33 @@ export interface DecisionTrace {
   publicObserver?: PublicObserverSnapshot
   /** Bounded private identity output, absent unless explicitly enabled. */
   privateIdentity?: PrivateIdentitySnapshot
-  /** Private mechanically inert Merlin/Percival objective output. */
+  /*
+   * Historical `decision-trace-v1` flat role projections. READ-ONLY LEGACY.
+   *
+   * No current write path emits any of these: the composed trace builder only
+   * writes publicObserver and privateIdentity, and every role objective,
+   * utility, and Morgana projection travels in the generic component run
+   * instead. They remain declared so stored v1 artifacts still parse.
+   *
+   * All v1 validation lives in admission/legacy-role-trace-v1.ts, which
+   * architecture fitness (ARCH012) pins to a single importer. The only other
+   * remaining readers are server/eval/architecture-bench.ts and
+   * server/eval/architecture-report.ts; retiring those is what clears the last
+   * v1 debt in the removal ledger. Do not add a new field here for a new role.
+   */
+  /** v1 only: mechanically inert Merlin/Percival objective output. */
   privateRoleObjective?: PrivateRoleObjectiveSnapshot
-  /** Private mechanically inert visible-evil/Oberon objective output. */
+  /** v1 only: mechanically inert visible-evil/Oberon objective output. */
   privateEvilRoleObjective?: PrivateEvilRoleObjectiveSnapshot
-  /** Private decision-ready role utility, absent off/inapplicable/degraded. */
+  /** v1 only: decision-ready role utility. */
   privateRoleUtility?: PrivateRoleUtilityProjection
-  /** Private D2 evil/Oberon utility, absent off/inapplicable/degraded. */
+  /** v1 only: D2 evil/Oberon utility. */
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
-  /** Public-only counterfeit-Merlin read, privately retained in trace. */
+  /** v1 only: public counterfeit-Merlin read, privately retained in trace. */
   publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot
-  /** Private mechanically inert Morgana counterfeit objective. */
+  /** v1 only: mechanically inert Morgana counterfeit objective. */
   privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective
-  /** Private bounded E1B Morgana policy projection. */
+  /** v1 only: bounded E1B Morgana policy projection. */
   privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
