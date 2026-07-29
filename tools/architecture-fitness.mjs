@@ -25,6 +25,9 @@ const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
 ])
 const TRACE_ADMISSION_OWNER =
   'server/agents/admission/composed-trace'
+const CANONICAL_JSON_OWNER =
+  'server/agents/components/canonical-json'
+const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
 const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
   'validateComposedTraceHostJoin',
   'validateFinalizedDiagnosticDecisionTrace',
@@ -404,14 +407,33 @@ export function auditArchitectureSources(sourceEntries) {
       if (
         target === TRACE_ADMISSION_OWNER
         && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
-        && edge.names.some((name) =>
-          LEGACY_TRACE_ADMISSION_EXPORTS.has(name))
+        && (
+          edge.namespace
+          || edge.names.some((name) =>
+            LEGACY_TRACE_ADMISSION_EXPORTS.has(name))
+        )
       ) {
         violations.push(violation(
           'ARCH009',
           sourcePath,
           edge,
           'runtime and evaluation consumers must switch on the closed trace admission result',
+        ))
+        continue
+      }
+      if (
+        target === CANONICAL_JSON_OWNER
+        && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
+        && (
+          edge.namespace
+          || edge.names.includes(TRANSPORT_CANONICALIZER_EXPORT)
+        )
+      ) {
+        violations.push(violation(
+          'ARCH010',
+          sourcePath,
+          edge,
+          'pre-serialization transport canonicalization is confined to trace admission ingress',
         ))
         continue
       }

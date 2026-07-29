@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  admitCanonicalDecisionTrace,
   admitDecisionTrace,
   MAX_DECISION_TRACE_JSON_BYTES,
+  snapshotDecisionTraceInput,
+  type CanonicalDecisionTraceCandidate,
   type DecisionTraceAdmissionResult,
 } from '../server/agents/admission/composed-trace.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
@@ -201,4 +204,108 @@ test('self-reported identity cannot mint trust or survive a wrong witness', asyn
     resultKind(wrongWitness),
     'finalized-artifact:trusted-identity-host-join-failed',
   )
+})
+
+test('canonical admission rejects forged wrappers without reading their trace', async () => {
+  const fixture = readDecisionFixtures().find(
+    (entry) => entry.id === 'servant-vote-after-evidence',
+  )!
+  const agent = createComposedAgent({ seed: fixture.source.seed })
+  const output = normalizeAgentOutput(
+    await agent.decide(fixture.req, fixture.view),
+  )
+  let reads = 0
+  const accessorForgery = Object.freeze({
+    kind: 'canonical-decision-trace-candidate',
+    get trace() {
+      reads++
+      return output.trace!
+    },
+    bytes: 1,
+  }) as unknown as CanonicalDecisionTraceCandidate
+  const rejectedAccessor = admitCanonicalDecisionTrace({
+    kind: 'finalized-artifact',
+    trace: accessorForgery,
+    req: fixture.req,
+    view: fixture.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: fixture.source.seed,
+  })
+  assert.equal(
+    resultKind(rejectedAccessor),
+    'finalized-artifact:canonical-candidate-untrusted',
+  )
+  assert.equal(reads, 0)
+
+  const mutableTrace = structuredClone(output.trace!)
+  const mutableForgery = {
+    kind: 'canonical-decision-trace-candidate',
+    trace: mutableTrace,
+    bytes: 1,
+  } as unknown as CanonicalDecisionTraceCandidate
+  const rejectedMutable = admitCanonicalDecisionTrace({
+    kind: 'finalized-artifact',
+    trace: mutableForgery,
+    req: fixture.req,
+    view: fixture.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: fixture.source.seed,
+    expectedComponentPlan: output.trace!.componentPlan!,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+    expectComponentTrace: true,
+  })
+  assert.equal(
+    resultKind(rejectedMutable),
+    'finalized-artifact:canonical-candidate-untrusted',
+  )
+  mutableTrace.beliefModelVersion = 'mutated-forgery'
+  assert.equal(rejectedMutable.kind, 'rejected')
+})
+
+test('authentic canonical candidates are reusable, detached, and deeply frozen', async () => {
+  const fixture = readDecisionFixtures().find(
+    (entry) => entry.id === 'servant-vote-after-evidence',
+  )!
+  const agent = createComposedAgent({ seed: fixture.source.seed })
+  const output = normalizeAgentOutput(
+    await agent.decide(fixture.req, fixture.view),
+  )
+  const sourceTrace = structuredClone(output.trace!)
+  const originalBeliefModelVersion = sourceTrace.beliefModelVersion
+  const expectedPlan = sourceTrace.componentPlan!
+  const snapshot = snapshotDecisionTraceInput(sourceTrace)
+  assert.equal(snapshot.kind, 'canonical-decision-trace-candidate')
+  if (snapshot.kind !== 'canonical-decision-trace-candidate') return
+
+  sourceTrace.beliefModelVersion = 'mutated-after-snapshot'
+  const input = {
+    kind: 'finalized-artifact' as const,
+    trace: snapshot,
+    req: fixture.req,
+    view: fixture.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: fixture.source.seed,
+    expectedComponentPlan: expectedPlan,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+    expectComponentTrace: true as const,
+  }
+  const first = admitCanonicalDecisionTrace(input)
+  const second = admitCanonicalDecisionTrace(input)
+  assert.equal(first.kind, 'trusted-exact')
+  assert.equal(second.kind, 'trusted-exact')
+  if (first.kind !== 'trusted-exact' || second.kind !== 'trusted-exact') return
+  assert.equal(first.trace, snapshot.trace)
+  assert.equal(second.trace, snapshot.trace)
+  assert.equal(first.trace.beliefModelVersion, originalBeliefModelVersion)
+  assert.equal(Object.isFrozen(first.trace), true)
+  assert.equal(Object.isFrozen(first.trace.components), true)
+  assert.equal(Object.isFrozen(first.trace.components?.entries), true)
+  assert.equal(Object.isFrozen(first.trace.components?.entries[0]), true)
 })

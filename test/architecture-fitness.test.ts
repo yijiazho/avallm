@@ -79,23 +79,83 @@ test('runtime and admission cannot rebuild scorer-sensitive situation analysis',
 })
 
 test('server consumers cannot bypass closed trace admission results', () => {
-  const violations = auditArchitectureSources([[
-    'server/eval/example.ts',
-    `import {
-      validateComposedTraceHostJoin
-    } from "../agents/admission/composed-trace.ts"\n`,
-  ]])
+  const admission = '../agents/admission/composed-trace.ts'
+  const violations = auditArchitectureSources([
+    [
+      'server/eval/named.ts',
+      `import {
+        validateComposedTraceHostJoin
+      } from "${admission}"\n`,
+    ],
+    [
+      'server/eval/aliased.ts',
+      `import {
+        validateFinalizedDiagnosticDecisionTrace as validate
+      } from "${admission}"\n`,
+    ],
+    [
+      'server/eval/namespace.ts',
+      `import * as admission from "${admission}"\n`,
+    ],
+    [
+      'server/eval/dynamic.ts',
+      `const admission = await import("${admission}")\n`,
+    ],
+    [
+      'server/eval/export-star.ts',
+      `export * from "${admission}"\n`,
+    ],
+    [
+      'server/eval/re-export.ts',
+      `export {
+        validateSuppressedEvilQuestCardPolicyHostJoin as validate
+      } from "${admission}"\n`,
+    ],
+  ])
   assert.deepEqual(
     violations.map(({ rule }) => rule),
-    ['ARCH009'],
+    Array(6).fill('ARCH009'),
   )
-  assert.match(violations[0].message, /closed trace admission result/)
+  for (const violation of violations) {
+    assert.match(violation.message, /closed trace admission result/)
+  }
   assert.deepEqual(
     auditArchitectureSources([[
       'server/eval/example.ts',
       `import {
         admitDecisionTrace
       } from "../agents/admission/composed-trace.ts"\n`,
+    ]]),
+    [],
+  )
+})
+
+test('transport canonicalization is confined to trace admission ingress', () => {
+  const canonical = '../agents/components/canonical-json.ts'
+  const violations = auditArchitectureSources([
+    [
+      'server/eval/named.ts',
+      `import { canonicalizeTransportJson } from "${canonical}"\n`,
+    ],
+    [
+      'server/eval/aliased.ts',
+      `export {
+        canonicalizeTransportJson as snapshot
+      } from "${canonical}"\n`,
+    ],
+    [
+      'server/eval/namespace.ts',
+      `const canonical = await import("${canonical}")\n`,
+    ],
+  ])
+  assert.deepEqual(
+    violations.map(({ rule }) => rule),
+    Array(3).fill('ARCH010'),
+  )
+  assert.deepEqual(
+    auditArchitectureSources([[
+      'server/eval/strict.ts',
+      `import { canonicalizeJson } from "${canonical}"\n`,
     ]]),
     [],
   )

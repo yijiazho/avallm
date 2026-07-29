@@ -4865,6 +4865,9 @@ export interface CanonicalDecisionTraceCandidate {
   readonly [canonicalDecisionTraceCandidateBrand]: true
 }
 
+const canonicalDecisionTraceCandidates =
+  new WeakSet<CanonicalDecisionTraceCandidate>()
+
 export type DecisionTraceSnapshotRejection =
   | 'trace-json-unsafe'
   | 'trace-too-large'
@@ -4907,15 +4910,18 @@ export function snapshotDecisionTraceInput(
       reason: 'trace-not-object',
     })
   }
-  return Object.freeze({
+  const candidate = Object.freeze({
     kind: 'canonical-decision-trace-candidate',
     trace: canonical.payload as unknown as Readonly<DecisionTrace>,
     bytes: canonical.bytes,
   }) as CanonicalDecisionTraceCandidate
+  canonicalDecisionTraceCandidates.add(candidate)
+  return candidate
 }
 
 export type DecisionTraceAdmissionRejection =
   | DecisionTraceSnapshotRejection
+  | 'canonical-candidate-untrusted'
   | 'external-detached-invalid'
   | 'external-host-join-failed'
   | 'finalized-diagnostic-invalid'
@@ -5083,7 +5089,16 @@ function rejectedAdmission(
 export function admitCanonicalDecisionTrace(
   input: CanonicalDecisionTraceAdmissionInput,
 ): DecisionTraceAdmissionResult {
-  const trace = input.trace.trace as DecisionTrace
+  const candidate = input.trace
+  if (!canonicalDecisionTraceCandidates.has(candidate)) {
+    return rejectedAdmission(
+      input.kind === 'pre-apply-external'
+        ? 'pre-apply-external'
+        : 'finalized-artifact',
+      'canonical-candidate-untrusted',
+    )
+  }
+  const trace = candidate.trace as DecisionTrace
   if (input.kind === 'pre-apply-external') {
     const claimsD3QuestPolicy =
       input.req.kind === 'quest'
