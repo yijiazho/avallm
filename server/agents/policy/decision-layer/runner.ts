@@ -1,15 +1,15 @@
-import {
-  advanceDecisionComponentRun,
-  attributeComponentPolicyUseBatch,
-  indexDecisionComponentPayloads,
-} from '../../components/kernel.ts'
 import type {
   ComponentRef,
-  ComponentToken,
 } from '../../components/types.ts'
+import {
+  createPolicyComponentRuntime,
+  frozenPolicyComponentRefs,
+  policyComponentReadJournal,
+  type PolicyComponentReadJournal,
+  type PolicyComponentRuntime,
+} from '../component-runtime.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
-  DecisionLayerComponentReader,
   DecisionLayerDefinition,
   DecisionLayerJournalEntry,
   DecisionLayerOperationCounts,
@@ -33,12 +33,19 @@ interface MutableOperationCounts {
   universalCandidateIdsVisited: number
   legalCandidatesVisited: number
   layersVisited: number
+  layersSuppressed: number
   applicabilityEvaluations: number
   layersExecuted: number
-  componentRequirementsIndexed: number
-  componentEntriesVisited: number
   componentLookupAttempts: number
+  componentPayloadIndexEntriesVisited: number
   componentPayloadReads: number
+  componentPayloadsMaterialized: number
+  componentDefinitionIndexEntriesVisited: number
+  decisionLayerComponentRequirementsIndexed: number
+  componentClosureRootsVisited: number
+  componentDependencyEdgesVisited: number
+  componentClosureComponentsEmitted: number
+  componentAttributionUnionTokensVisited: number
   componentAttributionTokensVisited: number
   componentAttributionEntriesVisited: number
   componentAttributionPolicyUseEntriesVisited: number
@@ -51,14 +58,6 @@ interface MutableOperationCounts {
 
 function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {
   return Object.freeze({ id: ref.id, version: ref.version })
-}
-
-function frozenComponentRef(ref: ComponentRef): ComponentRef {
-  return Object.freeze({ id: ref.id, version: ref.version })
-}
-
-function componentKey(ref: ComponentRef): string {
-  return `${ref.id}@${ref.version}`
 }
 
 function canonicalText(value: unknown): value is string {
@@ -224,71 +223,10 @@ function createSurfaceRuntime(
   })
 }
 
-interface ReadJournal {
-  readonly lookups: ComponentRef[]
-  readonly reads: ComponentToken[]
-}
-
-function createComponentReader(
-  definition: DecisionLayerDefinition,
-  payloadIndex: ReturnType<typeof indexDecisionComponentPayloads>,
-  journal: ReadJournal,
-  operations: MutableOperationCounts,
-): DecisionLayerComponentReader {
-  const allowed = new Map<string, ComponentToken>()
-  for (const component of definition.requiredComponents) {
-    operations.componentRequirementsIndexed++
-    allowed.set(componentKey(component), component)
-  }
-  const cached = new Map<string, unknown>()
-  const resolved = new Set<string>()
-  function get<Payload>(
-    token: ComponentToken<Payload>,
-  ): Immutable<Payload> | undefined {
-    operations.componentLookupAttempts++
-    const key = componentKey(token)
-    const declared = allowed.get(key)
-    if (
-      !declared
-      || declared.kind !== token.kind
-      || declared.privacy !== token.privacy
-    ) {
-      throw new Error(
-        `decision layer ${definition.token.id} read undeclared component ${key}`,
-      )
-    }
-    journal.lookups.push(frozenComponentRef(token))
-    if (!resolved.has(key)) {
-      resolved.add(key)
-      operations.componentPayloadReads++
-      cached.set(key, payloadIndex.payload(token))
-    }
-    const payload = cached.get(key) as Immutable<Payload> | undefined
-    if (payload !== undefined && !journal.reads.some(
-      (entry) => componentKey(entry) === key,
-    )) journal.reads.push(token)
-    return payload
-  }
-  return Object.freeze({
-    get,
-    require<Payload>(
-      token: ComponentToken<Payload>,
-    ): Immutable<Payload> {
-      const payload = get(token)
-      if (payload === undefined) {
-        throw new Error(
-          `decision layer ${definition.token.id} requires unavailable component ${componentKey(token)}`,
-        )
-      }
-      return payload
-    },
-  })
-}
-
 function journalBase(
   definition: DecisionLayerDefinition,
   prior: Immutable<DecisionLayerSurface>,
-  reads: ReadJournal,
+  reads: PolicyComponentReadJournal,
 ): {
   layer: DecisionLayerRef
   priorSurvivorCandidateIds: readonly string[]
@@ -302,15 +240,15 @@ function journalBase(
     ...(prior.selectedCandidateId === undefined
       ? {}
       : { priorSelectedCandidateId: prior.selectedCandidateId }),
-    componentLookups: Object.freeze(reads.lookups.map(frozenComponentRef)),
-    componentReads: Object.freeze(reads.reads.map(frozenComponentRef)),
+    componentLookups: frozenPolicyComponentRefs(reads.lookups),
+    componentReads: frozenPolicyComponentRefs(reads.reads),
   }
 }
 
 function degraded(
   definition: DecisionLayerDefinition,
   prior: Immutable<DecisionLayerSurface>,
-  reads: ReadJournal,
+  reads: PolicyComponentReadJournal,
   failureCode: Extract<
     DecisionLayerJournalEntry,
     { status: 'degraded' }
@@ -332,12 +270,19 @@ export function runDecisionLayers(
     universalCandidateIdsVisited: 0,
     legalCandidatesVisited: 0,
     layersVisited: 0,
+    layersSuppressed: 0,
     applicabilityEvaluations: 0,
     layersExecuted: 0,
-    componentRequirementsIndexed: 0,
-    componentEntriesVisited: 0,
     componentLookupAttempts: 0,
+    componentPayloadIndexEntriesVisited: 0,
     componentPayloadReads: 0,
+    componentPayloadsMaterialized: 0,
+    componentDefinitionIndexEntriesVisited: 0,
+    decisionLayerComponentRequirementsIndexed: 0,
+    componentClosureRootsVisited: 0,
+    componentDependencyEdgesVisited: 0,
+    componentClosureComponentsEmitted: 0,
+    componentAttributionUnionTokensVisited: 0,
     componentAttributionTokensVisited: 0,
     componentAttributionEntriesVisited: 0,
     componentAttributionPolicyUseEntriesVisited: 0,
@@ -357,8 +302,8 @@ export function runDecisionLayers(
   let surface = createInitialSurface(input, operations)
   let componentRun: Immutable<typeof input.componentRun> =
     input.componentRun
-  let payloadIndex:
-    ReturnType<typeof indexDecisionComponentPayloads> | undefined
+  let componentRuntime:
+    PolicyComponentRuntime<DecisionLayerDefinition> | undefined
   const journal: DecisionLayerJournalEntry[] = []
   const executed = new Set<string>()
   for (const definition of input.order.definitions) {
@@ -368,7 +313,19 @@ export function runDecisionLayers(
       throw new Error(`decision layer executed twice: ${key}`)
     }
     executed.add(key)
-    const reads: ReadJournal = { lookups: [], reads: [] }
+    const reads = policyComponentReadJournal()
+    if (surface.selectedCandidateId !== undefined) {
+      operations.layersSuppressed++
+      journal.push(Object.freeze({
+        ...journalBase(definition, surface, reads),
+        status: 'suppressed',
+        suppressionCode: input.universalForced.selectedCandidateId
+          !== undefined
+          ? 'universal-policy-selected'
+          : 'prior-strategic-selection',
+      }))
+      continue
+    }
     const base = Object.freeze({
       request: input.request,
       view: input.view,
@@ -407,21 +364,21 @@ export function runDecisionLayers(
       continue
     }
     operations.layersExecuted++
-    if (!payloadIndex) {
-      payloadIndex = indexDecisionComponentPayloads(componentRun)
-      operations.componentEntriesVisited = payloadIndex.entriesVisited
-    }
+    componentRuntime ??= createPolicyComponentRuntime({
+      owner: 'decision layer',
+      stage: DECISION_LAYER_POLICY_USE_STAGE,
+      componentDefinitions: input.componentDefinitions,
+      componentRun,
+      layerDefinitions: input.order.definitions,
+      requirementCounter: 'decisionLayerComponentRequirementsIndexed',
+      operations,
+    })
     const runtime = createSurfaceRuntime(surface, legalOrder, operations)
     let raw: unknown
     try {
       raw = definition.execute(Object.freeze({
         ...base,
-        components: createComponentReader(
-          definition,
-          payloadIndex,
-          reads,
-          operations,
-        ),
+        components: componentRuntime.reader(definition, reads),
         surface: runtime.factory,
       }))
     } catch {
@@ -429,7 +386,7 @@ export function runDecisionLayers(
         definition,
         surface,
         reads,
-        reads.lookups.length > 0 && reads.reads.length === 0
+        reads.lookups.size > 0 && reads.reads.size === 0
           ? 'dependency-unavailable'
           : 'execution-failed',
       ))
@@ -463,22 +420,19 @@ export function runDecisionLayers(
       ))
       continue
     }
+    let attributedComponents: readonly ComponentRef[]
+    try {
+      attributedComponents = componentRuntime.attribute(reads.reads)
+    } catch {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'dependency-unavailable',
+      ))
+      continue
+    }
     const prior = surface
-    const attributed = attributeComponentPolicyUseBatch(
-      componentRun,
-      reads.reads,
-      DECISION_LAYER_POLICY_USE_STAGE,
-    )
-    operations.componentAttributionTokensVisited +=
-      attributed.work.tokensVisited
-    operations.componentAttributionEntriesVisited +=
-      attributed.work.entriesVisited
-    operations.componentAttributionPolicyUseEntriesVisited +=
-      attributed.work.policyUseEntriesVisited
-    componentRun = advanceDecisionComponentRun(
-      componentRun,
-      attributed.run,
-    ) as Immutable<typeof input.componentRun>
     surface = result.surface
     journal.push(Object.freeze({
       ...journalBase(definition, prior, reads),
@@ -488,10 +442,11 @@ export function runDecisionLayers(
         ? {}
         : { selectedCandidateId: surface.selectedCandidateId }),
       reasonCodes: surface.reasonCodes,
-      attributedComponents: Object.freeze(
-        reads.reads.map(frozenComponentRef),
-      ),
+      attributedComponents,
     }))
+  }
+  if (componentRuntime) {
+    componentRun = componentRuntime.finalize(componentRun)
   }
   const frozenOperations: DecisionLayerOperationCounts =
     Object.freeze({ ...operations })

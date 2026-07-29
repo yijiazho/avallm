@@ -6,6 +6,7 @@ import type { SituationAnalysis } from '../../analysis/types.ts'
 import type {
   ComponentRef,
   ComponentToken,
+  DecisionComponentDefinition,
 } from '../../components/types.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
 import type { Immutable } from '../trusted-data.ts'
@@ -115,6 +116,12 @@ export type DecisionLayerJournalEntry =
       status: 'inapplicable'
     }>
   | Readonly<DecisionLayerJournalBase & {
+      status: 'suppressed'
+      suppressionCode:
+        | 'universal-policy-selected'
+        | 'prior-strategic-selection'
+    }>
+  | Readonly<DecisionLayerJournalBase & {
       status: 'applied'
       survivorCandidateIds: readonly string[]
       selectedCandidateId?: string
@@ -137,12 +144,19 @@ export interface DecisionLayerOperationCounts {
   readonly universalCandidateIdsVisited: number
   readonly legalCandidatesVisited: number
   readonly layersVisited: number
+  readonly layersSuppressed: number
   readonly applicabilityEvaluations: number
   readonly layersExecuted: number
-  readonly componentRequirementsIndexed: number
-  readonly componentEntriesVisited: number
   readonly componentLookupAttempts: number
+  readonly componentPayloadIndexEntriesVisited: number
   readonly componentPayloadReads: number
+  readonly componentPayloadsMaterialized: number
+  readonly componentDefinitionIndexEntriesVisited: number
+  readonly decisionLayerComponentRequirementsIndexed: number
+  readonly componentClosureRootsVisited: number
+  readonly componentDependencyEdgesVisited: number
+  readonly componentClosureComponentsEmitted: number
+  readonly componentAttributionUnionTokensVisited: number
   readonly componentAttributionTokensVisited: number
   readonly componentAttributionEntriesVisited: number
   readonly componentAttributionPolicyUseEntriesVisited: number
@@ -174,5 +188,7 @@ export interface DecisionLayerRunInput {
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]
   readonly universalForced: Immutable<ForcedPolicyResult>
+  readonly componentDefinitions:
+    readonly DecisionComponentDefinition<any>[]
   readonly componentRun: Immutable<DecisionComponentRun>
 }

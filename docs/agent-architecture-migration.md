@@ -3174,7 +3174,11 @@ here.
   ordered decision-layer identity and its frozen definitions. `DecisionFrame` executes that order
   exactly once after universal forced policy and component resolution. Each layer can only use
   declared admitted component payloads and a factory-minted monotone survivor/selection surface;
-  the generic kernel records configured order, applicability or degradation, prior and resulting
+  accepted direct reads causally attribute their exact admitted transitive component closure
+  through the component runtime shared with score layers. Universal selection and an earlier
+  strategic selection are terminal: remaining layers journal typed suppression without running
+  applicability, execution, component reads, or attribution. The generic kernel records
+  configured order, applicability or degradation, prior and resulting
   candidates, reasons, component reads, causal use, and exact bounded operation counts without
   knowing any role, D3 version, trace, artifact, or evaluation shape. Current production order is
   intentionally empty and behavior-neutral. Current traces carry the honest empty run, and exact
@@ -3182,8 +3186,13 @@ here.
   descriptor-less traces remain diagnostic. A native two-layer fixture proves ordered narrowing
   and selection, factory provenance, dependency admission, universal dominance, journal and
   operation rewrite rejection, exact replay, and construction-time registry substitution
-  rejection. Focused validation passed all five strategic-layer cases, and the contract gate
-  passed all 357 tests. Both robust and exact-quota D3 remain wholly on the preexisting legacy
+  rejection. The whole-trace canonical snapshot now domain-admits the decision-layer child once
+  into an authority-local opaque capability; detached diagnostics and exact replay reuse that
+  result without a second sanitizer. Exact replay removes only the decision-layer-owned causal
+  stage, reconstructs it, and proves the applied-journal attribution union exactly matches final
+  single-owned component attribution while preserving every other stage. Focused validation
+  passed all six strategic-layer cases plus the existing score and trace-admission laws. Both
+  robust and exact-quota D3 remain wholly on the preexisting legacy
   overlay in this checkpoint; R3B2B owns the robust authority cutover and R3B3 still owns
   exact-quota quarantine plus MD-003 and MD-004.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A

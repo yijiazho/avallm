@@ -1,22 +1,25 @@
 import { isDeepStrictEqual } from 'node:util'
 import {
-  canonicalizeJson,
+  denseOwnDataArrayValues,
   exactOwnDataRecord,
+  type CanonicalJsonValue,
 } from '../../components/canonical-json.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
+import { componentIdentityKey } from '../../components/registry.ts'
 import type {
-  DecisionLayerRegistry,
-} from './registry.ts'
+  ComponentRef,
+  DecisionComponentDefinition,
+} from '../../components/types.ts'
+import type { DecisionLayerRegistry } from './registry.ts'
 import {
+  DECISION_LAYER_POLICY_USE_STAGE,
   DECISION_LAYER_RUN_VERSION,
   DECISION_LAYER_SURFACE_VERSION,
   MAX_DECISION_LAYER_REASON_CODES,
   MAX_DECISION_LAYER_STRING_BYTES,
   runDecisionLayers,
 } from './runner.ts'
-import {
-  projectDecisionLayerRun,
-} from './projection.ts'
+import { projectDecisionLayerRun } from './projection.ts'
 import type {
   DecisionLayerJournalEntry,
   DecisionLayerOperationCounts,
@@ -26,18 +29,23 @@ import type {
   DecisionLayerRunInput,
 } from './types.ts'
 
-export const MAX_DECISION_LAYER_RUN_JSON_BYTES = 4_194_304
-
 const OPERATION_KEYS: readonly (keyof DecisionLayerOperationCounts)[] = [
   'universalCandidateIdsVisited',
   'legalCandidatesVisited',
   'layersVisited',
+  'layersSuppressed',
   'applicabilityEvaluations',
   'layersExecuted',
-  'componentRequirementsIndexed',
-  'componentEntriesVisited',
   'componentLookupAttempts',
+  'componentPayloadIndexEntriesVisited',
   'componentPayloadReads',
+  'componentPayloadsMaterialized',
+  'componentDefinitionIndexEntriesVisited',
+  'decisionLayerComponentRequirementsIndexed',
+  'componentClosureRootsVisited',
+  'componentDependencyEdgesVisited',
+  'componentClosureComponentsEmitted',
+  'componentAttributionUnionTokensVisited',
   'componentAttributionTokensVisited',
   'componentAttributionEntriesVisited',
   'componentAttributionPolicyUseEntriesVisited',
@@ -48,8 +56,28 @@ const OPERATION_KEYS: readonly (keyof DecisionLayerOperationCounts)[] = [
   'surfaceBytesConstructed',
 ]
 
+function frozenRecord(
+  value: unknown,
+  keys: readonly string[],
+): Readonly<Record<string, unknown>> | undefined {
+  return value
+    && typeof value === 'object'
+    && Object.isFrozen(value)
+    ? exactOwnDataRecord(value, keys)
+    : undefined
+}
+
+function frozenArray(
+  value: unknown,
+  maxLength = 65_536,
+): readonly unknown[] | undefined {
+  return Array.isArray(value) && Object.isFrozen(value)
+    ? denseOwnDataArrayValues(value, maxLength)
+    : undefined
+}
+
 function ref(value: unknown): value is DecisionLayerRef {
-  const record = exactOwnDataRecord(value, ['id', 'version'])
+  const record = frozenRecord(value, ['id', 'version'])
   return !!record
     && typeof record.id === 'string'
     && typeof record.version === 'string'
@@ -57,72 +85,108 @@ function ref(value: unknown): value is DecisionLayerRef {
     && /^[a-z0-9][a-z0-9._+-]{0,99}$/.test(record.version)
 }
 
+function refArray(value: unknown): readonly DecisionLayerRef[] | undefined {
+  const values = frozenArray(value)
+  return values?.every(ref)
+    ? values as readonly DecisionLayerRef[]
+    : undefined
+}
+
 function stringArray(
   value: unknown,
   canonical = false,
-): value is readonly string[] {
-  return Array.isArray(value)
-    && value.every((entry) =>
-      typeof entry === 'string'
-      && (!canonical || (
-        Buffer.byteLength(entry, 'utf8') <=
-          MAX_DECISION_LAYER_STRING_BYTES
-        && /^[A-Z0-9][A-Z0-9_-]*$/.test(entry)
-      )))
+): readonly string[] | undefined {
+  const values = frozenArray(value)
+  return values?.every((entry) =>
+    typeof entry === 'string'
+    && (!canonical || (
+      Buffer.byteLength(entry, 'utf8') <=
+        MAX_DECISION_LAYER_STRING_BYTES
+      && /^[A-Z0-9][A-Z0-9_-]*$/.test(entry)
+    )))
+    ? values as readonly string[]
+    : undefined
 }
 
-function priorKeys(
-  entry: Record<string, unknown>,
-): readonly string[] {
-  return entry.priorSelectedCandidateId === undefined
-    ? [
-        'componentLookups',
-        'componentReads',
-        'layer',
-        'priorSurvivorCandidateIds',
-      ]
-    : [
-        'componentLookups',
-        'componentReads',
-        'layer',
-        'priorSelectedCandidateId',
-        'priorSurvivorCandidateIds',
-      ]
+function journalRecord(
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined {
+  const bases = [
+    [
+      'componentLookups',
+      'componentReads',
+      'layer',
+      'priorSurvivorCandidateIds',
+    ],
+    [
+      'componentLookups',
+      'componentReads',
+      'layer',
+      'priorSelectedCandidateId',
+      'priorSurvivorCandidateIds',
+    ],
+  ] as const
+  for (const base of bases) {
+    for (const suffix of [
+      ['status'],
+      ['status', 'suppressionCode'],
+      ['degradationCode', 'failureCode', 'status'],
+      [
+        'attributedComponents',
+        'reasonCodes',
+        'status',
+        'survivorCandidateIds',
+      ],
+      [
+        'attributedComponents',
+        'reasonCodes',
+        'selectedCandidateId',
+        'status',
+        'survivorCandidateIds',
+      ],
+    ]) {
+      const record = frozenRecord(value, [...base, ...suffix])
+      if (record) return record
+    }
+  }
+  return undefined
 }
 
 function validJournalEntry(
   value: unknown,
   configured: DecisionLayerRef,
 ): value is DecisionLayerJournalEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const entry = value as Record<string, unknown>
+  const loose = journalRecord(value)
+  if (!loose) return false
+  const layer = ref(loose.layer) ? loose.layer : undefined
+  const priorSurvivors = stringArray(loose.priorSurvivorCandidateIds)
+  const lookups = refArray(loose.componentLookups)
+  const reads = refArray(loose.componentReads)
   if (
-    !ref(entry.layer)
-    || !isDeepStrictEqual(entry.layer, configured)
-    || !stringArray(entry.priorSurvivorCandidateIds)
-    || new Set(entry.priorSurvivorCandidateIds).size
-      !== entry.priorSurvivorCandidateIds.length
+    !layer
+    || !isDeepStrictEqual(layer, configured)
+    || !priorSurvivors
+    || new Set(priorSurvivors).size !== priorSurvivors.length
     || (
-      entry.priorSelectedCandidateId !== undefined
-      && typeof entry.priorSelectedCandidateId !== 'string'
+      loose.priorSelectedCandidateId !== undefined
+      && typeof loose.priorSelectedCandidateId !== 'string'
     )
-    || !Array.isArray(entry.componentLookups)
-    || !entry.componentLookups.every(ref)
-    || !Array.isArray(entry.componentReads)
-    || !entry.componentReads.every(ref)
+    || !lookups
+    || !reads
   ) return false
-  const base = priorKeys(entry)
-  if (entry.status === 'inapplicable') {
-    return !!exactOwnDataRecord(entry, [...base, 'status'])
+  if (loose.status === 'inapplicable') {
+    return !Object.hasOwn(loose, 'suppressionCode')
+      && !Object.hasOwn(loose, 'degradationCode')
+      && !Object.hasOwn(loose, 'attributedComponents')
   }
-  if (entry.status === 'degraded') {
-    return !!exactOwnDataRecord(entry, [
-      ...base,
-      'degradationCode',
-      'failureCode',
-      'status',
-    ])
-      && typeof entry.degradationCode === 'string'
+  if (loose.status === 'suppressed') {
+    return [
+        'universal-policy-selected',
+        'prior-strategic-selection',
+      ].includes(String(loose.suppressionCode))
+  }
+  if (loose.status === 'degraded') {
+    return typeof loose.degradationCode === 'string'
       && [
         'applicability-failed',
         'execution-failed',
@@ -130,147 +194,231 @@ function validJournalEntry(
         'malformed-result',
         'invalid-surface',
         'dependency-unavailable',
-      ].includes(String(entry.failureCode))
+      ].includes(String(loose.failureCode))
   }
-  if (entry.status !== 'applied') return false
-  const selectedKey = entry.selectedCandidateId === undefined
+  if (loose.status !== 'applied') return false
+  const selectedKey = loose.selectedCandidateId === undefined
     ? []
     : ['selectedCandidateId']
-  return !!exactOwnDataRecord(entry, [
-    ...base,
-    'attributedComponents',
-    'reasonCodes',
-    ...selectedKey,
-    'status',
-    'survivorCandidateIds',
-  ])
-    && stringArray(entry.survivorCandidateIds)
-    && entry.survivorCandidateIds.length > 0
-    && new Set(entry.survivorCandidateIds).size
-      === entry.survivorCandidateIds.length
+  const survivors = stringArray(loose.survivorCandidateIds)
+  const reasons = stringArray(loose.reasonCodes, true)
+  const attributed = refArray(loose.attributedComponents)
+  return (selectedKey.length === 1)
+      === Object.hasOwn(loose, 'selectedCandidateId')
+    && !!survivors
+    && survivors.length > 0
+    && new Set(survivors).size === survivors.length
     && (
-      entry.selectedCandidateId === undefined
+      loose.selectedCandidateId === undefined
       || (
-        typeof entry.selectedCandidateId === 'string'
-        && entry.survivorCandidateIds.includes(entry.selectedCandidateId)
+        typeof loose.selectedCandidateId === 'string'
+        && survivors.includes(loose.selectedCandidateId)
       )
     )
-    && stringArray(entry.reasonCodes, true)
-    && entry.reasonCodes.length <= MAX_DECISION_LAYER_REASON_CODES
-    && new Set(entry.reasonCodes).size === entry.reasonCodes.length
-    && Array.isArray(entry.attributedComponents)
-    && entry.attributedComponents.every(ref)
+    && !!reasons
+    && reasons.length <= MAX_DECISION_LAYER_REASON_CODES
+    && new Set(reasons).size === reasons.length
+    && !!attributed
 }
 
-/**
- * Strict bounded syntax for detached decision-layer telemetry. Exact semantic
- * authority comes only from replay against an out-of-band resolved order.
- */
-export function validateDecisionLayerRun(
-  value: unknown,
-): value is DecisionLayerTrace {
-  const canonical = canonicalizeJson(
-    value,
-    MAX_DECISION_LAYER_RUN_JSON_BYTES,
-  )
-  if (!canonical.ok) return false
-  const run = exactOwnDataRecord(canonical.payload, [
+function decodeCanonicalDecisionLayerTrace(
+  value: CanonicalJsonValue,
+): DecisionLayerTrace | undefined {
+  const run = frozenRecord(value, [
     'configured',
     'journal',
     'operations',
     'surface',
     'version',
   ])
+  const configured = refArray(run?.configured)
+  const journal = frozenArray(run?.journal)
   if (
     !run
     || run.version !== DECISION_LAYER_RUN_VERSION
-    || !Array.isArray(run.configured)
-    || !run.configured.every(ref)
-    || new Set(run.configured.map(
+    || !configured
+    || new Set(configured.map(
       (entry) => `${entry.id}@${entry.version}`,
-    )).size !== run.configured.length
-    || !Array.isArray(run.journal)
-    || run.journal.length !== run.configured.length
-    || !run.journal.every((entry, index) =>
-      validJournalEntry(
-        entry,
-        (run.configured as unknown as DecisionLayerRef[])[index],
-      ))
-  ) return false
-  const surface = exactOwnDataRecord(
-    run.surface,
-    run.surface
-      && typeof run.surface === 'object'
-      && !Array.isArray(run.surface)
-      && (run.surface as Record<string, unknown>)
-        .selectedCandidateId !== undefined
-      ? [
-          'reasonCodes',
-          'selectedCandidateId',
-          'survivorCandidateIds',
-          'version',
-        ]
-      : ['reasonCodes', 'survivorCandidateIds', 'version'],
-  )
-  const operations = exactOwnDataRecord(run.operations, OPERATION_KEYS)
-  return !!surface
+    )).size !== configured.length
+    || !journal
+    || journal.length !== configured.length
+    || !journal.every((entry, index) =>
+      validJournalEntry(entry, configured[index]))
+  ) return undefined
+  const surface = frozenRecord(run.surface, [
+    'reasonCodes',
+    'selectedCandidateId',
+    'survivorCandidateIds',
+    'version',
+  ]) ?? frozenRecord(run.surface, [
+    'reasonCodes',
+    'survivorCandidateIds',
+    'version',
+  ])
+  const survivors = stringArray(surface?.survivorCandidateIds)
+  const reasons = stringArray(surface?.reasonCodes, true)
+  const operations = frozenRecord(run.operations, OPERATION_KEYS)
+  return surface
     && surface.version === DECISION_LAYER_SURFACE_VERSION
-    && stringArray(surface.survivorCandidateIds)
-    && surface.survivorCandidateIds.length > 0
-    && new Set(surface.survivorCandidateIds).size
-      === surface.survivorCandidateIds.length
+    && survivors
+    && survivors.length > 0
+    && new Set(survivors).size === survivors.length
     && (
       surface.selectedCandidateId === undefined
       || (
         typeof surface.selectedCandidateId === 'string'
-        && surface.survivorCandidateIds.includes(
-          surface.selectedCandidateId,
-        )
+        && survivors.includes(surface.selectedCandidateId)
       )
     )
-    && stringArray(surface.reasonCodes, true)
-    && surface.reasonCodes.length <= MAX_DECISION_LAYER_REASON_CODES
-    && new Set(surface.reasonCodes).size === surface.reasonCodes.length
-    && !!operations
+    && reasons
+    && reasons.length <= MAX_DECISION_LAYER_REASON_CODES
+    && new Set(reasons).size === reasons.length
+    && operations
     && OPERATION_KEYS.every((key) =>
       Number.isSafeInteger(operations[key])
       && Number(operations[key]) >= 0)
+    ? value as unknown as DecisionLayerTrace
+    : undefined
+}
+
+declare const admittedDecisionLayerTraceBrand: unique symbol
+
+export interface AdmittedDecisionLayerTrace {
+  readonly trace: DecisionLayerTrace
+  readonly [admittedDecisionLayerTraceBrand]: true
 }
 
 export interface DecisionLayerAdmissionReplayInput
 extends Omit<DecisionLayerRunInput, 'order' | 'componentRun'> {
   readonly registry: DecisionLayerRegistry
   readonly configured: readonly DecisionLayerRef[]
+  /** Final single-owned component run from the containing admitted trace. */
   readonly componentRun: DecisionComponentRun
-  readonly claimed: DecisionLayerTrace
+  readonly claimed: AdmittedDecisionLayerTrace
+}
+
+export interface DecisionLayerAdmissionAuthority {
+  /**
+   * Exact-key/domain decode of a child already proven canonical by the outer
+   * trace ingress. This function never canonicalizes or copies the subgraph.
+   */
+  admitCanonical(
+    value: CanonicalJsonValue,
+  ): AdmittedDecisionLayerTrace | undefined
+  /** Exact replay accepts only a capability issued by this authority. */
+  replay(
+    input: DecisionLayerAdmissionReplayInput,
+  ): DecisionLayerRun | undefined
+}
+
+function withoutStrategicAttribution(
+  run: DecisionComponentRun,
+): DecisionComponentRun {
+  return Object.freeze({
+    ...run,
+    policyUse: Object.freeze(run.policyUse.map((entry) => {
+      const stages = Object.freeze(entry.stages.filter(
+        (stage) => stage !== DECISION_LAYER_POLICY_USE_STAGE,
+      ))
+      return Object.freeze({
+        component: entry.component,
+        used: stages.length > 0,
+        stages,
+      })
+    })),
+  })
+}
+
+function strategicAttributionKeys(
+  run: DecisionComponentRun,
+): ReadonlySet<string> {
+  return new Set(run.policyUse
+    .filter((entry) =>
+      entry.stages.includes(DECISION_LAYER_POLICY_USE_STAGE))
+    .map((entry) => componentIdentityKey(entry.component)))
+}
+
+function journalAttributionKeys(
+  trace: DecisionLayerTrace,
+): ReadonlySet<string> {
+  return new Set(trace.journal.flatMap((entry) =>
+    entry.status === 'applied'
+      ? entry.attributedComponents.map(componentIdentityKey)
+      : []))
+}
+
+function sameSet(
+  left: ReadonlySet<string>,
+  right: ReadonlySet<string>,
+): boolean {
+  return left.size === right.size
+    && [...left].every((value) => right.has(value))
 }
 
 /**
- * Generic exact host replay. The configured order is out-of-band identity;
- * no layer id, role, or payload shape is interpreted here.
+ * Create one local admission authority. Issued capabilities are intentionally
+ * authority-local, so raw detached payloads cannot be cast into exact replay.
  */
-export function replayDecisionLayersForAdmission(
-  input: DecisionLayerAdmissionReplayInput,
-): DecisionLayerRun | undefined {
-  try {
-    if (!validateDecisionLayerRun(input.claimed)) return undefined
-    const order = input.registry.resolve(input.configured)
-    if (!isDeepStrictEqual(input.claimed.configured, order.order)) {
-      return undefined
-    }
-    const replay = runDecisionLayers({
-      order,
-      request: input.request,
-      view: input.view,
-      analysis: input.analysis,
-      candidates: input.candidates,
-      universalForced: input.universalForced,
-      componentRun: input.componentRun,
-    })
-    return isDeepStrictEqual(projectDecisionLayerRun(replay), input.claimed)
-      ? replay
-      : undefined
-  } catch {
-    return undefined
-  }
+export function createDecisionLayerAdmissionAuthority():
+DecisionLayerAdmissionAuthority {
+  const issued = new WeakSet<AdmittedDecisionLayerTrace>()
+  return Object.freeze({
+    admitCanonical(value: CanonicalJsonValue) {
+      const trace = decodeCanonicalDecisionLayerTrace(value)
+      if (!trace) return undefined
+      const admitted = Object.freeze({
+        trace,
+      }) as AdmittedDecisionLayerTrace
+      issued.add(admitted)
+      return admitted
+    },
+    replay(input: DecisionLayerAdmissionReplayInput) {
+      try {
+        if (
+          !input.claimed
+          || typeof input.claimed !== 'object'
+          || !issued.has(input.claimed)
+        ) return undefined
+        const claimed = input.claimed.trace
+        const order = input.registry.resolve(input.configured)
+        if (!isDeepStrictEqual(claimed.configured, order.order)) {
+          return undefined
+        }
+        const baseComponentRun = withoutStrategicAttribution(
+          input.componentRun,
+        )
+        const replay = runDecisionLayers({
+          order,
+          request: input.request,
+          view: input.view,
+          analysis: input.analysis,
+          candidates: input.candidates,
+          universalForced: input.universalForced,
+          componentDefinitions: input.componentDefinitions,
+          componentRun: baseComponentRun,
+        })
+        if (!isDeepStrictEqual(projectDecisionLayerRun(replay), claimed)) {
+          return undefined
+        }
+        const claimedStrategic = strategicAttributionKeys(
+          input.componentRun,
+        )
+        const replayStrategic = strategicAttributionKeys(
+          replay.componentRun,
+        )
+        const journalStrategic = journalAttributionKeys(claimed)
+        if (
+          !sameSet(claimedStrategic, replayStrategic)
+          || !sameSet(claimedStrategic, journalStrategic)
+          || !isDeepStrictEqual(
+            withoutStrategicAttribution(replay.componentRun),
+            baseComponentRun,
+          )
+        ) return undefined
+        return replay
+      } catch {
+        return undefined
+      }
+    },
+  })
 }

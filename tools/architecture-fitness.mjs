@@ -23,6 +23,12 @@ const DECISION_LAYER_RUNNER =
   'server/agents/policy/decision-layer/runner'
 const DECISION_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/decision-layer/admission-replay'
+const POLICY_COMPONENT_RUNTIME =
+  'server/agents/policy/component-runtime'
+const POLICY_COMPONENT_RUNTIME_OWNERS = new Set([
+  'server/agents/policy/decision-layer/runner.ts',
+  'server/agents/policy/score-layer/components.ts',
+])
 const DECISION_LAYER_EXECUTION_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
   'server/agents/policy/decision-layer/admission-replay.ts',
@@ -448,6 +454,23 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (
+        sourcePath === `${DECISION_LAYER_ADMISSION_REPLAY}.ts`
+        && target === CANONICAL_JSON_OWNER
+        && (
+          edge.namespace
+          || edge.names.includes('canonicalizeJson')
+          || edge.names.includes(TRANSPORT_CANONICALIZER_EXPORT)
+        )
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'decision-layer domain admission must consume the single canonical trace ingress without recanonicalizing its child graph',
+        ))
+        continue
+      }
+      if (
         SCORER_SITUATION_SURFACE_CONSUMERS.has(sourcePath)
         && target === 'server/agents/analysis/situation'
       ) {
@@ -544,6 +567,18 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           edge,
           'decision-layer admission replay is confined to composed trace admission',
+        ))
+        continue
+      }
+      if (
+        target === POLICY_COMPONENT_RUNTIME
+        && !POLICY_COMPONENT_RUNTIME_OWNERS.has(sourcePath)
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'the shared policy-component reader and attribution runtime is confined to score and strategic layer kernels',
         ))
         continue
       }

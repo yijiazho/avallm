@@ -20,9 +20,11 @@ import {
   createDecisionLayerRegistry,
 } from '../server/agents/policy/decision-layer/registry.ts'
 import {
-  replayDecisionLayersForAdmission,
-  validateDecisionLayerRun,
+  createDecisionLayerAdmissionAuthority,
 } from '../server/agents/policy/decision-layer/admission-replay.ts'
+import {
+  canonicalizeJson,
+} from '../server/agents/components/canonical-json.ts'
 import {
   runDecisionLayers,
 } from '../server/agents/policy/decision-layer/runner.ts'
@@ -55,6 +57,7 @@ import {
   createComposedAgent,
 } from '../server/agents/composed.ts'
 import {
+  admitDecisionTrace,
   validateComposedTraceHostJoin,
 } from '../server/agents/admission/composed-trace.ts'
 import type {
@@ -76,6 +79,30 @@ const FIXTURE_COMPONENT: ComponentToken<NativeFixturePayload> =
     id: 'test-native-decision-layer-input',
     version: 'v1',
     kind: 'decision-rule',
+    privacy: 'private',
+  })
+
+const FIXTURE_DEPENDENCY_ROOT: ComponentToken<{ readonly root: true }> =
+  Object.freeze({
+    id: 'test-native-decision-layer-root',
+    version: 'v1',
+    kind: 'observer',
+    privacy: 'private',
+  })
+
+const FIXTURE_DEPENDENCY_MIDDLE:
+ComponentToken<{ readonly middle: true }> = Object.freeze({
+  id: 'test-native-decision-layer-middle',
+  version: 'v1',
+  kind: 'projection',
+  privacy: 'private',
+})
+
+const UNUSED_COMPONENT: ComponentToken<{ readonly unused: true }> =
+  Object.freeze({
+    id: 'test-native-decision-layer-unused',
+    version: 'v1',
+    kind: 'objective',
     privacy: 'private',
   })
 
@@ -106,7 +133,7 @@ const FIXTURE_DEFINITION:
 DecisionComponentDefinition<NativeFixturePayload> = {
   token: FIXTURE_COMPONENT,
   source: 'native',
-  dependencies: [],
+  dependencies: [FIXTURE_DEPENDENCY_MIDDLE],
   requiredHostInputs: [],
   hostRequirements: [],
   maxPayloadBytes: 1_024,
@@ -151,6 +178,53 @@ DecisionComponentDefinition<NativeFixturePayload> = {
     }
   },
 }
+
+function literalDefinition<Payload>(
+  token: ComponentToken<Payload>,
+  payload: Payload,
+  dependencies: readonly ComponentToken[] = [],
+): DecisionComponentDefinition<Payload> {
+  return {
+    token,
+    source: 'native',
+    dependencies,
+    requiredHostInputs: [],
+    hostRequirements: [],
+    maxPayloadBytes: 1_024,
+    degradationCode: `${token.id}-failed`,
+    applies: (context) => context.privacy === 'private',
+    execute: () => ({
+      status: 'produced',
+      envelope: componentEnvelope(token, payload),
+    }),
+    validateDetached: (value) => ({
+      admitted: true,
+      payload: value as Payload,
+      verification: 'exact',
+      promotionEligible: true,
+    }),
+    admitHost: ({ payload: admitted }) => ({
+      admitted: true,
+      payload: admitted,
+      verification: 'exact',
+      promotionEligible: true,
+    }),
+  }
+}
+
+const ROOT_DEFINITION = literalDefinition(
+  FIXTURE_DEPENDENCY_ROOT,
+  { root: true } as const,
+)
+const MIDDLE_DEFINITION = literalDefinition(
+  FIXTURE_DEPENDENCY_MIDDLE,
+  { middle: true } as const,
+  [FIXTURE_DEPENDENCY_ROOT],
+)
+const UNUSED_DEFINITION = literalDefinition(
+  UNUSED_COMPONENT,
+  { unused: true } as const,
+)
 
 const NARROW_DEFINITION: DecisionLayerDefinition = {
   token: NARROW_LAYER,
@@ -198,14 +272,17 @@ async function nativeFixtureInput(): Promise<
 > {
   const { request, view } = proposalFixture()
   const componentRegistry = createDecisionComponentRegistry([
+    ROOT_DEFINITION,
+    MIDDLE_DEFINITION,
     FIXTURE_DEFINITION,
+    UNUSED_DEFINITION,
   ])
   const layerRegistry = createDecisionLayerRegistry([
     NARROW_DEFINITION,
     SELECT_DEFINITION,
   ])
   const brain = resolveComposedBrain({
-    requestedComponents: [],
+    requestedComponents: [UNUSED_COMPONENT],
     decisionLayerOrder: [NARROW_LAYER, SELECT_LAYER],
     configuredPipeline: testConfiguredPipeline(),
   }, componentRegistry, EMPTY_SCORE_LAYER_REGISTRY, layerRegistry)
@@ -234,6 +311,7 @@ async function nativeFixtureInput(): Promise<
     }),
     candidates,
     universalForced,
+    componentDefinitions: brain.eligibleDefinitions,
     componentRun,
     identityOrder: brain.description.decisionLayerOrder,
     configuredComponents: brain.description.components.configured,
@@ -244,9 +322,12 @@ test('resolved order drives monotone narrowing, selection, and causal use', asyn
   const input = await nativeFixtureInput()
   const run = runDecisionLayers(input)
   assert.deepEqual(input.identityOrder, [NARROW_LAYER, SELECT_LAYER])
-  assert.deepEqual(input.configuredComponents, [FIXTURE_COMPONENT].map(
-    ({ id, version }) => ({ id, version }),
-  ))
+  assert.deepEqual(input.configuredComponents, [
+    FIXTURE_DEPENDENCY_ROOT,
+    FIXTURE_DEPENDENCY_MIDDLE,
+    FIXTURE_COMPONENT,
+    UNUSED_COMPONENT,
+  ].map(({ id, version }) => ({ id, version })))
   assert.deepEqual(run.configured, [NARROW_LAYER, SELECT_LAYER])
   assert.deepEqual(
     run.journal.map((entry) => entry.status),
@@ -261,10 +342,62 @@ test('resolved order drives monotone narrowing, selection, and causal use', asyn
   assert.equal(run.operations.layersVisited, 2)
   assert.equal(run.operations.layersExecuted, 2)
   assert.equal(run.operations.surfaceBuildAttempts, 2)
-  const use = run.componentRun.policyUse.find(
-    (entry) => entry.component.id === FIXTURE_COMPONENT.id,
+  assert.deepEqual(
+    run.journal[0].componentReads,
+    [FIXTURE_COMPONENT].map(({ id, version }) => ({ id, version })),
   )
-  assert.deepEqual(use?.stages, ['strategic-decision'])
+  assert.deepEqual(
+    run.journal[0].status === 'applied'
+      ? run.journal[0].attributedComponents
+      : [],
+    [
+      FIXTURE_DEPENDENCY_ROOT,
+      FIXTURE_DEPENDENCY_MIDDLE,
+      FIXTURE_COMPONENT,
+    ].map(({ id, version }) => ({ id, version })),
+  )
+  for (const token of [
+    FIXTURE_DEPENDENCY_ROOT,
+    FIXTURE_DEPENDENCY_MIDDLE,
+    FIXTURE_COMPONENT,
+  ]) {
+    const use = run.componentRun.policyUse.find(
+      (entry) => entry.component.id === token.id,
+    )
+    assert.deepEqual(use?.stages, ['strategic-decision'])
+  }
+  assert.equal(
+    run.componentRun.policyUse.find(
+      (entry) => entry.component.id === UNUSED_COMPONENT.id,
+    )?.used,
+    false,
+  )
+  assert.deepEqual(run.operations, {
+    universalCandidateIdsVisited: 10,
+    legalCandidatesVisited: 10,
+    layersVisited: 2,
+    layersSuppressed: 0,
+    applicabilityEvaluations: 2,
+    layersExecuted: 2,
+    componentLookupAttempts: 2,
+    componentPayloadIndexEntriesVisited: 4,
+    componentPayloadReads: 1,
+    componentPayloadsMaterialized: 1,
+    componentDefinitionIndexEntriesVisited: 4,
+    decisionLayerComponentRequirementsIndexed: 2,
+    componentClosureRootsVisited: 2,
+    componentDependencyEdgesVisited: 4,
+    componentClosureComponentsEmitted: 6,
+    componentAttributionUnionTokensVisited: 6,
+    componentAttributionTokensVisited: 3,
+    componentAttributionEntriesVisited: 4,
+    componentAttributionPolicyUseEntriesVisited: 4,
+    surfaceBuildAttempts: 2,
+    surfacePriorSurvivorsVisited: 12,
+    surfaceDraftSurvivorsVisited: 3,
+    surfaceReasonsVisited: 2,
+    surfaceBytesConstructed: 360,
+  })
 })
 
 test('construction rejects registry substitution and invalid ordered identity', () => {
@@ -287,7 +420,7 @@ test('construction rejects registry substitution and invalid ordered identity', 
     ...FIXTURE_DEFINITION,
     token: {
       ...FIXTURE_COMPONENT,
-      privacy: 'public',
+      kind: 'objective',
     },
   } as any
   assert.throws(
@@ -296,9 +429,43 @@ test('construction rejects registry substitution and invalid ordered identity', 
       decisionLayerOrder: [NARROW_LAYER],
       configuredPipeline: testConfiguredPipeline(),
     }, createDecisionComponentRegistry([
+      ROOT_DEFINITION,
+      MIDDLE_DEFINITION,
       substitutedComponent,
     ]), EMPTY_SCORE_LAYER_REGISTRY, layerRegistry),
     /substitutes component tag/,
+  )
+
+  const cycleA: ComponentToken<{ readonly value: 'a' }> = Object.freeze({
+    id: 'test-decision-layer-cycle-a',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  })
+  const cycleB: ComponentToken<{ readonly value: 'b' }> = Object.freeze({
+    id: 'test-decision-layer-cycle-b',
+    version: 'v1',
+    kind: 'projection',
+    privacy: 'private',
+  })
+  assert.throws(
+    () => createDecisionComponentRegistry([
+      literalDefinition(cycleA, { value: 'a' } as const, [cycleB]),
+      literalDefinition(cycleB, { value: 'b' } as const, [cycleA]),
+    ]),
+    /cycle/,
+  )
+  const unknownDependency = literalDefinition(
+    cycleA,
+    { value: 'a' } as const,
+    [{
+      id: 'test-decision-layer-missing',
+      version: 'v1',
+    } as any],
+  )
+  assert.throws(
+    () => createDecisionComponentRegistry([unknownDependency]),
+    /requires missing/,
   )
 })
 
@@ -306,20 +473,53 @@ test('generic exact replay rejects order, journal, selection, and budget drift',
   const input = await nativeFixtureInput()
   const run = runDecisionLayers(input)
   const claimed = projectDecisionLayerRun(run)
+  const authority = createDecisionLayerAdmissionAuthority()
   const registry = createDecisionLayerRegistry([
     NARROW_DEFINITION,
     SELECT_DEFINITION,
   ])
-  const replay = (candidate: typeof claimed) =>
-    replayDecisionLayersForAdmission({
+  const replay = (
+    candidate: typeof claimed,
+    componentRun = run.componentRun,
+  ) => {
+    const canonical = canonicalizeJson(candidate, 4_194_304)
+    assert.equal(canonical.ok, true)
+    if (!canonical.ok) return undefined
+    const admitted = authority.admitCanonical(canonical.payload)
+    if (!admitted) return undefined
+    return authority.replay({
       ...input,
       registry,
       configured: input.order.order,
-      componentRun: input.componentRun,
-      claimed: candidate,
+      componentRun,
+      claimed: admitted,
     })
-  assert.ok(validateDecisionLayerRun(structuredClone(claimed)))
+  }
   assert.ok(replay(structuredClone(claimed)))
+  assert.equal(authority.replay({
+    ...input,
+    registry,
+    configured: input.order.order,
+    componentRun: run.componentRun,
+    claimed: structuredClone(claimed) as any,
+  }), undefined)
+  let hostileReads = 0
+  const hostileCanonicalClaim = {
+    get configured() {
+      hostileReads++
+      throw new Error('must not execute')
+    },
+    journal: [],
+    operations: {},
+    surface: {},
+    version: 'decision-layer-run-v1',
+  }
+  Object.freeze(hostileCanonicalClaim)
+  assert.equal(
+    authority.admitCanonical(hostileCanonicalClaim as any),
+    undefined,
+  )
+  assert.equal(hostileReads, 0)
 
   const mutations = [
     (value: any) => value.configured.reverse(),
@@ -341,6 +541,47 @@ test('generic exact replay rejects order, journal, selection, and budget drift',
     mutate(hostile)
     assert.equal(replay(hostile), undefined)
   }
+
+  const withStages = (
+    source: typeof run.componentRun,
+    componentId: string,
+    stages: readonly string[],
+  ) => ({
+    ...structuredClone(source),
+    policyUse: structuredClone(source.policyUse).map((entry) =>
+      entry.component.id === componentId
+        ? {
+            ...entry,
+            used: stages.length > 0,
+            stages: [...stages],
+          }
+        : entry),
+  })
+  const nonTerminalStage = withStages(
+    run.componentRun,
+    FIXTURE_COMPONENT.id,
+    ['strategic-decision', 'candidate-score'],
+  )
+  assert.ok(replay(structuredClone(claimed), nonTerminalStage))
+
+  const extra = withStages(
+    run.componentRun,
+    UNUSED_COMPONENT.id,
+    ['strategic-decision'],
+  )
+  assert.equal(replay(structuredClone(claimed), extra), undefined)
+  const missing = withStages(
+    run.componentRun,
+    FIXTURE_COMPONENT.id,
+    [],
+  )
+  assert.equal(replay(structuredClone(claimed), missing), undefined)
+  const rewritten = withStages(
+    run.componentRun,
+    FIXTURE_COMPONENT.id,
+    ['strategic-decision-rewritten'],
+  )
+  assert.equal(replay(structuredClone(claimed), rewritten), undefined)
 })
 
 test('factory provenance, dependency admission, and universal dominance fail closed', async () => {
@@ -373,10 +614,14 @@ test('factory provenance, dependency admission, and universal dominance fail clo
   )
 
   const unavailableRun = structuredClone(input.componentRun)
-  ;(unavailableRun.entries[0] as any) = {
-    component: unavailableRun.entries[0].component,
-    kind: unavailableRun.entries[0].kind,
-    privacy: unavailableRun.entries[0].privacy,
+  const rootIndex = unavailableRun.entries.findIndex(
+    (entry) => entry.component.id === FIXTURE_DEPENDENCY_ROOT.id,
+  )
+  assert.notEqual(rootIndex, -1)
+  ;(unavailableRun.entries[rootIndex] as any) = {
+    component: unavailableRun.entries[rootIndex].component,
+    kind: unavailableRun.entries[rootIndex].kind,
+    privacy: unavailableRun.entries[rootIndex].privacy,
     status: 'inapplicable',
   }
   const unavailable = runDecisionLayers({
@@ -395,8 +640,34 @@ test('factory provenance, dependency admission, and universal dominance fail clo
   )
 
   const selectedId = input.universalForced.allowedCandidateIds[0]
+  let appliesCalls = 0
+  let executeCalls = 0
+  const adversarialLayer: DecisionLayerDefinition = {
+    token: decisionLayerToken('test-native-after-selection', 'v1'),
+    requiredComponents: [FIXTURE_COMPONENT],
+    degradationCode: 'test-native-after-selection-failed',
+    applies() {
+      appliesCalls++
+      return true
+    },
+    execute({ components, surface, prior }) {
+      executeCalls++
+      components.require(FIXTURE_COMPONENT)
+      return {
+        status: 'applied',
+        surface: surface.create({
+          survivorCandidateIds: prior.survivorCandidateIds,
+          selectedCandidateId: prior.selectedCandidateId,
+          reasonCodes: ['TEST_FORGED_RELABEL'],
+        }),
+      }
+    },
+  }
   const dominated = runDecisionLayers({
     ...input,
+    order: createDecisionLayerRegistry([adversarialLayer]).resolve([
+      adversarialLayer.token,
+    ]),
     universalForced: {
       ...input.universalForced,
       applied: true,
@@ -406,14 +677,213 @@ test('factory provenance, dependency admission, and universal dominance fail clo
   })
   assert.deepEqual(
     dominated.journal.map((entry) => entry.status),
-    ['inapplicable', 'inapplicable'],
+    ['suppressed'],
   )
+  assert.equal(
+    dominated.journal[0].status === 'suppressed'
+      ? dominated.journal[0].suppressionCode
+      : undefined,
+    'universal-policy-selected',
+  )
+  assert.equal(appliesCalls, 0)
+  assert.equal(executeCalls, 0)
+  assert.equal(dominated.operations.applicabilityEvaluations, 0)
+  assert.equal(dominated.operations.layersExecuted, 0)
+  assert.equal(dominated.operations.layersSuppressed, 1)
+  assert.deepEqual(dominated.surface.reasonCodes, [])
   assert.equal(dominated.surface.selectedCandidateId, selectedId)
   assert.equal(
     dominated.componentRun.policyUse.find(
       (entry) => entry.component.id === FIXTURE_COMPONENT.id,
     )?.used,
     false,
+  )
+  const suppressionAuthority = createDecisionLayerAdmissionAuthority()
+  const suppressionRegistry =
+    createDecisionLayerRegistry([adversarialLayer])
+  const suppressionClaim = projectDecisionLayerRun(dominated)
+  const admittedSuppression = canonicalizeJson(
+    suppressionClaim,
+    4_194_304,
+  )
+  assert.equal(admittedSuppression.ok, true)
+  assert.ok(admittedSuppression.ok)
+  const suppressionCapability = suppressionAuthority.admitCanonical(
+    admittedSuppression.payload,
+  )
+  assert.ok(suppressionCapability)
+  assert.ok(suppressionAuthority.replay({
+    ...input,
+    registry: suppressionRegistry,
+    configured: [adversarialLayer.token],
+    universalForced: {
+      ...input.universalForced,
+      applied: true,
+      selectedCandidateId: selectedId,
+      allowedCandidateIds: [selectedId],
+    },
+    componentRun: dominated.componentRun,
+    claimed: suppressionCapability,
+  }))
+  const rewrittenSuppression = structuredClone(suppressionClaim) as any
+  rewrittenSuppression.journal[0].status = 'inapplicable'
+  delete rewrittenSuppression.journal[0].suppressionCode
+  const canonicalRewrite = canonicalizeJson(
+    rewrittenSuppression,
+    4_194_304,
+  )
+  assert.ok(canonicalRewrite.ok)
+  const rewriteCapability = suppressionAuthority.admitCanonical(
+    canonicalRewrite.payload,
+  )
+  assert.ok(rewriteCapability)
+  assert.equal(suppressionAuthority.replay({
+    ...input,
+    registry: suppressionRegistry,
+    configured: [adversarialLayer.token],
+    universalForced: {
+      ...input.universalForced,
+      applied: true,
+      selectedCandidateId: selectedId,
+      allowedCandidateIds: [selectedId],
+    },
+    componentRun: dominated.componentRun,
+    claimed: rewriteCapability,
+  }), undefined)
+
+  const terminal = runDecisionLayers({
+    ...input,
+    order: createDecisionLayerRegistry([
+      NARROW_DEFINITION,
+      SELECT_DEFINITION,
+      adversarialLayer,
+    ]).resolve([
+      NARROW_LAYER,
+      SELECT_LAYER,
+      adversarialLayer.token,
+    ]),
+  })
+  assert.deepEqual(
+    terminal.journal.map((entry) => entry.status),
+    ['applied', 'applied', 'suppressed'],
+  )
+  assert.equal(
+    terminal.journal[2].status === 'suppressed'
+      ? terminal.journal[2].suppressionCode
+      : undefined,
+    'prior-strategic-selection',
+  )
+  assert.equal(appliesCalls, 0)
+  assert.equal(executeCalls, 0)
+  assert.deepEqual(terminal.surface.reasonCodes, ['TEST_NATIVE_SELECT'])
+})
+
+test('surface laws reject reuse, widening, reordering, and invalid bounded reasons', async () => {
+  const input = await nativeFixtureInput()
+  const cases: readonly [
+    string,
+    (
+      prior: readonly string[],
+    ) => {
+      survivorCandidateIds: readonly string[]
+      reasonCodes: readonly string[]
+    },
+  ][] = [
+    ['widen', (prior) => ({
+      survivorCandidateIds: [...prior, 'proposal:forged'],
+      reasonCodes: ['TEST_WIDEN'],
+    })],
+    ['reorder', (prior) => ({
+      survivorCandidateIds: [...prior].reverse(),
+      reasonCodes: ['TEST_REORDER'],
+    })],
+    ['duplicate-survivor', (prior) => ({
+      survivorCandidateIds: [prior[0], prior[0]],
+      reasonCodes: ['TEST_DUPLICATE'],
+    })],
+    ['duplicate-reason', (prior) => ({
+      survivorCandidateIds: prior,
+      reasonCodes: ['TEST_REASON', 'TEST_REASON'],
+    })],
+    ['invalid-reason', (prior) => ({
+      survivorCandidateIds: prior,
+      reasonCodes: ['not_canonical'],
+    })],
+    ['oversized-reason', (prior) => ({
+      survivorCandidateIds: prior,
+      reasonCodes: [`X${'Y'.repeat(128)}`],
+    })],
+  ]
+  for (const [label, draft] of cases) {
+    const token = decisionLayerToken(`test-surface-${label}`, 'v1')
+    const definition: DecisionLayerDefinition = {
+      token,
+      requiredComponents: [],
+      degradationCode: `test-surface-${label}-failed`,
+      applies: () => true,
+      execute({ prior, surface }) {
+        return {
+          status: 'applied',
+          surface: surface.create(draft(prior.survivorCandidateIds)),
+        }
+      },
+    }
+    const run = runDecisionLayers({
+      ...input,
+      order: createDecisionLayerRegistry([definition]).resolve([token]),
+    })
+    assert.equal(run.journal[0].status, 'degraded', label)
+    assert.equal(
+      run.journal[0].status === 'degraded'
+        ? run.journal[0].failureCode
+        : undefined,
+      'execution-failed',
+      label,
+    )
+  }
+
+  let retainedFactory: any
+  const captureToken = decisionLayerToken('test-surface-capture', 'v1')
+  const capture: DecisionLayerDefinition = {
+    token: captureToken,
+    requiredComponents: [],
+    degradationCode: 'test-surface-capture-failed',
+    applies: () => true,
+    execute({ surface }) {
+      retainedFactory = surface
+      return { status: 'degraded' }
+    },
+  }
+  runDecisionLayers({
+    ...input,
+    order: createDecisionLayerRegistry([capture]).resolve([captureToken]),
+  })
+  const reuseToken = decisionLayerToken('test-surface-reuse', 'v1')
+  const reuse: DecisionLayerDefinition = {
+    token: reuseToken,
+    requiredComponents: [],
+    degradationCode: 'test-surface-reuse-failed',
+    applies: () => true,
+    execute({ prior }) {
+      return {
+        status: 'applied',
+        surface: retainedFactory.create({
+          survivorCandidateIds: prior.survivorCandidateIds,
+          reasonCodes: ['TEST_REUSE'],
+        }),
+      }
+    },
+  }
+  const reused = runDecisionLayers({
+    ...input,
+    order: createDecisionLayerRegistry([reuse]).resolve([reuseToken]),
+  })
+  assert.equal(reused.journal[0].status, 'degraded')
+  assert.equal(
+    reused.journal[0].status === 'degraded'
+      ? reused.journal[0].failureCode
+      : undefined,
+    'invalid-surface',
   )
 })
 
@@ -441,6 +911,32 @@ test('production empty seam is neutral and exact host replay rejects rewrites', 
     trace.decisionLayerRun.surface.selectedCandidateId,
     trace.forcedPolicyResult.selectedCandidateId,
   )
+  assert.deepEqual(trace.decisionLayerRun.operations, {
+    universalCandidateIdsVisited: 10,
+    legalCandidatesVisited: 10,
+    layersVisited: 0,
+    layersSuppressed: 0,
+    applicabilityEvaluations: 0,
+    layersExecuted: 0,
+    componentLookupAttempts: 0,
+    componentPayloadIndexEntriesVisited: 0,
+    componentPayloadReads: 0,
+    componentPayloadsMaterialized: 0,
+    componentDefinitionIndexEntriesVisited: 0,
+    decisionLayerComponentRequirementsIndexed: 0,
+    componentClosureRootsVisited: 0,
+    componentDependencyEdgesVisited: 0,
+    componentClosureComponentsEmitted: 0,
+    componentAttributionUnionTokensVisited: 0,
+    componentAttributionTokensVisited: 0,
+    componentAttributionEntriesVisited: 0,
+    componentAttributionPolicyUseEntriesVisited: 0,
+    surfaceBuildAttempts: 0,
+    surfacePriorSurvivorsVisited: 0,
+    surfaceDraftSurvivorsVisited: 0,
+    surfaceReasonsVisited: 0,
+    surfaceBytesConstructed: 0,
+  })
 
   const brain = agent.resolvedBrain()
   const exactInput = {
@@ -462,4 +958,36 @@ test('production empty seam is neutral and exact host replay rejects rewrites', 
     ...exactInput,
     trace: rewrite,
   }), false)
+  const invalidDiagnostic = structuredClone(trace)
+  delete invalidDiagnostic.decisionLayerRun.operations.layersVisited
+  const diagnostic = admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace: invalidDiagnostic,
+    req: request,
+    view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: seed,
+  })
+  assert.deepEqual(
+    diagnostic.kind === 'rejected'
+      ? [diagnostic.lifecycle, diagnostic.reason]
+      : [diagnostic.kind],
+    ['finalized-artifact', 'finalized-diagnostic-invalid'],
+  )
+
+  let unsafeReads = 0
+  const unsafe = structuredClone(trace)
+  Object.defineProperty(unsafe.decisionLayerRun, 'configured', {
+    enumerable: true,
+    get() {
+      unsafeReads++
+      throw new Error('whole-trace ingress must reject before reading')
+    },
+  })
+  assert.equal(validateComposedTraceHostJoin({
+    ...exactInput,
+    trace: unsafe,
+  }), false)
+  assert.equal(unsafeReads, 0)
 })

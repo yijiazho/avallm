@@ -538,6 +538,7 @@ export function withResolvedDecisionLayers(
     analysis: frame.analysis,
     candidates: frame.legalCandidates,
     universalForced: frame.universalForced,
+    componentDefinitions: brain.eligibleDefinitions,
     componentRun: frame.componentRun,
   })
   const next = Object.freeze({

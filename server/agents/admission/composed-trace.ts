@@ -162,8 +162,8 @@ import {
   validateDecisionComponentRunHostJoin,
 } from '../components/kernel.ts'
 import {
-  replayDecisionLayersForAdmission,
-  validateDecisionLayerRun,
+  createDecisionLayerAdmissionAuthority,
+  type AdmittedDecisionLayerTrace,
 } from '../policy/decision-layer/admission-replay.ts'
 import {
   createConfiguredDecisionLayerRegistry,
@@ -197,6 +197,7 @@ import {
   canonicalizeJson,
   canonicalizeTransportJson,
   canonicalJsonEqual,
+  type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
 import {
   EVIL_QUEST_CARD_POLICY_VERSION,
@@ -3068,6 +3069,8 @@ const PRODUCTION_COMPONENT_REGISTRY = createProductionComponentRegistry({
 })
 const PRODUCTION_DECISION_LAYER_REGISTRY =
   createConfiguredDecisionLayerRegistry()
+const DECISION_LAYER_ADMISSION =
+  createDecisionLayerAdmissionAuthority()
 
 const COMPONENT_FAILURE_CODES = new Set([
   'construction-ineligible',
@@ -3584,6 +3587,7 @@ function validDecisionTrace(
   decision: Decision,
   value: unknown,
   hostView?: PlayerView | Pick<PlayerView, 'rolesInPlay'>,
+  decisionLayerAdmission?: AdmittedDecisionLayerTrace,
 ): value is DecisionTrace {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const trace = value as Record<string, unknown>
@@ -3658,7 +3662,7 @@ function validDecisionTrace(
     )
     && (
       trace.version === DECISION_TRACE_VERSION
-      || validateDecisionLayerRun(trace.decisionLayerRun)
+      || decisionLayerAdmission !== undefined
     )
     && (
       trace.version === COMPONENT_DECISION_TRACE_VERSION
@@ -3754,6 +3758,7 @@ function validDecisionTrace(
  */
 interface ExactComposedTraceHostJoinInput {
   trace: DecisionTrace
+  decisionLayerAdmission?: AdmittedDecisionLayerTrace
   req: DecisionRequest
   view: PlayerView
   /** Authoritative applied/replayed action, including normalized communication. */
@@ -3782,6 +3787,7 @@ function validExactComposedTraceHostJoin(
   try {
     const {
       trace,
+      decisionLayerAdmission,
       req,
       view,
       authoritativeAction,
@@ -3829,6 +3835,7 @@ function validExactComposedTraceHostJoin(
           !policyHostSurface
           || !validExactDecisionLayerHostJoin(
             trace,
+            decisionLayerAdmission,
             req,
             view,
             policyHostSurface,
@@ -4702,6 +4709,7 @@ function exactPolicyHostSurface(
  */
 function validExactDecisionLayerHostJoin(
   trace: DecisionTrace,
+  admission: AdmittedDecisionLayerTrace | undefined,
   req: DecisionRequest,
   view: PlayerView,
   surface: ExactPolicyHostSurface,
@@ -4712,9 +4720,15 @@ function validExactDecisionLayerHostJoin(
       trace.version !== COMPONENT_DECISION_TRACE_VERSION
       || !trace.components
       || !trace.decisionLayerRun
-      || !validateDecisionLayerRun(trace.decisionLayerRun)
+      || !admission
     ) return false
-    return replayDecisionLayersForAdmission({
+    const componentDefinitions = identity.components.eligible.map(
+      (ref) => PRODUCTION_COMPONENT_REGISTRY.definition(ref),
+    )
+    if (componentDefinitions.some(
+      (definition) => definition === undefined,
+    )) return false
+    return DECISION_LAYER_ADMISSION.replay({
       registry: PRODUCTION_DECISION_LAYER_REGISTRY,
       configured: identity.decisionLayerOrder,
       request: req,
@@ -4722,8 +4736,11 @@ function validExactDecisionLayerHostJoin(
       analysis: surface.analysis,
       candidates: surface.candidates,
       universalForced: surface.universalForced,
+      componentDefinitions: componentDefinitions.filter(
+        (definition) => definition !== undefined,
+      ),
       componentRun: trace.components,
-      claimed: trace.decisionLayerRun,
+      claimed: admission,
     }) !== undefined
   } catch {
     return false
@@ -4928,6 +4945,11 @@ export interface CanonicalDecisionTraceCandidate {
 
 const canonicalDecisionTraceCandidates =
   new WeakSet<CanonicalDecisionTraceCandidate>()
+const decisionLayerAdmissionByCandidate =
+  new WeakMap<
+    CanonicalDecisionTraceCandidate,
+    AdmittedDecisionLayerTrace | null
+  >()
 
 export type DecisionTraceSnapshotRejection =
   | 'trace-json-unsafe'
@@ -4971,12 +4993,24 @@ export function snapshotDecisionTraceInput(
       reason: 'trace-not-object',
     })
   }
+  const trace =
+    canonical.payload as unknown as Readonly<DecisionTrace>
+  const decisionLayerAdmission =
+    trace.version === COMPONENT_DECISION_TRACE_VERSION
+      ? DECISION_LAYER_ADMISSION.admitCanonical(
+          trace.decisionLayerRun as unknown as CanonicalJsonValue,
+        ) ?? null
+      : null
   const candidate = Object.freeze({
     kind: 'canonical-decision-trace-candidate',
-    trace: canonical.payload as unknown as Readonly<DecisionTrace>,
+    trace,
     bytes: canonical.bytes,
   }) as CanonicalDecisionTraceCandidate
   canonicalDecisionTraceCandidates.add(candidate)
+  decisionLayerAdmissionByCandidate.set(
+    candidate,
+    decisionLayerAdmission,
+  )
   return candidate
 }
 
@@ -5160,6 +5194,8 @@ export function admitCanonicalDecisionTrace(
     )
   }
   const trace = candidate.trace as DecisionTrace
+  const decisionLayerAdmission =
+    decisionLayerAdmissionByCandidate.get(candidate) ?? null
   if (input.kind === 'pre-apply-external') {
     const claimsD3QuestPolicy =
       input.req.kind === 'quest'
@@ -5174,6 +5210,7 @@ export function admitCanonicalDecisionTrace(
       input.decision,
       trace,
       input.hostView,
+      decisionLayerAdmission ?? undefined,
     )) {
       return rejectedAdmission(
         'pre-apply-external',
@@ -5235,6 +5272,9 @@ export function admitCanonicalDecisionTrace(
     ?? input.authoritativeAction
   const exactInput: ExactComposedTraceHostJoinInput = {
     trace,
+    ...(decisionLayerAdmission
+      ? { decisionLayerAdmission }
+      : {}),
     req: input.req,
     view: input.view,
     authoritativeAction: input.authoritativeAction,
@@ -5260,6 +5300,17 @@ export function admitCanonicalDecisionTrace(
       input.view,
     ),
   })
+  if (
+    trace.version === COMPONENT_DECISION_TRACE_VERSION
+    && !decisionLayerAdmission
+  ) {
+    return rejectedAdmission(
+      'finalized-artifact',
+      input.expectedArchitectureIdentity !== undefined
+        ? 'trusted-identity-host-join-failed'
+        : 'finalized-diagnostic-invalid',
+    )
+  }
   if (input.expectedArchitectureIdentity !== undefined) {
     if (!validExactComposedTraceHostJoin(exactInput)) {
       return rejectedAdmission(

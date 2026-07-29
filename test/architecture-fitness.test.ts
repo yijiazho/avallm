@@ -605,8 +605,16 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
         'server/agents/policy/decision-layer/role-name.ts',
         'function applyMorganaRolePolicy() {}',
       ],
+      [
+        'server/agents/policy/decision-layer/admission-replay.ts',
+        'import { canonicalizeJson } from "../../components/canonical-json.ts"',
+      ],
+      [
+        'server/agents/composed.ts',
+        'import { createPolicyComponentRuntime } from "./policy/component-runtime.ts"',
+      ],
     ]),
-    Array(6).fill('ARCH011'),
+    Array(8).fill('ARCH011'),
   )
   assert.deepEqual(
     auditArchitectureSources([
@@ -625,6 +633,14 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
       [
         'server/agents/decision-layers/configured.ts',
         'import type { DecisionLayerDefinition } from "../policy/decision-layer/types.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/runner.ts',
+        'import { createPolicyComponentRuntime } from "../component-runtime.ts"',
+      ],
+      [
+        'server/agents/policy/score-layer/components.ts',
+        'import { createPolicyComponentRuntime } from "../component-runtime.ts"',
       ],
     ]),
     [],
