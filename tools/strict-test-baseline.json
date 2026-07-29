@@ -28,7 +28,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-        "sha256": "7bae8b649622046ce4f6809151a771f7bb328386243f6e22ff8a191ecd833b5c",
+      "sha256": "43c9d70fe691e80d276241e3cc9d04ce95d76a0b2a568e12ee509a41af5f79aa",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -133,17 +133,17 @@
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "f88a06e61bb06f607179cd21ad8237cc3df88d6555560146c8a7f365e235a5a2",
+      "sha256": "ff26efc9bd7631475a1162588965be3f68d38f5c3b0e65e7eb5e1c42c0ed9091",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7e2a-mordred-hostile.test.ts",
-      "sha256": "4cd782104bb7e0fe857dbdf4976e7779cbbb940d573638105778aba47d4600eb",
+      "sha256": "1ff04b6449fe9455897014a25117fe68595f53862b0aeb1d0c3a679bfdf3864a",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e2a-mordred-native.test.ts",
-      "sha256": "6a15dc60e7763bb2fda1df1e4c29ae055c66d314e29a3dc345dc7c8385a52cb0",
+      "sha256": "a09a20a2bbd1bb6bdc4feb5d01eebb50d8ae5a0891a0e408a9163a6c79e216bf",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
@@ -163,7 +163,7 @@
     },
     {
       "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
-      "sha256": "e94c49ea3d24518f1c142c8baef7f039880e39d16c722e4ffa18b0f84c2a8c35",
+      "sha256": "615e9c4964b6194aa334e56ce2e06065ef6f70bfc7ad32b444d79039b76d2022",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {

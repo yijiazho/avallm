@@ -31,6 +31,9 @@ import {
   type ResolvedArchitectureDescriptor,
   type ResolvedArchitectureIdentity,
 } from '../agents/components/resolved-brain.ts'
+import {
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+} from '../agents/components/robust-evil-quest-card.ts'
 
 // Bump on any BREAKING artifact-shape change. Additive fields (like `roles`,
 // added in v2) don't require a bump for readers that tolerate their absence —
@@ -87,7 +90,7 @@ export interface ArtifactStrategyVersions {
   roleUtilities?: readonly string[]
   /** Added in Phase 7D2; distinct from Merlin/Percival roleUtilities. */
   evilRoleUtilities?: readonly string[]
-  /** Added in Phase 7D3; exact and robust quest policies remain distinct. */
+  /** Added in Phase 7D3; current robust quest policy identity. */
   evilQuestCardPolicies?: readonly string[]
   /** Added in Phase 7E1A; configured and resolved private substrates. */
   morganaCounterfeitObjectives?: readonly string[]
@@ -284,15 +287,20 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     architecture.evilRoleUtility,
     ...traces.map((trace) => trace.componentVersions?.evilRoleUtility),
   ])
-  const evilQuestCardPolicies = sortedUnique([
-    architecture.evilQuestCardPolicy,
-    ...traces.map(
-      (trace) => trace.componentVersions?.evilQuestCardPolicy,
-    ),
-    ...traces.map(
-      (trace) => trace.componentVersions?.configuredEvilQuestCardPolicy,
-    ),
-  ])
+  const trustedIdentity = opts.trustedArchitecture === undefined
+    ? undefined
+    : projectResolvedArchitectureIdentity(
+        opts.trustedArchitecture.descriptor,
+      )
+  const evilQuestCardPolicies = sortedUnique(
+    trustedIdentity?.components.configured.some(
+      (component) =>
+        component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id
+        && component.version === EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
+    )
+      ? [EVIL_QUEST_CARD_ROBUST_COMPONENT.version]
+      : [],
+  )
   const morganaCounterfeitObjectives = sortedUnique([
     architecture.morganaCounterfeitObjective,
     ...traces.map(

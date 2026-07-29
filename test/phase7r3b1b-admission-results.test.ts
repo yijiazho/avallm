@@ -93,6 +93,35 @@ test('external admission snapshots hostile input before any trace field read', (
   assert.equal(resultKind(oversized), 'pre-apply-external:trace-too-large')
 })
 
+test('removed quest-policy flats are closed-ingress tombstones', () => {
+  const fixture = readDecisionFixtures().find(
+    (entry) => entry.id === 'servant-vote-after-evidence',
+  )!
+  const external = minimalExternalTrace(fixture)
+  const cases = [
+    { privateEvilQuestCardPolicy: { mode: 'removed' } },
+    { componentVersions: { evilQuestCardPolicy: 'removed-policy' } },
+    {
+      componentVersions: {
+        configuredEvilQuestCardPolicy: 'unknown-policy',
+      },
+    },
+  ]
+  for (const removed of cases) {
+    const rejected = admitDecisionTrace({
+      kind: 'pre-apply-external',
+      req: fixture.req,
+      decision: external.decision,
+      trace: { ...external.trace, ...removed },
+      hostView: fixture.view,
+    })
+    assert.equal(
+      resultKind(rejected),
+      'pre-apply-external:removed-flat-field',
+    )
+  }
+})
+
 test('external diagnostics retain only the canonical detached snapshot', () => {
   const fixture = readDecisionFixtures().find(
     (entry) => entry.id === 'servant-vote-after-evidence',

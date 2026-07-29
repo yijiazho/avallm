@@ -1703,7 +1703,7 @@ export function createComposedAgent(
           }
         }
         if (configuredEvilQuestCardComponent) {
-          const privateEvilQuestCardPolicy = componentPayload(
+          const robustQuestCardPolicy = componentPayload(
             componentRun,
             configuredEvilQuestCardComponent,
           )
@@ -1720,7 +1720,7 @@ export function createComposedAgent(
                 ROBUST_EVIL_QUEST_CARD_DECISION_DEGRADATION,
               )
             }
-            if (privateEvilQuestCardPolicy) stage('quest-card-policy')
+            if (robustQuestCardPolicy) stage('quest-card-policy')
           }
         }
         const forced = postComponentFrame.effectiveForced

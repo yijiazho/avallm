@@ -96,7 +96,6 @@ import {
   type DecisionTraceSnapshotResult,
 } from '../agents/admission/composed-trace.ts'
 import {
-  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../agents/policy/evil-quest-card.ts'
 import {
@@ -718,7 +717,7 @@ function hasComponentManifestClaim(
 }
 
 const PRIVATE_ARCHITECTURE_TELEMETRY =
-  /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|privateEvilQuestCardPolicy|evilQuestCardPolicy|configuredEvilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|orderedVisibleEvilAboard|visibleEvilAboardCount|sourceFingerprint|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/
+  /decisionTrace|decisionComponents|decision-component-run|componentPlan|policyUse|componentEvidence|hostInput|candidateScores|roleObjectiveFeatures|evilRoleObjectiveFeatures|morganaRoleObjectiveFeatures|topHypotheses|communicationIntent|beliefProvenance|beliefPlayerMarginals|beliefTeamAssessments|publicObserver|privateIdentity|identityModel|privateRoleObjective|privateEvilRoleObjective|evilRoleObjective|roleObjectiveRouter|roleObjective|privateRoleUtility|roleUtility|privateEvilRoleUtility|evilRoleUtility|privateMorganaRoleUtility|morganaRoleUtility|evilQuestCardPolicy|publicMorganaCounterfeitRead|privateMorganaCounterfeitObjective|morganaCounterfeit|configuredScorer|privatePlanOutcome|planMemory|coherence|coherenceIntent/
 
 function currentArchitectureSafety(
   artifact: GameArtifact,
@@ -958,14 +957,10 @@ function legacyArchitectureSafety(
   const declaredEvilQuestCardPolicy =
     meta.components.evilQuestCardPolicy
   const declaresEvilQuestCardPolicy =
-    declaredEvilQuestCardPolicy === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-    || declaredEvilQuestCardPolicy === EVIL_QUEST_ROBUST_POLICY_VERSION
+    declaredEvilQuestCardPolicy === EVIL_QUEST_ROBUST_POLICY_VERSION
   const invalidEvilQuestCardPolicyDeclaration =
     declaredEvilQuestCardPolicy === undefined
       ? meta.components.populationAssumption !== undefined
-      : declaredEvilQuestCardPolicy
-          === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-        ? true
       : (
           !declaresEvilQuestCardPolicy
           || meta.components.populationAssumption
@@ -1377,54 +1372,12 @@ function legacyArchitectureSafety(
       || invalidMorganaRoleUtilityDeclaration
       || invalidTraceShape
       || (
-        trace.request.kind === 'quest'
-        && !['merlin', 'percival', 'servant', 'oberon']
-          .includes(meta.targetRole)
-          ? (
-              declaredEvilQuestCardPolicy
-                === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-                ? !(
-                  (
-                    versions.evilQuestCardPolicy
-                      === declaredEvilQuestCardPolicy
-                    && trace.privateEvilQuestCardPolicy?.policyVersion
-                      === declaredEvilQuestCardPolicy
-                  )
-                  || (
-                    traceAdmission.facts.evilQuestCardPolicy.state
-                      === 'universally-suppressed'
-                  )
-                )
-                : declaredEvilQuestCardPolicy
-                    === EVIL_QUEST_ROBUST_POLICY_VERSION
-                  ? (
-                      versions.evilQuestCardPolicy !== undefined
-                      || versions.configuredEvilQuestCardPolicy !== undefined
-                      || trace.privateEvilQuestCardPolicy !== undefined
-                      || ![
-                        'resolved',
-                        'universally-suppressed',
-                      ].includes(
-                        traceAdmission.facts.evilQuestCardPolicy.state,
-                      )
-                    )
-                  : (
-                      versions.evilQuestCardPolicy !== undefined
-                      || trace.privateEvilQuestCardPolicy !== undefined
-                    )
-            )
-          : (
-              versions.evilQuestCardPolicy !== undefined
-              || trace.privateEvilQuestCardPolicy !== undefined
-            )
+        declaresEvilQuestCardPolicy
+          ? traceAdmission.facts.evilQuestCardPolicy.state
+            === 'not-configured'
+          : traceAdmission.facts.evilQuestCardPolicy.state
+            !== 'not-configured'
       )
-      || versions.configuredEvilQuestCardPolicy
-        !== (
-          declaredEvilQuestCardPolicy
-            === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-            ? declaredEvilQuestCardPolicy
-            : undefined
-        )
       || versions.configuredMorganaCounterfeitObjective
         !== (
           declaresMorganaCounterfeit
@@ -1776,7 +1729,10 @@ function legacyArchitectureSafety(
               trace.privateIdentity === undefined
                 ? !trace.degradation.includes('identity-projection-failed')
                 : (
-                    !validatePrivateIdentityHostJoin(
+                    trace.degradation.includes(
+                      'identity-projection-failed',
+                    )
+                    || !validatePrivateIdentityHostJoin(
                       trace.privateIdentity,
                       artifact.roles,
                       trace.beliefPlayerMarginals,
@@ -1786,6 +1742,14 @@ function legacyArchitectureSafety(
                     || trace.privateIdentity.sourceBelief.throughSeq
                       !== trace.beliefThroughSeq
                     || trace.privateIdentity.sourceBelief.quality !== trace.quality
+                    || (
+                      evilRoleObjectiveApplicable
+                      && (
+                        !trace.privateIdentity.scope.hiddenTeam
+                        || trace.privateIdentity.hiddenTeamPosterior
+                          === undefined
+                      )
+                    )
                   )
             )
           : (

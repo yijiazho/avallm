@@ -520,7 +520,7 @@ test('generic score-layer kernel cannot grow role-specific dependencies or branc
       ],
       [
         'server/agents/policy/score-layer/token-import.ts',
-        'import { TOKEN } from "../../components/legacy-role-adapters.ts"',
+        'import { TOKEN } from "../../components/native-role-components.ts"',
       ],
       [
         'server/agents/policy/score-layer/role-branch.ts',
@@ -587,7 +587,7 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
       ],
       [
         'server/agents/policy/decision-layer/token-import.ts',
-        'import { TOKEN } from "../../components/legacy-role-adapters.ts"',
+        'import { TOKEN } from "../../components/native-role-components.ts"',
       ],
       [
         'server/agents/policy/decision-layer/concrete-import.ts',

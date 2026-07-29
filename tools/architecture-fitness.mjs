@@ -604,7 +604,6 @@ export function auditArchitectureSources(sourceEntries) {
             target.startsWith('server/agents/analysis/')
             && target !== 'server/agents/analysis/types'
           )
-          || target === 'server/agents/components/legacy-role-adapters'
           || target === 'server/agents/components/native-role-components'
           || target.startsWith('server/agents/decision-layers/')
           || target === 'server/agents/policy/evil-quest-card'
@@ -623,8 +622,7 @@ export function auditArchitectureSources(sourceEntries) {
       if (
         sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
         && (
-          target === 'server/agents/components/legacy-role-adapters'
-          || target === 'server/agents/components/native-role-components'
+          target === 'server/agents/components/native-role-components'
           || target.startsWith('server/agents/score-layers/')
           || target === 'server/agents/policy/score'
           || target === 'server/agents/policy/legacy-scoring'

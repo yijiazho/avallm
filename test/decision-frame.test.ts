@@ -9,7 +9,7 @@ import {
 import {
   PRIVATE_FORCED_POLICY_INPUT,
   PRIVATE_SITUATION_INPUT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/robust-evil-quest-card.ts'
@@ -592,11 +592,6 @@ test('real robust D3 is native strategic authority with exact attribution', asyn
     resolved.componentRun,
     EVIL_QUEST_CARD_ROBUST_COMPONENT,
   ))
-  assert.equal(output.trace!.privateEvilQuestCardPolicy, undefined)
-  assert.equal(
-    output.trace!.componentVersions!.evilQuestCardPolicy,
-    undefined,
-  )
   assert.equal(
     JSON.stringify(resolved.universalForced),
     JSON.stringify(output.trace!.forcedPolicyResult),

@@ -119,12 +119,6 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
     surface.selectedCandidateId,
   ])
   assert.equal(trace.chosenCandidateId, surface.selectedCandidateId)
-  assert.equal(trace.componentVersions!.evilQuestCardPolicy, undefined)
-  assert.equal(
-    trace.componentVersions!.configuredEvilQuestCardPolicy,
-    undefined,
-  )
-  assert.equal(trace.privateEvilQuestCardPolicy, undefined)
   assert.ok(trace.degradation.includes('scorer-invalid-output'))
   assert.deepEqual(
     plannerInputs,

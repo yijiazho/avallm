@@ -29,9 +29,6 @@ import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-util
 import type {
   PrivateMorganaRoleUtilityProjection,
 } from './analysis/morgana-role-utility.ts'
-import type {
-  PrivateEvilQuestCardPolicy,
-} from './policy/evil-quest-card.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -126,10 +123,6 @@ export interface DecisionTrace {
     roleUtility?: string
     /** Absent unless the D2 evil/Oberon projection was built. */
     evilRoleUtility?: string
-    /** Resolved D3 policy, present only on applicable evil quest decisions. */
-    evilQuestCardPolicy?: string
-    /** Configured D3 policy; resolved payload remains quest/applicability-only. */
-    configuredEvilQuestCardPolicy?: string
     /** Resolved public-only Phase 7E1A counterfeit-read projection. */
     morganaCounterfeitPublicRead?: string
     /** Resolved private Phase 7E1A candidate objective. */
@@ -187,8 +180,6 @@ export interface DecisionTrace {
   privateRoleUtility?: PrivateRoleUtilityProjection
   /** Private D2 evil/Oberon utility, absent off/inapplicable/degraded. */
   privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
-  /** Private D3 convention, absent unless explicitly configured. */
-  privateEvilQuestCardPolicy?: PrivateEvilQuestCardPolicy
   /** Public-only counterfeit-Merlin read, privately retained in trace. */
   publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot
   /** Private mechanically inert Morgana counterfeit objective. */

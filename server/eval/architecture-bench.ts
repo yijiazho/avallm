@@ -137,7 +137,6 @@ import {
   ResolvedComposedBrain,
 } from '../agents/components/resolved-brain.ts'
 import {
-  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
   EVIL_QUEST_ROBUST_POLICY_VERSION,
 } from '../agents/policy/evil-quest-card.ts'
 import {
@@ -461,20 +460,10 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     if (
       variant.components.evilQuestCardPolicy !== undefined
       && variant.components.evilQuestCardPolicy
-        !== EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      && variant.components.evilQuestCardPolicy
         !== EVIL_QUEST_ROBUST_POLICY_VERSION
     ) {
       throw new Error(
         `custom architecture variant ${variant.id} has invalid evilQuestCardPolicy`,
-      )
-    }
-    if (
-      variant.components.evilQuestCardPolicy
-        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-    ) {
-      throw new Error(
-        `custom architecture variant ${variant.id} cannot verify the homogeneous all-evil population required by exact quota`,
       )
     }
     if (
@@ -848,11 +837,6 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
           const pendingTrace = candidate.trace
           const snapshot = targetSnapshots.get(pendingTrace.decisionId)
           if (!snapshot) return true
-          const pendingStrictComposedTrace = (
-            pendingTrace.agentMode === 'compatibility'
-            || pendingTrace.agentMode === 'structured-only'
-            || pendingTrace.agentMode === 'hybrid'
-          )
           const traceAdmission = admitCanonicalDecisionTrace({
             kind: 'finalized-artifact',
             trace: candidate,
@@ -872,14 +856,6 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                       : undefined,
                 }
               : {}),
-            ...(
-              expectedArchitectureDescriptor === undefined
-              && pendingTrace.version
-                !== COMPONENT_DECISION_TRACE_VERSION
-              && pendingStrictComposedTrace
-                ? { requireLegacyExactHostJoin: true }
-                : {}
-            ),
           })
           if (traceAdmission.kind === 'rejected') {
             traceAdmissionRejection = traceAdmission.reason
@@ -914,11 +890,6 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             )
             || (
               !currentComponentTrace
-              && traceVersions.configuredEvilQuestCardPolicy
-                !== expectedComponents.evilQuestCardPolicy
-            )
-            || (
-              !currentComponentTrace
               && traceVersions.configuredMorganaCounterfeitObjective
                 !== expectedComponents.morganaCounterfeitObjective
             )
@@ -928,48 +899,15 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 !== expectedComponents.morganaRoleUtility
             )
             || (
-              trace.request.kind === 'quest'
-              && trace.request.seat === c.expectedTargetSeat
-              && !['merlin', 'percival', 'servant', 'oberon']
-                .includes(c.targetRole)
+              expectedComponents.evilQuestCardPolicy
+                === EVIL_QUEST_ROBUST_POLICY_VERSION
                 ? (
-                    expectedComponents.evilQuestCardPolicy
-                      === EVIL_QUEST_ROBUST_POLICY_VERSION
-                      && currentComponentTrace
-                      ? (
-                          traceVersions.evilQuestCardPolicy !== undefined
-                          || traceVersions.configuredEvilQuestCardPolicy
-                            !== undefined
-                          || trace.privateEvilQuestCardPolicy !== undefined
-                          || ![
-                            'resolved',
-                            'universally-suppressed',
-                          ].includes(
-                            traceAdmission.facts.evilQuestCardPolicy.state,
-                          )
-                        )
-                      : expectedComponents.evilQuestCardPolicy === undefined
-                      ? (
-                          traceVersions.evilQuestCardPolicy !== undefined
-                          || trace.privateEvilQuestCardPolicy !== undefined
-                        )
-                      : !(
-                          (
-                            traceVersions.evilQuestCardPolicy
-                              === expectedComponents.evilQuestCardPolicy
-                            && trace.privateEvilQuestCardPolicy?.policyVersion
-                              === expectedComponents.evilQuestCardPolicy
-                          )
-                          || (
-                            traceAdmission.facts.evilQuestCardPolicy.state
-                              === 'universally-suppressed'
-                          )
-                        )
+                    !currentComponentTrace
+                    || traceAdmission.facts.evilQuestCardPolicy.state
+                      === 'not-configured'
                   )
-                : (
-                    traceVersions.evilQuestCardPolicy !== undefined
-                    || trace.privateEvilQuestCardPolicy !== undefined
-                  )
+                : traceAdmission.facts.evilQuestCardPolicy.state
+                  !== 'not-configured'
             )
             || (
               !boundedLanguage
@@ -1426,7 +1364,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                     trace.privateIdentity === undefined
                       ? !trace.degradation.includes('identity-projection-failed')
                       : (
-                          !validatePrivateIdentityHostJoin(
+                          trace.degradation.includes(
+                            'identity-projection-failed',
+                          )
+                          || !validatePrivateIdentityHostJoin(
                             trace.privateIdentity,
                             game.config.roles,
                             trace.beliefPlayerMarginals,
@@ -1437,6 +1378,14 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                             !== trace.beliefThroughSeq
                           || trace.privateIdentity.sourceBelief.quality
                             !== trace.quality
+                          || (
+                            evilRoleObjectiveApplicable
+                            && (
+                              !trace.privateIdentity.scope.hiddenTeam
+                              || trace.privateIdentity.hiddenTeamPosterior
+                                === undefined
+                            )
+                          )
                         )
                   )
                 : (

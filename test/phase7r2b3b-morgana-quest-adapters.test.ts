@@ -498,7 +498,6 @@ test('robust D3 generic status and promotion remain policy-owned', async () => {
   if (forcedEntry.status === 'suppressed') {
     assert.equal(forcedEntry.reasonCode, 'universal-forced-policy')
   }
-  assert.equal(forced.trace!.privateEvilQuestCardPolicy, undefined)
   assert.deepEqual(
     forced.trace!.components!.policyUse.find(
       (candidate) =>

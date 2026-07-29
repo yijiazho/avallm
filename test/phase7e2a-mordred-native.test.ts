@@ -29,7 +29,7 @@ import {
 } from '../server/agents/components/registry.ts'
 import {
   PRIVATE_PUBLIC_OBSERVER_INPUT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   projectPrivateResolvedComposedBrainLegacy,
   projectResolvedArchitectureIdentity,

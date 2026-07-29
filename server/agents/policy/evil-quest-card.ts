@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import { isProxy } from 'node:util/types'
 import { fnv1a } from '../../engine/prng.ts'
 import type {
   DecisionRequest,
@@ -17,8 +16,6 @@ import {
 
 export const EVIL_QUEST_CARD_POLICY_VERSION =
   'evil-quest-card-policy-v1'
-export const EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION =
-  'visible-evil-exact-quota-homogeneous-research-v1'
 export const EVIL_QUEST_ROBUST_POLICY_VERSION =
   'evil-robust-heterogeneous-quest-policy-v1'
 export const EVIL_QUEST_PUBLIC_CONTEXT_VERSION =
@@ -30,8 +27,6 @@ export const EVIL_QUEST_CARD_POLICY_DEGRADATION =
 export type EvilQuestCardPolicyMode = 'robust-heterogeneous'
 
 export type EvilQuestCardPolicyReason =
-  | 'EXACT_QUOTA_DESIGNATED_FAIL'
-  | 'EXACT_QUOTA_NONDESIGNATED_SUCCESS'
   | 'INSUFFICIENT_VISIBLE_QUOTA_SUCCESS'
   | 'ROBUST_DECISIVE_FAIL'
   | 'ROBUST_LOCAL_SLOW_PLAY_FAIL'
@@ -55,20 +50,12 @@ export interface EvilQuestPublicContext {
 
 export interface PrivateEvilQuestCardPolicy {
   version: typeof EVIL_QUEST_CARD_POLICY_VERSION
-  policyVersion:
-    | typeof EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-    | typeof EVIL_QUEST_ROBUST_POLICY_VERSION
-  /**
-   * `visible-exact-quota` is accepted only by the historical trace reader.
-   * AvaLLM runtime configuration exposes robust heterogeneous mode alone.
-   */
-  mode: EvilQuestCardPolicyMode | 'visible-exact-quota'
-  coordinationAssumption: 'homogeneous-common-policy-required' | 'none'
-  populationAssumption:
-    | 'homogeneous-all-evil-required'
-    | 'heterogeneous-independent'
-  mixedTableSafe: boolean
-  promotionEvidenceEligible: boolean
+  policyVersion: typeof EVIL_QUEST_ROBUST_POLICY_VERSION
+  mode: EvilQuestCardPolicyMode
+  coordinationAssumption: 'none'
+  populationAssumption: 'heterogeneous-independent'
+  mixedTableSafe: true
+  promotionEvidenceEligible: true
   request: Readonly<DecisionRequest>
   role: Role
   applicable: boolean
@@ -78,266 +65,11 @@ export interface PrivateEvilQuestCardPolicy {
   decisiveBoard: boolean
   visibleEvilCount: number
   visibleEvilAboardCount: number
-  /** Homogeneous exact-only private cohort detail. */
-  visibleEvilSeats?: readonly Seat[]
-  visibleEvilAboard?: readonly Seat[]
-  orderedVisibleEvilAboard?: readonly Seat[]
-  designation?: readonly Seat[]
   slowPlayProbability?: number
   slowPlayBucket?: number
-  sharedSlowPlayGateOpen?: boolean
   localSlowPlayFail?: boolean
   reason: EvilQuestCardPolicyReason
   selectedCard?: 'success' | 'fail'
-}
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value) || isProxy(value)) {
-    return false
-  }
-  const array = Array.isArray(value)
-  const prototype = Object.getPrototypeOf(value)
-  if (
-    array
-      ? prototype !== Array.prototype
-      : prototype !== Object.prototype && prototype !== null
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  const keys = Reflect.ownKeys(value)
-  if (keys.some((key) => typeof key !== 'string')) return false
-  if (array) {
-    const expected = Array.from(
-      { length: value.length },
-      (_, index) => String(index),
-    )
-    if (
-      keys.length !== expected.length + 1
-      || !keys.includes('length')
-      || expected.some((key) => !keys.includes(key))
-    ) return false
-  }
-  seen.add(value)
-  try {
-    for (const key of keys) {
-      if (array && key === 'length') continue
-      const descriptor = descriptors[String(key)]
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-        || !plainDetachedData(descriptor.value, seen)
-      ) return false
-    }
-    return true
-  } finally {
-    seen.delete(value)
-  }
-}
-
-function exactKeys(
-  value: object,
-  expected: readonly string[],
-): boolean {
-  const keys = Object.keys(value)
-  return keys.length === expected.length
-    && keys.every((key) => expected.includes(key))
-}
-
-function seatArray(
-  value: unknown,
-  playerCount: number,
-): value is readonly Seat[] {
-  return Array.isArray(value)
-    && value.every(
-      (seat) =>
-        Number.isSafeInteger(seat)
-        && seat >= 0
-        && seat < playerCount,
-    )
-    && new Set(value).size === value.length
-}
-
-/**
- * Strict detached transport validation for the private D3 payload.
- *
- * This proves the bounded schema and its internal mode invariants. The host
- * join below remains authoritative for request, seat view, public history,
- * and the selected action.
- */
-export function validatePrivateEvilQuestCardPolicy(
-  value: unknown,
-): value is PrivateEvilQuestCardPolicy {
-  try {
-    if (
-      !plainDetachedData(value)
-      || !value
-      || typeof value !== 'object'
-      || Array.isArray(value)
-      || Buffer.byteLength(JSON.stringify(value), 'utf8')
-        > MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES
-    ) return false
-    const policy = value as Record<string, unknown>
-    const optional = [
-      ...(policy.visibleEvilSeats === undefined
-        ? [] : ['visibleEvilSeats']),
-      ...(policy.visibleEvilAboard === undefined
-        ? [] : ['visibleEvilAboard']),
-      ...(policy.orderedVisibleEvilAboard === undefined
-        ? [] : ['orderedVisibleEvilAboard']),
-      ...(policy.designation === undefined ? [] : ['designation']),
-      ...(policy.slowPlayProbability === undefined
-        ? [] : ['slowPlayProbability']),
-      ...(policy.slowPlayBucket === undefined ? [] : ['slowPlayBucket']),
-      ...(policy.sharedSlowPlayGateOpen === undefined
-        ? [] : ['sharedSlowPlayGateOpen']),
-      ...(policy.localSlowPlayFail === undefined
-        ? [] : ['localSlowPlayFail']),
-      ...(policy.selectedCard === undefined ? [] : ['selectedCard']),
-    ]
-    if (!exactKeys(policy, [
-      'version', 'policyVersion', 'mode', 'coordinationAssumption',
-      'populationAssumption', 'mixedTableSafe',
-      'promotionEvidenceEligible', 'request', 'role', 'applicable',
-      'sourceContext', 'sourceFingerprint', 'failsRequired',
-      'decisiveBoard', 'visibleEvilCount', 'visibleEvilAboardCount',
-      'reason', ...optional,
-    ])) return false
-    const request = policy.request as Record<string, unknown>
-    const context = policy.sourceContext as Record<string, unknown>
-    if (
-      policy.version !== EVIL_QUEST_CARD_POLICY_VERSION
-      || (
-        policy.mode !== 'visible-exact-quota'
-        && policy.mode !== 'robust-heterogeneous'
-      )
-      || policy.policyVersion !== (
-        policy.mode === 'visible-exact-quota'
-          ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-          : EVIL_QUEST_ROBUST_POLICY_VERSION
-      )
-      || !request
-      || typeof request !== 'object'
-      || Array.isArray(request)
-      || !exactKeys(request, [
-        'kind', 'seat', 'round', 'proposalNum',
-      ])
-      || request.kind !== 'quest'
-      || !Number.isSafeInteger(request.seat)
-      || !Number.isSafeInteger(request.round)
-      || !Number.isSafeInteger(request.proposalNum)
-      || typeof policy.role !== 'string'
-      || typeof policy.applicable !== 'boolean'
-      || !context
-      || typeof context !== 'object'
-      || Array.isArray(context)
-      || !exactKeys(context, [
-        'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
-        'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
-        'priorProposals',
-      ])
-      || context.version !== EVIL_QUEST_PUBLIC_CONTEXT_VERSION
-      || !Number.isSafeInteger(context.playerCount)
-      || Number(context.playerCount) < 5
-      || Number(context.playerCount) > 10
-      || !Number.isSafeInteger(context.round)
-      || !Number.isSafeInteger(context.proposalNum)
-      || !Number.isSafeInteger(context.leaderSeat)
-      || !seatArray(context.currentTeam, Number(context.playerCount))
-      || !Number.isSafeInteger(context.teamSize)
-      || context.teamSize !== context.currentTeam.length
-      || !Number.isSafeInteger(context.failsRequired)
-      || !Array.isArray(context.priorQuests)
-      || !context.priorQuests.every((entry) => typeof entry === 'string')
-      || !Array.isArray(context.priorProposals)
-      || !context.priorProposals.every((entry) => typeof entry === 'string')
-      || typeof policy.sourceFingerprint !== 'string'
-      || !/^[0-9a-f]{8}$/.test(policy.sourceFingerprint)
-      || !Number.isSafeInteger(policy.failsRequired)
-      || Number(policy.failsRequired) < 1
-      || policy.failsRequired !== context.failsRequired
-      || typeof policy.decisiveBoard !== 'boolean'
-      || !Number.isSafeInteger(policy.visibleEvilCount)
-      || Number(policy.visibleEvilCount) < 0
-      || !Number.isSafeInteger(policy.visibleEvilAboardCount)
-      || Number(policy.visibleEvilAboardCount) < 0
-      || typeof policy.reason !== 'string'
-      || (
-        policy.selectedCard !== undefined
-        && policy.selectedCard !== 'success'
-        && policy.selectedCard !== 'fail'
-      )
-      || (
-        policy.slowPlayProbability !== undefined
-        && (
-          typeof policy.slowPlayProbability !== 'number'
-          || policy.slowPlayProbability < 0
-          || policy.slowPlayProbability > 1
-        )
-      )
-      || (
-        policy.slowPlayBucket !== undefined
-        && (
-          typeof policy.slowPlayBucket !== 'number'
-          || policy.slowPlayBucket < 0
-          || policy.slowPlayBucket > 1
-        )
-      )
-    ) return false
-    const exact = policy.mode === 'visible-exact-quota'
-    const visible = policy.visibleEvilSeats
-    const aboard = policy.visibleEvilAboard
-    const ordered = policy.orderedVisibleEvilAboard
-    const designation = policy.designation
-    if (exact) {
-      if (
-        policy.coordinationAssumption
-          !== 'homogeneous-common-policy-required'
-        || policy.populationAssumption !== 'homogeneous-all-evil-required'
-        || policy.mixedTableSafe !== false
-        || policy.promotionEvidenceEligible !== false
-        || !seatArray(visible, Number(context.playerCount))
-        || !seatArray(aboard, Number(context.playerCount))
-        || !seatArray(ordered, Number(context.playerCount))
-        || !seatArray(designation, Number(context.playerCount))
-        || aboard.some((seat) => !visible.includes(seat))
-        || ordered.length !== aboard.length
-        || ordered.some((seat) => !aboard.includes(seat))
-        || designation.some((seat) => !aboard.includes(seat))
-        || policy.visibleEvilCount !== visible.length
-        || policy.visibleEvilAboardCount !== aboard.length
-        || policy.localSlowPlayFail !== undefined
-      ) return false
-    } else if (
-      policy.coordinationAssumption !== 'none'
-      || policy.populationAssumption !== 'heterogeneous-independent'
-      || policy.mixedTableSafe !== true
-      || policy.promotionEvidenceEligible !== true
-      || visible !== undefined
-      || aboard !== undefined
-      || ordered !== undefined
-      || designation !== undefined
-      || policy.sharedSlowPlayGateOpen !== undefined
-      || typeof policy.visibleEvilAboardCount !== 'number'
-      || typeof policy.visibleEvilCount !== 'number'
-      || policy.visibleEvilAboardCount > policy.visibleEvilCount
-    ) {
-      return false
-    }
-    return true
-  } catch {
-    return false
-  }
 }
 
 const ROBUST_REASON_CODES: readonly EvilQuestCardPolicyReason[] = [
@@ -348,9 +80,7 @@ const ROBUST_REASON_CODES: readonly EvilQuestCardPolicyReason[] = [
 ]
 
 /**
- * Robust-only native decoder after the component kernel's canonical,
- * byte-bounded ingress. Exact-quota's historical optional-field codec stays
- * isolated in validatePrivateEvilQuestCardPolicy until R3B3.
+ * Native decoder after the component kernel's canonical, byte-bounded ingress.
  */
 export function decodeCanonicalRobustEvilQuestCardPolicy(
   value: CanonicalJsonValue,
@@ -571,8 +301,7 @@ export function buildPrivateEvilQuestCardPolicy(input: {
   const common: Omit<
     PrivateEvilQuestCardPolicy,
     'applicable' | 'reason' | 'selectedCard'
-      | 'designation' | 'slowPlayProbability' | 'slowPlayBucket'
-      | 'sharedSlowPlayGateOpen' | 'localSlowPlayFail'
+      | 'slowPlayProbability' | 'slowPlayBucket' | 'localSlowPlayFail'
   > = {
     version: EVIL_QUEST_CARD_POLICY_VERSION,
     policyVersion: EVIL_QUEST_ROBUST_POLICY_VERSION,

@@ -714,11 +714,6 @@ test('E1B leaves the independent robust D3 quest-card path unchanged', async () 
     layered.trace!.decisionLayerRun!.surface,
     baseline.trace!.decisionLayerRun!.surface,
   )
-  assert.equal(
-    layered.trace!.componentVersions!.evilQuestCardPolicy,
-    undefined,
-  )
-  assert.equal(layered.trace!.privateEvilQuestCardPolicy, undefined)
   assert.equal(morganaUtility(layered.trace!), undefined)
 })
 

@@ -52,7 +52,7 @@ import {
 import {
   PRIVATE_BELIEF_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   MORDRED_BLINDNESS_COMPONENT,
   ACTOR_TARGET_TREATMENT_COMPONENT,

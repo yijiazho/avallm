@@ -173,9 +173,6 @@ import {
   createConfiguredDecisionLayerRegistry,
 } from '../decision-layers/configured.ts'
 import {
-  LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
-} from '../components/legacy-role-adapters.ts'
-import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../components/robust-evil-quest-card.ts'
 import {
@@ -209,14 +206,6 @@ import {
   canonicalJsonEqual,
   type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
-import {
-  EVIL_QUEST_CARD_POLICY_VERSION,
-  EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION,
-  EVIL_QUEST_PUBLIC_CONTEXT_VERSION,
-  MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
-  EVIL_QUEST_ROBUST_POLICY_VERSION,
-  validatePrivateEvilQuestCardPolicyHostJoin,
-} from '../policy/evil-quest-card.ts'
 import {
   buildMorganaCounterfeitObjective,
   buildPublicCounterfeitMerlinRead,
@@ -340,20 +329,6 @@ function validComponentVersions(value: unknown): boolean {
     && (
       versions.evilRoleUtility === undefined
       || versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    )
-    && (
-      versions.evilQuestCardPolicy === undefined
-      || versions.evilQuestCardPolicy
-        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      || versions.evilQuestCardPolicy
-        === EVIL_QUEST_ROBUST_POLICY_VERSION
-    )
-    && (
-      versions.configuredEvilQuestCardPolicy === undefined
-      || versions.configuredEvilQuestCardPolicy
-        === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-      || versions.configuredEvilQuestCardPolicy
-        === EVIL_QUEST_ROBUST_POLICY_VERSION
     )
     && (
       versions.morganaCounterfeitPublicRead === undefined
@@ -636,211 +611,6 @@ function validMorganaRolePolicyTrace(
     && components?.morganaCounterfeitObjective
       === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
     && components?.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-}
-
-function validPrivateEvilQuestCardPolicyTrace(
-  value: unknown,
-  trace: TraceValidationInput,
-  req: DecisionRequest,
-  hostView?: PlayerView,
-): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
-  if (value === undefined) {
-    return components?.evilQuestCardPolicy === undefined
-  }
-  const validSourceContext = (source: unknown): boolean => {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) {
-      return false
-    }
-    const context = source as Record<string, unknown>
-    return exactKeys(context, [
-      'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
-      'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
-      'priorProposals',
-    ])
-      && context.version === EVIL_QUEST_PUBLIC_CONTEXT_VERSION
-      && Number.isInteger(context.playerCount)
-      && (context.playerCount as number) >= 5
-      && (context.playerCount as number) <= 10
-      && Number.isInteger(context.round)
-      && (context.round as number) >= 1
-      && (context.round as number) <= 5
-      && Number.isInteger(context.proposalNum)
-      && (context.proposalNum as number) >= 1
-      && (context.proposalNum as number) <= 5
-      && Number.isInteger(context.leaderSeat)
-      && (context.leaderSeat as number) >= 0
-      && (context.leaderSeat as number) < (context.playerCount as number)
-      && seatArray(context.currentTeam)
-      && new Set(context.currentTeam as number[]).size
-        === (context.currentTeam as number[]).length
-      && (context.currentTeam as number[]).every(
-        (seat) => seat < (context.playerCount as number),
-      )
-      && Number.isInteger(context.teamSize)
-      && context.teamSize === (context.currentTeam as number[]).length
-      && Number.isInteger(context.failsRequired)
-      && (context.failsRequired as number) >= 1
-      && stringArray(context.priorQuests)
-      && stringArray(context.priorProposals)
-  }
-  if (
-    !value
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || components?.evilQuestCardPolicy !== (
-      (value as Record<string, unknown>).policyVersion
-    )
-  ) return false
-  const policy = value as Record<string, unknown>
-  if (
-    Buffer.byteLength(JSON.stringify(policy), 'utf8')
-      > MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES
-    ||
-    !exactKeys(policy, [
-      'version', 'policyVersion', 'mode', 'request', 'role', 'applicable',
-      'coordinationAssumption', 'populationAssumption', 'mixedTableSafe',
-      'promotionEvidenceEligible', 'sourceContext', 'sourceFingerprint',
-      'failsRequired', 'decisiveBoard', 'visibleEvilCount',
-      'visibleEvilAboardCount', 'visibleEvilSeats',
-      'visibleEvilAboard', 'orderedVisibleEvilAboard', 'designation',
-      'slowPlayProbability', 'slowPlayBucket', 'sharedSlowPlayGateOpen',
-      'localSlowPlayFail', 'reason', 'selectedCard',
-    ])
-    || policy.version !== EVIL_QUEST_CARD_POLICY_VERSION
-    || (
-      policy.mode !== 'visible-exact-quota'
-      && policy.mode !== 'robust-heterogeneous'
-    )
-    || policy.policyVersion !== (
-      policy.mode === 'visible-exact-quota'
-        ? EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-        : EVIL_QUEST_ROBUST_POLICY_VERSION
-    )
-    || !isDeepStrictEqual(policy.request, req)
-    || typeof policy.role !== 'string'
-    || typeof policy.applicable !== 'boolean'
-    || (
-      policy.coordinationAssumption !== 'none'
-      && policy.coordinationAssumption
-        !== 'homogeneous-common-policy-required'
-    )
-    || typeof policy.mixedTableSafe !== 'boolean'
-    || typeof policy.promotionEvidenceEligible !== 'boolean'
-    || !validSourceContext(policy.sourceContext)
-    || typeof policy.sourceFingerprint !== 'string'
-    || !/^[0-9a-f]{8}$/.test(policy.sourceFingerprint as string)
-    || !Number.isInteger(policy.failsRequired)
-    || (policy.failsRequired as number) < 1
-    || typeof policy.decisiveBoard !== 'boolean'
-    || !Number.isInteger(policy.visibleEvilCount)
-    || (policy.visibleEvilCount as number) < 0
-    || !Number.isInteger(policy.visibleEvilAboardCount)
-    || (policy.visibleEvilAboardCount as number) < 0
-    || (
-      policy.visibleEvilSeats !== undefined
-      && !seatArray(policy.visibleEvilSeats)
-    )
-    || (
-      policy.visibleEvilAboard !== undefined
-      && !seatArray(policy.visibleEvilAboard)
-    )
-    || (
-      policy.orderedVisibleEvilAboard !== undefined
-      && !seatArray(policy.orderedVisibleEvilAboard)
-    )
-    || (
-      policy.designation !== undefined
-      && !seatArray(policy.designation)
-    )
-    || typeof policy.reason !== 'string'
-    || (
-      policy.slowPlayProbability !== undefined
-      && !finiteProbability(policy.slowPlayProbability)
-    )
-    || (
-      policy.sharedSlowPlayGateOpen !== undefined
-      && typeof policy.sharedSlowPlayGateOpen !== 'boolean'
-    )
-    || (
-      policy.localSlowPlayFail !== undefined
-      && typeof policy.localSlowPlayFail !== 'boolean'
-    )
-    || (
-      policy.slowPlayBucket !== undefined
-      && !finiteProbability(policy.slowPlayBucket)
-    )
-    || (
-      policy.selectedCard !== undefined
-      && policy.selectedCard !== 'success'
-      && policy.selectedCard !== 'fail'
-    )
-  ) return false
-  const visible = (policy.visibleEvilSeats ?? []) as number[]
-  const aboard = (policy.visibleEvilAboard ?? []) as number[]
-  const ordered = (policy.orderedVisibleEvilAboard ?? []) as number[]
-  const designation = (policy.designation ?? []) as number[]
-  if (
-    new Set(visible).size !== visible.length
-    || new Set(aboard).size !== aboard.length
-    || new Set(ordered).size !== ordered.length
-    || new Set(designation).size !== designation.length
-    || aboard.some((seat) => !visible.includes(seat))
-    || ordered.some((seat) => !aboard.includes(seat))
-    || designation.some((seat) => !aboard.includes(seat))
-  ) return false
-  const exactMode = policy.mode === 'visible-exact-quota'
-  if (
-    exactMode
-      ? (
-          policy.coordinationAssumption
-            !== 'homogeneous-common-policy-required'
-          || policy.populationAssumption
-            !== 'homogeneous-all-evil-required'
-          || policy.mixedTableSafe !== false
-          || policy.promotionEvidenceEligible !== false
-          || policy.visibleEvilSeats === undefined
-          || policy.visibleEvilAboard === undefined
-          || policy.orderedVisibleEvilAboard === undefined
-          || policy.designation === undefined
-          || policy.visibleEvilCount !== visible.length
-          || policy.visibleEvilAboardCount !== aboard.length
-          || ordered.length !== aboard.length
-          || aboard.some((seat) => !ordered.includes(seat))
-          || policy.localSlowPlayFail !== undefined
-        )
-      : (
-          policy.coordinationAssumption !== 'none'
-          || policy.populationAssumption !== 'heterogeneous-independent'
-          || policy.mixedTableSafe !== true
-          || policy.promotionEvidenceEligible !== true
-          || policy.visibleEvilSeats !== undefined
-          || policy.visibleEvilAboard !== undefined
-          || policy.orderedVisibleEvilAboard !== undefined
-          || policy.designation !== undefined
-          || policy.sharedSlowPlayGateOpen !== undefined
-          || (policy.visibleEvilAboardCount as number)
-            > (policy.visibleEvilCount as number)
-        )
-  ) return false
-  if (hostView) {
-    const shouldApply =
-      req.kind === 'quest'
-      && hostView.alignment === 'evil'
-      && hostView.role !== 'oberon'
-    if (
-      policy.role !== hostView.role
-      || policy.applicable !== shouldApply
-    ) return false
-  }
-  const action = trace.action as Record<string, unknown> | undefined
-  return policy.selectedCard === undefined
-    || (
-      action?.kind === 'quest'
-      && action.card === policy.selectedCard
-    )
 }
 
 function validPlanOutcomeTrace(
@@ -3222,12 +2992,6 @@ function currentTraceOmitsMigratedFlatState(
 ): boolean {
   if (trace.version === DECISION_TRACE_VERSION) return true
   const versions = trace.componentVersions
-  const hasRobustStrategicQuestPolicy =
-    trace.decisionLayerRun?.configured.some(
-      (layer) =>
-        layer.id === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.id
-        && layer.version === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.version,
-    ) === true
   return (
     trace.privateRoleObjective === undefined
     && trace.privateEvilRoleObjective === undefined
@@ -3244,14 +3008,6 @@ function currentTraceOmitsMigratedFlatState(
     && versions?.configuredMorganaCounterfeitObjective === undefined
     && versions?.morganaRoleUtility === undefined
     && versions?.configuredMorganaRoleUtility === undefined
-    && (
-      !hasRobustStrategicQuestPolicy
-      || (
-        trace.privateEvilQuestCardPolicy === undefined
-        && versions?.evilQuestCardPolicy === undefined
-        && versions?.configuredEvilQuestCardPolicy === undefined
-      )
-    )
     && !trace.degradation.some((code) =>
       MIGRATED_FLAT_DEGRADATIONS.has(code))
   )
@@ -3371,42 +3127,20 @@ function validGenericRoleComponents(
     || run.policyUse.length !== run.configured.length
   ) return false
 
-  const bindingByKey = new Map(
-    LEGACY_ROLE_ADAPTER_TRACE_BINDINGS.map((binding) => [
-      componentKey(binding.token),
-      binding,
-    ]),
-  )
-  const entryByKey = new Map(
-    run.entries.map((entry) => [componentKey(entry.component), entry]),
-  )
-  const adapterDegradationCodes = new Set(
-    PRODUCTION_COMPONENT_REGISTRY.definitions()
-      .filter((definition) => definition.source === 'legacy-adapter')
-      .map((definition) => definition.degradationCode),
-  )
   const nativeDegradationCodes = new Set(
     PRODUCTION_COMPONENT_REGISTRY.definitions()
       .filter((definition) => definition.source === 'native')
-      .filter((definition) => {
-        const binding = bindingByKey.get(componentKey(definition.token))
-        return !binding || binding.ownsLegacyDegradation === false
-      })
       .map((definition) => definition.degradationCode),
   )
-  // Native failures without a named compatibility binding live only on their
-  // generic run entry. Migrated A2 components retain their historical flat
-  // projection until A4 removes the binding and old trace writer together.
+  // Native failures live only on their generic run entry.
   if (
     trace.degradation.some((code) => nativeDegradationCodes.has(code))
   ) return false
-  const degradedCodes = new Set<string>()
   for (let index = 0; index < run.configured.length; index++) {
     const ref = run.configured[index]
     const entry = run.entries[index]
     const use = run.policyUse[index]
     const definition = PRODUCTION_COMPONENT_REGISTRY.definition(ref)!
-    const binding = bindingByKey.get(componentKey(ref))
     if (
       !exactGenericRecord(entry.component, ['id', 'version'])
       || !isDeepStrictEqual(entry.component, ref)
@@ -3417,31 +3151,6 @@ function validGenericRoleComponents(
       || !isDeepStrictEqual(use.component, ref)
     ) return false
 
-    const projection = binding?.payload(trace)
-    const declaredVersion = binding?.declaredVersion(trace)
-    const requiresLegacyProjection = binding
-      ? binding.legacyProjectionRequired?.(trace, hostView) ?? true
-      : false
-    const ownsLegacyDegradation = binding
-      ? binding.ownsLegacyDegradation !== false
-      : false
-    const degradationCount = trace.degradation.filter(
-      (code) => code === definition.degradationCode,
-    ).length
-    const expectedResolution =
-      binding?.expectedResolution?.(trace, hostView)
-    if (
-      expectedResolution === 'inapplicable'
-        ? entry.status !== 'inapplicable'
-        : typeof expectedResolution === 'object'
-          ? (
-              entry.status !== 'suppressed'
-              || entry.reasonCode !== expectedResolution.reasonCode
-            )
-          : expectedResolution === 'applicable'
-            && entry.status !== 'admitted'
-            && entry.status !== 'degraded'
-    ) return false
     if (entry.status === 'admitted') {
       if (
         !exactGenericRecord(entry, [
@@ -3458,22 +3167,6 @@ function validGenericRoleComponents(
         || !Number.isSafeInteger(entry.payloadBytes)
         || entry.payloadBytes < 0
         || entry.payloadBytes > definition.maxPayloadBytes
-        || (
-          requiresLegacyProjection
-            ? (
-                projection === undefined
-                || declaredVersion !== ref.version
-                || !isDeepStrictEqual(
-                  projection,
-                  entry.envelope.payload,
-                )
-              )
-            : (
-                projection !== undefined
-                || declaredVersion !== undefined
-              )
-        )
-        || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
       const canonicalPayload = canonicalizeJson(
         entry.envelope.payload,
@@ -3523,47 +3216,30 @@ function validGenericRoleComponents(
           'component', 'kind', 'privacy', 'status',
           'degradationCode', 'failureCode',
         ])
-        || projection !== undefined
-        || declaredVersion !== undefined
-        || (ownsLegacyDegradation && degradationCount !== 1)
         || entry.degradationCode !== definition.degradationCode
         || !COMPONENT_FAILURE_CODES.has(entry.failureCode)
       ) return false
-      degradedCodes.add(entry.degradationCode)
     } else if (entry.status === 'inapplicable') {
       if (
         !exactGenericRecord(
           entry,
           ['component', 'kind', 'privacy', 'status'],
         )
-        || projection !== undefined
-        || declaredVersion !== undefined
-        || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
     } else if (entry.status === 'suppressed') {
-      const expectedReason = binding?.suppressionReason?.(trace)
       if (
         !exactGenericRecord(
           entry,
           ['component', 'kind', 'privacy', 'status', 'reasonCode'],
         )
         || typeof entry.reasonCode !== 'string'
-        || (
-          binding !== undefined
-          && entry.reasonCode !== expectedReason
-        )
-        || projection !== undefined
-        || declaredVersion !== undefined
-        || (ownsLegacyDegradation && degradationCount !== 0)
       ) return false
     } else {
       return false
     }
 
     const expectedStages = entry.status === 'admitted'
-      ? binding
-        ? binding.policyStages(trace)
-        : expectedNativeTraceStages(ref.id, trace)
+      ? expectedNativeTraceStages(ref.id, trace)
       : []
     if (
       typeof use.used !== 'boolean'
@@ -3583,28 +3259,6 @@ function validGenericRoleComponents(
     ) return false
   }
 
-  for (const binding of LEGACY_ROLE_ADAPTER_TRACE_BINDINGS) {
-    const key = componentKey(binding.token)
-    const definition =
-      PRODUCTION_COMPONENT_REGISTRY.definition(binding.token)
-    const hasLegacy =
-      binding.payload(trace) !== undefined
-      || binding.declaredVersion(trace) !== undefined
-      || (
-        definition !== undefined
-        && trace.degradation.includes(definition.degradationCode)
-      )
-    if (
-      hasLegacy
-      && configuredKeys.includes(key)
-      && !entryByKey.has(key)
-    ) return false
-  }
-  for (const code of trace.degradation) {
-    if (adapterDegradationCodes.has(code) && !degradedCodes.has(code)) {
-      return false
-    }
-  }
   return true
 }
 
@@ -3754,12 +3408,6 @@ function validDecisionTrace(
         )
       )
     )
-    && validPrivateEvilQuestCardPolicyTrace(
-      trace.privateEvilQuestCardPolicy,
-      trace,
-      req,
-      fullHostView,
-    )
     && (
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || (
@@ -3870,12 +3518,6 @@ function validExactComposedTraceHostJoin(
             candidateBoundary: decisionLayerReplay.surface,
           }
         : policyHostSurface
-    const d3HostSurface = exactEvilQuestCardHostSurface(
-      trace,
-      req,
-      view,
-      strategicHostSurface,
-    )
     const genericRoleComponentsValid = validGenericRoleComponents(trace, view)
     const genericRoleHostJoinValid = validGenericRoleComponentsHostJoin(
       trace,
@@ -3884,7 +3526,7 @@ function validExactComposedTraceHostJoin(
       deterministicSeed,
     )
     if (
-      !d3HostSurface
+      !strategicHostSurface
       || !validMechanicalDecisionTraceHostJoin({
         trace,
         req,
@@ -3951,12 +3593,6 @@ function validExactComposedTraceHostJoin(
           req,
           view,
         )
-      )
-      || !validPrivateEvilQuestCardPolicyTrace(
-        trace.privateEvilQuestCardPolicy,
-        trace,
-        req,
-        view,
       )
       || (
         trace.version === DECISION_TRACE_VERSION
@@ -4187,7 +3823,7 @@ function validExactComposedTraceHostJoin(
           req,
           view,
           deterministicSeed,
-          d3HostSurface,
+          strategicHostSurface,
           expectedArchitectureIdentity,
         )
       )
@@ -4269,9 +3905,6 @@ function validTrustedPassiveComponentAttribution(
   trace: DecisionTrace,
 ): boolean {
   if (!trace.components) return false
-  const legacyIds = new Set(
-    LEGACY_ROLE_ADAPTER_TRACE_BINDINGS.map((binding) => binding.token.id),
-  )
   const strategicIds = new Set(
     PRODUCTION_DECISION_LAYER_REGISTRY.definitions()
       .flatMap((definition) =>
@@ -4280,7 +3913,6 @@ function validTrustedPassiveComponentAttribution(
   return trace.components.policyUse.every(
     (use) =>
       NATIVE_SCORE_COMPONENT_IDS.has(use.component.id)
-      || legacyIds.has(use.component.id)
       || strategicIds.has(use.component.id)
       || (!use.used && use.stages.length === 0),
   )
@@ -4307,7 +3939,6 @@ function nativeScoreSelectionSurvived(trace: DecisionTrace): boolean {
   return trace.structuredCandidateId !== undefined
     && trace.chosenCandidateId === trace.structuredCandidateId
     && trace.forcedPolicyResult?.selectedCandidateId === undefined
-    && trace.privateEvilQuestCardPolicy?.selectedCard === undefined
     && trace.decisionLayerRun?.surface.selectedCandidateId === undefined
     && !plannerSelectionAccepted
 }
@@ -4831,68 +4462,6 @@ function replayExactDecisionLayerHostJoin(
   }
 }
 
-function exactEvilQuestCardHostSurface(
-  trace: DecisionTrace,
-  req: DecisionRequest,
-  view: PlayerView,
-  baseSurface: ExactPolicyHostSurface | undefined = exactPolicyHostSurface(
-    req,
-    view,
-  ),
-): ExactPolicyHostSurface | undefined {
-  const configured =
-    trace.componentVersions?.configuredEvilQuestCardPolicy
-  const component = trace.componentVersions?.evilQuestCardPolicy
-  const policy = trace.privateEvilQuestCardPolicy
-  const applicable =
-    req.kind === 'quest'
-    && view.alignment === 'evil'
-    && view.role !== 'oberon'
-  try {
-    if (!baseSurface) return undefined
-    const { universalForced } = baseSurface
-    if (!policy && component === undefined) {
-      if (configured && applicable && !universalForced.applied) {
-        return undefined
-      }
-      if (!isDeepStrictEqual(trace.forcedPolicyResult, universalForced)) {
-        return undefined
-      }
-      return baseSurface
-    }
-    // R3B3A removed the executable exact-quota authority. Historical traces
-    // with its flat payload remain recognizable by the outer bounded decoder,
-    // but cannot be reconstructed as current exact policy evidence.
-    return undefined
-  } catch {
-    return undefined
-  }
-}
-
-function validSuppressedEvilQuestCardPolicyHostJoin(
-  trace: DecisionTrace,
-  req: DecisionRequest,
-  view: PlayerView,
-): boolean {
-  const configured =
-    trace.componentVersions?.configuredEvilQuestCardPolicy
-  const applicable =
-    req.kind === 'quest'
-    && view.alignment === 'evil'
-    && view.role !== 'oberon'
-  const surface = exactEvilQuestCardHostSurface(trace, req, view)
-  return (
-    (
-      configured === EVIL_QUEST_EXACT_QUOTA_POLICY_VERSION
-    )
-    && applicable
-    && trace.componentVersions?.evilQuestCardPolicy === undefined
-    && trace.privateEvilQuestCardPolicy === undefined
-    && surface !== undefined
-    && surface.universalForced.applied
-  )
-}
-
 function isFullPlayerView(
   value: Pick<PlayerView, 'rolesInPlay'> | undefined,
 ): value is PlayerView {
@@ -4905,8 +4474,7 @@ function isFullPlayerView(
 }
 
 /**
- * Scorer-independent mechanical join shared by trusted admission and
- * finalized diagnostic retention.
+ * Scorer-independent mechanical join shared by finalized admission paths.
  */
 function validMechanicalDecisionTraceHostJoin(input: {
   trace: DecisionTrace
@@ -4996,6 +4564,7 @@ export type DecisionTraceSnapshotRejection =
   | 'trace-json-unsafe'
   | 'trace-too-large'
   | 'trace-not-object'
+  | 'removed-flat-field'
 
 export type DecisionTraceSnapshotResult =
   | CanonicalDecisionTraceCandidate
@@ -5034,6 +4603,25 @@ export function snapshotDecisionTraceInput(
       reason: 'trace-not-object',
     })
   }
+  const root = canonical.payload as Record<string, CanonicalJsonValue>
+  const versions = root.componentVersions
+  if (
+    Object.hasOwn(root, 'privateEvilQuestCardPolicy')
+    || (
+      versions !== null
+      && typeof versions === 'object'
+      && !Array.isArray(versions)
+      && (
+        Object.hasOwn(versions, 'evilQuestCardPolicy')
+        || Object.hasOwn(versions, 'configuredEvilQuestCardPolicy')
+      )
+    )
+  ) {
+    return Object.freeze({
+      kind: 'rejected',
+      reason: 'removed-flat-field',
+    })
+  }
   const trace =
     canonical.payload as unknown as Readonly<DecisionTrace>
   const decisionLayerAdmission =
@@ -5062,7 +4650,6 @@ export type DecisionTraceAdmissionRejection =
   | 'external-host-join-failed'
   | 'finalized-diagnostic-invalid'
   | 'trusted-identity-host-join-failed'
-  | 'legacy-exact-host-join-failed'
 
 export type EvilQuestCardAdmissionState =
   | Readonly<{ state: 'not-configured' }>
@@ -5138,10 +4725,11 @@ export interface FinalizedDecisionTraceAdmissionInput {
   readonly expectedArchitectureIdentity?: ResolvedArchitectureIdentity
   readonly expectComponentTrace?: boolean
   /**
-   * Historical formula tests and v1 readers may demand the old exact host
-   * equation without gaining identity or promotion trust.
+   * Temporary test-facade requirement. Runtime and evaluation diagnostics
+   * retain structural host validation; the remaining B2 facade asks the
+   * closed union for full generic replay until its callers migrate.
    */
-  readonly requireLegacyExactHostJoin?: boolean
+  readonly diagnosticVerification?: 'structural' | 'exact'
 }
 
 export type DecisionTraceAdmissionInput =
@@ -5160,8 +4748,6 @@ export type CanonicalDecisionTraceAdmissionInput =
 
 function evilQuestCardAdmissionState(
   trace: Readonly<DecisionTrace>,
-  req: DecisionRequest,
-  view?: PlayerView,
   identity?: ResolvedArchitectureIdentity,
 ): EvilQuestCardAdmissionState {
   const robustConfigured = identity?.decisionLayerOrder.some(
@@ -5217,39 +4803,7 @@ function evilQuestCardAdmissionState(
       configuredVersion: EVIL_QUEST_CARD_ROBUST_COMPONENT.version,
     })
   }
-  const configured =
-    trace.componentVersions?.configuredEvilQuestCardPolicy
-  if (configured === undefined) {
-    return Object.freeze({ state: 'not-configured' })
-  }
-  const resolved = trace.componentVersions?.evilQuestCardPolicy
-  if (
-    resolved !== undefined
-    && trace.privateEvilQuestCardPolicy !== undefined
-  ) {
-    return Object.freeze({
-      state: 'resolved',
-      configuredVersion: configured,
-      resolvedVersion: resolved,
-    })
-  }
-  if (
-    view
-    && validSuppressedEvilQuestCardPolicyHostJoin(
-      trace as DecisionTrace,
-      req,
-      view,
-    )
-  ) {
-    return Object.freeze({
-      state: 'universally-suppressed',
-      configuredVersion: configured,
-    })
-  }
-  return Object.freeze({
-    state: 'configured-inactive',
-    configuredVersion: configured,
-  })
+  return Object.freeze({ state: 'not-configured' })
 }
 
 function promotionEvidenceEligible(
@@ -5296,14 +4850,6 @@ export function admitCanonicalDecisionTrace(
   const decisionLayerAdmission =
     decisionLayerAdmissionByCandidate.get(candidate) ?? null
   if (input.kind === 'pre-apply-external') {
-    const claimsD3QuestPolicy =
-      input.req.kind === 'quest'
-      && (
-        trace.componentVersions?.configuredEvilQuestCardPolicy
-          !== undefined
-        || trace.componentVersions?.evilQuestCardPolicy !== undefined
-        || trace.privateEvilQuestCardPolicy !== undefined
-      )
     if (!validDecisionTrace(
       input.req,
       input.decision,
@@ -5334,14 +4880,6 @@ export function admitCanonicalDecisionTrace(
             )
           )
         )
-        || (
-          claimsD3QuestPolicy
-          && exactEvilQuestCardHostSurface(
-            trace,
-            input.req,
-            input.hostView,
-          ) === undefined
-        )
       )
     ) {
       return rejectedAdmission(
@@ -5357,10 +4895,6 @@ export function admitCanonicalDecisionTrace(
       facts: Object.freeze({
         evilQuestCardPolicy: evilQuestCardAdmissionState(
           trace,
-          input.req,
-          isFullPlayerView(input.hostView)
-            ? input.hostView
-            : undefined,
         ),
       }),
     })
@@ -5395,8 +4929,6 @@ export function admitCanonicalDecisionTrace(
   const facts = Object.freeze({
     evilQuestCardPolicy: evilQuestCardAdmissionState(
       trace,
-      input.req,
-      input.view,
       input.expectedArchitectureIdentity,
     ),
   })
@@ -5427,20 +4959,17 @@ export function admitCanonicalDecisionTrace(
       facts,
     })
   }
-  if (input.requireLegacyExactHostJoin) {
-    if (!validExactComposedTraceHostJoin(exactInput)) {
-      return rejectedAdmission(
-        'finalized-artifact',
-        'legacy-exact-host-join-failed',
-      )
-    }
-  } else if (!validFinalizedDiagnosticDecisionTrace(
-    input.req,
-    input.authoritativeAction,
-    selectedDecision,
-    trace,
-    input.view,
-  )) {
+  const diagnosticValid =
+    input.diagnosticVerification === 'exact'
+      ? validExactComposedTraceHostJoin(exactInput)
+      : validFinalizedDiagnosticDecisionTrace(
+          input.req,
+          input.authoritativeAction,
+          selectedDecision,
+          trace,
+          input.view,
+        )
+  if (!diagnosticValid) {
     return rejectedAdmission(
       'finalized-artifact',
       'finalized-diagnostic-invalid',
@@ -5487,44 +5016,6 @@ export function validateComposedTraceHostJoin(
   return admitDecisionTrace({
     kind: 'finalized-artifact',
     ...input,
-    requireLegacyExactHostJoin:
-      input.expectedArchitectureIdentity === undefined,
-  }).kind !== 'rejected'
-}
-
-/** Historical D3 compatibility wrapper over the closed artifact result. */
-export function validateSuppressedEvilQuestCardPolicyHostJoin(
-  trace: DecisionTrace,
-  req: DecisionRequest,
-  view: PlayerView,
-): boolean {
-  const result = admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace,
-    req,
-    view,
-    authoritativeAction: trace.action,
-    deterministicSeed: '',
-  })
-  return result.kind !== 'rejected'
-    && result.facts.evilQuestCardPolicy.state === 'universally-suppressed'
-}
-
-/** Historical finalized diagnostic wrapper over the closed result. */
-export function validateFinalizedDiagnosticDecisionTrace(
-  req: DecisionRequest,
-  authoritativeDecision: Decision,
-  selectedDecision: Decision,
-  trace: unknown,
-  hostView: PlayerView,
-): boolean {
-  return admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace,
-    req,
-    view: hostView,
-    authoritativeAction: authoritativeDecision,
-    selectedDecision,
-    deterministicSeed: '',
+    diagnosticVerification: 'exact',
   }).kind !== 'rejected'
 }

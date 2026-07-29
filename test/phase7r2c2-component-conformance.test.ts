@@ -27,7 +27,7 @@ import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/robust-evil-quest-card.ts'
@@ -65,7 +65,7 @@ import {
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
-} from '../server/agents/components/legacy-role-adapters.ts'
+} from '../server/agents/components/native-score-components.ts'
 import {
   MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
 } from '../server/agents/analysis/evil-objective-types.ts'
@@ -124,7 +124,6 @@ import {
   buildPrivateEvilQuestCardPolicy,
   decodeCanonicalRobustEvilQuestCardPolicy,
   MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
-  validatePrivateEvilQuestCardPolicy,
 } from '../server/agents/policy/evil-quest-card.ts'
 import {
   hypotheticalProposalCandidates,
@@ -650,7 +649,16 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
     label: EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
     value: robust.policy,
     maxBytes: MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
-    validate: validatePrivateEvilQuestCardPolicy,
+    validate: (value) => {
+      const canonical = canonicalizeJson(
+        value,
+        MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
+      )
+      return canonical.ok
+        && decodeCanonicalRobustEvilQuestCardPolicy(
+          canonical.payload,
+        ) !== undefined
+    },
     decode: decodeCanonicalRobustEvilQuestCardPolicy,
     invalidValue: {
       ...robust.policy,
