@@ -419,13 +419,21 @@ export function projectConfiguredScoreDiagnostics(
   context: CandidateScoringContext,
   rows: readonly ScoreLayerRow[],
   scorerVersion: string,
+  admittedNativeScorerVersions: readonly string[] = [],
 ): readonly CandidateScore[] {
   const projected =
     projectMorgana(context, rows, scorerVersion)
     ?? projectEvil(context, rows, scorerVersion)
     ?? projectGood(context, rows, scorerVersion)
-  if (!projected) {
-    throw new Error(`no native diagnostic owner for ${scorerVersion}`)
+  if (projected) return projected
+  if (!admittedNativeScorerVersions.includes(scorerVersion)) {
+    throw new Error(`no admitted native diagnostic owner for ${scorerVersion}`)
   }
-  return projected
+  return rows.map((row) => ({
+    version: scorerVersion,
+    candidateId: row.candidateId,
+    value: row.value,
+    viable: row.viable,
+    reasonCodes: [...row.reasonCodes],
+  }))
 }

@@ -32,6 +32,12 @@ import {
   morganaScoreLayerDefinitions,
   morganaScoreLayerTerminalFor,
 } from './morgana.ts'
+import {
+  MORDRED_ROLE_SCORE_LAYER,
+  SEEDED_MORDRED_ROLE_SCORE_LAYER,
+  mordredScoreLayerDefinitions,
+  mordredScoreLayerTerminalFor,
+} from './mordred.ts'
 
 /**
  * The deliberately small composition seam for concrete score families.
@@ -43,7 +49,8 @@ import {
 export function configuredScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
-  return morganaScoreLayerTerminalFor(scorer)
+  return mordredScoreLayerTerminalFor(scorer)
+    ?? morganaScoreLayerTerminalFor(scorer)
     ?? evilScoreLayerTerminalFor(scorer)
     ?? goodScoreLayerTerminalFor(scorer)
 }
@@ -78,6 +85,8 @@ const CONFIGURED_TERMINAL_BY_VERSION = new Map<string, ScoreLayerToken>([
   SEEDED_EVIL_ROLE_SCORE_LAYER,
   MORGANA_ROLE_SCORE_LAYER,
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
+  MORDRED_ROLE_SCORE_LAYER,
+  SEEDED_MORDRED_ROLE_SCORE_LAYER,
 ].map((token) => [token.version, token]))
 
 export function configuredScoreLayerTerminalForVersion(
@@ -113,6 +122,10 @@ export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
       seeded: SEEDED_GOOD_ROLE_SCORE_LAYER,
     }),
     ...morganaScoreLayerDefinitions({
+      deterministic: EVIL_ROLE_SCORE_LAYER,
+      seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
+    }),
+    ...mordredScoreLayerDefinitions({
       deterministic: EVIL_ROLE_SCORE_LAYER,
       seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
     }),

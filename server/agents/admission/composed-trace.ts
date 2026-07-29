@@ -146,6 +146,7 @@ import {
 } from '../policy/score-layer/preparation.ts'
 import {
   configuredScoreLayerChainForVersion,
+  configuredScoreLayerTerminalForVersion,
   createConfiguredScoreLayerRegistry,
 } from '../score-layers/configured.ts'
 import type {
@@ -200,6 +201,9 @@ import type {
 import {
   createProductionComponentRegistry,
 } from '../components/production-registry.ts'
+import type {
+  ComponentToken,
+} from '../components/types.ts'
 import {
   canonicalizeJson,
   canonicalizeTransportJson,
@@ -2861,6 +2865,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
 const PRODUCTION_COMPONENT_REGISTRY = createProductionComponentRegistry({
   goodObjectiveAllDecisionKinds: true,
 })
+const PRODUCTION_SCORE_LAYER_REGISTRY =
+  createConfiguredScoreLayerRegistry()
 const PRODUCTION_DECISION_LAYER_REGISTRY =
   createConfiguredDecisionLayerRegistry()
 const DECISION_LAYER_ADMISSION =
@@ -3025,33 +3031,32 @@ function expectedNativeTraceStages(
       ),
   )
   if (strategic) return ['strategic-decision']
-  if (!NATIVE_SCORE_COMPONENT_IDS.has(componentId)) return undefined
-  const scores = trace.candidateScores ?? []
-  const goodRole =
-    componentId === GOOD_ROLE_OBJECTIVE_COMPONENT.id
-    || componentId === GOOD_ROLE_UTILITY_COMPONENT.id
-  const evilRole =
-    componentId === EVIL_ROLE_OBJECTIVE_COMPONENT.id
-    || componentId === EVIL_ROLE_UTILITY_COMPONENT.id
-  const morganaRole =
-    componentId === MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id
-    || componentId === MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id
-    || componentId === MORGANA_ROLE_UTILITY_COMPONENT.id
-    || componentId === MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id
-  const consumed = scores.length > 0 && scores.every((score) =>
-    goodRole
-      ? score.roleObjectiveFeatures !== undefined
-      : evilRole
-        ? score.evilRoleObjectiveFeatures !== undefined
-          || score.morganaRoleObjectiveFeatures !== undefined
-        : morganaRole
-          ? score.morganaRoleObjectiveFeatures !== undefined
-          : false)
-  return consumed
-    ? nativeScoreSelectionSurvived(trace)
-      ? ['candidate-score', 'action-selection']
-      : ['candidate-score']
-    : []
+  if (NATIVE_SCORE_COMPONENT_IDS.has(componentId)) {
+    try {
+      const scorer = trace.componentVersions?.scorer
+      if (!scorer) return undefined
+      const chain = configuredScoreLayerChainForVersion(scorer)
+      const requested = new Map<string, ComponentToken>()
+      for (const definition of chain.definitions) {
+        for (const component of definition.requiredComponents) {
+          requested.set(componentKey(component), component)
+        }
+      }
+      const activeIds = requested.size === 0
+        ? new Set<string>()
+        : new Set(PRODUCTION_COMPONENT_REGISTRY.resolve({
+            requested: [...requested.values()],
+          }).configured.map((component) => component.id))
+      return activeIds.has(componentId)
+        ? nativeScoreSelectionSurvived(trace)
+          ? ['candidate-score', 'action-selection']
+          : ['candidate-score']
+        : []
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
 }
 
 function validGenericRoleComponents(
@@ -3241,6 +3246,15 @@ function validGenericRoleComponents(
     const expectedStages = entry.status === 'admitted'
       ? expectedNativeTraceStages(ref.id, trace)
       : []
+    const nativeScoreStagesValid =
+      expectedStages !== undefined
+      || !NATIVE_SCORE_COMPONENT_IDS.has(ref.id)
+      || isDeepStrictEqual(use.stages, [])
+      || isDeepStrictEqual(use.stages, ['candidate-score'])
+      || isDeepStrictEqual(
+        use.stages,
+        ['candidate-score', 'action-selection'],
+      )
     if (
       typeof use.used !== 'boolean'
       || !exactGenericArray(use.stages)
@@ -3255,6 +3269,7 @@ function validGenericRoleComponents(
         expectedStages !== undefined
         && !isDeepStrictEqual(use.stages, expectedStages)
       )
+      || !nativeScoreStagesValid
       || use.used !== (use.stages.length > 0)
     ) return false
   }
@@ -3815,7 +3830,7 @@ function validExactComposedTraceHostJoin(
 
     if (
       exactNativeInputs
-      && NATIVE_SCORER_VERSIONS.has(components.scorer)
+      && configuredNativeScorerVersion(components.scorer)
       && (
         expectedArchitectureIdentity === undefined
         || !validateExactNativeScoreSurface(
@@ -3890,16 +3905,20 @@ interface ExpectedNativeDiagnostics {
   readonly resolvedScorerVersion: string
 }
 
-const NATIVE_SCORE_COMPONENT_IDS = new Set([
-  GOOD_ROLE_OBJECTIVE_COMPONENT.id,
-  GOOD_ROLE_UTILITY_COMPONENT.id,
-  EVIL_ROLE_OBJECTIVE_COMPONENT.id,
-  EVIL_ROLE_UTILITY_COMPONENT.id,
-  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id,
-  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
-  MORGANA_ROLE_UTILITY_COMPONENT.id,
-  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id,
-])
+const NATIVE_SCORE_COMPONENT_IDS = (() => {
+  const requested = new Map<string, ComponentToken>()
+  for (const definition of PRODUCTION_SCORE_LAYER_REGISTRY.definitions()) {
+    for (const component of definition.requiredComponents) {
+      requested.set(componentKey(component), component)
+    }
+  }
+  const configured = requested.size === 0
+    ? []
+    : PRODUCTION_COMPONENT_REGISTRY.resolve({
+        requested: [...requested.values()],
+      }).configured
+  return new Set(configured.map((component) => component.id))
+})()
 
 function validTrustedPassiveComponentAttribution(
   trace: DecisionTrace,
@@ -3918,18 +3937,14 @@ function validTrustedPassiveComponentAttribution(
   )
 }
 
-const NATIVE_SCORER_VERSIONS = new Set([
-  CANDIDATE_SCORER_VERSION,
-  GOOD_PROPOSAL_SCORER_VERSION,
-  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
-  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
-  ROLE_OBJECTIVE_SCORER_VERSION,
-  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  MORGANA_ROLE_SCORER_VERSION,
-  MORGANA_ROLE_SEEDED_SCORER_VERSION,
-])
+function configuredNativeScorerVersion(version: string): boolean {
+  try {
+    configuredScoreLayerTerminalForVersion(version)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function nativeScoreSelectionSurvived(trace: DecisionTrace): boolean {
   const plannerSelectionAccepted =
@@ -4039,6 +4054,7 @@ function expectedNativeDiagnostics(
       diagnosticContext,
       replay.rows,
       scorerVersion,
+      chain.order.map((layer) => layer.version),
     ),
     componentRun: replay.componentRun,
     resolvedScorerVersion: scorerVersion,
@@ -4068,7 +4084,7 @@ function validateExactNativeScoreSurface(
     const chain = trustedNativeScoreChain(expectedArchitectureIdentity)
     if (
       !scorerVersion
-      || !NATIVE_SCORER_VERSIONS.has(scorerVersion)
+      || !configuredNativeScorerVersion(scorerVersion)
       || !chain
     ) {
       return false
@@ -4343,7 +4359,7 @@ function trustedNativeScoreChain(
     const expectedTerminal = [
       scoring.configuredScorer,
       ...scoring.configuredBaseChain,
-    ].find((version) => NATIVE_SCORER_VERSIONS.has(version))
+    ].find(configuredNativeScorerVersion)
       ?? CANDIDATE_SCORER_VERSION
     if (
       scoring.invalidOutputFallback !== CANDIDATE_SCORER_VERSION

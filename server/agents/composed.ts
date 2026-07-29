@@ -81,6 +81,7 @@ import {
 } from './brain.ts'
 import {
   attributeComponentPolicyUse,
+  attributeComponentPolicyUseBatch,
   componentPayload,
   decisionComponentPlan,
   type DecisionComponentPlan,
@@ -611,31 +612,27 @@ function attributeLegacyRolePolicyUse(
 function attributeRoleActionSelection(
   run: DecisionComponentRun,
 ): DecisionComponentRun {
-  let attributed = run
-  for (const token of [
-    GOOD_ROLE_OBJECTIVE_COMPONENT,
-    GOOD_ROLE_UTILITY_COMPONENT,
-    EVIL_ROLE_OBJECTIVE_COMPONENT,
-    EVIL_ROLE_UTILITY_COMPONENT,
-    MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-    MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-    MORGANA_ROLE_UTILITY_COMPONENT,
-    MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-  ]) {
-    const use = attributed.policyUse.find(
-      (entry) =>
-        entry.component.id === token.id
-        && entry.component.version === token.version,
-    )
-    if (use?.used) {
-      attributed = attributeComponentPolicyUse(
-        attributed,
-        token,
-        'action-selection',
-      )
-    }
-  }
-  return attributed
+  const selected = new Set(
+    run.policyUse
+      .filter((entry) =>
+        entry.used && entry.stages.includes('candidate-score'))
+      .map((entry) =>
+        `${entry.component.id}@${entry.component.version}`),
+  )
+  const tokens = run.entries.flatMap((entry) =>
+    entry.status === 'admitted'
+    && selected.has(`${entry.component.id}@${entry.component.version}`)
+      ? [{
+          ...entry.component,
+          kind: entry.kind,
+          privacy: entry.privacy,
+        }]
+      : [])
+  return attributeComponentPolicyUseBatch(
+    run,
+    tokens,
+    'action-selection',
+  ).run
 }
 
 function validComponentVersion(value: unknown): value is string {
@@ -1828,6 +1825,9 @@ export function createComposedAgent(
               projectScoringContext(nativeScoredFrame, scoringBindings),
               nativeScoredFrame.scores,
               nativeScorerVersion(nativeScoredFrame),
+              nativeScoredFrame.scoreLayerRun.configured.map(
+                (layer) => layer.version,
+              ),
             )
           : undefined
         const scoredFrame = customScoredFrame

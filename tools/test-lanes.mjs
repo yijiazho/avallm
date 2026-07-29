@@ -80,6 +80,7 @@ const LANES = Object.freeze({
     'phase7e1b-morgana-policy.test.ts',
     'phase7e2a-mordred-hostile.test.ts',
     'phase7e2a-mordred-native.test.ts',
+    'phase7e2b-mordred-policy.test.ts',
     'phase7r2a-admission-boundary.test.ts',
     'phase7r2b1-component-registry.test.ts',
     'phase7r2b2-component-kernel.test.ts',

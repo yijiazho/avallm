@@ -2,7 +2,11 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7E2B. Phase 7R3B is complete: robust heterogeneous D3 runs on the
+**Current target phase:** Phase 7E3 after the Phase 7E2B parent verification gate. Phase 7E2B's
+bounded deterministic and seeded Mordred score layers are implemented as an opt-in candidate:
+they specialize only D2-viable proposal and vote candidates using the admitted E2A objective,
+with no Mordred-specific central trace, evaluation, prompt, or communication field. Phase 7R3B is
+complete: robust heterogeneous D3 runs on the
 generic strategic decision-layer seam, exact quota remains research history only, and every
 historical D3 reader and boolean trace-admission facade is deleted. Tests now consume the closed,
 trust-labeled admission union directly; MD-003 and MD-004 are complete.
@@ -275,6 +279,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `landed` |
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `landed` |
 | NB-007 | Phase 7 correctness | Stabilize exact identity projection on large joint support | One compensated accumulator covers source normalization, grouped role and hidden-team mass, and detached lattice admission. The actual 10-player `phase4-good-v1` vote with 58,080 uniform worlds now reaches trusted-exact admission without rounding, tolerance widening, special casing, or invalid-mass renormalization. | `landed` |
+| NB-008 | Post-Phase-7 test consolidation | Extract a shared score-family conformance harness | Consolidate repeated family fixtures for predecessor delegation, bounded specialization, deterministic seed domains, forced-boundary dominance, and native replay. Preserve focused family-specific causal laws; do not replace the generic registry, admission, privacy, and replay suites with another parallel matrix. | `deferred-until-phase-7-exit` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -1419,7 +1424,8 @@ reviewable and ablatable:
       union, delete the final boolean compatibility facade, and close MD-004. **Complete.**
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
-    forced-policy dominance.
+    forced-policy dominance. **Implementation complete; parent full-suite and landing gate
+    pending.**
 23. **Phase 7E3, Assassin specialization:** add a capped, interpretable Merlin posterior that
     remains distinct from generic goodness.
 24. **Phase 7F, evaluation and exit audit:** compare compatibility, base composed, observer,
@@ -2137,6 +2143,51 @@ completed in 532 ms total on the development host, with a 2-second runaway guard
 latency SLO. Decisions, scores, prompts, public logs, defaults, forced-policy authority, and engine
 legality remain unchanged. Independent final rereview passes 116/116 and returns READY.
 
+### Phase 7E2B implementation record
+
+E2B adds two opt-in built-in scorer identities,
+`mordred-blindness-role-scorer-v1` and
+`mordred-blindness-role-seeded-vote-band-v1`, backed by the ordered
+`mordred-role-score` and `seeded-mordred-role-score` transforms. Their predecessors are the
+matching deterministic and seeded D2 evil layers. The Mordred transforms declare only
+`mordred-blindness-objective@mordred-blindness-objective-v1`; generic component dependency
+closure supplies and attributes the public actor-target treatment read. Scorer descriptors add no
+Mordred requirement property, and composition, trace, admission, report, stdio, prompt, and
+communication schemas add no Mordred field or branch.
+
+Applicability is exactly Mordred, Merlin in the cast, and proposal or vote. Universal forced policy
+and the strategic candidate boundary run first. The layer computes the maximum predecessor D2
+value among hard survivors and admits only the existing `0.04` D2 band. Proposal utility is the
+canonical objective team's opportunity value. Both vote candidates join the one current-team
+assessment; approve utility is opportunity and reject utility is `1 - opportunity`. These values
+are bounded heuristic action utilities, not probabilities. Deterministic selection maximizes that
+utility with canonical candidate IDs. Seeded proposals remain deterministic. Seeded votes vary
+only when both actions are in the D2 band and their utility gap is at most `0.04`, using the stable
+tuple of game seed, seat, decision kind, round, proposal number, belief event cursor, and scorer
+version. Names, model roster, teammate behavior, and shared conventions are absent.
+
+The candidate-score to action-selection transition now propagates every component that was
+actually used at candidate score instead of enumerating known role tokens. Trace admission derives
+native scorer and score-component membership from the configured registries, and featureless
+diagnostics require proof that their version belongs to the resolved native chain. This makes E2B
+a normal score-family extension and closes the generic seams it exposed without introducing a
+Mordred exception. Private score reasons are limited to `MORDRED_D2_VIABLE_BAND`,
+`MORDRED_BLINDNESS_OPPORTUNITY`, and `MORDRED_SEEDED_VOTE_BAND` plus generic forced-policy
+reasons; public communication receives none of them.
+
+Focused E2A/E2B/configured-layer/native replay/architecture-fitness validation passes 52/52, and
+strict typechecking passes 82 roots with the unchanged 42 pinned legacy exemptions. The focused
+fixture proves an exact host-admitted proposal that changes within the D2 band, proposal seed
+invariance, seeded vote variation inside both bands, outside-band nonrevival, hard-boundary
+dominance, transitive attribution, unknown-diagnostic rejection, and non-proposal delegation.
+Existing E2A hostile, privacy, weighted-provenance, name/seat-rotation, report, 5-10 player, and
+generic native replay suites remain green. `verify:contract` passes with all 115 test files
+classified across the five feedback lanes. Small free five- and ten-player Mordred proposal probes
+admit as trusted exact with zero degradation over 10 and 120 candidates, respectively; causal use
+contains only the public treatment read, D1/D2 evil components, and blindness objective. The
+complete API-free and independent-review gates remain parent-owned before landing. E3 Assassin
+specialization is next.
+
 One boundary cleanup is intentionally not folded into E2A. Existing host-root validators establish
 trusted typed values, but `validateBeliefForMordred` still rechecks admitted belief internals and
 the treatment host join rebuilds the canonical public observer for exact comparison. Phase 7R2C
@@ -2747,9 +2798,9 @@ the historical read path.
       legal view and the shared public observer.
 - [x] Do not infer Merlin from privileged role identity or reuse the future Assassin posterior as
       if Mordred possessed it.
-- [ ] Give deep-cover and Merlin-blindness exploitation bounded, opt-in causal policy authority
+- [x] Give deep-cover and Merlin-blindness exploitation bounded, opt-in causal policy authority
       while preserving forced policy, legality, and generic evil fallback.
-- [ ] Prove causal action or intent changes, privacy, replay, attribution, and API-free bounds.
+- [x] Prove causal action changes, privacy, replay, attribution, and API-free bounds.
 
 Phase 7E2 is split into E2A substrate and E2B policy so the exact joint-world/public-observer
 formula, legal-information boundary, and weighted provenance can be audited before mechanical

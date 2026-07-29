@@ -64,6 +64,11 @@ import {
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
   type EvilRoleObjectiveSelectionMode,
 } from './evil-score-contract.ts'
+import {
+  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
+  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
+  type MordredBlindnessRoleSelectionMode,
+} from './mordred-score-contract.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -96,6 +101,13 @@ export {
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
   type EvilRoleObjectiveSelectionMode,
 } from './evil-score-contract.ts'
+
+export {
+  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
+  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
+  MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS,
+  type MordredBlindnessRoleSelectionMode,
+} from './mordred-score-contract.ts'
 
 export interface CandidateScore {
   version: string
@@ -1021,3 +1033,30 @@ export const morganaRoleScorer = MORGANA_ROLE_SCORER_DESCRIPTOR
 
 export const seededMorganaRoleScorer =
   SEEDED_MORGANA_ROLE_SCORER_DESCRIPTOR
+
+const MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR: CandidateScorer =
+  Object.freeze({
+    version: MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
+    baseScorer: evilRoleObjectiveScorer,
+  })
+
+const SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR: CandidateScorer =
+  Object.freeze({
+    version: MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
+    baseScorer: seededEvilRoleObjectiveScorer,
+  })
+
+export function createMordredBlindnessRoleScorer(options: {
+  selectionMode: MordredBlindnessRoleSelectionMode
+}): CandidateScorer {
+  return options.selectionMode
+      === 'seeded-near-equal-vote-within-d2-band'
+    ? SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
+    : MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
+}
+
+export const mordredBlindnessRoleScorer =
+  MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
+
+export const seededMordredBlindnessRoleScorer =
+  SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR

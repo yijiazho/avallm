@@ -22,8 +22,15 @@ import {
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
 } from '../server/agents/score-layers/morgana.ts'
 import {
+  MORDRED_ROLE_SCORE_LAYER,
+  SEEDED_MORDRED_ROLE_SCORE_LAYER,
+} from '../server/agents/score-layers/mordred.ts'
+import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
+import {
+  projectConfiguredScoreDiagnostics,
+} from '../server/agents/policy/score-compatibility.ts'
 import {
   combineSituationAnalysisRequirements,
   GOOD_PROPOSAL_ANALYSIS,
@@ -33,15 +40,18 @@ import {
   createEvilRoleObjectiveScorer,
   createGoodProposalVoteScorer,
   createMorganaRoleScorer,
+  createMordredBlindnessRoleScorer,
   createRoleObjectiveScorer,
   evilRoleObjectiveScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
   morganaRoleScorer,
+  mordredBlindnessRoleScorer,
   roleObjectiveScorer,
   seededEvilRoleObjectiveScorer,
   seededGoodProposalVoteScorer,
   seededMorganaRoleScorer,
+  seededMordredBlindnessRoleScorer,
   seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
 
@@ -60,9 +70,14 @@ test('configured score seam owns family selection and registry construction', ()
     [seededEvilRoleObjectiveScorer, SEEDED_EVIL_ROLE_SCORE_LAYER],
     [morganaRoleScorer, MORGANA_ROLE_SCORE_LAYER],
     [seededMorganaRoleScorer, SEEDED_MORGANA_ROLE_SCORE_LAYER],
+    [mordredBlindnessRoleScorer, MORDRED_ROLE_SCORE_LAYER],
+    [
+      seededMordredBlindnessRoleScorer,
+      SEEDED_MORDRED_ROLE_SCORE_LAYER,
+    ],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 10)
+  assert.equal(registry.size, 12)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
@@ -79,6 +94,10 @@ test('configured score seam owns family selection and registry construction', ()
   )
   assert.equal(
     configuredScoreLayerTerminalFor({ ...morganaRoleScorer }),
+    undefined,
+  )
+  assert.equal(
+    configuredScoreLayerTerminalFor({ ...mordredBlindnessRoleScorer }),
     undefined,
   )
   assert.equal(
@@ -100,6 +119,12 @@ test('configured score seam owns family selection and registry construction', ()
       selectionMode: 'top-counterfeit-within-d2-band',
     }),
     morganaRoleScorer,
+  )
+  assert.equal(
+    createMordredBlindnessRoleScorer({
+      selectionMode: 'seeded-near-equal-vote-within-d2-band',
+    }),
+    seededMordredBlindnessRoleScorer,
   )
 })
 
@@ -158,6 +183,55 @@ test('native family chains preserve exact predecessor order', () => {
       SEEDED_EVIL_ROLE_SCORE_LAYER,
       SEEDED_MORGANA_ROLE_SCORE_LAYER,
     ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: MORDRED_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      GOOD_ROLE_SCORE_LAYER,
+      EVIL_ROLE_SCORE_LAYER,
+      MORDRED_ROLE_SCORE_LAYER,
+    ],
+  )
+  assert.deepEqual(
+    registry.resolve({ terminal: SEEDED_MORDRED_ROLE_SCORE_LAYER }).order,
+    [
+      COMPATIBILITY_SCORE_LAYER,
+      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      SEEDED_GOOD_ROLE_SCORE_LAYER,
+      SEEDED_EVIL_ROLE_SCORE_LAYER,
+      SEEDED_MORDRED_ROLE_SCORE_LAYER,
+    ],
+  )
+})
+
+test('featureless diagnostics require resolved native registry membership', () => {
+  const rows = [{
+    candidateId: 'legal-candidates-v1:vote:approve',
+    value: 0.5,
+    viable: true,
+    reasonCodes: ['GENERIC'],
+  }]
+  assert.throws(
+    () => projectConfiguredScoreDiagnostics(
+      {} as never,
+      rows,
+      'unknown-native-scorer-v1',
+    ),
+    /no admitted native diagnostic owner/,
+  )
+  assert.deepEqual(
+    projectConfiguredScoreDiagnostics(
+      {} as never,
+      rows,
+      'registered-featureless-scorer-v1',
+      ['registered-featureless-scorer-v1'],
+    ),
+    [{
+      ...rows[0],
+      version: 'registered-featureless-scorer-v1',
+    }],
   )
 })
 

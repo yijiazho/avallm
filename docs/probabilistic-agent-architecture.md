@@ -608,6 +608,29 @@ at most `0.04`; proposals stay deterministic. Missing, malformed, or inapplicabl
 falls back to the matching D2 policy, not directly to compatibility. This preserves shared evil
 competence while making the special-role objective genuinely causal and separately attributable.
 
+Mordred policy follows the same bounded-specialization rule without treating its blindness
+objective as a probability of action success. Forced policy and the strategic candidate boundary
+filter first. The maximum shared D2 evil value over those survivors defines the existing `0.04`
+viability band, and Mordred's blindness opportunity may rank only candidates inside it. For a
+proposal, action utility is the selected team's bounded opportunity value. For a vote, approve
+uses the current team's opportunity and reject uses its complement. These are explicit heuristic
+action utilities, not posterior probabilities or independent-marginal products. Deterministic
+mode chooses the maximum utility with canonical candidate ties. Optional seeded variation is
+confined to approve versus reject when both actions remain inside the D2 band and their Mordred
+utility gap is at most `0.04`; proposals remain seed invariant. The seed domain contains only the
+game seed, acting seat, decision coordinates, belief event cursor, and scorer version. It contains
+no names, roster identities, teammate behavior, or shared coordination convention.
+
+The Mordred layer reads only the admitted private blindness objective. Its public-treatment
+dependency arrives through the component graph's transitive closure, so the generic trace can
+attribute both inputs without a role-specific field. Missing, malformed, or inapplicable evidence
+delegates to the matching deterministic or seeded D2 predecessor. Admitted weighted evidence may
+still affect the decision, but its structural rather than exact provenance makes that evaluation
+run nonpromotable. Private Mordred reason codes remain mechanical trace evidence and are not
+projected into public communication intent. This keeps Merlin-blindness play causal and
+inspectable while preserving the shared evil policy, engine legality, and heterogeneous-table
+assumptions.
+
 Coordination policy must also be valid for heterogeneous tables containing humans, raw LLMs, and
 other agent types. A deployable evil agent cannot assume that teammates share its algorithm,
 timing convention, seed, or capability handshake. Independent robust play is therefore the
