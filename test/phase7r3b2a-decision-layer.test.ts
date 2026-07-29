@@ -58,7 +58,6 @@ import {
 } from '../server/agents/composed.ts'
 import {
   admitDecisionTrace,
-  validateComposedTraceHostJoin,
 } from '../server/agents/admission/composed-trace.ts'
 import type {
   DecisionRequest,
@@ -975,13 +974,24 @@ test('production empty seam is neutral and exact host replay rejects rewrites', 
       projectResolvedArchitectureIdentity(brain.description),
     expectComponentTrace: true,
   }
-  assert.equal(validateComposedTraceHostJoin(exactInput), true)
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
+    ...exactInput,
+  }).kind, 'trusted-exact')
   const rewrite = structuredClone(trace)
   rewrite.decisionLayerRun.operations.layersVisited++
-  assert.equal(validateComposedTraceHostJoin({
+  const rewriteAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     ...exactInput,
     trace: rewrite,
-  }), false)
+  })
+  assert.equal(rewriteAdmission.kind, 'rejected')
+  if (rewriteAdmission.kind === 'rejected') {
+    assert.equal(
+      rewriteAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
   const invalidDiagnostic = structuredClone(trace)
   delete invalidDiagnostic.decisionLayerRun.operations.layersVisited
   const diagnostic = admitDecisionTrace({
@@ -1009,9 +1019,14 @@ test('production empty seam is neutral and exact host replay rejects rewrites', 
       throw new Error('whole-trace ingress must reject before reading')
     },
   })
-  assert.equal(validateComposedTraceHostJoin({
+  const unsafeAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     ...exactInput,
     trace: unsafe,
-  }), false)
+  })
+  assert.equal(unsafeAdmission.kind, 'rejected')
+  if (unsafeAdmission.kind === 'rejected') {
+    assert.equal(unsafeAdmission.reason, 'trace-json-unsafe')
+  }
   assert.equal(unsafeReads, 0)
 })

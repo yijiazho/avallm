@@ -68,7 +68,7 @@ import {
 import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
   runArchitectureBench,
@@ -211,7 +211,8 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
     entries: [],
     policyUse: [],
   })
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace,
     req: input.req,
     view: input.view,
@@ -223,7 +224,7 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
-  }))
+  }).kind, 'trusted-exact')
   assert.equal(
     (trace as unknown as Record<string, unknown>).mordredBlindness,
     undefined,
@@ -474,7 +475,8 @@ test('weighted beliefs remain structural and cannot become promotion evidence', 
   if (objective.status !== 'admitted') throw new Error('expected admission')
   assert.equal(objective.verification, 'structural')
   assert.equal(objective.promotionEligible, false)
-  assert.ok(validateComposedTraceHostJoin({
+  const weightedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     req: input.req,
     view: input.view,
@@ -486,7 +488,9 @@ test('weighted beliefs remain structural and cannot become promotion evidence', 
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
-  }))
+  })
+  assert.equal(weightedAdmission.kind, 'trusted-exact')
+  assert.equal(weightedAdmission.promotionEvidenceEligible, false)
 })
 
 test('public treatment and weighted joint worlds change only their owned terms', () => {
@@ -741,21 +745,23 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
   const output = await agent.decide(input.req, input.view)
   const original = output.trace!
   const plan = decisionComponentPlan(agent.resolvedBrain())
-  const valid = (trace: typeof original): boolean =>
-    validateComposedTraceHostJoin({
-      trace,
-      req: input.req,
-      view: input.view,
-      authoritativeAction: output.decision,
-      selectedDecision: output.decision,
-      deterministicSeed: input.game.seed,
-      expectedComponentPlan: plan,
-      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-        agent.resolvedBrain().description,
-      ),
-      expectComponentTrace: true,
-    })
-  assert.ok(valid(original))
+  const admissionContext = {
+    kind: 'finalized-artifact',
+    req: input.req,
+    view: input.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: input.game.seed,
+    expectedComponentPlan: plan,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+    expectComponentTrace: true,
+  } as const
+  assert.equal(admitDecisionTrace({
+    ...admissionContext,
+    trace: original,
+  }).kind, 'trusted-exact')
 
   const coherentPayload = structuredClone(original)
   const objectiveEntry = coherentPayload.components!.entries.find(
@@ -779,7 +785,17 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
     JSON.stringify(payload),
     'utf8',
   )
-  assert.equal(valid(coherentPayload), false)
+  const coherentPayloadAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: coherentPayload,
+  })
+  assert.equal(coherentPayloadAdmission.kind, 'rejected')
+  if (coherentPayloadAdmission.kind === 'rejected') {
+    assert.equal(
+      coherentPayloadAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   for (const [index, mutate] of [
     (trace: typeof original) => {
@@ -813,7 +829,18 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
   ].entries()) {
     const forged = structuredClone(original)
     mutate(forged)
-    assert.equal(valid(forged), false, `graph mutation ${index}`)
+    const admission = admitDecisionTrace({
+      ...admissionContext,
+      trace: forged,
+    })
+    assert.equal(admission.kind, 'rejected', `graph mutation ${index}`)
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+        `graph mutation ${index}`,
+      )
+    }
   }
 
   let getterCalls = 0
@@ -833,7 +860,14 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
     },
   })
   ;(getterEntry.envelope as any).payload = getterPayload
-  assert.equal(valid(getterTrace), false)
+  const getterAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: getterTrace,
+  })
+  assert.equal(getterAdmission.kind, 'rejected')
+  if (getterAdmission.kind === 'rejected') {
+    assert.equal(getterAdmission.reason, 'trace-json-unsafe')
+  }
   assert.equal(getterCalls, 0)
 
   let proxyCalls = 0
@@ -852,7 +886,14 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
       },
     },
   )
-  assert.equal(valid(proxyTrace), false)
+  const proxyAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: proxyTrace,
+  })
+  assert.equal(proxyAdmission.kind, 'rejected')
+  if (proxyAdmission.kind === 'rejected') {
+    assert.equal(proxyAdmission.reason, 'trace-json-unsafe')
+  }
   assert.equal(proxyCalls, 0)
 
   const oversizedTrace = structuredClone(original)
@@ -866,7 +907,17 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
   }
   ;(oversizedEntry as any).payloadBytes =
     MAX_MORDRED_BLINDNESS_JSON_BYTES
-  assert.equal(valid(oversizedTrace), false)
+  const oversizedAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: oversizedTrace,
+  })
+  assert.equal(oversizedAdmission.kind, 'rejected')
+  if (oversizedAdmission.kind === 'rejected') {
+    assert.equal(
+      oversizedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   const hugeLengthTrace = structuredClone(original)
   const hugeLengthEntry = hugeLengthTrace.components!.entries[1]
@@ -879,7 +930,14 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
   ) as any
   hugeLengthPayload.assessments = new Array(0xffff_ffff)
   ;(hugeLengthEntry.envelope as any).payload = hugeLengthPayload
-  assert.equal(valid(hugeLengthTrace), false)
+  const hugeLengthAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: hugeLengthTrace,
+  })
+  assert.equal(hugeLengthAdmission.kind, 'rejected')
+  if (hugeLengthAdmission.kind === 'rejected') {
+    assert.equal(hugeLengthAdmission.reason, 'trace-too-large')
+  }
 })
 
 test('legal no-Merlin view admits treatment but not Mordred objective', async () => {

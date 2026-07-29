@@ -64,7 +64,7 @@ import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import type {
   DecisionRequest,
@@ -328,7 +328,8 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
     'phase7d2',
     input.view,
   ).trace)
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     req: input.req,
     view: input.view,
@@ -336,7 +337,7 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
     selectedDecision: output.decision,
     deterministicSeed: 'phase7d2-evil-policy',
     expectedArchitectureIdentity: seededEvilPolicyIdentity,
-  }))
+  }).kind, 'trusted-exact')
 
   const mutations = [
     (trace: NonNullable<typeof output.trace>) => {
@@ -378,7 +379,8 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
       ),
       forged.decision,
     )
-    assert.equal(validateComposedTraceHostJoin({
+    const admission = admitDecisionTrace({
+      kind: 'finalized-artifact',
       trace: forged.trace!,
       req: input.req,
       view: input.view,
@@ -386,7 +388,14 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
       selectedDecision: output.decision,
       deterministicSeed: 'phase7d2-evil-policy',
       expectedArchitectureIdentity: seededEvilPolicyIdentity,
-    }), false)
+    })
+    assert.equal(admission.kind, 'rejected')
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+      )
+    }
   }
 })
 
@@ -1289,7 +1298,7 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     return trace
   }
   const stdioInput = voteFixture('mordred')
-  const stdioBase = await createComposedAgent({
+  const stdioAgent = createComposedAgent({
     seed: 'phase7d2-weighted-atomic-stdio',
     roleObjectiveRouter: true,
     scorer: seededGoodProposalVoteScorer,
@@ -1298,7 +1307,8 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
       roleQueries: [],
       hiddenTeam: true,
     },
-  }).decide(stdioInput.req, stdioInput.view)
+  })
+  const stdioBase = await stdioAgent.decide(stdioInput.req, stdioInput.view)
   const stdioDegraded = {
     decision: stdioBase.decision,
     trace: degrade(
@@ -1313,14 +1323,26 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     'phase7d2 weighted atomic',
     stdioInput.view,
   ).trace)
-  assert.ok(validateComposedTraceHostJoin({
+  const externalAdmission = admitDecisionTrace({
+    kind: 'pre-apply-external',
+    trace: stdioDegraded.trace,
+    req: stdioInput.req,
+    decision: stdioDegraded.decision,
+    hostView: stdioInput.view,
+  })
+  assert.equal(externalAdmission.kind, 'external-diagnostic')
+  assert.equal(externalAdmission.promotionEvidenceEligible, false)
+  const weightedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: stdioDegraded.trace,
     req: stdioInput.req,
     view: stdioInput.view,
     authoritativeAction: stdioDegraded.decision,
     selectedDecision: stdioDegraded.decision,
     deterministicSeed: 'phase7d2-weighted-atomic-stdio',
-  }))
+  })
+  assert.equal(weightedAdmission.kind, 'artifact-diagnostic')
+  assert.equal(weightedAdmission.promotionEvidenceEligible, false)
   const weightedVariant: ArchitectureVariant = {
     id: 'phase7d2-weighted-atomic-degradation',
     paid: false,

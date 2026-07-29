@@ -41,8 +41,11 @@ import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
 import type {
   DecisionRequest,
@@ -713,11 +716,14 @@ test('opt-in is default-off, Morgana-only, kind-scoped, and mechanically inert',
 
 test('strict detached validators and stdio host joins reject hostile mutation and deletion', async () => {
   const { game, view, req } = morganaProposal(5)
-  const output = await createComposedAgent({
+  const agent = createComposedAgent({
     seed: game.seed,
     morganaCounterfeitObjectives: true,
-  }).decide(req, view)
+  })
+  const output = await agent.decide(req, view)
   const trace = output.trace!
+  const expectedArchitectureIdentity =
+    projectResolvedArchitectureIdentity(agent.resolvedBrain().description)
   assert.doesNotThrow(() => parseStdioDecisionReply(
     req,
     { decision: output.decision, trace },
@@ -925,26 +931,44 @@ test('strict detached validators and stdio host joins reject hostile mutation an
 
   const sourceMutation = structuredClone(trace)
   morganaCounterfeitObjective(sourceMutation)!.source.beliefThroughSeq += 1
-  assert.equal(validateComposedTraceHostJoin({
+  const sourceAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: sourceMutation,
     req,
     view,
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: game.seed,
-  }), false)
+    expectedArchitectureIdentity,
+  })
+  assert.equal(sourceAdmission.kind, 'rejected')
+  if (sourceAdmission.kind === 'rejected') {
+    assert.equal(
+      sourceAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   const candidateMutation = structuredClone(trace)
   morganaCounterfeitObjective(candidateMutation)!
     .assessments[0].candidate.candidateId += ':forged'
-  assert.equal(validateComposedTraceHostJoin({
+  const candidateAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: candidateMutation,
     req,
     view,
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: game.seed,
-  }), false)
+    expectedArchitectureIdentity,
+  })
+  assert.equal(candidateAdmission.kind, 'rejected')
+  if (candidateAdmission.kind === 'rejected') {
+    assert.equal(
+      candidateAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   const sparse = structuredClone(
     morganaCounterfeitObjective(trace)!,
@@ -967,14 +991,23 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   ] as const) {
     const forged = structuredClone(trace)
     removeComponent(forged, component.id)
-    assert.equal(validateComposedTraceHostJoin({
+    const admission = admitDecisionTrace({
+      kind: 'finalized-artifact',
       trace: forged,
       req,
       view,
       authoritativeAction: output.decision,
       selectedDecision: output.decision,
       deterministicSeed: game.seed,
-    }), false)
+      expectedArchitectureIdentity,
+    })
+    assert.equal(admission.kind, 'rejected')
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+      )
+    }
   }
   const fakeDegradation = structuredClone(trace)
   removeComponent(
@@ -986,14 +1019,23 @@ test('strict detached validators and stdio host joins reject hostile mutation an
     MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
   )
   fakeDegradation.degradation.push('morgana-objective-assessment-failed')
-  assert.equal(validateComposedTraceHostJoin({
+  const fakeDegradationAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: fakeDegradation,
     req,
     view,
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: game.seed,
-  }), false)
+    expectedArchitectureIdentity,
+  })
+  assert.equal(fakeDegradationAdmission.kind, 'rejected')
+  if (fakeDegradationAdmission.kind === 'rejected') {
+    assert.equal(
+      fakeDegradationAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('Morgana dependency is legal-cast enforced and 5-10p payloads stay bounded', async () => {

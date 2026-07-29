@@ -30,7 +30,7 @@ import {
   validatePrivateMorganaRoleUtilityProjection,
 } from '../server/agents/analysis/morgana-role-utility.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
   runArchitectureBench,
@@ -202,7 +202,8 @@ test('opt-in Morgana policy resolves above D2 with exact private attribution', a
     trace.candidateScores!.filter((score) => score.viable).length,
     1,
   )
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace,
     req,
     view,
@@ -210,7 +211,7 @@ test('opt-in Morgana policy resolves above D2 with exact private attribution', a
     selectedDecision: result.decision,
     deterministicSeed: game.seed,
     expectedArchitectureIdentity: morganaPolicyIdentity,
-  }))
+  }).kind, 'trusted-exact')
 })
 
 test('Morgana proposals are seed invariant and ineligible roles truthfully resolve to D2', async () => {
@@ -649,12 +650,13 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
       )
     },
   }
-  const result = await createComposedAgent({
+  const weightedAgent = createComposedAgent({
     seed: input.game.seed,
     beliefModel: weightedModel,
     roleObjectiveRouter: true,
     scorer: morganaRoleScorer,
-  }).decide(input.req, input.view)
+  })
+  const result = await weightedAgent.decide(input.req, input.view)
   assert.equal(result.trace!.quality, 'weighted')
   assert.ok(morganaUtility(result.trace!))
   assert.equal(
@@ -670,14 +672,20 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
     ),
     result.decision,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const weightedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: result.trace!,
     req: input.req,
     view: input.view,
     authoritativeAction: result.decision,
     selectedDecision: result.decision,
     deterministicSeed: input.game.seed,
-  }), true)
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      weightedAgent.resolvedBrain().description,
+    ),
+  })
+  assert.equal(weightedAdmission.kind, 'trusted-exact')
+  assert.equal(weightedAdmission.promotionEvidenceEligible, false)
 })
 
 test('E1B leaves the independent robust D3 quest-card path unchanged', async () => {
@@ -801,7 +809,8 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     'phase7e1b',
     input.view,
   ).trace)
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     req: input.req,
     view: input.view,
@@ -809,7 +818,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     selectedDecision: output.decision,
     deterministicSeed: proposal.game.seed,
     expectedArchitectureIdentity: morganaPolicyIdentity,
-  }))
+  }).kind, 'trusted-exact')
   const mutations = [
     (trace: NonNullable<typeof output.trace>) => {
       morganaUtility(trace)!.candidates[0]
@@ -889,7 +898,8 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     } else {
       assert.deepEqual(parsed, forged.decision, `seedless mutation ${index}`)
     }
-    assert.equal(validateComposedTraceHostJoin({
+    const admission = admitDecisionTrace({
+      kind: 'finalized-artifact',
       trace: forged.trace!,
       req: input.req,
       view: input.view,
@@ -897,18 +907,26 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
       selectedDecision: output.decision,
       deterministicSeed: proposal.game.seed,
       expectedArchitectureIdentity: morganaPolicyIdentity,
-    }), false)
+    })
+    assert.equal(admission.kind, 'rejected')
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+      )
+    }
   }
 })
 
 test('exact reconstructable E1B rejects coherent D2 projection degradation across admission paths', async () => {
   const input = morganaProposal()
-  const d2 = await createComposedAgent({
+  const d2Agent = createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     morganaCounterfeitObjectives: true,
     scorer: evilRoleObjectiveScorer,
-  }).decide(input.req, input.view)
+  })
+  const d2 = await d2Agent.decide(input.req, input.view)
   const forged = structuredClone(d2)
   forged.trace!.componentVersions!.configuredScorer =
     MORGANA_ROLE_SCORER_VERSION
@@ -954,14 +972,34 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
     ),
     forged,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const externalAdmission = admitDecisionTrace({
+    kind: 'pre-apply-external',
+    trace: forged.trace!,
+    req: input.req,
+    decision: forged.decision,
+    hostView: input.view,
+  })
+  assert.equal(externalAdmission.kind, 'external-diagnostic')
+  assert.equal(externalAdmission.promotionEvidenceEligible, false)
+  const finalizedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: forged.trace!,
     req: input.req,
     view: input.view,
     authoritativeAction: forged.decision,
     selectedDecision: forged.decision,
     deterministicSeed: input.game.seed,
-  }), false)
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      d2Agent.resolvedBrain().description,
+    ),
+  })
+  assert.equal(finalizedAdmission.kind, 'rejected')
+  if (finalizedAdmission.kind === 'rejected') {
+    assert.equal(
+      finalizedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', async () => {

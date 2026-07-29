@@ -5005,17 +5005,3 @@ export function admitDecisionTrace(
     trace: snapshot,
   })
 }
-
-/**
- * Historical test/read compatibility wrapper. Runtime and evaluation code
- * must consume the closed admission result instead.
- */
-export function validateComposedTraceHostJoin(
-  input: ExactComposedTraceHostJoinInput,
-): boolean {
-  return admitDecisionTrace({
-    kind: 'finalized-artifact',
-    ...input,
-    diagnosticVerification: 'exact',
-  }).kind !== 'rejected'
-}

@@ -2,11 +2,10 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B3B2. Phase 7R3B3B1 deleted the historical exact-quota
-payload, flat trace, admission, artifact, benchmark, and report readers and closed MD-003.
-R3B3B2 now migrates the remaining boolean trace-admission facade and closes MD-004.
-Phase 7R3B2B moved the heterogeneous-safe D3 policy onto the generic strategic decision-layer
-seam, and Phase 7R3B2A's generic ordered strategic seam is complete.
+**Current target phase:** Phase 7E2B. Phase 7R3B is complete: robust heterogeneous D3 runs on the
+generic strategic decision-layer seam, exact quota remains research history only, and every
+historical D3 reader and boolean trace-admission facade is deleted. Tests now consume the closed,
+trust-labeled admission union directly; MD-003 and MD-004 are complete.
 Phase 7R3A4B is complete at
 checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3B1B's closed, trust-labeled trace admission boundary is complete.
@@ -134,7 +133,7 @@ migration work cite the corresponding ledger ID.
 | MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay previously assembled candidate teams, joint assessments, and vote alternatives separately, allowing drift to falsely reject another role or decision kind | R3B1A | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `complete` |
 | MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Whole hostile traces now cross one bounded canonical snapshot before any field read, then host admission returns trusted exact, external diagnostic, finalized-artifact diagnostic, or typed rejection; replay lookup sees only the frozen candidate and stdio, benchmark, and report aggregation consume the admitted snapshot | R3B1B | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `complete` |
 | MD-003 | Delete or isolate the remaining exact-quota D3 legacy adapter and its conformance exemption | R3B3B1 deleted the historical payload type and decoder, legacy adapter token and binding, flat trace fields, exact host join, and all artifact, benchmark, and report readers; removed fields are explicit closed-ingress tombstones | R3B3B1 | Historical flat compatibility is removed from current admission and evaluation, and its exemption is closed | `complete` |
-| MD-004 | Delete historical boolean trace-admission test facades | Two zero-caller wrappers were deleted in R3B3B1; tests still call `validateComposedTraceHostJoin` over the closed result, while architecture fitness prevents runtime and evaluation code from importing it | R3B3B2 | Tests consume the closed union directly and the final compatibility export is deleted | `in_progress` |
+| MD-004 | Delete historical boolean trace-admission test facades | R3B3B2 migrated every remaining test caller to explicit trusted, diagnostic, or typed-rejection assertions and deleted the final facade export; the retired names remain only as architecture-fitness tombstones | R3B3B2 | Tests consume the closed union directly and the final compatibility export is deleted | `complete` |
 
 ### 3.2 Parent-orchestrated execution
 
@@ -1403,6 +1402,7 @@ reviewable and ablatable:
     policy identities are invalid or nonpromotable rather than semantically reconstructed.
     Retired private field names remain privacy tombstones so deletion cannot make an old private
     payload safe to expose in public logs.
+    **Complete.**
     - **7R3B2A, generic strategic seam:** register and resolve a role-agnostic ordered
       decision-layer contract, execute its monotone survivor/selection surface after universal
       policy and components, and replay its journal, component reads, causal use, and bounded
@@ -1416,7 +1416,7 @@ reviewable and ablatable:
     - **7R3B3B1, historical D3 read cleanup:** delete the remaining flat payload decoder,
       admission, artifact, benchmark, and report readers and close MD-003. **Complete.**
     - **7R3B3B2, admission facade cleanup:** migrate the remaining tests to the closed admission
-      union, delete the final boolean compatibility facade, and close MD-004. **Current target.**
+      union, delete the final boolean compatibility facade, and close MD-004. **Complete.**
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
@@ -2830,7 +2830,7 @@ reader; those states are not deletion and are named below.
 | Generic evil policy for Mordred | **Active placeholder authority; Mordred substrate complete.** The native private Merlin-blindness objective and public treatment read are mechanically inert, while generic D2 evil policy still decides proposals and votes. | Phase 7E2B gives the admitted Mordred objective bounded causal authority after R3B3, with forced-policy and generic-evil fallback preserved. |
 | Generic assassination heuristic and prompt ranking | **Active pending replacement.** No separate Assassin Merlin posterior exists, so heuristic and raw-LLM paths still rank candidates with generic behavioral signals. | Phase 7E3 adds an interpretable, seat-filtered Merlin posterior; Phase 7F evaluates it and virtual guesses. |
 | Exact-quota D3 adapter, flat trace projection, effective-forced overlay, and conformance exemption | **Deleted; MD-003 complete.** R3B3A removed executable authority. R3B3B1 removed the historical payload type and decoder, private adapter token and binding, flat trace fields, exact host join, evaluation reconstruction, artifact readers, and report readers. Old exact artifacts now use generic unknown, invalid, or nonpromotable handling; removed flat keys are rejected at canonical ingress. | Retain exact quota only as documented homogeneous research context. Robust heterogeneous D3 evidence comes from the trusted architecture descriptor, generic admitted component, and decision-layer journal. |
-| Boolean trace-admission wrappers | **One test-only wrapper remains (MD-004).** R3B3B1 deleted two zero-caller wrappers. Runtime and evaluation consume the closed trust-labeled admission union; historical tests still call `validateComposedTraceHostJoin`. | Phase 7R3B3B2 migrates those tests to the closed result and deletes the final wrapper. |
+| Boolean trace-admission wrappers | **Deleted; MD-004 complete.** Runtime, evaluation, and tests consume the closed trust-labeled admission union directly. The three retired export names remain only as architecture-fitness tombstones that reject fake imports, aliases, namespace access, dynamic imports, and re-exports. | Keep the tombstones while old integrations could attempt to restore a boolean admission bypass. |
 
 Removal means deleting or isolating old authority, not merely adding a new path beside it. A
 retained baseline must stay independently attributable and must not silently feed native policy.
@@ -3274,6 +3274,12 @@ here.
   semantic schema cannot make its former private payload safe to expose.
   Two zero-caller boolean wrappers were deleted; R3B3B2 owns the remaining test migration and
   `validateComposedTraceHostJoin` deletion under MD-004.
+- Phase 7R3B3B2 admission facade cleanup: migrated the remaining test callers from the historical
+  boolean wrapper to explicit `trusted-exact`, `artifact-diagnostic`, `external-diagnostic`, or
+  typed rejection assertions. Known finalized producers carry out-of-band architecture identity;
+  synthetic and external artifacts remain nonpromotable diagnostics. Deleted the final facade
+  export without changing runtime admission behavior. The three retired names remain only as
+  architecture-fitness tombstones. Phase 7R3B and MD-004 are complete; Phase 7E2B is next.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

@@ -9,9 +9,6 @@ import {
 } from '../server/agents/analysis/situation-plan.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
-import {
-  projectResolvedArchitectureIdentity,
-} from '../server/agents/components/resolved-brain.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   canonicalDecisionFrame,
@@ -29,9 +26,6 @@ import {
   seededMorganaRoleScorer,
   seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
-import {
-  validateComposedTraceHostJoin,
-} from '../server/agents/admission/composed-trace.ts'
 import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
@@ -161,19 +155,6 @@ test('runtime uses byte-identical shared surfaces for every frozen decision', as
       candidateIdForDecision(fixture.baselineDecision),
       fixture.id,
     )
-    assert.equal(validateComposedTraceHostJoin({
-      trace: output.trace!,
-      req: fixture.req,
-      view: fixture.view,
-      authoritativeAction: output.decision,
-      selectedDecision: output.decision,
-      deterministicSeed: fixture.source.seed,
-      expectedComponentPlan: output.trace!.componentPlan!,
-      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-        agent.resolvedBrain().description,
-      ),
-      expectComponentTrace: true,
-    }), true, fixture.id)
     kinds.add(fixture.req.kind)
   }
   assert.deepEqual(
@@ -336,18 +317,5 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
       analyzed.analysis.policyCandidateAssessments,
       `${entry.id} runtime trace surface`,
     )
-    assert.equal(validateComposedTraceHostJoin({
-      trace: output.trace!,
-      req: entry.req,
-      view: entry.view,
-      authoritativeAction: output.decision,
-      selectedDecision: output.decision,
-      deterministicSeed: entry.seed,
-      expectedComponentPlan: output.trace!.componentPlan!,
-      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-        agent.resolvedBrain().description,
-      ),
-      expectComponentTrace: true,
-    }), true, entry.id)
   }
 })

@@ -73,7 +73,7 @@ import type {
   ComponentRef,
 } from '../server/agents/components/types.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
   legalCandidates,
@@ -756,21 +756,23 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
   const agent = nativeAgent(input.game.seed)
   const output = await agent.decide(input.req, input.view)
   const plan = decisionComponentPlan(agent.resolvedBrain())
-  const valid = (candidate: typeof output): boolean =>
-    validateComposedTraceHostJoin({
-      trace: candidate.trace!,
-      req: input.req,
-      view: input.view,
-      authoritativeAction: candidate.decision,
-      selectedDecision: candidate.decision,
-      deterministicSeed: input.game.seed,
-      expectedComponentPlan: plan,
-      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-        agent.resolvedBrain().description,
-      ),
-      expectComponentTrace: true,
-    })
-  assert.ok(valid(output))
+  const admissionContext = {
+    kind: 'finalized-artifact',
+    req: input.req,
+    view: input.view,
+    deterministicSeed: input.game.seed,
+    expectedComponentPlan: plan,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+    expectComponentTrace: true,
+  } as const
+  assert.equal(admitDecisionTrace({
+    ...admissionContext,
+    trace: output.trace!,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+  }).kind, 'trusted-exact')
 
   const mutations: Array<(candidate: typeof output) => void> = [
     (candidate) => {
@@ -809,7 +811,20 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
   for (const [index, mutate] of mutations.entries()) {
     const candidate = structuredClone(output)
     mutate(candidate)
-    assert.equal(valid(candidate), false, `host mutation ${index}`)
+    const admission = admitDecisionTrace({
+      ...admissionContext,
+      trace: candidate.trace!,
+      authoritativeAction: candidate.decision,
+      selectedDecision: candidate.decision,
+    })
+    assert.equal(admission.kind, 'rejected', `host mutation ${index}`)
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+        `host mutation ${index}`,
+      )
+    }
   }
 
   const metadataForgery = structuredClone(output)
@@ -839,7 +854,19 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
   )
   assert.ok(validatePrivateActorTargetTreatmentRead(treatment))
   assert.ok(validatePrivateMordredBlindnessObjective(objective))
-  assert.equal(valid(metadataForgery), false)
+  const metadataAdmission = admitDecisionTrace({
+    ...admissionContext,
+    trace: metadataForgery.trace!,
+    authoritativeAction: metadataForgery.decision,
+    selectedDecision: metadataForgery.decision,
+  })
+  assert.equal(metadataAdmission.kind, 'rejected')
+  if (metadataAdmission.kind === 'rejected') {
+    assert.equal(
+      metadataAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('private E2A data is absent publicly and raw-truth mutation is inert', async () => {

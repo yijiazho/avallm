@@ -113,7 +113,7 @@
     },
     {
       "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "4bd7adf17ad3f47f0ce0a13ab8f240de804eb6e45d423601cff2e322cb35e8ee",
+      "sha256": "45f30ceb9ae8e12805908cdf1984589c737f34435d5a239393499e2127f1f4e7",
       "rationale": "Legacy role-policy fixtures need current union narrowing."
     },
     {
@@ -123,27 +123,27 @@
     },
     {
       "path": "test/phase7d2-evil-policy.test.ts",
-      "sha256": "e155732a5a7bcc4d66abab6e716891866c677ef61825e535e51e39f81e96e01b",
+      "sha256": "e301d05d219ec82873d0b56618be26a9911d9dbe0c6cf1aec61647ee5f18783b",
       "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7e1a-morgana-counterfeit.test.ts",
-      "sha256": "323226c0827446c754dca4de64463fb10d6d623fdd218109023be1a2c061f6f8",
+      "sha256": "6b305b95eb9d2df48b5683644908bc9033d9189aa9155bbc63553ced6f23a3da",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "ff26efc9bd7631475a1162588965be3f68d38f5c3b0e65e7eb5e1c42c0ed9091",
+      "sha256": "93c42dce9d191d01b6a371331572d8b350c2ad48f230bf3e852cf46a6be7587a",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7e2a-mordred-hostile.test.ts",
-      "sha256": "1ff04b6449fe9455897014a25117fe68595f53862b0aeb1d0c3a679bfdf3864a",
+      "sha256": "9080d99d6790ba542e356e40c514bf713d6b96880ae11761e719fe84aef5dfcb",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e2a-mordred-native.test.ts",
-      "sha256": "a09a20a2bbd1bb6bdc4feb5d01eebb50d8ae5a0891a0e408a9163a6c79e216bf",
+      "sha256": "f0e608a6c08ed2cecccebe1d1a1edc3bb9236e13e588aaeb9b6e5a651ad8327b",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
@@ -163,7 +163,7 @@
     },
     {
       "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
-      "sha256": "615e9c4964b6194aa334e56ce2e06065ef6f70bfc7ad32b444d79039b76d2022",
+      "sha256": "654b3b362fa8b9f8d823fe7bc7e944b8c82d54716c0dc891b65188ee34abc02a",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {

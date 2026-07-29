@@ -72,7 +72,7 @@ import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
@@ -382,7 +382,8 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
   assert.equal(roleUtility(role.trace!), undefined)
   const proposal = proposalFixture(servant)
   const roleProposal = await decide(proposal)
-  assert.equal(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: roleProposal.trace!,
     req: proposal.req,
     view: proposal.view,
@@ -390,7 +391,7 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
     selectedDecision: roleProposal.decision,
     deterministicSeed: 'phase7c2-role-policy',
     expectedArchitectureIdentity: rolePolicyIdentity,
-  }), true)
+  }).kind, 'trusted-exact')
   const forgedBase = structuredClone(roleProposal)
   const forgedScore = forgedBase.trace!.candidateScores!.find(
     (score) =>
@@ -408,7 +409,8 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
     distribution[1] -= delta
     forgedScore.value += delta
   }
-  assert.equal(validateComposedTraceHostJoin({
+  const forgedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: forgedBase.trace!,
     req: proposal.req,
     view: proposal.view,
@@ -416,7 +418,14 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
     selectedDecision: forgedBase.decision,
     deterministicSeed: 'phase7c2-role-policy',
     expectedArchitectureIdentity: rolePolicyIdentity,
-  }), false)
+  })
+  assert.equal(forgedAdmission.kind, 'rejected')
+  if (forgedAdmission.kind === 'rejected') {
+    assert.equal(
+      forgedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('seeded role votes vary only inside the combined band and replay exactly', async () => {
@@ -486,7 +495,8 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       .roleObjectiveFeatures!.inViableBand,
     true,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: bandOutput.trace!,
     req: bandFixture.req,
     view: bandFixture.view,
@@ -494,7 +504,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     selectedDecision: bandOutput.decision,
     deterministicSeed: 'phase7c2-explicit-band',
     expectedArchitectureIdentity: seededRolePolicyIdentity,
-  }), true)
+  }).kind, 'trusted-exact')
   const expectedBucket = bandOutput.trace!.candidateScores![0]
     .roleObjectiveFeatures!.seedBucket
   let oppositeSeedOutput: Awaited<ReturnType<typeof decide>> | undefined
@@ -513,7 +523,8 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     }
   }
   assert.ok(oppositeSeedOutput)
-  assert.equal(validateComposedTraceHostJoin({
+  const oppositeSeedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: oppositeSeedOutput.trace!,
     req: bandFixture.req,
     view: bandFixture.view,
@@ -521,7 +532,14 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     selectedDecision: oppositeSeedOutput.decision,
     deterministicSeed: 'phase7c2-explicit-band',
     expectedArchitectureIdentity: seededRolePolicyIdentity,
-  }), false)
+  })
+  assert.equal(oppositeSeedAdmission.kind, 'rejected')
+  if (oppositeSeedAdmission.kind === 'rejected') {
+    assert.equal(
+      oppositeSeedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
   const forged = structuredClone(bandOutput)
   forged.trace!.candidateScores![0]
     .roleObjectiveFeatures!.selectionAdjustment += 0.01

@@ -59,7 +59,7 @@ import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
@@ -422,7 +422,8 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
   for (const [label, mutate] of mutations) {
     const forged = structuredClone(output)
     mutate(forged.trace!)
-    assert.equal(validateComposedTraceHostJoin({
+    const admission = admitDecisionTrace({
+      kind: 'finalized-artifact',
       trace: forged.trace!,
       req: fixture.req,
       view: fixture.view,
@@ -436,7 +437,15 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
       expectedComponentPlan: expectedPlan,
       expectedArchitectureIdentity: expectedIdentity,
       expectComponentTrace: true,
-    }), false, label)
+    })
+    assert.equal(admission.kind, 'rejected', label)
+    if (admission.kind === 'rejected') {
+      assert.equal(
+        admission.reason,
+        'trusted-identity-host-join-failed',
+        label,
+      )
+    }
   }
   const reasonForgery = structuredClone(output)
   reasonForgery.trace!.candidateScores![0].reasonCodes = [
@@ -484,7 +493,8 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     ),
     erased,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const erasedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: erased.trace!,
     req: fixture.req,
     view: fixture.view,
@@ -494,7 +504,14 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     expectedComponentPlan: expectedPlan,
     expectedArchitectureIdentity: passiveIdentity,
     expectComponentTrace: true,
-  }), false)
+  })
+  assert.equal(erasedAdmission.kind, 'rejected')
+  if (erasedAdmission.kind === 'rejected') {
+    assert.equal(
+      erasedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   const compatibilityAgent = createComposedAgent({
     seed: 'a4b-empty-plan',
@@ -515,7 +532,8 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     ),
     compatibility,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const diagnosticAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: compatibility.trace!,
     req: fixture.req,
     view: fixture.view,
@@ -524,7 +542,13 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     deterministicSeed: 'a4b-empty-plan',
     expectedComponentPlan: compatibility.trace!.componentPlan!,
     expectComponentTrace: true,
-  }), false, 'witnessless current trace cannot be promoted')
+  })
+  assert.equal(
+    diagnosticAdmission.kind,
+    'artifact-diagnostic',
+    'witnessless current trace remains diagnostic',
+  )
+  assert.equal(diagnosticAdmission.promotionEvidenceEligible, false)
   const differentScoringIdentity = projectResolvedArchitectureIdentity(
     createComposedAgent({
       seed: 'identity',
@@ -535,7 +559,8 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     differentScoringIdentity.components.configured,
     compatibilityIdentity.components.configured,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const wrongIdentityAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: compatibility.trace!,
     req: fixture.req,
     view: fixture.view,
@@ -545,11 +570,23 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     expectedComponentPlan: compatibility.trace!.componentPlan!,
     expectedArchitectureIdentity: differentScoringIdentity,
     expectComponentTrace: true,
-  }), false, 'same component plan cannot substitute scoring identity')
+  })
+  assert.equal(
+    wrongIdentityAdmission.kind,
+    'rejected',
+    'same component plan cannot substitute scoring identity',
+  )
+  if (wrongIdentityAdmission.kind === 'rejected') {
+    assert.equal(
+      wrongIdentityAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
   const relabeled: any = structuredClone(compatibility)
   relabeled.trace!.componentVersions!.scorer =
     seededGoodProposalVoteScorer.version
-  assert.equal(validateComposedTraceHostJoin({
+  const relabeledAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: relabeled.trace!,
     req: fixture.req,
     view: fixture.view,
@@ -559,8 +596,20 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     expectedComponentPlan: relabeled.trace!.componentPlan!,
     expectedArchitectureIdentity: compatibilityIdentity,
     expectComponentTrace: true,
-  }), false, 'self-consistent scorer relabel is not provenance')
-  assert.equal(validateComposedTraceHostJoin({
+  })
+  assert.equal(
+    relabeledAdmission.kind,
+    'rejected',
+    'self-consistent scorer relabel is not provenance',
+  )
+  if (relabeledAdmission.kind === 'rejected') {
+    assert.equal(
+      relabeledAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: compatibility.trace!,
     req: fixture.req,
     view: fixture.view,
@@ -570,7 +619,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     expectedComponentPlan: compatibility.trace!.componentPlan!,
     expectedArchitectureIdentity: compatibilityIdentity,
     expectComponentTrace: true,
-  }), true)
+  }).kind, 'trusted-exact')
 })
 
 test('A4B source has one downstream writer and exact survivor admission', () => {

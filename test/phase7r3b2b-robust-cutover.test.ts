@@ -12,7 +12,7 @@ import {
   projectResolvedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
   parseStdioDecisionReply,
@@ -132,7 +132,8 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
     )?.stages,
     ['strategic-decision'],
   )
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace,
     req,
     view,
@@ -142,7 +143,7 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
     expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
-  }))
+  }).kind, 'trusted-exact')
 })
 
 test('planner context honors an unselected strategic narrowing', async () => {

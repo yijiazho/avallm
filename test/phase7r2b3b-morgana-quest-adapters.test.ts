@@ -34,7 +34,7 @@ import {
   seededMorganaRoleScorer,
 } from '../server/agents/policy/score.ts'
 import {
-  validateComposedTraceHostJoin,
+  admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
   readDecisionFixtures,
@@ -186,7 +186,8 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
       ['candidate-score', 'action-selection'],
     )
   }
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace,
     req: input.req,
     view: input.view,
@@ -198,7 +199,7 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
-  }))
+  }).kind, 'trusted-exact')
 
   const forgedDependency = structuredClone(trace)
   const forgedObjective = forgedDependency.components!.entries.find(
@@ -233,7 +234,8 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
       .validateDetached(forgedPayload).admitted,
     true,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const forgedDependencyAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: forgedDependency,
     req: input.req,
     view: input.view,
@@ -245,7 +247,14 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
-  }), false)
+  })
+  assert.equal(forgedDependencyAdmission.kind, 'rejected')
+  if (forgedDependencyAdmission.kind === 'rejected') {
+    assert.equal(
+      forgedDependencyAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('public E1 read resolves from public record without a Morgana flat projection', async () => {
@@ -308,10 +317,11 @@ test('public E1 read resolves from public record without a Morgana flat projecti
       agent.resolvedBrain().description,
     ),
   } as const
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace,
     ...hostInput,
-  }))
+  }).kind, 'trusted-exact')
 
   const forged = structuredClone(trace)
   const forgedRead = forged.components!.entries.find(
@@ -341,10 +351,18 @@ test('public E1 read resolves from public record without a Morgana flat projecti
       .validateDetached(payload).admitted,
     true,
   )
-  assert.equal(validateComposedTraceHostJoin({
+  const forgedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: forged,
     ...hostInput,
-  }), false)
+  })
+  assert.equal(forgedAdmission.kind, 'rejected')
+  if (forgedAdmission.kind === 'rejected') {
+    assert.equal(
+      forgedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('weighted Morgana outputs remain structural and nonpromotable', async () => {
@@ -389,7 +407,8 @@ test('weighted Morgana outputs remain structural and nonpromotable', async () =>
       assert.equal(entry.promotionEligible, false)
     }
   }
-  assert.ok(validateComposedTraceHostJoin({
+  const weightedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     req: input.req,
     view: input.view,
@@ -401,7 +420,9 @@ test('weighted Morgana outputs remain structural and nonpromotable', async () =>
     expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
-  }))
+  })
+  assert.equal(weightedAdmission.kind, 'trusted-exact')
+  assert.equal(weightedAdmission.promotionEvidenceEligible, false)
 })
 
 test('seeded E1B has its own plan identity and host descriptor', async () => {
@@ -445,7 +466,8 @@ test('seeded E1B has its own plan identity and host descriptor', async () => {
     (utility.envelope.payload as any).selectionMode,
     'seeded-near-equal-vote-within-d2-band',
   )
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     req,
     view,
@@ -457,7 +479,7 @@ test('seeded E1B has its own plan identity and host descriptor', async () => {
     expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
-  }))
+  }).kind, 'trusted-exact')
 })
 
 test('robust D3 generic status and promotion remain policy-owned', async () => {
@@ -532,30 +554,47 @@ test('trusted construction plan rejects coherent rewrites and v1 downgrade', asy
     expectedComponentPlan,
     expectedArchitectureIdentity,
   } as const
-  assert.ok(validateComposedTraceHostJoin({
+  assert.equal(admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: output.trace!,
     ...input,
-  }))
+  }).kind, 'trusted-exact')
 
   const coherentErasure = structuredClone(output.trace!)
   coherentErasure.componentPlan!.configured = []
   coherentErasure.components!.configured = []
   coherentErasure.components!.entries = []
   coherentErasure.components!.policyUse = []
-  assert.equal(validateComposedTraceHostJoin({
+  const erasedAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: coherentErasure,
     ...input,
-  }), false)
+  })
+  assert.equal(erasedAdmission.kind, 'rejected')
+  if (erasedAdmission.kind === 'rejected') {
+    assert.equal(
+      erasedAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 
   const downgrade = structuredClone(output.trace!)
   downgrade.version = 'decision-trace-v1'
   delete downgrade.componentPlan
   delete downgrade.components
   delete downgrade.componentVersions!.decisionComponents
-  assert.equal(validateComposedTraceHostJoin({
+  const downgradeAdmission = admitDecisionTrace({
+    kind: 'finalized-artifact',
     trace: downgrade,
     ...input,
-  }), false)
+  })
+  assert.equal(downgradeAdmission.kind, 'rejected')
+  if (downgradeAdmission.kind === 'rejected') {
+    assert.equal(
+      downgradeAdmission.reason,
+      'trusted-identity-host-join-failed',
+    )
+  }
 })
 
 test('architecture generation captures the producer plan before wrapping', async () => {
