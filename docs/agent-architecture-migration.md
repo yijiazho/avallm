@@ -2,7 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3B2, followed by Phase 7R3B3. Phase 7R3A4B is complete at
+**Current target phase:** Phase 7R3B2B, followed by Phase 7R3B3. Phase 7R3B2A's generic
+ordered strategic decision-layer seam is complete. Phase 7R3A4B is complete at
 checkpoint `5479bb1`, and Phase 7R3B1A's shared scorer-sensitive situation surface is complete.
 Phase 7R3B1B's closed, trust-labeled trace admission boundary is complete.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
@@ -20,7 +21,7 @@ identity across trace, artifact, and report surfaces, component host roots resol
 component is causally eligible, and a fast dependency-fitness guard protects the coarse ownership
 boundaries. Registered ordered score layers now produce the sole built-in scored frame for every
 decision kind; one finalizer, selection path, and commit consume it. D3 remains the explicit
-quest-card input overlay pending R3B3.
+quest-card input overlay pending the R3B2B robust cutover and R3B3 exact-quota cleanup.
 Phase 7R1 restored universal forced-policy authority ahead of optional D3 strategy, Phase 7R2A
 moved admission behind an agent-owned boundary, and Phase 7R2B completed the generic contracts,
 per-decision kernel, compatibility adapters, transport admission, trusted manifests, stored
@@ -1398,6 +1399,16 @@ reviewable and ablatable:
     delete D3's local detached-data walk, exact-key parser, and optional-field mega-validator.
     Historical payload support remains a read-only adapter and cannot become the codec used by new
     in-process policy.
+    - **7R3B2A, generic strategic seam:** register and resolve a role-agnostic ordered
+      decision-layer contract, execute its monotone survivor/selection surface after universal
+      policy and components, and replay its journal, component reads, causal use, and bounded
+      operation counts from out-of-band identity. **Complete.**
+    - **7R3B2B, robust authority cutover:** register the heterogeneous-safe D3 policy as the first
+      production decision layer, prove behavior equality and universal dominance, then delete its
+      legacy overlay, flat binding, and exemption. **Current target.**
+    - **7R3B3, exact-quota quarantine cleanup:** isolate or delete the homogeneous research
+      convention's remaining runtime adapter and compatibility facades, close MD-003 and MD-004,
+      and retain only explicitly historical read compatibility.
 22. **Phase 7E2B, Mordred policy:** give the validated Mordred objective bounded causal authority
     over proposal and vote decisions through the ordered layer contract while preserving D2 and
     forced-policy dominance.
@@ -3159,6 +3170,22 @@ here.
   fitness rejects legacy boolean admission imports from server consumers. Three historical
   formula/D3 test facades remain thin wrappers over the union and are assigned to MD-004 for
   deletion with the R3B3 compatibility reader.
+- Phase 7R3B2A generic strategic seam complete: the resolved brain now owns one registry-resolved
+  ordered decision-layer identity and its frozen definitions. `DecisionFrame` executes that order
+  exactly once after universal forced policy and component resolution. Each layer can only use
+  declared admitted component payloads and a factory-minted monotone survivor/selection surface;
+  the generic kernel records configured order, applicability or degradation, prior and resulting
+  candidates, reasons, component reads, causal use, and exact bounded operation counts without
+  knowing any role, D3 version, trace, artifact, or evaluation shape. Current production order is
+  intentionally empty and behavior-neutral. Current traces carry the honest empty run, and exact
+  host admission replays it from out-of-band identity plus the canonical universal surface while
+  descriptor-less traces remain diagnostic. A native two-layer fixture proves ordered narrowing
+  and selection, factory provenance, dependency admission, universal dominance, journal and
+  operation rewrite rejection, exact replay, and construction-time registry substitution
+  rejection. Focused validation passed all five strategic-layer cases, and the contract gate
+  passed all 357 tests. Both robust and exact-quota D3 remain wholly on the preexisting legacy
+  overlay in this checkpoint; R3B2B owns the robust authority cutover and R3B3 still owns
+  exact-quota quarantine plus MD-003 and MD-004.
 - Phase 7R component checkpoint: inserted a behavior-preserving migration before Mordred. 7R2A
   centralizes host reconstruction and admission. 7R2B now lands linearly as contracts and resolved
   brain (B1), generic per-decision kernel plus a test-native fixture (B2), C1/C2/D1/D2 adapters

@@ -183,7 +183,7 @@
     },
     {
       "path": "test/phase7r2c3-architecture-descriptor.test.ts",
-      "sha256": "829abfed33a8190285c901e4b11f4206ef23709fbebdd2646742438be1587742",
+      "sha256": "db26d52c734d2517b0bce1385ccbceb993023b559a975b4aab8cbd0420aebb86",
       "rationale": "Legacy descriptor fixtures need current role-query literal typing."
     },
     {

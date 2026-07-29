@@ -33,6 +33,12 @@ import {
   executePreparedScoreLayerRun,
   prepareScoreLayerRunLease,
 } from './score-layer/runner.ts'
+import {
+  runDecisionLayers,
+} from './decision-layer/runner.ts'
+import type {
+  DecisionLayerRun,
+} from './decision-layer/types.ts'
 import type {
   ScoreLayerAnalysisRef,
   ScoreLayerRow,
@@ -111,6 +117,10 @@ interface ComponentSurface {
   readonly effectiveForced: Immutable<ForcedPolicyResult>
 }
 
+interface DecisionLayerSurface {
+  readonly decisionLayerRun: Immutable<DecisionLayerRun>
+}
+
 interface ScoreSurface {
   readonly scores: NonEmptyReadonly<Immutable<CandidateScore>>
   readonly viableCandidates: NonEmptyReadonly<Immutable<ViableCandidate>>
@@ -134,6 +144,13 @@ export type ComponentsResolvedDecisionFrame =
     CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
   >
 
+export type DecisionLayersResolvedDecisionFrame =
+  Stage<
+    'decision-layers-resolved',
+    CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
+      & DecisionLayerSurface
+  >
+
 export interface LegacyD3QuestCardState {
   readonly version: typeof LEGACY_D3_QUEST_CARD_VERSION
   readonly component: Readonly<{ id: string; version: string }>
@@ -144,13 +161,14 @@ export interface LegacyD3QuestCardState {
 export type LegacyD3QuestCardDecisionFrame =
   Stage<
     'legacy-d3-quest-card',
-    CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface & {
+    CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
+      & DecisionLayerSurface & {
       readonly legacyD3: Immutable<LegacyD3QuestCardState>
     }
   >
 
 export type PostComponentDecisionFrame =
-  | ComponentsResolvedDecisionFrame
+  | DecisionLayersResolvedDecisionFrame
   | LegacyD3QuestCardDecisionFrame
 
 export interface ViableCandidate {
@@ -160,6 +178,7 @@ export interface ViableCandidate {
 
 type ScoredData =
   CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface
+  & DecisionLayerSurface
   & ScoreSurface & {
     readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
   }
@@ -168,6 +187,7 @@ export type ScoredDecisionFrame = Stage<'scored', ScoredData>
 
 type NativeScoreLayersResolvedData =
   CandidateSurface & AnalysisSurface & ForcedSurface & ComponentSurface & {
+    readonly decisionLayerRun: Immutable<DecisionLayerRun>
     readonly legacyD3: Immutable<LegacyD3QuestCardState> | null
     readonly scoreLayerRun: Immutable<ScoreLayerRun>
     readonly survivorCandidateIds: readonly string[]
@@ -230,6 +250,7 @@ export interface LegacyVoicedOutputProjection {
   readonly scorerVersion: string
   readonly degradation: readonly string[]
   readonly componentRun: DecisionComponentRun
+  readonly decisionLayerRun: DecisionLayerRun
   readonly plan: DecisionPlan
 }
 
@@ -501,10 +522,44 @@ export async function withResolvedComponents(
   }) as ComponentsResolvedDecisionFrame
 }
 
+/**
+ * Execute the one ordered strategic boundary after components and universal
+ * policy. An empty order is an explicit behavior-neutral run.
+ */
+export function withResolvedDecisionLayers(
+  frame: ComponentsResolvedDecisionFrame,
+  brain: ResolvedComposedBrain,
+  scoreLayerLease?: NativeScoreLayerLease,
+): DecisionLayersResolvedDecisionFrame {
+  const run = runDecisionLayers({
+    order: brain.decisionLayerOrder,
+    request: frame.request,
+    view: frame.view,
+    analysis: frame.analysis,
+    candidates: frame.legalCandidates,
+    universalForced: frame.universalForced,
+    componentRun: frame.componentRun,
+  })
+  const next = Object.freeze({
+    ...frame,
+    stage: 'decision-layers-resolved',
+    componentRun: run.componentRun,
+    decisionLayerRun: run as Immutable<DecisionLayerRun>,
+  }) as DecisionLayersResolvedDecisionFrame
+  if (scoreLayerLease) {
+    LocalNativeScoreLayerLease.advanceDecisionLayers(
+      scoreLayerLease,
+      frame,
+      next,
+    )
+  }
+  return next
+}
+
 type LegacyD3Token = ComponentToken<PrivateEvilQuestCardPolicy>
 
 export function withLegacyD3QuestCard(
-  frame: ComponentsResolvedDecisionFrame,
+  frame: DecisionLayersResolvedDecisionFrame,
   token: LegacyD3Token,
   scoreLayerLease?: NativeScoreLayerLease,
 ): LegacyD3QuestCardDecisionFrame {
@@ -622,7 +677,10 @@ class LocalNativeScoreLayerLease {
   readonly #candidates: CandidateDecisionFrame['legalCandidates']
   readonly #lease: ScoreLayerRunLease
   #bindingStarted = false
-  #boundFrame: PostComponentDecisionFrame | undefined
+  #boundFrame:
+    | ComponentsResolvedDecisionFrame
+    | PostComponentDecisionFrame
+    | undefined
 
   constructor(
     frame: CandidateDecisionFrame,
@@ -712,7 +770,7 @@ class LocalNativeScoreLayerLease {
 
   static advanceLegacyD3(
     lease: NativeScoreLayerLease,
-    before: ComponentsResolvedDecisionFrame,
+    before: DecisionLayersResolvedDecisionFrame,
     after: LegacyD3QuestCardDecisionFrame,
   ): void {
     if (!(lease instanceof LocalNativeScoreLayerLease)) {
@@ -732,8 +790,42 @@ class LocalNativeScoreLayerLease {
       || after.forcedSurvivors !== before.forcedSurvivors
       || after.hypotheticalTeamCandidates
         !== before.hypotheticalTeamCandidates
+      || after.decisionLayerRun !== before.decisionLayerRun
     ) {
       throw new Error('native score layer lease received a foreign D3 frame')
+    }
+    lease.#boundFrame = after
+  }
+
+  static advanceDecisionLayers(
+    lease: NativeScoreLayerLease,
+    before: ComponentsResolvedDecisionFrame,
+    after: DecisionLayersResolvedDecisionFrame,
+  ): void {
+    if (!(lease instanceof LocalNativeScoreLayerLease)) {
+      throw new Error('native score layers require their local prepared lease')
+    }
+    if (lease.#boundFrame !== before) {
+      throw new Error(
+        'native score layer lease is not bound to the decision-layer input',
+      )
+    }
+    if (
+      after.stage !== 'decision-layers-resolved'
+      || after.request !== before.request
+      || after.view !== before.view
+      || after.legalCandidates !== before.legalCandidates
+      || after.analysis !== before.analysis
+      || after.belief !== before.belief
+      || after.universalForced !== before.universalForced
+      || after.forcedSurvivors !== before.forcedSurvivors
+      || after.effectiveForced !== before.effectiveForced
+      || after.hypotheticalTeamCandidates
+        !== before.hypotheticalTeamCandidates
+    ) {
+      throw new Error(
+        'native score layer lease received a foreign decision-layer frame',
+      )
     }
     lease.#boundFrame = after
   }
@@ -1040,6 +1132,7 @@ export function projectVoicedFrameForLegacy(
     scorerVersion: frame.scorerVersion,
     degradation: frame.degradation,
     componentRun: frame.componentRun,
+    decisionLayerRun: frame.decisionLayerRun,
     plan: frame.plan,
   }) as LegacyVoicedOutputProjection
 }

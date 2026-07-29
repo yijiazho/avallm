@@ -53,6 +53,9 @@ import {
 import type {
   ResolvedArchitectureDescriptor,
 } from './components/resolved-brain.ts'
+import type {
+  DecisionLayerTrace,
+} from './policy/decision-layer/types.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
@@ -152,6 +155,8 @@ export interface DecisionTrace {
   }>
   /** Private generic component execution and causal-use attribution. */
   components?: DecisionComponentRun
+  /** Ordered strategic survivor/selection transitions after universal policy. */
+  decisionLayerRun?: DecisionLayerTrace
   /** Independent configured-graph witness for composed v2 traces. */
   componentPlan?: DecisionComponentPlan
   candidateScores?: readonly CandidateScore[]

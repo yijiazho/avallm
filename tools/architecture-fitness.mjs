@@ -17,6 +17,16 @@ const CONFIGURED_SCORE_LAYER_SEAM =
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
 const SCORE_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/score-layer/admission-replay'
+const GENERIC_DECISION_LAYER_PREFIX =
+  'server/agents/policy/decision-layer/'
+const DECISION_LAYER_RUNNER =
+  'server/agents/policy/decision-layer/runner'
+const DECISION_LAYER_ADMISSION_REPLAY =
+  'server/agents/policy/decision-layer/admission-replay'
+const DECISION_LAYER_EXECUTION_OWNERS = new Set([
+  'server/agents/policy/decision-frame.ts',
+  'server/agents/policy/decision-layer/admission-replay.ts',
+])
 const SCORER_SITUATION_SURFACE =
   'server/agents/analysis/scorer-situation-surface'
 const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
@@ -514,6 +524,30 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (
+        target === DECISION_LAYER_RUNNER
+        && !DECISION_LAYER_EXECUTION_OWNERS.has(sourcePath)
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'the strategic decision-layer runner is confined to live DecisionFrame and canonical admission replay',
+        ))
+        continue
+      }
+      if (
+        target === DECISION_LAYER_ADMISSION_REPLAY
+        && sourcePath !== 'server/agents/admission/composed-trace.ts'
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'decision-layer admission replay is confined to composed trace admission',
+        ))
+        continue
+      }
+      if (
         sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
         && (
           target.startsWith('server/agents/analysis/')
@@ -525,6 +559,29 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           edge,
           'generic score-layer code cannot import role-specific analysis modules',
+        ))
+        continue
+      }
+      if (
+        sourcePath.startsWith(GENERIC_DECISION_LAYER_PREFIX)
+        && (
+          (
+            target.startsWith('server/agents/analysis/')
+            && target !== 'server/agents/analysis/types'
+          )
+          || target === 'server/agents/components/legacy-role-adapters'
+          || target === 'server/agents/components/native-role-components'
+          || target.startsWith('server/agents/decision-layers/')
+          || target === 'server/agents/policy/evil-quest-card'
+          || target === 'server/agents/trace'
+          || target.startsWith('server/eval/')
+        )
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'generic decision-layer code cannot import roles, concrete layers, traces, or evaluation shapes',
         ))
         continue
       }
@@ -640,6 +697,28 @@ export function auditArchitectureSources(sourceEntries) {
             sourcePath,
             undefined,
             `generic score-layer code contains role-named branch literal ${literal}`,
+          ))
+        }
+      }
+    }
+    if (sourcePath.startsWith(GENERIC_DECISION_LAYER_PREFIX)) {
+      for (const identifier of inspected.identifiers) {
+        if (FORBIDDEN_SCORE_LAYER_IDENTIFIER.test(identifier)) {
+          violations.push(violation(
+            'ARCH011',
+            sourcePath,
+            undefined,
+            `generic decision-layer code contains role-named identifier ${identifier}`,
+          ))
+        }
+      }
+      for (const literal of inspected.stringLiterals) {
+        if (FORBIDDEN_SCORE_LAYER_ROLE_LITERALS.has(literal.toLowerCase())) {
+          violations.push(violation(
+            'ARCH011',
+            sourcePath,
+            undefined,
+            `generic decision-layer code contains role-named branch literal ${literal}`,
           ))
         }
       }

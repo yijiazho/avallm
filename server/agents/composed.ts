@@ -116,6 +116,12 @@ import {
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
 import type { ComponentRef } from './components/types.ts'
+import type {
+  DecisionLayerRun,
+} from './policy/decision-layer/types.ts'
+import {
+  projectDecisionLayerRun,
+} from './policy/decision-layer/projection.ts'
 import {
   advanceCognition,
   advanceCognitionFromBelief,
@@ -204,6 +210,7 @@ import {
   withNativeScoringAuthority,
   prepareNativeScoreLayers,
   nativeScorerVersion,
+  withResolvedDecisionLayers,
   withResolvedComponents,
   withUniversalForcedPolicy,
   type LegacyPlannerResolution,
@@ -215,6 +222,9 @@ import {
   configuredScoreLayersApplyToDecision,
   createConfiguredScoreLayerRegistry,
 } from './score-layers/configured.ts'
+import {
+  createConfiguredDecisionLayerRegistry,
+} from './decision-layers/configured.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from './policy/score-compatibility.ts'
@@ -795,6 +805,7 @@ function composedTrace(
   degradation: readonly string[],
   componentPlan: DecisionComponentPlan,
   decisionComponents: DecisionComponentRun,
+  decisionLayerRun: DecisionLayerRun,
   descriptor: ResolvedComposedBrain['description'],
   architectureIdentityDigest: string,
   agentMode: AgentExecutionMode,
@@ -887,6 +898,7 @@ function composedTrace(
       : {}),
     componentPlan: structuredClone(componentPlan),
     components: structuredClone(decisionComponents),
+    decisionLayerRun: projectDecisionLayerRun(decisionLayerRun),
     candidateScores: scores,
     structuredCandidateId,
     chosenCandidateId,
@@ -1177,7 +1189,8 @@ export function createComposedAgent(
         evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
       },
     },
-  }, componentRegistry, createConfiguredScoreLayerRegistry())
+  }, componentRegistry, createConfiguredScoreLayerRegistry(),
+  createConfiguredDecisionLayerRegistry())
   const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
     projectResolvedArchitectureIdentity(resolvedBrain.description),
   )
@@ -1602,7 +1615,7 @@ export function createComposedAgent(
                 : undefined,
             ].filter((provider) => provider !== undefined),
           })
-        const resolvedFrame = nativeScoreLayerLease
+        const componentFrame = nativeScoreLayerLease
           ? await withNativeResolvedComponents(
               universalFrame,
               resolvedBrain,
@@ -1616,6 +1629,11 @@ export function createComposedAgent(
               undefined,
               componentHost,
             )
+        const resolvedFrame = withResolvedDecisionLayers(
+          componentFrame,
+          resolvedBrain,
+          nativeScoreLayerLease,
+        )
         let postComponentFrame: PostComponentDecisionFrame = resolvedFrame
         const componentRun = resolvedFrame.componentRun
         const genericPublicObserverApplicable =
@@ -2077,6 +2095,7 @@ export function createComposedAgent(
           legacyOutput.degradation,
           configuredComponentPlan,
           legacyOutput.componentRun,
+          legacyOutput.decisionLayerRun,
           resolvedBrain.description,
           architectureIdentityDigest,
           activePlanner

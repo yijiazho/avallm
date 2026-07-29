@@ -34,6 +34,14 @@ import type {
   ResolvedScoreLayerChain,
 } from '../policy/score-layer/types.ts'
 import {
+  EMPTY_DECISION_LAYER_REGISTRY,
+  type DecisionLayerRegistry,
+} from '../policy/decision-layer/registry.ts'
+import type {
+  DecisionLayerRef,
+  ResolvedDecisionLayerOrder,
+} from '../policy/decision-layer/types.ts'
+import {
   canonicalizeJson,
   denseOwnDataArrayValues,
   exactOwnDataRecord,
@@ -120,7 +128,7 @@ export interface ComposedBrainConfig {
   readonly scoreLayerTerminal?: ScoreLayerRef
   /** Optional construction assertion; a nonempty order requires a terminal. */
   readonly scoreLayerOrder?: readonly ScoreLayerRef[]
-  readonly decisionLayerOrder?: readonly ComponentRef[]
+  readonly decisionLayerOrder?: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
   readonly executionMode?: Extract<
     AgentExecutionMode,
@@ -166,7 +174,7 @@ export interface ResolvedArchitectureIdentity {
    */
   readonly requiredHostInputs: readonly ComponentHostInputRef[]
   readonly scoreLayerOrder: readonly ScoreLayerRef[]
-  readonly decisionLayerOrder: readonly ComponentRef[]
+  readonly decisionLayerOrder: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
 }
 
@@ -263,7 +271,7 @@ export interface PrivateResolvedComposedBrainLegacyProjection {
   readonly components: ResolvedComponentGraph
   readonly requiredHostInputs: readonly ComponentHostInputRef[]
   readonly scoreLayerOrder: readonly ScoreLayerRef[]
-  readonly decisionLayerOrder: readonly ComponentRef[]
+  readonly decisionLayerOrder: readonly DecisionLayerRef[]
   readonly compatibility: Readonly<Record<string, CompatibilityValue>>
 }
 
@@ -279,6 +287,8 @@ export interface ResolvedComposedBrain {
    * scorers with the canonical native fallback.
    */
   readonly scoreLayerChain: ResolvedScoreLayerChain | null
+  /** Construction-resolved ordered strategic layers. */
+  readonly decisionLayerOrder: ResolvedDecisionLayerOrder
   /** Construction-eligible subset of configuredDefinitions. */
   readonly eligibleDefinitions:
     readonly DecisionComponentDefinition<any>[]
@@ -339,26 +349,6 @@ function freezeCompatibilityValue(
     )
   }
   return Object.freeze(result)
-}
-
-function freezeLayerOrder(
-  label: string,
-  source: readonly ComponentRef[] | undefined,
-  eligible: ReadonlySet<string>,
-): readonly ComponentRef[] {
-  const entries = (source ?? []).map(freezeRef)
-  const keys = entries.map((entry) => `${entry.id}@${entry.version}`)
-  if (new Set(keys).size !== keys.length) {
-    throw new Error(`${label} contains a duplicate component`)
-  }
-  for (let index = 0; index < entries.length; index++) {
-    if (!eligible.has(keys[index])) {
-      throw new Error(
-        `${label} component ${keys[index]} is not construction-time eligible`,
-      )
-    }
-  }
-  return Object.freeze(entries)
 }
 
 function freezeConfiguredPipeline(
@@ -757,11 +747,6 @@ export function admitResolvedArchitectureIdentity(
       return undefined
     }
     const components = decodeIdentityGraph(root.components)
-    const eligible = new Set(
-      components.eligible.map(
-        (entry) => `${entry.id}@${entry.version}`,
-      ),
-    )
     const scoreLayerOrder = decodeIdentityRefs(
       root.scoreLayerOrder,
       'scoreLayerOrder',
@@ -770,11 +755,6 @@ export function admitResolvedArchitectureIdentity(
       root.decisionLayerOrder,
       'decisionLayerOrder',
     )
-    if (decisionLayerOrder.some((entry) =>
-      !eligible.has(`${entry.id}@${entry.version}`))
-    ) {
-      return undefined
-    }
     const identity: ResolvedArchitectureIdentity = Object.freeze({
       version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
       executionMode: root.executionMode as
@@ -913,6 +893,8 @@ export function resolveComposedBrain(
   config: ComposedBrainConfig,
   registry: DecisionComponentRegistry,
   scoreLayerRegistry: ScoreLayerRegistry = EMPTY_SCORE_LAYER_REGISTRY,
+  decisionLayerRegistry: DecisionLayerRegistry =
+    EMPTY_DECISION_LAYER_REGISTRY,
 ): ResolvedComposedBrain {
   if (!config.scoreLayerTerminal && (config.scoreLayerOrder?.length ?? 0) > 0) {
     throw new Error('nonempty scoreLayerOrder requires scoreLayerTerminal')
@@ -925,6 +907,9 @@ export function resolveComposedBrain(
           : {}),
       })
     : undefined
+  const resolvedDecisionLayers = decisionLayerRegistry.resolve(
+    config.decisionLayerOrder ?? [],
+  )
   const uniqueRequests: ComponentRef[] = [
     ...(config.requestedComponents ?? []),
   ]
@@ -938,13 +923,29 @@ export function resolveComposedBrain(
     }
     seen.add(key)
   }
-  for (const request of [
-    ...(config.decisionLayerOrder ?? []),
-  ]) {
-    const key = `${request.id}@${request.version}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      uniqueRequests.push(request)
+  for (const layer of resolvedDecisionLayers.definitions) {
+    for (const request of layer.requiredComponents) {
+      const key = `${request.id}@${request.version}`
+      const registered = registry.definition(request)
+      if (!registered) {
+        throw new Error(
+          `decision layer ${layer.token.id}@${layer.token.version} requires `
+            + `missing registry component ${key}`,
+        )
+      }
+      if (
+        registered.token.kind !== request.kind
+        || registered.token.privacy !== request.privacy
+      ) {
+        throw new Error(
+          `decision layer ${layer.token.id}@${layer.token.version} substitutes `
+            + `component tag ${key}`,
+        )
+      }
+      if (!seen.has(key)) {
+        seen.add(key)
+        uniqueRequests.push(request)
+      }
     }
   }
   for (const layer of scoreLayerChain?.definitions ?? []) {
@@ -1093,10 +1094,19 @@ export function resolveComposedBrain(
       }
     }
   }
-  const decisionLayerOrder = freezeLayerOrder(
-    'decisionLayerOrder',
-    config.decisionLayerOrder,
-    eligible,
+  for (const layer of resolvedDecisionLayers.definitions) {
+    for (const required of layer.requiredComponents) {
+      const key = `${required.id}@${required.version}`
+      if (!eligible.has(key)) {
+        throw new Error(
+          `decision layer ${layer.token.id}@${layer.token.version} requires `
+            + `construction-ineligible component ${key}`,
+        )
+      }
+    }
+  }
+  const decisionLayerOrder = Object.freeze(
+    resolvedDecisionLayers.order.map(freezeRef),
   )
   const source: BrainSource = {
     type: 'composed',
@@ -1179,5 +1189,6 @@ export function resolveComposedBrain(
     eligibleDefinitions,
     hostInputDefinitions,
     scoreLayerChain: scoreLayerChain ?? null,
+    decisionLayerOrder: resolvedDecisionLayers,
   })
 }

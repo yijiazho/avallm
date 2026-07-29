@@ -162,6 +162,13 @@ import {
   validateDecisionComponentRunHostJoin,
 } from '../components/kernel.ts'
 import {
+  replayDecisionLayersForAdmission,
+  validateDecisionLayerRun,
+} from '../policy/decision-layer/admission-replay.ts'
+import {
+  createConfiguredDecisionLayerRegistry,
+} from '../decision-layers/configured.ts'
+import {
   LEGACY_ROLE_ADAPTER_TRACE_BINDINGS,
 } from '../components/legacy-role-adapters.ts'
 import {
@@ -3059,6 +3066,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
 const PRODUCTION_COMPONENT_REGISTRY = createProductionComponentRegistry({
   goodObjectiveAllDecisionKinds: true,
 })
+const PRODUCTION_DECISION_LAYER_REGISTRY =
+  createConfiguredDecisionLayerRegistry()
 
 const COMPONENT_FAILURE_CODES = new Set([
   'construction-ineligible',
@@ -3648,6 +3657,10 @@ function validDecisionTrace(
       fullHostView,
     )
     && (
+      trace.version === DECISION_TRACE_VERSION
+      || validateDecisionLayerRun(trace.decisionLayerRun)
+    )
+    && (
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || validRoleObjectiveRoute(trace, fullHostView)
     )
@@ -3810,6 +3823,19 @@ function validExactComposedTraceHostJoin(
       || !validBeliefVersionRelation(trace)
       || !genericRoleComponentsValid
       || !genericRoleHostJoinValid
+      || (
+        expectedArchitectureIdentity !== undefined
+        && (
+          !policyHostSurface
+          || !validExactDecisionLayerHostJoin(
+            trace,
+            req,
+            view,
+            policyHostSurface,
+            expectedArchitectureIdentity,
+          )
+        )
+      )
       || (
         expectComponentTrace === true
         && trace.version !== COMPONENT_DECISION_TRACE_VERSION
@@ -4666,6 +4692,41 @@ function exactPolicyHostSurface(
     }
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Replay the configured strategic seam from out-of-band architecture
+ * identity. Detached traces can remain diagnostic, but cannot invent exact
+ * order, journal, operation accounting, or causal component use.
+ */
+function validExactDecisionLayerHostJoin(
+  trace: DecisionTrace,
+  req: DecisionRequest,
+  view: PlayerView,
+  surface: ExactPolicyHostSurface,
+  identity: ResolvedArchitectureIdentity,
+): boolean {
+  try {
+    if (
+      trace.version !== COMPONENT_DECISION_TRACE_VERSION
+      || !trace.components
+      || !trace.decisionLayerRun
+      || !validateDecisionLayerRun(trace.decisionLayerRun)
+    ) return false
+    return replayDecisionLayersForAdmission({
+      registry: PRODUCTION_DECISION_LAYER_REGISTRY,
+      configured: identity.decisionLayerOrder,
+      request: req,
+      view,
+      analysis: surface.analysis,
+      candidates: surface.candidates,
+      universalForced: surface.universalForced,
+      componentRun: trace.components,
+      claimed: trace.decisionLayerRun,
+    }) !== undefined
+  } catch {
+    return false
   }
 }
 

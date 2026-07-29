@@ -578,6 +578,59 @@ test('generic score-layer kernel cannot grow role-specific dependencies or branc
   )
 })
 
+test('generic decision-layer kernel cannot grow role or observability coupling', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/policy/decision-layer/role-import.ts',
+        'import { utility } from "../../analysis/morgana-role-utility.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/token-import.ts',
+        'import { TOKEN } from "../../components/legacy-role-adapters.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/concrete-import.ts',
+        'import { POLICY } from "../../decision-layers/evil-quest-card.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/trace-import.ts',
+        'import type { DecisionTrace } from "../../trace.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/role-branch.ts',
+        'const selected = view.role === "merlin"',
+      ],
+      [
+        'server/agents/policy/decision-layer/role-name.ts',
+        'function applyMorganaRolePolicy() {}',
+      ],
+    ]),
+    Array(6).fill('ARCH011'),
+  )
+  assert.deepEqual(
+    auditArchitectureSources([
+      [
+        'server/agents/policy/decision-frame.ts',
+        'import { runDecisionLayers } from "./decision-layer/runner.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/admission-replay.ts',
+        'import { runDecisionLayers } from "./runner.ts"',
+      ],
+      [
+        'server/agents/admission/composed-trace.ts',
+        'import { replayDecisionLayersForAdmission } from "../policy/decision-layer/admission-replay.ts"',
+      ],
+      [
+        'server/agents/decision-layers/configured.ts',
+        'import type { DecisionLayerDefinition } from "../policy/decision-layer/types.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
 test('concrete score families stay separate from observability and composition IDs', () => {
   assert.deepEqual(
     rules([

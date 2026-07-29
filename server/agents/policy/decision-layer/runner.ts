@@ -1,0 +1,506 @@
+import {
+  advanceDecisionComponentRun,
+  attributeComponentPolicyUseBatch,
+  indexDecisionComponentPayloads,
+} from '../../components/kernel.ts'
+import type {
+  ComponentRef,
+  ComponentToken,
+} from '../../components/types.ts'
+import type { Immutable } from '../trusted-data.ts'
+import type {
+  DecisionLayerComponentReader,
+  DecisionLayerDefinition,
+  DecisionLayerJournalEntry,
+  DecisionLayerOperationCounts,
+  DecisionLayerRef,
+  DecisionLayerResult,
+  DecisionLayerRun,
+  DecisionLayerRunInput,
+  DecisionLayerSurface,
+  DecisionLayerSurfaceDraft,
+  DecisionLayerSurfaceFactory,
+} from './types.ts'
+
+export const DECISION_LAYER_RUN_VERSION = 'decision-layer-run-v1'
+export const DECISION_LAYER_SURFACE_VERSION = 'decision-layer-surface-v1'
+export const DECISION_LAYER_POLICY_USE_STAGE = 'strategic-decision'
+export const MAX_DECISION_LAYER_REASON_CODES = 32
+export const MAX_DECISION_LAYER_STRING_BYTES = 128
+export const MAX_DECISION_LAYER_SURFACE_JSON_BYTES = 65_536
+
+interface MutableOperationCounts {
+  universalCandidateIdsVisited: number
+  legalCandidatesVisited: number
+  layersVisited: number
+  applicabilityEvaluations: number
+  layersExecuted: number
+  componentRequirementsIndexed: number
+  componentEntriesVisited: number
+  componentLookupAttempts: number
+  componentPayloadReads: number
+  componentAttributionTokensVisited: number
+  componentAttributionEntriesVisited: number
+  componentAttributionPolicyUseEntriesVisited: number
+  surfaceBuildAttempts: number
+  surfacePriorSurvivorsVisited: number
+  surfaceDraftSurvivorsVisited: number
+  surfaceReasonsVisited: number
+  surfaceBytesConstructed: number
+}
+
+function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {
+  return Object.freeze({ id: ref.id, version: ref.version })
+}
+
+function frozenComponentRef(ref: ComponentRef): ComponentRef {
+  return Object.freeze({ id: ref.id, version: ref.version })
+}
+
+function componentKey(ref: ComponentRef): string {
+  return `${ref.id}@${ref.version}`
+}
+
+function canonicalText(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && Buffer.byteLength(value, 'utf8') <= MAX_DECISION_LAYER_STRING_BYTES
+    && /^[A-Z0-9][A-Z0-9_-]*$/.test(value)
+}
+
+function parseResult(value: unknown): DecisionLayerResult | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const result = value as Partial<DecisionLayerResult>
+  if (result.status === 'degraded') return result as DecisionLayerResult
+  return result.status === 'applied' && result.surface
+    ? result as DecisionLayerResult
+    : undefined
+}
+
+function createInitialSurface(
+  input: DecisionLayerRunInput,
+  operations: MutableOperationCounts,
+): Immutable<DecisionLayerSurface> {
+  const legal = new Set<string>()
+  for (const candidate of input.candidates) {
+    operations.legalCandidatesVisited++
+    if (legal.has(candidate.id)) {
+      throw new Error('decision layers require unique legal candidate ids')
+    }
+    legal.add(candidate.id)
+  }
+  const survivors: string[] = []
+  const seen = new Set<string>()
+  for (const id of input.universalForced.allowedCandidateIds) {
+    operations.universalCandidateIdsVisited++
+    if (!legal.has(id) || seen.has(id)) {
+      throw new Error(
+        'universal forced policy has an invalid survivor boundary',
+      )
+    }
+    seen.add(id)
+    survivors.push(id)
+  }
+  if (survivors.length === 0) {
+    throw new Error('universal forced policy must retain a candidate')
+  }
+  const selected = input.universalForced.selectedCandidateId
+  if (selected !== undefined && !seen.has(selected)) {
+    throw new Error('universal forced selection is outside its survivors')
+  }
+  return Object.freeze({
+    version: DECISION_LAYER_SURFACE_VERSION,
+    survivorCandidateIds: Object.freeze(survivors),
+    ...(selected === undefined ? {} : { selectedCandidateId: selected }),
+    reasonCodes: Object.freeze([]),
+  }) as unknown as Immutable<DecisionLayerSurface>
+}
+
+interface LayerSurfaceRuntime {
+  readonly factory: DecisionLayerSurfaceFactory
+  accepts(surface: unknown): surface is Immutable<DecisionLayerSurface>
+}
+
+function createSurfaceRuntime(
+  prior: Immutable<DecisionLayerSurface>,
+  legalOrder: readonly string[],
+  operations: MutableOperationCounts,
+): LayerSurfaceRuntime {
+  const issued = new WeakSet<object>()
+  const priorSet = new Set(prior.survivorCandidateIds)
+  const legalIndex = new Map(legalOrder.map((id, index) => [id, index]))
+  const factory: DecisionLayerSurfaceFactory = Object.freeze({
+    create(draft: DecisionLayerSurfaceDraft) {
+      operations.surfaceBuildAttempts++
+      if (
+        !draft
+        || typeof draft !== 'object'
+        || !Array.isArray(draft.survivorCandidateIds)
+        || !Array.isArray(draft.reasonCodes)
+      ) throw new Error('decision layer returned a malformed surface draft')
+      const survivors: string[] = []
+      const seen = new Set<string>()
+      let priorPosition = -1
+      for (const priorId of prior.survivorCandidateIds) {
+        operations.surfacePriorSurvivorsVisited++
+        if (!legalIndex.has(priorId)) {
+          throw new Error('decision layer prior is outside legal candidates')
+        }
+      }
+      for (const id of draft.survivorCandidateIds) {
+        operations.surfaceDraftSurvivorsVisited++
+        if (
+          typeof id !== 'string'
+          || !priorSet.has(id)
+          || seen.has(id)
+        ) throw new Error('decision layer did not monotonically narrow')
+        const position = legalIndex.get(id)!
+        if (position <= priorPosition) {
+          throw new Error('decision layer changed canonical candidate order')
+        }
+        priorPosition = position
+        seen.add(id)
+        survivors.push(id)
+      }
+      if (survivors.length === 0) {
+        throw new Error('decision layer removed every candidate')
+      }
+      const selected = draft.selectedCandidateId
+      if (
+        selected !== undefined
+        && (
+          typeof selected !== 'string'
+          || !seen.has(selected)
+        )
+      ) throw new Error('decision layer selected outside its survivors')
+      if (
+        prior.selectedCandidateId !== undefined
+        && selected !== prior.selectedCandidateId
+      ) throw new Error('decision layer overrode an earlier selection')
+      if (selected !== undefined && survivors.length !== 1) {
+        throw new Error('decision layer selection must be its sole survivor')
+      }
+      const reasons: string[] = []
+      const reasonSeen = new Set<string>()
+      for (const reason of draft.reasonCodes) {
+        operations.surfaceReasonsVisited++
+        if (
+          !canonicalText(reason)
+          || reasonSeen.has(reason)
+          || reasons.length >= MAX_DECISION_LAYER_REASON_CODES
+        ) throw new Error('decision layer returned invalid reason codes')
+        reasonSeen.add(reason)
+        reasons.push(reason)
+      }
+      const source = {
+        version: DECISION_LAYER_SURFACE_VERSION,
+        survivorCandidateIds: survivors,
+        ...(selected === undefined
+          ? {}
+          : { selectedCandidateId: selected }),
+        reasonCodes: reasons,
+      }
+      const bytes = Buffer.byteLength(JSON.stringify(source), 'utf8')
+      if (bytes > MAX_DECISION_LAYER_SURFACE_JSON_BYTES) {
+        throw new Error('decision layer surface exceeds its byte budget')
+      }
+      operations.surfaceBytesConstructed += bytes
+      const surface = Object.freeze({
+        ...source,
+        survivorCandidateIds: Object.freeze(survivors),
+        reasonCodes: Object.freeze(reasons),
+      }) as Immutable<DecisionLayerSurface>
+      issued.add(surface as object)
+      return surface
+    },
+  })
+  return Object.freeze({
+    factory,
+    accepts(surface: unknown): surface is Immutable<DecisionLayerSurface> {
+      return !!surface
+        && typeof surface === 'object'
+        && issued.has(surface as object)
+    },
+  })
+}
+
+interface ReadJournal {
+  readonly lookups: ComponentRef[]
+  readonly reads: ComponentToken[]
+}
+
+function createComponentReader(
+  definition: DecisionLayerDefinition,
+  payloadIndex: ReturnType<typeof indexDecisionComponentPayloads>,
+  journal: ReadJournal,
+  operations: MutableOperationCounts,
+): DecisionLayerComponentReader {
+  const allowed = new Map<string, ComponentToken>()
+  for (const component of definition.requiredComponents) {
+    operations.componentRequirementsIndexed++
+    allowed.set(componentKey(component), component)
+  }
+  const cached = new Map<string, unknown>()
+  const resolved = new Set<string>()
+  function get<Payload>(
+    token: ComponentToken<Payload>,
+  ): Immutable<Payload> | undefined {
+    operations.componentLookupAttempts++
+    const key = componentKey(token)
+    const declared = allowed.get(key)
+    if (
+      !declared
+      || declared.kind !== token.kind
+      || declared.privacy !== token.privacy
+    ) {
+      throw new Error(
+        `decision layer ${definition.token.id} read undeclared component ${key}`,
+      )
+    }
+    journal.lookups.push(frozenComponentRef(token))
+    if (!resolved.has(key)) {
+      resolved.add(key)
+      operations.componentPayloadReads++
+      cached.set(key, payloadIndex.payload(token))
+    }
+    const payload = cached.get(key) as Immutable<Payload> | undefined
+    if (payload !== undefined && !journal.reads.some(
+      (entry) => componentKey(entry) === key,
+    )) journal.reads.push(token)
+    return payload
+  }
+  return Object.freeze({
+    get,
+    require<Payload>(
+      token: ComponentToken<Payload>,
+    ): Immutable<Payload> {
+      const payload = get(token)
+      if (payload === undefined) {
+        throw new Error(
+          `decision layer ${definition.token.id} requires unavailable component ${componentKey(token)}`,
+        )
+      }
+      return payload
+    },
+  })
+}
+
+function journalBase(
+  definition: DecisionLayerDefinition,
+  prior: Immutable<DecisionLayerSurface>,
+  reads: ReadJournal,
+): {
+  layer: DecisionLayerRef
+  priorSurvivorCandidateIds: readonly string[]
+  priorSelectedCandidateId?: string
+  componentLookups: readonly ComponentRef[]
+  componentReads: readonly ComponentRef[]
+} {
+  return {
+    layer: frozenRef(definition.token),
+    priorSurvivorCandidateIds: prior.survivorCandidateIds,
+    ...(prior.selectedCandidateId === undefined
+      ? {}
+      : { priorSelectedCandidateId: prior.selectedCandidateId }),
+    componentLookups: Object.freeze(reads.lookups.map(frozenComponentRef)),
+    componentReads: Object.freeze(reads.reads.map(frozenComponentRef)),
+  }
+}
+
+function degraded(
+  definition: DecisionLayerDefinition,
+  prior: Immutable<DecisionLayerSurface>,
+  reads: ReadJournal,
+  failureCode: Extract<
+    DecisionLayerJournalEntry,
+    { status: 'degraded' }
+  >['failureCode'],
+): DecisionLayerJournalEntry {
+  return Object.freeze({
+    ...journalBase(definition, prior, reads),
+    status: 'degraded',
+    degradationCode: definition.degradationCode,
+    failureCode,
+  })
+}
+
+/** Execute one resolved ordered strategic boundary. */
+export function runDecisionLayers(
+  input: DecisionLayerRunInput,
+): DecisionLayerRun {
+  const operations: MutableOperationCounts = {
+    universalCandidateIdsVisited: 0,
+    legalCandidatesVisited: 0,
+    layersVisited: 0,
+    applicabilityEvaluations: 0,
+    layersExecuted: 0,
+    componentRequirementsIndexed: 0,
+    componentEntriesVisited: 0,
+    componentLookupAttempts: 0,
+    componentPayloadReads: 0,
+    componentAttributionTokensVisited: 0,
+    componentAttributionEntriesVisited: 0,
+    componentAttributionPolicyUseEntriesVisited: 0,
+    surfaceBuildAttempts: 0,
+    surfacePriorSurvivorsVisited: 0,
+    surfaceDraftSurvivorsVisited: 0,
+    surfaceReasonsVisited: 0,
+    surfaceBytesConstructed: 0,
+  }
+  if (
+    input.order.order.length !== input.order.definitions.length
+    || input.order.order.some((ref, index) =>
+      ref.id !== input.order.definitions[index].token.id
+      || ref.version !== input.order.definitions[index].token.version)
+  ) throw new Error('decision layer definitions are out of order')
+  const legalOrder = input.candidates.map((candidate) => candidate.id)
+  let surface = createInitialSurface(input, operations)
+  let componentRun: Immutable<typeof input.componentRun> =
+    input.componentRun
+  let payloadIndex:
+    ReturnType<typeof indexDecisionComponentPayloads> | undefined
+  const journal: DecisionLayerJournalEntry[] = []
+  const executed = new Set<string>()
+  for (const definition of input.order.definitions) {
+    operations.layersVisited++
+    const key = `${definition.token.id}@${definition.token.version}`
+    if (executed.has(key)) {
+      throw new Error(`decision layer executed twice: ${key}`)
+    }
+    executed.add(key)
+    const reads: ReadJournal = { lookups: [], reads: [] }
+    const base = Object.freeze({
+      request: input.request,
+      view: input.view,
+      analysis: input.analysis,
+      candidates: input.candidates,
+      universalForced: input.universalForced,
+      prior: surface,
+    })
+    operations.applicabilityEvaluations++
+    let applicable: boolean
+    try {
+      applicable = definition.applies(base)
+    } catch {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'applicability-failed',
+      ))
+      continue
+    }
+    if (typeof applicable !== 'boolean') {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'applicability-failed',
+      ))
+      continue
+    }
+    if (!applicable) {
+      journal.push(Object.freeze({
+        ...journalBase(definition, surface, reads),
+        status: 'inapplicable',
+      }))
+      continue
+    }
+    operations.layersExecuted++
+    if (!payloadIndex) {
+      payloadIndex = indexDecisionComponentPayloads(componentRun)
+      operations.componentEntriesVisited = payloadIndex.entriesVisited
+    }
+    const runtime = createSurfaceRuntime(surface, legalOrder, operations)
+    let raw: unknown
+    try {
+      raw = definition.execute(Object.freeze({
+        ...base,
+        components: createComponentReader(
+          definition,
+          payloadIndex,
+          reads,
+          operations,
+        ),
+        surface: runtime.factory,
+      }))
+    } catch {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        reads.lookups.length > 0 && reads.reads.length === 0
+          ? 'dependency-unavailable'
+          : 'execution-failed',
+      ))
+      continue
+    }
+    const result = parseResult(raw)
+    if (!result) {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'malformed-result',
+      ))
+      continue
+    }
+    if (result.status === 'degraded') {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'layer-degraded',
+      ))
+      continue
+    }
+    if (!runtime.accepts(result.surface)) {
+      journal.push(degraded(
+        definition,
+        surface,
+        reads,
+        'invalid-surface',
+      ))
+      continue
+    }
+    const prior = surface
+    const attributed = attributeComponentPolicyUseBatch(
+      componentRun,
+      reads.reads,
+      DECISION_LAYER_POLICY_USE_STAGE,
+    )
+    operations.componentAttributionTokensVisited +=
+      attributed.work.tokensVisited
+    operations.componentAttributionEntriesVisited +=
+      attributed.work.entriesVisited
+    operations.componentAttributionPolicyUseEntriesVisited +=
+      attributed.work.policyUseEntriesVisited
+    componentRun = advanceDecisionComponentRun(
+      componentRun,
+      attributed.run,
+    ) as Immutable<typeof input.componentRun>
+    surface = result.surface
+    journal.push(Object.freeze({
+      ...journalBase(definition, prior, reads),
+      status: 'applied',
+      survivorCandidateIds: surface.survivorCandidateIds,
+      ...(surface.selectedCandidateId === undefined
+        ? {}
+        : { selectedCandidateId: surface.selectedCandidateId }),
+      reasonCodes: surface.reasonCodes,
+      attributedComponents: Object.freeze(
+        reads.reads.map(frozenComponentRef),
+      ),
+    }))
+  }
+  const frozenOperations: DecisionLayerOperationCounts =
+    Object.freeze({ ...operations })
+  return Object.freeze({
+    version: DECISION_LAYER_RUN_VERSION,
+    configured: Object.freeze(input.order.order.map(frozenRef)),
+    journal: Object.freeze(journal),
+    surface,
+    componentRun,
+    operations: frozenOperations,
+  })
+}
