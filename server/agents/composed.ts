@@ -1913,6 +1913,7 @@ export function createComposedAgent(
           analysis,
           compatibilityScored.candidates,
           compatibilityScored.forced,
+          compatibilityScored.candidateBoundary,
           compatibilityScored.scores,
           compatibilityScored.structuredCandidateId,
         )

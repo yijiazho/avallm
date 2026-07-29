@@ -7,6 +7,9 @@ import {
   type DecisionPlan,
 } from '../policy/plan.ts'
 import type { CandidateScore } from '../policy/score.ts'
+import type {
+  DecisionCandidateBoundary,
+} from '../policy/decision-layer/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from '../policy/types.ts'
 
 export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v2'
@@ -46,6 +49,7 @@ export function composedPolicyContext(
   analysis: SituationAnalysis,
   candidates: readonly PolicyCandidate[],
   forced: ForcedPolicyResult,
+  candidateBoundary: DecisionCandidateBoundary,
   scores: readonly CandidateScore[],
   structuredCandidateId?: string,
 ): ComposedPolicyContext {
@@ -80,7 +84,7 @@ export function composedPolicyContext(
           || plannerReasons.length > 0
       return score?.viable
         && plannerViable
-        && forced.allowedCandidateIds.includes(candidate.id)
+        && candidateBoundary.survivorCandidateIds.includes(candidate.id)
         ? [{
             id: candidate.id,
             decision: structuredClone(candidate.decision),

@@ -3220,8 +3220,12 @@ function currentTraceOmitsMigratedFlatState(
 ): boolean {
   if (trace.version === DECISION_TRACE_VERSION) return true
   const versions = trace.componentVersions
-  const hasStrategicQuestPolicy =
-    trace.decisionLayerRun?.configured.length !== 0
+  const hasRobustStrategicQuestPolicy =
+    trace.decisionLayerRun?.configured.some(
+      (layer) =>
+        layer.id === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.id
+        && layer.version === ROBUST_EVIL_QUEST_CARD_DECISION_LAYER.version,
+    ) === true
   return (
     trace.privateRoleObjective === undefined
     && trace.privateEvilRoleObjective === undefined
@@ -3239,7 +3243,7 @@ function currentTraceOmitsMigratedFlatState(
     && versions?.morganaRoleUtility === undefined
     && versions?.configuredMorganaRoleUtility === undefined
     && (
-      !hasStrategicQuestPolicy
+      !hasRobustStrategicQuestPolicy
       || (
         trace.privateEvilQuestCardPolicy === undefined
         && versions?.evilQuestCardPolicy === undefined

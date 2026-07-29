@@ -3217,7 +3217,10 @@ here.
   alone retains `withLegacyD3QuestCard`, the effective-forced compatibility projection, flat
   trace binding, and the remaining D3 conformance exemption for R3B3. Score-run operation
   accounting now distinguishes universal forced candidates from the strategic candidate
-  boundary.
+  boundary. Planner context preserves universal forced facts as their own diagnostic block but
+  derives its visible candidate set from the hard strategic boundary, including a future layer
+  that narrows without selecting. Current-trace flat-state admission identifies the registered
+  robust D3 layer token exactly rather than treating every nonempty future strategic order as D3.
   Robust transport uses one semantic decoder at the native component admission boundary, after
   the component kernel's strict canonical and byte-bounded ingress. Downstream decision, scoring,
   planning, trace, and evaluation code consume the admitted value and do not repeat the raw-shape

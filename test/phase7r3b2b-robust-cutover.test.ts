@@ -18,6 +18,16 @@ import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
 import {
+  composedPolicyContext,
+} from '../server/agents/communication/composed-renderer.ts'
+import {
+  analyzeSituation,
+} from '../server/agents/analysis/situation.ts'
+import {
+  candidateIdForDecision,
+  legalCandidates,
+} from '../server/agents/policy/candidates.ts'
+import {
   normalizeAgentOutput,
 } from '../server/agents/types.ts'
 import {
@@ -139,6 +149,65 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
       agent.resolvedBrain().description,
     ),
   }))
+})
+
+test('planner context honors an unselected strategic narrowing', async () => {
+  const { req, view } = robustQuestFixture()
+  const successId = candidateIdForDecision({
+    kind: 'quest',
+    card: 'success',
+  })
+  const failId = candidateIdForDecision({ kind: 'quest', card: 'fail' })
+  const candidates = legalCandidates(req, view)
+  const forced = {
+    version: 'forced-policy-v1' as const,
+    applied: false,
+    reasonCodes: [],
+    allowedCandidateIds: [successId, failId],
+  }
+  const context = composedPolicyContext(
+    view,
+    analyzeSituation(view),
+    candidates,
+    forced,
+    {
+      survivorCandidateIds: [successId],
+      reasonCodes: ['TEST_STRATEGIC_NARROWING'],
+    },
+    candidates.map((candidate) =>
+      candidate.id === successId
+        ? {
+        version: 'hostile-score-v1',
+        candidateId: candidate.id,
+        value: 0,
+        viable: true,
+        reasonCodes: [],
+          }
+        : {
+        version: 'hostile-score-v1',
+        candidateId: candidate.id,
+        value: 1_000,
+        viable: true,
+        reasonCodes: ['HOSTILE_REMOVED_PREFERENCE'],
+          }),
+    successId,
+  )
+  const hostilePlanner = {
+    async choose() {
+      return [...context.viableCandidates]
+        .sort((left, right) => right.score - left.score)[0].id
+    },
+  }
+
+  assert.deepEqual(context.forcedPolicy.allowedCandidateIds, [
+    successId,
+    failId,
+  ])
+  assert.deepEqual(
+    context.viableCandidates.map((candidate) => candidate.id),
+    [successId],
+  )
+  assert.equal(await hostilePlanner.choose(), successId)
 })
 
 test('universal selection suppresses robust execution and component use', async () => {
