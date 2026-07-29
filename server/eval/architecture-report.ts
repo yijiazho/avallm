@@ -90,6 +90,7 @@ import {
 } from './trace-replay.ts'
 import {
   validateComposedTraceHostJoin,
+  validateFinalizedDiagnosticDecisionTrace,
   validateSuppressedEvilQuestCardPolicyHostJoin,
 } from '../agents/admission/composed-trace.ts'
 import {
@@ -1210,7 +1211,18 @@ function legacyArchitectureSafety(
       || !hostSnapshot
       || !selectedDecision
       || (
+        trace.version === COMPONENT_DECISION_TRACE_VERSION
+        && !validateFinalizedDiagnosticDecisionTrace(
+          hostSnapshot.req,
+          hostSnapshot.original,
+          selectedDecision,
+          trace,
+          hostSnapshot.view,
+        )
+      )
+      || (
         strictComposedTrace
+        && trace.version !== COMPONENT_DECISION_TRACE_VERSION
         && !validateComposedTraceHostJoin({
           trace,
           req: hostSnapshot.req,

@@ -65,6 +65,7 @@ import {
 } from '../server/agents/components/registry.ts'
 import {
   projectPrivateResolvedComposedBrainLegacy,
+  projectResolvedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
@@ -764,6 +765,9 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
       selectedDecision: candidate.decision,
       deterministicSeed: input.game.seed,
       expectedComponentPlan: plan,
+      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+        agent.resolvedBrain().description,
+      ),
       expectComponentTrace: true,
     })
   assert.ok(valid(output))

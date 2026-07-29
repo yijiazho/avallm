@@ -32,6 +32,7 @@ import {
 } from '../server/agents/components/legacy-role-adapters.ts'
 import {
   projectPrivateResolvedComposedBrainLegacy,
+  projectResolvedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
@@ -218,6 +219,9 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
     selectedDecision: output.decision,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: plan,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
     expectComponentTrace: true,
   }))
   assert.equal(
@@ -478,6 +482,9 @@ test('weighted beliefs remain structural and cannot become promotion evidence', 
     selectedDecision: output.decision,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
     expectComponentTrace: true,
   }))
 })
@@ -743,6 +750,9 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
       selectedDecision: output.decision,
       deterministicSeed: input.game.seed,
       expectedComponentPlan: plan,
+      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+        agent.resolvedBrain().description,
+      ),
       expectComponentTrace: true,
     })
   assert.ok(valid(original))

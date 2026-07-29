@@ -55,10 +55,13 @@ const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
   fixtures.find((candidate) => candidate.view.role === role)!
 
-const evilRoleObjective = (trace: DecisionTrace) => componentPayload(
-  trace.components!,
-  EVIL_ROLE_OBJECTIVE_COMPONENT,
-)
+const evilRoleObjective = (trace: DecisionTrace) =>
+  trace.components
+    ? componentPayload(
+        trace.components,
+        EVIL_ROLE_OBJECTIVE_COMPONENT,
+      )
+    : trace.privateEvilRoleObjective
 const goodRoleObjective = (trace: DecisionTrace) => componentPayload(
   trace.components!,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
@@ -72,6 +75,11 @@ const evilRoleObjectiveEntry = (trace: DecisionTrace) =>
     (entry) => entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id,
   )
 const removeEvilRoleObjective = (trace: DecisionTrace) => {
+  if (!trace.components) {
+    assert.ok(trace.privateEvilRoleObjective)
+    delete trace.privateEvilRoleObjective
+    return
+  }
   const index = trace.components!.entries.findIndex(
     (entry) => entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id,
   )
@@ -141,6 +149,8 @@ function forgeUnverifiableWeightedDeletion(
   forged.quality = 'weighted'
   forged.componentVersions!.belief = forged.beliefModelVersion
   forged.componentVersions!.factors = 'phase7d1-external-factor-v1'
+  forged.componentVersions!.roleObjective =
+    EVIL_ROLE_OBJECTIVE_MODEL_VERSION
   forged.beliefProvenance = [{
     factorId: 'phase7d1-external-factor',
     factorVersion: 'phase7d1-external-factor-v1',
@@ -173,6 +183,8 @@ function forgeWeightedComplete(
   forged.quality = 'weighted'
   forged.componentVersions!.belief = forged.beliefModelVersion
   forged.componentVersions!.factors = 'phase7d1-external-factor-v1'
+  forged.componentVersions!.roleObjective =
+    EVIL_ROLE_OBJECTIVE_MODEL_VERSION
   forged.beliefProvenance = [{
     factorId: 'phase7d1-external-factor',
     factorVersion: 'phase7d1-external-factor-v1',

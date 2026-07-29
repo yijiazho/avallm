@@ -3791,14 +3791,14 @@ export function validateComposedTraceHostJoin(input: {
     )
     if (
       !d3HostSurface
-      ||
-      req.seat !== view.seat
-      || selectedDecision.kind !== req.kind
-      || authoritativeAction.kind !== req.kind
-      || trace.viewerSeat !== req.seat
+      || !validMechanicalDecisionTraceHostJoin({
+        trace,
+        req,
+        view,
+        authoritativeAction,
+        selectedDecision,
+      })
       || !validDecisionTraceProvenance(trace)
-      || !isDeepStrictEqual(trace.request, req)
-      || !isDeepStrictEqual(trace.action, authoritativeAction)
       || !validComponentVersions(trace.componentVersions)
       || !validBeliefVersionRelation(trace)
       || !genericRoleComponentsValid
@@ -3919,7 +3919,6 @@ export function validateComposedTraceHostJoin(input: {
       || scores.some(
         (score, index) => score.candidateId !== legal[index].id,
       )
-      || trace.chosenCandidateId !== candidateIdForDecision(selectedDecision)
     ) return false
 
     const configured = components.configuredScorer ?? components.scorer
@@ -4840,4 +4839,74 @@ export function validateExternalDecisionTrace(
         )
       )
     )
+}
+
+/**
+ * Scorer-independent mechanical join shared by trusted admission and
+ * finalized diagnostic retention.
+ */
+function validMechanicalDecisionTraceHostJoin(input: {
+  trace: DecisionTrace
+  req: DecisionRequest
+  view: PlayerView
+  authoritativeAction: Decision
+  selectedDecision: Decision
+}): boolean {
+  const {
+    trace,
+    req,
+    view,
+    authoritativeAction,
+    selectedDecision,
+  } = input
+  return req.seat === view.seat
+    && selectedDecision.kind === req.kind
+    && authoritativeAction.kind === req.kind
+    && trace.viewerSeat === req.seat
+    && isDeepStrictEqual(trace.request, req)
+    && isDeepStrictEqual(trace.action, authoritativeAction)
+    && trace.chosenCandidateId
+      === candidateIdForDecision(selectedDecision)
+}
+
+/**
+ * Validate the structural trust level of an untrusted trace retained in a
+ * finalized artifact. Lifecycle-specific plan/outcome checks stay with the
+ * artifact caller. This validation cannot confer architecture identity or
+ * promotion.
+ */
+export function validateFinalizedDiagnosticDecisionTrace(
+  req: DecisionRequest,
+  authoritativeDecision: Decision,
+  selectedDecision: Decision,
+  trace: unknown,
+  hostView: PlayerView,
+): trace is DecisionTrace {
+  if (!trace || typeof trace !== 'object' || Array.isArray(trace)) {
+    return false
+  }
+  const candidate = trace as DecisionTrace
+  return (
+    validMechanicalDecisionTraceHostJoin({
+      trace: candidate,
+      req,
+      view: hostView,
+      authoritativeAction: authoritativeDecision,
+      selectedDecision,
+    })
+    && validDecisionTraceProvenance(candidate)
+    && validComponentVersions(candidate.componentVersions)
+    && validBeliefVersionRelation(candidate)
+    && validGenericRoleComponents(candidate, hostView)
+    && validPublicObserverTrace(
+      candidate.publicObserver,
+      candidate,
+      hostView,
+    )
+    && validPrivateIdentityTrace(
+      candidate.privateIdentity,
+      candidate,
+      hostView.rolesInPlay,
+    )
+  )
 }

@@ -713,7 +713,9 @@ test('stdio and private/public boundaries preserve role objective attribution', 
         'external',
         merlinFixture.view,
       ),
-      missingDependencyVersion.decision,
+      dependency === 'identityModel'
+        ? missingDependencyVersion
+        : missingDependencyVersion.decision,
     )
   }
 

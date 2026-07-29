@@ -2,8 +2,8 @@
 
 **Status:** active tracking document.
 
-**Current target phase:** Phase 7R3A4B implementation is complete under exit verification and
-checkpoint review; Phase 7R3B1 is next after that checkpoint.
+**Current target phase:** Phase 7R3B1, followed by Phase 7R3B3. Phase 7R3A4B is complete at
+checkpoint `556f501`.
 Phase 7R3A1's role-agnostic kernel and A1.1 lease correction are complete, A2's shared
 compatibility root plus Phase 4/C2 transforms are landed, and A3's deterministic and seeded
 D2 terminals are complete and verified. A4A's deterministic and seeded Morgana terminals and
@@ -125,7 +125,7 @@ migration work cite the corresponding ledger ID.
 | ID | Deferred work | Reason and current risk | Owner/checkpoint | Exit condition | Status |
 |---|---|---|---|---|---|
 | MD-001 | Share one scorer-sensitive situation and host-surface builder between runtime and admission | Runtime and replay currently compile the same requirements in separate owners; drift can falsely reject another role or decision kind | R3B1 | One pure builder drives runtime and admission and the all-role/all-decision replay matrix passes | `open` |
-| MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Downstream callers can still re-parse open trace shapes; retained external diagnostics and identity-witnessed promotion are distinguished by call path rather than a closed result type | R3B1 | Artifact, report, and transport consumers accept closed admitted or diagnostic results without domain re-parsing | `open` |
+| MD-002 | Split trace parsing/canonicalization from host/domain admission into closed trust-labeled results | Downstream callers can still re-parse open trace shapes; pre-apply stdio admission and finalized-artifact diagnostic admission compose the same detached primitives with lifecycle-specific outcome rules, while retained diagnostics and identity-witnessed promotion remain distinguished by call path rather than a closed result type | R3B1 | The two lifecycle admissions converge on closed admitted or diagnostic result types, and artifact, report, and transport consumers stop domain re-parsing | `open` |
 | MD-003 | Delete or isolate the remaining D3 legacy adapter and its two conformance exemptions | Robust and exact-quota D3 are the only legacy flat projection/binding exceptions | R3B3 | D3 uses the native component/policy boundary and both exemptions and flat projections are deleted | `open` |
 
 ### 3.2 Parent-orchestrated execution
@@ -2552,24 +2552,24 @@ inside the combined band and replay exactly` cover metamorphic invariance and re
 Phase 4 transform and C2 recomputation call one native deterministic good-base calculator; seeded
 Phase 4 and seeded C2 add only their bounded selection adjustments.
 
-The A2 simplification and change-surface audit is:
+The historical A2 simplification and change-surface audit was:
 
-| Audit question | A2 result | Remaining owner |
+| Audit question | Historical A2 result | Subsequent owner |
 |---|---|---|
 | Did composition gain concrete role or requirement-ID branches? | No. The analysis domain compiles opaque family requirements, and architecture fitness rejects concrete good-analysis IDs in `composed.ts`. | Preserve in A3/A4. |
 | Did a generic or observability schema gain role fields? | No. Native rows remain the four-field common score shape; architecture fitness rejects trace, report, stdio, and legacy `CandidateScore` dependencies from concrete score families. | A4 removes old write-side projections. |
 | Was hostile input admitted once? | Yes for migrated good objective/utility payloads: shared bounded canonical JSON precedes family decode and exact host join. The admitted utility child consumes its kernel-admitted objective dependency without revalidating it. | Apply the same substitution in A3/A4; historical external readers still admit independently. |
 | What duplicate machinery was removed? | Two manual detached-data walkers, the utility child's repeated objective validation, the utility child's redundant direct identity host root, two independent native Phase 4 formula implementations, and two conformance exemptions. | A4 retires the legacy good scorer writer and temporary equality adapter. |
 | What is the normal future change surface? | The family contract/constants, `score-layers/good.ts`, an owning analysis/component codec when needed, one registry inventory, and focused formula/contract fixtures. | A role feature that also edits central trace, stdio, report, artifact, and Inspector schemas is an architecture correction, not normal work. |
-| What legacy authority remains? | `withLegacyScoring`, good/role scorer implementations in `policy/score.ts`, feature-rich legacy score/trace projections, and the named A2-A4 equality adapter. The good objective/utility definitions are behaviorally native but still physically housed in `components/legacy-role-adapters.ts`; `source: 'native'` alone is not structural cleanup. Their admitted/degraded/inapplicable generic entries also retain an exact named flat-trace compatibility binding. | A4 extracts those definitions to a native owner, removes the compatibility binding and flat projection together, then performs the cutover and deletion audit. |
+| What legacy authority remained after A2? | `withLegacyScoring`, good/role scorer implementations in `policy/score.ts`, feature-rich legacy score/trace projections, and the named A2-A4 equality adapter. The good objective/utility definitions were behaviorally native but still physically housed in `components/legacy-role-adapters.ts`; `source: 'native'` alone was not structural cleanup. Their admitted/degraded/inapplicable generic entries also retained an exact named flat-trace compatibility binding. | A4 would extract those definitions to a native owner, remove the compatibility binding and flat projection together, then perform the cutover and deletion audit. |
 
 Independent final review approved the original A1 snapshot after rejecting and correcting earlier
 versions that had reused the optional-field legacy score type, duplicated hostile parsing for
 trusted values, lacked exact host joins, or hid repeated scans. The parent gate passed strict
 typechecking, architecture fitness, both independent compatibility oracles, 1,026 API-free
 correctness tests, and three isolated performance tests. The legacy scoring function and
-`composed.ts` remain source-identical to A0. A1 remains provisional until A2 is its first production
-client and completes a simplification audit. Before A2 receives live decision authority, the
+`composed.ts` remained source-identical to A0. A1 remained provisional until A2 became its first production
+client and completed a simplification audit. Before A2 received live decision authority, the
 native selected/plan/trace projection seam must be specified; this correction deliberately does
 not create that downstream authority, and A4 cannot cut over until the seam is the sole current
 writer. 7R3A3 follows with the generic evil family, then 7R3A4 owns Morgana and remaining write-side
@@ -2642,26 +2642,27 @@ seed-band, two-Fail, name, and replay laws remain owned by
 `test/phase7d2-evil-policy.test.ts`; A3 consumes those laws rather than restating a weaker
 mutation matrix.
 
-**7R3A4A is complete.** Exact deterministic
-and seeded Morgana scorer singletons select matching terminals above D2; same-version clones,
-custom scorers, and malformed scorers remain wholly legacy. The configured seam is the sole
-catalog owner and supplies the deterministic or seeded D2 predecessor, producing the exact
+**Historical 7R3A4A completion record (superseded by A4B).** Exact deterministic
+and seeded Morgana scorer singletons selected matching terminals above D2; same-version clones,
+custom scorers, and malformed scorers remained wholly legacy. The configured seam was the sole
+catalog owner and supplied the deterministic or seeded D2 predecessor, producing the exact
 compatibility to Phase 4 to C2 to D2 to Morgana chain. The transform applies only to Morgana
 proposal and vote decisions, reads only its matching utility component, and trusts the
 kernel-admitted projection. It preserves E1B's exact forced survivor sentinel, counterfeit
 value, sole selected viable row, reason codes, seeded band selection, and forced-choice
 dominance. Quest-card policy remains outside the layer.
 
-**Historical A4A checkpoint (closed by A4B).** The public counterfeit read, private counterfeit objective, and deterministic and seeded
-Morgana utility components now have canonical decoders and native conformance owners. Raw
-historical validators remain independent ingress boundaries; native decode happens after the
-kernel-owned bounded canonicalization at each generic trust transition. Admitted objective and
+**Historical A4A checkpoint (closed by A4B).** At that checkpoint, the public counterfeit read,
+private counterfeit objective, and deterministic and seeded Morgana utility components had
+canonical decoders and native conformance owners. Raw historical validators remained independent
+ingress boundaries; native decode happened after the kernel-owned bounded canonicalization at
+each generic trust transition. Admitted objective and
 utility builders and host joins
-trust their already-admitted belief, public-read, counterfeit-objective, and evil-utility inputs
+trusted their already-admitted belief, public-read, counterfeit-objective, and evil-utility inputs
 instead of re-entering raw validation. The four definitions truthfully declare native execution,
-and the four remaining 7R3A conformance exemptions are retired. Their physical location,
+and the four remaining 7R3A conformance exemptions were retired. Their physical location,
 legacy flat trace bindings and writes, feature-rich legacy scorer, and downstream authority were
-then intentionally unchanged for A4B.
+intentionally left for A4B.
 
 The dedicated strict A4A lane uses `replayDecisionScenario` for a legal Morgana proposal and
 seeded Morgana vote. It proves filtered seat-view input, exact ordered chains and common rows,

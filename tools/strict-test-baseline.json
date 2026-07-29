@@ -108,7 +108,7 @@
     },
     {
       "path": "test/phase7c1-role-objectives.test.ts",
-      "sha256": "0ba774dc290a3be294a97f2cca7018a7410b865991f22b3e922220d0e1fbcafc",
+      "sha256": "c33588351ce623a2d712e9d2757c79995a56678dfb7dc3025b4f6401d0f5f6e9",
       "rationale": "Legacy role fixtures need current union narrowing and mutation typing."
     },
     {
@@ -118,7 +118,7 @@
     },
     {
       "path": "test/phase7d1-evil-objectives.test.ts",
-      "sha256": "5879d60761fb1318bc57f01fd8a8490cee5103d6f36cc711d41ff4f74d77695e",
+      "sha256": "d57396e7dfcd67354da59795d786998bf6ea9ec851f09d489a2d9f3a8d9466cd",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -143,12 +143,12 @@
     },
     {
       "path": "test/phase7e2a-mordred-hostile.test.ts",
-      "sha256": "972e08d38982eb25bad5da717ed9894428b35766242a08997a40cdbf348fdd5b",
+      "sha256": "4cd782104bb7e0fe857dbdf4976e7779cbbb940d573638105778aba47d4600eb",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/phase7e2a-mordred-native.test.ts",
-      "sha256": "aeccd81ee43840c7d7c4cd7c3c21de043a4d82ad6175ed0a8743ef15a365a07a",
+      "sha256": "6a15dc60e7763bb2fda1df1e4c29ae055c66d314e29a3dc345dc7c8385a52cb0",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
@@ -168,7 +168,7 @@
     },
     {
       "path": "test/phase7r2b3b-morgana-quest-adapters.test.ts",
-      "sha256": "601da74c563edaf350588d678d631590bf35a4bc70f93df3ab4cc6ca59d18615",
+      "sha256": "d828ff0d04bf7263d9c335c3756659e4523ddf072ff7b81b9fa5cbab1517e0c6",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "ef02a7279ff7751d62b7d86eadf837a7e0cce88e345e9864659e03a22f95d816",
+      "sha256": "5135c7e1dc365ec30aec3e38fc581e48fbd8f2b4561bf7b6fcd7ab25baffea8a",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {

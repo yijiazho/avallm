@@ -28,6 +28,9 @@ import {
   createNativeScoreComponentRegistry,
 } from '../server/agents/components/native-score-components.ts'
 import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
+import {
   morganaRoleScorer,
   seededMorganaRoleScorer,
 } from '../server/agents/policy/score.ts'
@@ -193,6 +196,9 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
   }))
 
   const forgedDependency = structuredClone(trace)
@@ -237,6 +243,9 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
   }), false)
 })
 
@@ -296,6 +305,9 @@ test('public E1 read resolves from public record without a Morgana flat projecti
     deterministicSeed: 'phase7r2b3b-public-read',
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
   } as const
   assert.ok(validateComposedTraceHostJoin({
     trace,
@@ -387,6 +399,9 @@ test('weighted Morgana outputs remain structural and nonpromotable', async () =>
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
   }))
 })
 
@@ -440,6 +455,9 @@ test('seeded E1B has its own plan identity and host descriptor', async () => {
     deterministicSeed: source.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: plan,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
   }))
 })
 
@@ -514,6 +532,9 @@ test('trusted construction plan rejects coherent rewrites and v1 downgrade', asy
   const expectedComponentPlan = decisionComponentPlan(
     agent.resolvedBrain(),
   )
+  const expectedArchitectureIdentity = projectResolvedArchitectureIdentity(
+    agent.resolvedBrain().description,
+  )
   const input = {
     req: source.req,
     view: source.view,
@@ -522,6 +543,7 @@ test('trusted construction plan rejects coherent rewrites and v1 downgrade', asy
     deterministicSeed: 'phase7r2b3b-trusted-plan',
     expectComponentTrace: true,
     expectedComponentPlan,
+    expectedArchitectureIdentity,
   } as const
   assert.ok(validateComposedTraceHostJoin({
     trace: output.trace!,

@@ -116,6 +116,7 @@ import {
 } from './trace-replay.ts'
 import {
   validateComposedTraceHostJoin,
+  validateFinalizedDiagnosticDecisionTrace,
   validateSuppressedEvilQuestCardPolicyHostJoin,
 } from '../agents/admission/composed-trace.ts'
 import {
@@ -852,7 +853,22 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             || !snapshot
             || !selectedDecision
             || (
+              currentComponentTrace
+              && expectedArchitectureDescriptor === undefined
+              && !validateFinalizedDiagnosticDecisionTrace(
+                snapshot.req,
+                snapshot.original,
+                selectedDecision,
+                trace,
+                snapshot.view,
+              )
+            )
+            || (
               strictComposedTrace
+              && (
+                !currentComponentTrace
+                || expectedArchitectureDescriptor !== undefined
+              )
               && !validateComposedTraceHostJoin({
                 trace,
                 req: snapshot.req,
@@ -943,9 +959,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               // replay above. Descriptor metadata names the configured
               // scorer, while the trace truthfully names the resolved layer.
               if (currentComponentTrace) {
-                return expectedComponents.scorer
-                  !== expectedArchitectureDescriptor?.configuredPipeline
-                    .scoring.configuredScorer
+                return expectedArchitectureDescriptor !== undefined
+                  && expectedComponents.scorer
+                    !== expectedArchitectureDescriptor.configuredPipeline
+                      .scoring.configuredScorer
               }
               const rolePolicyApplicable =
                 roleUtilityConfigured

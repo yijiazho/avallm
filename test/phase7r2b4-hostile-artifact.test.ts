@@ -395,6 +395,17 @@ test('external self-described v2 graph cannot mint a trusted manifest', async ()
     (trace) => trace.version === COMPONENT_DECISION_TRACE_VERSION,
   ))
   assertDiagnosticRejection(artifact)
+
+  const forgedChoice = structuredClone(artifact)
+  const trace = forgedChoice.decisionTraces!.find(
+    (candidate) => (candidate.candidateScores?.length ?? 0) > 1,
+  )!
+  trace.chosenCandidateId = trace.candidateScores!.find(
+    (candidate) => candidate.candidateId !== trace.chosenCandidateId,
+  )!.candidateId
+  assert.ok(
+    summary(forgedChoice).safety.traceAttributionViolations > 0,
+  )
 })
 
 test('host-declared composed evidence cannot disappear into an eligible comparison', async () => {
