@@ -37,8 +37,12 @@ export type AssertNever<T extends never> = T
 export type MissingKeys<T, List extends readonly PropertyKey[]> =
   Exclude<keyof T & string, List[number]>
 
-/** Keys of `T` the shape declares as mandatory, computed from `T` itself. */
-export type RequiredKeys<T> = {
+/**
+ * Keys of `T` the shape declares as mandatory, computed from `T` itself.
+ * Unexported: it exists to build `MissingRequiredKeys` and has no caller of its
+ * own, so it is an implementation detail rather than part of this facility.
+ */
+type RequiredKeys<T> = {
   [K in keyof T]-?: object extends Pick<T, K> ? never : K
 }[keyof T] & string
 
@@ -46,6 +50,10 @@ export type RequiredKeys<T> = {
  * Like `MissingKeys`, restricted to the mandatory keys of `T`. Validators that
  * check presence for required fields and value shape for optional ones separately
  * bind their presence list with this.
+ *
+ * Not collapsible into `MissingKeys`: its one caller guards a shape with genuine
+ * optional keys that the list deliberately omits, so the plain version reports
+ * those as forgotten and fails to compile. Verified, not assumed.
  */
 export type MissingRequiredKeys<T, List extends readonly PropertyKey[]> =
   Exclude<RequiredKeys<T>, List[number]>
