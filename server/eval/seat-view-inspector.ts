@@ -9,7 +9,6 @@ import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { eventVisibleTo } from '../engine/view.ts'
 import type {
-  Alignment,
   DecisionRequest,
   Game,
   GameEvent,
@@ -176,8 +175,7 @@ export interface SeatViewInspection {
     currentTeam?: SeatRef[]
     discussionRound?: number
     discussionPostRevision?: boolean
-    winner?: Alignment
-    winReason?: string
+    outcome?: PlayerView['outcome']
   }
   visibleHistory: {
     transcript: {
@@ -718,6 +716,8 @@ function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   }
   if (inspectedView.outcome !== undefined) {
     const outcome = asRecord(inspectedView.outcome, 'outcome')
+    const extra = Object.keys(outcome).filter((k) => k !== 'winner' && k !== 'reason')
+    if (extra.length > 0) fail(`outcome carries unexpected keys: ${extra.join(', ')}`)
     if (outcome.winner !== 'good' && outcome.winner !== 'evil') {
       fail('outcome.winner must be good or evil')
     }
@@ -877,7 +877,7 @@ export function inspectSeatView(
         : { discussionPostRevision: view.discussionPostRevision }),
       ...(view.outcome === undefined
         ? {}
-        : { winner: view.outcome.winner, winReason: view.outcome.reason }),
+        : { outcome: { ...view.outcome } }),
     },
     visibleHistory: {
       transcript: view.transcript.map(inspectTranscriptEntry),
