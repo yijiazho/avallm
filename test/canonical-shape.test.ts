@@ -579,18 +579,36 @@ function serverSources(directory: string): string[] {
       : entry.name.endsWith('.ts') ? [`${directory}/${entry.name}`] : [])
 }
 
-/** The names `file` imports from the guard module, unwrapping `x as y`. */
-function importedGuards(file: string, source: string): readonly string[] {
+/**
+ * Every import block in `file` that names the guard module, not only the first.
+ *
+ * A module can have more than one: a value import of a predicate alongside a
+ * separate `import type` block for a companion type. Reading only the first block
+ * reported the rest of that consumer's names as absent, which silently exempted it
+ * from the scan below instead of failing. An unchecked consumer is exactly where
+ * the private copies this file exists to prevent grew back last time.
+ */
+function guardImportBlocks(file: string, source: string): readonly string[] {
   const specifier = relative(dirname(file), GUARD_SOURCE).replaceAll('\\', '/')
   const from = specifier.startsWith('.') ? specifier : `./${specifier}`
-  const block = new RegExp(
-    `import\\s*\\{([^}]*)\\}\\s*from\\s*'${from.replace(/\./g, '\\.')}'`,
-  ).exec(source)
-  if (!block) return []
-  return block[1]
-    .split(',')
-    .map((entry) => entry.trim().split(/\s+as\s+/)[0]!.trim())
-    .filter(Boolean)
+  return [
+    ...source.matchAll(new RegExp(
+      `import\\s*(?:type\\s*)?\\{([^}]*)\\}\\s*from\\s*'${
+        from.replace(/\./g, '\\.')
+      }'`,
+      'g',
+    )),
+  ].map((match) => match[1]!)
+}
+
+/** The names `file` imports from the guard module, unwrapping `x as y`. */
+function importedGuards(file: string, source: string): readonly string[] {
+  return guardImportBlocks(file, source).flatMap((block) =>
+    block
+      .split(',')
+      .map((entry) =>
+        entry.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]!.trim())
+      .filter(Boolean))
 }
 
 test('no consumer re-declares a guard it imports from canonical-shape', () => {
@@ -599,12 +617,15 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
   for (const file of serverSources('server')) {
     if (file === GUARD_SOURCE) continue
     const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
-    if (!source.includes('canonical-shape.ts')) continue
+    // Trigger on an actual import, not on any mention of the module's name. A
+    // comment that points a reader here is not a consumer, and the assertion
+    // below reads a failure to parse as a broken scan rather than as absence.
+    if (!/from\s*'[^']*canonical-shape\.ts'/.test(source)) continue
     const guards = importedGuards(file, source)
     assert.notEqual(
       guards.length,
       0,
-      `${file} references canonical-shape but no import was parsed`,
+      `${file} imports canonical-shape but no import was parsed`,
     )
     consumers.push(file)
     for (const guard of guards) {
