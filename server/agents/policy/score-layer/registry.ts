@@ -4,6 +4,7 @@ import type {
   ScoreLayerRef,
 } from './types.ts'
 import { scoreLayerToken } from './types.ts'
+import { DECISION_COMPONENT_KINDS } from '../../components/types.ts'
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
@@ -121,7 +122,7 @@ function freezeDefinition(
         || typeof component.version !== 'string'
         || !ID_PATTERN.test(component.id)
         || !VERSION_PATTERN.test(component.version)
-        || !['observer', 'objective', 'projection', 'decision-rule']
+        || !DECISION_COMPONENT_KINDS
           .includes(component.kind)
         || !['public', 'private'].includes(component.privacy)
       ) {

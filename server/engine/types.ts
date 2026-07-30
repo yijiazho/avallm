@@ -1,8 +1,15 @@
 // Core engine types. Engine purity is enforced by ARCH014, not by convention.
 
-export type Role =
-  | 'merlin' | 'percival' | 'servant'
-  | 'assassin' | 'morgana' | 'mordred' | 'oberon' | 'minion'
+export const ROLES = Object.freeze([
+  'merlin', 'percival', 'servant',
+  'assassin', 'morgana', 'mordred', 'oberon', 'minion',
+] as const)
+
+export type Role = typeof ROLES[number]
+
+export function isRole(value: unknown): value is Role {
+  return (ROLES as readonly unknown[]).includes(value)
+}
 
 export type Alignment = 'good' | 'evil'
 

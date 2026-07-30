@@ -19,6 +19,7 @@ import {
   type EvilObjectiveRole,
   type EvilRolePosture,
   type PrivateEvilRoleObjectiveSnapshot,
+  isEvilObjectiveRole,
 } from './evil-objective-types.ts'
 import {
   canonicalRequestBlock,
@@ -499,8 +500,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       'playerCount',
     ])
     || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    || !['assassin', 'morgana', 'mordred', 'minion', 'oberon']
-      .includes(projection.role)
+    || !isEvilObjectiveRole(projection.role)
     || projection.source.roleObjectiveVersion
       !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
     || projection.source.identityModelVersion

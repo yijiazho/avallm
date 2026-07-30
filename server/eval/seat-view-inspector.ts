@@ -17,7 +17,7 @@ import type {
   Role,
   Seat,
 } from '../engine/types.ts'
-import { DECISION_KINDS } from '../engine/types.ts'
+import { DECISION_KINDS, ROLES } from '../engine/types.ts'
 import type { ExactKeyList } from '../agents/key-lists.ts'
 
 export const SEAT_VIEW_INSPECTION_SCHEMA = 1
@@ -217,10 +217,7 @@ const EVENT_TYPES = new Set([
 const PHASES = new Set([
   'discussion', 'proposal', 'finalize', 'vote', 'quest', 'assassination', 'gameOver',
 ])
-const ROLES = new Set([
-  'merlin', 'percival', 'servant',
-  'assassin', 'morgana', 'mordred', 'oberon', 'minion',
-])
+const ROLE_SET = new Set<string>(ROLES)
 
 type PlainRecord = Record<string, unknown>
 
@@ -336,7 +333,7 @@ function projectedStringArray(value: unknown, label: string): string[] {
 
 function projectedRoleArray(value: unknown, label: string): Role[] {
   return asArray(value, label).map((entry, index) => {
-    if (typeof entry !== 'string' || !ROLES.has(entry)) {
+    if (typeof entry !== 'string' || !ROLE_SET.has(entry)) {
       return fail(`${label}[${index}] is not a playable role`)
     }
     return entry as Role
@@ -399,7 +396,7 @@ function inspectEventDetail(
     }
     case 'roleDealt':
       assertSeat(payload.seat, playerCount, 'event roleDealt payload.seat')
-      if (typeof payload.role !== 'string' || !ROLES.has(payload.role)) {
+      if (typeof payload.role !== 'string' || !ROLE_SET.has(payload.role)) {
         fail('event roleDealt payload.role is not a playable role')
       }
       if (payload.alignment !== 'good' && payload.alignment !== 'evil') {
@@ -643,7 +640,7 @@ function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   assertSafeInteger(inspectedView.playerCount, 'playerCount', 1)
   assertSafeInteger(inspectedView.seat, 'view.seat')
   assertString(inspectedView.name, 'view.name')
-  if (typeof inspectedView.role !== 'string' || !ROLES.has(inspectedView.role)) {
+  if (typeof inspectedView.role !== 'string' || !ROLE_SET.has(inspectedView.role)) {
     fail('view.role is not a playable role')
   }
   if (inspectedView.alignment !== 'good' && inspectedView.alignment !== 'evil') {
@@ -684,7 +681,7 @@ function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   assertSeat(inspectedView.leaderSeat, view.playerCount, 'leaderSeat')
 
   for (const [index, role] of asArray(inspectedView.rolesInPlay, 'rolesInPlay').entries()) {
-    if (typeof role !== 'string' || !ROLES.has(role)) {
+    if (typeof role !== 'string' || !ROLE_SET.has(role)) {
       fail(`rolesInPlay[${index}] is not a playable role`)
     }
   }

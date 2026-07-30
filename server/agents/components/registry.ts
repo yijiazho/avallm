@@ -7,6 +7,7 @@ import type {
   IneligibleComponent,
   ResolvedComponentGraph,
 } from './types.ts'
+import { DECISION_COMPONENT_KINDS } from './types.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
@@ -155,7 +156,7 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
   }
   assertRef(definition.token, 'component token')
   if (
-    !['observer', 'objective', 'projection', 'decision-rule']
+    !DECISION_COMPONENT_KINDS
       .includes(definition.token.kind)
   ) {
     throw new ComponentRegistryError(

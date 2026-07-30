@@ -12,7 +12,20 @@ export const ROLE_OBJECTIVE_DEGRADATION =
 export const MAX_ROLE_OBJECTIVE_ASSESSMENTS = 256
 
 export type RoleObjectiveRole = 'merlin' | 'percival'
-export type PublicCommitmentDirection = 'support' | 'oppose' | 'neutral'
+export const PUBLIC_COMMITMENT_DIRECTIONS = Object.freeze([
+  'support',
+  'oppose',
+  'neutral',
+] as const)
+
+export type PublicCommitmentDirection =
+  typeof PUBLIC_COMMITMENT_DIRECTIONS[number]
+
+export function isPublicCommitmentDirection(
+  value: unknown,
+): value is PublicCommitmentDirection {
+  return (PUBLIC_COMMITMENT_DIRECTIONS as readonly unknown[]).includes(value)
+}
 
 export interface RoleObjectiveSource {
   beliefModelVersion: string

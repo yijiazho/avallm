@@ -12,12 +12,21 @@ export const EVIL_ROLE_OBJECTIVE_DEGRADATION =
   'evil-role-objective-assessment-failed'
 export const MAX_EVIL_ROLE_OBJECTIVE_ASSESSMENTS = 256
 
-export type EvilObjectiveRole =
-  | 'assassin'
-  | 'morgana'
-  | 'mordred'
-  | 'minion'
-  | 'oberon'
+export const EVIL_OBJECTIVE_ROLES = Object.freeze([
+  'assassin',
+  'morgana',
+  'mordred',
+  'minion',
+  'oberon',
+] as const)
+
+export type EvilObjectiveRole = typeof EVIL_OBJECTIVE_ROLES[number]
+
+export function isEvilObjectiveRole(
+  value: unknown,
+): value is EvilObjectiveRole {
+  return (EVIL_OBJECTIVE_ROLES as readonly unknown[]).includes(value)
+}
 
 export type EvilRolePosture =
   | 'assassin-shot-preservation'

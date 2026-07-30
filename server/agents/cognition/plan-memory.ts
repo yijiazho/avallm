@@ -6,6 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { isDecisionKind } from '../../engine/types.ts'
+import { isAppliedDecisionResolution } from '../types.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
 import {
   plainDetachedData,
@@ -462,11 +463,7 @@ function validatePrivatePlanMemoryInner(
       || !Number.isSafeInteger(entry.viewThroughSeq)
       || entry.viewThroughSeq < -1
       || !validDecision(entry.appliedDecision)
-      || ![
-        'selected-applied',
-        'fallback-after-agent-error',
-        'fallback-after-illegal-decision',
-      ].includes(entry.resolution)
+      || !isAppliedDecisionResolution(entry.resolution)
       // An agent error must leave the key absent outright: a truthiness test
       // would let a forged `selected: null` through, since plainDetachedData
       // admits null values.

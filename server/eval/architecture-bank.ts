@@ -8,6 +8,7 @@
 
 import { MAX_PLAYERS, MIN_PLAYERS, validateRoles } from '../engine/rules.ts'
 import type { Role, TalkConfig } from '../engine/types.ts'
+import { ROLES } from '../engine/types.ts'
 
 export const ARCHITECTURE_BANK_ID = 'standard-v1'
 export const STANDARD_ARCHITECTURE_BANK_PROFILE =
@@ -85,9 +86,7 @@ export const ACTIVE_LANGUAGE_ARCHITECTURE_BANK:
   expectedTargetSeat: 2,
 }]
 
-export const STANDARD_ROLES: readonly Role[] = [
-  'merlin', 'percival', 'servant', 'assassin', 'morgana', 'mordred', 'oberon', 'minion',
-]
+export const STANDARD_ROLES: readonly Role[] = ROLES
 
 export interface ArchitectureBankCaseGroup {
   readonly targetRole: Role

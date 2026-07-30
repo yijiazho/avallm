@@ -20,6 +20,7 @@
 // Static: client/dist
 
 import http from 'node:http'
+import type { AppliedDecisionResolution } from './agents/types.ts'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -587,10 +588,7 @@ async function pump(s: Session): Promise<void> {
         const seqStart = s.game.log.length
         let wasFallback = fallback
         let appliedDecision: Decision
-        let resolution:
-          | 'selected-applied'
-          | 'fallback-after-agent-error'
-          | 'fallback-after-illegal-decision'
+        let resolution: AppliedDecisionResolution
         let selectedDecision: Decision | undefined
         try {
           appliedDecision = applyDecisionWithOutcome(

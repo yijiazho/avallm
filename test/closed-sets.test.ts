@@ -16,8 +16,23 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 import { NON_COMPOSED_POLICIES } from '../server/agents/brain.ts'
+import { EVIL_OBJECTIVE_ROLES } from '../server/agents/analysis/evil-objective-types.ts'
+import {
+  PUBLIC_COMMITMENT_DIRECTIONS,
+} from '../server/agents/analysis/role-objective-types.ts'
 import { COHERENCE_INTENTS } from '../server/agents/cognition/coherence.ts'
-import { DECISION_KINDS } from '../server/engine/types.ts'
+import {
+  LANGUAGE_ORCHESTRATION_DEGRADATIONS,
+} from '../server/agents/communication/language-orchestration.ts'
+import {
+  LANGUAGE_UTTERANCE_CHANNELS,
+} from '../server/agents/communication/language-types.ts'
+import {
+  DECISION_COMPONENT_KINDS,
+} from '../server/agents/components/types.ts'
+import { APPLIED_DECISION_RESOLUTIONS } from '../server/agents/types.ts'
+import { DECISION_KINDS, ROLES } from '../server/engine/types.ts'
+import { PHASE7_ROLE_EVAL_ARMS } from '../server/eval/role-eval.ts'
 
 interface ClosedSet {
   readonly name: string
@@ -42,6 +57,46 @@ const CLOSED_SETS: readonly ClosedSet[] = [
     name: 'DECISION_KINDS',
     owner: 'server/engine/types.ts',
     members: DECISION_KINDS,
+  },
+  {
+    name: 'ROLES',
+    owner: 'server/engine/types.ts',
+    members: ROLES,
+  },
+  {
+    name: 'DECISION_COMPONENT_KINDS',
+    owner: 'server/agents/components/types.ts',
+    members: DECISION_COMPONENT_KINDS,
+  },
+  {
+    name: 'LANGUAGE_UTTERANCE_CHANNELS',
+    owner: 'server/agents/communication/language-types.ts',
+    members: LANGUAGE_UTTERANCE_CHANNELS,
+  },
+  {
+    name: 'LANGUAGE_ORCHESTRATION_DEGRADATIONS',
+    owner: 'server/agents/communication/language-orchestration.ts',
+    members: LANGUAGE_ORCHESTRATION_DEGRADATIONS,
+  },
+  {
+    name: 'APPLIED_DECISION_RESOLUTIONS',
+    owner: 'server/agents/types.ts',
+    members: APPLIED_DECISION_RESOLUTIONS,
+  },
+  {
+    name: 'EVIL_OBJECTIVE_ROLES',
+    owner: 'server/agents/analysis/evil-objective-types.ts',
+    members: EVIL_OBJECTIVE_ROLES,
+  },
+  {
+    name: 'PUBLIC_COMMITMENT_DIRECTIONS',
+    owner: 'server/agents/analysis/role-objective-types.ts',
+    members: PUBLIC_COMMITMENT_DIRECTIONS,
+  },
+  {
+    name: 'PHASE7_ROLE_EVAL_ARMS',
+    owner: 'server/eval/role-eval.ts',
+    members: PHASE7_ROLE_EVAL_ARMS,
   },
 ]
 

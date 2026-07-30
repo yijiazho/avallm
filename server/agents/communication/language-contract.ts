@@ -23,6 +23,7 @@ import {
   type LanguagePublicContext,
   type LanguageUtteranceContext,
   type PublicAttributedUtterance,
+  isLanguageUtteranceChannel,
 } from './language-types.ts'
 import { projectPublicRecord } from './public-record.ts'
 
@@ -257,11 +258,7 @@ function validUtterance(
       ['context'],
     )
     || !safeInteger(value.sourceSeq, 0, throughSeq)
-    || ![
-      'discussion',
-      'proposal-pitch',
-      'revision-reason',
-    ].includes(value.channel as string)
+    || !isLanguageUtteranceChannel(value.channel)
     || !isRecord(value.speaker)
     || !exactKeys(value.speaker, ['seat', 'name'])
     || !finiteSeat(value.speaker.seat, playerCount)

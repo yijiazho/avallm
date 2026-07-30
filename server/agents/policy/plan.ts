@@ -4,6 +4,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { ForcedPlayReasonCode } from '../analysis/types.ts'
+import type { LanguageUtteranceChannel } from '../communication/language-types.ts'
 import {
   type CandidateScore,
   type GoodProposalFeatures,
@@ -56,7 +57,7 @@ export type PosteriorUncertainty =
 
 export interface PlannerCommunicationDirection {
   version: typeof COMMUNICATION_INTENT_VERSION
-  channel: 'discussion' | 'proposal-pitch' | 'revision-reason'
+  channel: LanguageUtteranceChannel
   targetSeats: readonly Seat[]
   claimCodes: readonly CommunicationClaimCode[]
   tone: 'natural'

@@ -91,6 +91,7 @@ import {
 } from '../belief/language-factor.ts'
 import {
   INVALID_LANGUAGE_INTERPRETER_VERSION,
+  LANGUAGE_ORCHESTRATION_DEGRADATIONS,
 } from '../communication/language-orchestration.ts'
 import {
   LANGUAGE_CURSOR_VERSION,
@@ -144,6 +145,7 @@ import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   ROLE_OBJECTIVE_ROUTER_VERSION,
+  isEvilObjectiveRole,
 } from '../analysis/evil-objective-types.ts'
 import {
   EVIL_ROLE_UTILITY_DEGRADATION,
@@ -722,12 +724,9 @@ function validLanguageTrace(
   const admitted = language.admittedSourceSeqs
   const cumulative = language.cumulativeSourceSeqs
   const degradation = language.degradation
-  const allowedDegradation = new Set([
-    'language-input-failed',
-    'language-interpreter-invalid-version',
-    'language-interpreter-failed',
-    'language-evidence-invalid-output',
-  ])
+  const allowedDegradation = new Set<string>(
+    LANGUAGE_ORCHESTRATION_DEGRADATIONS,
+  )
   const cursorThroughSeq = language.cursorThroughSeq
   const canonicalSeqs = (candidate: unknown): candidate is number[] =>
     Array.isArray(candidate)
@@ -1235,8 +1234,7 @@ function validCandidateScores(value: unknown): boolean {
         === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       && evilRole.sourceObjectiveVersion
         === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      && ['assassin', 'morgana', 'mordred', 'minion', 'oberon']
-        .includes(evilRole.role as string)
+      && isEvilObjectiveRole(evilRole.role)
       && evilRole.candidateId === score.candidateId
       && ['propose', 'vote'].includes(evilRole.kind as string)
       && finiteProbability(evilRole.roleValue)

@@ -35,8 +35,20 @@ export type LanguageEvidenceDirection =
   typeof LANGUAGE_EVIDENCE_DIRECTIONS[number]
 export type LanguageEvidenceConfidence =
   typeof LANGUAGE_EVIDENCE_CONFIDENCES[number]
+export const LANGUAGE_UTTERANCE_CHANNELS = Object.freeze([
+  'discussion',
+  'proposal-pitch',
+  'revision-reason',
+] as const)
+
 export type LanguageUtteranceChannel =
-  'discussion' | 'proposal-pitch' | 'revision-reason'
+  typeof LANGUAGE_UTTERANCE_CHANNELS[number]
+
+export function isLanguageUtteranceChannel(
+  value: unknown,
+): value is LanguageUtteranceChannel {
+  return (LANGUAGE_UTTERANCE_CHANNELS as readonly unknown[]).includes(value)
+}
 
 /**
  * A finite, inspectable interpretation of one public utterance.

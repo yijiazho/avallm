@@ -38,11 +38,15 @@ export function languageInterpreterVersionIdentity(
     : INVALID_LANGUAGE_INTERPRETER_VERSION
 }
 
+export const LANGUAGE_ORCHESTRATION_DEGRADATIONS = Object.freeze([
+  'language-input-failed',
+  'language-interpreter-invalid-version',
+  'language-interpreter-failed',
+  'language-evidence-invalid-output',
+] as const)
+
 export type LanguageOrchestrationDegradation =
-  | 'language-input-failed'
-  | 'language-interpreter-invalid-version'
-  | 'language-interpreter-failed'
-  | 'language-evidence-invalid-output'
+  typeof LANGUAGE_ORCHESTRATION_DEGRADATIONS[number]
 
 export interface LanguageTraceAttribution {
   inputSchemaVersion: typeof LANGUAGE_INTERPRETER_INPUT_VERSION

@@ -11,6 +11,7 @@ import {
   PHASE7_ROLE_EVAL_VERSION,
   type Phase7RoleEvalArm,
   type Phase7RoleEvidenceRow,
+  PHASE7_ROLE_EVAL_ARMS,
 } from './role-eval.ts'
 import {
   PHASE7_VIRTUAL_ASSASSIN_VERSION,
@@ -29,13 +30,7 @@ export const PHASE7_ROLE_REPORT_VERSION = 'phase7-role-report-v1'
 export const PHASE7_ROLE_EVIDENCE_BASELINE = 'docs/baselines/phase7-role-evidence-standard-v1.jsonl'
 export const PHASE7_VIRTUAL_ASSASSIN_BASELINE = 'docs/baselines/phase7-virtual-assassin-standard-v1.jsonl'
 export const PHASE7_ROLE_REPORT_BASELINE = 'docs/baselines/phase7-role-report-standard-v1.json'
-const ARMS: readonly Phase7RoleEvalArm[] = Object.freeze([
-  'compatibility',
-  'base-composed',
-  'observer-only',
-  'isolated-role',
-  'full-role',
-])
+const ARMS: readonly Phase7RoleEvalArm[] = PHASE7_ROLE_EVAL_ARMS
 
 interface ArmSummary {
   readonly games: number

@@ -42,6 +42,7 @@ import {
   type ObservationFraction,
   type PrivateEvilRoleObjectiveSnapshot,
   type PublicEvilStanding,
+  EVIL_OBJECTIVE_ROLES,
 } from './evil-objective-types.ts'
 import {
   canonicalRequestBlock,
@@ -54,13 +55,7 @@ import {
 const roleRank = new Map(
   CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
 )
-const EVIL_ROLES = new Set<EvilObjectiveRole>([
-  'assassin',
-  'morgana',
-  'mordred',
-  'minion',
-  'oberon',
-])
+const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
   assassin: 'assassin-shot-preservation',
   morgana: 'morgana-counterfeit-cover',

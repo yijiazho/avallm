@@ -51,12 +51,15 @@ import type { Role } from '../engine/types.ts'
 export const PHASE7_ROLE_EVAL_VERSION = 'phase7-role-eval-v1'
 export const PHASE7_ROLE_EVAL_BANK_ID = `${ARCHITECTURE_BANK_ID}-phase7-roles`
 
-export type Phase7RoleEvalArm =
-  | 'compatibility'
-  | 'base-composed'
-  | 'observer-only'
-  | 'isolated-role'
-  | 'full-role'
+export const PHASE7_ROLE_EVAL_ARMS = Object.freeze([
+  'compatibility',
+  'base-composed',
+  'observer-only',
+  'isolated-role',
+  'full-role',
+] as const)
+
+export type Phase7RoleEvalArm = typeof PHASE7_ROLE_EVAL_ARMS[number]
 
 export interface Phase7RoleEvidenceRow {
   readonly schema: 1

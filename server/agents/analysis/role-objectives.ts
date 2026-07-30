@@ -43,6 +43,7 @@ import {
   type PercivalCandidateObjective,
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
+  isPublicCommitmentDirection,
 } from './role-objective-types.ts'
 import {
   canonicalRequestBlock,
@@ -598,7 +599,7 @@ function validCommitment(
     && candidate.candidateId.length > 0
     && candidate.candidateId.length <= 256
     && candidate.kind === request.kind
-    && ['support', 'oppose', 'neutral'].includes(candidate.direction as string)
+    && isPublicCommitmentDirection(candidate.direction)
     && canonicalSeats(candidate.team, playerCount)
 }
 

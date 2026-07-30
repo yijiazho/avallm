@@ -34,10 +34,20 @@ export interface AvalonAgent {
   privateTraceSink?(trace: DecisionTrace): void
 }
 
+export const APPLIED_DECISION_RESOLUTIONS = Object.freeze([
+  'selected-applied',
+  'fallback-after-agent-error',
+  'fallback-after-illegal-decision',
+] as const)
+
 export type AppliedDecisionResolution =
-  | 'selected-applied'
-  | 'fallback-after-agent-error'
-  | 'fallback-after-illegal-decision'
+  typeof APPLIED_DECISION_RESOLUTIONS[number]
+
+export function isAppliedDecisionResolution(
+  value: unknown,
+): value is AppliedDecisionResolution {
+  return (APPLIED_DECISION_RESOLUTIONS as readonly unknown[]).includes(value)
+}
 
 /**
  * What the host knows once the engine has accepted an action, handed to

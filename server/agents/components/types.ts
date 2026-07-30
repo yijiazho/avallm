@@ -19,11 +19,20 @@ import type {
 } from '../analysis/observer-types.ts'
 import type { CanonicalJsonValue } from './canonical-json.ts'
 
-export type DecisionComponentKind =
-  | 'observer'
-  | 'objective'
-  | 'projection'
-  | 'decision-rule'
+export const DECISION_COMPONENT_KINDS = Object.freeze([
+  'observer',
+  'objective',
+  'projection',
+  'decision-rule',
+] as const)
+
+export type DecisionComponentKind = typeof DECISION_COMPONENT_KINDS[number]
+
+export function isDecisionComponentKind(
+  value: unknown,
+): value is DecisionComponentKind {
+  return (DECISION_COMPONENT_KINDS as readonly unknown[]).includes(value)
+}
 
 export type DecisionComponentPrivacy = 'public' | 'private'
 
