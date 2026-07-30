@@ -214,7 +214,35 @@ export interface PrivatePlanMemory {
   history: readonly AppliedPlanHistoryEntry[]
 }
 
-export interface CognitionVersions {
+/**
+ * The opt-in component version identities shared verbatim by the internal
+ * cognition state ({@link CognitionVersions}) and the wire/trace attribution
+ * (`DecisionTrace.componentVersions`). Each field is a feature flag: absent
+ * means that component was off for this decision, present carries its resolved
+ * version. Both records embed this same set by intersection so a newly added
+ * opt-in component is declared once, here, rather than hand-mirrored in two
+ * places that silently drift.
+ *
+ * Only the genuinely shared subset lives here. `componentVersions` carries
+ * further opt-ins of its own (the Morgana counterfeit/role-utility projections,
+ * `roleUtility`/`evilRoleUtility`, `decisionComponents`, `configuredScorer`,
+ * and an optional `mechanicalBelief`/`beliefPipeline` that CognitionVersions
+ * instead requires); those stay declared on that type deliberately.
+ */
+export interface OptInComponentVersions {
+  /** Present only while the private joint-identity projection is enabled. */
+  identityModel?: string
+  /** Present only while private post-legality plan memory is enabled. */
+  planMemory?: string
+  /** Present only with plan memory; literal structured coherence only. */
+  coherence?: string
+  /** Present only for an enabled Merlin/Percival private objective. */
+  roleObjective?: string
+  /** Present only when explicit role routing is configured. */
+  roleObjectiveRouter?: string
+}
+
+export interface CognitionVersions extends OptInComponentVersions {
   schema: typeof COGNITION_SCHEMA_VERSION
   evidence: typeof EVIDENCE_MODEL_VERSION
   commitments: typeof COMMITMENT_MODEL_VERSION
@@ -226,16 +254,6 @@ export interface CognitionVersions {
   beliefPipeline: string
   /** Stable interpreter identity, or `off` when language inference is absent. */
   languageEvidence: string
-  /** Present only while the private joint-identity projection is enabled. */
-  identityModel?: string
-  /** Present only while private post-legality plan memory is enabled. */
-  planMemory?: string
-  /** Present only with plan memory; literal structured coherence only. */
-  coherence?: string
-  /** Present only for an enabled Merlin/Percival private objective. */
-  roleObjective?: string
-  /** Present only when explicit role routing is configured. */
-  roleObjectiveRouter?: string
 }
 
 export interface CognitionState {

@@ -19,6 +19,7 @@ import type { LanguageTraceAttribution } from './communication/language-orchestr
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
+import type { OptInComponentVersions } from './cognition/types.ts'
 import {
   PLAN_MEMORY_VERSION,
   validateAppliedPlanOutcomeHostJoin,
@@ -115,7 +116,16 @@ export interface DecisionTrace {
    */
   architectureIdentityDigest?: string
   statedReasoning?: string
-  /** Complete ownership/version attribution for composed decisions. */
+  /**
+   * Complete ownership/version attribution for composed decisions.
+   *
+   * The opt-in `identityModel`/`planMemory`/`coherence`/`roleObjective`/
+   * `roleObjectiveRouter` set is shared verbatim with the internal
+   * {@link CognitionVersions} via {@link OptInComponentVersions} so the two
+   * cannot drift; the remaining opt-ins below (Morgana projections,
+   * `roleUtility`/`evilRoleUtility`, `decisionComponents`, `configuredScorer`,
+   * and the optional `mechanicalBelief`/`beliefPipeline`) are wire-only.
+   */
   componentVersions?: Readonly<{
     brain: string
     /**
@@ -130,18 +140,8 @@ export interface DecisionTrace {
     factors: string
     languageEvidence: string
     observerModel: string
-    /** Absent means the private identity model is off. */
-    identityModel?: string
-    /** Absent means post-legality private plan memory is off. */
-    planMemory?: string
-    /** Absent means literal commitment coherence is off. */
-    coherence?: string
     /** Additive discriminator for the private generic component run. */
     decisionComponents?: string
-    /** Absent means Merlin/Percival role-objective analysis is off. */
-    roleObjective?: string
-    /** Configured role router; concrete roleObjective remains separately named. */
-    roleObjectiveRouter?: string
     /** Absent unless the C2 decision-ready role projection was built. */
     roleUtility?: string
     /** Absent unless the D2 evil/Oberon projection was built. */
@@ -168,7 +168,7 @@ export interface DecisionTrace {
     renderer: string
     communication: string
     voice: string
-  }>
+  } & OptInComponentVersions>
   /** Private generic component execution and causal-use attribution. */
   components?: DecisionComponentRun
   /** Ordered strategic survivor/selection transitions after universal policy. */
