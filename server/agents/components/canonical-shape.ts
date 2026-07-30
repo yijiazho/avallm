@@ -126,12 +126,31 @@ export const canonicalSeats = (
       )
   })
 
+/** Exactly these keys: same set, same count. Nothing optional. */
 export const exactKeys = (
   value: Record<string, unknown>,
   keys: readonly string[],
 ): boolean =>
   Object.keys(value).length === keys.length
   && Object.keys(value).every((key) => keys.includes(key))
+
+/**
+ * No key outside `allowed`, with no requirement that all of `allowed` appear.
+ *
+ * This is the guard for records that have optional fields, and it is
+ * deliberately not exactKeys. PrivateIdentitySnapshot omits hiddenTeamPosterior
+ * whenever the scope excludes it, so a count-equality check there would reject
+ * a legal snapshot. Which fields are required is the caller's job, checked one
+ * by one right after this.
+ *
+ * The two live under separate names on purpose. Five modules once spelled this
+ * predicate `exactKeys` while four others spelled the count-checking one the
+ * same way, and no call site revealed which contract it was getting.
+ */
+export const onlyAllowedKeys = (
+  value: object,
+  allowed: readonly string[],
+): boolean => Object.keys(value).every((key) => allowed.includes(key))
 
 export const probability = (value: unknown): value is number =>
   typeof value === 'number'

@@ -22,7 +22,10 @@ import {
   type PublicAlignmentMaskCount,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
-import { probability } from '../components/canonical-shape.ts'
+import {
+  onlyAllowedKeys,
+  probability,
+} from '../components/canonical-shape.ts'
 
 const PUBLIC_OBSERVER_CACHE_LIMIT = 16
 const exactProjectionCache = new Map<string, {
@@ -236,11 +239,6 @@ export function observePublicRecord(
   }
 }
 
-const exactKeys = (
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-): boolean => Object.keys(value).every((key) => allowed.includes(key))
-
 // Validate in count space, where an exact uniform marginal is an integer number
 // of feasible worlds divided by feasibleWorldCount. Sixteen denominator-scaled
 // machine epsilons admit ordinary division round trips while keeping one-world
@@ -276,7 +274,7 @@ export function validatePublicObserverSnapshot(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const snapshot = value as Record<string, unknown>
   if (
-    !exactKeys(snapshot, [
+    !onlyAllowedKeys(snapshot, [
       'version',
       'probabilitySemantics',
       'behavioralSemantics',
@@ -337,7 +335,7 @@ export function validatePublicObserverSnapshot(
       feasibleWorldCount,
     )
     if (
-      !exactKeys(assessment, [
+      !onlyAllowedKeys(assessment, [
         'seat',
         'goodProbability',
         'evilProbability',
@@ -356,7 +354,7 @@ export function validatePublicObserverSnapshot(
       || !behavior
       || typeof behavior !== 'object'
       || Array.isArray(behavior)
-      || !exactKeys(behavior, [
+      || !onlyAllowedKeys(behavior, [
         'version',
         'semantics',
         'proposalLeadershipCount',
@@ -397,7 +395,7 @@ export function validatePublicObserverSnapshot(
       const canonicalRank = CANONICAL_ROLE_ORDER.indexOf(role)
       const count = latticeCount(marginal.probability, feasibleWorldCount)
       if (
-        !exactKeys(marginal, ['role', 'probability'])
+        !onlyAllowedKeys(marginal, ['role', 'probability'])
         || typeof marginal.role !== 'string'
         || canonicalRank < 0
         || canonicalRank <= previousRoleRank

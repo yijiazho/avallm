@@ -11,6 +11,7 @@ import type {
   PlannerOutput,
   VoiceOutput,
 } from '../composed.ts'
+import { onlyAllowedKeys } from '../components/canonical-shape.ts'
 
 export const BOUNDED_PLANNER_VERSION = 'bounded-llm-planner-v1'
 export const BOUNDED_VOICE_VERSION = 'bounded-llm-voice-v1'
@@ -31,14 +32,6 @@ function stringArray(value: unknown): string[] | undefined {
     && value.every((entry) => typeof entry === 'string')
     ? value
     : undefined
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-): boolean {
-  const keys = Object.keys(value)
-  return keys.every((key) => allowed.includes(key))
 }
 
 function parseObject(content: string): Record<string, unknown> | undefined {
@@ -64,7 +57,7 @@ function communicationDirection(
   const claimCodes = stringArray(raw.claimCodes)
   const desiredLean = raw.desiredLean
   if (
-    !exactKeys(raw, [
+    !onlyAllowedKeys(raw, [
       'version',
       'channel',
       'desiredLean',
@@ -109,7 +102,7 @@ function plannerReply(content: string): PlannerOutput | undefined {
   const raw = parseObject(content)
   if (
     !raw
-    || !exactKeys(raw, ['candidateId', 'reasonCodes', 'communication'])
+    || !onlyAllowedKeys(raw, ['candidateId', 'reasonCodes', 'communication'])
     || typeof raw.candidateId !== 'string'
   ) {
     return undefined
@@ -141,7 +134,7 @@ function voiceReply(content: string): VoiceOutput | undefined {
   const raw = parseObject(content)
   if (
     !raw
-    || !exactKeys(raw, ['text', 'thinking'])
+    || !onlyAllowedKeys(raw, ['text', 'thinking'])
     || typeof raw.text !== 'string'
     || !raw.text.trim()
   ) {

@@ -10,7 +10,11 @@ import {
   type BeliefSnapshot,
   type PlayerMarginal,
 } from './types.ts'
-import { denseArray } from '../components/canonical-shape.ts'
+import {
+  denseArray,
+  onlyAllowedKeys,
+  probability,
+} from '../components/canonical-shape.ts'
 
 export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
 export const MAX_IDENTITY_ROLE_QUERIES = 16
@@ -467,21 +471,15 @@ export function projectJointIdentity(
   }
 }
 
-const exactKeys = (
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-): boolean => Object.keys(value).every((key) => allowed.includes(key))
-
-const probability = (value: unknown): value is number =>
+/**
+ * A hypothesis carries strictly positive mass: a zero-probability world is
+ * absent from the posterior rather than listed with a zero. Deliberately not
+ * the shared `probability`, which admits zero.
+ */
+const positiveProbability = (value: unknown): value is number =>
   typeof value === 'number'
   && Number.isFinite(value)
   && value > 0
-  && value <= 1
-
-const inclusiveProbability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
   && value <= 1
 
 function validCanonicalSeats(value: unknown, playerCount: number): value is Seat[] {
@@ -622,7 +620,7 @@ export function validatePrivateIdentitySnapshot(
   const source = snapshot.sourceBelief as Record<string, unknown>
   const scope = snapshot.scope as Record<string, unknown>
   if (
-    !exactKeys(snapshot, [
+    !onlyAllowedKeys(snapshot, [
       'version',
       'sourceBelief',
       'scope',
@@ -633,7 +631,7 @@ export function validatePrivateIdentitySnapshot(
     || !source
     || typeof source !== 'object'
     || Array.isArray(source)
-    || !exactKeys(source, [
+    || !onlyAllowedKeys(source, [
       'modelVersion',
       'throughSeq',
       'quality',
@@ -652,7 +650,7 @@ export function validatePrivateIdentitySnapshot(
     || !scope
     || typeof scope !== 'object'
     || Array.isArray(scope)
-    || !exactKeys(scope, ['roleQueries', 'hiddenTeam'])
+    || !onlyAllowedKeys(scope, ['roleQueries', 'hiddenTeam'])
     || !denseArray(scope.roleQueries)
     || scope.roleQueries.length > MAX_IDENTITY_ROLE_QUERIES
     || typeof scope.hiddenTeam !== 'boolean'
@@ -671,7 +669,7 @@ export function validatePrivateIdentitySnapshot(
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false
     const query = value as Record<string, unknown>
     if (
-      !exactKeys(query, ['queryKey', 'queriedRoles'])
+      !onlyAllowedKeys(query, ['queryKey', 'queriedRoles'])
       || typeof query.queryKey !== 'string'
       || !Array.isArray(query.queriedRoles)
     ) return false
@@ -696,7 +694,7 @@ export function validatePrivateIdentitySnapshot(
     const posterior = value as Record<string, unknown>
     const scopeQuery = scopeQueries[index] as Record<string, unknown>
     if (
-      !exactKeys(posterior, ['queryKey', 'queriedRoles', 'hypotheses'])
+      !onlyAllowedKeys(posterior, ['queryKey', 'queriedRoles', 'hypotheses'])
       || posterior.queryKey !== scopeQuery.queryKey
       || JSON.stringify(posterior.queriedRoles)
         !== JSON.stringify(scopeQuery.queriedRoles)
@@ -709,8 +707,8 @@ export function validatePrivateIdentitySnapshot(
         !hypothesis
         || typeof hypothesis !== 'object'
         || Array.isArray(hypothesis)
-        || !exactKeys(hypothesis, ['assignments', 'probability'])
-        || !probability(hypothesis.probability)
+        || !onlyAllowedKeys(hypothesis, ['assignments', 'probability'])
+        || !positiveProbability(hypothesis.probability)
         || !denseArray(hypothesis.assignments)
       ) return false
       const assignments = hypothesis.assignments as Record<string, unknown>[]
@@ -724,7 +722,7 @@ export function validatePrivateIdentitySnapshot(
           !assignment
           || typeof assignment !== 'object'
           || Array.isArray(assignment)
-          || !exactKeys(assignment, ['role', 'seats'])
+          || !onlyAllowedKeys(assignment, ['role', 'seats'])
           || assignment.role !== expected[0]
           || !validCanonicalSeats(assignment.seats, playerCount)
           || assignment.seats.length !== expected[1]
@@ -747,7 +745,7 @@ export function validatePrivateIdentitySnapshot(
       !posterior
       || typeof posterior !== 'object'
       || Array.isArray(posterior)
-      || !exactKeys(posterior, ['hypotheses'])
+      || !onlyAllowedKeys(posterior, ['hypotheses'])
       || !denseArray(posterior.hypotheses)
     ) return false
     const hypotheses = posterior.hypotheses as Record<string, unknown>[]
@@ -758,8 +756,8 @@ export function validatePrivateIdentitySnapshot(
         !hypothesis
         || typeof hypothesis !== 'object'
         || Array.isArray(hypothesis)
-        || !exactKeys(hypothesis, ['evilSeats', 'probability'])
-        || !probability(hypothesis.probability)
+        || !onlyAllowedKeys(hypothesis, ['evilSeats', 'probability'])
+        || !positiveProbability(hypothesis.probability)
         || !validCanonicalSeats(hypothesis.evilSeats, playerCount)
         || hypothesis.evilSeats.length !== EVIL_COUNT[playerCount]
       ) return false
@@ -816,8 +814,8 @@ export function validatePrivateIdentityHostJoin(
         || typeof marginal !== 'object'
         || Array.isArray(marginal)
         || marginal.seat !== seat
-        || !inclusiveProbability(marginal.goodProbability)
-        || !inclusiveProbability(marginal.evilProbability)
+        || !probability(marginal.goodProbability)
+        || !probability(marginal.evilProbability)
         || Math.abs(
           marginal.goodProbability + marginal.evilProbability - 1,
         ) > PROBABILITY_TOLERANCE,

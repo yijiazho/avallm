@@ -19,6 +19,7 @@ import {
   canonicalSeats,
   denseArray,
   exactKeys,
+  onlyAllowedKeys,
   plainDataRecord,
   plainDetachedData,
   plainRecord,
@@ -104,6 +105,30 @@ test('exactKeys is set equality, not containment', () => {
   assert.equal(exactKeys({ a: 1 }, ['a', 'b']), false, 'missing key')
   assert.equal(exactKeys({ a: 1, b: 2, c: 3 }, ['a', 'b']), false, 'extra key')
   assert.equal(exactKeys({ a: 1, c: 3 }, ['a', 'b']), false, 'substituted key')
+})
+
+test('onlyAllowedKeys permits absent keys but never unknown ones', () => {
+  assert.equal(onlyAllowedKeys({ a: 1, b: 2 }, ['a', 'b']), true)
+  assert.equal(onlyAllowedKeys({ a: 1 }, ['a', 'b']), true, 'b is optional')
+  assert.equal(onlyAllowedKeys({}, ['a', 'b']), true, 'all optional')
+
+  assert.equal(onlyAllowedKeys({ c: 3 }, ['a', 'b']), false, 'unknown key')
+  assert.equal(onlyAllowedKeys({ a: 1, c: 3 }, ['a', 'b']), false)
+})
+
+test('exactKeys and onlyAllowedKeys are not interchangeable', () => {
+  // The distinction five modules lost by spelling both of these `exactKeys`.
+  // A record with an optional field absent is legal to one and not the other,
+  // so collapsing them silently rejects valid payloads (or admits partial
+  // ones), depending on which direction the collapse goes.
+  const partial = { version: 1 }
+  const fields = ['version', 'optionalExtra']
+  assert.equal(exactKeys(partial, fields), false)
+  assert.equal(onlyAllowedKeys(partial, fields), true)
+
+  const unknown = { version: 1, surprise: true }
+  assert.equal(exactKeys(unknown, ['version']), false)
+  assert.equal(onlyAllowedKeys(unknown, ['version']), false)
 })
 
 test('probability is a finite number within the closed unit interval', () => {

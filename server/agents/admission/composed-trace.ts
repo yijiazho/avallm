@@ -57,6 +57,10 @@ import {
   type CandidateScoringContext,
 } from '../policy/score.ts'
 import {
+  exactKeys,
+  onlyAllowedKeys,
+} from '../components/canonical-shape.ts'
+import {
   projectConfiguredScoreDiagnostics,
 } from '../policy/score-compatibility.ts'
 import {
@@ -253,13 +257,6 @@ import {
   validatePrivateMorganaRoleUtilityHostJoin,
   validatePrivateMorganaRoleUtilityProjection,
 } from '../analysis/morgana-role-utility.ts'
-
-function exactKeys(
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-): boolean {
-  return Object.keys(value).every((key) => allowed.includes(key))
-}
 
 function seatArray(value: unknown): value is readonly number[] {
   return Array.isArray(value)
@@ -458,7 +455,7 @@ function validLanguageTrace(
   if (!componentDeclaresLanguage) return false
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const language = value as Record<string, unknown>
-  if (!exactKeys(language, [
+  if (!onlyAllowedKeys(language, [
     'inputSchemaVersion',
     'cursorSchemaVersion',
     'interpreterVersion',
@@ -950,7 +947,7 @@ function validCandidateScores(value: unknown): boolean {
       'utility',
     ]
     const validRole = role === undefined || (
-      exactKeys(role, roleKeys)
+      onlyAllowedKeys(role, roleKeys)
       && role.version === ROLE_OBJECTIVE_SCORE_FEATURE_VERSION
       && role.utilityVersion === ROLE_OBJECTIVE_UTILITY_VERSION
       && role.utilityProjectionVersion === ROLE_UTILITY_PROJECTION_VERSION
@@ -1021,7 +1018,7 @@ function validCandidateScores(value: unknown): boolean {
       'utility',
     ]
     const validEvilRole = evilRole === undefined || (
-      exactKeys(evilRole, evilRoleKeys)
+      onlyAllowedKeys(evilRole, evilRoleKeys)
       && evilRole.version === EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION
       && evilRole.utilityVersion === EVIL_ROLE_OBJECTIVE_UTILITY_VERSION
       && evilRole.utilityProjectionVersion
@@ -1075,7 +1072,6 @@ function validCandidateScores(value: unknown): boolean {
     ]
     const validMorganaRole = morganaRole === undefined || (
       exactKeys(morganaRole, morganaRoleKeys)
-      && Object.keys(morganaRole).length === morganaRoleKeys.length
       && morganaRole.version === MORGANA_ROLE_SCORE_FEATURE_VERSION
       && morganaRole.utilityProjectionVersion
         === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
@@ -1437,7 +1433,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       ...committedPolicyReasons,
     ]
     if (
-      !exactKeys(intent, [
+      !onlyAllowedKeys(intent, [
         'version',
         'channel',
         'desiredLean',
@@ -1500,7 +1496,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
         | Record<string, unknown>
         | undefined
       if (
-        !exactKeys(
+        !onlyAllowedKeys(
           uncertainty,
           uncertainty.kind === 'role-composite-decision'
             ? [

@@ -51,6 +51,7 @@ import {
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateEvilRoleUtilityProjection,
 } from './analysis/evil-role-utility.ts'
+import { onlyAllowedKeys } from './components/canonical-shape.ts'
 import {
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -639,13 +640,6 @@ function validComponentVersion(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
-function exactKeys(
-  value: object,
-  allowed: readonly string[],
-): boolean {
-  return Object.keys(value).every((key) => allowed.includes(key))
-}
-
 function validPlannerCommunication(
   value: PlannerCommunicationDirection | undefined,
   decision: Decision,
@@ -682,7 +676,7 @@ function validPlannerCommunication(
     expectedChannel !== undefined
     &&
     !!value
-    && exactKeys(value, [
+    && onlyAllowedKeys(value, [
       'version',
       'channel',
       'desiredLean',
