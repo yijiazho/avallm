@@ -420,245 +420,243 @@ const seatArray = (value: unknown): value is readonly Seat[] =>
   && value.every((seat) => safeInteger(seat) && seat >= 0)
 
 function morganaRoleUtilitySchema(value: unknown): boolean {
-  {
+  if (
+    !plainRecord(value)
+    || !exactKeys(value, [
+      'version', 'role', 'source', 'request', 'selectionMode',
+      'd2ViableBand', 'seededVoteCounterfeitBand', 'maxD2RoleValue',
+      'd2BandFloor', 'seedDomain',
+      ...(value.seedBucket === undefined ? [] : ['seedBucket']),
+      'selectedCandidateId', 'selectedDecision',
+      ...(value.forcedSelectedCandidateId === undefined
+        ? []
+        : ['forcedSelectedCandidateId']),
+      'counterfeitObjective', 'evilRoleUtility',
+      'candidates',
+    ])
+    || value.version !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+    || value.role !== 'morgana'
+    || !plainRecord(value.source)
+    || !exactKeys(value.source, [
+      'morganaCounterfeitObjectiveVersion', 'evilRoleUtilityVersion',
+      'beliefModelVersion', 'beliefThroughSeq', 'playerCount',
+    ])
+    || value.source.morganaCounterfeitObjectiveVersion
+      !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
+    || value.source.evilRoleUtilityVersion
+      !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+    || typeof value.source.beliefModelVersion !== 'string'
+    || !safeInteger(value.source.beliefThroughSeq)
+    || !safeInteger(value.source.playerCount)
+    || !plainRecord(value.request)
+    || !exactKeys(value.request, [
+      'seat', 'kind', 'round', 'proposalNum',
+      ...(value.request.kind === 'vote' ? ['currentTeam'] : []),
+    ])
+    || !['propose', 'vote'].includes(String(value.request.kind))
+    || !safeInteger(value.request.seat)
+    || !safeInteger(value.request.round)
+    || !safeInteger(value.request.proposalNum)
+    || (
+      value.request.kind === 'vote'
+      && !seatArray(value.request.currentTeam)
+    )
+    || ![
+      'top-counterfeit-within-d2-band',
+      'seeded-near-equal-vote-within-d2-band',
+    ].includes(String(value.selectionMode))
+    || value.d2ViableBand
+      !== MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
+    || value.seededVoteCounterfeitBand
+      !== MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand
+    || typeof value.maxD2RoleValue !== 'number'
+    || typeof value.d2BandFloor !== 'number'
+    || Math.abs(
+      value.d2BandFloor
+        - (value.maxD2RoleValue - value.d2ViableBand),
+    ) > 1e-12
+    || value.seedDomain !== MORGANA_ROLE_SEEDED_SCORER_VERSION
+    || (
+      value.seedBucket !== undefined
+      && value.seedBucket !== 0
+      && value.seedBucket !== 1
+    )
+    || typeof value.selectedCandidateId !== 'string'
+    || !Array.isArray(value.candidates)
+    || Object.keys(value.candidates).length !== value.candidates.length
+    || value.candidates.length === 0
+    || value.candidates.length > MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS
+  ) return false
+  const counterfeitObjective =
+    decodeCanonicalPrivateMorganaCounterfeitObjective(
+      value.counterfeitObjective as CanonicalJsonValue,
+    )
+  const evilRoleUtility =
+    decodeCanonicalPrivateEvilRoleUtilityProjection(
+      value.evilRoleUtility as CanonicalJsonValue,
+    )
+  if (!counterfeitObjective || !evilRoleUtility) return false
+  const d2ById = new Map(
+    evilRoleUtility.assessments.map((assessment) => [
+      assessment.candidateId,
+      assessment,
+    ]),
+  )
+  const counterfeitById = new Map(
+    counterfeitObjective.assessments.map((assessment) => [
+      assessment.candidate.candidateId,
+      assessment,
+    ]),
+  )
+  const requestTeam = seatArray(value.request.currentTeam)
+    ? value.request.currentTeam
+    : undefined
+  if (
+    counterfeitObjective.role !== 'morgana'
+    || evilRoleUtility.role !== 'morgana'
+    || value.source.beliefModelVersion
+      !== counterfeitObjective.source.beliefModelVersion
+    || value.source.beliefModelVersion
+      !== evilRoleUtility.source.beliefModelVersion
+    || value.source.beliefThroughSeq
+      !== counterfeitObjective.source.beliefThroughSeq
+    || value.source.beliefThroughSeq
+      !== evilRoleUtility.source.beliefThroughSeq
+    || value.source.playerCount
+      !== counterfeitObjective.source.playerCount
+    || value.source.playerCount
+      !== evilRoleUtility.source.playerCount
+    || value.request.seat !== counterfeitObjective.request.seat
+    || value.request.seat !== evilRoleUtility.request.seat
+    || value.request.kind !== counterfeitObjective.request.kind
+    || value.request.kind !== evilRoleUtility.request.kind
+    || value.request.round !== counterfeitObjective.request.round
+    || value.request.round !== evilRoleUtility.request.round
+    || value.request.proposalNum
+      !== counterfeitObjective.request.proposalNum
+    || value.request.proposalNum
+      !== evilRoleUtility.request.proposalNum
+    || (
+      value.request.kind === 'vote'
+      && !sameTeam(
+        requestTeam,
+        counterfeitObjective.request.currentTeam,
+      )
+    )
+    || d2ById.size !== value.candidates.length
+    || counterfeitById.size !== value.candidates.length
+  ) return false
+  const d2BandFloor = value.d2BandFloor
+  const ids = new Set<string>()
+  for (const rawCandidate of value.candidates) {
+    if (!plainRecord(rawCandidate)) return false
+    const candidate = rawCandidate
+    if (typeof candidate.candidateId !== 'string') return false
+    const candidateId = candidate.candidateId
+    const d2Utility = d2ById.get(candidateId)
+    const counterfeitAssessment =
+      counterfeitById.get(candidateId)
     if (
-      !plainRecord(value)
-      || !exactKeys(value, [
-        'version', 'role', 'source', 'request', 'selectionMode',
-        'd2ViableBand', 'seededVoteCounterfeitBand', 'maxD2RoleValue',
-        'd2BandFloor', 'seedDomain',
-        ...(value.seedBucket === undefined ? [] : ['seedBucket']),
-        'selectedCandidateId', 'selectedDecision',
-        ...(value.forcedSelectedCandidateId === undefined
-          ? []
-          : ['forcedSelectedCandidateId']),
-        'counterfeitObjective', 'evilRoleUtility',
-        'candidates',
+      !exactKeys(candidate, [
+        'candidateId', 'kind', 'decision', 'forcedAllowed',
+        'd2RoleValue', 'd2BandFloor', 'inD2ViableBand',
+        'counterfeitValue', 'counterfeitRank',
       ])
-      || value.version !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-      || value.role !== 'morgana'
-      || !plainRecord(value.source)
-      || !exactKeys(value.source, [
-        'morganaCounterfeitObjectiveVersion', 'evilRoleUtilityVersion',
-        'beliefModelVersion', 'beliefThroughSeq', 'playerCount',
-      ])
-      || value.source.morganaCounterfeitObjectiveVersion
-        !== MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
-      || value.source.evilRoleUtilityVersion
-        !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-      || typeof value.source.beliefModelVersion !== 'string'
-      || !safeInteger(value.source.beliefThroughSeq)
-      || !safeInteger(value.source.playerCount)
-      || !plainRecord(value.request)
-      || !exactKeys(value.request, [
-        'seat', 'kind', 'round', 'proposalNum',
-        ...(value.request.kind === 'vote' ? ['currentTeam'] : []),
-      ])
-      || !['propose', 'vote'].includes(String(value.request.kind))
-      || !safeInteger(value.request.seat)
-      || !safeInteger(value.request.round)
-      || !safeInteger(value.request.proposalNum)
-      || (
-        value.request.kind === 'vote'
-        && !seatArray(value.request.currentTeam)
+      || ids.has(candidateId)
+      || candidate.kind !== value.request.kind
+      || typeof candidate.forcedAllowed !== 'boolean'
+      || typeof candidate.d2RoleValue !== 'number'
+      || candidate.d2BandFloor !== d2BandFloor
+      || typeof candidate.inD2ViableBand !== 'boolean'
+      || candidate.inD2ViableBand !== (
+        candidate.forcedAllowed
+        && candidate.d2RoleValue >= d2BandFloor - 1e-12
       )
-      || ![
-        'top-counterfeit-within-d2-band',
-        'seeded-near-equal-vote-within-d2-band',
-      ].includes(String(value.selectionMode))
-      || value.d2ViableBand
-        !== MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
-      || value.seededVoteCounterfeitBand
-        !== MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand
-      || typeof value.maxD2RoleValue !== 'number'
-      || typeof value.d2BandFloor !== 'number'
-      || Math.abs(
-        value.d2BandFloor
-          - (value.maxD2RoleValue - value.d2ViableBand),
-      ) > 1e-12
-      || value.seedDomain !== MORGANA_ROLE_SEEDED_SCORER_VERSION
-      || (
-        value.seedBucket !== undefined
-        && value.seedBucket !== 0
-        && value.seedBucket !== 1
+      || typeof candidate.counterfeitValue !== 'number'
+      || !safeInteger(candidate.counterfeitRank)
+      || candidate.counterfeitRank < 0
+      || !d2Utility
+      || !counterfeitAssessment
+      || d2Utility.roleValue !== candidate.d2RoleValue
+      || counterfeitAssessment.counterfeitValue
+        !== candidate.counterfeitValue
+      || candidateIdForDecision(candidate.decision as Decision)
+        !== candidateId
+      || !sameTeam(
+        d2Utility.team,
+        (candidate.decision as Decision).kind === 'propose'
+          ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
+          : requestTeam,
       )
-      || typeof value.selectedCandidateId !== 'string'
-      || !Array.isArray(value.candidates)
-      || Object.keys(value.candidates).length !== value.candidates.length
-      || value.candidates.length === 0
-      || value.candidates.length > MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS
+      || !sameTeam(
+        counterfeitAssessment.candidate.team,
+        (candidate.decision as Decision).kind === 'propose'
+          ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
+          : requestTeam,
+      )
     ) return false
-    const counterfeitObjective =
-      decodeCanonicalPrivateMorganaCounterfeitObjective(
-        value.counterfeitObjective as CanonicalJsonValue,
-      )
-    const evilRoleUtility =
-      decodeCanonicalPrivateEvilRoleUtilityProjection(
-        value.evilRoleUtility as CanonicalJsonValue,
-      )
-    if (!counterfeitObjective || !evilRoleUtility) return false
-    const d2ById = new Map(
-      evilRoleUtility.assessments.map((assessment) => [
-        assessment.candidateId,
-        assessment,
-      ]),
-    )
-    const counterfeitById = new Map(
-      counterfeitObjective.assessments.map((assessment) => [
-        assessment.candidate.candidateId,
-        assessment,
-      ]),
-    )
-    const requestTeam = seatArray(value.request.currentTeam)
-      ? value.request.currentTeam
-      : undefined
-    if (
-      counterfeitObjective.role !== 'morgana'
-      || evilRoleUtility.role !== 'morgana'
-      || value.source.beliefModelVersion
-        !== counterfeitObjective.source.beliefModelVersion
-      || value.source.beliefModelVersion
-        !== evilRoleUtility.source.beliefModelVersion
-      || value.source.beliefThroughSeq
-        !== counterfeitObjective.source.beliefThroughSeq
-      || value.source.beliefThroughSeq
-        !== evilRoleUtility.source.beliefThroughSeq
-      || value.source.playerCount
-        !== counterfeitObjective.source.playerCount
-      || value.source.playerCount
-        !== evilRoleUtility.source.playerCount
-      || value.request.seat !== counterfeitObjective.request.seat
-      || value.request.seat !== evilRoleUtility.request.seat
-      || value.request.kind !== counterfeitObjective.request.kind
-      || value.request.kind !== evilRoleUtility.request.kind
-      || value.request.round !== counterfeitObjective.request.round
-      || value.request.round !== evilRoleUtility.request.round
-      || value.request.proposalNum
-        !== counterfeitObjective.request.proposalNum
-      || value.request.proposalNum
-        !== evilRoleUtility.request.proposalNum
-      || (
-        value.request.kind === 'vote'
-        && !sameTeam(
-          requestTeam,
-          counterfeitObjective.request.currentTeam,
-        )
-      )
-      || d2ById.size !== value.candidates.length
-      || counterfeitById.size !== value.candidates.length
-    ) return false
-    const d2BandFloor = value.d2BandFloor
-    const ids = new Set<string>()
-    for (const rawCandidate of value.candidates) {
-      if (!plainRecord(rawCandidate)) return false
-      const candidate = rawCandidate
-      if (typeof candidate.candidateId !== 'string') return false
-      const candidateId = candidate.candidateId
-      const d2Utility = d2ById.get(candidateId)
-      const counterfeitAssessment =
-        counterfeitById.get(candidateId)
-      if (
-        !exactKeys(candidate, [
-          'candidateId', 'kind', 'decision', 'forcedAllowed',
-          'd2RoleValue', 'd2BandFloor', 'inD2ViableBand',
-          'counterfeitValue', 'counterfeitRank',
-        ])
-        || ids.has(candidateId)
-        || candidate.kind !== value.request.kind
-        || typeof candidate.forcedAllowed !== 'boolean'
-        || typeof candidate.d2RoleValue !== 'number'
-        || candidate.d2BandFloor !== d2BandFloor
-        || typeof candidate.inD2ViableBand !== 'boolean'
-        || candidate.inD2ViableBand !== (
-          candidate.forcedAllowed
-          && candidate.d2RoleValue >= d2BandFloor - 1e-12
-        )
-        || typeof candidate.counterfeitValue !== 'number'
-        || !safeInteger(candidate.counterfeitRank)
-        || candidate.counterfeitRank < 0
-        || !d2Utility
-        || !counterfeitAssessment
-        || d2Utility.roleValue !== candidate.d2RoleValue
-        || counterfeitAssessment.counterfeitValue
-          !== candidate.counterfeitValue
-        || candidateIdForDecision(candidate.decision as Decision)
-          !== candidateId
-        || !sameTeam(
-          d2Utility.team,
-          (candidate.decision as Decision).kind === 'propose'
-            ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-            : requestTeam,
-        )
-        || !sameTeam(
-          counterfeitAssessment.candidate.team,
-          (candidate.decision as Decision).kind === 'propose'
-            ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-            : requestTeam,
-        )
-      ) return false
-      ids.add(candidateId)
-    }
-    const survivors = value.candidates.filter(
-      (candidate) => candidate.forcedAllowed,
-    )
-    if (!survivors.length) return false
-    const maxD2 = Math.max(
-      ...survivors.map((candidate) => candidate.d2RoleValue),
-    )
-    const bandRows = survivors.filter(
-      (candidate) =>
-        candidate.d2RoleValue >= d2BandFloor - 1e-12,
-    )
-    const ranked = [...bandRows].sort(
-      (left, right) =>
-        right.counterfeitValue - left.counterfeitValue
-        || compareCandidateIds(left.candidateId, right.candidateId),
-    )
-    if (
-      Math.abs(value.maxD2RoleValue - maxD2) > 1e-12
-      || value.candidates.some((candidate) => {
-        const rank = ranked.findIndex(
-          (row) => row.candidateId === candidate.candidateId,
-        )
-        return candidate.counterfeitRank !== (
-          rank === -1 ? 0 : rank + 1
-        )
-      })
-    ) return false
-    const seededEligible =
-      value.selectionMode
-        === 'seeded-near-equal-vote-within-d2-band'
-      && value.request.kind === 'vote'
-      && value.forcedSelectedCandidateId === undefined
-      && bandRows.length === 2
-      && bandRows.every(
-        (candidate) => (candidate.decision as Decision).kind === 'vote',
-      )
-      && Math.abs(
-        bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
-      ) <= value.seededVoteCounterfeitBand + 1e-12
-    if ((value.seedBucket !== undefined) !== seededEligible) return false
-    const expectedSelected = value.forcedSelectedCandidateId
-      ?? (
-        value.seedBucket === undefined
-          ? ranked[0]?.candidateId
-          : `${LEGAL_CANDIDATE_VERSION}:vote:${
-              value.seedBucket === 0 ? 'approve' : 'reject'
-            }`
-      )
-    const selectedCandidateId = value.selectedCandidateId
-    const selected = value.candidates.find(
-      (candidate) => candidate.candidateId === selectedCandidateId,
-    )
-    return !!selected
-      && selected.inD2ViableBand
-      && value.selectedCandidateId === expectedSelected
-      && isDeepStrictEqual(selected.decision, value.selectedDecision)
-      && (
-        value.forcedSelectedCandidateId === undefined
-        || value.forcedSelectedCandidateId === value.selectedCandidateId
-      )
+    ids.add(candidateId)
   }
+  const survivors = value.candidates.filter(
+    (candidate) => candidate.forcedAllowed,
+  )
+  if (!survivors.length) return false
+  const maxD2 = Math.max(
+    ...survivors.map((candidate) => candidate.d2RoleValue),
+  )
+  const bandRows = survivors.filter(
+    (candidate) =>
+      candidate.d2RoleValue >= d2BandFloor - 1e-12,
+  )
+  const ranked = [...bandRows].sort(
+    (left, right) =>
+      right.counterfeitValue - left.counterfeitValue
+      || compareCandidateIds(left.candidateId, right.candidateId),
+  )
+  if (
+    Math.abs(value.maxD2RoleValue - maxD2) > 1e-12
+    || value.candidates.some((candidate) => {
+      const rank = ranked.findIndex(
+        (row) => row.candidateId === candidate.candidateId,
+      )
+      return candidate.counterfeitRank !== (
+        rank === -1 ? 0 : rank + 1
+      )
+    })
+  ) return false
+  const seededEligible =
+    value.selectionMode
+      === 'seeded-near-equal-vote-within-d2-band'
+    && value.request.kind === 'vote'
+    && value.forcedSelectedCandidateId === undefined
+    && bandRows.length === 2
+    && bandRows.every(
+      (candidate) => (candidate.decision as Decision).kind === 'vote',
+    )
+    && Math.abs(
+      bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
+    ) <= value.seededVoteCounterfeitBand + 1e-12
+  if ((value.seedBucket !== undefined) !== seededEligible) return false
+  const expectedSelected = value.forcedSelectedCandidateId
+    ?? (
+      value.seedBucket === undefined
+        ? ranked[0]?.candidateId
+        : `${LEGAL_CANDIDATE_VERSION}:vote:${
+            value.seedBucket === 0 ? 'approve' : 'reject'
+          }`
+    )
+  const selectedCandidateId = value.selectedCandidateId
+  const selected = value.candidates.find(
+    (candidate) => candidate.candidateId === selectedCandidateId,
+  )
+  return !!selected
+    && selected.inD2ViableBand
+    && value.selectedCandidateId === expectedSelected
+    && isDeepStrictEqual(selected.decision, value.selectedDecision)
+    && (
+      value.forcedSelectedCandidateId === undefined
+      || value.forcedSelectedCandidateId === value.selectedCandidateId
+    )
 }
 
 const morganaRoleUtilityCodec =

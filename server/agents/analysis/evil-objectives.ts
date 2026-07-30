@@ -466,459 +466,457 @@ export function buildEvilRoleObjectiveSnapshot(input: {
 }
 
 function evilRoleObjectiveSchema(detached: unknown): boolean {
-  {
-    if (
-      !detached
-      || typeof detached !== 'object'
-      || Array.isArray(detached)
-    ) return false
-    const snapshot = detached as unknown as Record<string, unknown>
-    if (
-      !exactKeys(snapshot, [
-        'version',
-        'role',
-        'source',
-        'request',
-        'posture',
-        'coordination',
-        'publicStanding',
-        ...(snapshot.oberonUnseenEvilPosterior === undefined
-          ? []
-          : ['oberonUnseenEvilPosterior']),
-        'assessmentApplicability',
-        'assessments',
-      ])
-      || snapshot.version !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      || !EVIL_ROLES.has(snapshot.role as EvilObjectiveRole)
-    ) return false
-    const role = snapshot.role as EvilObjectiveRole
-    const source = snapshot.source as Record<string, unknown>
-    const request = snapshot.request as Record<string, unknown>
-    const posture = snapshot.posture as Record<string, unknown>
-    const coordination = snapshot.coordination as Record<string, unknown>
-    if (
-      !source
-      || typeof source !== 'object'
-      || !exactKeys(source, [
-        'beliefModelVersion',
-        'beliefThroughSeq',
-        'beliefQuality',
-        'playerCount',
-        'rolesInPlay',
-        'identityModelVersion',
-        'observerModelVersion',
-        'observerFeasibleWorldCount',
-      ])
-      || typeof source.beliefModelVersion !== 'string'
-      || !Number.isSafeInteger(source.beliefThroughSeq)
-      || !['constraints-only', 'weighted', 'degraded'].includes(
-        String(source.beliefQuality),
-      )
-      || !Number.isSafeInteger(source.playerCount)
-      || (source.playerCount as number) < 5
-      || (source.playerCount as number) > 10
-      || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
-      || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION
-      || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
-      || !Number.isSafeInteger(source.observerFeasibleWorldCount)
-      || (source.observerFeasibleWorldCount as number) <= 0
-      || !request
-      || typeof request !== 'object'
-      || !exactKeys(request, [
-        'seat',
-        'kind',
-        'round',
-        'proposalNum',
-        'failsRequired',
-      ])
-      || !Number.isSafeInteger(request.seat)
-      || (request.seat as number) < 0
-      || (request.seat as number) >= (source.playerCount as number)
-      || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
-        .includes(String(request.kind))
-      || !Number.isSafeInteger(request.round)
-      || (request.round as number) < 1
-      || (request.round as number) > 5
-      || !Number.isSafeInteger(request.proposalNum)
-      || (request.proposalNum as number) < 1
-      || (request.proposalNum as number) > 5
-      || ![1, 2].includes(request.failsRequired as number)
-      || !posture
-      || typeof posture !== 'object'
-      || !exactKeys(posture, ['kind', 'semantics'])
-      || posture.kind !== POSTURE[role]
-      || posture.semantics !== 'explicit-role-posture-not-policy'
-      || !coordination
-      || typeof coordination !== 'object'
-      || coordination.knowsPartnerSpecialRoles !== false
-      || !denseArray(snapshot.publicStanding)
-      || snapshot.publicStanding.length !== source.playerCount
-      || !denseArray(snapshot.assessments)
-      || snapshot.assessments.length > MAX_EVIL_ROLE_OBJECTIVE_ASSESSMENTS
-    ) return false
-    if (
-      role === 'oberon'
-        ? (
-            !exactKeys(coordination, [
-              'kind',
-              'semantics',
-              'self',
-              'visiblePartnerSeats',
-              'knowsPartnerSpecialRoles',
-            ])
-            || coordination.kind !== 'self-only-uncoordinated'
-            || coordination.semantics
-              !== 'oberon-has-no-visible-evil-partners'
-            || coordination.self !== request.seat
-            || !denseArray(coordination.visiblePartnerSeats)
-            || coordination.visiblePartnerSeats.length !== 0
-          )
-        : (
-            !exactKeys(coordination, [
-              'kind',
-              'semantics',
-              'seats',
-              'excludesUnseenOberon',
-              'knowsPartnerSpecialRoles',
-            ])
-            || coordination.kind !== 'visible-partners'
-            || coordination.semantics !== 'private-visible-evil-seats-only'
-            || coordination.excludesUnseenOberon !== true
-            || !canonicalSeats(
-              coordination.seats,
-              source.playerCount as number,
-            )
-            || !(coordination.seats as Seat[]).includes(request.seat as Seat)
-          )
-    ) return false
-    const teamApplicable = ['propose', 'finalize', 'vote'].includes(
-      String(request.kind),
+  if (
+    !detached
+    || typeof detached !== 'object'
+    || Array.isArray(detached)
+  ) return false
+  const snapshot = detached as unknown as Record<string, unknown>
+  if (
+    !exactKeys(snapshot, [
+      'version',
+      'role',
+      'source',
+      'request',
+      'posture',
+      'coordination',
+      'publicStanding',
+      ...(snapshot.oberonUnseenEvilPosterior === undefined
+        ? []
+        : ['oberonUnseenEvilPosterior']),
+      'assessmentApplicability',
+      'assessments',
+    ])
+    || snapshot.version !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    || !EVIL_ROLES.has(snapshot.role as EvilObjectiveRole)
+  ) return false
+  const role = snapshot.role as EvilObjectiveRole
+  const source = snapshot.source as Record<string, unknown>
+  const request = snapshot.request as Record<string, unknown>
+  const posture = snapshot.posture as Record<string, unknown>
+  const coordination = snapshot.coordination as Record<string, unknown>
+  if (
+    !source
+    || typeof source !== 'object'
+    || !exactKeys(source, [
+      'beliefModelVersion',
+      'beliefThroughSeq',
+      'beliefQuality',
+      'playerCount',
+      'rolesInPlay',
+      'identityModelVersion',
+      'observerModelVersion',
+      'observerFeasibleWorldCount',
+    ])
+    || typeof source.beliefModelVersion !== 'string'
+    || !Number.isSafeInteger(source.beliefThroughSeq)
+    || !['constraints-only', 'weighted', 'degraded'].includes(
+      String(source.beliefQuality),
     )
-    if (
-      snapshot.assessmentApplicability !== (
-        teamApplicable
-          ? 'team-candidates'
-          : 'not-applicable-to-decision-kind'
-      )
-      || (!teamApplicable && snapshot.assessments.length !== 0)
-    ) return false
-    if (
-      role === 'oberon'
-        !== (snapshot.oberonUnseenEvilPosterior !== undefined)
-    ) return false
-    let oberonHypotheses:
-      NonNullable<
-        PrivateEvilRoleObjectiveSnapshot['oberonUnseenEvilPosterior']
-      >['hypotheses'] | undefined
-    if (role === 'oberon') {
-      const posterior =
-        snapshot.oberonUnseenEvilPosterior as Record<string, unknown>
-      if (
-        !posterior
-        || typeof posterior !== 'object'
-        || !exactKeys(posterior, [
-          'probabilitySemantics',
-          'excludesCoordinationSemantics',
-          'hypotheses',
-          'countDistribution',
-        ])
-        || posterior.probabilitySemantics
-          !== 'resolved-complete-world-sum'
-        || posterior.excludesCoordinationSemantics !== true
-        || !denseArray(posterior.hypotheses)
-        || posterior.hypotheses.length === 0
-        || posterior.hypotheses.length > 252
-        || !denseArray(posterior.countDistribution)
-        || posterior.countDistribution.length !== source.playerCount
-        || posterior.countDistribution.some((entry) => !probability(entry))
-      ) return false
-      let total = 0
-      let prior = ''
-      const derivedCounts = Array<number>(source.playerCount as number).fill(0)
-      for (const raw of posterior.hypotheses) {
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
-        const hypothesis = raw as Record<string, unknown>
-        if (
-          !exactKeys(hypothesis, ['evilSeats', 'probability'])
+    || !Number.isSafeInteger(source.playerCount)
+    || (source.playerCount as number) < 5
+    || (source.playerCount as number) > 10
+    || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
+    || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION
+    || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
+    || !Number.isSafeInteger(source.observerFeasibleWorldCount)
+    || (source.observerFeasibleWorldCount as number) <= 0
+    || !request
+    || typeof request !== 'object'
+    || !exactKeys(request, [
+      'seat',
+      'kind',
+      'round',
+      'proposalNum',
+      'failsRequired',
+    ])
+    || !Number.isSafeInteger(request.seat)
+    || (request.seat as number) < 0
+    || (request.seat as number) >= (source.playerCount as number)
+    || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
+      .includes(String(request.kind))
+    || !Number.isSafeInteger(request.round)
+    || (request.round as number) < 1
+    || (request.round as number) > 5
+    || !Number.isSafeInteger(request.proposalNum)
+    || (request.proposalNum as number) < 1
+    || (request.proposalNum as number) > 5
+    || ![1, 2].includes(request.failsRequired as number)
+    || !posture
+    || typeof posture !== 'object'
+    || !exactKeys(posture, ['kind', 'semantics'])
+    || posture.kind !== POSTURE[role]
+    || posture.semantics !== 'explicit-role-posture-not-policy'
+    || !coordination
+    || typeof coordination !== 'object'
+    || coordination.knowsPartnerSpecialRoles !== false
+    || !denseArray(snapshot.publicStanding)
+    || snapshot.publicStanding.length !== source.playerCount
+    || !denseArray(snapshot.assessments)
+    || snapshot.assessments.length > MAX_EVIL_ROLE_OBJECTIVE_ASSESSMENTS
+  ) return false
+  if (
+    role === 'oberon'
+      ? (
+          !exactKeys(coordination, [
+            'kind',
+            'semantics',
+            'self',
+            'visiblePartnerSeats',
+            'knowsPartnerSpecialRoles',
+          ])
+          || coordination.kind !== 'self-only-uncoordinated'
+          || coordination.semantics
+            !== 'oberon-has-no-visible-evil-partners'
+          || coordination.self !== request.seat
+          || !denseArray(coordination.visiblePartnerSeats)
+          || coordination.visiblePartnerSeats.length !== 0
+        )
+      : (
+          !exactKeys(coordination, [
+            'kind',
+            'semantics',
+            'seats',
+            'excludesUnseenOberon',
+            'knowsPartnerSpecialRoles',
+          ])
+          || coordination.kind !== 'visible-partners'
+          || coordination.semantics !== 'private-visible-evil-seats-only'
+          || coordination.excludesUnseenOberon !== true
           || !canonicalSeats(
-            hypothesis.evilSeats,
+            coordination.seats,
             source.playerCount as number,
           )
-          || (hypothesis.evilSeats as Seat[]).includes(request.seat as Seat)
-          || !probability(hypothesis.probability)
-          || hypothesis.probability === 0
-        ) return false
-        const key = (hypothesis.evilSeats as Seat[]).join(',')
-        if (prior && prior >= key) return false
-        prior = key
-        total += hypothesis.probability as number
-        derivedCounts[(hypothesis.evilSeats as Seat[]).length] +=
-          hypothesis.probability as number
-      }
-      if (
-        Math.abs(total - 1) > PROBABILITY_TOLERANCE
-        || !isDeepStrictEqual(
-          (posterior.countDistribution as number[]).map(
-            (value) => Math.round(value / PROBABILITY_TOLERANCE),
-          ),
-          derivedCounts.map(
-            (value) => Math.round(value / PROBABILITY_TOLERANCE),
-          ),
+          || !(coordination.seats as Seat[]).includes(request.seat as Seat)
         )
-      ) return false
-      oberonHypotheses = posterior.hypotheses as typeof oberonHypotheses
-    }
-    // Strict host validation below owns all nested equations. These checks make
-    // the detached validator reject shape/key/probability corruption early.
-    for (const [seat, raw] of snapshot.publicStanding.entries()) {
+  ) return false
+  const teamApplicable = ['propose', 'finalize', 'vote'].includes(
+    String(request.kind),
+  )
+  if (
+    snapshot.assessmentApplicability !== (
+      teamApplicable
+        ? 'team-candidates'
+        : 'not-applicable-to-decision-kind'
+    )
+    || (!teamApplicable && snapshot.assessments.length !== 0)
+  ) return false
+  if (
+    role === 'oberon'
+      !== (snapshot.oberonUnseenEvilPosterior !== undefined)
+  ) return false
+  let oberonHypotheses:
+    NonNullable<
+      PrivateEvilRoleObjectiveSnapshot['oberonUnseenEvilPosterior']
+    >['hypotheses'] | undefined
+  if (role === 'oberon') {
+    const posterior =
+      snapshot.oberonUnseenEvilPosterior as Record<string, unknown>
+    if (
+      !posterior
+      || typeof posterior !== 'object'
+      || !exactKeys(posterior, [
+        'probabilitySemantics',
+        'excludesCoordinationSemantics',
+        'hypotheses',
+        'countDistribution',
+      ])
+      || posterior.probabilitySemantics
+        !== 'resolved-complete-world-sum'
+      || posterior.excludesCoordinationSemantics !== true
+      || !denseArray(posterior.hypotheses)
+      || posterior.hypotheses.length === 0
+      || posterior.hypotheses.length > 252
+      || !denseArray(posterior.countDistribution)
+      || posterior.countDistribution.length !== source.playerCount
+      || posterior.countDistribution.some((entry) => !probability(entry))
+    ) return false
+    let total = 0
+    let prior = ''
+    const derivedCounts = Array<number>(source.playerCount as number).fill(0)
+    for (const raw of posterior.hypotheses) {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
-      const standing = raw as Record<string, unknown>
+      const hypothesis = raw as Record<string, unknown>
       if (
-        !exactKeys(standing, [
-          'seat',
-          'probabilitySemantics',
-          'goodProbability',
-          'evilProbability',
-          'evilWorldNumerator',
-          'feasibleWorldDenominator',
-          'observationSemantics',
-          'selection',
-          'approval',
-          'failedQuestExposure',
-          'proxySemantics',
-          'burnProxyIndex',
-          'coverProxyIndex',
-          'standingProxyIndex',
-        ])
-        || standing.seat !== seat
-        || standing.probabilitySemantics !== 'public-uniform-feasible-joint'
-        || !probability(standing.goodProbability)
-        || !probability(standing.evilProbability)
-        || Math.abs(
-          (standing.goodProbability as number)
-            + (standing.evilProbability as number) - 1,
-        ) > PROBABILITY_TOLERANCE
-        || !Number.isSafeInteger(standing.evilWorldNumerator)
-        || (standing.evilWorldNumerator as number) < 0
-        || !Number.isSafeInteger(standing.feasibleWorldDenominator)
-        || standing.feasibleWorldDenominator !== source.observerFeasibleWorldCount
-        || (standing.evilWorldNumerator as number)
-          > (standing.feasibleWorldDenominator as number)
-        || Math.abs(
-          (standing.evilWorldNumerator as number)
-            / (standing.feasibleWorldDenominator as number)
-            - (standing.evilProbability as number),
-        ) > PROBABILITY_TOLERANCE
-        || standing.observationSemantics !== 'public-counts-no-data-is-null'
-        || standing.proxySemantics
-          !== 'bounded-deterministic-indices-not-probabilities'
+        !exactKeys(hypothesis, ['evilSeats', 'probability'])
+        || !canonicalSeats(
+          hypothesis.evilSeats,
+          source.playerCount as number,
+        )
+        || (hypothesis.evilSeats as Seat[]).includes(request.seat as Seat)
+        || !probability(hypothesis.probability)
+        || hypothesis.probability === 0
       ) return false
-      for (const key of [
+      const key = (hypothesis.evilSeats as Seat[]).join(',')
+      if (prior && prior >= key) return false
+      prior = key
+      total += hypothesis.probability as number
+      derivedCounts[(hypothesis.evilSeats as Seat[]).length] +=
+        hypothesis.probability as number
+    }
+    if (
+      Math.abs(total - 1) > PROBABILITY_TOLERANCE
+      || !isDeepStrictEqual(
+        (posterior.countDistribution as number[]).map(
+          (value) => Math.round(value / PROBABILITY_TOLERANCE),
+        ),
+        derivedCounts.map(
+          (value) => Math.round(value / PROBABILITY_TOLERANCE),
+        ),
+      )
+    ) return false
+    oberonHypotheses = posterior.hypotheses as typeof oberonHypotheses
+  }
+  // Strict host validation below owns all nested equations. These checks make
+  // the detached validator reject shape/key/probability corruption early.
+  for (const [seat, raw] of snapshot.publicStanding.entries()) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+    const standing = raw as Record<string, unknown>
+    if (
+      !exactKeys(standing, [
+        'seat',
+        'probabilitySemantics',
+        'goodProbability',
+        'evilProbability',
+        'evilWorldNumerator',
+        'feasibleWorldDenominator',
+        'observationSemantics',
         'selection',
         'approval',
         'failedQuestExposure',
-      ] as const) {
-        const fraction = standing[key] as Record<string, unknown>
-        if (
-          !fraction
-          || typeof fraction !== 'object'
-          || !exactKeys(fraction, ['numerator', 'denominator', 'index'])
-          || !Number.isSafeInteger(fraction.numerator)
-          || !Number.isSafeInteger(fraction.denominator)
-          || (fraction.numerator as number) < 0
-          || (fraction.denominator as number) < (fraction.numerator as number)
-          || (
-            fraction.denominator === 0
-              ? fraction.index !== null
-              : (
-                  !probability(fraction.index)
-                  || Math.abs(
-                    (fraction.index as number)
-                      - (fraction.numerator as number)
-                        / (fraction.denominator as number),
-                  ) > PROBABILITY_TOLERANCE
-                )
-          )
-        ) return false
-      }
-      for (const key of [
+        'proxySemantics',
         'burnProxyIndex',
         'coverProxyIndex',
         'standingProxyIndex',
-      ] as const) {
-        if (standing[key] !== null && !probability(standing[key])) return false
-      }
-      const selection = standing.selection as ObservationFraction
-      const approval = standing.approval as ObservationFraction
-      const exposure = standing.failedQuestExposure as ObservationFraction
-      const expectedBurn = availableMean([
-        approval.index === null ? null : 1 - approval.index,
-        exposure.index,
       ])
-      const expectedCover = availableMean([
-        selection.index,
-        approval.index,
-        exposure.index === null ? null : 1 - exposure.index,
-      ])
-      const expectedStanding = availableMean([
-        selection.index,
-        expectedCover,
-        expectedBurn === null ? null : 1 - expectedBurn,
-      ])
-      for (const [actual, expected] of [
-        [standing.burnProxyIndex, expectedBurn],
-        [standing.coverProxyIndex, expectedCover],
-        [standing.standingProxyIndex, expectedStanding],
-      ] as const) {
-        if (
-          actual === null || expected === null
-            ? actual !== expected
-            : Math.abs((actual as number) - expected) > PROBABILITY_TOLERANCE
-        ) return false
-      }
-    }
-    const seenCandidateIds = new Set<string>()
-    for (const raw of snapshot.assessments) {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
-      const assessment = raw as Record<string, unknown>
-      const hasUnseen = assessment.unseenEvilOnTeamProbability !== undefined
+      || standing.seat !== seat
+      || standing.probabilitySemantics !== 'public-uniform-feasible-joint'
+      || !probability(standing.goodProbability)
+      || !probability(standing.evilProbability)
+      || Math.abs(
+        (standing.goodProbability as number)
+          + (standing.evilProbability as number) - 1,
+      ) > PROBABILITY_TOLERANCE
+      || !Number.isSafeInteger(standing.evilWorldNumerator)
+      || (standing.evilWorldNumerator as number) < 0
+      || !Number.isSafeInteger(standing.feasibleWorldDenominator)
+      || standing.feasibleWorldDenominator !== source.observerFeasibleWorldCount
+      || (standing.evilWorldNumerator as number)
+        > (standing.feasibleWorldDenominator as number)
+      || Math.abs(
+        (standing.evilWorldNumerator as number)
+          / (standing.feasibleWorldDenominator as number)
+          - (standing.evilProbability as number),
+      ) > PROBABILITY_TOLERANCE
+      || standing.observationSemantics !== 'public-counts-no-data-is-null'
+      || standing.proxySemantics
+        !== 'bounded-deterministic-indices-not-probabilities'
+    ) return false
+    for (const key of [
+      'selection',
+      'approval',
+      'failedQuestExposure',
+    ] as const) {
+      const fraction = standing[key] as Record<string, unknown>
       if (
-        !exactKeys(assessment, [
-          'candidateId',
-          'kind',
-          'direction',
-          'team',
-          'probabilitySemantics',
-          'teamFailureCapabilityProbability',
-          'evilCountDistribution',
-          'publicProbabilitySemantics',
-          'publicTeamFailureCapabilityProbability',
-          'publicEvilCountDistribution',
-          'coordination',
-          ...(hasUnseen ? ['unseenEvilOnTeamProbability'] : []),
-        ])
-        || typeof assessment.candidateId !== 'string'
-        || !['propose', 'finalize', 'vote'].includes(String(assessment.kind))
-        || !['support', 'oppose'].includes(String(assessment.direction))
-        || !canonicalSeats(
-          assessment.team,
-          source.playerCount as number,
-        )
-        || assessment.probabilitySemantics
-          !== 'resolved-complete-world-sum'
-        || !probability(assessment.teamFailureCapabilityProbability)
-        || assessment.publicProbabilitySemantics
-          !== 'public-preaction-uniform-feasible-joint'
-        || !probability(assessment.publicTeamFailureCapabilityProbability)
-        || (role === 'oberon'
-          ? !hasUnseen || !probability(assessment.unseenEvilOnTeamProbability)
-          : hasUnseen)
-      ) return false
-      if (seenCandidateIds.has(assessment.candidateId as string)) return false
-      seenCandidateIds.add(assessment.candidateId as string)
-      const candidateCoordination =
-        assessment.coordination as Record<string, unknown>
-      if (
-        !candidateCoordination
-        || typeof candidateCoordination !== 'object'
+        !fraction
+        || typeof fraction !== 'object'
+        || !exactKeys(fraction, ['numerator', 'denominator', 'index'])
+        || !Number.isSafeInteger(fraction.numerator)
+        || !Number.isSafeInteger(fraction.denominator)
+        || (fraction.numerator as number) < 0
+        || (fraction.denominator as number) < (fraction.numerator as number)
         || (
-          role === 'oberon'
-            ? (
-                !exactKeys(candidateCoordination, [
-                  'kind',
-                  'semantics',
-                  'selfAboard',
-                ])
-                || candidateCoordination.kind !== 'self-only-uncoordinated'
-                || candidateCoordination.semantics
-                  !== 'oberon-self-is-not-coordination'
-                || typeof candidateCoordination.selfAboard !== 'boolean'
-              )
+          fraction.denominator === 0
+            ? fraction.index !== null
             : (
-                !exactKeys(candidateCoordination, [
-                  'kind',
-                  'semantics',
-                  'coordinatedEvilAboard',
-                ])
-                || candidateCoordination.kind !== 'visible-coordination'
-                || candidateCoordination.semantics
-                  !== 'private-visible-evil-seats-only'
-                || !Number.isSafeInteger(
-                  candidateCoordination.coordinatedEvilAboard,
-                )
-                || (candidateCoordination.coordinatedEvilAboard as number) < 0
-                || (candidateCoordination.coordinatedEvilAboard as number)
-                  > (assessment.team as Seat[]).length
+                !probability(fraction.index)
+                || Math.abs(
+                  (fraction.index as number)
+                    - (fraction.numerator as number)
+                      / (fraction.denominator as number),
+                ) > PROBABILITY_TOLERANCE
               )
         )
       ) return false
-      for (const distribution of [
-        assessment.evilCountDistribution,
-        assessment.publicEvilCountDistribution,
-      ]) {
-        if (
-          !denseArray(distribution)
-          || distribution.length !== (assessment.team as Seat[]).length + 1
-          || distribution.some((entry) => !probability(entry))
-          || Math.abs(
-            (distribution as number[]).reduce((sum, entry) => sum + entry, 0)
-              - 1,
-          ) > PROBABILITY_TOLERANCE
-        ) return false
-      }
-      const privateDistribution =
-        assessment.evilCountDistribution as number[]
-      const publicDistribution =
-        assessment.publicEvilCountDistribution as number[]
+    }
+    for (const key of [
+      'burnProxyIndex',
+      'coverProxyIndex',
+      'standingProxyIndex',
+    ] as const) {
+      if (standing[key] !== null && !probability(standing[key])) return false
+    }
+    const selection = standing.selection as ObservationFraction
+    const approval = standing.approval as ObservationFraction
+    const exposure = standing.failedQuestExposure as ObservationFraction
+    const expectedBurn = availableMean([
+      approval.index === null ? null : 1 - approval.index,
+      exposure.index,
+    ])
+    const expectedCover = availableMean([
+      selection.index,
+      approval.index,
+      exposure.index === null ? null : 1 - exposure.index,
+    ])
+    const expectedStanding = availableMean([
+      selection.index,
+      expectedCover,
+      expectedBurn === null ? null : 1 - expectedBurn,
+    ])
+    for (const [actual, expected] of [
+      [standing.burnProxyIndex, expectedBurn],
+      [standing.coverProxyIndex, expectedCover],
+      [standing.standingProxyIndex, expectedStanding],
+    ] as const) {
+      if (
+        actual === null || expected === null
+          ? actual !== expected
+          : Math.abs((actual as number) - expected) > PROBABILITY_TOLERANCE
+      ) return false
+    }
+  }
+  const seenCandidateIds = new Set<string>()
+  for (const raw of snapshot.assessments) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+    const assessment = raw as Record<string, unknown>
+    const hasUnseen = assessment.unseenEvilOnTeamProbability !== undefined
+    if (
+      !exactKeys(assessment, [
+        'candidateId',
+        'kind',
+        'direction',
+        'team',
+        'probabilitySemantics',
+        'teamFailureCapabilityProbability',
+        'evilCountDistribution',
+        'publicProbabilitySemantics',
+        'publicTeamFailureCapabilityProbability',
+        'publicEvilCountDistribution',
+        'coordination',
+        ...(hasUnseen ? ['unseenEvilOnTeamProbability'] : []),
+      ])
+      || typeof assessment.candidateId !== 'string'
+      || !['propose', 'finalize', 'vote'].includes(String(assessment.kind))
+      || !['support', 'oppose'].includes(String(assessment.direction))
+      || !canonicalSeats(
+        assessment.team,
+        source.playerCount as number,
+      )
+      || assessment.probabilitySemantics
+        !== 'resolved-complete-world-sum'
+      || !probability(assessment.teamFailureCapabilityProbability)
+      || assessment.publicProbabilitySemantics
+        !== 'public-preaction-uniform-feasible-joint'
+      || !probability(assessment.publicTeamFailureCapabilityProbability)
+      || (role === 'oberon'
+        ? !hasUnseen || !probability(assessment.unseenEvilOnTeamProbability)
+        : hasUnseen)
+    ) return false
+    if (seenCandidateIds.has(assessment.candidateId as string)) return false
+    seenCandidateIds.add(assessment.candidateId as string)
+    const candidateCoordination =
+      assessment.coordination as Record<string, unknown>
+    if (
+      !candidateCoordination
+      || typeof candidateCoordination !== 'object'
+      || (
+        role === 'oberon'
+          ? (
+              !exactKeys(candidateCoordination, [
+                'kind',
+                'semantics',
+                'selfAboard',
+              ])
+              || candidateCoordination.kind !== 'self-only-uncoordinated'
+              || candidateCoordination.semantics
+                !== 'oberon-self-is-not-coordination'
+              || typeof candidateCoordination.selfAboard !== 'boolean'
+            )
+          : (
+              !exactKeys(candidateCoordination, [
+                'kind',
+                'semantics',
+                'coordinatedEvilAboard',
+              ])
+              || candidateCoordination.kind !== 'visible-coordination'
+              || candidateCoordination.semantics
+                !== 'private-visible-evil-seats-only'
+              || !Number.isSafeInteger(
+                candidateCoordination.coordinatedEvilAboard,
+              )
+              || (candidateCoordination.coordinatedEvilAboard as number) < 0
+              || (candidateCoordination.coordinatedEvilAboard as number)
+                > (assessment.team as Seat[]).length
+            )
+      )
+    ) return false
+    for (const distribution of [
+      assessment.evilCountDistribution,
+      assessment.publicEvilCountDistribution,
+    ]) {
+      if (
+        !denseArray(distribution)
+        || distribution.length !== (assessment.team as Seat[]).length + 1
+        || distribution.some((entry) => !probability(entry))
+        || Math.abs(
+          (distribution as number[]).reduce((sum, entry) => sum + entry, 0)
+            - 1,
+        ) > PROBABILITY_TOLERANCE
+      ) return false
+    }
+    const privateDistribution =
+      assessment.evilCountDistribution as number[]
+    const publicDistribution =
+      assessment.publicEvilCountDistribution as number[]
+    if (
+      Math.abs(
+        failureProbability(
+          privateDistribution,
+          request.failsRequired as number,
+        ) - (assessment.teamFailureCapabilityProbability as number),
+      ) > PROBABILITY_TOLERANCE
+      || Math.abs(
+        failureProbability(
+          publicDistribution,
+          request.failsRequired as number,
+        ) - (assessment.publicTeamFailureCapabilityProbability as number),
+      ) > PROBABILITY_TOLERANCE
+    ) return false
+    if (role === 'oberon') {
+      const expectedUnseen = oberonHypotheses!.reduce(
+        (sum, hypothesis) =>
+          sum + (
+            hypothesis.evilSeats.some(
+              (seat) => (assessment.team as Seat[]).includes(seat),
+            )
+              ? hypothesis.probability
+              : 0
+          ),
+        0,
+      )
       if (
         Math.abs(
-          failureProbability(
-            privateDistribution,
-            request.failsRequired as number,
-          ) - (assessment.teamFailureCapabilityProbability as number),
+          expectedUnseen
+            - (assessment.unseenEvilOnTeamProbability as number),
         ) > PROBABILITY_TOLERANCE
-        || Math.abs(
-          failureProbability(
-            publicDistribution,
-            request.failsRequired as number,
-          ) - (assessment.publicTeamFailureCapabilityProbability as number),
-        ) > PROBABILITY_TOLERANCE
+        || (
+          assessment.coordination as Record<string, unknown>
+        ).selfAboard
+          !== (assessment.team as Seat[]).includes(request.seat as Seat)
       ) return false
-      if (role === 'oberon') {
-        const expectedUnseen = oberonHypotheses!.reduce(
-          (sum, hypothesis) =>
-            sum + (
-              hypothesis.evilSeats.some(
-                (seat) => (assessment.team as Seat[]).includes(seat),
-              )
-                ? hypothesis.probability
-                : 0
-            ),
-          0,
-        )
-        if (
-          Math.abs(
-            expectedUnseen
-              - (assessment.unseenEvilOnTeamProbability as number),
-          ) > PROBABILITY_TOLERANCE
-          || (
-            assessment.coordination as Record<string, unknown>
-          ).selfAboard
-            !== (assessment.team as Seat[]).includes(request.seat as Seat)
-        ) return false
-      } else {
-        const expectedCoordinated = (assessment.team as Seat[]).filter(
-          (seat) => (coordination.seats as Seat[]).includes(seat),
-        ).length
-        if (
-          (
-            assessment.coordination as Record<string, unknown>
-          ).coordinatedEvilAboard !== expectedCoordinated
-        ) return false
-      }
+    } else {
+      const expectedCoordinated = (assessment.team as Seat[]).filter(
+        (seat) => (coordination.seats as Seat[]).includes(seat),
+      ).length
+      if (
+        (
+          assessment.coordination as Record<string, unknown>
+        ).coordinatedEvilAboard !== expectedCoordinated
+      ) return false
     }
-    return true
   }
+  return true
 }
 
 const evilRoleObjectiveCodec =

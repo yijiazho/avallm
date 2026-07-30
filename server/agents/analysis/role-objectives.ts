@@ -613,306 +613,304 @@ function validDistribution(value: unknown, teamSize: number): value is number[] 
 }
 
 function roleObjectiveSchema(detached: unknown): boolean {
-  {
-    if (!plainRecord(detached)) return false
-    const snapshot = detached as Record<string, unknown>
-    const source = snapshot.source as Record<string, unknown>
-    const request = snapshot.request as Record<string, unknown>
-    const objective = snapshot.objective as Record<string, unknown>
-    if (
-      !exactKeys(snapshot, ['version', 'role', 'source', 'request', 'objective'])
-      || snapshot.version !== ROLE_OBJECTIVE_MODEL_VERSION
-      || !['merlin', 'percival'].includes(snapshot.role as string)
-      || !plainRecord(source)
-      || !exactKeys(source, [
-        'beliefModelVersion',
-        'beliefThroughSeq',
-        'beliefQuality',
-        'playerCount',
-        'rolesInPlay',
-        'identityModelVersion',
-        'observerModelVersion',
-        'observerFeasibleWorldCount',
-      ])
-      || typeof source.beliefModelVersion !== 'string'
-      || source.beliefModelVersion.length === 0
-      || source.beliefModelVersion.length > 200
-      || !Number.isSafeInteger(source.beliefThroughSeq)
-      || (source.beliefThroughSeq as number) < -1
-      || !['constraints-only', 'weighted', 'degraded'].includes(
-        source.beliefQuality as string,
-      )
-      || !Number.isSafeInteger(source.playerCount)
-      || (source.playerCount as number) < 5
-      || (source.playerCount as number) > 10
-      || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
-      || roleCount(source.rolesInPlay as Role[], snapshot.role as Role) !== 1
-      || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION
-      || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
-      || !Number.isSafeInteger(source.observerFeasibleWorldCount)
-      || (source.observerFeasibleWorldCount as number) <= 0
-      || !plainRecord(request)
-      || !exactKeys(request, [
-        'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-      ])
-      || !Number.isSafeInteger(request.seat)
-      || (request.seat as number) < 0
-      || (request.seat as number) >= (source.playerCount as number)
-      || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
-        .includes(request.kind as string)
-      || !Number.isSafeInteger(request.round)
-      || (request.round as number) < 1
-      || (request.round as number) > 5
-      || !Number.isSafeInteger(request.proposalNum)
-      || (request.proposalNum as number) < 1
-      || (request.proposalNum as number) > 5
-      || !Number.isSafeInteger(request.failsRequired)
-      || ![1, 2].includes(request.failsRequired as number)
-      || !plainRecord(objective)
-      || objective.role !== snapshot.role
-      || !denseArray(objective.assessments)
-      || objective.assessments.length > MAX_ROLE_OBJECTIVE_ASSESSMENTS
-    ) return false
+  if (!plainRecord(detached)) return false
+  const snapshot = detached as Record<string, unknown>
+  const source = snapshot.source as Record<string, unknown>
+  const request = snapshot.request as Record<string, unknown>
+  const objective = snapshot.objective as Record<string, unknown>
+  if (
+    !exactKeys(snapshot, ['version', 'role', 'source', 'request', 'objective'])
+    || snapshot.version !== ROLE_OBJECTIVE_MODEL_VERSION
+    || !['merlin', 'percival'].includes(snapshot.role as string)
+    || !plainRecord(source)
+    || !exactKeys(source, [
+      'beliefModelVersion',
+      'beliefThroughSeq',
+      'beliefQuality',
+      'playerCount',
+      'rolesInPlay',
+      'identityModelVersion',
+      'observerModelVersion',
+      'observerFeasibleWorldCount',
+    ])
+    || typeof source.beliefModelVersion !== 'string'
+    || source.beliefModelVersion.length === 0
+    || source.beliefModelVersion.length > 200
+    || !Number.isSafeInteger(source.beliefThroughSeq)
+    || (source.beliefThroughSeq as number) < -1
+    || !['constraints-only', 'weighted', 'degraded'].includes(
+      source.beliefQuality as string,
+    )
+    || !Number.isSafeInteger(source.playerCount)
+    || (source.playerCount as number) < 5
+    || (source.playerCount as number) > 10
+    || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
+    || roleCount(source.rolesInPlay as Role[], snapshot.role as Role) !== 1
+    || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION
+    || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
+    || !Number.isSafeInteger(source.observerFeasibleWorldCount)
+    || (source.observerFeasibleWorldCount as number) <= 0
+    || !plainRecord(request)
+    || !exactKeys(request, [
+      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
+    ])
+    || !Number.isSafeInteger(request.seat)
+    || (request.seat as number) < 0
+    || (request.seat as number) >= (source.playerCount as number)
+    || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
+      .includes(request.kind as string)
+    || !Number.isSafeInteger(request.round)
+    || (request.round as number) < 1
+    || (request.round as number) > 5
+    || !Number.isSafeInteger(request.proposalNum)
+    || (request.proposalNum as number) < 1
+    || (request.proposalNum as number) > 5
+    || !Number.isSafeInteger(request.failsRequired)
+    || ![1, 2].includes(request.failsRequired as number)
+    || !plainRecord(objective)
+    || objective.role !== snapshot.role
+    || !denseArray(objective.assessments)
+    || objective.assessments.length > MAX_ROLE_OBJECTIVE_ASSESSMENTS
+  ) return false
 
-    const candidateIds = new Set<string>()
-    for (const raw of objective.assessments) {
-      if (!plainRecord(raw)) return false
-      const assessment = raw as Record<string, unknown>
-      const candidate = assessment.candidate as Record<string, unknown>
+  const candidateIds = new Set<string>()
+  for (const raw of objective.assessments) {
+    if (!plainRecord(raw)) return false
+    const assessment = raw as Record<string, unknown>
+    const candidate = assessment.candidate as Record<string, unknown>
+    if (
+      !validCommitment(candidate, source, request)
+      || candidateIds.has(candidate.candidateId as string)
+    ) return false
+    candidateIds.add(candidate.candidateId as string)
+    const teamSize = (candidate.team as Seat[]).length
+    if (snapshot.role === 'merlin') {
       if (
-        !validCommitment(candidate, source, request)
-        || candidateIds.has(candidate.candidateId as string)
-      ) return false
-      candidateIds.add(candidate.candidateId as string)
-      const teamSize = (candidate.team as Seat[]).length
-      if (snapshot.role === 'merlin') {
-        if (
-          !exactKeys(assessment, [
-            'candidate',
-            'probabilitySemantics',
-            'valueSemantics',
-            'teamCleanProbability',
-            'teamFailureCapabilityProbability',
-            'evilCountDistribution',
-            'influenceValue',
-            'publicProbabilitySemantics',
-            'publicTeamCleanProbability',
-            'publicAmbiguityIndex',
-            'conspicuousnessIndex',
-            'assassinExposureProxyIndex',
-          ])
-          || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
-          || assessment.valueSemantics
-            !== 'bounded-deterministic-indices-not-probabilities'
-          || !probability(assessment.teamCleanProbability)
-          || !probability(assessment.teamFailureCapabilityProbability)
-          || !validDistribution(assessment.evilCountDistribution, teamSize)
-          || Math.abs(
-            (assessment.evilCountDistribution as number[])[0]
-              - (assessment.teamCleanProbability as number),
-          ) > PROBABILITY_TOLERANCE
-          || Math.abs(
-            (assessment.evilCountDistribution as number[])
-              .slice(request.failsRequired as number)
-              .reduce((sum, entry) => sum + entry, 0)
-              - (assessment.teamFailureCapabilityProbability as number),
-          ) > PROBABILITY_TOLERANCE
-          || !boundedIndex(assessment.influenceValue)
-          || Math.abs(
-            directionSign(
-              (assessment.candidate as CandidatePublicCommitment).direction,
-            ) * (
-              (assessment.teamCleanProbability as number)
-              - (assessment.teamFailureCapabilityProbability as number)
-            )
-              - (assessment.influenceValue as number),
-          ) > PROBABILITY_TOLERANCE
-          || assessment.publicProbabilitySemantics
-            !== 'public-preaction-uniform-feasible-joint'
-          || !probability(assessment.publicTeamCleanProbability)
-          || !probability(assessment.publicAmbiguityIndex)
-          || !probability(assessment.conspicuousnessIndex)
-          || !probability(assessment.assassinExposureProxyIndex)
-        ) return false
-      } else if (
         !exactKeys(assessment, [
           'candidate',
           'probabilitySemantics',
           'valueSemantics',
-          'merlinOnTeamProbability',
-          'morganaOnTeamProbability',
-          'pairInfluenceValue',
+          'teamCleanProbability',
+          'teamFailureCapabilityProbability',
+          'evilCountDistribution',
+          'influenceValue',
           'publicProbabilitySemantics',
           'publicTeamCleanProbability',
-          'publicMerlinProbabilityAtSelf',
-          'publicMerlinOnTeamProbability',
-          'publicMorganaOnTeamProbability',
-          'publicPairInfluenceValue',
-          'pairKnowledgeTellIndex',
-          'decisiveAmbiguityIndex',
-          'merlinMimicryProxyIndex',
-          'selfDecoyOpportunityProxyIndex',
+          'publicAmbiguityIndex',
+          'conspicuousnessIndex',
+          'assassinExposureProxyIndex',
         ])
         || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
         || assessment.valueSemantics
           !== 'bounded-deterministic-indices-not-probabilities'
-        || !probability(assessment.merlinOnTeamProbability)
-        || !probability(assessment.morganaOnTeamProbability)
-        || !boundedIndex(assessment.pairInfluenceValue)
+        || !probability(assessment.teamCleanProbability)
+        || !probability(assessment.teamFailureCapabilityProbability)
+        || !validDistribution(assessment.evilCountDistribution, teamSize)
+        || Math.abs(
+          (assessment.evilCountDistribution as number[])[0]
+            - (assessment.teamCleanProbability as number),
+        ) > PROBABILITY_TOLERANCE
+        || Math.abs(
+          (assessment.evilCountDistribution as number[])
+            .slice(request.failsRequired as number)
+            .reduce((sum, entry) => sum + entry, 0)
+            - (assessment.teamFailureCapabilityProbability as number),
+        ) > PROBABILITY_TOLERANCE
+        || !boundedIndex(assessment.influenceValue)
+        || Math.abs(
+          directionSign(
+            (assessment.candidate as CandidatePublicCommitment).direction,
+          ) * (
+            (assessment.teamCleanProbability as number)
+            - (assessment.teamFailureCapabilityProbability as number)
+          )
+            - (assessment.influenceValue as number),
+        ) > PROBABILITY_TOLERANCE
         || assessment.publicProbabilitySemantics
           !== 'public-preaction-uniform-feasible-joint'
         || !probability(assessment.publicTeamCleanProbability)
-        || !probability(assessment.publicMerlinProbabilityAtSelf)
-        || !probability(assessment.publicMerlinOnTeamProbability)
-        || !probability(assessment.publicMorganaOnTeamProbability)
-        || !boundedIndex(assessment.publicPairInfluenceValue)
-        || !probability(assessment.pairKnowledgeTellIndex)
-        || !probability(assessment.decisiveAmbiguityIndex)
-        || !probability(assessment.merlinMimicryProxyIndex)
-        || !probability(assessment.selfDecoyOpportunityProxyIndex)
+        || !probability(assessment.publicAmbiguityIndex)
+        || !probability(assessment.conspicuousnessIndex)
+        || !probability(assessment.assassinExposureProxyIndex)
       ) return false
-    }
-
-    if (snapshot.role === 'merlin') {
-      return exactKeys(objective, ['role', 'assessments'])
-    }
-    const pair = objective.pairPosterior as Record<string, unknown>
-    if (
-      !exactKeys(objective, ['role', 'pairPosterior', 'assessments'])
-      || !plainRecord(pair)
-      || !exactKeys(pair, [
+    } else if (
+      !exactKeys(assessment, [
+        'candidate',
         'probabilitySemantics',
-        'includesMorgana',
-        'privateCandidateSeats',
-        'hypotheses',
+        'valueSemantics',
+        'merlinOnTeamProbability',
+        'morganaOnTeamProbability',
+        'pairInfluenceValue',
+        'publicProbabilitySemantics',
+        'publicTeamCleanProbability',
+        'publicMerlinProbabilityAtSelf',
+        'publicMerlinOnTeamProbability',
+        'publicMorganaOnTeamProbability',
+        'publicPairInfluenceValue',
+        'pairKnowledgeTellIndex',
+        'decisiveAmbiguityIndex',
+        'merlinMimicryProxyIndex',
+        'selfDecoyOpportunityProxyIndex',
       ])
-      || pair.probabilitySemantics !== 'resolved-complete-world-sum'
-      || typeof pair.includesMorgana !== 'boolean'
-      || pair.includesMorgana !== (source.rolesInPlay as Role[]).includes('morgana')
-      || !canonicalSeats(pair.privateCandidateSeats, source.playerCount as number)
-      || !denseArray(pair.hypotheses)
-      || pair.hypotheses.length === 0
-      || pair.hypotheses.length > 90
+      || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
+      || assessment.valueSemantics
+        !== 'bounded-deterministic-indices-not-probabilities'
+      || !probability(assessment.merlinOnTeamProbability)
+      || !probability(assessment.morganaOnTeamProbability)
+      || !boundedIndex(assessment.pairInfluenceValue)
+      || assessment.publicProbabilitySemantics
+        !== 'public-preaction-uniform-feasible-joint'
+      || !probability(assessment.publicTeamCleanProbability)
+      || !probability(assessment.publicMerlinProbabilityAtSelf)
+      || !probability(assessment.publicMerlinOnTeamProbability)
+      || !probability(assessment.publicMorganaOnTeamProbability)
+      || !boundedIndex(assessment.publicPairInfluenceValue)
+      || !probability(assessment.pairKnowledgeTellIndex)
+      || !probability(assessment.decisiveAmbiguityIndex)
+      || !probability(assessment.merlinMimicryProxyIndex)
+      || !probability(assessment.selfDecoyOpportunityProxyIndex)
     ) return false
-    let total = 0
-    let priorKey = ''
-    const hypotheses = pair.hypotheses as unknown[]
-    for (const raw of hypotheses) {
-      if (!plainRecord(raw)) return false
-      const hypothesis = raw as Record<string, unknown>
-      if (
-        !exactKeys(hypothesis, ['merlinSeat', 'morganaSeat', 'probability'])
-        || !Number.isSafeInteger(hypothesis.merlinSeat)
-        || (hypothesis.merlinSeat as number) < 0
-        || (hypothesis.merlinSeat as number) >= (source.playerCount as number)
-        || (
-          pair.includesMorgana
-            ? (
-                !Number.isSafeInteger(hypothesis.morganaSeat)
-                || (hypothesis.morganaSeat as number) < 0
-                || (hypothesis.morganaSeat as number)
-                  >= (source.playerCount as number)
-                || hypothesis.morganaSeat === hypothesis.merlinSeat
-              )
-            : hypothesis.morganaSeat !== null
-        )
-        || !probability(hypothesis.probability)
-        || hypothesis.probability === 0
-      ) return false
-      const key = `${hypothesis.merlinSeat}:${hypothesis.morganaSeat ?? -1}`
-      if (priorKey && priorKey >= key) return false
-      priorKey = key
-      total += hypothesis.probability as number
-    }
-    if (Math.abs(total - 1) > PROBABILITY_TOLERANCE) return false
-    const pairCandidateSeats = [...new Set(
-      (hypotheses as MerlinMorganaPairHypothesis[]).flatMap(
-        (hypothesis) => [
-          hypothesis.merlinSeat,
-          ...(hypothesis.morganaSeat === null ? [] : [hypothesis.morganaSeat]),
-        ],
-      ),
-    )].sort((left, right) => left - right)
-    if (!isDeepStrictEqual(pair.privateCandidateSeats, pairCandidateSeats)) {
-      return false
-    }
-    if (
-      pair.includesMorgana
-      && (hypotheses as MerlinMorganaPairHypothesis[]).some(
-        (hypothesis) =>
-          !isDeepStrictEqual(
-            [hypothesis.merlinSeat, hypothesis.morganaSeat!]
-              .sort((left, right) => left - right),
-            pair.privateCandidateSeats,
-          ),
-      )
-    ) return false
-
-    const typedHypotheses = hypotheses as MerlinMorganaPairHypothesis[]
-    for (const raw of objective.assessments as unknown[]) {
-      const assessment = raw as PercivalCandidateObjective
-      const team = assessment.candidate.team ?? []
-      const merlin = typedHypotheses.reduce(
-        (sum, hypothesis) =>
-          sum + (team.includes(hypothesis.merlinSeat)
-            ? hypothesis.probability
-            : 0),
-        0,
-      )
-      const morgana = typedHypotheses.reduce(
-        (sum, hypothesis) =>
-          sum + (
-            hypothesis.morganaSeat !== null
-            && team.includes(hypothesis.morganaSeat)
-              ? hypothesis.probability
-              : 0
-          ),
-        0,
-      )
-      if (
-        Math.abs(merlin - assessment.merlinOnTeamProbability)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(morgana - assessment.morganaOnTeamProbability)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(
-          directionSign(assessment.candidate.direction) * (merlin - morgana)
-            - assessment.pairInfluenceValue,
-        ) > PROBABILITY_TOLERANCE
-      ) return false
-      const sign = directionSign(assessment.candidate.direction)
-      const expectedPublicPair = sign * (
-        assessment.publicMerlinOnTeamProbability
-        - assessment.publicMorganaOnTeamProbability
-      )
-      const expectedTell = clamp01(
-        Math.max(0, assessment.pairInfluenceValue - expectedPublicPair) / 2,
-      )
-      const expectedDecisive = clamp01(
-        Math.abs(sign)
-        * (
-          1 - Math.abs(2 * assessment.publicTeamCleanProbability - 1)
-        ),
-      )
-      const expectedMimicry = clamp01(
-        0.75 * expectedTell + 0.25 * expectedDecisive,
-      )
-      if (
-        Math.abs(expectedPublicPair - assessment.publicPairInfluenceValue)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(expectedTell - assessment.pairKnowledgeTellIndex)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(expectedDecisive - assessment.decisiveAmbiguityIndex)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(expectedMimicry - assessment.merlinMimicryProxyIndex)
-          > PROBABILITY_TOLERANCE
-        || Math.abs(
-          (1 - assessment.publicMerlinProbabilityAtSelf) * expectedMimicry
-            - assessment.selfDecoyOpportunityProxyIndex,
-        ) > PROBABILITY_TOLERANCE
-      ) return false
-    }
-    return true
   }
+
+  if (snapshot.role === 'merlin') {
+    return exactKeys(objective, ['role', 'assessments'])
+  }
+  const pair = objective.pairPosterior as Record<string, unknown>
+  if (
+    !exactKeys(objective, ['role', 'pairPosterior', 'assessments'])
+    || !plainRecord(pair)
+    || !exactKeys(pair, [
+      'probabilitySemantics',
+      'includesMorgana',
+      'privateCandidateSeats',
+      'hypotheses',
+    ])
+    || pair.probabilitySemantics !== 'resolved-complete-world-sum'
+    || typeof pair.includesMorgana !== 'boolean'
+    || pair.includesMorgana !== (source.rolesInPlay as Role[]).includes('morgana')
+    || !canonicalSeats(pair.privateCandidateSeats, source.playerCount as number)
+    || !denseArray(pair.hypotheses)
+    || pair.hypotheses.length === 0
+    || pair.hypotheses.length > 90
+  ) return false
+  let total = 0
+  let priorKey = ''
+  const hypotheses = pair.hypotheses as unknown[]
+  for (const raw of hypotheses) {
+    if (!plainRecord(raw)) return false
+    const hypothesis = raw as Record<string, unknown>
+    if (
+      !exactKeys(hypothesis, ['merlinSeat', 'morganaSeat', 'probability'])
+      || !Number.isSafeInteger(hypothesis.merlinSeat)
+      || (hypothesis.merlinSeat as number) < 0
+      || (hypothesis.merlinSeat as number) >= (source.playerCount as number)
+      || (
+        pair.includesMorgana
+          ? (
+              !Number.isSafeInteger(hypothesis.morganaSeat)
+              || (hypothesis.morganaSeat as number) < 0
+              || (hypothesis.morganaSeat as number)
+                >= (source.playerCount as number)
+              || hypothesis.morganaSeat === hypothesis.merlinSeat
+            )
+          : hypothesis.morganaSeat !== null
+      )
+      || !probability(hypothesis.probability)
+      || hypothesis.probability === 0
+    ) return false
+    const key = `${hypothesis.merlinSeat}:${hypothesis.morganaSeat ?? -1}`
+    if (priorKey && priorKey >= key) return false
+    priorKey = key
+    total += hypothesis.probability as number
+  }
+  if (Math.abs(total - 1) > PROBABILITY_TOLERANCE) return false
+  const pairCandidateSeats = [...new Set(
+    (hypotheses as MerlinMorganaPairHypothesis[]).flatMap(
+      (hypothesis) => [
+        hypothesis.merlinSeat,
+        ...(hypothesis.morganaSeat === null ? [] : [hypothesis.morganaSeat]),
+      ],
+    ),
+  )].sort((left, right) => left - right)
+  if (!isDeepStrictEqual(pair.privateCandidateSeats, pairCandidateSeats)) {
+    return false
+  }
+  if (
+    pair.includesMorgana
+    && (hypotheses as MerlinMorganaPairHypothesis[]).some(
+      (hypothesis) =>
+        !isDeepStrictEqual(
+          [hypothesis.merlinSeat, hypothesis.morganaSeat!]
+            .sort((left, right) => left - right),
+          pair.privateCandidateSeats,
+        ),
+    )
+  ) return false
+
+  const typedHypotheses = hypotheses as MerlinMorganaPairHypothesis[]
+  for (const raw of objective.assessments as unknown[]) {
+    const assessment = raw as PercivalCandidateObjective
+    const team = assessment.candidate.team ?? []
+    const merlin = typedHypotheses.reduce(
+      (sum, hypothesis) =>
+        sum + (team.includes(hypothesis.merlinSeat)
+          ? hypothesis.probability
+          : 0),
+      0,
+    )
+    const morgana = typedHypotheses.reduce(
+      (sum, hypothesis) =>
+        sum + (
+          hypothesis.morganaSeat !== null
+          && team.includes(hypothesis.morganaSeat)
+            ? hypothesis.probability
+            : 0
+        ),
+      0,
+    )
+    if (
+      Math.abs(merlin - assessment.merlinOnTeamProbability)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(morgana - assessment.morganaOnTeamProbability)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(
+        directionSign(assessment.candidate.direction) * (merlin - morgana)
+          - assessment.pairInfluenceValue,
+      ) > PROBABILITY_TOLERANCE
+    ) return false
+    const sign = directionSign(assessment.candidate.direction)
+    const expectedPublicPair = sign * (
+      assessment.publicMerlinOnTeamProbability
+      - assessment.publicMorganaOnTeamProbability
+    )
+    const expectedTell = clamp01(
+      Math.max(0, assessment.pairInfluenceValue - expectedPublicPair) / 2,
+    )
+    const expectedDecisive = clamp01(
+      Math.abs(sign)
+      * (
+        1 - Math.abs(2 * assessment.publicTeamCleanProbability - 1)
+      ),
+    )
+    const expectedMimicry = clamp01(
+      0.75 * expectedTell + 0.25 * expectedDecisive,
+    )
+    if (
+      Math.abs(expectedPublicPair - assessment.publicPairInfluenceValue)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(expectedTell - assessment.pairKnowledgeTellIndex)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(expectedDecisive - assessment.decisiveAmbiguityIndex)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(expectedMimicry - assessment.merlinMimicryProxyIndex)
+        > PROBABILITY_TOLERANCE
+      || Math.abs(
+        (1 - assessment.publicMerlinProbabilityAtSelf) * expectedMimicry
+          - assessment.selfDecoyOpportunityProxyIndex,
+      ) > PROBABILITY_TOLERANCE
+    ) return false
+  }
+  return true
 }
 
 const roleObjectiveCodec =

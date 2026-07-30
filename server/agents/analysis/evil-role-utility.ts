@@ -485,407 +485,405 @@ function exactKeys(value: object, keys: readonly string[]): boolean {
 }
 
 function evilRoleUtilitySchema(detached: unknown): boolean {
-  {
+  if (
+    !detached
+    || typeof detached !== 'object'
+    || Array.isArray(detached)
+  ) return false
+  const projection = detached as PrivateEvilRoleUtilityProjection
+  if (
+    !exactKeys(projection, [
+      'version', 'role', 'source', 'request', 'assessments',
+    ])
+    || !exactKeys(projection.source, [
+      'roleObjectiveVersion',
+      'identityModelVersion',
+      'observerModelVersion',
+      'beliefModelVersion',
+      'beliefThroughSeq',
+      'playerCount',
+    ])
+    || !exactKeys(projection.request, [
+      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
+      'completedGoodQuests', 'completedEvilQuests',
+    ])
+    || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
+    || !['assassin', 'morgana', 'mordred', 'minion', 'oberon']
+      .includes(projection.role)
+    || projection.source.roleObjectiveVersion
+      !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    || projection.source.identityModelVersion
+      !== JOINT_IDENTITY_MODEL_VERSION
+    || projection.source.observerModelVersion
+      !== PUBLIC_OBSERVER_MODEL_VERSION
+    || typeof projection.source.beliefModelVersion !== 'string'
+    || !projection.source.beliefModelVersion.length
+    || projection.source.beliefModelVersion.length > 256
+    || !Number.isSafeInteger(projection.source.beliefThroughSeq)
+    || projection.source.beliefThroughSeq < -1
+    || !Number.isSafeInteger(projection.source.playerCount)
+    || projection.source.playerCount < 5
+    || projection.source.playerCount > 10
+    || !['propose', 'vote'].includes(projection.request.kind)
+    || !Number.isSafeInteger(projection.request.seat)
+    || projection.request.seat < 0
+    || projection.request.seat >= projection.source.playerCount
+    || !Number.isSafeInteger(projection.request.round)
+    || projection.request.round < 1
+    || projection.request.round > 5
+    || !Number.isSafeInteger(projection.request.proposalNum)
+    || projection.request.proposalNum < 1
+    || projection.request.proposalNum > 5
+    || ![1, 2].includes(projection.request.failsRequired)
+    || projection.request.failsRequired
+      !== (
+        projection.source.playerCount >= 7
+        && projection.request.round === 4
+          ? 2
+          : 1
+      )
+    || !Number.isSafeInteger(projection.request.completedGoodQuests)
+    || projection.request.completedGoodQuests < 0
+    || projection.request.completedGoodQuests > 2
+    || !Number.isSafeInteger(projection.request.completedEvilQuests)
+    || projection.request.completedEvilQuests < 0
+    || projection.request.completedEvilQuests > 2
+    || projection.request.completedGoodQuests
+      + projection.request.completedEvilQuests
+        !== projection.request.round - 1
+    || !Array.isArray(projection.assessments)
+    || projection.assessments.length === 0
+    || projection.assessments.length > 252
+    || new Set(
+      projection.assessments.map((assessment) => assessment.candidateId),
+    ).size !== projection.assessments.length
+  ) return false
+  for (const assessment of projection.assessments) {
+    const alternativeKeys = assessment.bestAlternativeCandidateId === undefined
+      ? []
+      : [
+          'bestAlternativeCandidateId',
+          'bestAlternativeTeam',
+          'bestAlternativeFailureCapabilityProbability',
+        ]
+    if (!exactKeys(assessment, [
+      'candidateId',
+      'kind',
+      'role',
+      'posture',
+      'direction',
+      'team',
+      'valueSemantics',
+      'probabilitySemantics',
+      'teamFailureCapabilityProbability',
+      'publicProbabilitySemantics',
+      'publicTeamFailureCapabilityProbability',
+      ...alternativeKeys,
+      'alternativeRealization',
+      'failureCapacityValue',
+      'publicActionPlausibilityValue',
+      'participantCoverProxyIndex',
+      'participantCoverAvailable',
+      'publicCoverValue',
+      'publicCoverAvailable',
+      'publicCoverSemantics',
+      'futureOpportunityValue',
+      'futureOpportunityAvailable',
+      'futureOpportunitySemantics',
+      'futureOpportunitySource',
+      'failureCapacityContribution',
+      'publicCoverContribution',
+      'futureOpportunityContribution',
+      'roleValue',
+      'coordination',
+    ])) return false
+    const values = [
+      assessment.teamFailureCapabilityProbability,
+      assessment.publicTeamFailureCapabilityProbability,
+      assessment.alternativeRealization,
+      assessment.failureCapacityValue,
+      assessment.publicActionPlausibilityValue,
+      assessment.participantCoverProxyIndex,
+      assessment.publicCoverValue,
+      assessment.futureOpportunityValue,
+      assessment.failureCapacityContribution,
+      assessment.publicCoverContribution,
+      assessment.futureOpportunityContribution,
+      assessment.roleValue,
+    ]
     if (
-      !detached
-      || typeof detached !== 'object'
-      || Array.isArray(detached)
+      assessment.role !== projection.role
+      || typeof assessment.candidateId !== 'string'
+      || !assessment.candidateId.length
+      || assessment.candidateId.length > 256
+      || assessment.kind !== projection.request.kind
+      || assessment.posture !== POSTURE_BY_ROLE[projection.role]
+      || !['support', 'oppose'].includes(assessment.direction)
+      || !canonicalSeats(
+        assessment.team,
+        projection.source.playerCount,
+      )
+      || assessment.valueSemantics !== EVIL_ROLE_UTILITY_VALUE_SEMANTICS
+      || assessment.probabilitySemantics
+        !== 'resolved-complete-world-sum'
+      || assessment.publicProbabilitySemantics
+        !== 'public-preaction-uniform-feasible-joint'
+      || typeof assessment.publicCoverAvailable !== 'boolean'
+      || typeof assessment.participantCoverAvailable !== 'boolean'
+      || assessment.publicCoverAvailable
+        !== assessment.participantCoverAvailable
+      || assessment.publicCoverSemantics
+        !== 'bounded-action-plausibility-plus-participant-cover-proxy'
+      || typeof assessment.futureOpportunityAvailable !== 'boolean'
+      || assessment.futureOpportunitySemantics
+        !== 'bounded-reserve-or-runway-proxy-not-win-probability'
+      || Math.abs(
+        assessment.publicCoverValue
+          - (
+            0.5 * assessment.publicActionPlausibilityValue
+            + 0.5 * assessment.participantCoverProxyIndex
+          ),
+      ) > 1e-12
+      || Math.abs(
+        assessment.publicActionPlausibilityValue
+          - (
+            assessment.direction === 'support'
+              ? 1 - assessment.publicTeamFailureCapabilityProbability
+              : assessment.publicTeamFailureCapabilityProbability
+          ),
+      ) > 1e-12
+      || (
+        assessment.direction === 'support'
+          ? (
+              alternativeKeys.length !== 0
+              || assessment.alternativeRealization !== 1
+              || Math.abs(
+                assessment.failureCapacityValue
+                  - assessment.teamFailureCapabilityProbability,
+              ) > 1e-12
+            )
+          : (
+              alternativeKeys.length !== 3
+              || typeof assessment.bestAlternativeCandidateId !== 'string'
+              || !assessment.bestAlternativeCandidateId.length
+              || assessment.bestAlternativeCandidateId.length > 256
+              || !canonicalSeats(
+                assessment.bestAlternativeTeam,
+                projection.source.playerCount,
+              )
+              || !Number.isFinite(
+                assessment.bestAlternativeFailureCapabilityProbability,
+              )
+              || assessment.bestAlternativeFailureCapabilityProbability! < 0
+              || assessment.bestAlternativeFailureCapabilityProbability! > 1
+              || Math.abs(
+                assessment.failureCapacityValue
+                  - assessment
+                    .bestAlternativeFailureCapabilityProbability!
+                    * assessment.alternativeRealization,
+              ) > 1e-12
+            )
+      )
+      || values.some(
+        (entry) =>
+          !Number.isFinite(entry) || entry < 0 || entry > 1,
+      )
+      || Math.abs(
+        assessment.failureCapacityContribution
+          - EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
+            * assessment.failureCapacityValue,
+      ) > 1e-12
+      || Math.abs(
+        assessment.publicCoverContribution
+          - EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight
+            * assessment.publicCoverValue,
+      ) > 1e-12
+      || Math.abs(
+        assessment.futureOpportunityContribution
+          - EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
+            * assessment.futureOpportunityValue,
+      ) > 1e-12
+      || Math.abs(
+        assessment.roleValue
+          - (
+            assessment.failureCapacityContribution
+            + assessment.publicCoverContribution
+            + assessment.futureOpportunityContribution
+          ),
+      ) > 1e-12
     ) return false
-    const projection = detached as PrivateEvilRoleUtilityProjection
+    const source = assessment.futureOpportunitySource
     if (
-      !exactKeys(projection, [
-        'version', 'role', 'source', 'request', 'assessments',
-      ])
-      || !exactKeys(projection.source, [
-        'roleObjectiveVersion',
-        'identityModelVersion',
-        'observerModelVersion',
-        'beliefModelVersion',
-        'beliefThroughSeq',
-        'playerCount',
-      ])
-      || !exactKeys(projection.request, [
-        'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-        'completedGoodQuests', 'completedEvilQuests',
-      ])
-      || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-      || !['assassin', 'morgana', 'mordred', 'minion', 'oberon']
-        .includes(projection.role)
-      || projection.source.roleObjectiveVersion
-        !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      || projection.source.identityModelVersion
-        !== JOINT_IDENTITY_MODEL_VERSION
-      || projection.source.observerModelVersion
-        !== PUBLIC_OBSERVER_MODEL_VERSION
-      || typeof projection.source.beliefModelVersion !== 'string'
-      || !projection.source.beliefModelVersion.length
-      || projection.source.beliefModelVersion.length > 256
-      || !Number.isSafeInteger(projection.source.beliefThroughSeq)
-      || projection.source.beliefThroughSeq < -1
-      || !Number.isSafeInteger(projection.source.playerCount)
-      || projection.source.playerCount < 5
-      || projection.source.playerCount > 10
-      || !['propose', 'vote'].includes(projection.request.kind)
-      || !Number.isSafeInteger(projection.request.seat)
-      || projection.request.seat < 0
-      || projection.request.seat >= projection.source.playerCount
-      || !Number.isSafeInteger(projection.request.round)
-      || projection.request.round < 1
-      || projection.request.round > 5
-      || !Number.isSafeInteger(projection.request.proposalNum)
-      || projection.request.proposalNum < 1
-      || projection.request.proposalNum > 5
-      || ![1, 2].includes(projection.request.failsRequired)
-      || projection.request.failsRequired
-        !== (
-          projection.source.playerCount >= 7
-          && projection.request.round === 4
-            ? 2
-            : 1
-        )
-      || !Number.isSafeInteger(projection.request.completedGoodQuests)
-      || projection.request.completedGoodQuests < 0
-      || projection.request.completedGoodQuests > 2
-      || !Number.isSafeInteger(projection.request.completedEvilQuests)
-      || projection.request.completedEvilQuests < 0
-      || projection.request.completedEvilQuests > 2
-      || projection.request.completedGoodQuests
-        + projection.request.completedEvilQuests
-          !== projection.request.round - 1
-      || !Array.isArray(projection.assessments)
-      || projection.assessments.length === 0
-      || projection.assessments.length > 252
-      || new Set(
-        projection.assessments.map((assessment) => assessment.candidateId),
-      ).size !== projection.assessments.length
-    ) return false
-    for (const assessment of projection.assessments) {
-      const alternativeKeys = assessment.bestAlternativeCandidateId === undefined
-        ? []
-        : [
-            'bestAlternativeCandidateId',
-            'bestAlternativeTeam',
-            'bestAlternativeFailureCapabilityProbability',
-          ]
-      if (!exactKeys(assessment, [
-        'candidateId',
-        'kind',
-        'role',
-        'posture',
-        'direction',
-        'team',
-        'valueSemantics',
-        'probabilitySemantics',
-        'teamFailureCapabilityProbability',
-        'publicProbabilitySemantics',
-        'publicTeamFailureCapabilityProbability',
-        ...alternativeKeys,
-        'alternativeRealization',
-        'failureCapacityValue',
-        'publicActionPlausibilityValue',
-        'participantCoverProxyIndex',
-        'participantCoverAvailable',
-        'publicCoverValue',
-        'publicCoverAvailable',
-        'publicCoverSemantics',
-        'futureOpportunityValue',
-        'futureOpportunityAvailable',
-        'futureOpportunitySemantics',
-        'futureOpportunitySource',
-        'failureCapacityContribution',
-        'publicCoverContribution',
-        'futureOpportunityContribution',
-        'roleValue',
-        'coordination',
-      ])) return false
-      const values = [
-        assessment.teamFailureCapabilityProbability,
-        assessment.publicTeamFailureCapabilityProbability,
-        assessment.alternativeRealization,
-        assessment.failureCapacityValue,
-        assessment.publicActionPlausibilityValue,
-        assessment.participantCoverProxyIndex,
-        assessment.publicCoverValue,
-        assessment.futureOpportunityValue,
-        assessment.failureCapacityContribution,
-        assessment.publicCoverContribution,
-        assessment.futureOpportunityContribution,
-        assessment.roleValue,
-      ]
-      if (
-        assessment.role !== projection.role
-        || typeof assessment.candidateId !== 'string'
-        || !assessment.candidateId.length
-        || assessment.candidateId.length > 256
-        || assessment.kind !== projection.request.kind
-        || assessment.posture !== POSTURE_BY_ROLE[projection.role]
-        || !['support', 'oppose'].includes(assessment.direction)
-        || !canonicalSeats(
-          assessment.team,
-          projection.source.playerCount,
-        )
-        || assessment.valueSemantics !== EVIL_ROLE_UTILITY_VALUE_SEMANTICS
-        || assessment.probabilitySemantics
-          !== 'resolved-complete-world-sum'
-        || assessment.publicProbabilitySemantics
-          !== 'public-preaction-uniform-feasible-joint'
-        || typeof assessment.publicCoverAvailable !== 'boolean'
-        || typeof assessment.participantCoverAvailable !== 'boolean'
-        || assessment.publicCoverAvailable
-          !== assessment.participantCoverAvailable
-        || assessment.publicCoverSemantics
-          !== 'bounded-action-plausibility-plus-participant-cover-proxy'
-        || typeof assessment.futureOpportunityAvailable !== 'boolean'
-        || assessment.futureOpportunitySemantics
-          !== 'bounded-reserve-or-runway-proxy-not-win-probability'
-        || Math.abs(
-          assessment.publicCoverValue
-            - (
-              0.5 * assessment.publicActionPlausibilityValue
-              + 0.5 * assessment.participantCoverProxyIndex
-            ),
-        ) > 1e-12
-        || Math.abs(
-          assessment.publicActionPlausibilityValue
-            - (
-              assessment.direction === 'support'
-                ? 1 - assessment.publicTeamFailureCapabilityProbability
-                : assessment.publicTeamFailureCapabilityProbability
-            ),
-        ) > 1e-12
-        || (
-          assessment.direction === 'support'
-            ? (
-                alternativeKeys.length !== 0
-                || assessment.alternativeRealization !== 1
-                || Math.abs(
-                  assessment.failureCapacityValue
-                    - assessment.teamFailureCapabilityProbability,
-                ) > 1e-12
-              )
-            : (
-                alternativeKeys.length !== 3
-                || typeof assessment.bestAlternativeCandidateId !== 'string'
-                || !assessment.bestAlternativeCandidateId.length
-                || assessment.bestAlternativeCandidateId.length > 256
-                || !canonicalSeats(
-                  assessment.bestAlternativeTeam,
-                  projection.source.playerCount,
-                )
-                || !Number.isFinite(
-                  assessment.bestAlternativeFailureCapabilityProbability,
-                )
-                || assessment.bestAlternativeFailureCapabilityProbability! < 0
-                || assessment.bestAlternativeFailureCapabilityProbability! > 1
-                || Math.abs(
-                  assessment.failureCapacityValue
-                    - assessment
-                      .bestAlternativeFailureCapabilityProbability!
-                      * assessment.alternativeRealization,
-                ) > 1e-12
-              )
-        )
-        || values.some(
-          (entry) =>
-            !Number.isFinite(entry) || entry < 0 || entry > 1,
-        )
-        || Math.abs(
-          assessment.failureCapacityContribution
-            - EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
-              * assessment.failureCapacityValue,
-        ) > 1e-12
-        || Math.abs(
-          assessment.publicCoverContribution
-            - EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight
-              * assessment.publicCoverValue,
-        ) > 1e-12
-        || Math.abs(
-          assessment.futureOpportunityContribution
-            - EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
-              * assessment.futureOpportunityValue,
-        ) > 1e-12
-        || Math.abs(
-          assessment.roleValue
-            - (
-              assessment.failureCapacityContribution
-              + assessment.publicCoverContribution
-              + assessment.futureOpportunityContribution
-            ),
-        ) > 1e-12
-      ) return false
-      const source = assessment.futureOpportunitySource
-      if (
-        !source
-        || typeof source !== 'object'
-        || (
-          source.kind === 'visible-coordination-reserve'
+      !source
+      || typeof source !== 'object'
+      || (
+        source.kind === 'visible-coordination-reserve'
+          ? (
+              !exactKeys(source, [
+                'kind', 'reservedVisibleEvil', 'totalVisibleEvil',
+              ])
+              || !Number.isSafeInteger(source.reservedVisibleEvil)
+              || !Number.isSafeInteger(source.totalVisibleEvil)
+              || source.totalVisibleEvil <= 0
+              || source.reservedVisibleEvil < 0
+              || source.reservedVisibleEvil > source.totalVisibleEvil
+              || Math.abs(
+                assessment.futureOpportunityValue
+                  - source.reservedVisibleEvil / source.totalVisibleEvil,
+              ) > 1e-12
+            )
+          : source.kind === 'oberon-unseen-placement-reserve'
             ? (
                 !exactKeys(source, [
-                  'kind', 'reservedVisibleEvil', 'totalVisibleEvil',
+                  'kind', 'unseenEvilOnTeamProbability',
                 ])
-                || !Number.isSafeInteger(source.reservedVisibleEvil)
-                || !Number.isSafeInteger(source.totalVisibleEvil)
-                || source.totalVisibleEvil <= 0
-                || source.reservedVisibleEvil < 0
-                || source.reservedVisibleEvil > source.totalVisibleEvil
+                || !Number.isFinite(source.unseenEvilOnTeamProbability)
+                || source.unseenEvilOnTeamProbability < 0
+                || source.unseenEvilOnTeamProbability > 1
                 || Math.abs(
                   assessment.futureOpportunityValue
-                    - source.reservedVisibleEvil / source.totalVisibleEvil,
+                    - (1 - source.unseenEvilOnTeamProbability),
                 ) > 1e-12
               )
-            : source.kind === 'oberon-unseen-placement-reserve'
+            : source.kind === 'rejection-runway'
               ? (
                   !exactKeys(source, [
-                    'kind', 'unseenEvilOnTeamProbability',
+                    'kind', 'rejectionsBeforeHammer', 'runwayDenominator',
                   ])
-                  || !Number.isFinite(source.unseenEvilOnTeamProbability)
-                  || source.unseenEvilOnTeamProbability < 0
-                  || source.unseenEvilOnTeamProbability > 1
+                  || !Number.isSafeInteger(source.rejectionsBeforeHammer)
+                  || source.rejectionsBeforeHammer < 0
+                  || source.rejectionsBeforeHammer > 4
+                  || source.runwayDenominator !== 4
                   || Math.abs(
                     assessment.futureOpportunityValue
-                      - (1 - source.unseenEvilOnTeamProbability),
+                      - source.rejectionsBeforeHammer / 4,
                   ) > 1e-12
                 )
-              : source.kind === 'rejection-runway'
+            : (
+                source.kind === 'terminal-none'
+                || source.kind === 'decisive-board-none'
+              )
                 ? (
-                    !exactKeys(source, [
-                      'kind', 'rejectionsBeforeHammer', 'runwayDenominator',
-                    ])
-                    || !Number.isSafeInteger(source.rejectionsBeforeHammer)
-                    || source.rejectionsBeforeHammer < 0
-                    || source.rejectionsBeforeHammer > 4
-                    || source.runwayDenominator !== 4
-                    || Math.abs(
-                      assessment.futureOpportunityValue
-                        - source.rejectionsBeforeHammer / 4,
-                    ) > 1e-12
+                    !exactKeys(source, ['kind'])
+                    || assessment.futureOpportunityValue !== 0
+                    || assessment.futureOpportunityAvailable
                   )
-              : (
-                  source.kind === 'terminal-none'
-                  || source.kind === 'decisive-board-none'
-                )
-                  ? (
-                      !exactKeys(source, ['kind'])
-                      || assessment.futureOpportunityValue !== 0
-                      || assessment.futureOpportunityAvailable
-                    )
-                  : true
+                : true
+      )
+    ) return false
+    if (
+      assessment.futureOpportunityAvailable
+        !== (
+          source.kind !== 'terminal-none'
+          && source.kind !== 'decisive-board-none'
         )
-      ) return false
+    ) return false
+    const oberon = assessment.role === 'oberon'
+    const selfOnly =
+      assessment.coordination.kind === 'self-only-uncoordinated'
+    const decisiveBoard =
+      projection.request.completedGoodQuests >= 2
+      || projection.request.completedEvilQuests >= 2
+    const finalQuestState =
+      projection.request.round === 5
+      && projection.request.completedGoodQuests === 2
+      && projection.request.completedEvilQuests === 2
+    const rejectionsBeforeHammer = Math.max(
+      0,
+      MAX_PROPOSALS - projection.request.proposalNum,
+    )
+    const expectedAlternativeRealization = Math.min(
+      1,
+      EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationBase
+        + EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
+          * rejectionsBeforeHammer,
+    )
+    if (oberon !== selfOnly) return false
+    if (
+      assessment.direction === 'oppose'
+      && Math.abs(
+        assessment.alternativeRealization
+          - expectedAlternativeRealization,
+      ) > 1e-12
+    ) return false
+    if (assessment.coordination.kind === 'visible-coordination') {
       if (
-        assessment.futureOpportunityAvailable
-          !== (
-            source.kind !== 'terminal-none'
-            && source.kind !== 'decisive-board-none'
-          )
+        !exactKeys(assessment.coordination, [
+          'kind', 'coordinatedEvilAboard', 'totalVisibleEvil',
+        ])
+        || !Number.isSafeInteger(
+          assessment.coordination.coordinatedEvilAboard,
+        )
+        || assessment.coordination.coordinatedEvilAboard < 0
+        || assessment.coordination.coordinatedEvilAboard
+          > assessment.team.length
+        || !Number.isSafeInteger(
+          assessment.coordination.totalVisibleEvil,
+        )
+        || assessment.coordination.totalVisibleEvil <= 0
+        || assessment.coordination.totalVisibleEvil
+          > Math.ceil(projection.source.playerCount / 3)
+        || assessment.coordination.coordinatedEvilAboard
+          > assessment.coordination.totalVisibleEvil
       ) return false
-      const oberon = assessment.role === 'oberon'
-      const selfOnly =
-        assessment.coordination.kind === 'self-only-uncoordinated'
-      const decisiveBoard =
-        projection.request.completedGoodQuests >= 2
-        || projection.request.completedEvilQuests >= 2
-      const finalQuestState =
-        projection.request.round === 5
-        && projection.request.completedGoodQuests === 2
-        && projection.request.completedEvilQuests === 2
-      const rejectionsBeforeHammer = Math.max(
-        0,
-        MAX_PROPOSALS - projection.request.proposalNum,
-      )
-      const expectedAlternativeRealization = Math.min(
-        1,
-        EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationBase
-          + EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
-            * rejectionsBeforeHammer,
-      )
-      if (oberon !== selfOnly) return false
+    } else if (
+      assessment.coordination.kind === 'self-only-uncoordinated'
+    ) {
       if (
-        assessment.direction === 'oppose'
-        && Math.abs(
-          assessment.alternativeRealization
-            - expectedAlternativeRealization,
-        ) > 1e-12
+        !exactKeys(assessment.coordination, [
+          'kind', 'selfAboard', 'unseenEvilOnTeamProbability',
+        ])
+        || typeof assessment.coordination.selfAboard !== 'boolean'
+        || !Number.isFinite(
+          assessment.coordination.unseenEvilOnTeamProbability,
+        )
+        || assessment.coordination.unseenEvilOnTeamProbability < 0
+        || assessment.coordination.unseenEvilOnTeamProbability > 1
+        || assessment.coordination.selfAboard
+          !== assessment.team.includes(projection.request.seat)
       ) return false
-      if (assessment.coordination.kind === 'visible-coordination') {
-        if (
-          !exactKeys(assessment.coordination, [
-            'kind', 'coordinatedEvilAboard', 'totalVisibleEvil',
-          ])
-          || !Number.isSafeInteger(
-            assessment.coordination.coordinatedEvilAboard,
-          )
-          || assessment.coordination.coordinatedEvilAboard < 0
-          || assessment.coordination.coordinatedEvilAboard
-            > assessment.team.length
-          || !Number.isSafeInteger(
-            assessment.coordination.totalVisibleEvil,
-          )
-          || assessment.coordination.totalVisibleEvil <= 0
-          || assessment.coordination.totalVisibleEvil
-            > Math.ceil(projection.source.playerCount / 3)
-          || assessment.coordination.coordinatedEvilAboard
-            > assessment.coordination.totalVisibleEvil
-        ) return false
-      } else if (
-        assessment.coordination.kind === 'self-only-uncoordinated'
-      ) {
-        if (
-          !exactKeys(assessment.coordination, [
-            'kind', 'selfAboard', 'unseenEvilOnTeamProbability',
-          ])
-          || typeof assessment.coordination.selfAboard !== 'boolean'
-          || !Number.isFinite(
-            assessment.coordination.unseenEvilOnTeamProbability,
-          )
-          || assessment.coordination.unseenEvilOnTeamProbability < 0
-          || assessment.coordination.unseenEvilOnTeamProbability > 1
-          || assessment.coordination.selfAboard
-            !== assessment.team.includes(projection.request.seat)
-        ) return false
-      } else {
-        return false
-      }
-      if (source.kind === 'visible-coordination-reserve') {
-        if (
-          decisiveBoard
-          || projection.request.round >= 5
-          || oberon
-          || selfOnly
-          || assessment.direction !== 'support'
-          || source.totalVisibleEvil
-            !== assessment.coordination.totalVisibleEvil
-          || source.reservedVisibleEvil
-            !== source.totalVisibleEvil
-              - assessment.coordination.coordinatedEvilAboard
-        ) return false
-      } else if (
-        source.kind === 'oberon-unseen-placement-reserve'
-      ) {
-        if (
-          decisiveBoard
-          || projection.request.round >= 5
-          || !oberon
-          || !selfOnly
-          || assessment.direction !== 'support'
-          || source.unseenEvilOnTeamProbability
-            !== assessment.coordination.unseenEvilOnTeamProbability
-        ) return false
-      } else if (source.kind === 'rejection-runway') {
-        if (
-          decisiveBoard
-          || projection.request.round >= 5
-          || assessment.direction !== 'oppose'
-          || source.rejectionsBeforeHammer !== rejectionsBeforeHammer
-        ) return false
-      } else if (source.kind === 'terminal-none') {
-        if (!finalQuestState) return false
-      } else if (source.kind === 'decisive-board-none') {
-        if (!decisiveBoard || finalQuestState) return false
-      }
+    } else {
+      return false
     }
-    return true
+    if (source.kind === 'visible-coordination-reserve') {
+      if (
+        decisiveBoard
+        || projection.request.round >= 5
+        || oberon
+        || selfOnly
+        || assessment.direction !== 'support'
+        || source.totalVisibleEvil
+          !== assessment.coordination.totalVisibleEvil
+        || source.reservedVisibleEvil
+          !== source.totalVisibleEvil
+            - assessment.coordination.coordinatedEvilAboard
+      ) return false
+    } else if (
+      source.kind === 'oberon-unseen-placement-reserve'
+    ) {
+      if (
+        decisiveBoard
+        || projection.request.round >= 5
+        || !oberon
+        || !selfOnly
+        || assessment.direction !== 'support'
+        || source.unseenEvilOnTeamProbability
+          !== assessment.coordination.unseenEvilOnTeamProbability
+      ) return false
+    } else if (source.kind === 'rejection-runway') {
+      if (
+        decisiveBoard
+        || projection.request.round >= 5
+        || assessment.direction !== 'oppose'
+        || source.rejectionsBeforeHammer !== rejectionsBeforeHammer
+      ) return false
+    } else if (source.kind === 'terminal-none') {
+      if (!finalQuestState) return false
+    } else if (source.kind === 'decisive-board-none') {
+      if (!decisiveBoard || finalQuestState) return false
+    }
   }
+  return true
 }
 
 const evilRoleUtilityCodec =

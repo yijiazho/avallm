@@ -346,185 +346,88 @@ export function buildAdmittedRoleUtilityProjection(
 }
 
 function roleUtilitySchema(detached: unknown): boolean {
-  {
+  if (
+    !plainRecord(detached)
+    || !exactKeys(detached, [
+      'version', 'role', 'source', 'request', 'assessments',
+    ])
+    || detached.version !== ROLE_UTILITY_PROJECTION_VERSION
+    || !['merlin', 'percival'].includes(detached.role as string)
+    || !plainRecord(detached.source)
+    || !exactKeys(detached.source, [
+      'roleObjectiveVersion',
+      'observerModelVersion',
+      'beliefModelVersion',
+      'beliefThroughSeq',
+      'playerCount',
+    ])
+    || detached.source.roleObjectiveVersion !== ROLE_OBJECTIVE_MODEL_VERSION
+    || detached.source.observerModelVersion
+      !== PUBLIC_OBSERVER_MODEL_VERSION
+    || typeof detached.source.beliefModelVersion !== 'string'
+    || !(detached.source.beliefModelVersion as string).length
+    || !Number.isSafeInteger(detached.source.beliefThroughSeq)
+    || (detached.source.beliefThroughSeq as number) < -1
+    || typeof detached.source.playerCount !== 'number'
+    || !Number.isSafeInteger(detached.source.playerCount)
+    || (detached.source.playerCount as number) < 5
+    || (detached.source.playerCount as number) > 10
+    || !plainRecord(detached.request)
+    || !exactKeys(detached.request, [
+      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
+    ])
+    || !Number.isSafeInteger(detached.request.seat)
+    || (detached.request.seat as number) < 0
+    || (detached.request.seat as number)
+      >= (detached.source.playerCount as number)
+    || !['propose', 'vote'].includes(detached.request.kind as string)
+    || !Number.isSafeInteger(detached.request.round)
+    || (detached.request.round as number) < 1
+    || (detached.request.round as number) > 5
+    || !Number.isSafeInteger(detached.request.proposalNum)
+    || (detached.request.proposalNum as number) < 1
+    || (detached.request.proposalNum as number) > 5
+    || ![1, 2].includes(detached.request.failsRequired as number)
+    || !denseArray(detached.assessments)
+    || detached.assessments.length === 0
+    || detached.assessments.length > 252
+  ) return false
+  const playerCount = detached.source.playerCount
+  const ids = new Set<string>()
+  for (const raw of detached.assessments) {
+    if (!plainRecord(raw)) return false
+    const common = raw as Record<string, unknown>
     if (
-      !plainRecord(detached)
-      || !exactKeys(detached, [
-        'version', 'role', 'source', 'request', 'assessments',
-      ])
-      || detached.version !== ROLE_UTILITY_PROJECTION_VERSION
-      || !['merlin', 'percival'].includes(detached.role as string)
-      || !plainRecord(detached.source)
-      || !exactKeys(detached.source, [
-        'roleObjectiveVersion',
-        'observerModelVersion',
-        'beliefModelVersion',
-        'beliefThroughSeq',
-        'playerCount',
-      ])
-      || detached.source.roleObjectiveVersion !== ROLE_OBJECTIVE_MODEL_VERSION
-      || detached.source.observerModelVersion
-        !== PUBLIC_OBSERVER_MODEL_VERSION
-      || typeof detached.source.beliefModelVersion !== 'string'
-      || !(detached.source.beliefModelVersion as string).length
-      || !Number.isSafeInteger(detached.source.beliefThroughSeq)
-      || (detached.source.beliefThroughSeq as number) < -1
-      || typeof detached.source.playerCount !== 'number'
-      || !Number.isSafeInteger(detached.source.playerCount)
-      || (detached.source.playerCount as number) < 5
-      || (detached.source.playerCount as number) > 10
-      || !plainRecord(detached.request)
-      || !exactKeys(detached.request, [
-        'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-      ])
-      || !Number.isSafeInteger(detached.request.seat)
-      || (detached.request.seat as number) < 0
-      || (detached.request.seat as number)
-        >= (detached.source.playerCount as number)
-      || !['propose', 'vote'].includes(detached.request.kind as string)
-      || !Number.isSafeInteger(detached.request.round)
-      || (detached.request.round as number) < 1
-      || (detached.request.round as number) > 5
-      || !Number.isSafeInteger(detached.request.proposalNum)
-      || (detached.request.proposalNum as number) < 1
-      || (detached.request.proposalNum as number) > 5
-      || ![1, 2].includes(detached.request.failsRequired as number)
-      || !denseArray(detached.assessments)
-      || detached.assessments.length === 0
-      || detached.assessments.length > 252
+      typeof common.candidateId !== 'string'
+      || !common.candidateId.length
+      || common.candidateId.length > 256
+      || ids.has(common.candidateId)
+      || common.kind !== detached.request.kind
+      || common.role !== detached.role
+      || !['support', 'oppose'].includes(common.direction as string)
+      || !denseArray(common.team)
+      || (common.team as unknown[]).length === 0
+      || (common.team as unknown[]).length
+        > (detached.source.playerCount as number)
+      || new Set(common.team as unknown[]).size
+        !== (common.team as unknown[]).length
+      || !(common.team as unknown[]).every(
+        (seat) =>
+          typeof seat === 'number'
+          && Number.isSafeInteger(seat)
+          && seat >= 0
+          && seat < playerCount,
+      )
+      || (common.team as number[]).some(
+        (seat, index) =>
+          index > 0 && (common.team as number[])[index - 1] >= seat,
+      )
+      || common.valueSemantics !== ROLE_UTILITY_VALUE_SEMANTICS
+      || !probability(common.roleValue)
     ) return false
-    const playerCount = detached.source.playerCount
-    const ids = new Set<string>()
-    for (const raw of detached.assessments) {
-      if (!plainRecord(raw)) return false
-      const common = raw as Record<string, unknown>
+    ids.add(common.candidateId)
+    if (detached.role === 'merlin') {
       if (
-        typeof common.candidateId !== 'string'
-        || !common.candidateId.length
-        || common.candidateId.length > 256
-        || ids.has(common.candidateId)
-        || common.kind !== detached.request.kind
-        || common.role !== detached.role
-        || !['support', 'oppose'].includes(common.direction as string)
-        || !denseArray(common.team)
-        || (common.team as unknown[]).length === 0
-        || (common.team as unknown[]).length
-          > (detached.source.playerCount as number)
-        || new Set(common.team as unknown[]).size
-          !== (common.team as unknown[]).length
-        || !(common.team as unknown[]).every(
-          (seat) =>
-            typeof seat === 'number'
-            && Number.isSafeInteger(seat)
-            && seat >= 0
-            && seat < playerCount,
-        )
-        || (common.team as number[]).some(
-          (seat, index) =>
-            index > 0 && (common.team as number[])[index - 1] >= seat,
-        )
-        || common.valueSemantics !== ROLE_UTILITY_VALUE_SEMANTICS
-        || !probability(common.roleValue)
-      ) return false
-      ids.add(common.candidateId)
-      if (detached.role === 'merlin') {
-        if (
-          !exactKeys(common, [
-            'candidateId',
-            'kind',
-            'role',
-            'direction',
-            'team',
-            'valueSemantics',
-            'privateProbabilitySemantics',
-            'publicProbabilitySemantics',
-            'teamCleanProbability',
-            'teamFailureCapabilityProbability',
-            'privateInfluenceValue',
-            'publicTeamCleanProbability',
-            'publicTeamFailureCapabilityProbability',
-            'publicEvilCountDistribution',
-            'publicInfluenceValue',
-            'directionalKnowledgeTellIndex',
-            'publicDecisionAmbiguityIndex',
-            'ownPublicSalienceIndex',
-            'correctedExposureProxyIndex',
-            'roleValue',
-          ])
-          || common.privateProbabilitySemantics
-            !== 'resolved-complete-world-sum'
-          || common.publicProbabilitySemantics
-            !== 'public-preaction-uniform-feasible-joint'
-          || !probability(common.teamCleanProbability)
-          || !probability(common.teamFailureCapabilityProbability)
-          || !boundedInfluence(common.privateInfluenceValue)
-          || !probability(common.publicTeamCleanProbability)
-          || !probability(common.publicTeamFailureCapabilityProbability)
-          || !denseArray(common.publicEvilCountDistribution)
-          || (common.publicEvilCountDistribution as unknown[]).length
-            !== (common.team as unknown[]).length + 1
-          || !(common.publicEvilCountDistribution as unknown[])
-            .every(probability)
-          || !boundedInfluence(common.publicInfluenceValue)
-          || !probability(common.directionalKnowledgeTellIndex)
-          || !probability(common.publicDecisionAmbiguityIndex)
-          || !probability(common.ownPublicSalienceIndex)
-          || !probability(common.correctedExposureProxyIndex)
-        ) return false
-        const distribution = common.publicEvilCountDistribution as number[]
-        const distributionTotal = distribution.reduce(
-          (sum, entry) => sum + entry,
-          0,
-        )
-        const failsRequired = detached.request.failsRequired as number
-        const publicFailure = distribution
-          .slice(failsRequired)
-          .reduce((sum, entry) => sum + entry, 0)
-        const sign = common.direction === 'support' ? 1 : -1
-        const publicInfluence = sign * (
-          (common.publicTeamCleanProbability as number) - publicFailure
-        )
-        const tell = clamp01(
-          Math.max(
-            0,
-            (common.privateInfluenceValue as number) - publicInfluence,
-          ) / 2,
-        )
-        const ambiguity = clamp01(
-          1 - Math.abs(
-            (common.publicTeamCleanProbability as number) - publicFailure,
-          ),
-        )
-        const exposure = clamp01(
-          ROLE_UTILITY_CONSTANTS.exposureTellWeight * tell
-          + ROLE_UTILITY_CONSTANTS.exposureAmbiguityWeight * ambiguity
-          + ROLE_UTILITY_CONSTANTS.exposureOwnSalienceWeight
-            * (common.ownPublicSalienceIndex as number),
-        )
-        const expectedRoleValue = clamp01(
-          ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-            * (((common.privateInfluenceValue as number) + 1) / 2)
-          + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
-        )
-        if (
-          Math.abs(distributionTotal - 1) > 1e-9
-          || Math.abs(distribution[0]
-            - (common.publicTeamCleanProbability as number)) > 1e-12
-          || Math.abs(publicFailure
-            - (common.publicTeamFailureCapabilityProbability as number))
-              > 1e-12
-          || Math.abs(publicInfluence
-            - (common.publicInfluenceValue as number)) > 1e-12
-          || Math.abs(tell
-            - (common.directionalKnowledgeTellIndex as number)) > 1e-12
-          || Math.abs(ambiguity
-            - (common.publicDecisionAmbiguityIndex as number)) > 1e-12
-          || Math.abs(exposure
-            - (common.correctedExposureProxyIndex as number)) > 1e-12
-          || Math.abs(expectedRoleValue
-            - (common.roleValue as number)) > 1e-12
-        ) return false
-      } else if (
         !exactKeys(common, [
           'candidateId',
           'kind',
@@ -532,31 +435,126 @@ function roleUtilitySchema(detached: unknown): boolean {
           'direction',
           'team',
           'valueSemantics',
-          'probabilitySemantics',
-          'pairInfluenceValue',
-          'selfDecoyOpportunityProxyIndex',
-          'merlinMimicryProxyIndex',
+          'privateProbabilitySemantics',
+          'publicProbabilitySemantics',
+          'teamCleanProbability',
+          'teamFailureCapabilityProbability',
+          'privateInfluenceValue',
+          'publicTeamCleanProbability',
+          'publicTeamFailureCapabilityProbability',
+          'publicEvilCountDistribution',
+          'publicInfluenceValue',
+          'directionalKnowledgeTellIndex',
+          'publicDecisionAmbiguityIndex',
+          'ownPublicSalienceIndex',
+          'correctedExposureProxyIndex',
           'roleValue',
         ])
-        || common.probabilitySemantics !== 'resolved-complete-world-sum'
-        || !boundedInfluence(common.pairInfluenceValue)
-        || !probability(common.selfDecoyOpportunityProxyIndex)
-        || !probability(common.merlinMimicryProxyIndex)
+        || common.privateProbabilitySemantics
+          !== 'resolved-complete-world-sum'
+        || common.publicProbabilitySemantics
+          !== 'public-preaction-uniform-feasible-joint'
+        || !probability(common.teamCleanProbability)
+        || !probability(common.teamFailureCapabilityProbability)
+        || !boundedInfluence(common.privateInfluenceValue)
+        || !probability(common.publicTeamCleanProbability)
+        || !probability(common.publicTeamFailureCapabilityProbability)
+        || !denseArray(common.publicEvilCountDistribution)
+        || (common.publicEvilCountDistribution as unknown[]).length
+          !== (common.team as unknown[]).length + 1
+        || !(common.publicEvilCountDistribution as unknown[])
+          .every(probability)
+        || !boundedInfluence(common.publicInfluenceValue)
+        || !probability(common.directionalKnowledgeTellIndex)
+        || !probability(common.publicDecisionAmbiguityIndex)
+        || !probability(common.ownPublicSalienceIndex)
+        || !probability(common.correctedExposureProxyIndex)
       ) return false
-      else {
-        const expectedRoleValue = clamp01(
-          ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-            * (((common.pairInfluenceValue as number) + 1) / 2)
-          + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight
-            * (common.selfDecoyOpportunityProxyIndex as number),
-        )
-        if (
-          Math.abs(expectedRoleValue - (common.roleValue as number)) > 1e-12
-        ) return false
-      }
+      const distribution = common.publicEvilCountDistribution as number[]
+      const distributionTotal = distribution.reduce(
+        (sum, entry) => sum + entry,
+        0,
+      )
+      const failsRequired = detached.request.failsRequired as number
+      const publicFailure = distribution
+        .slice(failsRequired)
+        .reduce((sum, entry) => sum + entry, 0)
+      const sign = common.direction === 'support' ? 1 : -1
+      const publicInfluence = sign * (
+        (common.publicTeamCleanProbability as number) - publicFailure
+      )
+      const tell = clamp01(
+        Math.max(
+          0,
+          (common.privateInfluenceValue as number) - publicInfluence,
+        ) / 2,
+      )
+      const ambiguity = clamp01(
+        1 - Math.abs(
+          (common.publicTeamCleanProbability as number) - publicFailure,
+        ),
+      )
+      const exposure = clamp01(
+        ROLE_UTILITY_CONSTANTS.exposureTellWeight * tell
+        + ROLE_UTILITY_CONSTANTS.exposureAmbiguityWeight * ambiguity
+        + ROLE_UTILITY_CONSTANTS.exposureOwnSalienceWeight
+          * (common.ownPublicSalienceIndex as number),
+      )
+      const expectedRoleValue = clamp01(
+        ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
+          * (((common.privateInfluenceValue as number) + 1) / 2)
+        + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
+      )
+      if (
+        Math.abs(distributionTotal - 1) > 1e-9
+        || Math.abs(distribution[0]
+          - (common.publicTeamCleanProbability as number)) > 1e-12
+        || Math.abs(publicFailure
+          - (common.publicTeamFailureCapabilityProbability as number))
+            > 1e-12
+        || Math.abs(publicInfluence
+          - (common.publicInfluenceValue as number)) > 1e-12
+        || Math.abs(tell
+          - (common.directionalKnowledgeTellIndex as number)) > 1e-12
+        || Math.abs(ambiguity
+          - (common.publicDecisionAmbiguityIndex as number)) > 1e-12
+        || Math.abs(exposure
+          - (common.correctedExposureProxyIndex as number)) > 1e-12
+        || Math.abs(expectedRoleValue
+          - (common.roleValue as number)) > 1e-12
+      ) return false
+    } else if (
+      !exactKeys(common, [
+        'candidateId',
+        'kind',
+        'role',
+        'direction',
+        'team',
+        'valueSemantics',
+        'probabilitySemantics',
+        'pairInfluenceValue',
+        'selfDecoyOpportunityProxyIndex',
+        'merlinMimicryProxyIndex',
+        'roleValue',
+      ])
+      || common.probabilitySemantics !== 'resolved-complete-world-sum'
+      || !boundedInfluence(common.pairInfluenceValue)
+      || !probability(common.selfDecoyOpportunityProxyIndex)
+      || !probability(common.merlinMimicryProxyIndex)
+    ) return false
+    else {
+      const expectedRoleValue = clamp01(
+        ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
+          * (((common.pairInfluenceValue as number) + 1) / 2)
+        + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight
+          * (common.selfDecoyOpportunityProxyIndex as number),
+      )
+      if (
+        Math.abs(expectedRoleValue - (common.roleValue as number)) > 1e-12
+      ) return false
     }
-    return true
   }
+  return true
 }
 
 const roleUtilityCodec =
