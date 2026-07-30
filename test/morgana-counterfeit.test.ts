@@ -113,6 +113,7 @@ function publicRecord(): PublicRecord {
       proposalNum: 2,
       leader: 0,
       team: [0, 1],
+      outcome: 'voted',
       votes: [
         { seat: 4, vote: 'approve' },
         { seat: 2, vote: 'approve' },

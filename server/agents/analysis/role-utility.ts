@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
+import { proposalVotes } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -142,7 +143,7 @@ function ownPublicSalience(
   const own = observer.seats[viewerSeat]
   if (!own) throw new Error('role utility observer lacks the viewer seat')
   const completedVote = record.proposals.some(
-    (proposal) => proposal.votes?.length === record.playerCount,
+    (proposal) => proposalVotes(proposal).length === record.playerCount,
   )
   const behavior = own.behavior
   // Approval direction is only meaningful after at least one complete public

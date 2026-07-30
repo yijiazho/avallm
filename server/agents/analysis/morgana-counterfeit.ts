@@ -5,7 +5,12 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT, TEAM_SIZES } from '../../engine/rules.ts'
+import {
+  ROLE_ALIGNMENT,
+  TEAM_SIZES,
+  proposalApproved,
+  proposalVotes,
+} from '../../engine/rules.ts'
 import { canonicalTeam, hasDistinctSeats, teamsEqual } from '../../engine/seatset.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import { assertDistribution } from '../belief/invariants.ts'
@@ -98,7 +103,7 @@ function truthCounts(record: PublicRecord): readonly TruthCounts[] {
       .filter(
         (proposal) =>
           proposal.round === quest.num
-          && (proposal.approved === true || proposal.auto === true)
+          && proposalApproved(proposal)
           && teamsEqual(proposal.team, quest.team!),
       )
       .sort(
@@ -112,7 +117,7 @@ function truthCounts(record: PublicRecord): readonly TruthCounts[] {
     if (quest.result === 'success') {
       counts[executed.leader].proposalHits += 1
     }
-    for (const vote of [...(executed.votes ?? [])].sort(
+    for (const vote of [...proposalVotes(executed)].sort(
       (left, right) => left.seat - right.seat,
     )) {
       counts[vote.seat].voteObservations += 1

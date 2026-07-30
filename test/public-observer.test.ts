@@ -20,6 +20,7 @@ import {
   visitCanonicalWorlds,
 } from '../server/agents/belief/worlds.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { rotatePublicRecord } from './support/player-view-metamorphic.ts'
 import {
   projectPublicRecord,
   type PublicRecord,
@@ -35,7 +36,6 @@ import {
 import type {
   PlayerView,
   Role,
-  Seat,
 } from '../server/engine/types.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
@@ -405,44 +405,6 @@ test('offline truth retention joins only after public inference', () => {
   ))
 })
 
-function rotateRecord(record: PublicRecord, shift: number): PublicRecord {
-  const rotate = (seat: Seat): Seat => (seat + shift) % record.playerCount
-  const rotateTeam = (team: readonly Seat[] | undefined) =>
-    team?.map(rotate).sort((left, right) => left - right)
-  return {
-    ...structuredClone(record),
-    players: record.players
-      .map((player) => ({
-        seat: rotate(player.seat),
-        name: `renamed-${rotate(player.seat)}`,
-      }))
-      .sort((left, right) => left.seat - right.seat),
-    leaderSeat: rotate(record.leaderSeat),
-    quests: record.quests.map((quest) => ({
-      ...quest,
-      ...(quest.team ? { team: rotateTeam(quest.team) } : {}),
-    })),
-    proposals: record.proposals.map((proposal) => ({
-      ...proposal,
-      leader: rotate(proposal.leader),
-      team: rotateTeam(proposal.team)!,
-      ...(proposal.revisedFrom
-        ? { revisedFrom: rotateTeam(proposal.revisedFrom) }
-        : {}),
-      ...(proposal.votes
-        ? {
-            votes: proposal.votes
-              .map((vote) => ({ ...vote, seat: rotate(vote.seat) }))
-              .sort((left, right) => left.seat - right.seat),
-          }
-        : {}),
-    })),
-    ...(record.currentTeam
-      ? { currentTeam: rotateTeam(record.currentTeam) }
-      : {}),
-  }
-}
-
 test('role order, names, seat rotation, and replay preserve exact semantics', () => {
   const record = structuredClone(baseRecord())
   record.quests[0] = {
@@ -456,6 +418,7 @@ test('role order, names, seat rotation, and replay preserve exact semantics', ()
     proposalNum: 1,
     leader: 0,
     team: [0, 1],
+    outcome: 'voted',
     votes: Array.from({ length: 5 }, (_, seat) => ({
       seat,
       vote: seat < 3 ? 'approve' as const : 'reject' as const,
@@ -480,7 +443,7 @@ test('role order, names, seat rotation, and replay preserve exact semantics', ()
   )
 
   const shift = 2
-  const rotated = observePublicRecord(rotateRecord(record, shift))
+  const rotated = observePublicRecord(rotatePublicRecord(record, shift))
   for (const seat of first.seats) {
     const target = rotated.seats[(seat.seat + shift) % record.playerCount]
     close(target.goodProbability, seat.goodProbability)
@@ -498,6 +461,7 @@ test('behavior reads all seats symmetrically but cannot reweight exact worlds', 
     proposalNum: 1,
     leader: 2,
     team: [1, 2],
+    outcome: 'voted',
     votes: [
       { seat: 0, vote: 'reject' },
       { seat: 1, vote: 'approve' },

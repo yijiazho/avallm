@@ -308,6 +308,7 @@ test('two-Fail threshold and anomalous treatment use direct joint worlds', () =>
     proposalNum: 1,
     leader: merlin,
     team: [...input.view.quests[0].team!],
+    outcome: 'voted',
     votes: [],
     approved: true,
   }]
@@ -534,6 +535,7 @@ test('public treatment and weighted joint worlds change only their owned terms',
     proposalNum: 1,
     leader: merlin,
     team: [...history.quests[0].team!],
+    outcome: 'voted',
     votes: [],
     approved: true,
   }]

@@ -45,7 +45,12 @@
 //      quests, `name(seat N)` for players. Reuse the existing tokens; don't invent
 //      a second spelling for a thing already named.
 
-import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../engine/rules.ts'
+import {
+  MAX_PROPOSALS,
+  QUESTS_TO_WIN,
+  proposalApproved,
+  proposalVotes,
+} from '../engine/rules.ts'
 import type { PlayerView, Seat } from '../engine/types.ts'
 import { boardSituation } from './analysis/situation.ts'
 import {
@@ -106,12 +111,12 @@ function computeRecords(record: PublicRecord): Map<Seat, PlayerRecord> {
   // carry an outcome; rejected proposals never played. Attribute against the
   // quest that resulted for that round.
   for (const prop of record.proposals) {
-    if (!prop.approved || !prop.votes) continue
+    if (!proposalApproved(prop)) continue
     const quest = record.quests[prop.round - 1]
     if (quest?.result === undefined) continue
     const failed = quest.result === 'fail'
     if (failed) rec.get(prop.leader)!.ledFailed += 1
-    for (const v of prop.votes) {
+    for (const v of proposalVotes(prop)) {
       rec.get(v.seat)!.playedVotes.push({ questNum: prop.round, vote: v.vote, failed })
       if (v.vote === 'approve' && failed && !prop.team.includes(v.seat)) {
         rec.get(v.seat)!.approvedFailedOff += 1
@@ -126,7 +131,7 @@ function computeRecords(record: PublicRecord): Map<Seat, PlayerRecord> {
   // scored against the quest it produced, while a rejected one has no outcome
   // and is read purely as a partition of the table.
   for (const prop of record.proposals) {
-    if (prop.approved || !prop.votes) continue
+    if (prop.outcome !== 'voted' || prop.approved) continue
     for (const v of prop.votes) {
       rec.get(v.seat)!.unplayedVotes.push({ round: prop.round, num: prop.proposalNum, vote: v.vote })
     }
@@ -143,10 +148,10 @@ function computeRecords(record: PublicRecord): Map<Seat, PlayerRecord> {
 function ownPositions(record: PublicRecord, viewerSeat: Seat): string[] {
   const out: string[] = []
   for (const prop of record.proposals) {
-    if (!prop.approved || !prop.votes) continue
+    if (!proposalApproved(prop)) continue
     const quest = record.quests[prop.round - 1]
     if (quest?.result === undefined) continue
-    const mine = prop.votes.find((v) => v.seat === viewerSeat)
+    const mine = proposalVotes(prop).find((v) => v.seat === viewerSeat)
     const led = prop.leader === viewerSeat
     const team = prop.team.map((s) => record.players[s].name).join('/')
     if ((led || mine?.vote === 'approve') && quest.result === 'fail') {

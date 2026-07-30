@@ -78,7 +78,7 @@
     },
     {
       "path": "test/facts.test.ts",
-      "sha256": "e445fe1869f630c358f3da5c91d7932a13d6f175ae193d803d443bca8d670a1c",
+      "sha256": "033c48481536ab1c55cda6b5946d8a9fa0b6f18c0030044fabc297d2dc7caf41",
       "rationale": "Legacy fact fixture widens role literals to strings."
     },
     {
@@ -118,22 +118,22 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "6ced7effb2e8198187ed64eac304519b31f86ba167b719ebfebaf3fe55045545",
+      "sha256": "f21d9720973d4e7e3c8d5bd3661cf91a3d07a6c1599b42841469efb5dcafd092",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "64447b02e7adcf1436270a6a589ea7ad559090c62066cfbcf1ed62fd4fbfa985",
+      "sha256": "34f79c0ad57652922be688854c60c60bfbfaab4cf7c9d51398900f9db4f993d2",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "4c3ecbd9a1a4fd653ab87f219529e784ab04124dd1664f1f5b7696772d10d493",
+      "sha256": "774967291274aa2bec54e29422c7d7d9e99e2a98ef3a0fde6d00a1d5d0c91037",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/morgana-quest-adapters.test.ts",
-      "sha256": "ef079c8c67526211a1b7b98cc269108082a6165d2e8aa95182014ecd33f4b1e4",
+      "sha256": "2c6a841d29228026f1636f311e97cf2e82bcbc490052e33c30a85f67e9bccaa3",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
@@ -148,17 +148,17 @@
     },
     {
       "path": "test/prompts.test.ts",
-      "sha256": "bc10aa643bdd78c6588c63c0e1318b8b27158a52d81e3db93e6bb9155cc9d623",
+      "sha256": "830c33afa0d956d1c84ac45cb52ecfd9984c0c7106142e8758eeb95a4fb484e4",
       "rationale": "Legacy prompt fixture exercises a retired phase spelling."
     },
     {
       "path": "test/public-observer.test.ts",
-      "sha256": "b5eba6a83ed1efa5022358076c71079166018b9cb076d34fd6c5a1bb1333ae49",
+      "sha256": "d78926fb4a42d4eb2bbd1847c4931b8dc4350d5b4b82ea83320df4e4961fd668",
       "rationale": "Legacy observer fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/public-record.test.ts",
-      "sha256": "455dd6f6160e7944d3e63ec96a70f17150262b7609f3abc9c4ab33efb8a91fd8",
+      "sha256": "a5df8b9863f757a8e87427c2ddaffc50fc52c62a350d54f9d0e591f61ce9cd1c",
       "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
     },
     {

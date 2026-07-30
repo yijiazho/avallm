@@ -287,18 +287,52 @@ export type PrivateInfo =
   | { kind: 'percival'; merlinCandidates: SeatSet } // {Merlin, Morgana}, unordered
   | { kind: 'evil'; evilPartners: SeatSet }       // fellow evil, minus Oberon, minus self
 
-export interface ProposalRecord {
+export type ProposalVote = { seat: Seat; vote: 'approve' | 'reject' }
+
+// A leader's one-time revision at finalize. `from` is the ORIGINAL team; the
+// final team lives in the record's `team`. `reason` is optional public speech.
+// The pair travels as one object so a reason with no original team, or a delta
+// with no team to diff against, is unrepresentable.
+export interface ProposalRevision {
+  from: Seat[]
+  reason?: string
+}
+
+// Fields every proposal carries, whatever its outcome. `revision` is orthogonal
+// to the outcome discriminant below: any variant may or may not have been revised.
+interface ProposalRecordBase {
   round: number
   proposalNum: number
   leader: Seat
   team: Seat[]          // the FINAL team (post-revision if revised)
   pitch?: string
-  revisedFrom?: Seat[]  // original team, present iff the leader revised at finalize
-  revisedReason?: string
-  votes?: { seat: Seat; vote: 'approve' | 'reject' }[]
-  approved?: boolean
-  auto?: boolean   // 5th ("hammer") proposal: approved automatically, no vote
+  revision?: ProposalRevision
 }
+
+// The proposal currently on the table, not yet resolved to a vote. Only the
+// last element of a view's `proposals` is ever pending.
+export interface PendingProposal extends ProposalRecordBase {
+  outcome: 'pending'
+}
+
+// A normally-voted proposal (proposals 1-4): the full ballot and its result.
+export interface VotedProposal extends ProposalRecordBase {
+  outcome: 'voted'
+  votes: ProposalVote[]
+  approved: boolean
+}
+
+// The 5th ("hammer") proposal: approved automatically with no vote. Approval is
+// implied by the variant, so there is no ballot or `approved` flag it could
+// contradict. See MAX_PROPOSALS / goToVoteOrQuest for the house rule.
+export interface AutoProposal extends ProposalRecordBase {
+  outcome: 'auto'
+}
+
+// Discriminated on `outcome`: the correlated optionals of the old flat shape
+// (votes+approved together, auto XOR votes, revisedFrom+revisedReason together)
+// are now impossible to combine wrongly.
+export type ProposalRecord = PendingProposal | VotedProposal | AutoProposal
 
 export interface PublicPlayer {
   seat: Seat

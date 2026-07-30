@@ -18,7 +18,7 @@ export function TableSeats({ view, bots, acting }: {
   bots: Record<number, AgentInfo>
   acting: Seat[]
 }) {
-  const lastVoted = [...view.proposals].reverse().find((p) => p.votes)
+  const lastVoted = [...view.proposals].reverse().find((p) => p.outcome !== 'pending')
   const votesVisible = view.phase !== 'vote' && lastVoted
   // Spectators (seat < 0) watch every chair; players see themselves at the
   // near edge (the footer chip), not on the arc.
@@ -30,7 +30,9 @@ export function TableSeats({ view, bots, acting }: {
         const isLeader = p.seat === view.leaderSeat
         const onTeam = view.currentTeam?.includes(p.seat)
         const isActing = acting.includes(p.seat)
-        const vote = votesVisible ? lastVoted!.votes!.find((v) => v.seat === p.seat)?.vote : undefined
+        const vote = votesVisible && lastVoted!.outcome === 'voted'
+          ? lastVoted!.votes.find((v) => v.seat === p.seat)?.vote
+          : undefined
         const bot = bots[p.seat]
         const pos = arcPosition(i, others.length)
         const mc = bot?.color ?? 'var(--gold)'

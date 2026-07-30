@@ -170,6 +170,7 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
     proposalNum: 1,
     leader: priorLeader,
     team: priorTeam,
+    outcome: 'voted',
     votes: afterVoteView.players.map((player) => ({
       seat: player.seat,
       vote: 'reject' as const,

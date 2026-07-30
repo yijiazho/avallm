@@ -16,6 +16,7 @@ import type {
   Role,
   Seat,
 } from '../server/engine/types.ts'
+import { rotatePlayerView } from './support/player-view-metamorphic.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   buildPrivateMordredBlindnessObjective,
@@ -252,6 +253,7 @@ test('treatment is exactly reconstructed from public executed quests only', () =
     proposalNum: 1,
     leader: merlin,
     team: [...team.team],
+    outcome: 'voted',
     votes: input.view.players.map((player) => ({
       seat: player.seat,
       vote: player.seat % 2 === 0 ? 'approve' : 'reject',
@@ -460,53 +462,6 @@ test('weighted correlated worlds use exact joint sums, not marginal products', (
   )
 })
 
-function rotateView(source: PlayerView, offset: number): PlayerView {
-  const count = source.playerCount
-  const rotate = (seat: Seat): Seat => (seat + offset) % count
-  const seats = (value: readonly Seat[] | undefined) =>
-    value?.map(rotate).sort((left, right) => left - right)
-  const view = structuredClone(source)
-  view.events = []
-  view.transcript = []
-  view.seat = rotate(source.seat)
-  view.name = `rotated-${view.seat}`
-  view.leaderSeat = rotate(source.leaderSeat)
-  view.players = source.players
-    .map((player) => ({
-      seat: rotate(player.seat),
-      name: `rotated-${rotate(player.seat)}`,
-    }))
-    .sort((left, right) => left.seat - right.seat)
-  view.privateInfo = ((info) => {
-    switch (info.kind) {
-      case 'merlin': return { kind: 'merlin' as const, knownEvil: seats(info.knownEvil)! }
-      case 'percival': return { kind: 'percival' as const, merlinCandidates: seats(info.merlinCandidates)! }
-      case 'evil': return { kind: 'evil' as const, evilPartners: seats(info.evilPartners)! }
-      case 'none': return { kind: 'none' as const }
-    }
-  })(source.privateInfo)
-  view.quests = source.quests.map((quest) => ({
-    ...quest,
-    ...(quest.team ? { team: seats(quest.team) } : {}),
-  }))
-  view.proposals = source.proposals.map((proposal) => ({
-    ...proposal,
-    leader: rotate(proposal.leader),
-    team: seats(proposal.team)!,
-    ...(proposal.revisedFrom
-      ? { revisedFrom: seats(proposal.revisedFrom) }
-      : {}),
-    ...(proposal.votes
-      ? {
-          votes: proposal.votes
-            .map((vote) => ({ ...vote, seat: rotate(vote.seat) }))
-            .sort((left, right) => left.seat - right.seat),
-        }
-      : {}),
-  }))
-  view.currentTeam = seats(source.currentTeam)
-  return view
-}
 
 function canonicalObjective(
   objective: ReturnType<typeof buildPrivateMordredBlindnessObjective>,
@@ -578,7 +533,7 @@ test('Mordred treatment and objective are name- and seat-rotation invariant', ()
   assert.deepEqual(renamedResult, original)
 
   const offset = 2
-  const rotatedView = rotateView(input.view, offset)
+  const rotatedView = rotatePlayerView(input.view, offset)
   const rotatedReq: DecisionRequest = {
     ...input.req,
     seat: (input.req.seat + offset) % input.view.playerCount,

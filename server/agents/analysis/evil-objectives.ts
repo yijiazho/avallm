@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import { evilPartnersOf } from '../../engine/knowledge.ts'
+import { proposalVotes } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -90,7 +91,7 @@ function publicStanding(
   observer: PublicObserverSnapshot,
 ): readonly PublicEvilStanding[] {
   const record = projectPublicRecord(view)
-  const allVotes = record.proposals.flatMap((proposal) => proposal.votes ?? [])
+  const allVotes = record.proposals.flatMap((proposal) => proposalVotes(proposal))
   return observer.seats.map((assessment) => {
     const seat = assessment.seat
     const selected = fraction(

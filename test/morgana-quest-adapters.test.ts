@@ -711,5 +711,5 @@ test('the 10-player 252-candidate E1 chain stays below the unchanged run cap', a
     'utf8',
   )
   assert.ok(runBytes < MAX_DECISION_COMPONENT_RUN_JSON_BYTES)
-  assert.equal(runBytes, 1_404_041)
+  assert.equal(runBytes, 1_404_055)
 })

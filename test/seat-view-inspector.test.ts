@@ -54,7 +54,7 @@ test('inspects a frozen decision fixture deterministically from the agent bounda
   assert.equal(first.publicBoard.players.length, fixture.view.playerCount)
   assert.ok(first.publicBoard.players.every((player) =>
     Object.keys(player).sort().join(',') === 'name,seat'))
-  assert.match(renderSeatViewInspection(first), /^Seat view inspection v1\n/)
+  assert.match(renderSeatViewInspection(first), /^Seat view inspection v2\n/)
   assert.match(SEAT_VIEW_INSPECTOR_USAGE, /--fixture <id>/)
 })
 
@@ -105,7 +105,9 @@ test('explicit nested output allow-lists do not copy hostile extra fields', () =
   Object.assign(poisoned.players[0], { secretNote: forbidden })
   Object.assign(poisoned.quests[0], { trueQuestCards: forbidden })
   Object.assign(poisoned.proposals[0], { trueDeal: forbidden })
-  Object.assign(poisoned.proposals[0].votes![0], { voterRole: forbidden })
+  const poisonedProposal = poisoned.proposals[0]
+  assert.ok(poisonedProposal.outcome === 'voted')
+  Object.assign(poisonedProposal.votes[0], { voterRole: forbidden })
   Object.assign(poisoned.transcript[0], { privateScratchpad: forbidden })
   Object.assign(poisoned.transcript[0].prop!, { hiddenLeaderRole: forbidden })
   Object.assign(poisoned.events[0].payload, { trueDeal: forbidden })

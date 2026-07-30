@@ -1,5 +1,5 @@
 import type { Role, Seat } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT, validateRoles } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, proposalVotes, validateRoles } from '../../engine/rules.ts'
 import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
   questFailEvidenceFromQuests,
@@ -193,7 +193,7 @@ const boundedRatio = (numerator: number, denominator: number): number =>
 
 function behaviorFor(record: PublicRecord, seat: Seat): PublicBehaviorReading {
   const proposals = record.proposals
-  const votes = proposals.flatMap((proposal) => proposal.votes ?? [])
+  const votes = proposals.flatMap((proposal) => proposalVotes(proposal))
   const seatVotes = votes.filter((vote) => vote.seat === seat)
   const questParticipations = record.quests.filter(
     (quest) => quest.result !== undefined && quest.team?.includes(seat),

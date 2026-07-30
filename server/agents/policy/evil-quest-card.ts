@@ -7,6 +7,8 @@ import {
   MAX_PROPOSALS,
   MIN_PLAYERS,
   QUESTS_PER_GAME,
+  proposalApproved,
+  proposalVotes,
 } from '../../engine/rules.ts'
 import { hasDistinctSeats } from '../../engine/seatset.ts'
 import { evilPartnersOf } from '../../engine/knowledge.ts'
@@ -295,7 +297,7 @@ function canonicalVisibleEvil(view: PlayerView): readonly Seat[] {
 }
 
 function canonicalVotes(proposal: DeepReadonly<ProposalRecord>): string {
-  return [...(proposal.votes ?? [])]
+  return [...proposalVotes(proposal)]
     .sort((left, right) => left.seat - right.seat)
     .map((vote) => `${vote.seat}=${vote.vote}`)
     .join(',')
@@ -334,9 +336,10 @@ export function evilQuestPublicContext(
       .map((proposal) =>
         `${proposal.round}.${proposal.proposalNum}:${proposal.leader}:`
         + `${[...proposal.team].sort((a, b) => a - b).join(',')}:`
-        + `${[...(proposal.revisedFrom ?? [])]
+        + `${[...(proposal.revision?.from ?? [])]
           .sort((a, b) => a - b).join(',')}:`
-        + `${proposal.approved ?? 'pending'}:${proposal.auto ?? false}:`
+        + `${proposal.outcome === 'pending' ? 'pending' : proposalApproved(proposal)}:`
+        + `${proposal.outcome === 'auto'}:`
         + `${canonicalVotes(proposal)}`),
   }
 }

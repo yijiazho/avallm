@@ -3,7 +3,7 @@
 // the official "5th rejection = evil wins"): the 5th proposal in a round is
 // approved automatically without a vote, so only 4 proposals can be rejected.
 
-import type { Alignment, Role } from './types.ts'
+import type { Alignment, ProposalVote, Role } from './types.ts'
 
 export const MIN_PLAYERS = 5
 export const MAX_PLAYERS = 10
@@ -112,4 +112,47 @@ export function validateRoles(playerCount: number, roles: Role[]): void {
   for (const r of UNIQUE_ROLES) {
     if (roles.filter((x) => x === r).length > 1) throw new Error(`duplicate unique role: ${r}`)
   }
+}
+
+// ---- Proposal outcome predicates ----
+//
+// One home for the "what did this proposal resolve to" questions, so readers
+// narrow the outcome-discriminated shape through these rather than re-deriving
+// the hammer/vote rules at each site. Typed structurally on the outcome
+// discriminant alone, so they serve both the engine's ProposalRecord and the
+// public-board projection (PublicRecord.proposals), which share the discriminant
+// but differ in their other fields.
+
+// The ballot cast on a proposal. Empty for a proposal still on the table
+// (pending) and for the auto-approved hammer, which is never voted on.
+export function proposalVotes(
+  p:
+    | { outcome: 'pending' | 'auto' }
+    | { outcome: 'voted'; votes: readonly ProposalVote[] },
+): readonly ProposalVote[] {
+  return p.outcome === 'voted' ? p.votes : []
+}
+
+// Whether the proposal was approved and sent on the quest: a voted approval or
+// the auto-approved hammer.
+export function proposalApproved(
+  p: { outcome: 'pending' | 'auto' } | { outcome: 'voted'; approved: boolean },
+): boolean {
+  return p.outcome === 'auto' || (p.outcome === 'voted' && p.approved)
+}
+
+// Whether the proposal has resolved (been voted on or auto-approved), i.e. is no
+// longer the team on the table awaiting a vote. A type guard so callers narrow
+// to the resolved variants of whichever proposal union they hold.
+export function proposalResolved<T extends { outcome: 'pending' | 'voted' | 'auto' }>(
+  p: T,
+): p is Extract<T, { outcome: 'voted' | 'auto' }> {
+  return p.outcome !== 'pending'
+}
+
+// Whether the proposal was voted down: a real ballot that failed the majority.
+export function proposalRejected(
+  p: { outcome: 'pending' | 'auto' } | { outcome: 'voted'; approved: boolean },
+): boolean {
+  return p.outcome === 'voted' && !p.approved
 }

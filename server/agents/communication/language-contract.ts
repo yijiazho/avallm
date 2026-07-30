@@ -364,40 +364,48 @@ function validPublicContext(
         || safeInteger(quest.failCount, 0, playerCount)
       ))
     || !Array.isArray(value.proposals)
-    || !value.proposals.every((proposal) =>
-      plainRecord(proposal)
-      && exactOptionalKeys(
-        proposal,
-        ['round', 'proposalNum', 'leader', 'team'],
-        ['revisedFrom', 'votes', 'approved', 'auto'],
-      )
-      && safeInteger(proposal.round, 1, 5)
-      && safeInteger(proposal.proposalNum, 1, 5)
-      && finiteSeat(proposal.leader, playerCount)
-      && validSeatArray(proposal.team, playerCount)
-      && (
-        proposal.revisedFrom === undefined
-        || validSeatArray(proposal.revisedFrom, playerCount)
-      )
-      && (
-        proposal.votes === undefined
+    || !value.proposals.every((proposal) => {
+      // Fields shared by every proposal outcome. `revisedFrom` is the lone
+      // optional the public record ever carries (never the reason speech).
+      if (
+        !plainRecord(proposal)
+        || !safeInteger(proposal.round, 1, 5)
+        || !safeInteger(proposal.proposalNum, 1, 5)
+        || !finiteSeat(proposal.leader, playerCount)
+        || !validSeatArray(proposal.team, playerCount)
         || (
-          Array.isArray(proposal.votes)
+          proposal.revisedFrom !== undefined
+          && !validSeatArray(proposal.revisedFrom, playerCount)
+        )
+      ) {
+        return false
+      }
+      // The outcome discriminant decides which keys must and must not appear:
+      // a voted proposal carries its ballot and result; pending/auto carry
+      // neither. exactOptionalKeys rejects any stray key for the variant.
+      if (proposal.outcome === 'voted') {
+        return exactOptionalKeys(
+          proposal,
+          ['round', 'proposalNum', 'leader', 'team', 'outcome', 'votes', 'approved'],
+          ['revisedFrom'],
+        )
+          && Array.isArray(proposal.votes)
           && proposal.votes.every((vote, index) =>
             plainRecord(vote)
             && exactKeys(vote, ['seat', 'vote'])
             && vote.seat === index
             && (vote.vote === 'approve' || vote.vote === 'reject'))
+          && typeof proposal.approved === 'boolean'
+      }
+      if (proposal.outcome === 'pending' || proposal.outcome === 'auto') {
+        return exactOptionalKeys(
+          proposal,
+          ['round', 'proposalNum', 'leader', 'team', 'outcome'],
+          ['revisedFrom'],
         )
-      )
-      && (
-        proposal.approved === undefined
-        || typeof proposal.approved === 'boolean'
-      )
-      && (
-        proposal.auto === undefined
-        || typeof proposal.auto === 'boolean'
-      ))
+      }
+      return false
+    })
   ) {
     return false
   }

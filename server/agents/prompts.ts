@@ -21,7 +21,12 @@
 // Code comments are exempt: they never reach the model. This block, for
 // instance, is free to use dashes.
 
-import { MAX_PROPOSALS, ROLE_ALIGNMENT, isCompletedQuest } from '../engine/rules.ts'
+import {
+  MAX_PROPOSALS,
+  ROLE_ALIGNMENT,
+  isCompletedQuest,
+  proposalResolved,
+} from '../engine/rules.ts'
 import { mentionsName } from '../engine/names.ts'
 import { evilPartnersOf } from '../engine/knowledge.ts'
 import { knownEvilAboard, matchPoint } from './board.ts'
@@ -242,7 +247,7 @@ function ownVoteMatchRecord(view: PlayerView): { matches: number; total: number 
   let matches = 0
   let total = 0
   for (const prop of view.proposals) {
-    if (!prop.approved || !prop.votes) continue
+    if (prop.outcome !== 'voted' || !prop.approved) continue
     const quest = view.quests[prop.round - 1]
     if (quest?.status !== 'complete') continue
     const mine = prop.votes.find((v) => v.seat === view.seat)
@@ -520,20 +525,20 @@ export function publicStateText(view: PlayerView): string {
     // delta (or misses that a revision happened at all). The reason never rides
     // the transcript (proposalRevised emits no utterance), so this is its only
     // channel to non-leaders.
-    const revision = pending?.revisedFrom
-      ? ` The leader REVISED this team at finalize: ${revisionDelta(pending.revisedFrom, view.currentTeam, (s) => nameOf(view, s))}${pending.revisedReason ? `, reason: "${sanitizeSpeech(pending.revisedReason)}"` : ''}.`
+    const revision = pending?.revision
+      ? ` The leader REVISED this team at finalize: ${revisionDelta(pending.revision.from, view.currentTeam, (s) => nameOf(view, s))}${pending.revision.reason ? `, reason: "${sanitizeSpeech(pending.revision.reason)}"` : ''}.`
       : ''
     lines.push(`Proposed team on the table: ${view.currentTeam.map((s) => nameOf(view, s)).join(', ')}.${revision}${pitch}`)
   }
-  const votedProposals = view.proposals.filter((p) => p.votes)
+  const votedProposals = view.proposals.filter(proposalResolved)
   if (votedProposals.length) {
     const hist = votedProposals.map((p) => {
       const pitch = p.pitch ? ` pitch: "${sanitizeSpeech(p.pitch).slice(0, 120)}"` : ''
-      const outcome = p.auto
+      const outcome = p.outcome === 'auto'
         ? 'AUTO-APPROVED (hammer, no vote)'
-        : `${p.approved ? 'APPROVED' : 'rejected'} (${p.votes!.map((v) => `${view.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')})`
-      const revised = p.revisedFrom
-        ? ` (revised at finalize: ${revisionDelta(p.revisedFrom, p.team, (s) => view.players[s].name)})`
+        : `${p.approved ? 'APPROVED' : 'rejected'} (${p.votes.map((v) => `${view.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')})`
+      const revised = p.revision
+        ? ` (revised at finalize: ${revisionDelta(p.revision.from, p.team, (s) => view.players[s].name)})`
         : ''
       return `Q${p.round}.${p.proposalNum} leader ${view.players[p.leader].name}, team [${p.team.map((s) => view.players[s].name).join('/')}]${revised} -> ${outcome}${pitch}`
     })

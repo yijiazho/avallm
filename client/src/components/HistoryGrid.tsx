@@ -54,12 +54,15 @@ export function HistoryGrid({ view, onClose }: {
                 </tr>
                 <tr>
                   <th className="hg-name" />
-                  {rounds.flatMap((r) => r.proposals.map((p) => (
-                    <th key={`${p.round}.${p.proposalNum}`} className={`hg-prop${p.approved === false ? ' rejected' : ''}`}
-                      title={`Proposal ${p.proposalNum}/5 · leader ${view.players[p.leader]?.name}${p.pitch ? ` · “${p.pitch}”` : ''}${p.revisedFrom ? ` · revised from ${p.revisedFrom.map((s) => view.players[s]?.name).join('/')}${p.revisedReason ? `: “${p.revisedReason}”` : ''}` : ''}`}>
-                      {p.proposalNum}{p.revisedFrom ? '⟲' : ''}{p.proposalNum === 5 ? '🔨' : ''}
-                    </th>
-                  )))}
+                  {rounds.flatMap((r) => r.proposals.map((p) => {
+                    const rejected = p.outcome === 'voted' && !p.approved
+                    return (
+                      <th key={`${p.round}.${p.proposalNum}`} className={`hg-prop${rejected ? ' rejected' : ''}`}
+                        title={`Proposal ${p.proposalNum}/5 · leader ${view.players[p.leader]?.name}${p.pitch ? ` · “${p.pitch}”` : ''}${p.revision ? ` · revised from ${p.revision.from.map((s) => view.players[s]?.name).join('/')}${p.revision.reason ? `: “${p.revision.reason}”` : ''}` : ''}`}>
+                        {p.proposalNum}{p.revision ? '⟲' : ''}{p.proposalNum === 5 ? '🔨' : ''}
+                      </th>
+                    )
+                  }))}
                 </tr>
               </thead>
               <tbody>
@@ -71,11 +74,14 @@ export function HistoryGrid({ view, onClose }: {
                     {rounds.flatMap((r) => r.proposals.map((p) => {
                       const onTeam = p.team.includes(player.seat)
                       const isLeader = p.leader === player.seat
-                      const vote = p.votes?.find((v) => v.seat === player.seat)?.vote
+                      const rejected = p.outcome === 'voted' && !p.approved
+                      const vote = p.outcome === 'voted'
+                        ? p.votes.find((v) => v.seat === player.seat)?.vote
+                        : undefined
                       const cls = [
                         'hg-cell',
                         onTeam ? 'on-team' : '',
-                        p.approved === false ? 'rejected' : '',
+                        rejected ? 'rejected' : '',
                         vote === 'approve' ? 'yes' : vote === 'reject' ? 'no' : '',
                       ].join(' ')
                       const mark = vote === 'approve' ? '✓' : vote === 'reject' ? '✗' : onTeam ? '·' : ''

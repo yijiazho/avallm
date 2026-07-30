@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
+import { proposalApproved, proposalVotes } from '../../engine/rules.ts'
 import type { Seat } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/seatset.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
@@ -64,7 +65,7 @@ function executedProposals(record: PublicRecord) {
         .filter(
           (candidate) =>
             candidate.round === quest.num
-            && (candidate.approved === true || candidate.auto === true)
+            && proposalApproved(candidate)
             && teamsEqual(candidate.team, quest.team!),
         )
         .sort(
@@ -107,7 +108,7 @@ export function buildPrivateActorTargetTreatmentRead(
       row.proposalDenominator += 1
       if (team.has(target)) row.proposalNumerator += 1
     }
-    for (const vote of [...(proposal.votes ?? [])].sort(
+    for (const vote of [...proposalVotes(proposal)].sort(
       (left, right) => left.seat - right.seat,
     )) {
       for (const target of [...team].sort((left, right) => left - right)) {

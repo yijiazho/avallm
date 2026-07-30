@@ -15,6 +15,7 @@ import type { OpenRouterClient, Msg } from '../llm/openrouter.ts'
 import { buildMessages } from './prompts.ts'
 import type { AskExtra, PromptOverrides } from './prompts.ts'
 import { legalityError, parseDecision } from './parse.ts'
+import { proposalRejected } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { AgentDecision, AvalonAgent } from './types.ts'
 import {
@@ -145,10 +146,10 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
 
   async function maybeReflect(view: PlayerView): Promise<void> {
     const resolved = view.quests.filter((q) => q.status === 'complete').length
-    // A rejected proposal has votes recorded and approved === false; the hammer
+    // Only a voted-down proposal counts as a rejection; the hammer
     // (auto-approved, no vote) and every approved team are excluded.
     const rejections = reflectOnRejections()
-      ? view.proposals.filter((p) => p.votes && p.approved === false).length
+      ? view.proposals.filter(proposalRejected).length
       : 0
     const questAdvanced = resolved > reflectedQuests
     const rejectionsAdvanced = rejections > reflectedRejections

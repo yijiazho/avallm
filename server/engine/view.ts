@@ -4,8 +4,53 @@
 
 import { computeKnowledge } from './knowledge.ts'
 import type {
-  Game, GameEvent, PlayerView, ProposalRecord, Seat,
+  Game, GameEvent, PlayerView, ProposalRecord, ProposalVote, Seat,
 } from './types.ts'
+
+// Internal accumulator for the incremental fold. A proposal is materialized at
+// propose-time (before its outcome is known) and mutated as `proposalRevised`
+// and `voteReveal` arrive, so the fold needs a mutable staging shape. The clean
+// discriminated ProposalRecord is produced only at the view boundary
+// (draftToRecord), so the loose optionals never escape this file.
+interface ProposalDraft {
+  round: number
+  proposalNum: number
+  leader: Seat
+  team: Seat[]
+  pitch?: string
+  revision?: { from: Seat[]; reason?: string }
+  resolution?: { votes: ProposalVote[]; approved: boolean; auto: boolean }
+}
+
+// Freeze a staging draft into its ProposalRecord variant, deep-copying arrays so
+// the emitted view can never alias the accumulator.
+function draftToRecord(d: ProposalDraft): ProposalRecord {
+  const base = {
+    round: d.round,
+    proposalNum: d.proposalNum,
+    leader: d.leader,
+    team: d.team.slice(),
+    ...(d.pitch !== undefined ? { pitch: d.pitch } : {}),
+    ...(d.revision
+      ? {
+          revision: {
+            from: d.revision.from.slice(),
+            ...(d.revision.reason !== undefined
+              ? { reason: d.revision.reason }
+              : {}),
+          },
+        }
+      : {}),
+  }
+  if (!d.resolution) return { ...base, outcome: 'pending' }
+  if (d.resolution.auto) return { ...base, outcome: 'auto' }
+  return {
+    ...base,
+    outcome: 'voted',
+    votes: d.resolution.votes.map((vote) => ({ ...vote })),
+    approved: d.resolution.approved,
+  }
+}
 
 export function eventVisibleTo(ev: GameEvent, seat: Seat): boolean {
   return ev.visibility === 'public' || ev.visibility.only.includes(seat)
@@ -45,7 +90,7 @@ function createPlayerViewProjection(
     { length: playerCount },
     () => [] as GameEvent[],
   )
-  const proposals: ProposalRecord[] = []
+  const proposals: ProposalDraft[] = []
   const transcript: ProjectedTranscriptEntry[] = []
   let curProp:
     | { round: number; proposalNum: number; leader: Seat; team: Seat[] }
@@ -127,9 +172,11 @@ function createPlayerViewProjection(
     } else if (ev.type === 'proposalRevised') {
       const rec = proposals[proposals.length - 1]
       rec.team = ev.payload.to.slice()
-      rec.revisedFrom = ev.payload.from.slice()
-      if (typeof ev.payload.reason === 'string') {
-        rec.revisedReason = ev.payload.reason
+      rec.revision = {
+        from: ev.payload.from.slice(),
+        ...(typeof ev.payload.reason === 'string'
+          ? { reason: ev.payload.reason }
+          : {}),
       }
       curProp = {
         round: ev.payload.round,
@@ -139,9 +186,11 @@ function createPlayerViewProjection(
       }
     } else if (ev.type === 'voteReveal') {
       const rec = proposals[proposals.length - 1]
-      rec.votes = ev.payload.votes.map((vote) => ({ ...vote }))
-      rec.approved = ev.payload.approved
-      if (ev.payload.auto === true) rec.auto = true
+      rec.resolution = {
+        votes: ev.payload.votes.map((vote) => ({ ...vote })),
+        approved: ev.payload.approved,
+        auto: ev.payload.auto === true,
+      }
     } else if (ev.type === 'rename') {
       transcript.push({
         seat: ev.payload.seat,
@@ -207,16 +256,7 @@ function createPlayerViewProjection(
           quest.status === 'complete'
             ? { ...quest, team: quest.team.slice() }
             : { ...quest }),
-        proposals: proposals.map((proposal) => ({
-          ...proposal,
-          team: proposal.team.slice(),
-          ...(proposal.revisedFrom
-            ? { revisedFrom: proposal.revisedFrom.slice() }
-            : {}),
-          ...(proposal.votes
-            ? { votes: proposal.votes.map((vote) => ({ ...vote })) }
-            : {}),
-        })),
+        proposals: proposals.map(draftToRecord),
         currentTeam: candidate.currentTeam?.slice(),
         discussionRound: candidate.discussion?.roundNum,
         discussionPostRevision: candidate.discussion?.postRevision,

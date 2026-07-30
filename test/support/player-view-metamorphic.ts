@@ -1,13 +1,21 @@
 import type { PlayerView } from '../../server/engine/types.ts'
+import type { PublicRecord } from '../../server/agents/communication/public-record.ts'
+
+// Shared seat-rotation primitives for the metamorphic tests: rotate a seat index
+// by a fixed shift, and rotate + re-sort a seat array. One home so a proposal
+// shape change is a single edit rather than three parallel ones.
+function seatRotator(count: number, shift: number) {
+  const rotate = (seat: number): number => (seat + shift) % count
+  const seats = (source: readonly number[] | undefined) =>
+    source?.map(rotate).sort((left, right) => left - right)
+  return { rotate, seats }
+}
 
 export function rotatePlayerView(
   view: PlayerView,
   shift: number,
 ): PlayerView {
-  const rotate = (seat: number): number =>
-    (seat + shift) % view.playerCount
-  const seats = (source: readonly number[] | undefined) =>
-    source?.map(rotate).sort((left, right) => left - right)
+  const { rotate, seats } = seatRotator(view.playerCount, shift)
   const copy = structuredClone(view)
   const players = copy.players
     .map((player) => ({
@@ -37,10 +45,10 @@ export function rotatePlayerView(
       ...proposal,
       leader: rotate(proposal.leader),
       team: seats(proposal.team)!,
-      ...(proposal.revisedFrom
-        ? { revisedFrom: seats(proposal.revisedFrom) }
+      ...(proposal.revision
+        ? { revision: { ...proposal.revision, from: seats(proposal.revision.from)! } }
         : {}),
-      ...(proposal.votes
+      ...(proposal.outcome === 'voted'
         ? {
             votes: proposal.votes
               .map((vote) => ({ ...vote, seat: rotate(vote.seat) }))
@@ -51,5 +59,46 @@ export function rotatePlayerView(
     ...(copy.currentTeam ? { currentTeam: seats(copy.currentTeam) } : {}),
     transcript: [],
     events: [],
+  }
+}
+
+// The PublicRecord counterpart. The public board carries no viewer identity,
+// private knowledge, transcript, or events, and its proposals keep `revisedFrom`
+// flat (never the reason speech), so it rotates the same seats over a smaller
+// shape.
+export function rotatePublicRecord(
+  record: PublicRecord,
+  shift: number,
+): PublicRecord {
+  const { rotate, seats } = seatRotator(record.playerCount, shift)
+  return {
+    ...structuredClone(record),
+    players: record.players
+      .map((player) => ({
+        seat: rotate(player.seat),
+        name: `renamed-${rotate(player.seat)}`,
+      }))
+      .sort((left, right) => left.seat - right.seat),
+    leaderSeat: rotate(record.leaderSeat),
+    quests: record.quests.map((quest) => ({
+      ...quest,
+      ...(quest.team ? { team: seats(quest.team) } : {}),
+    })),
+    proposals: record.proposals.map((proposal) => ({
+      ...proposal,
+      leader: rotate(proposal.leader),
+      team: seats(proposal.team)!,
+      ...(proposal.revisedFrom
+        ? { revisedFrom: seats(proposal.revisedFrom) }
+        : {}),
+      ...(proposal.outcome === 'voted'
+        ? {
+            votes: proposal.votes
+              .map((vote) => ({ ...vote, seat: rotate(vote.seat) }))
+              .sort((left, right) => left.seat - right.seat),
+          }
+        : {}),
+    })),
+    ...(record.currentTeam ? { currentTeam: seats(record.currentTeam) } : {}),
   }
 }

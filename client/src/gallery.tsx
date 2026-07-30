@@ -62,7 +62,7 @@ const bots: Record<number, AgentInfo> = {
 const tableView = v({
   phase: 'discussion', round: 2, proposalNum: 1, leaderSeat: 2, currentTeam: [2, 3],
   proposals: [{
-    round: 2, proposalNum: 1, leader: 2, team: [2, 3], approved: true,
+    round: 2, proposalNum: 1, leader: 2, team: [2, 3], outcome: 'voted', approved: true,
     votes: [
       { seat: 1, vote: 'reject' }, { seat: 2, vote: 'approve' }, { seat: 3, vote: 'approve' },
       { seat: 4, vote: 'approve' }, { seat: 5, vote: 'reject' }, { seat: 6, vote: 'approve' },

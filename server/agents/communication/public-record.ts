@@ -5,6 +5,34 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 
+// The public board's view of a proposal: the mechanical record only (no pitch or
+// revision reason speech). Discriminated on `outcome` exactly like the engine's
+// ProposalRecord, so the shared outcome predicates narrow it too. `revisedFrom`
+// is a lone optional here (the public record never carried the reason), so it
+// stays flat on the base rather than folding into a revision object.
+export interface PublicProposalBase {
+  round: number
+  proposalNum: number
+  leader: Seat
+  team: readonly Seat[]
+  revisedFrom?: readonly Seat[]
+}
+export interface PublicPendingProposal extends PublicProposalBase {
+  outcome: 'pending'
+}
+export interface PublicVotedProposal extends PublicProposalBase {
+  outcome: 'voted'
+  votes: readonly { seat: Seat; vote: 'approve' | 'reject' }[]
+  approved: boolean
+}
+export interface PublicAutoProposal extends PublicProposalBase {
+  outcome: 'auto'
+}
+export type PublicProposal =
+  | PublicPendingProposal
+  | PublicVotedProposal
+  | PublicAutoProposal
+
 /**
  * The canonical public board record shared by deterministic prompt facts and
  * language interpretation.
@@ -30,16 +58,7 @@ export interface PublicRecord {
     result?: 'success' | 'fail'
     failCount?: number
   }[]
-  proposals: readonly {
-    round: number
-    proposalNum: number
-    leader: Seat
-    team: readonly Seat[]
-    revisedFrom?: readonly Seat[]
-    votes?: readonly { seat: Seat; vote: 'approve' | 'reject' }[]
-    approved?: boolean
-    auto?: boolean
-  }[]
+  proposals: readonly PublicProposal[]
   currentTeam?: readonly Seat[]
   discussionRound?: number
   discussionPostRevision?: boolean
@@ -74,27 +93,32 @@ export function projectPublicRecord(view: PlayerView): PublicRecord {
         ? { team: quest.team.slice(), result: quest.result, failCount: quest.failCount }
         : {}),
     })),
-    proposals: view.proposals.map((proposal) => ({
-      round: proposal.round,
-      proposalNum: proposal.proposalNum,
-      leader: proposal.leader,
-      team: proposal.team.slice(),
-      ...(proposal.revisedFrom
-        ? { revisedFrom: proposal.revisedFrom.slice() }
-        : {}),
-      ...(proposal.votes
-        ? {
-            votes: proposal.votes.map((vote) => ({
-              seat: vote.seat,
-              vote: vote.vote,
-            })),
-          }
-        : {}),
-      ...(proposal.approved === undefined
-        ? {}
-        : { approved: proposal.approved }),
-      ...(proposal.auto === undefined ? {} : { auto: proposal.auto }),
-    })),
+    proposals: view.proposals.map((proposal): PublicProposal => {
+      const base = {
+        round: proposal.round,
+        proposalNum: proposal.proposalNum,
+        leader: proposal.leader,
+        team: proposal.team.slice(),
+        ...(proposal.revision
+          ? { revisedFrom: proposal.revision.from.slice() }
+          : {}),
+      }
+      // Carry the engine's outcome discriminant onto the public board; the
+      // voted variant keeps its ballot and result, the others carry neither.
+      if (proposal.outcome === 'voted') {
+        return {
+          ...base,
+          outcome: 'voted',
+          votes: proposal.votes.map((vote) => ({
+            seat: vote.seat,
+            vote: vote.vote,
+          })),
+          approved: proposal.approved,
+        }
+      }
+      if (proposal.outcome === 'auto') return { ...base, outcome: 'auto' }
+      return { ...base, outcome: 'pending' }
+    }),
     ...(view.currentTeam ? { currentTeam: view.currentTeam.slice() } : {}),
     ...(view.discussionRound === undefined
       ? {}

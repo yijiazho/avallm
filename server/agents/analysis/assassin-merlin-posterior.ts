@@ -4,7 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, proposalResolved, proposalVotes } from '../../engine/rules.ts'
 import { evilPartnersOf } from '../../engine/knowledge.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import { assertDistribution } from '../belief/invariants.ts'
@@ -33,10 +33,7 @@ import {
 
 function resolvedActions(view: PlayerView) {
   return [...view.proposals]
-    .filter(
-      (proposal) =>
-        proposal.auto === true || proposal.approved !== undefined,
-    )
+    .filter(proposalResolved)
     .sort(
       (a, b) =>
         a.round - b.round
@@ -46,9 +43,7 @@ function resolvedActions(view: PlayerView) {
     .map((proposal) => ({
       leader: proposal.leader,
       team: proposal.team,
-      votes: proposal.auto
-        ? []
-        : [...(proposal.votes ?? [])].sort((a, b) => a.seat - b.seat),
+      votes: [...proposalVotes(proposal)].sort((a, b) => a.seat - b.seat),
     }))
 }
 

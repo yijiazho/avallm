@@ -36,7 +36,7 @@ const quest = (
 }
 
 const proposal = (over: Partial<ProposalRecord>): ProposalRecord =>
-  ({ round: 1, proposalNum: 1, leader: 0, team: [], approved: true, ...over }) as ProposalRecord
+  ({ round: 1, proposalNum: 1, leader: 0, team: [], outcome: 'voted', approved: true, votes: [], ...over }) as ProposalRecord
 
 test('dossier is empty before anything resolves', () => {
   assert.equal(factsDossier(view({ quests: [quest(1, 2, {}), quest(2, 3, {})] })), '')

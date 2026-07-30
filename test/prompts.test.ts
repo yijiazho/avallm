@@ -97,7 +97,7 @@ test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tel
     { num: 2, teamSize: 3, failsRequired: 1, status: 'complete', team: [1, 3, 4], result: 'fail', failCount: 1 },
   ]
   const approvedVotes = (r: number, mine: 'approve' | 'reject') => ({
-    round: r, proposalNum: 1, leader: 1, team: quests[r - 1].team, approved: true,
+    round: r, proposalNum: 1, leader: 1, team: quests[r - 1].team, outcome: 'voted', approved: true,
     votes: [{ seat: 0, vote: mine }, { seat: 1, vote: 'approve' }, { seat: 2, vote: 'approve' },
       { seat: 3, vote: 'approve' }, { seat: 4, vote: 'approve' }],
   })

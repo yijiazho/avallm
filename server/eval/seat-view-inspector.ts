@@ -14,6 +14,7 @@ import type {
   GameEvent,
   Phase,
   PlayerView,
+  ProposalRecord,
   Role,
   Seat,
 } from '../engine/types.ts'
@@ -25,7 +26,7 @@ import {
 } from '../engine/types.ts'
 import type { ExactKeyList } from '../agents/key-lists.ts'
 
-export const SEAT_VIEW_INSPECTION_SCHEMA = 1
+export const SEAT_VIEW_INSPECTION_SCHEMA = 2
 export const DEFAULT_SEAT_VIEW_FIXTURE_FILE =
   'test/fixtures/architecture-decision-views.json'
 
@@ -133,18 +134,13 @@ export interface InspectedQuest {
   failCount?: number
 }
 
-export interface InspectedProposal {
-  round: number
-  proposalNum: number
-  leader: Seat
-  team: Seat[]
-  pitch?: string
-  revisedFrom?: Seat[]
-  revisedReason?: string
-  votes?: { seat: Seat; vote: 'approve' | 'reject' }[]
-  approved?: boolean
-  auto?: boolean
-}
+// The inspection mirrors PlayerView.proposals faithfully (full fidelity: it
+// keeps the pitch and revision reason), so its proposal shape simply IS the
+// engine's ProposalRecord. inspectProposal still deep-copies each field rather
+// than aliasing the view's arrays, so the snapshot owns detached data and
+// controls exactly what it mirrors; validateProposal remains the independent
+// runtime guard on the serialized shape.
+export type InspectedProposal = ProposalRecord
 
 export interface SeatViewInspection {
   schema: number
@@ -281,13 +277,16 @@ function validateProposal(value: unknown, playerCount: number, index: number): v
   assertSeat(proposal.leader, playerCount, `${label}.leader`)
   validateSeatArray(proposal.team, playerCount, `${label}.team`)
   if (proposal.pitch !== undefined) assertString(proposal.pitch, `${label}.pitch`)
-  if (proposal.revisedFrom !== undefined) {
-    validateSeatArray(proposal.revisedFrom, playerCount, `${label}.revisedFrom`)
+  if (proposal.revision !== undefined) {
+    const revision = asRecord(proposal.revision, `${label}.revision`)
+    validateSeatArray(revision.from, playerCount, `${label}.revision.from`)
+    if (revision.reason !== undefined) {
+      assertString(revision.reason, `${label}.revision.reason`)
+    }
   }
-  if (proposal.revisedReason !== undefined) {
-    assertString(proposal.revisedReason, `${label}.revisedReason`)
-  }
-  if (proposal.votes !== undefined) {
+  // The voted variant carries a ballot and result; pending and the hammer carry
+  // neither.
+  if (proposal.outcome === 'voted') {
     for (const [voteIndex, value] of asArray(proposal.votes, `${label}.votes`).entries()) {
       const voteLabel = `${label}.votes[${voteIndex}]`
       const vote = asRecord(value, voteLabel)
@@ -296,9 +295,10 @@ function validateProposal(value: unknown, playerCount: number, index: number): v
         fail(`${voteLabel}.vote must be approve or reject`)
       }
     }
+    assertBoolean(proposal.approved, `${label}.approved`)
+  } else if (proposal.outcome !== 'pending' && proposal.outcome !== 'auto') {
+    fail(`${label}.outcome must be pending, voted, or auto`)
   }
-  if (proposal.approved !== undefined) assertBoolean(proposal.approved, `${label}.approved`)
-  if (proposal.auto !== undefined) assertBoolean(proposal.auto, `${label}.auto`)
 }
 
 function validateTranscriptEntry(value: unknown, playerCount: number, index: number): void {
@@ -778,29 +778,38 @@ function inspectQuest(quest: PlayerView['quests'][number]): InspectedQuest {
 function inspectProposal(
   proposal: PlayerView['proposals'][number],
 ): InspectedProposal {
-  return {
+  const base = {
     round: proposal.round,
     proposalNum: proposal.proposalNum,
     leader: proposal.leader,
     team: proposal.team.slice(),
     ...(proposal.pitch === undefined ? {} : { pitch: proposal.pitch }),
-    ...(proposal.revisedFrom === undefined
-      ? {}
-      : { revisedFrom: proposal.revisedFrom.slice() }),
-    ...(proposal.revisedReason === undefined
-      ? {}
-      : { revisedReason: proposal.revisedReason }),
-    ...(proposal.votes === undefined
+    ...(proposal.revision === undefined
       ? {}
       : {
-          votes: proposal.votes.map((vote) => ({
-            seat: vote.seat,
-            vote: vote.vote,
-          })),
+          revision: {
+            from: proposal.revision.from.slice(),
+            ...(proposal.revision.reason === undefined
+              ? {}
+              : { reason: proposal.revision.reason }),
+          },
         }),
-    ...(proposal.approved === undefined ? {} : { approved: proposal.approved }),
-    ...(proposal.auto === undefined ? {} : { auto: proposal.auto }),
   }
+  // Mirror the engine's outcome variant faithfully: the voted proposal carries
+  // its ballot and result, pending and the hammer carry neither.
+  if (proposal.outcome === 'voted') {
+    return {
+      ...base,
+      outcome: 'voted',
+      votes: proposal.votes.map((vote) => ({
+        seat: vote.seat,
+        vote: vote.vote,
+      })),
+      approved: proposal.approved,
+    }
+  }
+  if (proposal.outcome === 'auto') return { ...base, outcome: 'auto' }
+  return { ...base, outcome: 'pending' }
 }
 
 function inspectTranscriptEntry(

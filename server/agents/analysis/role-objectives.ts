@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, proposalVotes } from '../../engine/rules.ts'
 import { merlinCandidatesOf } from '../../engine/knowledge.ts'
 import type {
   Decision,
@@ -450,7 +450,7 @@ export function buildRoleObjectiveSnapshot(input: {
     commitments.map((candidate) => candidate.team!),
   )
   const hasCompletedPublicVote = publicRecord.proposals.some(
-    (proposal) => proposal.votes?.length === publicRecord.playerCount,
+    (proposal) => proposalVotes(proposal).length === publicRecord.playerCount,
   )
   const failsRequired = view.quests[view.round - 1]?.failsRequired
   if (!Number.isSafeInteger(failsRequired) || failsRequired < 1 || failsRequired > 2) {

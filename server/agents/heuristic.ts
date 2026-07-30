@@ -8,6 +8,7 @@
 import { makeRng, fnv1a } from '../engine/prng.ts'
 import type { Rng } from '../engine/prng.ts'
 import { evilPartnersOf, knownEvilOf } from '../engine/knowledge.ts'
+import { proposalApproved, proposalVotes } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
@@ -52,11 +53,11 @@ function suspicion(view: PlayerView): number[] {
   // Vote-pattern inference (strategy doc: the vote matrix is the game's
   // primary text): who led and who approved the teams that went on to fail?
   for (const prop of view.proposals) {
-    if (!prop.approved) continue
+    if (!proposalApproved(prop)) continue
     const quest = view.quests[prop.round - 1]
     if (quest.status !== 'complete' || quest.result !== 'fail') continue
     if (prop.leader !== view.seat) score[prop.leader] += 1.5
-    for (const v of prop.votes ?? []) {
+    for (const v of proposalVotes(prop)) {
       if (v.seat === view.seat || v.vote !== 'approve') continue
       if (!prop.team.includes(v.seat)) score[v.seat] += 0.4
     }
@@ -201,7 +202,7 @@ function decideAssassinate(view: PlayerView, rng: Rng): Decision {
   const candidates = view.players.map((p) => p.seat).filter((s) => !evil.has(s))
   const score = new Map<Seat, number>(candidates.map((s) => [s, 0]))
   for (const prop of view.proposals) {
-    if (!prop.votes) continue
+    if (prop.outcome !== 'voted') continue
     const teamHadEvil = prop.team.some((s) => evil.has(s))
     const correct = teamHadEvil ? 'reject' : 'approve'
     for (const v of prop.votes) {
