@@ -65,17 +65,21 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
   const o = extractObject(content)
   const thinking = thinkingOf(o)
   const fail = (error: string): ParsedDecision => ({ thinking, parseFailed: true, error })
+  // The success mirror of `fail`: wrap a parsed decision in the ParsedDecision
+  // envelope, carrying the same `thinking` and marking parseFailed false. (The
+  // pitch and reflect branches return their own {pitch}/{scratchpad} shapes.)
+  const ok = (decision: Decision): ParsedDecision => ({ decision, thinking, parseFailed: false })
 
   switch (kind) {
     case 'discuss': {
       if (o && typeof o.say === 'string') {
-        return { decision: { kind: 'discuss', say: o.say.trim().slice(0, SAY_MAX_CHARS), thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'discuss', say: o.say.trim().slice(0, SAY_MAX_CHARS), thinking })
       }
       // Salvage: a model that answered in prose is still speech — but JSON-ish
       // debris is not.
       const raw = content.trim()
       if (raw && !raw.includes('{') && !raw.includes('"say"')) {
-        return { decision: { kind: 'discuss', say: raw.slice(0, SAY_MAX_CHARS), thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'discuss', say: raw.slice(0, SAY_MAX_CHARS), thinking })
       }
       return fail('expected {"thinking": "...", "say": "..."}')
     }
@@ -96,7 +100,7 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
       if (team && team.every((s) => Number.isInteger(s))) {
         // Tolerate models that still bundle a pitch with the team.
         const pitch = typeof o?.pitch === 'string' ? o.pitch.trim().slice(0, SAY_MAX_CHARS) : undefined
-        return { decision: { kind: 'propose', team: team as Seat[], pitch, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'propose', team: team as Seat[], pitch, thinking })
       }
       // Salvage: pull seat numbers out of the text in order.
       const size = view.quests[view.round - 1].teamSize
@@ -105,7 +109,7 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
         .filter((n) => n >= 0 && n < view.playerCount)
       const distinct = [...new Set(nums)]
       if (distinct.length >= size) {
-        return { decision: { kind: 'propose', team: distinct.slice(0, size), thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'propose', team: distinct.slice(0, size), thinking })
       }
       return fail(`expected {"team": [${size} seat numbers]}`)
     }
@@ -115,17 +119,14 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
       const stick = stickRaw === true || stickRaw === 'true' ? true
         : stickRaw === false || stickRaw === 'false' ? false : undefined
       if (stick === true) {
-        return { decision: { kind: 'finalize', stick: true, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'finalize', stick: true, thinking })
       }
       if (stick === false) {
         const team = Array.isArray(o?.team) ? o.team : null
         if (team && team.length > 0 && team.every((s) => Number.isInteger(s))) {
           const reason = typeof o?.reason === 'string' && o.reason.trim()
             ? o.reason.trim().slice(0, SAY_MAX_CHARS) : undefined
-          return {
-            decision: { kind: 'finalize', stick: false, team: team as Seat[], reason, thinking },
-            thinking, parseFailed: false,
-          }
+          return ok({ kind: 'finalize', stick: false, team: team as Seat[], reason, thinking })
         }
         // stick:false with no usable team is closer to indecision than to a
         // revision — do not silently coerce to stick; ask again.
@@ -137,12 +138,12 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
     case 'vote': {
       const v = typeof o?.vote === 'string' ? o.vote.toLowerCase() : ''
       if (v === 'approve' || v === 'reject') {
-        return { decision: { kind: 'vote', vote: v, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'vote', vote: v, thinking })
       }
       const m = content.toLowerCase().match(/\b(approve|reject)\b/g)
       if (m) {
         const last = m[m.length - 1] as 'approve' | 'reject'
-        return { decision: { kind: 'vote', vote: last, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'vote', vote: last, thinking })
       }
       return fail('expected {"vote": "approve"|"reject"}')
     }
@@ -150,12 +151,12 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
     case 'quest': {
       const c = typeof o?.card === 'string' ? o.card.toLowerCase() : ''
       if (c === 'success' || c === 'fail') {
-        return { decision: { kind: 'quest', card: c, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'quest', card: c, thinking })
       }
       const m = content.toLowerCase().match(/\b(success|fail)\b/g)
       if (m) {
         const last = m[m.length - 1] as 'success' | 'fail'
-        return { decision: { kind: 'quest', card: last, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'quest', card: last, thinking })
       }
       return fail('expected {"card": "success"|"fail"}')
     }
@@ -163,7 +164,7 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
     case 'assassinate': {
       const t = o?.target
       if (Number.isInteger(t)) {
-        return { decision: { kind: 'assassinate', target: t as Seat, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'assassinate', target: t as Seat, thinking })
       }
       // Salvage: a named player, else the first in-range seat number that isn't
       // self. Of several names, take the LAST one mentioned — same rule as the
@@ -177,13 +178,13 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
         if (at > namedAt) { namedAt = at; named = p.seat }
       }
       if (named >= 0) {
-        return { decision: { kind: 'assassinate', target: named as Seat, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'assassinate', target: named as Seat, thinking })
       }
       const num = [...content.matchAll(/\b\d+\b/g)]
         .map((m) => Number(m[0]))
         .find((n) => n >= 0 && n < view.playerCount && n !== view.seat)
       if (num !== undefined) {
-        return { decision: { kind: 'assassinate', target: num, thinking }, thinking, parseFailed: false }
+        return ok({ kind: 'assassinate', target: num, thinking })
       }
       return fail('expected {"target": <seat number>}')
     }

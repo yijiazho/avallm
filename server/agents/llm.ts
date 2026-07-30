@@ -74,9 +74,29 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   let reflectedRejections = 0
   let pendingNotes: string | null = null
   let cognition: CognitionState | undefined
-  let pendingTraceDegradation: string[] = []
 
-  function beliefContext(
+  // Trace-degradation tags accumulate across the sub-steps of ONE decide() call
+  // (a failed reflect, a decision retry, a pitch failure, a policy fallback) and
+  // are consumed once when that decision's trace is built. The lifecycle is owned
+  // here so no call site has to remember the reset/drain protocol:
+  //   reset()      clears the tags at the very start of each decide()
+  //   push()       appends a tag as a sub-step degrades
+  //   pushUnique() appends only if the tag is not already present
+  //   drain()      returns the accumulated tags AND clears them, so the built
+  //                trace takes them exactly once and the next decision starts empty
+  const degradation = (() => {
+    let tags: string[] = []
+    return {
+      push: (tag: string): void => { tags.push(tag) },
+      pushUnique: (tag: string): void => { if (!tags.includes(tag)) tags.push(tag) },
+      reset: (): void => { tags = [] },
+      drain: (): string[] => { const out = tags; tags = []; return out },
+    }
+  })()
+
+  // NOTE: mutates the closed-over `cognition` cache as a side effect (the belief
+  // model advances one step per call), hence the imperative name.
+  function advanceBeliefContext(
     view: PlayerView,
     candidateTeams: readonly (readonly number[])[] = [],
   ): ExperimentalBeliefContext | undefined {
@@ -91,7 +111,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
     correction?: { prior: string; error: string }, extra?: AskExtra,
   ): Promise<string> {
     const params = CALL_PARAMS[kind]
-    const context = beliefContext(view, extra?.chosenTeam ? [extra.chosenTeam] : [])
+    const context = advanceBeliefContext(view, extra?.chosenTeam ? [extra.chosenTeam] : [])
     const messages: Msg[] = buildMessages(
       kind,
       view,
@@ -163,11 +183,11 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         scratchpad = parsed.scratchpad
         pendingNotes = parsed.scratchpad // ride the next decision into the log
       } else if (compactBeliefSummary) {
-        pendingTraceDegradation.push('reflection-failed')
+        degradation.push('reflection-failed')
       }
     } catch {
       // Reflection is best-effort; a failed reflect never blocks a decision.
-      if (compactBeliefSummary) pendingTraceDegradation.push('reflection-failed')
+      if (compactBeliefSummary) degradation.push('reflection-failed')
     }
   }
 
@@ -183,7 +203,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       decision.kind === 'propose' || (decision.kind === 'finalize' && !decision.stick)
         ? [decision.team]
         : []
-    const context = beliefContext(view, candidateTeams)
+    const context = advanceBeliefContext(view, candidateTeams)
     if (!context) return undefined
     const trace: DecisionTrace = {
       ...createDecisionTrace(
@@ -192,10 +212,9 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       context.cognition.belief,
       context.analysis,
       decision,
-      pendingTraceDegradation,
+      degradation.drain(),
       ),
     }
-    pendingTraceDegradation = []
     return trace
   }
 
@@ -223,9 +242,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         return finalizeProvisionalAppliedTrace(outcome)
       }
       if (outcome.resolution === 'selected-applied') return undefined
-      if (!pendingTraceDegradation.includes('decision-fallback')) {
-        pendingTraceDegradation.push('decision-fallback')
-      }
+      degradation.pushUnique('decision-fallback')
       return buildTrace(
         outcome.request,
         outcome.view,
@@ -236,7 +253,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       req: DecisionRequest,
       view: PlayerView,
     ): Promise<AgentDecision> {
-      pendingTraceDegradation = []
+      degradation.reset()
       await maybeReflect(view)
       // Good's quest card is forced (the engine coerces fail -> success), so
       // a call would buy nothing. Skipping it is unobservable at the table:
@@ -257,7 +274,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         ? parsed.error!
         : parsed.decision && legalityError(parsed.decision, view)
       if (error) {
-        if (compactBeliefSummary) pendingTraceDegradation.push('decision-retry')
+        if (compactBeliefSummary) degradation.push('decision-retry')
         const second = await callKind(kind, view, { prior: first, error })
         parsed = parseDecision(kind, second, view)
         error = parsed.parseFailed
@@ -293,10 +310,10 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
               decision.thinking = [decision.thinking, pitchParsed.thinking].filter(Boolean).join(' / ')
             }
           } else if (compactBeliefSummary) {
-            pendingTraceDegradation.push('pitch-failed')
+            degradation.push('pitch-failed')
           }
         } catch {
-          if (compactBeliefSummary) pendingTraceDegradation.push('pitch-failed')
+          if (compactBeliefSummary) degradation.push('pitch-failed')
           // silent proposal — the table will notice
         }
       }
