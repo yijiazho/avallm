@@ -85,7 +85,7 @@ Expectations:
 
 Layering (details in `docs/design-implementation.md` §1; rules reference in `docs/research-rules-and-visuals.md`):
 
-- `server/engine/` — **pure deterministic game logic**: event-sourced (`game.log` is the record; per-seat views derive from it), seeded PRNG, no I/O, no LLM, no `Date.now`. All rules live here and run headless under `node:test`.
+- `server/engine/` — **pure deterministic game logic**: event-sourced (`game.log` is the record; per-seat views derive from it) and seeded. All rules live here and run headless under `node:test`. Purity is mechanized: ARCH001 rejects imports of agent or eval code, and ARCH014 rejects ambient clocks, unseeded randomness, `process`, and any import beyond the pure standard library.
 - `server/agents/` — the plugin boundary. Every agent implements `decide(req: DecisionRequest, view: PlayerView): Promise<Decision>` (`server/agents/types.ts`). Built-ins: `llm`, `heuristic` (the forever-fallback), `random`, and `stdio` (external child processes speaking newline-delimited JSON — the AvalonBench bridge path). Invalid/illegal agent output degrades to the heuristic; it never stalls the game.
 - `server/llm/` — the OpenRouter chokepoint: spend accounting + hard ceiling, per-model-family reasoning suppression, call-kind param table, model roster (`roster.ts` — `AgentSpec.model` is a roster id).
 - `server/sim/` — headless drivers behind `npm run sim` / `npm run play`. Any table mix is simulatable at zero API cost because the engine never knows what kind of agent answered.

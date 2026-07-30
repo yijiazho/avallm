@@ -46,6 +46,7 @@ const {
       readonly locals: readonly string[]
       readonly line: number
     }[]
+    readonly ambientReads: ReadonlySet<string>
     readonly scopedBindings: ReadonlySet<string>
   }
 }
@@ -275,6 +276,54 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('the engine cannot read a clock, a random, or the filesystem', () => {
+  const engine = (body: string) =>
+    rules([['server/engine/rules.ts', body]])
+      .filter((rule) => rule === 'ARCH014')
+
+  // A nondeterministic engine still passes every assertion that does not
+  // happen to compare two runs, which is why this needs a rule and not a test.
+  assert.deepEqual(engine('export const t = () => Date.now()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => new Date().getTime()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => Math.random()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => crypto.randomUUID()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = process.env.SEED'), ['ARCH014'])
+  assert.deepEqual(
+    engine("import { readFileSync } from 'node:fs'"),
+    ['ARCH014'],
+    'I/O import',
+  )
+  assert.deepEqual(
+    engine("import ky from 'ky'"),
+    ['ARCH014'],
+    'the production server carries no runtime dependencies',
+  )
+
+  // Qualified reads only: a parameter called `now` reads no clock, and the
+  // pure corners of Date and the standard library stay available.
+  assert.deepEqual(engine('export const t = (now: number) => now + 1'), [])
+  assert.deepEqual(engine('export const t = () => Date.UTC(2026, 0, 1)'), [])
+  assert.deepEqual(engine("import { isDeepStrictEqual } from 'node:util'"), [])
+  assert.deepEqual(engine("import { x } from './types.ts'"), [])
+
+  // `process` is an ordinary word for a handler or a field. Only a qualified
+  // read reaches the global, and flagging the rest would demand renaming a
+  // domain concept to satisfy a rule about ambient state.
+  assert.deepEqual(engine('export interface H { process: boolean }'), [])
+  assert.deepEqual(engine('export const h = { process: (x: number) => x }'), [])
+  assert.deepEqual(engine('export const f = (process: number) => process + 1'), [])
+  assert.deepEqual(engine('export const f = (h: { process: number }) => h.process'), [])
+  assert.deepEqual(engine('export const t = () => process.hrtime()'), ['ARCH014'])
+
+  // The rule is scoped to the engine. Everything above it may read a clock,
+  // and several modules do.
+  assert.deepEqual(
+    rules([['server/eval/judge.ts', 'export const t = () => Date.now()']])
+      .filter((rule) => rule === 'ARCH014'),
+    [],
+  )
 })
 
 test('a shared shape guard cannot be rebound in a nested scope', () => {

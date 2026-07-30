@@ -36,7 +36,7 @@ resume/undo/replay.
 
 ```
 server/
-  engine/          ← PURE deterministic game logic. No I/O, no LLM, no Date.now.
+  engine/          ← PURE deterministic game logic. Pinned by ARCH001 + ARCH014.
                      Runs headless under node:test. This is where all rules live.
   agents/          ← PlayerView-only cognition, analysis, policy, prompts, parsers, and fallbacks
   llm/             ← the OpenRouter chokepoint, call-kind param table,

@@ -1,4 +1,4 @@
-// Core engine types. The engine is pure: no I/O, no Date.now, no unseeded randomness.
+// Core engine types. Engine purity is enforced by ARCH014, not by convention.
 
 export type Role =
   | 'merlin' | 'percival' | 'servant'

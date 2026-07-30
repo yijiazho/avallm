@@ -31,10 +31,15 @@ every per-seat `PlayerView` derives from it via `viewFor`. So "snapshot a game"
 is just `JSON.stringify(game)` — there is no mutable-object graph to walk. The
 hard part (a single source of truth) is done.
 
-The remaining work is entirely in the **server layer**, and must stay there:
-the engine invariant is *pure, no I/O, no Date.now* — persistence must never be
-added inside `applyDecision` or the engine. The server's `pump` loop is the
-chokepoint that owns the side effect.
+The remaining work is entirely in the **server layer**. ARCH014 closes the
+careless half of that boundary: the engine cannot import `node:fs`, read a
+clock, or reach the `process` global, so persistence cannot be dropped into
+`applyDecision` directly. It does **not** close the deliberate half. A writer
+passed in as an argument and called inside the engine has no bare import and no
+ambient read, so the rule stays green while the engine performs I/O. Keep the
+side effect in the server's `pump` loop, which is the chokepoint that owns it,
+and treat an engine function that accepts a callback as the shape to reject in
+review.
 
 ## Anatomy of a Session — what persists, what rebuilds, what's dropped
 
@@ -181,8 +186,6 @@ load-boundary try/catch above is the safety net regardless.
   assert resume re-asks and completes with no state corruption.
 - **Corrupt snapshot:** a garbage file in `sessions/` is skipped and surfaced,
   boot succeeds, other sessions load.
-- **Engine purity guard:** confirm no I/O crept into the engine (the existing
-  contract tests already pin purity).
 
 ## Phasing
 

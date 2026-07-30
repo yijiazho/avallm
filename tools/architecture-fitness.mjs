@@ -55,6 +55,23 @@ const CANONICAL_JSON_OWNER =
 // replaced drifted apart in the first place.
 const SHARED_SHAPE_GUARDS =
   'server/agents/components/canonical-shape'
+// Engine purity. The engine is the seeded, replayable core: every game is a
+// pure function of its seed and its log, which is what lets the simulator
+// replay a transcript and get the same game back. An ambient clock or an
+// unseeded random breaks that silently, since a nondeterministic engine still
+// passes every assertion that does not happen to compare two runs.
+const ENGINE_FORBIDDEN_AMBIENT = new Set([
+  'Date.now',
+  'new Date',
+  'Math.random',
+  'performance.now',
+  'crypto.randomUUID',
+  'crypto.getRandomValues',
+])
+// Pure standard-library modules the engine may still use. Everything else,
+// node builtin or npm package, is either I/O or ambient state, and the
+// production server carries no runtime dependencies to import anyway.
+const ENGINE_PURE_MODULES = new Set(['node:util', 'node:assert'])
 const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
 const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
   'validateComposedTraceHostJoin',
@@ -269,6 +286,7 @@ export function inspectSource(sourcePath, source) {
   const edges = []
   const identifiers = new Set()
   const stringLiterals = new Set()
+  const ambientReads = new Set()
   function addEdge(node, kind, specifier, names, namespace, locals = []) {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast))
     edges.push({
@@ -289,6 +307,16 @@ export function inspectSource(sourcePath, source) {
   function visit(node) {
     if (ts.isIdentifier(node)) identifiers.add(node.text)
     if (ts.isStringLiteralLike(node)) stringLiterals.add(node.text)
+    // Qualified reads, so a local variable named `now` is not confused with
+    // the `Date.now` that actually reads a clock.
+    if (
+      ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)
+    ) {
+      ambientReads.add(`${node.expression.text}.${node.name.text}`)
+    }
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+      ambientReads.add(`new ${node.expression.text}`)
+    }
 
     if (ts.isImportDeclaration(node)) {
       const specifier = literalModule(node.moduleSpecifier)
@@ -374,6 +402,7 @@ export function inspectSource(sourcePath, source) {
     edges: Object.freeze(edges),
     identifiers,
     stringLiterals,
+    ambientReads,
     scopedBindings: collectScopedBindings(ast),
   })
 }
@@ -873,6 +902,35 @@ export function auditArchitectureSources(sourceEntries) {
             `generic decision-layer code contains role-named branch literal ${literal}`,
           ))
         }
+      }
+    }
+    if (isEngine(sourcePath)) {
+      for (const read of inspected.ambientReads) {
+        // Qualified reads throughout: `process` is an ordinary word for a
+        // handler or a field, and only `process.something` reads the global.
+        if (
+          !ENGINE_FORBIDDEN_AMBIENT.has(read)
+          && !read.startsWith('process.')
+        ) continue
+        violations.push(violation(
+          'ARCH014',
+          sourcePath,
+          undefined,
+          `engine code reads ambient ${read}, so a game stops being a pure `
+            + 'function of its seed and log',
+        ))
+      }
+      for (const edge of inspected.edges) {
+        const bare = !edge.specifier.startsWith('.')
+          && !edge.specifier.startsWith('/')
+          && !edge.specifier.startsWith('server/')
+        if (!bare || ENGINE_PURE_MODULES.has(edge.specifier)) continue
+        violations.push(violation(
+          'ARCH014',
+          sourcePath,
+          edge,
+          'engine code can only import pure standard-library modules',
+        ))
       }
     }
     if (
