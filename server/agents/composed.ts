@@ -213,9 +213,14 @@ import {
   withResolvedComponents,
   withUniversalForcedPolicy,
   type LegacyPlannerResolution,
+  type LegacyScoringBindings,
   type LegacyVoicedOutputProjection,
+  type NativeScoreLayersResolvedDecisionFrame,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
+import type {
+  ResolvedScoreLayerChain,
+} from './policy/score-layer/types.ts'
 import {
   configuredScoreLayerTerminalFor,
   configuredNativeFallbackTerminalFor,
@@ -896,6 +901,58 @@ function composedTrace(
       ? { privateIdentity: structuredClone(privateIdentity) }
       : {}),
   }
+}
+
+/**
+ * The degradation code to record if this scorer fails, or undefined when it is
+ * not a role scorer and has no role-specific code.
+ *
+ * This replaces a pair of overlapping version lists: one asked whether the
+ * scorer was any of six role versions, the other mapped those versions to a
+ * code with a bare `else` for the rest. They agreed only because the second was
+ * read exclusively when the first was true, so adding a role family to one and
+ * not the other would have silently attributed its failure to the good-side
+ * code. One lookup cannot drift from itself.
+ */
+function roleScorerFallbackDegradation(
+  scorer: CandidateScorer,
+): string | undefined {
+  switch (scorer.version) {
+    case MORGANA_ROLE_SCORER_VERSION:
+    case MORGANA_ROLE_SEEDED_SCORER_VERSION:
+      return MORGANA_ROLE_SCORER_DEGRADATION
+    case EVIL_ROLE_OBJECTIVE_SCORER_VERSION:
+    case EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION:
+      return 'evil-role-objective-scorer-failed'
+    case ROLE_OBJECTIVE_SCORER_VERSION:
+    case ROLE_OBJECTIVE_SEEDED_SCORER_VERSION:
+      return 'role-objective-scorer-failed'
+    default:
+      return undefined
+  }
+}
+
+/**
+ * The additive per-candidate diagnostics the native score surface attaches.
+ *
+ * Every mechanical field still comes from the native layers; this only supplies
+ * the private feature rows, and `withNativeScoringAuthority` rejects a
+ * projection that tries to restate value, viability, or reason codes. The three
+ * intermediate versions the projection needs are derived here rather than at the
+ * call site because none of them outlives this computation.
+ */
+function nativeScoreDiagnostics(
+  frame: NativeScoreLayersResolvedDecisionFrame,
+  chain: ResolvedScoreLayerChain,
+  bindings: LegacyScoringBindings,
+): readonly CandidateScore[] {
+  return projectConfiguredScoreDiagnostics(
+    projectScoringContext(frame, bindings),
+    frame.scores,
+    nativeScorerVersion(frame),
+    frame.scoreLayerRun.configured.map((layer) => layer.version),
+    nativeDiagnosticOwnerVersion(frame, chain),
+  )
 }
 
 /**
@@ -1971,22 +2028,8 @@ export function createComposedAgent(
 
         const compatibility = compatibilityDecision(req, view, seed)
         const compatibilityCandidateId = candidateIdForDecision(compatibility)
-        const roleScorerFailed =
-          resolvedScorer.version === ROLE_OBJECTIVE_SCORER_VERSION
-          || resolvedScorer.version === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-          || resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-          || resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
         const fallbackDegradation =
-          resolvedScorer.version === MORGANA_ROLE_SCORER_VERSION
-          || resolvedScorer.version === MORGANA_ROLE_SEEDED_SCORER_VERSION
-            ? MORGANA_ROLE_SCORER_DEGRADATION
-            : resolvedScorer.version === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-              || resolvedScorer.version
-                === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              ? 'evil-role-objective-scorer-failed'
-              : 'role-objective-scorer-failed'
+          roleScorerFallbackDegradation(resolvedScorer)
         const nativeScoredFrame =
           nativeScoreLayers
           ? withNativeScoreLayers(
@@ -2039,30 +2082,20 @@ export function createComposedAgent(
             )
           } catch {
             degradation.push('scorer-invalid-output')
-            if (roleScorerFailed) degradation.push(fallbackDegradation)
+            if (fallbackDegradation) degradation.push(fallbackDegradation)
           }
         }
-        const nativeScorer = nativeScoredFrame
-          ? nativeScorerVersion(nativeScoredFrame)
-          : undefined
-        const nativeDiagnosticOwner = nativeScoredFrame
-          ? nativeDiagnosticOwnerVersion(
+        // Computed eagerly, before the custom result is consulted, because the
+        // projection can reject an unadmitted diagnostic owner. Deferring it
+        // into the fallback branch would let that rejection disappear whenever a
+        // custom scorer happened to succeed.
+        const nativeDiagnostics = nativeScoredFrame
+          ? nativeScoreDiagnostics(
               nativeScoredFrame,
               resolvedBrain.scoreLayerChain!,
+              scoringBindings,
             )
           : undefined
-        const nativeDiagnostics =
-          nativeScoredFrame && nativeScorer && nativeDiagnosticOwner
-            ? projectConfiguredScoreDiagnostics(
-              projectScoringContext(nativeScoredFrame, scoringBindings),
-              nativeScoredFrame.scores,
-              nativeScorer,
-              nativeScoredFrame.scoreLayerRun.configured.map(
-                (layer) => layer.version,
-              ),
-              nativeDiagnosticOwner,
-            )
-            : undefined
         const scoredFrame = customScoredFrame
           ?? (
             nativeScoredFrame
