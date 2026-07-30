@@ -1,3 +1,4 @@
+import { PHASES } from '../../engine/types.ts'
 import type {
   GameEvent,
   Phase,
@@ -29,15 +30,6 @@ import { projectPublicRecord } from './public-record.ts'
 
 const PUBLIC_RATIONALE_MAX_LENGTH = 500
 const INTERPRETER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
-const PHASES: readonly Phase[] = [
-  'discussion',
-  'proposal',
-  'finalize',
-  'vote',
-  'quest',
-  'assassination',
-  'gameOver',
-]
 
 export function initialLanguageEvidenceCursor(): LanguageEvidenceCursor {
   return {

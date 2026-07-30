@@ -31,7 +31,12 @@ import {
   DECISION_COMPONENT_KINDS,
 } from '../server/agents/components/types.ts'
 import { APPLIED_DECISION_RESOLUTIONS } from '../server/agents/applied-decision.ts'
-import { DECISION_KINDS, ROLES } from '../server/engine/types.ts'
+import {
+  DECISION_KINDS,
+  EVENT_TYPES,
+  PHASES,
+  ROLES,
+} from '../server/engine/types.ts'
 import { PHASE7_ROLE_EVAL_ARMS } from '../server/eval/role-eval.ts'
 
 interface ClosedSet {
@@ -62,6 +67,16 @@ const CLOSED_SETS: readonly ClosedSet[] = [
     name: 'ROLES',
     owner: 'server/engine/types.ts',
     members: ROLES,
+  },
+  {
+    name: 'PHASES',
+    owner: 'server/engine/types.ts',
+    members: PHASES,
+  },
+  {
+    name: 'EVENT_TYPES',
+    owner: 'server/engine/types.ts',
+    members: EVENT_TYPES,
   },
   {
     name: 'DECISION_COMPONENT_KINDS',

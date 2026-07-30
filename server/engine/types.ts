@@ -25,8 +25,11 @@ export type Seat = number
 // compares two.
 export type SeatSet = readonly Seat[]
 
-export type Phase =
-  | 'discussion' | 'proposal' | 'finalize' | 'vote' | 'quest' | 'assassination' | 'gameOver'
+export const PHASES = Object.freeze([
+  'discussion', 'proposal', 'finalize', 'vote', 'quest', 'assassination', 'gameOver',
+] as const)
+
+export type Phase = typeof PHASES[number]
 
 export interface TalkConfig {
   // Discussion rounds after the initial proposal — a fixed count, not a cap:
@@ -67,12 +70,15 @@ export interface Quest {
 
 export type Visibility = 'public' | { only: Seat[] }
 
-export type EventType =
-  | 'gameCreated' | 'roleDealt' | 'knowledge' | 'leadChange'
-  | 'utterance' | 'proposal' | 'proposalLocked' | 'proposalRevised'
-  | 'voteCast' | 'voteReveal'
-  | 'questCard' | 'questResult' | 'assassination' | 'gameOver'
-  | 'thinking' | 'rename' | 'scratchpad'
+export const EVENT_TYPES = Object.freeze([
+  'gameCreated', 'roleDealt', 'knowledge', 'leadChange',
+  'utterance', 'proposal', 'proposalLocked', 'proposalRevised',
+  'voteCast', 'voteReveal',
+  'questCard', 'questResult', 'assassination', 'gameOver',
+  'thinking', 'rename', 'scratchpad',
+] as const)
+
+export type EventType = typeof EVENT_TYPES[number]
 
 export interface GameEvent {
   seq: number

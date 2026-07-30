@@ -58,18 +58,26 @@ const SEPARATOR = String.raw`\s*(?:,|\|)\s*`
  * and derives the type from it, so the literal union it used to have is gone.
  * Checked by planting a restatement of an already-consolidated set, which a
  * union-only scan reported as "none".
+ *
+ * Members admit uppercase. The first version matched [a-z0-9-] only, which made
+ * every set with a camelCase member invisible in both forms: 'gameOver' broke
+ * the run for Phase and 'gameCreated' broke it for EventType, so neither was
+ * reported and both survived the sweep that consolidated their all-lowercase
+ * neighbours ROLES and DECISION_KINDS. Widening the class raised the
+ * unconsolidated count from 18 to 20 and named those two at the lines they were
+ * declared on.
  */
 const DECLARATIONS = [
   {
     // export type X = 'a' | 'b' | 'c'
     kind: 'unconsolidated',
-    pattern: /export type (\w+)\s*=\s*((?:\s*\|?\s*'[a-z0-9-]+'){3,})\s*[\n;]/g,
+    pattern: /export type (\w+)\s*=\s*((?:\s*\|?\s*'[a-zA-Z0-9-]+'){3,})\s*[\n;]/g,
   },
   {
     // export const X = Object.freeze(['a', 'b', 'c'] as const)
     kind: 'consolidated',
     pattern:
-      /export const (\w+)\s*=\s*(?:Object\.freeze\(\s*)?\[\s*((?:'[a-z0-9-]+'\s*,\s*){2,}'[a-z0-9-]+'\s*,?)\s*\]/g,
+      /export const (\w+)\s*=\s*(?:Object\.freeze\(\s*)?\[\s*((?:'[a-zA-Z0-9-]+'\s*,\s*){2,}'[a-zA-Z0-9-]+'\s*,?)\s*\]/g,
   },
 ]
 
@@ -99,7 +107,7 @@ function scan() {
   for (const { kind, pattern } of DECLARATIONS) {
     for (const [file, source] of text) {
       for (const match of source.matchAll(pattern)) {
-        const members = [...match[2].matchAll(/'([a-z0-9-]+)'/g)]
+        const members = [...match[2].matchAll(/'([a-zA-Z0-9-]+)'/g)]
           .map((m) => m[1])
         if (members.length < 3) continue
         // A consolidated set can match the const and again the type derived

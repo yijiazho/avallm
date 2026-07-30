@@ -17,7 +17,12 @@ import type {
   Role,
   Seat,
 } from '../engine/types.ts'
-import { DECISION_KINDS, ROLES } from '../engine/types.ts'
+import {
+  DECISION_KINDS,
+  EVENT_TYPES,
+  PHASES,
+  ROLES,
+} from '../engine/types.ts'
 import type { ExactKeyList } from '../agents/key-lists.ts'
 
 export const SEAT_VIEW_INSPECTION_SCHEMA = 1
@@ -207,15 +212,8 @@ const RAW_GAME_FIELDS = [
 ] as const satisfies ExactKeyList<Game>
 
 const DECISION_KIND_SET = new Set<string>(DECISION_KINDS)
-const EVENT_TYPES = new Set([
-  'gameCreated', 'roleDealt', 'knowledge', 'leadChange',
-  'utterance', 'proposal', 'proposalLocked', 'proposalRevised',
-  'voteCast', 'voteReveal', 'questCard', 'questResult', 'assassination', 'gameOver',
-  'thinking', 'rename', 'scratchpad',
-])
-const PHASES = new Set([
-  'discussion', 'proposal', 'finalize', 'vote', 'quest', 'assassination', 'gameOver',
-])
+const EVENT_TYPE_SET = new Set<string>(EVENT_TYPES)
+const PHASE_SET = new Set<string>(PHASES)
 const ROLE_SET = new Set<string>(ROLES)
 
 type PlainRecord = Record<string, unknown>
@@ -609,7 +607,7 @@ function validateEvent(value: unknown, playerCount: number, viewer: Seat, index:
   const label = `events[${index}]`
   const event = asRecord(value, label)
   assertSafeInteger(event.seq, `${label}.seq`)
-  if (typeof event.type !== 'string' || !EVENT_TYPES.has(event.type)) {
+  if (typeof event.type !== 'string' || !EVENT_TYPE_SET.has(event.type)) {
     fail(`${label}.type is not a known event type`)
   }
   inspectEventDetail(
@@ -645,7 +643,7 @@ function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   if (inspectedView.alignment !== 'good' && inspectedView.alignment !== 'evil') {
     fail('view.alignment must be good or evil')
   }
-  if (typeof inspectedView.phase !== 'string' || !PHASES.has(inspectedView.phase)) {
+  if (typeof inspectedView.phase !== 'string' || !PHASE_SET.has(inspectedView.phase)) {
     fail('view.phase is not a known phase')
   }
   assertSafeInteger(inspectedView.round, 'view.round', 1)
