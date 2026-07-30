@@ -79,8 +79,11 @@ import {
   type TraceComponentVersions,
 } from '../trace.ts'
 import {
-  isAgentExecutionMode,
+  isComposedPolicy,
 } from '../brain.ts'
+import {
+  NO_PLANNER_VERSION,
+} from '../communication/planner-voice-adapter.ts'
 import {
   LANGUAGE_BELIEF_VERSION_SUFFIX,
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -1367,7 +1370,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       && trace.plannerCandidateId === undefined
       && trace.plannerReasonCodes === undefined
       && trace.communicationIntent === undefined
-      && components?.policy !== 'composed-policy-v1'
+      && !isComposedPolicy(components?.policy)
   }
   const scores = trace.candidateScores as Array<Record<string, unknown>>
   const ids = scores.map((score) => String(score.candidateId))
@@ -1380,13 +1383,8 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   ) {
     return false
   }
-  // A composed trace states its strategic identity through componentVersions
-  // alone. agentMode names a non-composed agent kind, so its presence here is a
-  // contradiction rather than a cell label to reconcile against the versions.
-  if (trace.agentMode !== undefined) return false
-  // Wire-format literals, matching this file's convention for persisted values.
   const hasPlanner =
-    components !== undefined && components.planner !== 'planner-off'
+    components !== undefined && components.planner !== NO_PLANNER_VERSION
   if (
     scores.some((score) => {
       const features = score.features as Record<string, unknown> | undefined
@@ -1493,7 +1491,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   if (
     phase4c
     && (
-      components?.policy !== 'composed-policy-v1'
+      !isComposedPolicy(components?.policy)
     )
   ) {
     return false
@@ -2869,10 +2867,6 @@ function validDecisionTrace(
     && enumStringArray(trace.factCodes, ANALYSIS_FACT_CODES)
     && enumStringArray(trace.reasonCodes, FORCED_PLAY_REASON_CODES)
     && isDeepStrictEqual(trace.action, decision)
-    && (
-      trace.agentMode === undefined
-      || isAgentExecutionMode(trace.agentMode)
-    )
     && (
       trace.architectureIdentityDigest === undefined
       || (

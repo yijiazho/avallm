@@ -197,7 +197,6 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       decision,
       pendingTraceDegradation,
       ),
-      agentMode: 'raw-llm',
     }
     pendingTraceDegradation = []
     return trace

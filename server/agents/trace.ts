@@ -14,7 +14,6 @@ import type {
 import type { PolicyCandidateTeamAssessment } from './analysis/types.ts'
 import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
-import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
@@ -50,6 +49,16 @@ import type {
   ScoreLayerTrace,
 } from './policy/score-layer/types.ts'
 
+import { isComposedPolicy } from './brain.ts'
+
+/**
+ * A composed trace is named by its policy, the one component version that is
+ * 1:1 with the agent kind. Readers ask this rather than carrying a second label.
+ */
+export function isComposedTrace(trace: Readonly<DecisionTrace>): boolean {
+  return isComposedPolicy(trace.componentVersions?.policy)
+}
+
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
 export const APPLIED_OUTCOME_DEGRADATION =
@@ -80,12 +89,6 @@ export interface DecisionTrace {
   factCodes: SituationAnalysis['factCodes']
   reasonCodes: SituationAnalysis['forcedPlayReasonCodes']
   action: Decision
-  /**
-   * The non-composed agent kind. Absent on composed traces, whose strategic
-   * identity is componentVersions: the scorer and planner entries carry the
-   * facts a reader needs, and each is declared and cross-checked on its own.
-   */
-  agentMode?: AgentExecutionMode
   /**
    * Exact configured architecture identity for current composed traces.
    * Optional at the generic transport boundary for legacy/external traces.

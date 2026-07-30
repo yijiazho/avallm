@@ -3,6 +3,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  COMPOSED_POLICY_VERSION,
+  RAW_LLM_POLICY_VERSION,
+} from '../server/agents/brain.ts'
+import {
   createComposedAgent,
 } from '../server/agents/composed.ts'
 import {
@@ -109,7 +113,6 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   })
 
   const output = await agent.decide(source.req, source.view)
-  assert.equal(output.trace!.agentMode, undefined)
   assert.notEqual(output.trace!.componentVersions!.planner, 'planner-off')
   assert.equal(output.trace!.chosenCandidateId, expectedCandidateId)
   assert.equal(output.decision.kind, 'propose')
@@ -622,12 +625,10 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
     ['compatibility', 'structured-only', 'hybrid'],
   )
   assert.equal(report.comparisons.length, 2)
+  // The policy is the kind: every variant here runs the composed pipeline.
   assert.ok(report.variants.every(
-    (variant) => variant.components.mode === undefined,
+    (variant) => variant.components.policy === COMPOSED_POLICY_VERSION,
   ))
-  assert.ok(artifacts.every((artifact) =>
-    artifact.decisionTraces?.every((trace) =>
-      trace.agentMode === undefined)))
   await assert.rejects(
     runArchitectureBench({
       bankId: 'phase4c-mislabeled',
@@ -658,7 +659,7 @@ test('raw LLM remains an attributable paid-gated architecture mode', async () =>
     version: 1,
     engine: { type: 'llm', model: 'deepseek-flash' },
   }
-  assert.equal(defaultComponents(raw).mode, 'raw-llm')
+  assert.equal(defaultComponents(raw).policy, RAW_LLM_POLICY_VERSION)
   await assert.rejects(
     runArchitectureBench({
       cases: [],

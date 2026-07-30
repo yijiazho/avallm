@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import {
-  AGENT_EXECUTION_MODES,
   brainComponents,
   COMPAT_CERTAINTIES_VISIBILITY,
-  isAgentExecutionMode,
+  COMPOSED_POLICY_VERSION,
+  isComposedPolicy,
+  isNonComposedPolicy,
+  NON_COMPOSED_POLICIES,
   HEURISTIC_POLICY_VERSION,
   PROMPT_COMMUNICATION_VERSION,
   RANDOM_POLICY_VERSION,
@@ -40,7 +42,6 @@ test('resolved LLM brains separate exact inference from compatibility and compac
   const normal = resolveBrain({ type: 'llm' })
   assert.deepEqual(normal, {
     version: 'brain-spec-v1',
-    mode: 'raw-llm',
     belief: EXACT_BELIEF_MODEL_VERSION,
     beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY,
     policy: RAW_LLM_POLICY_VERSION,
@@ -92,7 +93,6 @@ test('heuristic, random, and composed component identities remain truthful', () 
     brainComponents(resolveBrain({ type: 'heuristic' })),
     {
       brain: 'brain-spec-v1',
-      mode: 'heuristic',
       belief: EXACT_BELIEF_MODEL_VERSION,
       beliefVisibility: 'none',
       policy: HEURISTIC_POLICY_VERSION,
@@ -235,23 +235,29 @@ test('committed Phase 0 metadata remains historical rather than relabelled', () 
   assert.equal(observed.architecture.belief, 'none')
 })
 
-test('the execution mode set names only non-composed agent kinds', () => {
-  // There is one set now, because a composed agent has no mode: its policy
-  // names it and its scorer/planner versions carry what a reader needs. A mode
-  // on a composed record would restate facts that are already cross-checked.
+test('the policy sets partition the agent kinds exactly once', () => {
+  // The policy is the agent kind now: there is no separate mode to keep in step
+  // with it. Every policy is composed or non-composed, never both and never
+  // neither, so a reader can always tell which kind it is holding.
   assert.deepEqual(
-    [...AGENT_EXECUTION_MODES].sort(),
-    ['heuristic', 'random', 'raw-llm'],
+    [...NON_COMPOSED_POLICIES].sort(),
+    [
+      HEURISTIC_POLICY_VERSION,
+      RANDOM_POLICY_VERSION,
+      RAW_LLM_POLICY_VERSION,
+    ].sort(),
   )
-  for (const mode of AGENT_EXECUTION_MODES) {
-    assert.equal(isAgentExecutionMode(mode), true, mode)
+  for (const policy of [...NON_COMPOSED_POLICIES, COMPOSED_POLICY_VERSION]) {
+    assert.equal(isComposedPolicy(policy), !isNonComposedPolicy(policy), policy)
   }
+  // The retired mode labels were never policies and must not become them.
   for (const retired of [
     'external',
     'compatibility',
     'structured-only',
     'hybrid',
   ]) {
-    assert.equal(isAgentExecutionMode(retired), false, retired)
+    assert.equal(isComposedPolicy(retired), false, retired)
+    assert.equal(isNonComposedPolicy(retired), false, retired)
   }
 })

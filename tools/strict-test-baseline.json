@@ -3,7 +3,7 @@
   "exemptions": [
     {
       "path": "test/active-language-eval.test.ts",
-      "sha256": "f0f8987eb6a44ecd57a4bfdb248a4de779c3c3ad885b13c30bf0287459993ddf",
+      "sha256": "470b872e12f01b653575efc2bd9f939a99d2b225b6bb9d62312f95ef4d02cf30",
       "rationale": "Legacy language evaluation fixtures need current union narrowing."
     },
     {
@@ -13,7 +13,7 @@
     },
     {
       "path": "test/artifact-manifest.test.ts",
-      "sha256": "94d6334a8a22b5e5dbd4855287fcc711a0f850538439d74337036118feaf1f9a",
+      "sha256": "c257ac861ed8befa0d90fe645fb2c66d466295fc8617e898b591b9b2a66de364",
       "rationale": "Legacy artifact fixtures intentionally mutate readonly contracts."
     },
     {
@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "c34291acc65786605e6f7cb9bcbc095bba1df48683e3c1b7623be73fa473083f",
+      "sha256": "bfe35a16cef6bddc07bf4d40306b1d786a810f09783e87a5f0cf8d2b4e708133",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
@@ -108,7 +108,7 @@
     },
     {
       "path": "test/intent-planner.test.ts",
-      "sha256": "67423c7fd2f3b05dd7e3d1c1cc82f949f1c004c6c468a43c4dac4e4f7c5739fd",
+      "sha256": "37b67737ce7743a042b6498a1554324f0ee9ba13d85e2d93ff0e25b7088e3fe0",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
@@ -118,12 +118,12 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "85de36cf613f04e9eb96355bd463eafd3ac97678d0c569bece381aee075292e6",
+      "sha256": "e9d90825c2da9559244ef28a79887c32a6abb2e9fbf1167f85bd8b57bfb01581",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "df1459ac7f31df939313fb045a08574b83b48b131be14763e46cbaf21c1513e5",
+      "sha256": "e6ba75779a8a852d719231baf2985fc9d16eb817fa6bfe575f39297ba5776653",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {

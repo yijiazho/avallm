@@ -56,9 +56,8 @@ function staticTraceVariant(
     components: external
       ? {
           // A self-described producer the host does not reconstruct: the
-          // component versions are opaque strings we do not own, declared
-          // against a real non-composed execution mode.
-          mode: 'raw-llm',
+          // component versions are opaque strings we do not own, and the policy
+          // is what marks it as something other than our composed pipeline.
           brain: 'external',
           belief: 'external',
           factors: 'external',
@@ -85,7 +84,6 @@ function staticTraceVariant(
           const output = await inner.decide(req, view)
           const trace = structuredClone(output.trace!)
           if (external) {
-            trace.agentMode = 'raw-llm'
             trace.beliefModelVersion = 'external'
             trace.componentVersions = {
               ...trace.componentVersions!,

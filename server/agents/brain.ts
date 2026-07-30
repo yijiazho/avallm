@@ -24,17 +24,23 @@ export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
  * caught only the two that were typed against this union. Read the sets
  * through the predicates below instead of restating them.
  */
-export const AGENT_EXECUTION_MODES = Object.freeze([
-  'raw-llm',
-  'heuristic',
-  'random',
+/**
+ * The policy names the agent kind. Every manifest and trace already declares it
+ * and every reader already cross-checks it, so a second mode label derived from
+ * it would be a restatement rather than an independent fact.
+ */
+export const NON_COMPOSED_POLICIES = Object.freeze([
+  RAW_LLM_POLICY_VERSION,
+  HEURISTIC_POLICY_VERSION,
+  RANDOM_POLICY_VERSION,
 ] as const)
-export type AgentExecutionMode = (typeof AGENT_EXECUTION_MODES)[number]
 
-export function isAgentExecutionMode(
-  value: unknown,
-): value is AgentExecutionMode {
-  return (AGENT_EXECUTION_MODES as readonly unknown[]).includes(value)
+export function isComposedPolicy(value: unknown): boolean {
+  return value === COMPOSED_POLICY_VERSION
+}
+
+export function isNonComposedPolicy(value: unknown): boolean {
+  return (NON_COMPOSED_POLICIES as readonly unknown[]).includes(value)
 }
 
 export type BeliefComponent =
@@ -66,8 +72,6 @@ export type ObserverModelComponent =
  */
 export interface BrainSpec {
   version: typeof BRAIN_SPEC_VERSION
-  /** Absent exactly when the policy is composed. */
-  mode?: AgentExecutionMode
   belief: BeliefComponent
   beliefVisibility: BeliefVisibility
   policy: PolicyComponent
@@ -107,7 +111,6 @@ export type BrainSource =
 
 const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
   version: BRAIN_SPEC_VERSION,
-  mode: 'raw-llm',
   belief: EXACT_BELIEF_MODEL_VERSION,
   beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY,
   policy: RAW_LLM_POLICY_VERSION,
@@ -164,8 +167,7 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
 
   const brain: BrainSpec = {
     version: BRAIN_SPEC_VERSION,
-    mode: 'raw-llm',
-    belief: assertOneOf(
+      belief: assertOneOf(
       'belief',
       raw.belief ?? DEFAULT_LLM_BRAIN.belief,
       [EXACT_BELIEF_MODEL_VERSION],
@@ -207,7 +209,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'heuristic':
       return {
         version: BRAIN_SPEC_VERSION,
-        mode: 'heuristic',
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: HEURISTIC_POLICY_VERSION,
@@ -218,7 +219,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'random':
       return {
         version: BRAIN_SPEC_VERSION,
-        mode: 'random',
         belief: 'none',
         beliefVisibility: 'none',
         policy: RANDOM_POLICY_VERSION,
@@ -243,7 +243,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
 export function brainComponents(brain: BrainSpec): Record<string, string> {
   return {
     brain: brain.version,
-    ...(brain.mode === undefined ? {} : { mode: brain.mode }),
     belief: brain.belief,
     beliefVisibility: brain.beliefVisibility,
     policy: brain.policy,

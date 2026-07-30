@@ -44,9 +44,8 @@ import type {
   Role,
 } from '../engine/types.ts'
 import {
-  COMPOSED_POLICY_VERSION,
-  isAgentExecutionMode,
-  type AgentExecutionMode,
+  isComposedPolicy,
+  isNonComposedPolicy,
 } from '../agents/brain.ts'
 import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -57,6 +56,7 @@ import {
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
+  isComposedTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
 import {
@@ -322,11 +322,7 @@ export interface ArchitectureBenchmarkReport {
 function isComposedComponents(
   components: Record<string, string>,
 ): boolean {
-  return components.policy === COMPOSED_POLICY_VERSION
-}
-
-function isComposedTrace(trace: Readonly<DecisionTrace>): boolean {
-  return trace.componentVersions?.policy === COMPOSED_POLICY_VERSION
+  return isComposedPolicy(components.policy)
 }
 
 interface GameObservation {
@@ -617,7 +613,6 @@ type ArtifactArchitectureAdmission =
     }>
   | Readonly<{
       provenance: 'non-composed-host-metadata-admitted'
-      mode: AgentExecutionMode
     }>
 
 function artifactArchitectureAdmission(
@@ -663,15 +658,11 @@ function artifactArchitectureAdmission(
       }
     }
     const legacy = admitLegacyHostComponentManifest(artifact)
-    const declaredMode = artifact.architecture?.components.mode
     if (
       legacy.provenance === 'historical-absent'
-      && isAgentExecutionMode(declaredMode)
+      && isNonComposedPolicy(artifact.architecture?.components.policy)
     ) {
-      return {
-        provenance: 'non-composed-host-metadata-admitted',
-        mode: declaredMode,
-      }
+      return { provenance: 'non-composed-host-metadata-admitted' }
     }
     return legacy
   } catch (error) {
@@ -1397,7 +1388,6 @@ function legacyArchitectureSafety(
         )
     if (
       trace.viewerSeat !== meta.targetSeat
-      || trace.agentMode !== meta.components.mode
       || !versions
       || (
         expectedComponentPlan !== undefined
@@ -2215,7 +2205,7 @@ function observationPromotionEvidenceEligible(
   if (isComposedComponents(game.meta.components)) {
     return game.safety.promotionEvidenceEligible === true
   }
-  if (isAgentExecutionMode(game.meta.components.mode)) {
+  if (isNonComposedPolicy(game.meta.components.policy)) {
     return game.safety.promotionEvidenceEligible !== false
   }
   return false

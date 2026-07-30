@@ -68,12 +68,12 @@ import type {
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
+  isComposedTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
 import {
   brainComponents,
-  COMPOSED_POLICY_VERSION,
-  isAgentExecutionMode,
+  isComposedPolicy,
   resolveBrain,
 } from '../agents/brain.ts'
 import {
@@ -346,16 +346,6 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         )
       }
     }
-    // A composed variant is named by its policy and declares no mode; a
-    // non-composed one (the external contract variant) still names its kind.
-    if (
-      variant.components.mode !== undefined
-      && !isAgentExecutionMode(variant.components.mode)
-    ) {
-      throw new Error(
-        `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
-      )
-    }
     const languageEnabled =
       variant.components.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
     if (
@@ -544,7 +534,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         || variant.components.belief !== EXACT_BELIEF_MODEL_VERSION
         || variant.components.languageEvidence !== 'off'
         || variant.components.factors !== 'off'
-        || variant.components.policy !== COMPOSED_POLICY_VERSION
+        || !isComposedPolicy(variant.components.policy)
       )
     ) {
       throw new Error(
@@ -850,8 +840,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             return true
           }
           const trace = traceAdmission.trace
-          const strictComposedTrace =
-            trace.componentVersions?.policy === COMPOSED_POLICY_VERSION
+          const strictComposedTrace = isComposedTrace(trace)
           const traceVersions = trace.componentVersions
           const currentComponentTrace =
             trace.version === COMPONENT_DECISION_TRACE_VERSION
@@ -862,8 +851,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             expectedComponents.observerModel
             === PUBLIC_OBSERVER_MODEL_VERSION
           return (
-            trace.agentMode !== expectedComponents.mode
-            || !traceVersions
+            !traceVersions
             || traceVersions.belief !== trace.beliefModelVersion
             || (
               !currentComponentTrace
@@ -1291,10 +1279,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         })
         if (!decisionTraces.length || mismatch) {
           const actual = mismatch
-            ? {
-                mode: mismatch.trace.agentMode,
-                ...mismatch.trace.componentVersions,
-              }
+            ? { ...mismatch.trace.componentVersions }
             : undefined
           throw new Error(
             `custom architecture variant ${variant.id} trace components do not match declared components in ${c.id} at ${mismatch?.trace.decisionId ?? 'missing-trace'}`

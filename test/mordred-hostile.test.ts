@@ -2,6 +2,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { RAW_LLM_POLICY_VERSION } from '../server/agents/brain.ts'
 import {
   applyDecision,
   createGame,
@@ -1036,9 +1037,8 @@ test('resolved base, trace, and artifact agree on E2A observer metadata', async 
   )
 
   const rawWithoutObserver = structuredClone(artifact)
-  rawWithoutObserver.architecture!.components.mode = 'raw-llm'
+  rawWithoutObserver.architecture!.components.policy = RAW_LLM_POLICY_VERSION
   for (const trace of rawWithoutObserver.decisionTraces!) {
-    trace.agentMode = 'raw-llm'
     delete trace.publicObserver
   }
   const rawRejected = architectureReport([rawWithoutObserver]).variants[0]

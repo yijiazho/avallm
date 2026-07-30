@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   BRAIN_SPEC_VERSION,
   COMPOSED_POLICY_VERSION,
+  isComposedPolicy,
   PLAN_COMMUNICATION_VERSION,
   brainComponents,
   resolveBrain,
@@ -219,7 +220,7 @@ function resolvedArchitectureIdentityInvariants(
 ): boolean {
   const pipeline = identity.configuredPipeline
   return (
-    identity.base.mode === undefined
+    isComposedPolicy(identity.base.policy)
     && (
       identity.componentContributions.observerModel === 'off'
       || identity.componentContributions.observerModel
@@ -549,7 +550,7 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
     || record.version !== BRAIN_SPEC_VERSION
     || record.belief !== EXACT_BELIEF_MODEL_VERSION
     || record.beliefVisibility !== 'none'
-    || record.policy !== COMPOSED_POLICY_VERSION
+    || !isComposedPolicy(record.policy)
     || record.communication !== PLAN_COMMUNICATION_VERSION
     || ![
       'off',

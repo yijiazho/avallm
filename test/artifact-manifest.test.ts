@@ -377,12 +377,6 @@ test('current artifact writer rejects architecture identity relabeling', () => {
     }),
     /trusted architecture does not match traces/,
   )
-  assert.throws(
-    write((trace) => {
-      trace.agentMode = 'raw-llm'
-    }),
-    /trusted architecture does not match traces/,
-  )
 })
 
 function copyArtifact(): GameArtifact {
@@ -510,9 +504,9 @@ test('historical and external traces stay readable without gaining trust', () =>
 
   const externalClaim = copyLegacyArtifact()
   delete externalClaim.strategyVersions!.decisionComponents
-  externalClaim.architecture!.components.mode = 'external'
+  externalClaim.architecture!.components.policy = 'external'
   for (const trace of externalClaim.decisionTraces!) {
-    trace.agentMode = 'external'
+    trace.componentVersions!.policy = 'external'
     assert.equal(trace.version, COMPONENT_DECISION_TRACE_VERSION)
   }
   assertUnverified(externalClaim)

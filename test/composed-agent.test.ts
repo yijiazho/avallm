@@ -715,7 +715,5 @@ test('external ingress boundary accepts the complete composed trace extension', 
     targets[0],
   ]
   stripsTrace(duplicateTarget)
-  const declaredMode = structuredClone(output)
-  declaredMode.trace!.agentMode = 'raw-llm'
-  stripsTrace(declaredMode)
+
 })

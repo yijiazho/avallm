@@ -10,7 +10,6 @@ import {
   JOINT_IDENTITY_MODEL_VERSION,
   type PrivateIdentitySnapshot,
 } from './belief/identity.ts'
-import type { AgentExecutionMode } from './brain.ts'
 import type {
   DecisionComponentPlan,
   DecisionComponentRun,
