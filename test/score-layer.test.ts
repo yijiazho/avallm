@@ -466,15 +466,33 @@ test('construction rejects duplicate, unknown, missing, and cyclic layers', () =
       error instanceof ScoreLayerRegistryError
       && error.code === 'invalid-definition',
   )
+  // Each field of a declared component read is its own refusal, and the
+  // validator behind them is shared by all three registries. Every one of these
+  // guards could be deleted with the whole suite green before this loop.
+  for (const invalid of [
+    { id: 'numeric-component', version: 7, kind: 'projection', privacy: 'private' },
+    { id: 'Uppercase-Component', version: 'v1', kind: 'projection', privacy: 'private' },
+    { id: 'unknown-kind', version: 'v1', kind: 'oracle', privacy: 'private' },
+    { id: 'unknown-privacy', version: 'v1', kind: 'projection', privacy: 'secret' },
+  ]) {
+    assert.throws(
+      () => createScoreLayerRegistry([{
+        ...root,
+        requiredComponents: [invalid],
+      } as unknown as ScoreLayerDefinition]),
+      (error: unknown) =>
+        error instanceof ScoreLayerRegistryError
+        && error.code === 'invalid-definition',
+      `expected ${invalid.id} to be refused`,
+    )
+  }
   assert.throws(
     () => createScoreLayerRegistry([{
       ...root,
-      requiredComponents: [{
-        id: 'numeric-component',
-        version: 7,
-        kind: 'projection',
-        privacy: 'private',
-      }],
+      requiredComponents: [
+        { id: 'repeated', version: 'v1', kind: 'projection', privacy: 'private' },
+        { id: 'repeated', version: 'v1', kind: 'projection', privacy: 'private' },
+      ],
     } as unknown as ScoreLayerDefinition]),
     (error: unknown) =>
       error instanceof ScoreLayerRegistryError

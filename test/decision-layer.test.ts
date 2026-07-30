@@ -439,6 +439,32 @@ test('construction rejects registry substitution and invalid ordered identity', 
   ]).definitions().map((definition) => definition.token.id)
   assert.deepEqual(exposedIds, [...exposedIds].sort())
 
+  for (const invalid of [
+    { id: 'numeric-version', version: 7, kind: 'projection', privacy: 'private' },
+    { id: 'Uppercase-Component', version: 'v1', kind: 'projection', privacy: 'private' },
+    { id: 'unknown-kind', version: 'v1', kind: 'oracle', privacy: 'private' },
+    { id: 'unknown-privacy', version: 'v1', kind: 'projection', privacy: 'secret' },
+  ]) {
+    assert.throws(
+      () => createDecisionLayerRegistry([{
+        ...NARROW_DEFINITION,
+        requiredComponents: [invalid],
+      } as unknown as DecisionLayerDefinition]),
+      /is invalid/,
+      `expected ${invalid.id} to be refused`,
+    )
+  }
+  assert.throws(
+    () => createDecisionLayerRegistry([{
+      ...NARROW_DEFINITION,
+      requiredComponents: [
+        { id: 'repeated', version: 'v1', kind: 'projection', privacy: 'private' },
+        { id: 'repeated', version: 'v1', kind: 'projection', privacy: 'private' },
+      ],
+    } as unknown as DecisionLayerDefinition]),
+    /repeats a component read/,
+  )
+
   const substitutedComponent = {
     ...FIXTURE_DEFINITION,
     token: {

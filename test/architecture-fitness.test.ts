@@ -991,6 +991,59 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
   )
 })
 
+test('shared layer registry skeleton stays confined and role-blind', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/composed.ts',
+        'import { layerToken } from "./policy/layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/policy/types.ts',
+        'import { layerToken } from "./layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/score-layers/good.ts',
+        'import { indexLayerDefinitions } from "../policy/layer-registry-common.ts"',
+      ],
+      [
+        // One source: the audit refuses a repeated path, and this file is the
+        // only one the shared role scope matches.
+        'server/agents/policy/layer-registry-common.ts',
+        'function applyMorganaRolePolicy() { return "merlin" }',
+      ],
+    ]),
+    Array(5).fill('ARCH011'),
+  )
+  // Both layer families, the component registry, and the trace writers are the
+  // legitimate consumers.
+  assert.deepEqual(
+    auditArchitectureSources([
+      [
+        'server/agents/policy/score-layer/registry.ts',
+        'import { indexLayerDefinitions } from "../layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/policy/decision-layer/types.ts',
+        'import { layerToken } from "../layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/components/registry.ts',
+        'import { assertLayerRef } from "../policy/layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/policy/decision-frame.ts',
+        'import { projectLayerRun } from "./layer-registry-common.ts"',
+      ],
+      [
+        'server/agents/trace-builder.ts',
+        'import { projectLayerRun } from "./policy/layer-registry-common.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
 test('concrete score families stay separate from observability and composition IDs', () => {
   assert.deepEqual(
     rules([

@@ -23,6 +23,20 @@ const DECISION_LAYER_RUNNER =
   'server/agents/policy/decision-layer/runner'
 const DECISION_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/decision-layer/admission-replay'
+// The skeleton the layer families and the component registry instantiate. It
+// carries the identity grammar, the branded token mint, the component-read
+// contract, and the trace projection, so an unrelated agent module importing it
+// would be reaching past its own seam into shared registry internals. The
+// owners are enumerated rather than prefixed because the legitimate consumers
+// are registries and type modules in three named places, not a directory.
+const LAYER_REGISTRY_COMMON =
+  'server/agents/policy/layer-registry-common'
+const LAYER_REGISTRY_COMMON_SOURCE = `${LAYER_REGISTRY_COMMON}.ts`
+const LAYER_REGISTRY_COMMON_OWNERS = new Set([
+  'server/agents/components/registry.ts',
+  'server/agents/policy/decision-frame.ts',
+  'server/agents/trace-builder.ts',
+])
 const POLICY_COMPONENT_RUNTIME =
   'server/agents/policy/component-runtime'
 const POLICY_COMPONENT_RUNTIME_OWNERS = new Set([
@@ -136,6 +150,27 @@ const FORBIDDEN_SCORE_LAYER_ROLE_LITERALS = new Set([
 ])
 const FORBIDDEN_SCORE_LAYER_IDENTIFIER =
   /(?:Assassin|EvilRole|GoodRole|Merlin|Minion|Mordred|Morgana|Oberon|Percival|RoleObjective|Servant)/i
+// Every generic layer scope that must stay role-blind, each reported under its
+// own code and named honestly so a violation points at the right owner. The
+// shared skeleton is generic layer code too: without an entry here, moving a
+// function out of a scanned family directory into it would silently exempt it.
+const GENERIC_LAYER_ROLE_SCOPES = [
+  {
+    prefix: GENERIC_SCORE_LAYER_PREFIX,
+    code: 'ARCH005',
+    label: 'generic score-layer code',
+  },
+  {
+    prefix: GENERIC_DECISION_LAYER_PREFIX,
+    code: 'ARCH011',
+    label: 'generic decision-layer code',
+  },
+  {
+    prefix: LAYER_REGISTRY_COMMON_SOURCE,
+    code: 'ARCH011',
+    label: 'shared generic layer code',
+  },
+]
 const FORBIDDEN_AGENT_ENGINE_MODULES = new Set([
   'server/engine/game',
   'server/engine/view',
@@ -893,6 +928,20 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (
+        target === LAYER_REGISTRY_COMMON
+        && !LAYER_REGISTRY_COMMON_OWNERS.has(sourcePath)
+        && !sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
+        && !sourcePath.startsWith(GENERIC_DECISION_LAYER_PREFIX)
+      ) {
+        violations.push(violation(
+          'ARCH011',
+          sourcePath,
+          edge,
+          'the shared layer registry skeleton is confined to the layer families, the component registry, and the trace writers',
+        ))
+        continue
+      }
+      if (
         target === POLICY_COMPONENT_RUNTIME
         && !POLICY_COMPONENT_RUNTIME_OWNERS.has(sourcePath)
       ) {
@@ -1072,46 +1121,28 @@ export function auditArchitectureSources(sourceEntries) {
       }
     }
 
-    if (sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)) {
+    // One scan over every generic layer scope. The blocks per scope differed
+    // only in violation code and the noun in their message, and the shared
+    // skeleton was covered by none of them.
+    for (const scope of GENERIC_LAYER_ROLE_SCOPES) {
+      if (!sourcePath.startsWith(scope.prefix)) continue
       for (const identifier of inspected.identifiers) {
         if (FORBIDDEN_SCORE_LAYER_IDENTIFIER.test(identifier)) {
           violations.push(violation(
-            'ARCH005',
+            scope.code,
             sourcePath,
             undefined,
-            `generic score-layer code contains role-named identifier ${identifier}`,
+            `${scope.label} contains role-named identifier ${identifier}`,
           ))
         }
       }
       for (const literal of inspected.stringLiterals) {
         if (FORBIDDEN_SCORE_LAYER_ROLE_LITERALS.has(literal.toLowerCase())) {
           violations.push(violation(
-            'ARCH005',
+            scope.code,
             sourcePath,
             undefined,
-            `generic score-layer code contains role-named branch literal ${literal}`,
-          ))
-        }
-      }
-    }
-    if (sourcePath.startsWith(GENERIC_DECISION_LAYER_PREFIX)) {
-      for (const identifier of inspected.identifiers) {
-        if (FORBIDDEN_SCORE_LAYER_IDENTIFIER.test(identifier)) {
-          violations.push(violation(
-            'ARCH011',
-            sourcePath,
-            undefined,
-            `generic decision-layer code contains role-named identifier ${identifier}`,
-          ))
-        }
-      }
-      for (const literal of inspected.stringLiterals) {
-        if (FORBIDDEN_SCORE_LAYER_ROLE_LITERALS.has(literal.toLowerCase())) {
-          violations.push(violation(
-            'ARCH011',
-            sourcePath,
-            undefined,
-            `generic decision-layer code contains role-named branch literal ${literal}`,
+            `${scope.label} contains role-named branch literal ${literal}`,
           ))
         }
       }
