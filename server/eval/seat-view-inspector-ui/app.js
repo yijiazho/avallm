@@ -180,12 +180,146 @@ function renderOmissions(data) {
   for (const text of data.omissions) omissions.append(element('li', '', text))
 }
 
+function unavailable(root, reason) {
+  clear(root)
+  root.append(element('p', 'empty', reason))
+}
+
+function setRail(id, available, summary) {
+  const item = document.querySelector(id)
+  item.classList.toggle('available', available)
+  item.querySelector('small').textContent = summary
+}
+
+function compactJson(root, value) {
+  root.append(element('pre', 'policy-json', JSON.stringify(value, null, 2)))
+}
+
+function renderPolicy(data) {
+  const policy = data.policyRun
+  const roots = {
+    belief: document.querySelector('#policy-belief'),
+    components: document.querySelector('#policy-components'),
+    candidates: document.querySelector('#policy-candidates'),
+    gates: document.querySelector('#policy-gates'),
+    scoreLayers: document.querySelector('#policy-score-layers'),
+    commitment: document.querySelector('#policy-commitment'),
+    communication: document.querySelector('#policy-communication'),
+  }
+  if (policy.status !== 'present') {
+    document.querySelector('#policy-provenance').textContent = policy.reason
+    for (const root of Object.values(roots)) unavailable(root, policy.reason)
+    for (const id of [
+      '#rail-belief', '#rail-components', '#rail-candidates', '#rail-gate',
+      '#rail-commitment', '#rail-voice',
+    ]) setRail(id, false, 'Unavailable in seat-view-only mode')
+    return
+  }
+
+  const run = policy.value
+  document.querySelector('#policy-provenance').textContent =
+    `${run.source.admission} · ${run.source.traceVersion} · ${run.source.promotionEvidenceEligible ? 'trace evidence eligible' : 'diagnostic only'}`
+
+  clear(roots.belief)
+  roots.belief.append(
+    datum('Model', run.belief.modelVersion),
+    datum('Quality', run.belief.quality),
+    datum('Cursor', `event ${run.belief.throughSeq}`),
+    datum('Top worlds', run.belief.topHypotheses.length),
+  )
+  compactJson(roots.belief, {
+    playerMarginals: run.belief.playerMarginals,
+    teamAssessments: run.belief.teamAssessments,
+    degradation: run.belief.degradation,
+  })
+  setRail('#rail-belief', true,
+    `${run.belief.quality} · ${run.belief.topHypotheses.length} top worlds`)
+
+  if (run.components.status === 'present') {
+    clear(roots.components)
+    for (const entry of run.components.entries) {
+      const row = element('div', `component-row ${entry.status}`)
+      row.append(
+        element('strong', '', entry.component.id),
+        element('span', '', `${entry.status} · ${entry.causalUse.used ? entry.causalUse.stages.join(' → ') : 'not causal'}`),
+      )
+      roots.components.append(row)
+    }
+    setRail('#rail-components', true,
+      `${run.components.entries.filter((entry) => entry.causalUse.used).length} causal of ${run.components.entries.length} configured`)
+  } else {
+    unavailable(roots.components, run.components.reason)
+    setRail('#rail-components', false, run.components.reason)
+  }
+
+  if (run.candidates.status === 'present') {
+    clear(roots.candidates)
+    const table = element('div', 'candidate-table')
+    for (const candidate of run.candidates.entries) {
+      const row = element('div',
+        `candidate-row ${candidate.candidateId === run.commitment.chosenCandidateId ? 'chosen' : ''}`)
+      row.append(
+        element('code', '', candidate.candidateId),
+        element('strong', '', candidate.value.toFixed(4)),
+        element('span', candidate.viable ? 'viable' : 'excluded',
+          candidate.viable ? 'viable' : 'excluded'),
+        element('small', '', candidate.reasonCodes.join(', ') || 'no reason codes'),
+      )
+      table.append(row)
+    }
+    roots.candidates.append(table)
+    setRail('#rail-candidates', true,
+      `${run.candidates.entries.length} scored · ${run.candidates.entries.filter((entry) => entry.viable).length} viable`)
+  } else {
+    unavailable(roots.candidates, run.candidates.reason)
+    setRail('#rail-candidates', false, run.candidates.reason)
+  }
+
+  clear(roots.gates)
+  compactJson(roots.gates, run.policyGate)
+  const strategicCount = run.policyGate.strategicLayers.status === 'present'
+    ? run.policyGate.strategicLayers.journal.filter((entry) => entry.status === 'applied').length
+    : 0
+  setRail('#rail-gate', true, `${strategicCount} strategic layers applied`)
+
+  if (run.scoreLayers.status === 'present') {
+    clear(roots.scoreLayers)
+    for (const entry of run.scoreLayers.journal) {
+      const row = element('div', `component-row ${entry.status}`)
+      row.append(
+        element('strong', '', entry.layer.id),
+        element('span', '', `${entry.status} · ${entry.analysisAdmission}`),
+      )
+      roots.scoreLayers.append(row)
+    }
+  } else {
+    unavailable(roots.scoreLayers, run.scoreLayers.reason)
+  }
+
+  clear(roots.commitment)
+  compactJson(roots.commitment, run.commitment)
+  setRail('#rail-commitment', !!run.commitment.committedMechanicalAction,
+    run.commitment.chosenCandidateId ?? 'Commitment not recorded')
+  setRail('#rail-voice', !!run.commitment.voice,
+    run.commitment.voice
+      ? `${run.commitment.voice.version} · ${run.commitment.voice.applied ? 'applied' : 'mechanical only'}`
+      : 'Voice status not recorded')
+
+  if (run.communication.status === 'present') {
+    clear(roots.communication)
+    compactJson(roots.communication, run.communication.intent)
+  } else {
+    unavailable(roots.communication, run.communication.reason)
+  }
+}
+
 function renderInspection(data) {
   renderDecision(data)
   renderPublicBoard(data)
   renderPrivateKnowledge(data)
   renderHistory(data)
   renderOmissions(data)
+  renderPolicy(data)
   document.querySelector('#evidence-summary').textContent =
     `${data.visibleHistory.events.length} events · ${data.visibleHistory.transcript.length} utterances · ${data.privateKnowledge.seats.length} named private seats`
 }
@@ -205,7 +339,7 @@ async function loadFixture() {
   try {
     const data = await jsonRequest(`/api/fixture?id=${encodeURIComponent(id)}`)
     renderInspection(data)
-    setStatus(`Showing “${id}”. Only the allow-listed SeatViewInspection projection crossed from server to browser.`)
+    setStatus(`Showing “${id}”. Only the allow-listed SeatDecisionInspection projection crossed from server to browser.`)
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true)
   } finally {

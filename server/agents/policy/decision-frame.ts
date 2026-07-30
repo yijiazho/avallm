@@ -39,8 +39,10 @@ import type {
   ScoreLayerAnalysisRef,
   ScoreLayerRow,
   ScoreLayerRun,
+  ScoreLayerTrace,
   ScoreLayerRunLease,
 } from './score-layer/types.ts'
+import { projectScoreLayerRun } from './score-layer/projection.ts'
 import {
   candidateIdForDecision,
   compareCandidateIds,
@@ -121,6 +123,8 @@ interface ScoreSurface {
   readonly structuredCandidateId: string
   readonly scorerVersion: string
   readonly degradation: readonly string[]
+  /** Present for the native authority; absent for custom compatibility scorers. */
+  readonly scoreLayerRun?: Immutable<ScoreLayerRun>
 }
 
 export type CanonicalDecisionFrame = Stage<'canonical', object>
@@ -216,6 +220,15 @@ export type VoicedDecisionFrame = Stage<'voiced', CommittedData & {
   readonly voice: Immutable<{ version: string; applied: boolean }>
 }>
 
+export interface DecisionFrameTrace {
+  readonly version: typeof DECISION_FRAME_VERSION
+  readonly committedMechanicalAction: Decision
+  readonly voice: {
+    readonly version: string
+    readonly applied: boolean
+  }
+}
+
 export interface LegacyVoicedOutputProjection {
   readonly action: Decision
   readonly scores: readonly CandidateScore[]
@@ -226,6 +239,8 @@ export interface LegacyVoicedOutputProjection {
   readonly degradation: readonly string[]
   readonly componentRun: DecisionComponentRun
   readonly decisionLayerRun: DecisionLayerRun
+  readonly scoreLayerRun?: ScoreLayerTrace
+  readonly decisionFrame: DecisionFrameTrace
   readonly plan: DecisionPlan
 }
 
@@ -975,7 +990,7 @@ export function selectDecisionCandidate(
   }) as SelectedDecisionFrame
 }
 
-function mechanical(decision: Decision): Decision {
+export function mechanicalDecision(decision: Decision): Decision {
   const result = structuredClone(decision)
   delete result.thinking
   delete result.notes
@@ -989,7 +1004,7 @@ function mechanical(decision: Decision): Decision {
 export function selectedMechanicalDecision(
   frame: SelectedDecisionFrame,
 ): Decision {
-  return structuredClone(mechanical(
+  return structuredClone(mechanicalDecision(
     legacy<Decision>(frame.selected.candidate.decision),
   ))
 }
@@ -1023,7 +1038,7 @@ export function withDecisionVoice(
 ): VoicedDecisionFrame {
   validVersion(input.version, 'voice')
   if (!isDeepStrictEqual(
-    mechanical(input.result),
+    mechanicalDecision(input.result),
     frame.mechanicalDecision,
   )) throw new Error('voice cannot alter committed mechanics')
   const applied = !isDeepStrictEqual(input.result, frame.mechanicalDecision)
@@ -1057,6 +1072,18 @@ export function projectVoicedFrameForLegacy(
     degradation: frame.degradation,
     componentRun: frame.componentRun,
     decisionLayerRun: frame.decisionLayerRun,
+    ...(frame.scoreLayerRun
+      ? {
+          scoreLayerRun: projectScoreLayerRun(
+            legacy<ScoreLayerRun>(frame.scoreLayerRun),
+          ),
+        }
+      : {}),
+    decisionFrame: {
+      version: frame.version,
+      committedMechanicalAction: frame.mechanicalDecision,
+      voice: frame.voice,
+    },
     plan: frame.plan,
   }) as LegacyVoicedOutputProjection
 }

@@ -63,6 +63,15 @@ test('seat microscope binds only to IPv4 loopback on an ephemeral port', async (
   )
 })
 
+test('the synchronous constructor is explicitly seat-view-only', () => {
+  assert.throws(
+    () => createSeatViewInspectorUiServer({
+      mode: 'native-policy',
+    } as unknown as Parameters<typeof createSeatViewInspectorUiServer>[0]),
+    /supports seat-view mode only/,
+  )
+})
+
 test('non-loopback Host headers are rejected without reflecting the host', async (t) => {
   const running = await startSeatViewInspectorUi()
   t.after(() => running.close())
@@ -88,6 +97,25 @@ test('HTML, CSS, and JavaScript assets are local, hardened, and product-independ
   assert.equal(html.headers.get('cache-control'), 'no-store')
   assert.match(html.headers.get('content-security-policy') ?? '', /default-src 'none'/)
   assert.match(html.text, /Seat Decision <span>Microscope/)
+  assert.match(
+    html.text,
+    /Inspect what one seat could know and how an admitted run used it/,
+  )
+  assert.match(html.text, /Exact-admitted policy run when available/)
+  assert.match(html.text, /How knowledge shaped this decision/)
+  assert.match(
+    html.text,
+    /Policy stages come only from exact admission; seat-view mode remains evidence-only/,
+  )
+  assert.match(html.text, /Decision components/)
+  assert.doesNotMatch(html.text, /Reconstruct what one player could know/)
+  assert.doesNotMatch(html.text, /How knowledge could shape play/)
+  assert.doesNotMatch(html.text, /Only the evidence chamber is populated/)
+  assert.doesNotMatch(html.text, /Role components/)
+  assert.match(javascript.text, /trace evidence eligible/)
+  assert.match(javascript.text, /SeatDecisionInspection projection/)
+  assert.doesNotMatch(javascript.text, /'promotion eligible'/)
+  assert.doesNotMatch(javascript.text, /SeatViewInspection projection/)
   assert.match(html.text, /raw input never\s+enters browser JavaScript/)
   assert.ok(!html.text.includes('<textarea'))
   assert.ok(!html.text.includes('client/'))
@@ -133,6 +161,7 @@ test('frozen fixture selection returns only allow-listed projection data', async
     [
       'decisionPoint',
       'omissions',
+      'policyRun',
       'privateKnowledge',
       'provenance',
       'publicBoard',
@@ -142,6 +171,18 @@ test('frozen fixture selection returns only allow-listed projection data', async
     ],
   )
   const serialized = JSON.stringify(inspection)
+  const policyRun = inspection.policyRun as {
+    status: string
+    value?: {
+      scoreLayers: { status: string; journal?: unknown[] }
+      commitment: { committedMechanicalAction?: unknown; voice?: unknown }
+    }
+  }
+  assert.equal(policyRun.status, 'present')
+  assert.equal(policyRun.value?.scoreLayers.status, 'present')
+  assert.ok((policyRun.value?.scoreLayers.journal?.length ?? 0) > 0)
+  assert.ok(policyRun.value?.commitment.committedMechanicalAction)
+  assert.ok(policyRun.value?.commitment.voice)
   for (const forbidden of [
     'baselineDecision',
     '"req"',
@@ -150,6 +191,7 @@ test('frozen fixture selection returns only allow-listed projection data', async
     'pendingCards',
     'pendingVotes',
     'trueDeal',
+    'architectureIdentityDigest',
   ]) {
     assert.ok(!serialized.includes(forbidden), forbidden)
   }
@@ -176,7 +218,25 @@ test('custom snapshot files are projected before serving and never retained by t
   assert.ok(!text.includes('harmlessUnknownInput'))
 })
 
-test('invalid custom files fail before listening and errors do not echo raw values', () => {
+test('seat-view-only mode preserves the boundary projection without inventing policy stages', async (t) => {
+  const running = await startSeatViewInspectorUi({ mode: 'seat-view' })
+  t.after(() => running.close())
+  const metadata = await fetch(`${running.url}api/fixtures`).then(
+    (response) => response.json(),
+  ) as { selectedId: string }
+  const inspection = await fetch(
+    `${running.url}api/fixture?id=${encodeURIComponent(metadata.selectedId)}`,
+  ).then((response) => response.json()) as {
+    schema: number
+    policyRun: { status: string; reason: string }
+  }
+
+  assert.equal(inspection.schema, 2)
+  assert.equal(inspection.policyRun.status, 'absent')
+  assert.match(inspection.policyRun.reason, /No exact admitted policy run/)
+})
+
+test('invalid custom files fail before native execution and do not echo raw values', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'seat-microscope-invalid-'))
   try {
     const fixture = structuredClone(readDecisionFixtures()[0])
@@ -185,8 +245,8 @@ test('invalid custom files fail before listening and errors do not echo raw valu
     const file = path.join(directory, 'invalid.json')
     fs.writeFileSync(file, JSON.stringify(fixture))
 
-    assert.throws(
-      () => createSeatViewInspectorUiServer({ fixtureFile: file }),
+    await assert.rejects(
+      startSeatViewInspectorUi({ fixtureFile: file }),
       (error: unknown) => {
         assert.ok(error instanceof Error)
         assert.match(error.message, /raw Game field "seed"/)

@@ -271,6 +271,11 @@ export interface ScoreLayerRun {
   readonly operations: ScoreLayerOperationCounts
 }
 
+/** Detached observability projection; component payloads stay in trace.components. */
+export type ScoreLayerTrace = Readonly<
+  Omit<ScoreLayerRun, 'componentRun'>
+>
+
 export interface ScoreLayerRunCompletion {
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]

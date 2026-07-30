@@ -12,10 +12,12 @@ import {
   prepareScoreLayerRunLease,
   scoreLayerDiagnosticOwnerVersion,
 } from './runner.ts'
+import { projectScoreLayerRun } from './projection.ts'
 import type {
   ResolvedScoreLayerChain,
   ScoreLayerJournalEntry,
   ScoreLayerRow,
+  ScoreLayerTrace,
 } from './types.ts'
 
 export interface NativeScoreAdmissionReplayInput {
@@ -43,6 +45,7 @@ export interface NativeScoreAdmissionReplay {
   readonly componentRun: DecisionComponentRun
   readonly resolvedScorerVersion: string
   readonly diagnosticOwnerVersion: string
+  readonly trace: ScoreLayerTrace
 }
 
 /** Replay one configured native chain from detached authoritative host input. */
@@ -100,5 +103,6 @@ export function replayNativeScoresForAdmission(
       run,
       input.chain,
     ),
+    trace: projectScoreLayerRun(run),
   })
 }

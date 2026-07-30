@@ -12,13 +12,13 @@
     <a class="skip-link" href="#inspection">Skip to inspection</a>
     <header class="masthead">
       <div>
-        <p class="instrument-label">Local agent instrument · boundary schema v1</p>
+        <p class="instrument-label">Local agent instrument · boundary schema v2</p>
         <h1>Seat Decision <span>Microscope</span></h1>
-        <p class="deck">Reconstruct what one player could know, and no more.</p>
+        <p class="deck">Inspect what one seat could know and how an admitted run used it.</p>
       </div>
       <div class="boundary-seal" aria-label="Security boundary">
         <span class="seal-mark" aria-hidden="true">◈</span>
-        <span><strong>Seat-filtered</strong>DecisionRequest + PlayerView</span>
+        <span><strong>Seat-filtered</strong>Exact-admitted policy run when available</span>
       </div>
     </header>
 
@@ -87,40 +87,80 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Causal spine</p>
-            <h2 id="causal-heading">How knowledge could shape play</h2>
+            <h2 id="causal-heading">How knowledge shaped this decision</h2>
           </div>
-          <p>Only the evidence chamber is populated by this boundary snapshot.</p>
+          <p>Policy stages come only from exact admission; seat-view mode remains evidence-only.</p>
         </div>
         <ol class="causal-rail" id="causal-rail">
           <li class="available">
             <span class="rail-index">01</span><strong>Visible evidence</strong>
             <small id="evidence-summary">Awaiting snapshot</small>
           </li>
-          <li>
+          <li id="rail-belief">
             <span class="rail-index">02</span><strong>Belief state</strong>
-            <small>Unavailable in seat view</small>
+            <small>Awaiting admitted run</small>
           </li>
-          <li>
-            <span class="rail-index">03</span><strong>Role components</strong>
-            <small>Unavailable in seat view</small>
+          <li id="rail-components">
+            <span class="rail-index">03</span><strong>Decision components</strong>
+            <small>Awaiting admitted run</small>
           </li>
-          <li>
+          <li id="rail-candidates">
             <span class="rail-index">04</span><strong>Candidates</strong>
-            <small>Unavailable in seat view</small>
+            <small>Awaiting admitted run</small>
           </li>
-          <li>
+          <li id="rail-gate">
             <span class="rail-index">05</span><strong>Policy gate</strong>
-            <small>Forced or strategic, unavailable</small>
+            <small>Awaiting admitted run</small>
           </li>
-          <li>
+          <li id="rail-commitment">
             <span class="rail-index">06</span><strong>Committed action</strong>
-            <small>Not present at request time</small>
+            <small>Awaiting admitted run</small>
           </li>
-          <li>
+          <li id="rail-voice">
             <span class="rail-index">07</span><strong>Voice</strong>
-            <small>Not present at request time</small>
+            <small>Awaiting admitted run</small>
           </li>
         </ol>
+      </section>
+
+      <section class="policy-section" aria-labelledby="policy-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Admitted execution record</p>
+            <h2 id="policy-heading">Policy run</h2>
+          </div>
+          <p id="policy-provenance">No admitted run supplied.</p>
+        </div>
+        <div class="policy-grid">
+          <article class="policy-panel">
+            <h3>Belief and uncertainty</h3>
+            <div id="policy-belief"></div>
+          </article>
+          <article class="policy-panel">
+            <h3>Components and causal use</h3>
+            <div id="policy-components"></div>
+          </article>
+          <article class="policy-panel policy-wide">
+            <h3>Candidate surface</h3>
+            <div id="policy-candidates"></div>
+          </article>
+          <article class="policy-panel">
+            <h3>Forced and strategic gates</h3>
+            <div id="policy-gates"></div>
+          </article>
+          <article class="policy-panel">
+            <h3>Score-layer journal</h3>
+            <div id="policy-score-layers"></div>
+          </article>
+          <article class="policy-panel">
+            <h3>Commitment and comparisons</h3>
+            <div id="policy-commitment"></div>
+          </article>
+          <article class="policy-panel">
+            <h3>Communication intent</h3>
+            <div id="policy-communication"></div>
+          </article>
+        </div>
       </section>
 
       <section class="history-section" aria-labelledby="history-heading">

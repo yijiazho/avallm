@@ -210,6 +210,7 @@ import {
   withResolvedComponents,
   withUniversalForcedPolicy,
   type LegacyPlannerResolution,
+  type LegacyVoicedOutputProjection,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
 import {
@@ -797,6 +798,8 @@ function composedTrace(
   componentPlan: DecisionComponentPlan,
   decisionComponents: DecisionComponentRun,
   decisionLayerRun: DecisionLayerRun,
+  scoreLayerRun: LegacyVoicedOutputProjection['scoreLayerRun'],
+  decisionFrame: LegacyVoicedOutputProjection['decisionFrame'],
   descriptor: ResolvedComposedBrain['description'],
   architectureIdentityDigest: string,
   agentMode: AgentExecutionMode,
@@ -879,6 +882,8 @@ function composedTrace(
     componentPlan: structuredClone(componentPlan),
     components: structuredClone(decisionComponents),
     decisionLayerRun: projectDecisionLayerRun(decisionLayerRun),
+    ...(scoreLayerRun ? { scoreLayerRun: structuredClone(scoreLayerRun) } : {}),
+    decisionFrame: structuredClone(decisionFrame),
     candidateScores: scores,
     structuredCandidateId,
     chosenCandidateId,
@@ -2074,6 +2079,8 @@ export function createComposedAgent(
           configuredComponentPlan,
           legacyOutput.componentRun,
           legacyOutput.decisionLayerRun,
+          legacyOutput.scoreLayerRun,
+          legacyOutput.decisionFrame,
           resolvedBrain.description,
           architectureIdentityDigest,
           activePlanner

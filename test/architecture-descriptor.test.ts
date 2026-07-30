@@ -165,7 +165,7 @@ test('runtime and persisted identity share one codec and omit migration', () => 
   assert.equal(admitResolvedArchitectureIdentity(leakedMigration), undefined)
 
   let invoked = false
-  const accessor = structuredClone(runtime) as Record<string, unknown>
+  const accessor = structuredClone(runtime) as unknown as Record<string, unknown>
   Object.defineProperty(accessor, 'configuredPipeline', {
     enumerable: true,
     get() {
@@ -328,7 +328,7 @@ test('resolved architecture descriptor is deterministic across a configuration m
           },
         },
         languageFactor: {
-          id: 'matrix-language',
+          id: 'language',
           version: 'matrix-language-factor-v1',
           logLikelihood() {
             throw new Error('descriptor construction must not score language')
@@ -422,7 +422,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
   const descriptor = createComposedAgent({
     seed: 'descriptor-projections',
     privateIdentity: {
-      roleQueries: ['merlin'],
+      roleQueries: [{ roles: ['merlin'] }],
       hiddenTeam: false,
     },
   }).resolvedBrain().description
@@ -468,7 +468,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
     morganaCounterfeitObjectives: false,
     privateIdentity: {
       hiddenTeam: false,
-      roleQueries: ['merlin'],
+      roleQueries: [{ roles: ['merlin'] }],
     },
     publicObserver: false,
     roleObjectiveRouter: false,
@@ -508,7 +508,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
       planMemory: false,
       privateIdentity: {
         hiddenTeam: false,
-        roleQueries: ['merlin'],
+        roleQueries: [{ roles: ['merlin'] }],
       },
       publicObserver: false,
       roleObjectiveRouter: false,
@@ -764,8 +764,14 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    'dae252b42f352e227e94c1eb35956ca0b912cae559cf2c751eaf1760afc94536',
+    '0576c833f4890d6a0a156191154292f3bfc9c0d7c3c3b6a220cf6e37921024b0',
   )
+  assert.equal(output.trace!.scoreLayerRun, undefined)
+  assert.deepEqual(output.trace!.decisionFrame, {
+    version: 'decision-frame-v1',
+    committedMechanicalAction: output.decision,
+    voice: { version: NO_VOICE_VERSION, applied: false },
+  })
   assert.deepEqual(Object.keys(output.trace!.componentVersions!), [
     'brain',
     'belief',
@@ -817,7 +823,7 @@ test('base trace projection fails closed on descriptor and run drift', async () 
   const agent = createComposedAgent({
     seed: source.source.seed,
     privateIdentity: {
-      roleQueries: ['merlin'],
+      roleQueries: [{ roles: ['merlin'] }],
       hiddenTeam: false,
     },
   })
@@ -921,6 +927,6 @@ test('descriptor owns component observer attribution across inapplicable paths',
   const descriptor = legacyAgent.resolvedBrain().description
   assert.notEqual(descriptor.base.observerModel, 'off')
   assert.equal(descriptor.componentContributions.observerModel, 'off')
-  assert.equal(legacy.trace!.privateRoleObjective, undefined)
+  assert.equal(Object.hasOwn(legacy.trace!, 'privateRoleObjective'), false)
   assert.equal(legacy.trace!.componentVersions!.observerModel, 'off')
 })

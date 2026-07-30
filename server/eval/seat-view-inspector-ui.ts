@@ -14,6 +14,13 @@ import {
   type SeatViewInspection,
   type SeatViewSnapshotFileEntry,
 } from './seat-view-inspector.ts'
+import {
+  inspectSeatViewOnlyDecision,
+  type SeatDecisionInspection,
+} from './seat-decision-inspector.ts'
+import {
+  inspectNativeSeatDecisionFixtures,
+} from './seat-decision-fixtures.ts'
 
 const LOOPBACK_HOST = '127.0.0.1'
 const ASSET_DIRECTORY = fileURLToPath(new URL('./seat-view-inspector-ui/', import.meta.url))
@@ -28,6 +35,13 @@ export interface SeatViewInspectorUiOptions {
   fixtureFile?: string
   initialFixture?: string
   port?: number
+  mode?: 'native-policy' | 'seat-view'
+}
+
+export interface SeatViewInspectorServerOptions {
+  fixtureFile?: string
+  initialFixture?: string
+  mode?: 'seat-view'
 }
 
 export interface RunningSeatViewInspectorUi {
@@ -44,7 +58,7 @@ interface FixtureProjection {
 
 interface ProjectedFixture {
   id: string
-  inspection: SeatViewInspection
+  inspection: SeatDecisionInspection
 }
 
 function errorMessage(error: unknown): string {
@@ -155,8 +169,17 @@ function createRequestHandler(
 }
 
 export function createSeatViewInspectorUiServer(
-  options: SeatViewInspectorUiOptions = {},
+  options: SeatViewInspectorServerOptions = {},
 ): http.Server {
+  if (
+    (options as { mode?: unknown }).mode !== undefined
+    && options.mode !== 'seat-view'
+  ) {
+    throw new Error(
+      'synchronous seat microscope server supports seat-view mode only; '
+      + 'use startSeatViewInspectorUi for native-policy mode',
+    )
+  }
   const entries = readSeatViewSnapshotFile(
     options.fixtureFile ?? 'test/fixtures/architecture-decision-views.json',
   )
@@ -165,7 +188,7 @@ export function createSeatViewInspectorUiServer(
   // only fixture ids and validated SeatViewInspection values.
   const projected = entries.map((entry, index): ProjectedFixture => ({
     id: fixtureId(entry, index),
-    inspection: inspectEntry(entry),
+    inspection: inspectSeatViewOnlyDecision(inspectEntry(entry)),
   }))
   return http.createServer(createRequestHandler(projected, options.initialFixture))
 }
@@ -177,7 +200,19 @@ export async function startSeatViewInspectorUi(
   if (!Number.isSafeInteger(port) || port < 0 || port > 65_535) {
     throw new Error('seat microscope port must be an integer from 0 to 65535')
   }
-  const server = createSeatViewInspectorUiServer(options)
+  const entries = readSeatViewSnapshotFile(
+    options.fixtureFile ?? 'test/fixtures/architecture-decision-views.json',
+  )
+  if (entries.length === 0) throw new Error('seat microscope needs at least one snapshot')
+  const projected = options.mode === 'seat-view'
+    ? entries.map((entry, index): ProjectedFixture => ({
+        id: fixtureId(entry, index),
+        inspection: inspectSeatViewOnlyDecision(inspectEntry(entry)),
+      }))
+    : await inspectNativeSeatDecisionFixtures(entries)
+  const server = http.createServer(
+    createRequestHandler([...projected], options.initialFixture),
+  )
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(port, LOOPBACK_HOST, resolve)

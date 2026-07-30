@@ -41,6 +41,14 @@ const fixtures = readDecisionFixtures()
 const digest = (value) => createHash('sha256')
   .update(JSON.stringify(value))
   .digest('hex')
+// The independent C4B oracle predates Inspector v2. Keep its behavioral hash
+// stable while the live trace gains later, read-only observability fields.
+const preInspectorTrace = (trace) => {
+  const projected = structuredClone(trace)
+  delete projected.scoreLayerRun
+  delete projected.decisionFrame
+  return projected
+}
 const rows = []
 
 async function capture(id, req, view, options) {
@@ -75,7 +83,7 @@ async function capture(id, req, view, options) {
   rows.push({
     id,
     decision: result.decision,
-    traceHash: digest(result.trace),
+    traceHash: digest(preInspectorTrace(result.trace)),
     stages,
     plannerInputHash: plannerInput ? digest(plannerInput) : null,
     voiceInputHash: voiceInput ? digest(voiceInput) : null,

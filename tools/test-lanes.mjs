@@ -100,6 +100,7 @@ const LANES = Object.freeze({
     'score-authority.test.ts',
     'score-layer.test.ts',
     'scorer-situation-surface.test.ts',
+    'seat-decision-inspector.test.ts',
   ]),
   eval: Object.freeze([
     'active-language-eval.test.ts',

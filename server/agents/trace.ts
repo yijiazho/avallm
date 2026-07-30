@@ -42,6 +42,12 @@ import type {
 import type {
   DecisionLayerTrace,
 } from './policy/decision-layer/types.ts'
+import type {
+  DecisionFrameTrace,
+} from './policy/decision-frame.ts'
+import type {
+  ScoreLayerTrace,
+} from './policy/score-layer/types.ts'
 
 export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
@@ -139,6 +145,10 @@ export interface DecisionTrace {
   components?: DecisionComponentRun
   /** Ordered strategic survivor/selection transitions after universal policy. */
   decisionLayerRun?: DecisionLayerTrace
+  /** Ordered native score transitions; component payloads remain in components. */
+  scoreLayerRun?: ScoreLayerTrace
+  /** Live frame-owned commitment and voice facts; never inferred from action. */
+  decisionFrame?: DecisionFrameTrace
   /** Independent configured-graph witness for composed v2 traces. */
   componentPlan?: DecisionComponentPlan
   candidateScores?: readonly CandidateScore[]

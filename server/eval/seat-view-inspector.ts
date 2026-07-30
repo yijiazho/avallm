@@ -841,7 +841,7 @@ export function inspectSeatView(
   req: DecisionRequest,
   view: PlayerView,
 ): SeatViewInspection {
-  validateBoundary(req, view)
+  validateSeatViewBoundary(req, view)
   const refs = seatLookup(view)
   const inspection: SeatViewInspection = {
     schema: SEAT_VIEW_INSPECTION_SCHEMA,
@@ -904,6 +904,18 @@ export function inspectSeatView(
     ],
   }
   return inspection
+}
+
+/**
+ * Validate an agent-boundary snapshot before any diagnostic or policy code
+ * consumes it. Keep raw-Game rejection and the complete request/view contract
+ * single-owned here.
+ */
+export function validateSeatViewBoundary(
+  req: DecisionRequest,
+  view: PlayerView,
+): void {
+  validateBoundary(req, view)
 }
 
 function seatList(refs: SeatRef[]): string {
@@ -998,10 +1010,12 @@ export const SEAT_VIEW_INSPECTOR_USAGE = `Usage:
   node server/eval/seat-view-inspector.ts --list [--file <snapshots.json>]
   node server/eval/seat-view-inspector.ts --fixture <id> [--format text|json]
   node server/eval/seat-view-inspector.ts --file <single-snapshot.json> [--format text|json]
-  node server/eval/seat-view-inspector.ts --ui [--file <snapshots.json>] [--fixture <id>] [--port <port>]
+  node server/eval/seat-view-inspector.ts --ui [--file <snapshots.json>] [--fixture <id>] [--port <port>] [--mode native-policy|seat-view]
 
 The input must be a DecisionRequest + PlayerView snapshot or an array of named snapshots.
 The local UI binds only to 127.0.0.1 and prints its URL without opening a browser.
+Native-policy mode runs a deterministic API-free full-role decision and admits it exactly.
+Seat-view mode preserves the boundary-only v1 diagnostic without policy cognition.
 `
 
 async function main(): Promise<void> {
@@ -1013,6 +1027,7 @@ async function main(): Promise<void> {
       list: { type: 'boolean', default: false },
       ui: { type: 'boolean', default: false },
       port: { type: 'string', default: '0' },
+      mode: { type: 'string', default: 'native-policy' },
       help: { type: 'boolean', default: false },
     },
   })
@@ -1026,10 +1041,14 @@ async function main(): Promise<void> {
       fail(`invalid UI port "${values.port}"; expected an integer from 0 to 65535`)
     }
     const { startSeatViewInspectorUi } = await import('./seat-view-inspector-ui.ts')
+    if (values.mode !== 'native-policy' && values.mode !== 'seat-view') {
+      fail(`invalid UI mode "${values.mode}"; expected native-policy or seat-view`)
+    }
     const running = await startSeatViewInspectorUi({
       fixtureFile: values.file,
       initialFixture: values.fixture,
       port,
+      mode: values.mode,
     })
     process.stdout.write(
       `Seat decision microscope: ${running.url}\n`

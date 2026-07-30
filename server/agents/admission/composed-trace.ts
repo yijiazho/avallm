@@ -94,6 +94,10 @@ import {
   selectedStrategicReasonCodes,
 } from '../policy/plan.ts'
 import {
+  DECISION_FRAME_VERSION,
+  mechanicalDecision,
+} from '../policy/decision-frame.ts'
+import {
   validatePublicObserverSnapshot,
   observePublicRecord,
 } from '../analysis/observer.ts'
@@ -175,6 +179,7 @@ import {
 } from '../score-layers/configured.ts'
 import type {
   ResolvedScoreLayerChain,
+  ScoreLayerTrace,
 } from '../policy/score-layer/types.ts'
 import {
   DECISION_COMPONENT_PLAN_VERSION,
@@ -223,6 +228,7 @@ import {
   createProductionComponentRegistry,
 } from '../components/production-registry.ts'
 import type {
+  DecisionComponentDefinition,
   ComponentToken,
 } from '../components/types.ts'
 import {
@@ -2811,8 +2817,50 @@ function validDecisionTrace(
       || typeof trace.decisionPlanVersion === 'string'
     )
     && validForcedPolicyResult(trace.forcedPolicyResult)
+    && validDecisionFrameTrace(trace.decisionFrame)
     && validComposedTraceRelations(trace)
   )
+}
+
+function validDecisionFrameTrace(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!exactGenericRecord(value, [
+    'committedMechanicalAction',
+    'version',
+    'voice',
+  ])) return false
+  const frame = value
+  if (frame.version !== DECISION_FRAME_VERSION) return false
+  const action = frame.committedMechanicalAction
+  if (!exactGenericRecord(frame.voice, ['applied', 'version'])) return false
+  const voice = frame.voice
+  return !!action
+    && typeof action === 'object'
+    && !Array.isArray(action)
+    && typeof (action as Record<string, unknown>).kind === 'string'
+    && typeof voice.version === 'string'
+    && typeof voice.applied === 'boolean'
+}
+
+function validExactDecisionFrameTrace(
+  trace: DecisionTrace,
+  selectedDecision: Decision,
+): boolean {
+  const frame = trace.decisionFrame
+  if (!frame) return false
+  return frame.voice.version === trace.componentVersions?.voice
+    && frame.voice.applied
+      === !isDeepStrictEqual(trace.action, frame.committedMechanicalAction)
+    && isDeepStrictEqual(
+      mechanicalDecision(trace.action),
+      frame.committedMechanicalAction,
+    )
+    && isDeepStrictEqual(
+      mechanicalDecision(selectedDecision),
+      frame.committedMechanicalAction,
+    )
+    && candidateIdForDecision(frame.committedMechanicalAction)
+      === trace.chosenCandidateId
 }
 
 /**
@@ -2938,6 +2986,7 @@ function validExactComposedTraceHostJoin(
       )
       || !validCandidateScores(trace.candidateScores)
       || !validForcedPolicyResult(trace.forcedPolicyResult)
+      || !validExactDecisionFrameTrace(trace, selectedDecision)
       || !validPublicObserverTrace(
         trace.publicObserver,
         trace,
@@ -3201,6 +3250,7 @@ interface ExpectedNativeDiagnostics {
   readonly scores: readonly CandidateScore[]
   readonly componentRun: DecisionComponentRun
   readonly resolvedScorerVersion: string
+  readonly scoreLayerRun: ScoreLayerTrace
 }
 
 const NATIVE_SCORE_COMPONENT_IDS = (() => {
@@ -3304,6 +3354,8 @@ function expectedNativeDiagnostics(
   context: CandidateScoringContext,
   trace: DecisionTrace,
   chain: ResolvedScoreLayerChain,
+  componentDefinitions:
+    readonly DecisionComponentDefinition<any>[],
 ): ExpectedNativeDiagnostics {
   if (!trace.components) {
     throw new Error('native score replay requires the component run')
@@ -3331,7 +3383,7 @@ function expectedNativeDiagnostics(
     candidateBoundary: context.candidateBoundary,
     deterministicSeed: context.deterministicSeed,
     compatibilityCandidateId,
-    componentDefinitions: PRODUCTION_COMPONENT_REGISTRY.definitions(),
+    componentDefinitions,
     componentRun: trace.components,
   })
   const scorerVersion = replay.resolvedScorerVersion
@@ -3377,6 +3429,7 @@ function expectedNativeDiagnostics(
     ),
     componentRun: replay.componentRun,
     resolvedScorerVersion: scorerVersion,
+    scoreLayerRun: replay.trace,
   })
 }
 
@@ -3419,13 +3472,22 @@ function validateExactNativeScoreSurface(
         : {}),
       forced,
       candidateBoundary,
-    }, trace, chain)
+    }, trace, chain, expectedArchitectureIdentity.components.eligible.map(
+      (ref) => {
+        const definition = PRODUCTION_COMPONENT_REGISTRY.definition(ref)
+        if (!definition) {
+          throw new Error('native score replay component is unavailable')
+        }
+        return definition
+      },
+    ))
     const expectedConfiguredAttribution =
       expected.resolvedScorerVersion === configuredScorer
         ? undefined
         : configuredScorer
     return isDeepStrictEqual(trace.forcedPolicyResult, forced)
       && isDeepStrictEqual(trace.candidateScores, expected.scores)
+      && isDeepStrictEqual(trace.scoreLayerRun, expected.scoreLayerRun)
       && scorerVersion === expected.resolvedScorerVersion
       && trace.componentVersions?.configuredScorer
         === expectedConfiguredAttribution

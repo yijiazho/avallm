@@ -7,11 +7,6 @@
       "rationale": "Legacy language evaluation fixtures need current union narrowing."
     },
     {
-      "path": "test/architecture-descriptor.test.ts",
-      "sha256": "9341da149f174c348ae98b45eb1420469152214386e85e28e676abf6e957e798",
-      "rationale": "Legacy descriptor fixtures need current role-query literal typing."
-    },
-    {
       "path": "test/architecture-performance.test.ts",
       "sha256": "efe5b404a3b0662c8eeb8cc338a145e076a5b72e6d4f17bcfe968d4fc152be51",
       "rationale": "Legacy environment fixture uses a narrowed process.env shape."
@@ -180,11 +175,6 @@
       "path": "test/role-adapters.test.ts",
       "sha256": "98f6d9906b74cac07b8cba49203d7685fac013a2d89b4faa9feaaaabe5f1b0ca",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
-    },
-    {
-      "path": "test/role-objectives.test.ts",
-      "sha256": "d58cdcaab083663c2c36024f46a631bc3c62edb85947cd8c6aa1216b86788fca",
-      "rationale": "Legacy role fixtures need current union narrowing and mutation typing."
     },
     {
       "path": "test/score-layer.test.ts",

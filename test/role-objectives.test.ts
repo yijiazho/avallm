@@ -60,6 +60,7 @@ import { architectureReport } from '../server/eval/architecture-report.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
+import type { AvalonAgent } from '../server/agents/types.ts'
 
 const fixtures = readDecisionFixtures()
 const merlinFixture = fixtures.find((fixture) => fixture.view.role === 'merlin')!
@@ -72,12 +73,13 @@ const roleObjective = (trace: DecisionTrace) => componentPayload(
 )
 const roleObjectiveEntry = (trace: DecisionTrace) => trace.components!.entries
   .find((entry) => entry.component.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id)
+const mutableArray = <T>(value: readonly T[]): T[] => value as T[]
 const removeRoleObjective = (trace: DecisionTrace) => {
   const index = trace.components!.entries.findIndex(
     (entry) => entry.component.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id,
   )
   assert.notEqual(index, -1)
-  trace.components!.entries.splice(index, 1)
+  mutableArray(trace.components!.entries).splice(index, 1)
 }
 const addRoleObjectiveFrom = (
   target: DecisionTrace,
@@ -85,17 +87,25 @@ const addRoleObjectiveFrom = (
 ) => {
   const entry = roleObjectiveEntry(source)
   assert.ok(entry)
-  target.components!.entries.push(structuredClone(entry))
+  mutableArray(target.components!.entries).push(structuredClone(entry))
+}
+
+async function decide(
+  agent: AvalonAgent,
+  req: DecisionRequest,
+  view: PlayerView,
+) {
+  return agent.decide(req, view)
 }
 
 async function roleOutput(
   fixture: typeof merlinFixture,
   roleObjectives = true,
 ) {
-  return createComposedAgent({
+  return decide(createComposedAgent({
     seed: 'phase7c1-role-objective',
     ...(roleObjectives ? { roleObjectives: true } : {}),
-  }).decide(fixture.req, fixture.view)
+  }), fixture.req, fixture.view)
 }
 
 test('Merlin influence uses exact private joint teams and separate exact public teams', async () => {
@@ -168,10 +178,10 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
     ...merlinFixture.req,
     proposalNum: 2,
   }
-  const afterVote = await createComposedAgent({
+  const afterVote = await decide(createComposedAgent({
     seed: 'phase7c1-role-objective',
     roleObjectives: true,
-  }).decide(afterVoteReq, afterVoteView)
+  }), afterVoteReq, afterVoteView)
   const freshObjective = roleObjective(fresh.trace!)!.objective
   const afterObjective = roleObjective(afterVote.trace!)!.objective
   assert.equal(freshObjective.role, 'merlin')
@@ -270,11 +280,11 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
       )
     },
   }
-  const vote = await createComposedAgent({
+  const vote = await decide(createComposedAgent({
     seed: 'phase7c1-percival-vote',
     roleObjectives: true,
     beliefModel: pairWeightedModel,
-  }).decide(voteReq, voteView)
+  }), voteReq, voteView)
   const voteObjective = roleObjective(vote.trace!)!.objective
   assert.equal(voteObjective.role, 'percival')
   const approve = voteObjective.assessments.find(
@@ -371,8 +381,14 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
   delete optedLegacy.trace!.components
   delete offLegacy.trace!.componentPlan
   delete optedLegacy.trace!.componentPlan
-  delete offLegacy.trace!.componentVersions!.decisionComponents
-  delete optedLegacy.trace!.componentVersions!.decisionComponents
+  delete offLegacy.trace!.scoreLayerRun
+  delete optedLegacy.trace!.scoreLayerRun
+  delete (offLegacy.trace!.componentVersions as {
+    decisionComponents?: string
+  }).decisionComponents
+  delete (optedLegacy.trace!.componentVersions as {
+    decisionComponents?: string
+  }).decisionComponents
   delete offLegacy.trace!.architectureIdentityDigest
   delete optedLegacy.trace!.architectureIdentityDigest
   offLegacy.trace!.version = 'decision-trace-v1'
@@ -387,10 +403,10 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
     ...player,
     name: `Renamed ${player.seat}`,
   }))
-  const renamed = await createComposedAgent({
+  const renamed = await decide(createComposedAgent({
     seed: 'phase7c1-role-objective',
     roleObjectives: true,
-  }).decide(merlinFixture.req, renamedView)
+  }), merlinFixture.req, renamedView)
   assert.deepEqual(
     roleObjective(renamed.trace!),
     roleObjective((await roleOutput(merlinFixture)).trace!),
@@ -412,10 +428,10 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
     round: questView.round,
     proposalNum: questView.proposalNum,
   }
-  const quest = await createComposedAgent({
+  const quest = await decide(createComposedAgent({
     seed: 'phase7c1-quest-not-applicable',
     roleObjectives: true,
-  }).decide(questReq, questView)
+  }), questReq, questView)
   assert.equal(roleObjective(quest.trace!)!.role, 'merlin')
   assert.deepEqual(roleObjective(quest.trace!)!.objective.assessments, [])
 })
@@ -433,10 +449,10 @@ test('private posterior weights causally change influence while public exposure 
     round: view.round,
     proposalNum: view.proposalNum,
   }
-  const base = await createComposedAgent({
+  const base = await decide(createComposedAgent({
     seed: 'phase7c1-role-objective-weighted',
     roleObjectives: true,
-  }).decide(req, view)
+  }), req, view)
   const baseMerlin = roleObjective(base.trace!)!.objective
   assert.equal(baseMerlin.role, 'merlin')
   const targetTeam = baseMerlin.assessments.find(
@@ -472,25 +488,33 @@ test('private posterior weights causally change influence while public exposure 
       )
     },
   }
-  const weighted = await createComposedAgent({
+  const weighted = await decide(createComposedAgent({
     seed: 'phase7c1-role-objective-weighted',
     roleObjectives: true,
     beliefModel: weightedModel,
-  }).decide(req, view)
+  }), req, view)
   const baseObjective = roleObjective(base.trace!)!
   const weightedObjective = roleObjective(weighted.trace!)!
   assert.equal(baseObjective.objective.role, 'merlin')
   assert.equal(weightedObjective.objective.role, 'merlin')
-  const changed = weightedObjective.objective.assessments.find(
+  if (
+    baseObjective.objective.role !== 'merlin'
+    || weightedObjective.objective.role !== 'merlin'
+  ) {
+    assert.fail('weighted Merlin fixture resolved another role objective')
+  }
+  const baseMerlinObjective = baseObjective.objective
+  const weightedMerlinObjective = weightedObjective.objective
+  const changed = weightedMerlinObjective.assessments.find(
     (assessment) =>
       assessment.teamCleanProbability
-      !== baseObjective.objective.assessments.find(
+      !== baseMerlinObjective.assessments.find(
         (candidate) =>
           candidate.candidate.candidateId
             === assessment.candidate.candidateId,
       )!.teamCleanProbability,
   )!
-  const original = baseObjective.objective.assessments.find(
+  const original = baseMerlinObjective.assessments.find(
     (assessment) =>
       assessment.candidate.candidateId === changed.candidate.candidateId,
   )!
@@ -533,7 +557,9 @@ test('host join rejects forged candidates, private candidates, sources, and arit
       }
     },
     (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
-      copy.objective.assessments[0].pairInfluenceValue = 0.123
+      if (copy.objective.role === 'percival') {
+        copy.objective.assessments[0].pairInfluenceValue = 0.123
+      }
     },
   ]) {
     const copy = structuredClone(roleObjective(trace)!)
@@ -555,6 +581,9 @@ test('external validator rejects sparse, expanded, unsafe, nonfinite, oversized,
   unsafe.request.seat = Number.MAX_SAFE_INTEGER + 1
   malformed.push(unsafe)
   const nonfinite = structuredClone(valid)
+  if (nonfinite.objective.role !== 'merlin') {
+    assert.fail('Merlin fixture resolved another role objective')
+  }
   nonfinite.objective.assessments[0].teamCleanProbability = Number.NaN
   malformed.push(nonfinite)
   const version = structuredClone(valid)
@@ -602,20 +631,21 @@ test('external validator rejects sparse, expanded, unsafe, nonfinite, oversized,
 })
 
 test('role objective degradation is typed and stale cognition is dropped before recomputation', async () => {
-  const degraded = await createComposedAgent({
+  const degraded = await decide(createComposedAgent({
     seed: 'phase7c1-degraded',
     roleObjectives: true,
     privateIdentity: {
       roleQueries: [{ roles: ['merlin', 'merlin'] }],
       hiddenTeam: false,
     },
-  }).decide(merlinFixture.req, merlinFixture.view)
+  }), merlinFixture.req, merlinFixture.view)
   assert.equal(roleObjective(degraded.trace!), undefined)
   assert.ok(degraded.trace!.degradation.includes('identity-projection-failed'))
-  assert.equal(roleObjectiveEntry(degraded.trace!)?.status, 'degraded')
+  const degradedEntry = roleObjectiveEntry(degraded.trace!)
+  assert.equal(degradedEntry?.status, 'degraded')
   assert.equal(
-    roleObjectiveEntry(degraded.trace!)?.status === 'degraded'
-      ? roleObjectiveEntry(degraded.trace!)!.degradationCode
+    degradedEntry?.status === 'degraded'
+      ? degradedEntry.degradationCode
       : undefined,
     ROLE_OBJECTIVE_DEGRADATION,
   )
@@ -669,7 +699,9 @@ test('stdio and private/public boundaries preserve role objective attribution', 
   )
   const hiddenAsDegraded = structuredClone(merlin)
   removeRoleObjective(hiddenAsDegraded.trace!)
-  hiddenAsDegraded.trace!.degradation.push(ROLE_OBJECTIVE_DEGRADATION)
+  mutableArray(hiddenAsDegraded.trace!.degradation).push(
+    ROLE_OBJECTIVE_DEGRADATION,
+  )
   assert.deepEqual(
     parseStdioDecisionReply(
       merlinFixture.req,
@@ -679,14 +711,14 @@ test('stdio and private/public boundaries preserve role objective attribution', 
     ),
     { decision: hiddenAsDegraded.decision },
   )
-  const dependencyDegraded = await createComposedAgent({
+  const dependencyDegraded = await decide(createComposedAgent({
     seed: 'phase7c1-stdio-degraded',
     roleObjectives: true,
     privateIdentity: {
       roleQueries: [{ roles: ['merlin', 'merlin'] }],
       hiddenTeam: false,
     },
-  }).decide(merlinFixture.req, merlinFixture.view)
+  }), merlinFixture.req, merlinFixture.view)
   assert.equal(
     dependencyDegraded.trace!.componentVersions!.identityModel,
     JOINT_IDENTITY_MODEL_VERSION,
@@ -723,7 +755,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
   const servant = await roleOutput(servantFixture)
   const roleForged = structuredClone(servant)
   addRoleObjectiveFrom(roleForged.trace!, merlin.trace!)
-  roleForged.trace!.degradation.push(ROLE_OBJECTIVE_DEGRADATION)
+  mutableArray(roleForged.trace!.degradation).push(ROLE_OBJECTIVE_DEGRADATION)
   assert.deepEqual(
     parseStdioDecisionReply(
       servantFixture.req,
@@ -841,7 +873,7 @@ test('artifact and architecture admission distinguish configured from applicable
 
   const hiddenAsDegraded = structuredClone(artifact)
   removeRoleObjective(hiddenAsDegraded.decisionTraces![0])
-  hiddenAsDegraded.decisionTraces![0].degradation.push(
+  mutableArray(hiddenAsDegraded.decisionTraces![0].degradation).push(
     ROLE_OBJECTIVE_DEGRADATION,
   )
   assert.ok(
@@ -860,14 +892,16 @@ test('artifact and architecture admission distinguish configured from applicable
       )
     },
     (candidate: typeof servant) => {
-      candidate.decisionTraces![0].componentPlan!.configured.push(structuredClone(
+      mutableArray(
+        candidate.decisionTraces![0].componentPlan!.configured,
+      ).push(structuredClone(
         artifact.decisionTraces![0].componentPlan!.configured.find(
           (entry) => entry.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id,
         )!,
       ))
     },
     (candidate: typeof servant) => {
-      candidate.decisionTraces![0].degradation.push(
+      mutableArray(candidate.decisionTraces![0].degradation).push(
         ROLE_OBJECTIVE_DEGRADATION,
       )
     },
@@ -957,10 +991,10 @@ test('10-player quest-four Merlin and Percival snapshots fit the 252-candidate b
       proposalNum: 1,
     }
     const started = performance.now()
-    const output = await createComposedAgent({
+    const output = await decide(createComposedAgent({
       seed: `phase7c1-10p-${role}`,
       roleObjectives: true,
-    }).decide(req, view)
+    }), req, view)
     const elapsed = performance.now() - started
     const snapshot = roleObjective(output.trace!)!
     assert.equal(snapshot.objective.assessments.length, 252)
