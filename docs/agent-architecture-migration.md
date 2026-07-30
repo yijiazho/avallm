@@ -289,6 +289,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-010 | Phase 7 strength gate | Diagnose the base good policy's adverse win rate against the heuristic population | Complete. A `good-proposal-only` arm localized the loss to the vote channel, whose marginal cost is `8.3` points in each of the three good roles, and `good-policy-diagnosis.ts` names two causes: Merlin legibility (near-oracle votes raise assassinations `16.7%` to `26.7%`) and permissiveness at an information-poor seat behind a symmetric vote-truth metric. NB-012 and NB-013 own the fixes. | `landed` |
 | NB-012 | NB-010 | Price concealment in the good value function | Merlin's own vote record is unpriced, so improving vote accuracy identifies the seat to any opponent that reads vote history. Phase 7A's exact public observer already exists and is mechanically inert; give it a bounded, versioned cost term rather than a new belief source, and gate it on the assassination channel falling without three-fail losses rising. Keep both populations in the comparison. | `ready` |
 | NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
+| NB-014 | NB-010 | Fix good proposal value at an information-poor seat | Structured proposal value alone lowers the Servant's clean initial-proposal rate by `-10.6%` (95% `-20.6%` to `-1.1%`) and its win rate by `-6.7%`, while Merlin and Percival lose nothing on that channel. Diagnose why the proposal scorer serves a seat with no private knowledge worst, and treat clean-proposal rate as a diagnostic rather than the objective: Merlin's cleanliness also falls while its win rate rises. | `ready` |
 | NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `phase4-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
 | NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` remain hash-pinned strict-test exemptions. Their 257 diagnostics are two mechanical classes: unnormalized `AgentOutput` member access and implicitly typed score callbacks. Route them through `normalizeAgentOutput` and annotate the callbacks, then delete the exemptions rather than refreshing their hashes again. | `ready` |
 
@@ -3530,9 +3531,21 @@ here.
   (`-15.0%` to `0.0%`), while adding the vote channel gives `-3.3%`, `-8.3%`, and `-15.0%`
   respectively. The marginal cost of the vote channel is `8.3` points in every one of the three good
   roles. Per-cell intervals are wide and only the Servant total excludes zero, so the evidence is
-  that identical marginal cost across roles, and it reproduces Phase 5C's finding on the finished
-  architecture. Proposal value is not the problem for Merlin or Percival; it is mildly harmful only
-  at the Servant seat. `good-policy-diagnosis.ts` reads bench artifacts and reports the mechanism.
+  that identical marginal cost across roles. `good-policy-diagnosis.ts` reads bench artifacts and
+  reports the mechanism.
+  The same isolation puts Phase 5C's sign flip precisely on the vote channel. Against the seeded
+  random population proposal-only is `+1.7%`, `+6.7%`, and `+5.0%` for Merlin, Percival, and Servant,
+  and adding votes raises those to `+13.3%`, `+10.0%`, and `+8.3%`. So the vote channel is worth
+  `+11.6`, `+3.3`, and `+3.3` points against random opponents and `-8.3` points against heuristic
+  ones in every role. The channel does not have a fixed value; its sign is set by whether the
+  opponents can exploit it.
+  Proposal value is not the problem for Merlin or Percival, but the Servant seat carries a separate
+  and statistically clear proposal defect: with structured proposals alone its clean initial-proposal
+  rate falls `-10.6%` (95% `-20.6%` to `-1.1%`), an interval excluding zero, which is the mechanism
+  behind that seat's `-6.7%` proposal-only win delta. A seat with no private information appears to
+  be the case the proposal value function serves worst, and Merlin shows cleanliness is not itself
+  the win driver: its clean-proposal rate also falls slightly, `-3.4%` (`-8.4%` to `-0.1%`), while it
+  wins `+5.0%`.
   The first cause is Merlin legibility, and the two populations prove it by contrast rather than by
   argument. The composed vote is near-oracle in both, cutting the target's approvals of dirty teams
   from about `18%` to about `3%`. Against the heuristic population that pattern identifies the seat:
