@@ -14,6 +14,7 @@
 // labels enter a running agent.
 
 import type { Alignment, Seat } from '../engine/types.ts'
+import type { RateCount } from './statistics.ts'
 
 /** One seat's revealed votes, split by team cleanliness and vote direction. */
 export interface VoteConfusionCounts {
@@ -34,11 +35,6 @@ export type VoteConfusionRate =
   | 'truth'
   /** Raw approvals, which mix the two directions with the teams offered. */
   | 'approve'
-
-export interface VoteRateCount {
-  successes: number
-  trials: number
-}
 
 export function emptyVoteConfusion(): VoteConfusionCounts {
   return {
@@ -110,11 +106,17 @@ function dirtyTeamVotes(counts: VoteConfusionCounts): number {
   return counts.dirtyApprovals + counts.dirtyRejects
 }
 
-/** The successes and trials of one named rate over the four cells. */
+/**
+ * The successes and trials of one named rate over the four cells. Returns the
+ * estimator's own RateCount rather than a local twin: every caller either hands
+ * this straight to rate() or uses it as the selector of a paired bootstrap, so
+ * naming the shape twice only invited the two definitions to drift apart while
+ * structural typing hid the coupling.
+ */
 export function voteRateCount(
   counts: VoteConfusionCounts,
   of: VoteConfusionRate,
-): VoteRateCount {
+): RateCount {
   switch (of) {
     case 'dirty-team-approve':
       return {

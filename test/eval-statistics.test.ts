@@ -382,3 +382,19 @@ test('no eval module carries a second copy of the estimator', () => {
     .map(({ label }) => label)
   assert.deepEqual(offenders, [])
 })
+
+test('no eval module re-declares the estimator input shape', () => {
+  // vote-direction.ts used to declare VoteRateCount, a field-for-field twin of
+  // RateCount, as the return type of voteRateCount. Every value it produced was
+  // already being handed to rate() or used as a paired-bootstrap selector, so
+  // the two names described one concept and structural typing hid the coupling
+  // completely: nothing failed, and nothing would have failed if one of them had
+  // later grown a field or renamed a denominator.
+  //
+  // The estimator's input shape therefore has exactly one declaration. A module
+  // that needs it imports RateCount rather than spelling it again.
+  const offenders = evalSources('statistics.ts')
+    .filter(({ source }) => /^\s*successes\s*:\s*number\b/m.test(source))
+    .map(({ label }) => label)
+  assert.deepEqual(offenders, [])
+})
