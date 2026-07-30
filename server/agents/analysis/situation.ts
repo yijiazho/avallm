@@ -97,7 +97,12 @@ function alignmentOf(
     : undefined
 }
 
-const roleEvidenceIds = (evidence: readonly Evidence[]): readonly string[] =>
+/**
+ * Every private record this seat holds, not only the dealt role. A new private
+ * kind joins the cited provenance automatically, which is the intent: a
+ * deduction that leans on private knowledge should name all of it.
+ */
+const privateEvidenceIds = (evidence: readonly Evidence[]): readonly string[] =>
   evidence
     .filter((record) => !isPublicEvidence(record))
     .map((record) => record.id)
@@ -185,7 +190,7 @@ function provenanceFor(
   seat: Seat,
   alignment: Alignment,
 ): DeductionProvenance {
-  const privateIds = roleEvidenceIds(evidence)
+  const privateIds = privateEvidenceIds(evidence)
   if (directPrivateSeat(view, seat)) {
     return { kind: 'private-deal', evidenceIds: privateIds }
   }
@@ -360,7 +365,7 @@ export function analyzeSituation(
     const provenance = directPrivateSeat(view, player.seat)
       ? {
           kind: 'private-deal' as const,
-          evidenceIds: roleEvidenceIds(evidence),
+          evidenceIds: privateEvidenceIds(evidence),
         }
       : provenanceFor(
           view,

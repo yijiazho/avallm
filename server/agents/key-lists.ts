@@ -64,8 +64,10 @@ export type DuplicateKeys<
 
 /**
  * Type-level assertion that a key list repeats nothing. Duplicates are harmless
- * for plain membership checks but not for the callers that compare an assembled
- * list's length against a record's own key count: one repeated entry inflates
- * the length and refuses every otherwise valid input.
+ * for plain membership checks, which is why this looks redundant until you meet
+ * the case that motivated it: the Morgana call site in `admission/composed-trace.ts`
+ * compares the assembled list's length against the trace's own key count, so one
+ * repeated entry inflates the length and refuses every otherwise valid trace.
+ * Any caller that measures a list rather than only querying it has that hazard.
  */
 export type NoDuplicateKeys<Repeated extends never> = Repeated
