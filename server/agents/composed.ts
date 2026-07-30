@@ -986,9 +986,11 @@ async function speakCommittedPlan(input: {
           degradationCode: 'voice-no-output',
         }
   } catch {
-    // Rebuilt from the plan's own copy rather than returning whatever the failed
-    // attempt left behind, so a voice that throws midway cannot leak a partially
-    // decorated action.
+    // Cloned from the plan's own decision, so the failure path is sourced from
+    // the committed plan regardless of where the attempt died. This is belt and
+    // braces, not a guard against a half-decorated action: withVoice() is
+    // consumed by a single assignment, so a throw inside it never yields a
+    // partial value to return in the first place.
     return {
       action: structuredClone(plan.decision),
       degradationCode: 'voice-failed',
