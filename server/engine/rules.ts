@@ -187,8 +187,16 @@ export function stripSeatRefs(text: string, players: Player[]): string {
 
 // Order-insensitive team equality. Teams are canonically stored sorted, but
 // callers compare against LLM/human-supplied teams that may not be — sort both
-// defensively so "same members" is the only thing that matters.
-export function teamsEqual(a: Seat[], b: Seat[]): boolean {
+// defensively so "same members" is the only thing that matters. Absent teams
+// (no proposal on the table yet) are tolerated and compare reflexively: two
+// absent teams are equal, and an absent team never equals a present one. This
+// is the one canonical answer — agent code used to re-implement this five ways
+// with inconsistent absent/absent handling.
+export function teamsEqual(
+  a: readonly Seat[] | undefined,
+  b: readonly Seat[] | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return a === b
   if (a.length !== b.length) return false
   const x = [...a].sort((m, n) => m - n)
   const y = [...b].sort((m, n) => m - n)

@@ -1,4 +1,4 @@
-import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, teamsEqual } from '../../engine/rules.ts'
 import type { PlayerView, Seat } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
 import {
@@ -19,13 +19,6 @@ export interface ConstraintOptions extends QuestRecordOptions {
    * `none` isolates deal knowledge. A number includes resolved quests through
    * that quest number, and `all` includes every resolved quest in the view.
    */
-}
-
-const sameSeats = (a: readonly Seat[], b: readonly Seat[]): boolean => {
-  if (a.length !== b.length) return false
-  const left = [...a].sort((x, y) => x - y)
-  const right = [...b].sort((x, y) => x - y)
-  return left.every((seat, index) => seat === right[index])
 }
 
 export function questFailEvidence(
@@ -53,7 +46,7 @@ export function worldSatisfiesView(
       .map((role, seat) => ({ role, seat }))
       .filter(({ role }) => ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred')
       .map(({ seat }) => seat)
-    if (!sameSeats(visibleEvil, view.privateInfo.knownEvil ?? [])) return false
+    if (!teamsEqual(visibleEvil, view.privateInfo.knownEvil ?? [])) return false
   }
 
   if (view.alignment === 'evil' && view.role !== 'oberon') {
@@ -64,7 +57,7 @@ export function worldSatisfiesView(
         && ROLE_ALIGNMENT[role] === 'evil'
         && role !== 'oberon')
       .map(({ seat }) => seat)
-    if (!sameSeats(visiblePartners, view.privateInfo.evilPartners ?? [])) return false
+    if (!teamsEqual(visiblePartners, view.privateInfo.evilPartners ?? [])) return false
   }
 
   if (view.role === 'percival') {
@@ -72,7 +65,7 @@ export function worldSatisfiesView(
       .map((role, seat) => ({ role, seat }))
       .filter(({ role }) => role === 'merlin' || role === 'morgana')
       .map(({ seat }) => seat)
-    if (!sameSeats(candidates, view.privateInfo.merlinCandidates ?? [])) return false
+    if (!teamsEqual(candidates, view.privateInfo.merlinCandidates ?? [])) return false
   }
 
   return worldSatisfiesQuestRecord(view, world, options)

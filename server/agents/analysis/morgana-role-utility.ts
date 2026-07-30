@@ -5,6 +5,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
+import { teamsEqual } from '../../engine/rules.ts'
 import {
   LEGAL_CANDIDATE_VERSION,
   type PolicyCandidate,
@@ -122,13 +123,6 @@ function canonicalTeam(team: readonly Seat[] | undefined): readonly Seat[] | und
     : [...team].sort((left, right) => left - right)
 }
 
-function sameTeam(
-  left: readonly Seat[] | undefined,
-  right: readonly Seat[] | undefined,
-): boolean {
-  return isDeepStrictEqual(canonicalTeam(left), canonicalTeam(right))
-}
-
 function rankByCounterfeit(
   rows: readonly {
     candidateId: string
@@ -170,7 +164,7 @@ function sameRequest(
     && (
       req.kind !== 'vote'
       || (
-        sameTeam(objective.request.currentTeam, view.currentTeam)
+        teamsEqual(objective.request.currentTeam, view.currentTeam)
         && view.currentTeam !== undefined
       )
     )
@@ -257,13 +251,13 @@ function buildMorganaRoleUtilityProjectionInternal(
       || d2Utility.kind !== req.kind
       || counterfeitAssessment.candidate.kind !== req.kind
       || candidateIdForDecision(candidate.decision) !== candidate.id
-      || !sameTeam(
+      || !teamsEqual(
         d2Utility.team,
         candidate.decision.kind === 'propose'
           ? candidate.decision.team
           : view.currentTeam,
       )
-      || !sameTeam(
+      || !teamsEqual(
         counterfeitAssessment.candidate.team,
         candidate.decision.kind === 'propose'
           ? candidate.decision.team
@@ -538,7 +532,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
       !== evilRoleUtility.request.proposalNum
     || (
       value.request.kind === 'vote'
-      && !sameTeam(
+      && !teamsEqual(
         requestTeam,
         counterfeitObjective.request.currentTeam,
       )
@@ -582,13 +576,13 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
         !== candidate.counterfeitValue
       || candidateIdForDecision(candidate.decision as Decision)
         !== candidateId
-      || !sameTeam(
+      || !teamsEqual(
         d2Utility.team,
         (candidate.decision as Decision).kind === 'propose'
           ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
           : requestTeam,
       )
-      || !sameTeam(
+      || !teamsEqual(
         counterfeitAssessment.candidate.team,
         (candidate.decision as Decision).kind === 'propose'
           ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team

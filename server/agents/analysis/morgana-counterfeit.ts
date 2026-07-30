@@ -8,6 +8,7 @@ import type {
 import {
   ROLE_ALIGNMENT,
   TEAM_SIZES,
+  teamsEqual,
   validateRoles,
 } from '../../engine/rules.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
@@ -63,13 +64,6 @@ function canonicalTeam(team: readonly Seat[]): readonly Seat[] {
   return [...team].sort((left, right) => left - right)
 }
 
-function sameTeam(
-  left: readonly Seat[],
-  right: readonly Seat[],
-): boolean {
-  return isDeepStrictEqual(canonicalTeam(left), canonicalTeam(right))
-}
-
 function fraction(
   numerator: number,
   denominator: number,
@@ -109,7 +103,7 @@ function truthCounts(record: PublicRecord): readonly TruthCounts[] {
         (proposal) =>
           proposal.round === quest.num
           && (proposal.approved === true || proposal.auto === true)
-          && sameTeam(proposal.team, quest.team!),
+          && teamsEqual(proposal.team, quest.team!),
       )
       .sort(
         (left, right) =>

@@ -4,6 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
+import { teamsEqual } from '../../engine/rules.ts'
 import type { PublicCommitment } from './types.ts'
 
 export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v2'
@@ -39,16 +40,6 @@ export interface CoherenceAssessment {
   conflictCodes: readonly CoherenceConflictCode[]
   commitmentBasis: readonly LiteralCommitmentBasis[]
   currentTeam?: readonly Seat[]
-}
-
-function sameTeam(
-  left: readonly Seat[] | undefined,
-  right: readonly Seat[] | undefined,
-): boolean {
-  if (!left || !right || left.length !== right.length) return false
-  const a = [...left].sort((x, y) => x - y)
-  const b = [...right].sort((x, y) => x - y)
-  return a.every((seat, index) => seat === b[index])
 }
 
 export function literalCommitmentBasis(
@@ -97,7 +88,7 @@ export function assessLiteralCoherence(
   const ownTeam = commitmentBasis.find(
     (commitment) =>
       commitment.payload.type === 'team'
-      && sameTeam(commitment.payload.team, currentTeam),
+      && teamsEqual(commitment.payload.team, currentTeam),
   )
 
   if (appliedDecision.kind === 'vote') {
