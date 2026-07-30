@@ -1,8 +1,6 @@
 import {
   FULL_ROLE_POLICY_SCORER_VERSION,
   FULL_ROLE_STACK_ATTRIBUTION_REASON,
-} from '../policy/full-role-score-contract.ts'
-import {
   fullRolePolicyScorer,
   type CandidateScorer,
 } from '../policy/score.ts'

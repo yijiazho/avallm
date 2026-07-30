@@ -1,4 +1,0 @@
-export const FULL_ROLE_POLICY_SCORER_VERSION =
-  'full-role-policy-scorer-v1'
-export const FULL_ROLE_STACK_ATTRIBUTION_REASON =
-  'FULL_ROLE_STACK_ATTRIBUTION'

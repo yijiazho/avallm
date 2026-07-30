@@ -64,17 +64,6 @@ import {
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
   type EvilRoleObjectiveSelectionMode,
 } from './evil-score-contract.ts'
-import {
-  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
-  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
-  type MordredBlindnessRoleSelectionMode,
-} from './mordred-score-contract.ts'
-import {
-  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-} from './assassin-score-contract.ts'
-import {
-  FULL_ROLE_POLICY_SCORER_VERSION,
-} from './full-role-score-contract.ts'
 export {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
@@ -108,20 +97,34 @@ export {
   type EvilRoleObjectiveSelectionMode,
 } from './evil-score-contract.ts'
 
-export {
-  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
-  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
-  MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS,
-  type MordredBlindnessRoleSelectionMode,
-} from './mordred-score-contract.ts'
+/**
+ * Scorer identities for the Mordred and Assassin specializations and for the
+ * full-role terminal that composes the whole stack. These live here beside the
+ * descriptors that carry them rather than in per-family contract modules: a
+ * concrete family already imports this module for its descriptor, and this
+ * module imports nothing from `score-layers/`, so there is no cycle for a
+ * separate constants module to break.
+ */
+export const MORDRED_BLINDNESS_ROLE_SCORER_VERSION =
+  'mordred-blindness-role-scorer-v1'
+export const MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION =
+  'mordred-blindness-role-seeded-vote-band-v1'
 
-export {
-  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-} from './assassin-score-contract.ts'
+export const MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS = Object.freeze({
+  seededVoteBand: 0.04,
+})
 
-export {
-  FULL_ROLE_POLICY_SCORER_VERSION,
-} from './full-role-score-contract.ts'
+export type MordredBlindnessRoleSelectionMode =
+  | 'top-opportunity-within-d2-band'
+  | 'seeded-near-equal-vote-within-d2-band'
+
+export const ASSASSIN_MERLIN_TARGET_SCORER_VERSION =
+  'assassin-merlin-target-scorer-v1'
+
+export const FULL_ROLE_POLICY_SCORER_VERSION =
+  'full-role-policy-scorer-v1'
+export const FULL_ROLE_STACK_ATTRIBUTION_REASON =
+  'FULL_ROLE_STACK_ATTRIBUTION'
 
 export interface CandidateScore {
   version: string

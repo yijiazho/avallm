@@ -29,8 +29,6 @@ import type {
 } from '../server/agents/policy/score-layer/types.ts'
 import {
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-} from '../server/agents/policy/assassin-score-contract.ts'
-import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   assassinMerlinTargetScorer,
   evilRoleObjectiveScorer,

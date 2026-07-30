@@ -4,8 +4,6 @@ import {
 import { compareCandidateIds } from '../policy/candidates.ts'
 import {
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-} from '../policy/assassin-score-contract.ts'
-import {
   assassinMerlinTargetScorer,
   type CandidateScorer,
 } from '../policy/score.ts'

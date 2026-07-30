@@ -14,12 +14,10 @@ import {
   MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
   MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
   MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS,
-  type MordredBlindnessRoleSelectionMode,
-} from '../policy/mordred-score-contract.ts'
-import {
   mordredBlindnessRoleScorer,
   seededMordredBlindnessRoleScorer,
   type CandidateScorer,
+  type MordredBlindnessRoleSelectionMode,
 } from '../policy/score.ts'
 import {
   scoreLayerToken,

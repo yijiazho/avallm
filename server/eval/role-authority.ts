@@ -21,8 +21,6 @@ import {
 import { heuristicDecide } from '../agents/heuristic.ts'
 import {
   FULL_ROLE_STACK_ATTRIBUTION_REASON,
-} from '../agents/policy/full-role-score-contract.ts'
-import {
   assassinMerlinTargetScorer,
   evilRoleObjectiveScorer,
   fullRolePolicyScorer,

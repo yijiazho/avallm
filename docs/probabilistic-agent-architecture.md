@@ -592,6 +592,19 @@ universal forced policy. A role or coordination strategy such as an optional non
 quest-card convention runs only after those universal rules leave discretion. Ordered layers make
 that precedence executable and independently testable rather than dependent on call-site order.
 
+Score families relate as a tree while a registered layer stores one predecessor, so the tree has to
+be linearized before it can execute. The two are kept apart explicitly. A family declares its
+semantic base, meaning the family its layers truthfully degrade to, together with the reason that
+base is correct. Predecessors are then derived per lane. A **composed** lane is one that a single
+composition terminal has to traverse on behalf of the whole stack, so within it a family's
+predecessor is the previous family in the lane rather than its base; that is sound only because
+sibling specializations have mutually exclusive applicability predicates, so an intervening sibling
+is inapplicable for the seat that reaches it and passes the prior surface through untouched. An
+**isolated** lane has no composition terminal, its families are selected one at a time as
+ablations, and each one hangs directly off its own base. A family whose base is declared after it,
+or which joins an isolated lane its base skipped, is rejected rather than quietly re-pointed, so
+inserting a family cannot silently invert an existing fallback.
+
 ### 7.2 Policy modes
 
 - **Structured:** deterministic or stochastic code chooses from candidate values. Useful as a

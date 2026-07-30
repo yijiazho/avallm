@@ -15,8 +15,8 @@ import {
   projectResolvedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
-import { FULL_ROLE_STACK_ATTRIBUTION_REASON } from '../server/agents/policy/full-role-score-contract.ts'
 import {
+  FULL_ROLE_STACK_ATTRIBUTION_REASON,
   assassinMerlinTargetScorer,
   evilRoleObjectiveScorer,
   fullRolePolicyScorer,

@@ -11,14 +11,12 @@ import type {
 } from '../server/engine/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
+  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
+  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
   evilRoleObjectiveScorer,
   mordredBlindnessRoleScorer,
   seededMordredBlindnessRoleScorer,
 } from '../server/agents/policy/score.ts'
-import {
-  MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
-  MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
-} from '../server/agents/policy/mordred-score-contract.ts'
 import {
   EVIL_ROLE_SCORE_LAYER,
   SEEDED_EVIL_ROLE_SCORE_LAYER,

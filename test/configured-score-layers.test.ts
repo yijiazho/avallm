@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  configuredScoreFamilyWiring,
   configuredScoreLayerTerminalFor,
   configuredScoreLayersApplyToDecision,
   createConfiguredScoreLayerRegistry,
 } from '../server/agents/score-layers/configured.ts'
+import {
+  ScoreLayerFamilyError,
+  resolveScoreLayerFamilyTree,
+  type ScoreLayerFamilyDeclaration,
+  type ScoreLayerLaneDeclaration,
+} from '../server/agents/policy/score-layer/families.ts'
+import { scoreLayerToken } from '../server/agents/policy/score-layer/types.ts'
 import {
   COMPATIBILITY_SCORE_LAYER,
   GOOD_PROPOSAL_SCORE_LAYER,
@@ -247,6 +255,160 @@ test('native family chains preserve exact predecessor order', () => {
       ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
       FULL_ROLE_POLICY_SCORE_LAYER,
     ],
+  )
+})
+
+test('family bases stay separate from the derived linear predecessors', () => {
+  assert.deepEqual(
+    configuredScoreFamilyWiring().map((entry) => [
+      entry.family,
+      entry.lane,
+      entry.base,
+      entry.predecessor.id,
+      entry.viaSibling,
+    ]),
+    [
+      // Every family names its truthful base. Only the composed lane routes a
+      // family through an inapplicable sibling to reach that base's surface.
+      ['evil', 'deterministic', 'good', GOOD_ROLE_SCORE_LAYER.id, false],
+      ['evil', 'seeded', 'good', SEEDED_GOOD_ROLE_SCORE_LAYER.id, false],
+      ['morgana', 'deterministic', 'evil', EVIL_ROLE_SCORE_LAYER.id, false],
+      ['morgana', 'seeded', 'evil', SEEDED_EVIL_ROLE_SCORE_LAYER.id, false],
+      // Mordred is a sibling of Morgana, so its base is evil in both lanes.
+      // The composed lane still hands it Morgana because the full-role
+      // terminal has to traverse both siblings; the seeded lane has no such
+      // terminal and hangs Mordred straight off seeded evil.
+      ['mordred', 'deterministic', 'evil', MORGANA_ROLE_SCORE_LAYER.id, true],
+      ['mordred', 'seeded', 'evil', SEEDED_EVIL_ROLE_SCORE_LAYER.id, false],
+      [
+        'assassin',
+        'deterministic',
+        'evil',
+        MORDRED_ROLE_SCORE_LAYER.id,
+        true,
+      ],
+      [
+        'full-role',
+        'deterministic',
+        null,
+        ASSASSIN_MERLIN_TARGET_SCORE_LAYER.id,
+        false,
+      ],
+    ],
+  )
+})
+
+test('family tree derivation rejects declarations that would invert it', () => {
+  const lanes: readonly ScoreLayerLaneDeclaration<'wide' | 'narrow'>[] = [
+    { id: 'wide', mode: 'composed', rationale: 'one terminal traverses it' },
+    { id: 'narrow', mode: 'isolated', rationale: 'selected one at a time' },
+  ]
+  const tip = (name: string) => scoreLayerToken(name, 'v1')
+  const family = (
+    overrides: Partial<ScoreLayerFamilyDeclaration<'wide' | 'narrow'>>,
+  ): ScoreLayerFamilyDeclaration<'wide' | 'narrow'> => ({
+    id: 'unnamed',
+    kind: 'specialization',
+    base: 'first',
+    baseRationale: 'declared for this case',
+    lanes: { wide: tip('unnamed-wide'), narrow: tip('unnamed-narrow') },
+    register: () => [],
+    ...overrides,
+  })
+  const root = family({
+    id: 'first',
+    kind: 'root',
+    base: null,
+    lanes: { wide: tip('first-wide'), narrow: tip('first-narrow') },
+  })
+  const second = family({
+    id: 'second',
+    lanes: { wide: tip('second-wide'), narrow: tip('second-narrow') },
+  })
+
+  // A composed lane places 'third' after 'second' even though its base is the
+  // root, and the derived predecessor records that it arrived via a sibling.
+  const third = family({
+    id: 'third',
+    lanes: { wide: tip('third-wide'), narrow: tip('third-narrow') },
+  })
+  assert.deepEqual(
+    resolveScoreLayerFamilyTree({ lanes, families: [root, second, third] })
+      .wiring
+      .filter((entry) => entry.family === 'third')
+      .map((entry) => [entry.lane, entry.predecessor.id, entry.viaSibling]),
+    [
+      ['wide', 'second-wide', true],
+      ['narrow', 'first-narrow', false],
+    ],
+  )
+
+  // A base declared after its specialization cannot be linearized truthfully.
+  assert.throws(
+    () => resolveScoreLayerFamilyTree({
+      lanes,
+      families: [root, family({ id: 'early', base: 'late' }), family({
+        id: 'late',
+        lanes: { wide: tip('late-wide'), narrow: tip('late-narrow') },
+      })],
+    }),
+    (error: unknown) => error instanceof ScoreLayerFamilyError
+      && error.code === 'unknown-base',
+  )
+
+  // A family cannot join an isolated lane its base skipped.
+  assert.throws(
+    () => resolveScoreLayerFamilyTree({
+      lanes,
+      families: [
+        root,
+        family({ id: 'wide-only', lanes: { wide: tip('wide-only') } }),
+        family({
+          id: 'both',
+          base: 'wide-only',
+          lanes: { wide: tip('both-wide'), narrow: tip('both-narrow') },
+        }),
+      ],
+    }),
+    (error: unknown) => error instanceof ScoreLayerFamilyError
+      && error.code === 'missing-lane-predecessor',
+  )
+
+  // A composition speaks for the whole stack, so nothing may follow it.
+  assert.throws(
+    () => resolveScoreLayerFamilyTree({
+      lanes,
+      families: [
+        root,
+        family({
+          id: 'whole',
+          kind: 'composition',
+          base: null,
+          lanes: { wide: tip('whole-wide') },
+        }),
+        second,
+      ],
+    }),
+    (error: unknown) => error instanceof ScoreLayerFamilyError
+      && error.code === 'misplaced-composition',
+  )
+
+  // A composition cannot terminate an isolated lane, which has no composition.
+  assert.throws(
+    () => resolveScoreLayerFamilyTree({
+      lanes,
+      families: [
+        root,
+        family({
+          id: 'whole',
+          kind: 'composition',
+          base: null,
+          lanes: { wide: tip('whole-wide'), narrow: tip('whole-narrow') },
+        }),
+      ],
+    }),
+    (error: unknown) => error instanceof ScoreLayerFamilyError
+      && error.code === 'misplaced-composition',
   )
 })
 
