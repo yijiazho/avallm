@@ -21,11 +21,42 @@ import type {
   DecisionLayerOperationCounts,
   DecisionLayerRef,
   DecisionLayerRun,
+  DecisionLayerSurface,
   DecisionLayerTrace,
   DecisionLayerRunInput,
 } from './types.ts'
+import type {
+  AssertNever,
+  ConcatKeys,
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+} from '../../key-lists.ts'
 
-const OPERATION_KEYS: readonly (keyof DecisionLayerOperationCounts)[] = [
+/*
+ * Every key list in this module reaches `exactOwnDataRecord` one hop away, through
+ * the local `frozenRecord` wrapper, so a search for direct predicate calls does not
+ * find them. The wrapper takes the list as a parameter, which means the binding has
+ * to happen at each caller exactly as it would at a direct call site.
+ *
+ * That predicate measures the list, so both failure directions reject rather than
+ * loosen: a forgotten key and a repeated one each make the length comparison
+ * disagree, and the trace is refused. A refused replay degrades the decision layer
+ * instead of raising anything, which is the quietest way for this to go wrong.
+ *
+ * `OPERATION_KEYS` had the first of the three checks already, as a
+ * `readonly (keyof DecisionLayerOperationCounts)[]` annotation. That rejects a name
+ * the counts do not have but says nothing about a counter the list forgot, and
+ * because the annotation widens the tuple it also disarms `DuplicateKeys`, which
+ * resolves only for an `as const` literal. Adding a counter to a twenty-four field
+ * block and not extending this list is the edit it now catches.
+ *
+ * The underscore-prefixed assertion aliases are exported only so noUnusedLocals
+ * accepts them. Nothing imports one: it fails the build if its list drifts from the
+ * shape it covers, so being referenced is not what makes it work, and deleting one
+ * as dead would remove that check silently.
+ */
+const OPERATION_KEYS = [
   'universalCandidateIdsVisited',
   'legalCandidatesVisited',
   'layersVisited',
@@ -50,7 +81,145 @@ const OPERATION_KEYS: readonly (keyof DecisionLayerOperationCounts)[] = [
   'surfaceDraftSurvivorsVisited',
   'surfaceReasonsVisited',
   'surfaceBytesConstructed',
-]
+] as const satisfies ExactKeyList<DecisionLayerOperationCounts>
+export type _OperationKeysSound =
+  | AssertNever<MissingKeys<DecisionLayerOperationCounts, typeof OPERATION_KEYS>>
+  | AssertNever<DuplicateKeys<typeof OPERATION_KEYS>>
+
+const REF_KEYS = [
+  'id',
+  'version',
+] as const satisfies ExactKeyList<DecisionLayerRef>
+export type _RefKeysSound =
+  | AssertNever<MissingKeys<DecisionLayerRef, typeof REF_KEYS>>
+  | AssertNever<DuplicateKeys<typeof REF_KEYS>>
+
+const TRACE_KEYS = [
+  'configured',
+  'journal',
+  'operations',
+  'surface',
+  'version',
+] as const satisfies ExactKeyList<DecisionLayerTrace>
+export type _TraceKeysSound =
+  | AssertNever<MissingKeys<DecisionLayerTrace, typeof TRACE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof TRACE_KEYS>>
+
+/*
+ * The surface carries its brand under a unique symbol key. `ExactKeyList` and
+ * `MissingKeys` both intersect with `string`, so the brand sits outside the binding
+ * in both directions, which is what the runtime wants: it has no JSON form to check.
+ */
+
+const SURFACE_SELECTED_KEYS = [
+  'selectedCandidateId',
+] as const satisfies ExactKeyList<DecisionLayerSurface>
+
+const SURFACE_KEYS = [
+  'reasonCodes',
+  'survivorCandidateIds',
+  'version',
+] as const satisfies ExactKeyList<
+  Omit<DecisionLayerSurface, 'selectedCandidateId'>
+>
+type SurfaceKeys = ConcatKeys<
+  typeof SURFACE_KEYS,
+  typeof SURFACE_SELECTED_KEYS
+>
+export type _SurfaceKeysSound =
+  | AssertNever<MissingKeys<DecisionLayerSurface, SurfaceKeys>>
+  | AssertNever<DuplicateKeys<SurfaceKeys>>
+
+/*
+ * The journal is four variants over a shared base, and the reader tries every
+ * base-by-suffix combination until one matches. The base contributes one optional
+ * key and the applied variant contributes another, so the two are independent and
+ * each variant asserts over its own concatenation.
+ *
+ * The base list binds against the union with its two non-base keys omitted, which
+ * works because `keyof` over a union is the intersection of the arms' keys: every
+ * variant declares the four base fields plus `status`, so removing `status` and the
+ * optional `priorSelectedCandidateId` leaves exactly the base. Naming a
+ * variant-specific key in the base list is therefore a type error.
+ */
+
+type JournalEntryOf<Status extends DecisionLayerJournalEntry['status']> =
+  Extract<DecisionLayerJournalEntry, { status: Status }>
+
+type JournalKeys<Suffix extends readonly PropertyKey[]> = ConcatKeys<
+  ConcatKeys<typeof JOURNAL_BASE_KEYS, typeof JOURNAL_PRIOR_SELECTED_KEYS>,
+  Suffix
+>
+
+const JOURNAL_PRIOR_SELECTED_KEYS = [
+  'priorSelectedCandidateId',
+] as const satisfies ExactKeyList<DecisionLayerJournalEntry>
+
+const JOURNAL_BASE_KEYS = [
+  'componentLookups',
+  'componentReads',
+  'layer',
+  'priorSurvivorCandidateIds',
+] as const satisfies ExactKeyList<
+  Omit<DecisionLayerJournalEntry, 'priorSelectedCandidateId' | 'status'>
+>
+
+const JOURNAL_INAPPLICABLE_KEYS = [
+  'status',
+] as const satisfies ExactKeyList<JournalEntryOf<'inapplicable'>>
+export type _JournalInapplicableKeysSound =
+  | AssertNever<
+      MissingKeys<
+        JournalEntryOf<'inapplicable'>,
+        JournalKeys<typeof JOURNAL_INAPPLICABLE_KEYS>
+      >
+    >
+  | AssertNever<DuplicateKeys<JournalKeys<typeof JOURNAL_INAPPLICABLE_KEYS>>>
+
+const JOURNAL_SUPPRESSED_KEYS = [
+  'status',
+  'suppressionCode',
+] as const satisfies ExactKeyList<JournalEntryOf<'suppressed'>>
+export type _JournalSuppressedKeysSound =
+  | AssertNever<
+      MissingKeys<
+        JournalEntryOf<'suppressed'>,
+        JournalKeys<typeof JOURNAL_SUPPRESSED_KEYS>
+      >
+    >
+  | AssertNever<DuplicateKeys<JournalKeys<typeof JOURNAL_SUPPRESSED_KEYS>>>
+
+const JOURNAL_DEGRADED_KEYS = [
+  'degradationCode',
+  'failureCode',
+  'status',
+] as const satisfies ExactKeyList<JournalEntryOf<'degraded'>>
+export type _JournalDegradedKeysSound =
+  | AssertNever<
+      MissingKeys<
+        JournalEntryOf<'degraded'>,
+        JournalKeys<typeof JOURNAL_DEGRADED_KEYS>
+      >
+    >
+  | AssertNever<DuplicateKeys<JournalKeys<typeof JOURNAL_DEGRADED_KEYS>>>
+
+const JOURNAL_APPLIED_SELECTED_KEYS = [
+  'selectedCandidateId',
+] as const satisfies ExactKeyList<JournalEntryOf<'applied'>>
+
+const JOURNAL_APPLIED_KEYS = [
+  'attributedComponents',
+  'reasonCodes',
+  'status',
+  'survivorCandidateIds',
+] as const satisfies ExactKeyList<JournalEntryOf<'applied'>>
+type AppliedJournalKeys = ConcatKeys<
+  JournalKeys<typeof JOURNAL_APPLIED_KEYS>,
+  typeof JOURNAL_APPLIED_SELECTED_KEYS
+>
+export type _JournalAppliedKeysSound =
+  | AssertNever<MissingKeys<JournalEntryOf<'applied'>, AppliedJournalKeys>>
+  | AssertNever<DuplicateKeys<AppliedJournalKeys>>
 
 function frozenRecord(
   value: unknown,
@@ -81,7 +250,7 @@ function frozenArray(
 }
 
 function ref(value: unknown): value is DecisionLayerRef {
-  const record = frozenRecord(value, ['id', 'version'])
+  const record = frozenRecord(value, REF_KEYS)
   return !!record
     && typeof record.id === 'string'
     && typeof record.version === 'string'
@@ -116,38 +285,16 @@ function journalRecord(
   value: unknown,
 ): Readonly<Record<string, unknown>> | undefined {
   const bases = [
-    [
-      'componentLookups',
-      'componentReads',
-      'layer',
-      'priorSurvivorCandidateIds',
-    ],
-    [
-      'componentLookups',
-      'componentReads',
-      'layer',
-      'priorSelectedCandidateId',
-      'priorSurvivorCandidateIds',
-    ],
+    JOURNAL_BASE_KEYS,
+    [...JOURNAL_BASE_KEYS, ...JOURNAL_PRIOR_SELECTED_KEYS],
   ] as const
   for (const base of bases) {
     for (const suffix of [
-      ['status'],
-      ['status', 'suppressionCode'],
-      ['degradationCode', 'failureCode', 'status'],
-      [
-        'attributedComponents',
-        'reasonCodes',
-        'status',
-        'survivorCandidateIds',
-      ],
-      [
-        'attributedComponents',
-        'reasonCodes',
-        'selectedCandidateId',
-        'status',
-        'survivorCandidateIds',
-      ],
+      JOURNAL_INAPPLICABLE_KEYS,
+      JOURNAL_SUPPRESSED_KEYS,
+      JOURNAL_DEGRADED_KEYS,
+      JOURNAL_APPLIED_KEYS,
+      [...JOURNAL_APPLIED_KEYS, ...JOURNAL_APPLIED_SELECTED_KEYS],
     ]) {
       const record = frozenRecord(value, [...base, ...suffix])
       if (record) return record
@@ -228,13 +375,7 @@ function validJournalEntry(
 function decodeCanonicalDecisionLayerTrace(
   value: CanonicalJsonValue,
 ): DecisionLayerTrace | undefined {
-  const run = frozenRecord(value, [
-    'configured',
-    'journal',
-    'operations',
-    'surface',
-    'version',
-  ])
+  const run = frozenRecord(value, TRACE_KEYS)
   const configured = refArray(run?.configured)
   const journal = frozenArray(run?.journal)
   if (
@@ -250,15 +391,9 @@ function decodeCanonicalDecisionLayerTrace(
       validJournalEntry(entry, configured[index]))
   ) return undefined
   const surface = frozenRecord(run.surface, [
-    'reasonCodes',
-    'selectedCandidateId',
-    'survivorCandidateIds',
-    'version',
-  ]) ?? frozenRecord(run.surface, [
-    'reasonCodes',
-    'survivorCandidateIds',
-    'version',
-  ])
+    ...SURFACE_KEYS,
+    ...SURFACE_SELECTED_KEYS,
+  ]) ?? frozenRecord(run.surface, SURFACE_KEYS)
   const survivors = stringArray(surface?.survivorCandidateIds)
   const reasons = stringArray(surface?.reasonCodes, true)
   const operations = frozenRecord(run.operations, OPERATION_KEYS)

@@ -81,3 +81,29 @@ export type DuplicateKeys<
     ? Head
     : DuplicateKeys<Rest, Seen | Head>
   : never
+
+/**
+ * Two key lists read as one, for a validator that appends a group of keys only
+ * when the record actually carries them.
+ *
+ * The conditional spread is the one shape where a hand-written binding compiles
+ * and is still wrong. Binding the always-present list against the whole
+ * interface typechecks, because every name in it is a real key, but the optional
+ * group then gets counted twice whenever the spread fires: once from the type's
+ * own keys and once from the appended list. For a validator that measures the
+ * list rather than only querying it, that inflates the expected length and
+ * refuses every record carrying the optional field. The list is bound and the
+ * validator is broken, which is worse than an unbound list.
+ *
+ * So the always-present half binds against the interface with the optional group
+ * omitted, which makes naming one of those keys there a type error, and both
+ * `MissingKeys` and `DuplicateKeys` are then applied to `ConcatKeys` of the two
+ * halves against the full interface. Running them over the concatenation rather
+ * than either half is what catches a key that ended up in both, which is the
+ * double count itself. Nest it for a validator with more than one independent
+ * optional group.
+ */
+export type ConcatKeys<
+  Left extends readonly PropertyKey[],
+  Right extends readonly PropertyKey[],
+> = readonly [...Left, ...Right]
