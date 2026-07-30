@@ -1358,31 +1358,52 @@ function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
   )
 }
 
-function validComposedTraceRelations(trace: TraceValidationInput): boolean {
-  if (trace.candidateScores === undefined) {
-    const components = trace.componentVersions as
-      | Record<string, unknown>
-      | undefined
-    return trace.chosenCandidateId === undefined
-      && trace.structuredCandidateId === undefined
-      && trace.plannerCandidateId === undefined
-      && trace.plannerReasonCodes === undefined
-      && trace.communicationIntent === undefined
-      && !isComposedPolicy(components?.policy)
-  }
-  const scores = trace.candidateScores as Array<Record<string, unknown>>
-  const ids = scores.map((score) => String(score.candidateId))
-  if (new Set(ids).size !== ids.length) return false
-  const components = trace.componentVersions as Record<string, unknown> | undefined
-  const componentRun = trace.components as DecisionComponentRun | undefined
+interface ComposedTraceContext {
+  readonly trace: TraceValidationInput
+  readonly scores: Array<Record<string, unknown>>
+  readonly ids: string[]
+  readonly components: Record<string, unknown> | undefined
+  readonly componentRun: DecisionComponentRun | undefined
+  readonly hasPlanner: boolean
+  readonly chosen: string
+  readonly chosenScore: Record<string, unknown> | undefined
+  readonly chosenFeatures: Record<string, unknown> | undefined
+  readonly action: Record<string, unknown>
+  readonly relevantTeam: Record<string, unknown> | undefined
+  readonly intent: Record<string, unknown> | undefined
+  readonly structured: unknown
+  readonly plannerReasons: unknown
+  readonly phase4c: boolean
+  readonly proposalFeatureScores: Array<Record<string, unknown>>
+  readonly voteFeatureScores: Array<Record<string, unknown>>
+  readonly roleFeatureScores: Array<Record<string, unknown>>
+  readonly evilRoleFeatureScores: Array<Record<string, unknown>>
+  readonly morganaRoleFeatureScores: Array<Record<string, unknown>>
+}
+
+function validAbsentCandidateScores(trace: TraceValidationInput): boolean {
+  const components = trace.componentVersions as
+    | Record<string, unknown>
+    | undefined
+  return trace.chosenCandidateId === undefined
+    && trace.structuredCandidateId === undefined
+    && trace.plannerCandidateId === undefined
+    && trace.plannerReasonCodes === undefined
+    && trace.communicationIntent === undefined
+    && !isComposedPolicy(components?.policy)
+}
+
+function validCandidateScoreIdentity(
+  trace: TraceValidationInput,
+  scores: Array<Record<string, unknown>>,
+  components: Record<string, unknown> | undefined,
+): boolean {
   if (
     components
     && scores.some((score) => score.version !== components.scorer)
   ) {
     return false
   }
-  const hasPlanner =
-    components !== undefined && components.planner !== NO_PLANNER_VERSION
   if (
     scores.some((score) => {
       const features = score.features as Record<string, unknown> | undefined
@@ -1460,32 +1481,14 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   ) {
     return false
   }
-  const chosen = trace.chosenCandidateId
-  if (
-    typeof chosen !== 'string'
-    || !scores.some(
-      (score) => score.candidateId === chosen && score.viable === true,
-    )
-  ) {
-    return false
-  }
-  const chosenScore = scores.find((score) => score.candidateId === chosen)
-  const structured = trace.structuredCandidateId
-  const plannerReasons = trace.plannerReasonCodes
-  const chosenFeatures = chosenScore?.features as
-    | Record<string, unknown>
-    | undefined
-  const action = trace.action as Record<string, unknown>
-  const relevantTeam = trace.relevantTeam as Record<string, unknown> | undefined
-  const featureScores = scores.filter((score) => score.features !== undefined)
-  const intent = trace.communicationIntent as
-    | Record<string, unknown>
-    | undefined
-  const phase4c = trace.decisionPlanVersion === DECISION_PLAN_VERSION
-  const speechAction =
-    action.kind === 'discuss'
-    || action.kind === 'propose'
-    || (action.kind === 'finalize' && action.stick === false)
+  return true
+}
+
+function validPlannerRelations(ctx: ComposedTraceContext): boolean {
+  const {
+    trace, scores, chosen, chosenScore, structured, plannerReasons, phase4c,
+    components, hasPlanner,
+  } = ctx
   if (
     phase4c
     && (
@@ -1560,9 +1563,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   ) {
     return false
   }
-  if (phase4c && speechAction !== (intent !== undefined)) {
-    return false
-  }
+  return true
+}
+
+function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
+  const { trace, scores, chosen, chosenScore, chosenFeatures, action, intent } = ctx
   if (intent !== undefined) {
     if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
       return false
@@ -1732,19 +1737,12 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       }
     }
   }
-  const proposalFeatureScores = featureScores.filter(
-    (score) =>
-      (score.features as Record<string, unknown>).version
-      === GOOD_PROPOSAL_FEATURE_VERSION,
-  )
-  const voteFeatureScores = featureScores.filter(
-    (score) =>
-      (score.features as Record<string, unknown>).version
-      === GOOD_VOTE_FEATURE_VERSION,
-  )
-  const roleFeatureScores = scores.filter(
-    (score) => score.roleObjectiveFeatures !== undefined,
-  )
+  return true
+}
+
+function validGoodRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+  const { trace, scores, roleFeatureScores, components, componentRun, structured }
+    = ctx
   if (roleFeatureScores.length > 0) {
     // The retired flat C2 payload can never be present.
     const roleProjection = (
@@ -1920,9 +1918,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       )
     ) return false
   }
-  const evilRoleFeatureScores = scores.filter(
-    (score) => score.evilRoleObjectiveFeatures !== undefined,
-  )
+  return true
+}
+
+function validEvilRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+  const { trace, scores, evilRoleFeatureScores, components, componentRun } = ctx
   if (evilRoleFeatureScores.length > 0) {
     const projection = (
       componentRun
@@ -2063,9 +2063,13 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       )
     ) return false
   }
-  const morganaRoleFeatureScores = scores.filter(
-    (score) => score.morganaRoleObjectiveFeatures !== undefined,
-  )
+  return true
+}
+
+function validMorganaRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+  const {
+    scores, morganaRoleFeatureScores, components, componentRun, structured, chosen,
+  } = ctx
   if (morganaRoleFeatureScores.length > 0) {
     const projection = (
       componentRun
@@ -2129,6 +2133,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       })
     ) return false
   }
+  return true
+}
+
+function validProposalFeatureScores(ctx: ComposedTraceContext): boolean {
+  const { action, scores, proposalFeatureScores, chosenFeatures, relevantTeam } = ctx
   if (
     proposalFeatureScores.length > 0
     && (
@@ -2157,6 +2166,14 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       return false
     }
   }
+  return true
+}
+
+function validVoteFeatureScores(ctx: ComposedTraceContext): boolean {
+  const {
+    trace, scores, voteFeatureScores, roleFeatureScores, chosenFeatures, chosen,
+    action, relevantTeam, components, structured,
+  } = ctx
   if (voteFeatureScores.length > 0) {
     if (
       action.kind !== 'vote'
@@ -2300,6 +2317,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     }
     }
   }
+  return true
+}
+
+function validForcedPolicyRelation(ctx: ComposedTraceContext): boolean {
+  const { trace, scores, ids, chosen } = ctx
   const forced = trace.forcedPolicyResult as Record<string, unknown> | undefined
   if (forced) {
     const allowed = new Set(forced.allowedCandidateIds as string[])
@@ -2335,6 +2357,96 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       return false
     }
   }
+  return true
+}
+
+function validComposedTraceRelations(trace: TraceValidationInput): boolean {
+  if (trace.candidateScores === undefined) {
+    return validAbsentCandidateScores(trace)
+  }
+  const scores = trace.candidateScores as Array<Record<string, unknown>>
+  const ids = scores.map((score) => String(score.candidateId))
+  if (new Set(ids).size !== ids.length) return false
+  const components = trace.componentVersions as Record<string, unknown> | undefined
+  const componentRun = trace.components as DecisionComponentRun | undefined
+  const hasPlanner =
+    components !== undefined && components.planner !== NO_PLANNER_VERSION
+  if (!validCandidateScoreIdentity(trace, scores, components)) {
+    return false
+  }
+  const chosen = trace.chosenCandidateId
+  if (
+    typeof chosen !== 'string'
+    || !scores.some(
+      (score) => score.candidateId === chosen && score.viable === true,
+    )
+  ) {
+    return false
+  }
+  const chosenScore = scores.find((score) => score.candidateId === chosen)
+  const structured = trace.structuredCandidateId
+  const plannerReasons = trace.plannerReasonCodes
+  const chosenFeatures = chosenScore?.features as
+    | Record<string, unknown>
+    | undefined
+  const action = trace.action as Record<string, unknown>
+  const relevantTeam = trace.relevantTeam as Record<string, unknown> | undefined
+  const featureScores = scores.filter((score) => score.features !== undefined)
+  const intent = trace.communicationIntent as
+    | Record<string, unknown>
+    | undefined
+  const phase4c = trace.decisionPlanVersion === DECISION_PLAN_VERSION
+  const speechAction =
+    action.kind === 'discuss'
+    || action.kind === 'propose'
+    || (action.kind === 'finalize' && action.stick === false)
+  const ctx: ComposedTraceContext = {
+    trace,
+    scores,
+    ids,
+    components,
+    componentRun,
+    hasPlanner,
+    chosen,
+    chosenScore,
+    chosenFeatures,
+    action,
+    relevantTeam,
+    intent,
+    structured,
+    plannerReasons,
+    phase4c,
+    proposalFeatureScores: featureScores.filter(
+      (score) =>
+        (score.features as Record<string, unknown>).version
+        === GOOD_PROPOSAL_FEATURE_VERSION,
+    ),
+    voteFeatureScores: featureScores.filter(
+      (score) =>
+        (score.features as Record<string, unknown>).version
+        === GOOD_VOTE_FEATURE_VERSION,
+    ),
+    roleFeatureScores: scores.filter(
+      (score) => score.roleObjectiveFeatures !== undefined,
+    ),
+    evilRoleFeatureScores: scores.filter(
+      (score) => score.evilRoleObjectiveFeatures !== undefined,
+    ),
+    morganaRoleFeatureScores: scores.filter(
+      (score) => score.morganaRoleObjectiveFeatures !== undefined,
+    ),
+  }
+  if (!validPlannerRelations(ctx)) return false
+  if (phase4c && speechAction !== (intent !== undefined)) {
+    return false
+  }
+  if (!validCommunicationIntent(ctx)) return false
+  if (!validGoodRoleFeatureScores(ctx)) return false
+  if (!validEvilRoleFeatureScores(ctx)) return false
+  if (!validMorganaRoleFeatureScores(ctx)) return false
+  if (!validProposalFeatureScores(ctx)) return false
+  if (!validVoteFeatureScores(ctx)) return false
+  if (!validForcedPolicyRelation(ctx)) return false
   return true
 }
 
