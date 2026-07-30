@@ -775,7 +775,7 @@ Non-blocking Phase 3B follow-ups:
 
 - [ ] Cache or increment the heuristic's `CognitionState` if larger simulations show the current
       reconstruct-per-decision path is material; the present ten-game bank is acceptable.
-- [ ] Add closed-form candidate-count properties by player count and decision kind. Exhaustive
+- [x] Add closed-form candidate-count properties by player count and decision kind. Exhaustive
       engine acceptance across the architecture bank currently proves legality, but an independent
       cardinality oracle would strengthen completeness coverage.
 
@@ -3001,7 +3001,7 @@ Every phase should update the applicable rows.
 | Probability | Normalization, calibration, impossible-world zero mass |
 | Symmetry | Seat-rotation and name-change invariance |
 | Replay | Same view, seed, and versions reproduce the same mechanical state |
-| Policy | Forced rules, legal candidates, reason-code coverage |
+| Policy | Forced rules, legal candidates, reason-code coverage; a closed-form candidate cardinality per player count and decision kind, and candidate completeness up to observable game equivalence |
 | Coherence | Committed decision matches pitch, reason, lean, and later trace |
 | Degradation | Each failed component falls back without stalling |
 | Evaluation isolation | Runtime code cannot access truth-only labels |
@@ -3549,4 +3549,25 @@ here.
   duplicates its deterministic one is refused rather than silently taking the deterministic branch
   twice. Full suite 1137 correctness tests plus the three isolated performance tests.
 - Retired the v1 role projections end to end (MD-005). The seven flat role payloads had no writer: only `createDecisionTrace` for the raw-LLM baseline and the composed v2 builder exist, and neither ever set one, which a live trace probe confirmed. They were reachable only from a stored artifact or an external stdio agent, and reading them cost three parallel validation surfaces. Canonical ingress now refuses the keys for every trace version, the treatment MD-003 used for its own retired keys. Three specified behaviors changed and are pinned the other way: an external stdio agent presenting a historical flat role trace keeps its decision and loses its trace; an external weighted producer can no longer present a complete flat role objective, so generation fails before the report; and the descriptor-less v1 path is exercised through a role-free variant. Both evaluation readers and the admission owner now hold zero references to the retired payloads, and the fields are deleted from the trace type. Full suite 1114 tests.
-
+- Phase 3B candidate cardinality and completeness oracle: closed the last open Phase 3B follow-up.
+  The bank sweep only proved soundness, that every generated candidate is engine-legal, so a
+  generator that silently dropped a legal action stayed green. Two independent laws now bound the
+  surface from the other side. The closed-form oracle derives the expected count from `TEAM_SIZES`
+  and factorial binomials rather than the generator's own `combinations`, so a shared defect cannot
+  cancel itself out, and it is checked at every decision of every bank playthrough plus the frozen
+  decision fixtures, covering 5 through 10 players for all six decision kinds. The completeness law
+  enumerates the whole syntactic domain, including all 2^n seat subsets for proposals and
+  revisions, applies each to a clone, and asserts the generated candidates reach exactly the set of
+  reachable post-decision game states, with no two candidates reaching the same one. It sweeps once
+  per distinct surface shape per bank case rather than once per kind, because a proposal surface is
+  parameterized by the quest's team size: keying on the kind alone swept only the opening quest and
+  left team sizes 4 and 5 unchecked, and the corrected key raises the bank from 52 sweeps to 80
+  covering sizes 2 through 5. That statement
+  is equality up to observable equivalence rather than raw engine acceptance, because two of the
+  generator's exclusions are engine coercions rather than policy narrowings: the engine drops a
+  leader's lean and rewrites a good seat's fail to success, so those extra inputs are accepted but
+  land on a state a generated candidate already reaches. Discussion text is held fixed because voice,
+  not policy, owns it. Mutation-checked three ways: dropping the `unsure` lean, offering good both
+  quest cards, and a count-preserving wrong proposal set each fail the new laws, and the first two
+  leave the pre-existing acceptance test green. Full suite 1139 correctness tests plus the three
+  isolated performance tests, strict typecheck, and ratchet.
