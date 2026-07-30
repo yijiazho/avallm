@@ -7,6 +7,7 @@
 import { parseArgs } from 'node:util'
 import { readArtifacts } from './artifact.ts'
 import { computeMetrics } from './metrics.ts'
+import { mean } from './statistics.ts'
 import { FORCED_PLAY_RULES } from './forced.ts'
 import type { GameMetrics, SeatMetrics } from './metrics.ts'
 import type { ForcedPlayRule } from './forced.ts'
@@ -14,7 +15,6 @@ import type { ForcedPlayRule } from './forced.ts'
 const fmt = (n: number | null | undefined, digits = 2): string =>
   n === null || n === undefined || Number.isNaN(n) ? '—' : n.toFixed(digits)
 const pct = (num: number, den: number): string => (den ? `${((num / den) * 100).toFixed(0)}%` : '—')
-const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 
 function row(cells: (string | number)[], widths: number[]): string {
   return cells.map((c, i) => String(c).padEnd(widths[i])).join(' ').trimEnd()
