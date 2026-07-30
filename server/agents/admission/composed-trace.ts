@@ -72,6 +72,7 @@ import {
   DECISION_TRACE_VERSION,
   decisionTraceIdForRequest,
   type DecisionTrace,
+  type TraceComponentVersions,
 } from '../trace.ts'
 import type {
   AgentExecutionMode,
@@ -146,6 +147,12 @@ import {
   projectPublicRecord,
 } from '../communication/public-record.ts'
 import type {
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+  MissingRequiredKeys,
+  NoDuplicateKeys,
+  NoMissingKeys,
   TraceValidationInput,
 } from './trace-primitives.ts'
 import {
@@ -153,6 +160,18 @@ import {
   stringArray,
   validForcedPolicyResult,
 } from './trace-primitives.ts'
+import type {
+  LanguageTraceAttribution,
+} from '../communication/language-orchestration.ts'
+import type {
+  CommunicationIntent,
+  PosteriorUncertainty,
+} from '../policy/plan.ts'
+import type {
+  EvilRoleObjectiveScoreFeatures,
+  MorganaRoleObjectiveScoreFeatures,
+  RoleObjectiveScoreFeatures,
+} from '../policy/score.ts'
 import {
   validLegacyRoleDependencyHostJoinV1,
   validLegacyRoleTraceV1,
@@ -258,6 +277,245 @@ import {
   validatePrivateMorganaRoleUtilityProjection,
 } from '../analysis/morgana-role-utility.ts'
 
+/*
+ * The key lists below are the runtime half of shapes that are also declared as
+ * TypeScript types. Each is bound to its declaring type three ways: `satisfies
+ * ExactKeyList<T>` rejects a key that `T` does not have, the paired
+ * `NoMissingKeys` alias rejects a key of `T` that the list forgot, and
+ * `NoDuplicateKeys` rejects a repeated entry. Adding a field to one of those
+ * shapes without extending its list here is a compile error naming the field, so
+ * admission cannot silently stop guarding it.
+ *
+ * The duplicate arm matters most for the Morgana list, the one site that reads
+ * its list through the counting `exactKeys` rather than the permissive
+ * `onlyAllowedKeys`: `exactKeys` compares `keys.length` against the record's own
+ * key count, so one repeated entry inflates the expected length and refuses every
+ * valid trace. The other lists are membership-only, where a duplicate is inert,
+ * but they carry the same assertion so the guarantee does not depend on which
+ * predicate a given site happens to use.
+ *
+ * One deliberate gap: the component-version list below covers only the mandatory
+ * keys, because every optional owner carries its own value check further down
+ * rather than a presence check. Adding an *optional* key to `componentVersions`
+ * therefore compiles clean and is not validated anywhere until someone writes
+ * that clause by hand. `validComponentVersions` reads neither key predicate, so
+ * treat a new optional owner as needing a matching clause.
+ */
+
+/** Mandatory attribution keys; optional ones are value-checked individually. */
+const REQUIRED_COMPONENT_VERSION_KEYS = [
+  'brain', 'belief', 'beliefVisibility', 'factors', 'languageEvidence',
+  'observerModel', 'analysis', 'candidates', 'forcedPolicy', 'policy',
+  'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
+] as const satisfies ExactKeyList<TraceComponentVersions>
+type _RequiredComponentVersionKeysSound =
+  | NoMissingKeys<
+      MissingRequiredKeys<
+        TraceComponentVersions,
+        typeof REQUIRED_COMPONENT_VERSION_KEYS
+      >
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof REQUIRED_COMPONENT_VERSION_KEYS>>
+
+const LANGUAGE_TRACE_KEYS = [
+  'inputSchemaVersion',
+  'cursorSchemaVersion',
+  'interpreterVersion',
+  'factorVersion',
+  'factorBundleVersion',
+  'cursorThroughSeq',
+  'admittedSourceSeqs',
+  'cumulativeSourceSeqs',
+  'degradation',
+] as const satisfies ExactKeyList<LanguageTraceAttribution>
+type _LanguageTraceKeysSound =
+  | NoMissingKeys<
+      MissingKeys<LanguageTraceAttribution, typeof LANGUAGE_TRACE_KEYS>
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof LANGUAGE_TRACE_KEYS>>
+
+/*
+ * The three role feature lists omit `seedBucket`, which each call site appends
+ * only when the decision actually carried one. They bind against the shape with
+ * that key removed in both directions, so the exhaustiveness check still covers
+ * every other field while listing `seedBucket` here is itself a type error. That
+ * matters because the Morgana call site compares the assembled list length against
+ * the trace's own key count: a duplicated `seedBucket` would reject every trace.
+ */
+type WithoutSeedBucket<T> = Omit<T, 'seedBucket'>
+
+const ROLE_OBJECTIVE_FEATURE_KEYS = [
+  'version',
+  'utilityVersion',
+  'utilityProjectionVersion',
+  'sourceObjectiveVersion',
+  'role',
+  'candidateId',
+  'kind',
+  'baseScorerVersion',
+  'baseFeatureVersion',
+  'baseValue',
+  'roleValue',
+  'survivorMeanRoleValue',
+  'roleAdjustment',
+  'combinedValue',
+  'selectionMode',
+  'viableBand',
+  'inViableBand',
+  'selectionAdjustment',
+  'utility',
+] as const satisfies ExactKeyList<
+  WithoutSeedBucket<RoleObjectiveScoreFeatures>
+>
+type _RoleObjectiveFeatureKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        WithoutSeedBucket<RoleObjectiveScoreFeatures>,
+        typeof ROLE_OBJECTIVE_FEATURE_KEYS
+      >
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof ROLE_OBJECTIVE_FEATURE_KEYS>>
+
+const EVIL_ROLE_OBJECTIVE_FEATURE_KEYS = [
+  'version',
+  'utilityVersion',
+  'utilityProjectionVersion',
+  'sourceObjectiveVersion',
+  'role',
+  'candidateId',
+  'kind',
+  'roleValue',
+  'selectionMode',
+  'viableBand',
+  'inViableBand',
+  'selectionAdjustment',
+  'utility',
+] as const satisfies ExactKeyList<
+  WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>
+>
+type _EvilRoleObjectiveFeatureKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>,
+        typeof EVIL_ROLE_OBJECTIVE_FEATURE_KEYS
+      >
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof EVIL_ROLE_OBJECTIVE_FEATURE_KEYS>>
+
+const MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS = [
+  'version',
+  'utilityProjectionVersion',
+  'sourceCounterfeitObjectiveVersion',
+  'sourceEvilRoleUtilityVersion',
+  'candidateId',
+  'kind',
+  'd2RoleValue',
+  'maxD2RoleValue',
+  'd2BandFloor',
+  'd2ViableBand',
+  'inD2ViableBand',
+  'counterfeitValue',
+  'counterfeitRank',
+  'selectionMode',
+  'seededVoteCounterfeitBand',
+  'selectedByPolicy',
+  'utility',
+] as const satisfies ExactKeyList<
+  WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>
+>
+type _MorganaRoleObjectiveFeatureKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>,
+        typeof MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS
+      >
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS>>
+
+const COMMUNICATION_INTENT_KEYS = [
+  'version',
+  'channel',
+  'desiredLean',
+  'targetSeats',
+  'claimCodes',
+  'safeFactCodes',
+  'conceal',
+  'strategicReasonCodes',
+  'uncertainty',
+  'tone',
+] as const satisfies ExactKeyList<CommunicationIntent>
+type _CommunicationIntentKeysSound =
+  | NoMissingKeys<
+      MissingKeys<CommunicationIntent, typeof COMMUNICATION_INTENT_KEYS>
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof COMMUNICATION_INTENT_KEYS>>
+
+/* One list per `PosteriorUncertainty` variant, keyed off the same discriminant
+ * the validator switches on, so a new variant field cannot slip past admission. */
+type UncertaintyOf<Kind extends PosteriorUncertainty['kind']> =
+  Extract<PosteriorUncertainty, { kind: Kind }>
+
+const ROLE_COMPOSITE_UNCERTAINTY_KEYS = [
+  'version',
+  'kind',
+  'semantics',
+  'beliefModelVersion',
+  'beliefThroughSeq',
+  'baseKind',
+  'compositeUtilityGap',
+] as const satisfies ExactKeyList<UncertaintyOf<'role-composite-decision'>>
+type _RoleCompositeUncertaintyKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        UncertaintyOf<'role-composite-decision'>,
+        typeof ROLE_COMPOSITE_UNCERTAINTY_KEYS
+      >
+    >
+  | NoDuplicateKeys<DuplicateKeys<typeof ROLE_COMPOSITE_UNCERTAINTY_KEYS>>
+
+const SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS = [
+  'version',
+  'kind',
+  'semantics',
+  'beliefModelVersion',
+  'beliefThroughSeq',
+  'cleanProbability',
+  'residualProbability',
+] as const satisfies ExactKeyList<UncertaintyOf<'selected-team-clean'>>
+type _SelectedTeamCleanUncertaintyKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        UncertaintyOf<'selected-team-clean'>,
+        typeof SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS
+      >
+    >
+  | NoDuplicateKeys<
+      DuplicateKeys<typeof SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS>
+    >
+
+const CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS = [
+  'version',
+  'kind',
+  'semantics',
+  'beliefModelVersion',
+  'beliefThroughSeq',
+  'currentCleanProbability',
+  'bestAlternativeCleanProbability',
+  'utilityGap',
+] as const satisfies ExactKeyList<
+  UncertaintyOf<'current-versus-alternative-team-clean'>
+>
+type _CurrentVersusAlternativeUncertaintyKeysSound =
+  | NoMissingKeys<
+      MissingKeys<
+        UncertaintyOf<'current-versus-alternative-team-clean'>,
+        typeof CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS
+      >
+    >
+  | NoDuplicateKeys<
+      DuplicateKeys<typeof CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS>
+    >
+
 function seatArray(value: unknown): value is readonly number[] {
   return Array.isArray(value)
     && value.every((entry) => Number.isInteger(entry) && entry >= 0)
@@ -287,12 +545,7 @@ function validComponentVersions(value: unknown): boolean {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const versions = value as Record<string, unknown>
-  const required = [
-    'brain', 'belief', 'beliefVisibility', 'factors', 'languageEvidence',
-    'observerModel', 'analysis', 'candidates', 'forcedPolicy', 'policy',
-    'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
-  ]
-  return required.every(
+  return REQUIRED_COMPONENT_VERSION_KEYS.every(
     (key) => typeof versions[key] === 'string' && versions[key].length > 0,
   )
     && (
@@ -455,17 +708,7 @@ function validLanguageTrace(
   if (!componentDeclaresLanguage) return false
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const language = value as Record<string, unknown>
-  if (!onlyAllowedKeys(language, [
-    'inputSchemaVersion',
-    'cursorSchemaVersion',
-    'interpreterVersion',
-    'factorVersion',
-    'factorBundleVersion',
-    'cursorThroughSeq',
-    'admittedSourceSeqs',
-    'cumulativeSourceSeqs',
-    'degradation',
-  ])) {
+  if (!onlyAllowedKeys(language, LANGUAGE_TRACE_KEYS)) {
     return false
   }
   const admitted = language.admittedSourceSeqs
@@ -925,26 +1168,8 @@ function validCandidateScores(value: unknown): boolean {
       | Record<string, unknown>
       | undefined
     const roleKeys = [
-      'version',
-      'utilityVersion',
-      'utilityProjectionVersion',
-      'sourceObjectiveVersion',
-      'role',
-      'candidateId',
-      'kind',
-      'baseScorerVersion',
-      'baseFeatureVersion',
-      'baseValue',
-      'roleValue',
-      'survivorMeanRoleValue',
-      'roleAdjustment',
-      'combinedValue',
-      'selectionMode',
-      'viableBand',
-      'inViableBand',
-      'selectionAdjustment',
+      ...ROLE_OBJECTIVE_FEATURE_KEYS,
       ...(role?.seedBucket === undefined ? [] : ['seedBucket']),
-      'utility',
     ]
     const validRole = role === undefined || (
       onlyAllowedKeys(role, roleKeys)
@@ -1002,20 +1227,8 @@ function validCandidateScores(value: unknown): boolean {
       | Record<string, unknown>
       | undefined
     const evilRoleKeys = [
-      'version',
-      'utilityVersion',
-      'utilityProjectionVersion',
-      'sourceObjectiveVersion',
-      'role',
-      'candidateId',
-      'kind',
-      'roleValue',
-      'selectionMode',
-      'viableBand',
-      'inViableBand',
-      'selectionAdjustment',
+      ...EVIL_ROLE_OBJECTIVE_FEATURE_KEYS,
       ...(evilRole?.seedBucket === undefined ? [] : ['seedBucket']),
-      'utility',
     ]
     const validEvilRole = evilRole === undefined || (
       onlyAllowedKeys(evilRole, evilRoleKeys)
@@ -1051,24 +1264,8 @@ function validCandidateScores(value: unknown): boolean {
       | Record<string, unknown>
       | undefined
     const morganaRoleKeys = [
-      'version',
-      'utilityProjectionVersion',
-      'sourceCounterfeitObjectiveVersion',
-      'sourceEvilRoleUtilityVersion',
-      'candidateId',
-      'kind',
-      'd2RoleValue',
-      'maxD2RoleValue',
-      'd2BandFloor',
-      'd2ViableBand',
-      'inD2ViableBand',
-      'counterfeitValue',
-      'counterfeitRank',
-      'selectionMode',
-      'seededVoteCounterfeitBand',
-      'selectedByPolicy',
+      ...MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS,
       ...(morganaRole?.seedBucket === undefined ? [] : ['seedBucket']),
-      'utility',
     ]
     const validMorganaRole = morganaRole === undefined || (
       exactKeys(morganaRole, morganaRoleKeys)
@@ -1433,18 +1630,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       ...committedPolicyReasons,
     ]
     if (
-      !onlyAllowedKeys(intent, [
-        'version',
-        'channel',
-        'desiredLean',
-        'targetSeats',
-        'claimCodes',
-        'safeFactCodes',
-        'conceal',
-        'strategicReasonCodes',
-        'uncertainty',
-        'tone',
-      ])
+      !onlyAllowedKeys(intent, COMMUNICATION_INTENT_KEYS)
       ||
       intent.version !== COMMUNICATION_INTENT_VERSION
       || intent.channel !== expectedChannel
@@ -1499,35 +1685,10 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
         !onlyAllowedKeys(
           uncertainty,
           uncertainty.kind === 'role-composite-decision'
-            ? [
-                'version',
-                'kind',
-                'semantics',
-                'beliefModelVersion',
-                'beliefThroughSeq',
-                'baseKind',
-                'compositeUtilityGap',
-              ]
+            ? ROLE_COMPOSITE_UNCERTAINTY_KEYS
             : uncertainty.kind === 'selected-team-clean'
-            ? [
-                'version',
-                'kind',
-                'semantics',
-                'beliefModelVersion',
-                'beliefThroughSeq',
-                'cleanProbability',
-                'residualProbability',
-              ]
-            : [
-                'version',
-                'kind',
-                'semantics',
-                'beliefModelVersion',
-                'beliefThroughSeq',
-                'currentCleanProbability',
-                'bestAlternativeCleanProbability',
-                'utilityGap',
-              ],
+            ? SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS
+            : CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS,
         )
         ||
         uncertainty.version !== POSTERIOR_UNCERTAINTY_VERSION
