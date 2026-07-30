@@ -18,6 +18,7 @@ import {
   COGNITION_SCHEMA_VERSION,
   COMMITMENT_MODEL_VERSION,
   EVIDENCE_MODEL_VERSION,
+  isPublicEvidence,
   type CognitionState,
   type Evidence,
   type PublicCognitionProjection,
@@ -294,7 +295,7 @@ export function reconstructCognition(
 export function publicCognition(
   state: CognitionState,
 ): PublicCognitionProjection {
-  const evidence = state.evidence.filter((record) => record.scope === 'public')
+  const evidence = state.evidence.filter(isPublicEvidence)
   return {
     throughSeq: evidence.reduce(
       (cursor, record) => Math.max(cursor, record.sourceSeq),

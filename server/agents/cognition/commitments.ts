@@ -1,4 +1,9 @@
-import type { Evidence, PublicCommitment } from './types.ts'
+import {
+  isPublicEvidence,
+  type AttributedEvidence,
+  type Evidence,
+  type PublicCommitment,
+} from './types.ts'
 
 const contextKey = (round?: number, proposalNum?: number): string =>
   `${round ?? 'none'}.${proposalNum ?? 'none'}`
@@ -20,14 +25,14 @@ function supersede(
 }
 
 function utterance(
-  evidence: Evidence,
+  evidence: AttributedEvidence,
   text: string,
   channel: 'discussion' | 'pitch' | 'revision-reason',
   round: number,
   proposalNum: number,
   team?: readonly number[],
 ): PublicCommitment | undefined {
-  if (!text.trim() || evidence.actor === undefined) return undefined
+  if (!text.trim()) return undefined
   return {
     id: commitmentId(evidence.id, channel),
     sourceId: evidence.id,
@@ -47,7 +52,7 @@ export function buildCommitments(
 ): readonly PublicCommitment[] {
   const commitments: PublicCommitment[] = []
   for (const evidence of evidenceRecords) {
-    if (evidence.scope !== 'public') continue
+    if (!isPublicEvidence(evidence)) continue
     switch (evidence.kind) {
       case 'proposal': {
         const sourceId = commitmentId(evidence.id, 'team')

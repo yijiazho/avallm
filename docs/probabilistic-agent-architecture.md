@@ -218,6 +218,12 @@ Evidence extraction consumes typed `PlayerView` fields and visible events. It ne
 rendered facts dossier or prompt text. Prompt rendering is a downstream presentation of the same
 facts.
 
+As implemented in `server/agents/cognition/types.ts`, a record carries only `id`, `sourceSeq`,
+`kind`, `payload`, and (for attributable kinds) `actor`. The `strength` field above was never read
+by any consumer and has been dropped; `scope` turned out to be a function of `kind`, so privacy is
+expressed by the `PublicEvidence` type and the `isPublicEvidence` predicate instead of a per-record
+field. Reintroduce either one only with a consumer that reads it.
+
 Mechanical evidence includes role counts, private visibility, proposals, votes, quest teams, and
 Fail counts. Language evidence is a structured interpretation with source attribution; it is not
 free-form scratchpad prose.

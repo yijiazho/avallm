@@ -14,133 +14,136 @@ import type {
 } from '../communication/language-types.ts'
 
 export const COGNITION_SCHEMA_VERSION = 1
-export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v2'
+export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v3'
 export const COMMITMENT_MODEL_VERSION = 'public-commitments-v2'
 
-export type EvidenceScope = 'public' | 'private'
-export type EvidenceStrength = 'hard' | 'observed'
+/**
+ * The payload of every evidence kind. Payload is the only part of a record that
+ * varies freely: whether the record is private, and whether it names an actor,
+ * are both functions of the kind, so they are stated once below rather than
+ * restated on each variant.
+ */
+interface EvidencePayloads {
+  'game-setup': {
+    playerCount: number
+    rolesInPlay: readonly Role[]
+    firstLeader: Seat
+  }
+  'private-role': {
+    role: Role
+    alignment: Alignment
+  }
+  'private-knowledge': {
+    knownEvil?: readonly Seat[]
+    evilPartners?: readonly Seat[]
+    merlinCandidates?: readonly Seat[]
+  }
+  'leader-change': {
+    round: number
+    proposalNum: number
+  }
+  'proposal': {
+    round: number
+    proposalNum: number
+    team: readonly Seat[]
+    pitch?: string
+  }
+  'proposal-locked': {
+    round: number
+    proposalNum: number
+    team: readonly Seat[]
+  }
+  'proposal-revised': {
+    round: number
+    proposalNum: number
+    from: readonly Seat[]
+    to: readonly Seat[]
+    reason?: string
+  }
+  'utterance': {
+    text: string
+    discussionRound: number
+    postRevision: boolean
+    round: number
+    proposalNum: number
+    team?: readonly Seat[]
+  }
+  'vote-reveal': {
+    round: number
+    proposalNum: number
+    team: readonly Seat[]
+    votes: readonly { seat: Seat; vote: 'approve' | 'reject' }[]
+    approved: boolean
+    automatic: boolean
+  }
+  'quest-result': {
+    questNum: number
+    team: readonly Seat[]
+    failCount: number
+    failsRequired: number
+    result: 'success' | 'fail'
+  }
+  'rename': {
+    from: string
+    to: string
+  }
+  'assassination': {
+    target: Seat
+    wasMerlin: boolean
+  }
+  'game-result': {
+    winner: Alignment
+    reason: string
+  }
+}
 
-interface EvidenceBase {
+export type EvidenceKind = keyof EvidencePayloads
+
+/**
+ * The only kinds a seat learns privately. Every other kind is table-visible.
+ * `satisfies` is what keeps this honest: both `PublicEvidence` and the runtime
+ * predicate derive from this one list, so a typo or a stale entry after a kind
+ * rename fails to compile rather than quietly projecting private records.
+ */
+const PRIVATE_EVIDENCE_KINDS = [
+  'private-role',
+  'private-knowledge',
+] as const satisfies readonly EvidenceKind[]
+
+type PrivateEvidenceKind = (typeof PRIVATE_EVIDENCE_KINDS)[number]
+
+/** Table-level facts with no single author. Every other kind names one seat. */
+type UnattributedEvidenceKind =
+  | 'game-setup'
+  | 'vote-reveal'
+  | 'quest-result'
+  | 'game-result'
+
+interface EvidenceCore<K extends EvidenceKind> {
   /** Stable identity: `event:<visible seq>:<kind>`. */
   id: string
   sourceSeq: number
-  scope: EvidenceScope
-  strength: EvidenceStrength
-  actor?: Seat
+  kind: K
+  payload: EvidencePayloads[K]
 }
 
-export type Evidence =
-  | (EvidenceBase & {
-      kind: 'game-setup'
-      scope: 'public'
-      payload: { playerCount: number; rolesInPlay: readonly Role[]; firstLeader: Seat }
-    })
-  | (EvidenceBase & {
-      kind: 'private-role'
-      scope: 'private'
-      strength: 'hard'
-      actor: Seat
-      payload: { role: Role; alignment: Alignment }
-    })
-  | (EvidenceBase & {
-      kind: 'private-knowledge'
-      scope: 'private'
-      strength: 'hard'
-      actor: Seat
-      payload: {
-        knownEvil?: readonly Seat[]
-        evilPartners?: readonly Seat[]
-        merlinCandidates?: readonly Seat[]
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'leader-change'
-      scope: 'public'
-      actor: Seat
-      payload: { round: number; proposalNum: number }
-    })
-  | (EvidenceBase & {
-      kind: 'proposal'
-      scope: 'public'
-      actor: Seat
-      payload: {
-        round: number
-        proposalNum: number
-        team: readonly Seat[]
-        pitch?: string
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'proposal-locked'
-      scope: 'public'
-      actor: Seat
-      payload: { round: number; proposalNum: number; team: readonly Seat[] }
-    })
-  | (EvidenceBase & {
-      kind: 'proposal-revised'
-      scope: 'public'
-      actor: Seat
-      payload: {
-        round: number
-        proposalNum: number
-        from: readonly Seat[]
-        to: readonly Seat[]
-        reason?: string
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'utterance'
-      scope: 'public'
-      actor: Seat
-      payload: {
-        text: string
-        discussionRound: number
-        postRevision: boolean
-        round: number
-        proposalNum: number
-        team?: readonly Seat[]
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'vote-reveal'
-      scope: 'public'
-      payload: {
-        round: number
-        proposalNum: number
-        team: readonly Seat[]
-        votes: readonly { seat: Seat; vote: 'approve' | 'reject' }[]
-        approved: boolean
-        automatic: boolean
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'quest-result'
-      scope: 'public'
-      payload: {
-        questNum: number
-        team: readonly Seat[]
-        failCount: number
-        failsRequired: number
-        result: 'success' | 'fail'
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'rename'
-      scope: 'public'
-      actor: Seat
-      payload: { from: string; to: string }
-    })
-  | (EvidenceBase & {
-      kind: 'assassination'
-      scope: 'public'
-      actor: Seat
-      payload: { target: Seat; wasMerlin: boolean }
-    })
-  | (EvidenceBase & {
-      kind: 'game-result'
-      scope: 'public'
-      payload: { winner: Alignment; reason: string }
-    })
+type EvidenceRecord<K extends EvidenceKind> =
+  K extends UnattributedEvidenceKind
+    ? EvidenceCore<K>
+    : EvidenceCore<K> & { actor: Seat }
+
+export type Evidence = { [K in EvidenceKind]: EvidenceRecord<K> }[EvidenceKind]
+
+/** Records that name one seat, the only ones carrying an `actor`. */
+export type AttributedEvidence = Extract<Evidence, { actor: Seat }>
+
+/** Records the whole table may see. Private kinds cannot inhabit this type. */
+export type PublicEvidence = Exclude<Evidence, { kind: PrivateEvidenceKind }>
+
+const privateKinds: ReadonlySet<EvidenceKind> = new Set(PRIVATE_EVIDENCE_KINDS)
+
+export const isPublicEvidence = (record: Evidence): record is PublicEvidence =>
+  !privateKinds.has(record.kind)
 
 export type CommitmentKind = 'team' | 'vote' | 'utterance'
 export type CommitmentStatus = 'current' | 'superseded'
@@ -217,7 +220,7 @@ export interface CognitionState {
 export interface PublicCognitionProjection {
   /** Maximum public source sequence represented in evidence. */
   throughSeq: number
-  evidence: readonly Evidence[]
+  evidence: readonly PublicEvidence[]
   commitments: readonly PublicCommitment[]
   versions: Pick<CognitionVersions, 'schema' | 'evidence' | 'commitments'>
 }

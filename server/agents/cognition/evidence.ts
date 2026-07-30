@@ -43,8 +43,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'game-setup'),
         sourceSeq: event.seq,
         kind: 'game-setup',
-        scope: 'public',
-        strength: 'hard',
         payload: {
           playerCount: p.playerCount as number,
           rolesInPlay: (p.rolesInPlay as PlayerView['rolesInPlay']).slice(),
@@ -57,8 +55,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'private-role'),
         sourceSeq: event.seq,
         kind: 'private-role',
-        scope: 'private',
-        strength: 'hard',
         actor: view.seat,
         payload: { role: view.role, alignment: view.alignment },
       }]
@@ -68,8 +64,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'private-knowledge'),
         sourceSeq: event.seq,
         kind: 'private-knowledge',
-        scope: 'private',
-        strength: 'hard',
         actor: view.seat,
         payload: {
           ...(view.privateInfo.knownEvil
@@ -88,8 +82,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'leader-change'),
         sourceSeq: event.seq,
         kind: 'leader-change',
-        scope: 'public',
-        strength: 'observed',
         actor: p.seat as Seat,
         payload: { round: p.round as number, proposalNum: p.proposalNum as number },
       }]
@@ -98,8 +90,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'proposal'),
         sourceSeq: event.seq,
         kind: 'proposal',
-        scope: 'public',
-        strength: 'observed',
         actor: p.leader as Seat,
         payload: {
           round: p.round as number,
@@ -113,8 +103,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'proposal-locked'),
         sourceSeq: event.seq,
         kind: 'proposal-locked',
-        scope: 'public',
-        strength: 'observed',
         actor: p.leader as Seat,
         payload: {
           round: p.round as number,
@@ -127,8 +115,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'proposal-revised'),
         sourceSeq: event.seq,
         kind: 'proposal-revised',
-        scope: 'public',
-        strength: 'observed',
         actor: p.leader as Seat,
         payload: {
           round: p.round as number,
@@ -143,16 +129,11 @@ export function evidenceFromEvent(
       const round = context?.round ?? view.round
       const proposalNum = context?.proposalNum ?? view.proposalNum
       const team = context?.team
-      const base = {
-        sourceSeq: event.seq,
-        scope: 'public' as const,
-        strength: 'observed' as const,
-        actor: p.seat as Seat,
-      }
-      const utterance: Evidence = {
-        ...base,
+      return [{
         id: eventId(event.seq, 'utterance'),
+        sourceSeq: event.seq,
         kind: 'utterance',
+        actor: p.seat as Seat,
         payload: {
           text: String(p.text ?? ''),
           discussionRound: p.round as number,
@@ -161,16 +142,13 @@ export function evidenceFromEvent(
           proposalNum,
           ...(team ? { team } : {}),
         },
-      }
-      return [utterance]
+      }]
     }
     case 'voteReveal':
       return [{
         id: eventId(event.seq, 'vote-reveal'),
         sourceSeq: event.seq,
         kind: 'vote-reveal',
-        scope: 'public',
-        strength: 'observed',
         payload: {
           round: p.round as number,
           proposalNum: p.proposalNum as number,
@@ -187,8 +165,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'quest-result'),
         sourceSeq: event.seq,
         kind: 'quest-result',
-        scope: 'public',
-        strength: 'hard',
         payload: {
           questNum,
           team: teamAt(view, questNum),
@@ -203,8 +179,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'rename'),
         sourceSeq: event.seq,
         kind: 'rename',
-        scope: 'public',
-        strength: 'observed',
         actor: p.seat as Seat,
         payload: { from: String(p.from), to: String(p.to) },
       }]
@@ -213,8 +187,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'assassination'),
         sourceSeq: event.seq,
         kind: 'assassination',
-        scope: 'public',
-        strength: 'observed',
         actor: p.assassin as Seat,
         payload: { target: p.target as Seat, wasMerlin: p.wasMerlin as boolean },
       }]
@@ -223,8 +195,6 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'game-result'),
         sourceSeq: event.seq,
         kind: 'game-result',
-        scope: 'public',
-        strength: 'hard',
         payload: { winner: p.winner as 'good' | 'evil', reason: String(p.reason) },
       }]
     // Hidden votes/cards and private model scratch data are deliberately not
