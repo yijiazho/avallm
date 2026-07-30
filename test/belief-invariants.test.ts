@@ -11,7 +11,6 @@ import {
 } from '../server/agents/belief/exact.ts'
 import {
   assertDistribution,
-  assertProbability,
   BeliefInvariantError,
 } from '../server/agents/belief/invariants.ts'
 import { EXACT_BELIEF_MODEL_VERSION } from '../server/agents/belief/types.ts'
@@ -32,15 +31,6 @@ const CASTS: Record<number, Role[]> = {
 }
 
 // ---- the pure guards ----
-
-test('assertProbability accepts values in [0, 1] and rejects the rest', () => {
-  for (const good of [0, 0.5, 1, 1e-13, 1 - 1e-13]) {
-    assert.equal(assertProbability(good, 'p'), good)
-  }
-  for (const bad of [-0.01, 1.01, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.throws(() => assertProbability(bad, 'p'), BeliefInvariantError)
-  }
-})
 
 test('assertDistribution accepts a normalized distribution and its float drift', () => {
   assert.doesNotThrow(() => assertDistribution([0.25, 0.25, 0.5], 'd'))

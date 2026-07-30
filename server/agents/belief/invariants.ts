@@ -16,6 +16,30 @@
 // cognition pipeline catches an inference failure and degrades the decision to
 // the heuristic (it never stalls the game), exactly as it already does for the
 // structurally identical throws in identity.ts.
+//
+// There is deliberately no single-value guard here, and adding one back would
+// be a second answer to a question the tree already answers once. This module
+// briefly carried an assertProbability alongside assertDistribution. It had no
+// production caller, because there is no site that needs it: every probability
+// the belief layer emits belongs to a distribution and is checked as one. A
+// seat's alignment split is a two-element distribution, its role spread is a
+// distribution over the cast, and a team's cleanProbability is index 0 of the
+// evil-count distribution that assertDistribution already covers. The scalar
+// case simply does not occur on the producing side.
+//
+// The question "is this one value a probability" belongs to `probability` in
+// components/canonical-shape.ts, and it is asked on the CONSUMING side, of
+// untrusted payloads, where the right answer is a strict predicate over [0, 1]
+// with no slack. This module asks a different question of our own arithmetic
+// and answers it with a throw and a tolerance. Keeping both under one roof
+// invited exactly the drift canonical-shape.ts's header warns about: two
+// spellings of one concept, differing in strictness, with nothing at the call
+// site to say which contract was in force.
+//
+// The tolerance below never reaches that strict guard. Producers clamp what
+// they emit (clampProbability in exact.ts, and the uniform kernel divides
+// counts), so an out-of-range mass is a throw here rather than a value that
+// passes this check and is later refused at the admission boundary.
 
 import {
   addProbability,
@@ -25,21 +49,6 @@ import {
 
 /** A belief distribution violated its own numeric contract. */
 export class BeliefInvariantError extends Error {}
-
-/**
- * A single probability must be finite and within [0, 1] up to tolerance.
- * Returns the value so callers can assert inline.
- */
-export function assertProbability(
-  value: number,
-  label: string,
-  tolerance: number = PROBABILITY_TOLERANCE,
-): number {
-  if (!Number.isFinite(value) || value < -tolerance || value > 1 + tolerance) {
-    throw new BeliefInvariantError(`${label} is not a probability: ${value}`)
-  }
-  return value
-}
 
 /**
  * A discrete distribution: every entry a valid probability mass, and the whole
