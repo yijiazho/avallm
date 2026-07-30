@@ -19,7 +19,6 @@ import {
 import {
   JOINT_IDENTITY_MODEL_VERSION,
 } from '../server/agents/belief/identity.ts'
-import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   componentPayload,
   MAX_DECISION_COMPONENT_RUN_JSON_BYTES,
@@ -92,6 +91,8 @@ import {
   asProposal,
   assertScoreFamilyConformance,
   asVote,
+  createNormalizedComposedAgent as createComposedAgent,
+  mutableClone,
 } from './support/score-family.ts'
 
 const fixtures = readDecisionFixtures()
@@ -398,19 +399,19 @@ test('a delegated decision carries no role objective, utility, or feature forger
   assert.equal(roleUtility(role.trace!), undefined)
   const proposal = proposalFixture(servant)
   const roleProposal = await decide(proposal)
-  const forgedBase = structuredClone(roleProposal)
+  const forgedBase = mutableClone(roleProposal)
   const forgedScore = forgedBase.trace!.candidateScores!.find(
     (score) =>
       score.candidateId !== forgedBase.trace!.chosenCandidateId
       && score.features?.version === 'good-proposal-features-v1',
   )!
-  assert.equal(forgedScore.features!.version, 'good-proposal-features-v1')
-  if (forgedScore.features!.version === 'good-proposal-features-v1') {
-    const distribution =
-      forgedScore.features.evilCountDistribution as number[]
+  const forgedFeatures = forgedScore.features
+  assert.equal(forgedFeatures?.version, 'good-proposal-features-v1')
+  if (forgedFeatures?.version === 'good-proposal-features-v1') {
+    const distribution = forgedFeatures.evilCountDistribution
     const delta = Math.min(0.01, distribution[1] / 2)
     assert.ok(delta > 0)
-    forgedScore.features.cleanProbability += delta
+    forgedFeatures.cleanProbability += delta
     distribution[0] += delta
     distribution[1] -= delta
     forgedScore.value += delta
@@ -788,7 +789,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     JSON.stringify(output.trace!.communicationIntent),
     /PRIVATE_ROLE|roleValue|pairInfluence|exposure/i,
   )
-  const deleted = structuredClone(output)
+  const deleted = mutableClone(output)
   roleUtility(deleted.trace!)!.assessments[0].roleValue += 0.01
   deleted.trace!.componentVersions!.scorer = GOOD_PROPOSAL_VOTE_SCORER_VERSION
   deleted.trace!.componentVersions!.configuredScorer =
@@ -812,7 +813,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     scorer: goodProposalVoteScorer,
     publicObserver: true,
   }).decide(merlin.req, merlin.view)
-  const fullChainDeletion = structuredClone(baseOutput)
+  const fullChainDeletion = mutableClone(baseOutput)
   fullChainDeletion.trace!.componentVersions!.identityModel =
     JOINT_IDENTITY_MODEL_VERSION
   fullChainDeletion.trace!.componentVersions!.roleObjective =
@@ -962,7 +963,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     architectureReport([withoutTraces]).variants[0]
       .safety.traceAttributionViolations > 0,
   )
-  const forged = structuredClone(artifact)
+  const forged = mutableClone(artifact)
   const applicable = forged.decisionTraces!.find(
     (trace) => roleUtility(trace) !== undefined,
   )!
@@ -977,7 +978,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedEquation = structuredClone(artifact)
+  const forgedEquation = mutableClone(artifact)
   const equationTrace = forgedEquation.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -995,7 +996,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedBaseSurface = structuredClone(artifact)
+  const forgedBaseSurface = mutableClone(artifact)
   const baseTrace = forgedBaseSurface.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1005,13 +1006,13 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   const baseScore = baseTrace.candidateScores!.find(
     (score) => score.candidateId !== baseTrace.chosenCandidateId,
   )!
-  assert.equal(baseScore.features!.version, 'good-proposal-features-v1')
-  if (baseScore.features!.version === 'good-proposal-features-v1') {
-    const distribution =
-      baseScore.features.evilCountDistribution as number[]
+  const baseFeatures = baseScore.features
+  assert.equal(baseFeatures?.version, 'good-proposal-features-v1')
+  if (baseFeatures?.version === 'good-proposal-features-v1') {
+    const distribution = baseFeatures.evilCountDistribution
     const delta = Math.min(0.01, distribution[1] / 2)
     assert.ok(delta > 0)
-    baseScore.features.cleanProbability += delta
+    baseFeatures.cleanProbability += delta
     distribution[0] += delta
     distribution[1] -= delta
     baseScore.roleObjectiveFeatures!.baseValue += delta
@@ -1023,7 +1024,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedChoice = structuredClone(artifact)
+  const forgedChoice = mutableClone(artifact)
   const choiceTrace = forgedChoice.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1036,12 +1037,13 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   alternate.viable = true
   choiceTrace.structuredCandidateId = alternate.candidateId
   choiceTrace.chosenCandidateId = alternate.candidateId
+  const alternateFeatures = alternate.features
   choiceTrace.action = {
     ...choiceTrace.action,
     kind: 'propose',
     team: [...(
-      alternate.features!.version === 'good-proposal-features-v1'
-        ? alternate.features.team
+      alternateFeatures?.version === 'good-proposal-features-v1'
+        ? alternateFeatures.team
         : []
     )],
   }
@@ -1050,7 +1052,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedAppliedAction = structuredClone(artifact)
+  const forgedAppliedAction = mutableClone(artifact)
   const appliedTrace = forgedAppliedAction.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1062,17 +1064,18 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       score.candidateId !== appliedTrace.chosenCandidateId
       && score.features?.version === 'good-proposal-features-v1',
   )!
+  const alternateActionFeatures = alternateActionScore.features
   assert.equal(
-    alternateActionScore.features!.version,
+    alternateActionFeatures?.version,
     'good-proposal-features-v1',
   )
   if (
     appliedTrace.action.kind === 'propose'
-    && alternateActionScore.features!.version
+    && alternateActionFeatures?.version
       === 'good-proposal-features-v1'
   ) {
     appliedTrace.action.team = [
-      ...alternateActionScore.features.team,
+      ...alternateActionFeatures.team,
     ]
   }
   assert.ok(
@@ -1134,7 +1137,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
         hiddenTeam: true,
       },
       onDecisionTrace(trace) {
-        const forgedTrace = structuredClone(trace)
+        const forgedTrace = mutableClone(trace)
         if (
           forgedTrace.request.kind === 'propose'
           && roleUtility(forgedTrace)
@@ -1144,7 +1147,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
           score.roleObjectiveFeatures!.combinedValue += 0.123
           score.value += 0.123
         }
-        context.onDecisionTrace(forgedTrace)
+        context.onDecisionTrace!(forgedTrace)
       },
     }),
   }
@@ -1170,7 +1173,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
         hiddenTeam: true,
       },
       onDecisionTrace(trace) {
-        const forgedTrace = structuredClone(trace)
+        const forgedTrace = mutableClone(trace)
         if (
           forgedTrace.request.kind === 'propose'
           && forgedTrace.action.kind === 'propose'
@@ -1184,7 +1187,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
             forgedTrace.action.team = [...alternate.features.team]
           }
         }
-        context.onDecisionTrace(forgedTrace)
+        context.onDecisionTrace!(forgedTrace)
       },
     }),
   }
@@ -1215,7 +1218,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
         },
       },
       onDecisionTrace(trace) {
-        const forgedTrace = structuredClone(trace)
+        const forgedTrace = mutableClone(trace)
         if (
           forgedTrace.request.kind === 'propose'
           && roleUtility(forgedTrace)
@@ -1234,7 +1237,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
             'role-utility-projection-failed',
           ]
         }
-        context.onDecisionTrace(forgedTrace)
+        context.onDecisionTrace!(forgedTrace)
       },
     }),
   }

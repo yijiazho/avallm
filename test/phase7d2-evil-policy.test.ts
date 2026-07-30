@@ -1,7 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createComposedAgent } from '../server/agents/composed.ts'
 import { componentPayload } from '../server/agents/components/kernel.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
@@ -79,7 +78,11 @@ import {
   asProposal,
   assertScoreFamilyConformance,
   asVote,
+  createNormalizedComposedAgent as createComposedAgent,
+  mutableClone,
+  type Mutable,
 } from './support/score-family.ts'
+import { normalizeAgentOutput } from '../server/agents/types.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
@@ -322,12 +325,12 @@ test('Oberon policy keeps self-only coordination distinct', async () => {
 test('stdio and host replay reject utility, score, seed, and deletion forgeries', async () => {
   const input = voteFixture('mordred')
   const output = await decide(input)
-  assert.ok(parseStdioDecisionReply(
+  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
     input.req,
     output,
     'phase7d2',
     input.view,
-  ).trace)
+  )).trace)
   assert.equal(admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: output.trace!,
@@ -340,25 +343,26 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
   }).kind, 'trusted-exact')
 
   const mutations = [
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       evilUtility(trace)!.assessments[0]
         .failureCapacityContribution += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       trace.candidateScores![0].evilRoleObjectiveFeatures!.roleValue += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       const feature =
         trace.candidateScores![0].evilRoleObjectiveFeatures!
       feature.seedBucket = feature.seedBucket === 0 ? 1 : 0
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       const request = evilUtility(trace)!.request
       request.completedGoodQuests =
         request.completedGoodQuests === 0 ? 1 : 0
     },
-    (trace: NonNullable<typeof output.trace>) => {
-      delete trace.privateEvilRoleUtility
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
+      delete (trace as unknown as Record<string, unknown>)
+        .privateEvilRoleUtility
       delete trace.componentVersions!.evilRoleUtility
       trace.componentVersions!.scorer =
         GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
@@ -368,7 +372,7 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
     },
   ]
   for (const mutate of mutations) {
-    const forged = structuredClone(output)
+    const forged = mutableClone(output)
     mutate(forged.trace!)
     assert.deepEqual(
       parseStdioDecisionReply(
@@ -552,7 +556,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   const utility = evilUtility(output.trace!)!
   assert.ok(validatePrivateEvilRoleUtilityProjection(utility))
 
-  const sparse = structuredClone(utility)
+  const sparse = mutableClone(utility)
   delete sparse.assessments[0]
   assert.equal(validatePrivateEvilRoleUtilityProjection(sparse), false)
 
@@ -1213,12 +1217,12 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
         hiddenTeam: true,
       },
       onDecisionTrace(trace) {
-        const forged = structuredClone(trace)
+        const forged = mutableClone(trace)
         if (evilUtility(forged)) {
           evilUtility(forged)!.assessments[0]
             .futureOpportunityContribution += 0.01
         }
-        context.onDecisionTrace(forged)
+        context.onDecisionTrace!(forged)
       },
     }),
   }
@@ -1249,7 +1253,12 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     req: DecisionRequest,
     view: PlayerView,
   ) => {
-    const trace = structuredClone(source)
+    const trace = mutableClone(source) as Mutable<DecisionTrace> & {
+      privateEvilRoleObjective?: Mutable<
+        NonNullable<ReturnType<typeof evilObjective>>
+      >
+      privateEvilRoleUtility?: unknown
+    }
     const historicalObjective = evilObjective(trace)
     // Exercise the historical role-specific transport shape. New traces carry
     // a generic component projection whose equality cannot be retained after
@@ -1266,7 +1275,7 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
       EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
     trace.componentVersions!.roleObjective =
       EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-    trace.privateEvilRoleObjective = historicalObjective
+    trace.privateEvilRoleObjective = mutableClone(historicalObjective)
     delete trace.componentVersions!.evilRoleUtility
     trace.beliefProvenance = [{
       factorId: 'phase7d2-external-factor',
@@ -1315,12 +1324,12 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
       stdioInput.view,
     ),
   }
-  assert.ok(parseStdioDecisionReply(
+  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
     stdioInput.req,
     stdioDegraded,
     'phase7d2 weighted atomic',
     stdioInput.view,
-  ).trace)
+  )).trace)
   const externalAdmission = admitDecisionTrace({
     kind: 'pre-apply-external',
     trace: stdioDegraded.trace,
@@ -1385,7 +1394,7 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
           return inner.decide(req, view)
         },
         recordDecisionTrace(trace) {
-          context.onDecisionTrace(degrade(trace, activeReq, activeView))
+          context.onDecisionTrace!(degrade(trace, activeReq, activeView))
         },
       }
     },

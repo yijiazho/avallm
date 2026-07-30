@@ -64,6 +64,44 @@ export interface ScoreFamilyDecisionCase {
   readonly resolvedVersions?: Readonly<Record<string, string>>
 }
 
+export type Mutable<T> =
+  T extends (...args: never[]) => unknown
+    ? T
+    : T extends ReadonlyArray<infer Item>
+      ? Mutable<Item>[]
+      : T extends object
+        ? { -readonly [Key in keyof T]: Mutable<T[Key]> }
+        : T
+
+/** Detached mutable data for tests that intentionally forge hostile payloads. */
+export function mutableClone<T>(value: T): Mutable<T> {
+  return structuredClone(value) as Mutable<T>
+}
+
+type NormalizedComposedAgent =
+  & Omit<ReturnType<typeof createComposedAgent>, 'decide'>
+  & {
+    decide(
+      req: DecisionRequest,
+      view: PlayerView,
+    ): Promise<AgentDecision>
+  }
+
+/**
+ * Test adapter for the migrating agent boundary. Production runners normalize
+ * legacy bare decisions at ingress; strict tests use the same canonical path
+ * before inspecting a composed agent's trace-bearing envelope.
+ */
+export function createNormalizedComposedAgent(
+  options: ComposedAgentOptions,
+): NormalizedComposedAgent {
+  const agent = createComposedAgent(options)
+  const normalized = Object.create(agent) as NormalizedComposedAgent
+  normalized.decide = async (req, view) =>
+    normalizeAgentOutput(await agent.decide(req, view))
+  return normalized
+}
+
 export interface ScoreFamilyPredecessor {
   /** Omitted when the truthful predecessor is the compatibility default. */
   readonly scorer?: CandidateScorer

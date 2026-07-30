@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView } from '../server/engine/types.ts'
-import { createComposedAgent } from '../server/agents/composed.ts'
 import { componentPayload } from '../server/agents/components/kernel.ts'
 import {
   EVIL_ROLE_UTILITY_COMPONENT,
@@ -77,7 +76,11 @@ import {
 import {
   assertScoreFamilyConformance,
   asVote,
+  createNormalizedComposedAgent as createComposedAgent,
+  mutableClone,
+  type Mutable,
 } from './support/score-family.ts'
+import { normalizeAgentOutput } from '../server/agents/types.ts'
 
 const evilUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
@@ -357,7 +360,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
     scorer: seededMorganaRoleScorer,
   }).decide(vote.req, vote.view)
   const trace = authentic.trace!
-  const counterfeit = structuredClone(
+  const counterfeit = mutableClone(
     morganaObjective(trace)!,
   )
   const threshold = counterfeit.request.failsRequired
@@ -806,12 +809,12 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     roleObjectiveRouter: true,
     scorer: morganaRoleScorer,
   }).decide(input.req, input.view)
-  assert.ok(parseStdioDecisionReply(
+  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
     input.req,
     output,
     'phase7e1b',
     input.view,
-  ).trace)
+  )).trace)
   assert.equal(admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: output.trace!,
@@ -823,23 +826,23 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     expectedArchitectureIdentity: morganaPolicyIdentity,
   }).kind, 'trusted-exact')
   const mutations = [
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       morganaUtility(trace)!.candidates[0]
         .counterfeitValue += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       morganaUtility(trace)!.evilRoleUtility.assessments[0]
         .roleValue += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       morganaUtility(trace)!.counterfeitObjective
         .assessments[0].counterfeitValue += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       trace.candidateScores![0].morganaRoleObjectiveFeatures!
         .counterfeitValue += 0.01
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       const tokenId = MORGANA_ROLE_UTILITY_COMPONENT.id
       trace.components!.entries = trace.components!.entries.filter(
         (entry) => entry.component.id !== tokenId,
@@ -850,7 +853,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
         MORGANA_ROLE_SCORER_VERSION
       trace.degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
     },
-    (trace: NonNullable<typeof output.trace>) => {
+    (trace: Mutable<NonNullable<typeof output.trace>>) => {
       const other = trace.candidateScores!.find(
         (score) => score.candidateId !== trace.structuredCandidateId,
       )!
@@ -888,7 +891,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     },
   ]
   for (const [index, mutate] of mutations.entries()) {
-    const forged = structuredClone(output)
+    const forged = mutableClone(output)
     mutate(forged.trace!)
     const parsed = parseStdioDecisionReply(
       input.req,
@@ -930,7 +933,7 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
     scorer: evilRoleObjectiveScorer,
   })
   const d2 = await d2Agent.decide(input.req, input.view)
-  const forged = structuredClone(d2)
+  const forged = mutableClone(d2)
   forged.trace!.componentVersions!.configuredScorer =
     MORGANA_ROLE_SCORER_VERSION
   const token = MORGANA_ROLE_UTILITY_COMPONENT
@@ -1155,12 +1158,12 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
     ) continue
     const snapshot = snapshots.get(originalTrace.decisionId)
     if (!snapshot) continue
-    const d2 = await createComposedAgent({
+    const d2 = mutableClone(await createComposedAgent({
       seed: storedArtifact.seed,
       roleObjectiveRouter: true,
       morganaCounterfeitObjectives: true,
       scorer: evilRoleObjectiveScorer,
-    }).decide(snapshot.req, snapshot.view)
+    }).decide(snapshot.req, snapshot.view))
     if (JSON.stringify(d2.decision) !== JSON.stringify(snapshot.original)) {
       continue
     }

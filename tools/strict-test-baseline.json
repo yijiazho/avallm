@@ -112,29 +112,14 @@
       "rationale": "Legacy role fixtures need current union narrowing and mutation typing."
     },
     {
-      "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "acc35865b6379b30bbf6efde2b14a60ccace9de5c27dbbb2ff430b81c9efd411",
-      "rationale": "Legacy role-policy fixtures need current union narrowing."
-    },
-    {
       "path": "test/phase7d1-evil-objectives.test.ts",
       "sha256": "9dc64817e74421b1df46c66354fec80ad0e0a58b938ec55bbd95da77cbcf8ddd",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
-      "path": "test/phase7d2-evil-policy.test.ts",
-      "sha256": "1afcc208013620be2649b06802c235dee6096ff1d272ca64c1c4549e42372332",
-      "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
-    },
-    {
       "path": "test/phase7e1a-morgana-counterfeit.test.ts",
       "sha256": "6b305b95eb9d2df48b5683644908bc9033d9189aa9155bbc63553ced6f23a3da",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
-    },
-    {
-      "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "512213ed5fa46a1d5ae8877cd27c8fa27ca03bbcf5d6c9988100637033499201",
-      "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {
       "path": "test/phase7e2a-mordred-hostile.test.ts",
