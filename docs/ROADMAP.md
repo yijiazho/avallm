@@ -108,6 +108,18 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
     (same corpus through both implementations, asserting identical accept/reject *and* identical
     reason codes) rather than an incremental edit.
 
+18. **Phase-discriminated engine state types** (investigated, not scheduled). `Game` and
+    `PlayerView` flatten every phase into one flat struct, so phase-specific fields are optional
+    even where a phase makes them invariant — the engine proves it with six `game.currentTeam!`
+    and the guard sprawls into agents/client/tests. **Investigation concluded: don't build the
+    full union.** Cost lands on the mutation reducer (union forces replace-not-mutate, which
+    collides with the locked append-only `log`) and on the leak boundary (`viewForSpectator`'s
+    one auditable literal would split seven ways), while the benefit is concentrated on a single
+    field and diluted by the many genuinely-optional fields a union can't touch. The specific
+    bug the smell caused (disagreeing team-equality helpers) is already fixed by the `teamsEqual`
+    consolidation. The one low-risk follow-up — a `teamOnTable(game)` accessor hardening the six
+    engine `!` — is done. **Full analysis in [design-phase-typing.md](design-phase-typing.md).**
+
 ## Deliberately not doing
 
 - **Turn timers** — rejected by design; correspondence pacing is the identity.
