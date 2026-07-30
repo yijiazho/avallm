@@ -63,19 +63,7 @@ export interface ScoreFamilyDecisionCase {
   readonly resolvedVersions?: Readonly<Record<string, string>>
 }
 
-export type Mutable<T> =
-  T extends (...args: never[]) => unknown
-    ? T
-    : T extends ReadonlyArray<infer Item>
-      ? Mutable<Item>[]
-      : T extends object
-        ? { -readonly [Key in keyof T]: Mutable<T[Key]> }
-        : T
-
-/** Detached mutable data for tests that intentionally forge hostile payloads. */
-export function mutableClone<T>(value: T): Mutable<T> {
-  return structuredClone(value) as Mutable<T>
-}
+export { mutable, mutableClone, type Mutable } from './mutable.ts'
 
 export interface ScoreFamilyPredecessor {
   /** Omitted when the truthful predecessor is the compatibility default. */

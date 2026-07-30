@@ -6,9 +6,12 @@ import {
   fixtureTextMatches,
   readDecisionFixtures,
 } from '../server/eval/decision-fixtures.ts'
-import type { Visibility } from '../server/engine/types.ts'
+import type { DeepReadonly, Visibility } from '../server/engine/types.ts'
 
-const visibleTo = (visibility: Visibility, seat: number): boolean =>
+const visibleTo = (
+  visibility: DeepReadonly<Visibility>,
+  seat: number,
+): boolean =>
   visibility === 'public' || visibility.only.includes(seat)
 
 test('fixture freshness accepts CRLF checkouts but still detects content drift', () => {

@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -151,7 +152,7 @@ test('rejects a mismatched decision cursor and an event invisible to the viewer'
   )
 
   const invisibleEvent = structuredClone(fixture.view) as PlayerView
-  invisibleEvent.events.push({
+  mutable(invisibleEvent).events.push({
     seq: 999,
     type: 'scratchpad',
     payload: {
@@ -199,7 +200,7 @@ test('visible private reasoning details remain causally distinguishable', () => 
   const fixture = readDecisionFixtures()[0]
   const inspectWith = (thinking: string, scratchpad: string) => {
     const view = structuredClone(fixture.view) as PlayerView
-    view.events.push(
+    mutable(view).events.push(
       {
         seq: 998,
         type: 'thinking',
@@ -243,7 +244,7 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
     failCount: number,
   ) => {
     const view = structuredClone(fixture.view) as PlayerView
-    view.events.push(
+    mutable(view).events.push(
       {
         seq: 997,
         type: 'proposal',
@@ -300,9 +301,9 @@ test('terminal rendering escapes untrusted names and event text', () => {
   const fixture = readDecisionFixtures()[0]
   const view = structuredClone(fixture.view) as PlayerView
   const hostile = 'Alice\u001b[31m\u007f\u009b31m\u2028split\u2029paragraph\n#999 forged'
-  view.name = hostile
-  view.players[view.seat].name = hostile
-  view.events.push({
+  mutable(view).name = hostile
+  mutable(view).players[view.seat].name = hostile
+  mutable(view).events.push({
     seq: 999,
     type: 'thinking',
     payload: { seat: view.seat, kind: fixture.req.kind, text: hostile },

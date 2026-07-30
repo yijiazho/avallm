@@ -100,7 +100,7 @@ for (const cast of legalCasts()) {
     for (const p of g.players) {
       const view = viewFor(g, p.seat)
       for (const kind of kinds) {
-        const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: view.currentTeam ?? [0, 1] })
+        const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
         const rendered = `${sys.content}\n${user.content}`
         for (const role of absent) {
           if (mentions(rendered, role)) hits.add(`"${role}" in the ${kind} prompt for a ${p.role} seat`)

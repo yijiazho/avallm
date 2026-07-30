@@ -1,6 +1,7 @@
 // Migration phase 6B; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
@@ -636,7 +637,7 @@ test('public and seat-visible cursors remain distinct with private trailing even
     payload: { seat: view.seat, text: 'private trailing note' },
     visibility: { only: [view.seat] },
   }
-  view.events.push(privateEvent)
+  mutable(view).events.push(mutable(privateEvent))
   const base = exactBelief(view)
   const input = projectLanguageInterpreterInput(view)
   const context = projectLanguageInferenceContext(

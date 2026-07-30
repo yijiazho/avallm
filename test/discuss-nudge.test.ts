@@ -11,6 +11,7 @@
 // halves are pinned below, because dropping either one turns this back into the
 // clause that caused the incidents.
 import { test } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -22,7 +23,7 @@ import { buildMessages } from '../server/agents/prompts.ts'
 const askAtRound = (round: number): string => {
   const g = createGame({ seed: 'nudge', playerCount: 5, talk: { maxRounds: 3, maxRoundsAfterChange: 1 } })
   const view = viewFor(g, 0)
-  view.discussionRound = round
+  mutable(view).discussionRound = round
   const [, user] = buildMessages('discuss', view, '', {})
   return user.content
 }

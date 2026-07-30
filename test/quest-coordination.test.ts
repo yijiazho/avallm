@@ -1,6 +1,7 @@
 // Migration phase 7D3; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createComposedAgent } from '../server/agents/composed.ts'
@@ -73,18 +74,18 @@ function questRequest(view: PlayerView): DecisionRequest {
 
 function nondecisive(view: PlayerView): PlayerView {
   const next = structuredClone(view)
-  next.quests[0] = {
-    ...next.quests[0],
+  mutable(next).quests[0] = {
+    ...mutable(next).quests[0],
     result: 'success',
     failCount: 0,
   }
-  next.quests[1] = {
-    ...next.quests[1],
+  mutable(next).quests[1] = {
+    ...mutable(next).quests[1],
     result: 'fail',
     failCount: 1,
   }
-  next.quests[2] = {
-    ...next.quests[2],
+  mutable(next).quests[2] = {
+    ...mutable(next).quests[2],
     result: undefined,
     failCount: undefined,
   }
@@ -226,8 +227,8 @@ test('robust D3 obeys visible quota, decisive play, and Oberon exclusion', () =>
 test('nondecisive robust D3 is seat-local, deterministic, and assumption-free', async () => {
   const firstView = nondecisive(evilView(4, [4, 5]))
   const renamedView = structuredClone(firstView)
-  renamedView.name = 'Untrusted acting name'
-  renamedView.players = renamedView.players.map((player) => ({
+  mutable(renamedView).name = 'Untrusted acting name'
+  mutable(renamedView).players = renamedView.players.map((player) => ({
     ...player,
     name: `Untrusted teammate ${player.seat}`,
   }))

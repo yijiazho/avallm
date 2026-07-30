@@ -1,6 +1,7 @@
 // Migration phase 6C; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createComposedAgent } from '../server/agents/composed.ts'
@@ -472,7 +473,7 @@ test('unexpected cognition commit failure advances no language state', async () 
       postRevision: false,
     },
   }
-  advanced.events.push(publicUtterance)
+  mutable(advanced).events.push(mutable(publicUtterance))
   returnBadCursor = true
   await assert.rejects(agent.decide(req, advanced), /resolved belief returned cursor/)
   const callsAfterFailure = calls

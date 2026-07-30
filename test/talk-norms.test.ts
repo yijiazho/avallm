@@ -120,7 +120,7 @@ test('no rendered prompt shows the model a construction the norms ban', () => {
   for (const p of g.players) {
     const view = viewFor(g, p.seat)
     for (const kind of kinds) {
-      const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: view.currentTeam ?? [0, 1] })
+      const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
       const rendered = `${sys.content}\n${user.content}`
       const where = `${kind} prompt for seat ${p.seat} (${p.role})`
       assert.doesNotMatch(rendered, BANNED_DASH, `${where} contains an em or en dash`)

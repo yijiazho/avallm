@@ -1,6 +1,7 @@
 // Migration phase 7D2; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { componentPayload } from '../server/agents/components/kernel.ts'
@@ -124,19 +125,19 @@ function setLegalTwoOneBoard(view: PlayerView, evilSeat: number): void {
         ].slice(0, size).sort((left, right) => left - right)
     return selected
   }
-  view.quests[0] = {
+  mutable(view).quests[0] = {
     ...view.quests[0],
     team: team(0),
     result: 'success',
     failCount: 0,
   }
-  view.quests[1] = {
+  mutable(view).quests[1] = {
     ...view.quests[1],
     team: team(1),
     result: 'success',
     failCount: 0,
   }
-  view.quests[2] = {
+  mutable(view).quests[2] = {
     ...view.quests[2],
     team: team(2, evilSeat),
     result: 'fail',
@@ -507,9 +508,9 @@ test('two-Fail utility uses thresholded joint capacity and named cover/future eq
   })
   const target = game.players.find((player) => player.role === 'oberon')!
   const view = viewFor(game, target.seat)
-  view.phase = 'proposal'
-  view.round = 4
-  view.proposalNum = 1
+  mutable(view).phase = 'proposal'
+  mutable(view).round = 4
+  mutable(view).proposalNum = 1
   setLegalTwoOneBoard(view, target.seat)
   const req: DecisionRequest = {
     kind: 'propose',
@@ -946,8 +947,8 @@ test('D2 utility validator is total over hostile detached data', async () => {
   )
 
   const freshVoteView = viewFor(freshGame, freshTarget.seat)
-  freshVoteView.phase = 'vote'
-  freshVoteView.currentTeam = freshVoteView.players
+  mutable(freshVoteView).phase = 'vote'
+  mutable(freshVoteView).currentTeam = freshVoteView.players
     .slice(0, freshVoteView.quests[0].teamSize)
     .map((player) => player.seat)
   const freshVote = await decide({
@@ -1000,9 +1001,9 @@ test('ten-player D2 surface is bounded, name-invariant, and private from voice/c
   })
   const target = game.players.find((player) => player.role === 'oberon')!
   const view = viewFor(game, target.seat)
-  view.phase = 'proposal'
-  view.round = 4
-  view.proposalNum = 1
+  mutable(view).phase = 'proposal'
+  mutable(view).round = 4
+  mutable(view).proposalNum = 1
   setLegalTwoOneBoard(view, target.seat)
   const req: DecisionRequest = {
     kind: 'propose',
@@ -1041,8 +1042,8 @@ test('ten-player D2 surface is bounded, name-invariant, and private from voice/c
   )
 
   const renamed = structuredClone(view)
-  renamed.name = 'Renamed Target'
-  renamed.players = renamed.players.map((player) => ({
+  mutable(renamed).name = 'Renamed Target'
+  mutable(renamed).players = renamed.players.map((player) => ({
     ...player,
     name: `Renamed ${player.seat}`,
   }))

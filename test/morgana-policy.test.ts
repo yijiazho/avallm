@@ -1,6 +1,7 @@
 // Migration phase 7E1B; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -169,8 +170,8 @@ const morganaOtherEvil = (() => {
     (player) => player.alignment === 'evil' && player.role !== 'morgana',
   )!
   const view = viewFor(game, other.seat)
-  view.phase = 'vote'
-  view.currentTeam = [0, 1, 2].slice(
+  mutable(view).phase = 'vote'
+  mutable(view).currentTeam = [0, 1, 2].slice(
     0,
     view.quests[view.round - 1].teamSize,
   )
@@ -476,9 +477,9 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
 test('an actual good-match-point forced vote remains authoritative over Morgana policy', async () => {
   const proposal = morganaProposal(5)
   const view = structuredClone(proposal.view)
-  view.phase = 'vote'
-  view.round = 4
-  view.proposalNum = 1
+  mutable(view).phase = 'vote'
+  mutable(view).round = 4
+  mutable(view).proposalNum = 1
   const seats = view.players.map((player) => player.seat)
   const teamFor = (index: number, required?: number) => {
     const size = view.quests[index].teamSize
@@ -489,25 +490,25 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
           ...seats.filter((seat) => seat !== required),
         ].slice(0, size).sort((left, right) => left - right)
   }
-  view.quests[0] = {
+  mutable(view).quests[0] = {
     ...view.quests[0],
     team: teamFor(0),
     result: 'success',
     failCount: 0,
   }
-  view.quests[1] = {
+  mutable(view).quests[1] = {
     ...view.quests[1],
     team: teamFor(1),
     result: 'success',
     failCount: 0,
   }
-  view.quests[2] = {
+  mutable(view).quests[2] = {
     ...view.quests[2],
     team: teamFor(2, view.seat),
     result: 'fail',
     failCount: 1,
   }
-  view.currentTeam = teamFor(3, view.seat)
+  mutable(view).currentTeam = teamFor(3, view.seat)
   const req: DecisionRequest = {
     kind: 'vote',
     seat: view.seat,
@@ -792,8 +793,8 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
 test('E1B leaves the independent robust D3 quest-card path unchanged', async () => {
   const input = morganaProposal(5)
   const view = structuredClone(input.view)
-  view.phase = 'quest'
-  view.currentTeam = [
+  mutable(view).phase = 'quest'
+  mutable(view).currentTeam = [
     view.seat,
     ...view.players
       .map((player) => player.seat)
@@ -1111,8 +1112,8 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
   for (let playerCount = 5; playerCount <= 10; playerCount++) {
     const input = morganaProposal(playerCount)
     if (playerCount === 10) {
-      input.view.round = 4
-      input.view.proposalNum = 1
+      mutable(input).view.round = 4
+      mutable(input).view.proposalNum = 1
       input.req.round = 4
       input.req.proposalNum = 1
       const seats = input.view.players.map((player) => player.seat)
@@ -1125,19 +1126,19 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
               ...seats.filter((seat) => seat !== required),
             ].slice(0, size).sort((left, right) => left - right)
       }
-      input.view.quests[0] = {
+      mutable(input).view.quests[0] = {
         ...input.view.quests[0],
         team: team(0),
         result: 'success',
         failCount: 0,
       }
-      input.view.quests[1] = {
+      mutable(input).view.quests[1] = {
         ...input.view.quests[1],
         team: team(1),
         result: 'success',
         failCount: 0,
       }
-      input.view.quests[2] = {
+      mutable(input).view.quests[2] = {
         ...input.view.quests[2],
         team: team(2, input.view.seat),
         result: 'fail',

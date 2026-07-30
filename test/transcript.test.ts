@@ -1,6 +1,7 @@
 // The copyable debug transcript: the pure renderer, and the HTTP route's
 // fidelity policy (full reveal when final or solo-vs-bots; scoped otherwise).
 import { test, before, after } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createGame } from '../server/engine/game.ts'
@@ -71,7 +72,7 @@ test('scoped transcript hides roles and other seats\' private events', async () 
 test('backticks in free-form text do not break the code fences', async () => {
   const game = await finishedGame()
   // A pitch containing a triple backtick would close a fixed ``` fence early.
-  game.log.push({
+  mutable(game).log.push({
     seq: game.log.length,
     type: 'utterance',
     payload: { seat: 0, text: 'try ```rm -rf``` lol', round: 1 },

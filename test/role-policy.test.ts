@@ -1,6 +1,7 @@
 // Migration phase 7C2; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
@@ -151,7 +152,7 @@ const proposalFixture = (source: typeof merlin) => ({
 /** The hand-worked near-equal combined band this suite pins below. */
 function bandVoteFixture(source: typeof merlin) {
   const fixture = voteFixture(source)
-  fixture.view.currentTeam = [0, 2]
+  mutable(fixture).view.currentTeam = [0, 2]
   return fixture
 }
 
@@ -273,10 +274,10 @@ function questFourTwoFailMerlinFixture() {
   })
   const target = game.players.find((player) => player.role === 'merlin')!
   const view = viewFor(game, target.seat)
-  view.phase = 'proposal'
-  view.round = 4
-  view.proposalNum = 1
-  view.leaderSeat = target.seat
+  mutable(view).phase = 'proposal'
+  mutable(view).round = 4
+  mutable(view).proposalNum = 1
+  mutable(view).leaderSeat = target.seat
   assert.equal(view.quests[3]!.failsRequired, 2)
   const seats = view.players.map((player) => player.seat)
   const evilSeat = knownEvilOf(view.privateInfo)[0]!
@@ -289,14 +290,14 @@ function questFourTwoFailMerlinFixture() {
           .sort((left, right) => left - right)
   }
   for (const questIndex of [0, 1]) {
-    view.quests[questIndex] = {
+    mutable(view).quests[questIndex] = {
       ...view.quests[questIndex]!,
       team: team(questIndex),
       result: 'success',
       failCount: 0,
     }
   }
-  view.quests[2] = {
+  mutable(view).quests[2] = {
     ...view.quests[2]!,
     team: team(2, evilSeat),
     result: 'fail',
@@ -402,7 +403,7 @@ test('Percival proposal and vote consume pair influence and self-decoy utility',
     },
   })
   const vote = voteFixture(percival)
-  vote.view.currentTeam = [1, 2]
+  mutable(vote).view.currentTeam = [1, 2]
   const [favorFirst, favorSecond] = await Promise.all(
     merlinCandidatesOf(percival.view.privateInfo).map((favoredSeat) =>
       decide(vote, false, {
@@ -931,8 +932,8 @@ test('role scorer remains bounded at ten players', async () => {
   })
   const seat = game.players.find((player) => player.role === 'merlin')!.seat
   const view: PlayerView = { ...viewFor(game, seat), leaderSeat: seat }
-  view.round = 4
-  view.quests = view.quests.map((quest, index) => ({
+  mutable(view).round = 4
+  mutable(view).quests = mutable(view).quests.map((quest, index) => ({
     ...quest,
     failsRequired: index === 3 ? 2 : quest.failsRequired,
   }))

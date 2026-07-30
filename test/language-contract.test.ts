@@ -1,6 +1,7 @@
 // Migration phase 6A; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
@@ -95,9 +96,9 @@ test('language projection is public-only and identical across interpreting seats
 test('private view fields and private events cannot enter interpreter input', () => {
   const game = publicConversation()
   const view = viewFor(game, 0)
-  view.role = 'merlin'
-  view.alignment = 'evil'
-  view.privateInfo = { kind: 'evil', evilPartners: [0, 1, 2, 3, 4] }
+  mutable(view).role = 'merlin'
+  mutable(view).alignment = 'evil'
+  mutable(view).privateInfo = { kind: 'evil', evilPartners: [0, 1, 2, 3, 4] }
   const privateEvent: GameEvent = {
     seq: Math.max(...view.events.map((event) => event.seq)) + 1,
     type: 'scratchpad',
@@ -110,7 +111,7 @@ test('private view fields and private events cannot enter interpreter input', ()
     },
     visibility: { only: [0] },
   }
-  view.events.push(privateEvent)
+  mutable(view).events.push(mutable(privateEvent))
   Object.assign(view.players[0], {
     privateInfo: { sentinel: 'NESTED_PLAYER_SENTINEL' },
   })

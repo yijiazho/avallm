@@ -1,6 +1,7 @@
 // Migration phase 7E3A; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -43,15 +44,15 @@ function assassinFixture(
   })
   const assassin = game.players.find((player) => player.role === 'assassin')!
   const view = viewFor(game, assassin.seat)
-  view.phase = 'assassination'
-  view.round = 3
-  view.proposalNum = 1
+  mutable(view).phase = 'assassination'
+  mutable(view).round = 3
+  mutable(view).proposalNum = 1
   if (evidence) {
     const partner = evilPartnersOf(view.privateInfo)[0]!
     const [first, second, filler] = view.players
       .map((player) => player.seat)
       .filter((seat) => seat !== view.seat && seat !== partner)
-    view.proposals = [
+    mutable(view).proposals = [
       {
         round: 1,
         proposalNum: 1,
@@ -120,7 +121,7 @@ test('rejected votes count while auto-approved proposals carry no vote evidence'
   const [candidate, filler] = fixture.view.players
     .map((player) => player.seat)
     .filter((seat) => seat !== fixture.view.seat && seat !== partner)
-  fixture.view.proposals = [
+  mutable(fixture).view.proposals = [
     {
       round: 2, proposalNum: 1, leader: candidate,
       team: [partner, candidate, filler],

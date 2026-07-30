@@ -126,7 +126,7 @@ function renderAll(g: Game, hasAssassin: boolean): Array<{ where: string; text: 
   for (const p of g.players) {
     const view = viewFor(g, p.seat)
     for (const kind of kinds) {
-      const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: view.currentTeam ?? [0, 1] })
+      const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
       out.push({ where: `${kind} prompt for a ${p.role} seat`, text: `${sys.content}\n${user.content}` })
     }
   }

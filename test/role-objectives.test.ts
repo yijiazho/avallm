@@ -1,6 +1,7 @@
 // Migration phase 7C1; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { performance } from 'node:perf_hooks'
@@ -162,8 +163,8 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
     .slice(0, afterVoteView.quests[0].teamSize)
     .map((player) => player.seat)
     .sort((left, right) => left - right)
-  afterVoteView.proposalNum = 2
-  afterVoteView.proposals = [{
+  mutable(afterVoteView).proposalNum = 2
+  mutable(afterVoteView).proposals = [{
     round: 1,
     proposalNum: 1,
     leader: priorLeader,
@@ -398,8 +399,8 @@ test('role objectives are opt-in, role-gated, deterministic, and mechanically in
   assert.equal(optedServant.trace!.componentVersions!.roleObjective, undefined)
 
   const renamedView = structuredClone(merlinFixture.view)
-  renamedView.name = 'Renamed Merlin'
-  renamedView.players = renamedView.players.map((player) => ({
+  mutable(renamedView).name = 'Renamed Merlin'
+  mutable(renamedView).players = renamedView.players.map((player) => ({
     ...player,
     name: `Renamed ${player.seat}`,
   }))

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
+import { mutable } from './support/mutable.ts'
 import test from 'node:test'
 import { createGame } from '../server/engine/game.ts'
 import { knownEvilOf } from '../server/engine/rules.ts'
 import type {
   Game,
-  PlayerView,
 } from '../server/engine/types.ts'
 import {
   replayDecisionScenario,
@@ -78,8 +78,8 @@ test('legal replay derives a real proposal, vote, and quest surface', () => {
   assert.equal(Object.isFrozen(scenario.view), true)
   assert.equal(Object.isFrozen(scenario.view.events), true)
   assert.throws(
-    () => (scenario.view.events as PlayerView['events']).push(
-      scenario.view.events[0],
+    () => mutable(scenario.view).events.push(
+      mutable(scenario.view.events[0]),
     ),
     TypeError,
   )

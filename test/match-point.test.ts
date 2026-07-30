@@ -5,6 +5,7 @@
 // zero-evil team at good's match point, and three evil players then approved the
 // quest that ended the game, with the board sitting in their prompts all along.
 import { test } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -222,8 +223,8 @@ test('evil match point (two failed quests) leaves the vote note off', () => {
   playCleanQuests(g, 1)
   const v = viewFor(g, seatsBy(g, 'evil')[0])
   // Hand-set the board to 0 successes / 2 fails on the seat's own view.
-  v.quests[0] = { ...v.quests[0], result: 'fail', failCount: 1 }
-  v.quests[1] = { ...v.quests[1], result: 'fail', failCount: 1 }
+  mutable(v).quests[0] = { ...mutable(v).quests[0], result: 'fail', failCount: 1 }
+  mutable(v).quests[1] = { ...mutable(v).quests[1], result: 'fail', failCount: 1 }
   const [, user] = buildMessages('vote', v, '')
   assert.ok(!user.content.includes('last lever your side has'))
 })

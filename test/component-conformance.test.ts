@@ -1,6 +1,7 @@
 // Migration phase 7R2C2; see docs/agent-architecture-migration.md.
 
 import { test } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import {
   canonicalizeJson,
@@ -301,26 +302,26 @@ function robustQuestNativeFixture() {
   )
   assert.ok(source)
   const view = structuredClone(source.view)
-  view.seat = 4
-  view.name = view.players.find((player) => player.seat === 4)!.name
-  view.role = 'assassin'
-  view.alignment = 'evil'
-  view.privateInfo = {
+  mutable(view).seat = 4
+  mutable(view).name = view.players.find((player) => player.seat === 4)!.name
+  mutable(view).role = 'assassin'
+  mutable(view).alignment = 'evil'
+  mutable(view).privateInfo = {
     kind: 'evil',
     evilPartners: [5],
   }
-  view.quests[0] = {
-    ...view.quests[0],
+  mutable(view).quests[0] = {
+    ...mutable(view).quests[0],
     result: 'success',
     failCount: 0,
   }
-  view.quests[1] = {
-    ...view.quests[1],
+  mutable(view).quests[1] = {
+    ...mutable(view).quests[1],
     result: 'fail',
     failCount: 1,
   }
-  view.quests[2] = {
-    ...view.quests[2],
+  mutable(view).quests[2] = {
+    ...mutable(view).quests[2],
     result: undefined,
     failCount: undefined,
   }

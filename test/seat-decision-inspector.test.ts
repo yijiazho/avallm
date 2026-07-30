@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import {
   admitDecisionTrace,
@@ -153,7 +154,7 @@ test('v2 allow-list drops unrelated trace properties and refuses a cross-view jo
   assert.ok(!JSON.stringify(inspection).includes('trueDeal'))
 
   const otherView = structuredClone(fixture.view)
-  otherView.events.pop()
+  mutable(otherView).events.pop()
   assert.throws(
     () => inspectSeatDecision(
       fixture.req,
