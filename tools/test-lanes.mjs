@@ -44,6 +44,7 @@ const LANES = Object.freeze({
     'reflect-side.test.ts',
     'rename.test.ts',
     'rules.test.ts',
+    'score-surface-bounds.test.ts',
     'screens.test.ts',
     'self-check.test.ts',
     'server-http.test.ts',

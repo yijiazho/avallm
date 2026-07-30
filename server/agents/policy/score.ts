@@ -132,6 +132,22 @@ export type MordredBlindnessRoleSelectionMode =
 export const ASSASSIN_MERLIN_TARGET_SCORER_VERSION =
   'assassin-merlin-target-scorer-v1'
 
+/**
+ * Byte ceiling on a caller-supplied score surface.
+ *
+ * This bound used to apply only when the scorer declared one of six built-in
+ * role version strings, which inverted the threat model: validateCandidateScores
+ * runs exclusively on custom scorers (custom-scoring, and decision-frame only
+ * under authority 'custom'), so the versions that skipped the cap were precisely
+ * the ones the host does not vouch for. A plugin declaring any other version was
+ * unbounded, and the native score-layer ceiling that would otherwise catch it
+ * lives on a path custom scorers never take.
+ *
+ * Same value as MAX_SCORE_LAYER_SURFACE_JSON_BYTES, deliberately not imported:
+ * score-layer imports this module, so the dependency cannot run the other way.
+ */
+export const MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES = 1_048_576
+
 export const FULL_ROLE_POLICY_SCORER_VERSION =
   'full-role-policy-scorer-v1'
 export const FULL_ROLE_STACK_ATTRIBUTION_REASON =
@@ -579,15 +595,8 @@ export function validateCandidateScores(
     )
   }
   if (
-    (
-      scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
-      || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-      || scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-      || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-      || scorerVersion === MORGANA_ROLE_SCORER_VERSION
-      || scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
-    )
-    && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
+    Buffer.byteLength(JSON.stringify(scores), 'utf8')
+      > MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES
   ) {
     throw new Error(
       'invalid candidate score surface: serialized scores exceed 1 MiB',
