@@ -498,16 +498,16 @@ function planOutcomeHostJoin(
       && entry.atEvent >= snapshot.firstSeq
       && entry.atEvent <= snapshot.seq,
   )
+  // A recorded summary always carries its plan, so an absent plan means an
+  // absent selection and needs no separate test against `outcome.selected`.
   const plan = outcome.selected?.plan
-  const selectedPlanMatches = outcome.selected === undefined
-    ? plan === undefined
-    : (
-        !!plan
-        && plan.version === trace.decisionPlanVersion
-        && plan.candidateId === trace.chosenCandidateId
-        && plan.policyId === trace.componentVersions?.policy
-        && plan.beliefThroughSeq === trace.beliefThroughSeq
-      )
+  const selectedPlanMatches = plan === undefined
+    || (
+      plan.version === trace.decisionPlanVersion
+      && plan.candidateId === trace.chosenCandidateId
+      && plan.policyId === trace.componentVersions?.policy
+      && plan.beliefThroughSeq === trace.beliefThroughSeq
+    )
   const resolutionMatches = outcome.resolution === 'selected-applied'
     ? !degraded && outcome.selected !== undefined
     : degraded && (

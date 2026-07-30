@@ -579,27 +579,26 @@ export function validateFinalizedAppliedTraceHostJoin(
     expected.privatePlanOutcome = structuredClone(recorded)
     if (!isDeepStrictEqual(trace, expected)) return false
 
+    // A recorded summary always carries its plan, so plan presence is exactly
+    // `selected`'s and needs no separate test: absent selected already means
+    // absent plan. Decision and plan agreement travel together on the one
+    // branch where a selection exists.
     const selectedMatches = hostSelected === undefined
       ? recorded.selected === undefined
       : (
           recorded.selected !== undefined
           && isDeepStrictEqual(recorded.selected.decision, hostSelected)
-        )
-    const plan = recorded.selected?.plan
-    const planMatches = hostSelected === undefined
-      ? plan === undefined
-      : (
-          !!plan
-          && plan.version === provisional.decisionPlanVersion
-          && plan.candidateId === provisional.chosenCandidateId
-          && plan.policyId === provisional.componentVersions?.policy
-          && plan.beliefThroughSeq === provisional.beliefThroughSeq
+          && recorded.selected.plan.version === provisional.decisionPlanVersion
+          && recorded.selected.plan.candidateId === provisional.chosenCandidateId
+          && recorded.selected.plan.policyId
+            === provisional.componentVersions?.policy
+          && recorded.selected.plan.beliefThroughSeq
+            === provisional.beliefThroughSeq
         )
     return (
       recorded.resolution === outcome.resolution
       && recorded.coherence.intent === provisional.coherenceIntent
       && selectedMatches
-      && planMatches
       && validateAppliedPlanOutcomeHostJoin(
         recorded,
         outcome.request,
