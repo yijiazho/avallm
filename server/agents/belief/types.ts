@@ -1,3 +1,4 @@
+import { ROLES } from '../../engine/types.ts'
 import type {
   Alignment,
   PlayerView,
@@ -21,30 +22,25 @@ export const EXACT_BELIEF_MODEL_VERSION = 'exact-constraints-v1'
 export const PROBABILITY_TOLERANCE = 1e-12
 export const DEFAULT_TOP_WORLD_LIMIT = 10
 
-export const CANONICAL_ROLE_ORDER: readonly Role[] = [
-  'assassin',
-  'merlin',
-  'minion',
-  'mordred',
-  'morgana',
-  'oberon',
-  'percival',
-  'servant',
-]
-
 /**
- * The two derivations every role-shaped validator and every role-ordered
- * collection needs: is this string one of the roles, and where does it sort.
+ * The serialization order for role-valued collections: ascending by role name.
  *
- * Six modules used to rebuild one or both of these from CANONICAL_ROLE_ORDER by
- * hand, and elsewhere two validators had already drifted past that into
- * hardcoding a byte-for-byte copy of the names. They exist here so that adding
- * a role is one edit to the array above rather than a hunt for the copies.
+ * Derived from ROLES, never restated. This used to be its own list of the eight
+ * names, which made it a second membership authority alongside the engine's:
+ * adding a role to ROLES (and so to the Role union) would have left every
+ * role-ordered projection silently omitting it, with nothing to typecheck
+ * against. Only the ORDER is this module's contribution, and alphabetical is a
+ * total order over any set of names, so a ninth role slots itself in.
+ *
+ * ROLES is declaration-ordered (good roles, then evil) because that is how the
+ * rulebook reads. Sorting is deliberately not that: this order reaches world
+ * keys and snapshot payloads, where stability matters more than legibility.
  */
-export const CANONICAL_ROLE_SET: ReadonlySet<Role> = new Set(
-  CANONICAL_ROLE_ORDER,
+export const CANONICAL_ROLE_ORDER: readonly Role[] = Object.freeze(
+  [...ROLES].sort(),
 )
 
+/** Where each role sorts. Membership questions go to the engine's isRole. */
 export const CANONICAL_ROLE_RANK: ReadonlyMap<Role, number> = new Map(
   CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
 )

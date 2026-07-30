@@ -32,11 +32,9 @@ import {
   TEAM_SIZES,
   validateRoles,
 } from '../../engine/rules.ts'
+import { isRole } from '../../engine/types.ts'
 import type { Role, Seat } from '../../engine/types.ts'
-import {
-  CANONICAL_ROLE_SET,
-  compareCanonicalRoles,
-} from '../belief/types.ts'
+import { compareCanonicalRoles } from '../belief/types.ts'
 
 export const plainRecord = (
   value: unknown,
@@ -226,7 +224,7 @@ export const canonicalRoles = (
   if (
     !denseArray(value)
     || value.length !== playerCount
-    || !value.every((role) => CANONICAL_ROLE_SET.has(role as Role))
+    || !value.every(isRole)
   ) return false
   const roles = value as Role[]
   // Spelled with the comparator rather than belief/worlds.ts's

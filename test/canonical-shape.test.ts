@@ -31,10 +31,10 @@ import {
 import {
   CANONICAL_ROLE_ORDER,
   CANONICAL_ROLE_RANK,
-  CANONICAL_ROLE_SET,
   compareCanonicalRoles,
 } from '../server/agents/belief/types.ts'
 import { EVIL_COUNT, validateRoles } from '../server/engine/rules.ts'
+import { isRole, ROLES } from '../server/engine/types.ts'
 import type { Role } from '../server/engine/types.ts'
 
 test('plainRecord admits only a plain-prototype own-data object', () => {
@@ -155,8 +155,20 @@ function legalCasts(playerCount: number): Role[][] {
   return casts
 }
 
-test('the role set, rank, and comparator all derive from CANONICAL_ROLE_ORDER', () => {
-  assert.deepEqual([...CANONICAL_ROLE_SET], [...CANONICAL_ROLE_ORDER])
+test('the canonical order and rank derive from the engine ROLES list', () => {
+  // The whole chain in one assertion: ROLES is the only place the eight names
+  // are written, the Role union is `typeof ROLES[number]`, and this order is
+  // ROLES sorted. Nothing downstream can hold a ninth-role-shaped hole.
+  assert.deepEqual([...CANONICAL_ROLE_ORDER], [...ROLES].sort())
+  assert.equal(
+    new Set(CANONICAL_ROLE_ORDER).size,
+    ROLES.length,
+    'the order must be a permutation of ROLES, not a subset or a multiset',
+  )
+  assert.ok(
+    CANONICAL_ROLE_ORDER.every(isRole),
+    'every ordered role is a role the engine recognizes',
+  )
   assert.deepEqual(
     [...CANONICAL_ROLE_RANK.entries()],
     CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
@@ -203,7 +215,7 @@ test('canonicalRoles rejects a role name outside CANONICAL_ROLE_ORDER', () => {
 
   // Named so as to be outside the constant by construction, not by assumption.
   const outsider = `not-${CANONICAL_ROLE_ORDER.join('-')}` as Role
-  assert.equal(CANONICAL_ROLE_SET.has(outsider), false)
+  assert.equal(isRole(outsider), false)
   assert.equal(canonicalRoles([outsider, ...cast.slice(1)], playerCount), false)
 
   assert.equal(canonicalRoles(cast, playerCount + 1), false, 'wrong table size')

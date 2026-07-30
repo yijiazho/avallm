@@ -3,10 +3,10 @@ import {
   ROLE_ALIGNMENT,
   validateRoles,
 } from '../../engine/rules.ts'
+import { isRole } from '../../engine/types.ts'
 import type { Role, Seat } from '../../engine/types.ts'
 import {
   CANONICAL_ROLE_ORDER,
-  CANONICAL_ROLE_SET,
   PROBABILITY_TOLERANCE,
   type BeliefSnapshot,
   type PlayerMarginal,
@@ -22,12 +22,6 @@ import {
 export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
 export const MAX_IDENTITY_ROLE_QUERIES = 16
 export const MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR = 4_096
-
-const VALID_ROLE_NAMES: ReadonlySet<string> = CANONICAL_ROLE_SET
-
-function isRole(value: unknown): value is Role {
-  return typeof value === 'string' && VALID_ROLE_NAMES.has(value)
-}
 
 /**
  * Neumaier compensated summation for bounded probability support.
@@ -143,7 +137,7 @@ function canonicalQuery(roles: readonly Role[]): {
   if (roles.length > 10) {
     throw new Error('identity role query exceeds the supported player limit')
   }
-  if (roles.some((role) => !CANONICAL_ROLE_SET.has(role))) {
+  if (!roles.every(isRole)) {
     throw new Error('identity role query contains an invalid role')
   }
   const queriedRoles = canonicalRoleMultiset(roles)
@@ -764,7 +758,7 @@ export function validatePrivateIdentityHostJoin(
   if (
     !denseArray(hostRolesInPlay)
     || hostRolesInPlay.length !== playerCount
-    || hostRolesInPlay.some((role) => !CANONICAL_ROLE_SET.has(role as Role))
+    || !hostRolesInPlay.every(isRole)
   ) return false
   const hostRoles = hostRolesInPlay as Role[]
   try {
