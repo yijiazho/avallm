@@ -28,7 +28,7 @@ import {
   type CoherenceIntent,
   isCoherenceIntent,
 } from './cognition/coherence.ts'
-import type { AppliedDecisionOutcome } from './types.ts'
+import type { AppliedDecisionResolution } from './applied-decision.ts'
 import type {
   DecisionComponentPlan,
   DecisionComponentRun,
@@ -63,6 +63,26 @@ export const DECISION_TRACE_VERSION = 'decision-trace-v1'
 export const COMPONENT_DECISION_TRACE_VERSION = 'decision-trace-v2'
 export const APPLIED_OUTCOME_DEGRADATION =
   'applied-outcome-acknowledgment-failed'
+
+/**
+ * What the host knows once the engine has accepted an action, handed to
+ * finalizeAppliedTrace as a detached copy: mutating it cannot move the join the
+ * host validates the returned trace against. `selectedDecision` is absent when
+ * decide() failed, and `appliedDecision` can differ from it after a coercion or
+ * a fallback.
+ *
+ * It lives here rather than in types.ts because it names a DecisionTrace, which
+ * this module owns; keeping it here lets the agent boundary import it from this
+ * module instead of this module importing the boundary back.
+ */
+export interface AppliedDecisionOutcome {
+  request: DecisionRequest
+  view: PlayerView
+  selectedDecision?: Decision
+  appliedDecision: Decision
+  resolution: AppliedDecisionResolution
+  provisionalTrace?: DecisionTrace
+}
 
 export interface TraceHypothesis {
   worldKey: string

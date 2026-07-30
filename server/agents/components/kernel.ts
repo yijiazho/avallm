@@ -35,101 +35,42 @@ import type {
   DecisionComponentApplicabilityContext,
   DecisionComponentContext,
   DecisionComponentDefinition,
-  DecisionComponentKind,
-  DecisionComponentPrivacy,
 } from './types.ts'
+import {
+  DECISION_COMPONENT_RUN_VERSION,
+  DECISION_COMPONENT_PLAN_VERSION,
+} from './run-types.ts'
+import type {
+  DecisionComponentEntry,
+  DecisionComponentEntryBase,
+  DecisionComponentPlan,
+  DecisionComponentPolicyUse,
+  DecisionComponentRun,
+  PublicDecisionComponentEntry,
+  PublicDecisionComponentRun,
+} from './run-types.ts'
+
+// The run and plan result shapes live in run-types.ts so the policy layers can
+// name them without importing this module back; they are re-exported here
+// because callers have always read them from `./kernel.ts`.
+export {
+  DECISION_COMPONENT_RUN_VERSION,
+  DECISION_COMPONENT_PLAN_VERSION,
+} from './run-types.ts'
+export type {
+  DecisionComponentEntry,
+  DecisionComponentPlan,
+  DecisionComponentPolicyUse,
+  DecisionComponentRun,
+  DecisionComponentStatus,
+  PublicDecisionComponentEntry,
+  PublicDecisionComponentRun,
+} from './run-types.ts'
 
 const CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 
-export const DECISION_COMPONENT_RUN_VERSION =
-  'decision-component-run-v1'
 export const MAX_DECISION_COMPONENT_RUN_JSON_BYTES = 2_097_152
-export const DECISION_COMPONENT_PLAN_VERSION =
-  'decision-component-plan-v1'
 export const MAX_DECISION_COMPONENT_PLAN_JSON_BYTES = 65_536
-
-export interface DecisionComponentPlan {
-  readonly version: typeof DECISION_COMPONENT_PLAN_VERSION
-  readonly configured: readonly ComponentRef[]
-}
-
-export type DecisionComponentStatus =
-  | 'inapplicable'
-  | 'suppressed'
-  | 'degraded'
-  | 'admitted'
-
-interface DecisionComponentEntryBase {
-  readonly component: ComponentRef
-  readonly kind: DecisionComponentKind
-  readonly privacy: DecisionComponentPrivacy
-}
-
-export type DecisionComponentEntry =
-  | Readonly<DecisionComponentEntryBase & {
-      status: 'inapplicable'
-    }>
-  | Readonly<DecisionComponentEntryBase & {
-      status: 'suppressed'
-      reasonCode: string
-    }>
-  | Readonly<DecisionComponentEntryBase & {
-      status: 'degraded'
-      degradationCode: string
-      failureCode:
-        | 'construction-ineligible'
-        | 'applicability-failed'
-        | 'dependency-unavailable'
-        | 'host-input-unavailable'
-        | 'host-input-invalid'
-        | 'execution-failed'
-        | 'malformed-result'
-        | 'tag-mismatch'
-        | 'payload-json-unsafe'
-        | 'payload-too-large'
-        | 'detached-validation-failed'
-        | 'host-admission-failed'
-    }>
-  | Readonly<DecisionComponentEntryBase & {
-      status: 'admitted'
-      envelope: ComponentPayloadEnvelope
-      verification: ComponentVerification
-      promotionEligible: boolean
-      payloadBytes: number
-    }>
-
-export interface DecisionComponentPolicyUse {
-  readonly component: ComponentRef
-  readonly used: boolean
-  /**
-   * Generic policy-stage identifiers in causal application order. The array
-   * stays empty until later scorer or decision layers explicitly attribute
-   * use, and can retain more than one distinct causal stage.
-   */
-  readonly stages: readonly string[]
-}
-
-export interface DecisionComponentRun {
-  readonly version: typeof DECISION_COMPONENT_RUN_VERSION
-  readonly configured: readonly ComponentRef[]
-  readonly entries: readonly DecisionComponentEntry[]
-  readonly policyUse: readonly DecisionComponentPolicyUse[]
-}
-
-export type PublicDecisionComponentEntry =
-  DecisionComponentEntry
-
-export interface PublicDecisionComponentRun {
-  readonly version: typeof DECISION_COMPONENT_RUN_VERSION
-  readonly configured: readonly ComponentRef[]
-  readonly entries: readonly PublicDecisionComponentEntry[]
-  /**
-   * Causal policy use is always private. A public component may still feed a
-   * private role policy, so even its stage name or used bit cannot be
-   * projected into speech or public logs.
-   */
-  readonly policyUse: readonly DecisionComponentPolicyUse[]
-}
 
 type AnyDefinition = DecisionComponentDefinition<any>
 type AnyHostInputDefinition = ComponentHostInputDefinition<any>

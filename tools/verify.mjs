@@ -40,6 +40,10 @@ const COMMON_GATES = Object.freeze([
     args: Object.freeze(['tools/architecture-fitness.mjs']),
   }),
   Object.freeze({
+    label: 'import acyclicity',
+    args: Object.freeze(['tools/import-cycles.mjs']),
+  }),
+  Object.freeze({
     label: 'test lane inventory',
     args: Object.freeze(['tools/test-lanes.mjs', '--check']),
   }),

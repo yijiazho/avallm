@@ -2,9 +2,19 @@
 // An agent receives ONLY its seat's PlayerView — never raw Game state.
 
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
-import type { ExperimentalBeliefMode } from './experimental.ts'
-import type { LlmBrainConfig } from './brain.ts'
-import type { DecisionTrace } from './trace.ts'
+import type { ExperimentalBeliefMode, LlmBrainConfig } from './brain.ts'
+import type { AppliedDecisionOutcome, DecisionTrace } from './trace.ts'
+
+// The applied-decision resolution vocabulary and outcome shape live below this
+// boundary so private cognition and the trace module can name them without
+// importing this file back. They are re-exported here because callers have
+// always read them from `./types.ts`.
+export {
+  APPLIED_DECISION_RESOLUTIONS,
+  isAppliedDecisionResolution,
+} from './applied-decision.ts'
+export type { AppliedDecisionResolution } from './applied-decision.ts'
+export type { AppliedDecisionOutcome } from './trace.ts'
 
 export interface AvalonAgent {
   /**
@@ -32,37 +42,6 @@ export interface AvalonAgent {
    * persisted and when.
    */
   privateTraceSink?(trace: DecisionTrace): void
-}
-
-export const APPLIED_DECISION_RESOLUTIONS = Object.freeze([
-  'selected-applied',
-  'fallback-after-agent-error',
-  'fallback-after-illegal-decision',
-] as const)
-
-export type AppliedDecisionResolution =
-  typeof APPLIED_DECISION_RESOLUTIONS[number]
-
-export function isAppliedDecisionResolution(
-  value: unknown,
-): value is AppliedDecisionResolution {
-  return (APPLIED_DECISION_RESOLUTIONS as readonly unknown[]).includes(value)
-}
-
-/**
- * What the host knows once the engine has accepted an action, handed to
- * finalizeAppliedTrace as a detached copy: mutating it cannot move the join the
- * host validates the returned trace against. `selectedDecision` is absent when
- * decide() failed, and `appliedDecision` can differ from it after a coercion or
- * a fallback.
- */
-export interface AppliedDecisionOutcome {
-  request: DecisionRequest
-  view: PlayerView
-  selectedDecision?: Decision
-  appliedDecision: Decision
-  resolution: AppliedDecisionResolution
-  provisionalTrace?: DecisionTrace
 }
 
 /** The one shape decide() returns: the engine action plus private telemetry. */

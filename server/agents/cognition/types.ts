@@ -1,17 +1,37 @@
 import type {
   Alignment,
+  Decision,
+  DecisionRequest,
   Role,
   Seat,
 } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
-import type { PrivatePlanMemory } from './plan-memory.ts'
 import type { PrivateRoleObjectiveSnapshot } from '../analysis/role-objective-types.ts'
 import type { PrivateEvilRoleObjectiveSnapshot } from '../analysis/evil-objective-types.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
 } from '../communication/language-types.ts'
+import type { AppliedDecisionResolution } from '../applied-decision.ts'
+import { COHERENCE_MODEL_VERSION } from './coherence.ts'
+import type { CoherenceAssessment } from './coherence.ts'
+import type {
+  CommitmentContext,
+  CommitmentKind,
+  PublicCommitment,
+  SupersessionState,
+} from './commitment-types.ts'
+
+// The commitment ledger shapes live in commitment-types.ts so coherence.ts can
+// name them without importing this module back; re-exported here because
+// callers have always read them from `./types.ts`.
+export type {
+  CommitmentContext,
+  CommitmentKind,
+  PublicCommitment,
+  SupersessionState,
+} from './commitment-types.ts'
 
 export const COGNITION_SCHEMA_VERSION = 1
 export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v3'
@@ -158,40 +178,41 @@ export type PublicEvidence = Exclude<Evidence, { kind: PrivateEvidenceKind }>
 export const isPublicEvidence = (record: Evidence): record is PublicEvidence =>
   EVIDENCE_SCOPE[record.kind] === 'public'
 
-export type CommitmentKind = 'team' | 'vote' | 'utterance'
+export const PLAN_MEMORY_VERSION = 'private-plan-memory-v2'
 
-/**
- * Whether a superseding record has replaced this one. A `superseded` record
- * always names its successor; a `current` one never carries a `supersededBy`.
- * Encoded as a discriminated union so the correlation cannot be violated by
- * construction (there is no representable `current`-with-successor state).
- * Shared by the public commitment ledger and the private plan-memory history,
- * which both track supersession this way.
- */
-export type SupersessionState =
-  | { status: 'current' }
-  | { status: 'superseded'; supersededBy: string }
-
-export interface CommitmentContext {
-  round?: number
-  proposalNum?: number
-  questNum?: number
-  team?: readonly Seat[]
+export interface SelectedPlanSummary {
+  decision: Decision
+  /** Never optional: a selected decision cannot be recorded without its plan. */
+  plan: Readonly<{
+    version: string
+    candidateId: string
+    policyId: string
+    beliefThroughSeq: number
+  }>
 }
 
-export type PublicCommitment = {
+// The private post-legality plan-memory shapes. CognitionState.planMemory holds
+// one, so the shape belongs with the other cognition shapes here rather than in
+// plan-memory.ts, which imports this module for PublicCommitment and would close
+// a cycle if this module reached back for the memory shape. plan-memory.ts owns
+// the recording and validation logic and re-exports these for its callers.
+export type AppliedPlanHistoryEntry = {
   id: string
-  sourceId: string
-  sourceSeq: number
-  actor: Seat
-  kind: CommitmentKind
-  visibility: 'public'
-  context: CommitmentContext
-  payload:
-    | { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
-    | { type: 'vote'; vote: 'approve' | 'reject' }
-    | { type: 'utterance'; text: string; channel: 'discussion' | 'pitch' | 'revision-reason' }
+  request: DecisionRequest
+  viewThroughSeq: number
+  selected?: SelectedPlanSummary
+  appliedDecision: Decision
+  resolution: AppliedDecisionResolution
+  coherence: CoherenceAssessment
 } & SupersessionState
+
+export interface PrivatePlanMemory {
+  version: typeof PLAN_MEMORY_VERSION
+  coherenceVersion: typeof COHERENCE_MODEL_VERSION
+  viewerSeat: Seat
+  nextOrdinal: number
+  history: readonly AppliedPlanHistoryEntry[]
+}
 
 export interface CognitionVersions {
   schema: typeof COGNITION_SCHEMA_VERSION

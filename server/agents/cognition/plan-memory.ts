@@ -6,13 +6,15 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { isDecisionKind } from '../../engine/types.ts'
-import { isAppliedDecisionResolution } from '../types.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
 import {
   plainDetachedData,
   strictCanonicalArray,
 } from '../components/canonical-shape.ts'
-import type { AppliedDecisionResolution } from '../types.ts'
+import {
+  isAppliedDecisionResolution,
+  type AppliedDecisionResolution,
+} from '../applied-decision.ts'
 import { buildCommitments } from './commitments.ts'
 import {
   assessLiteralCoherence,
@@ -24,41 +26,30 @@ import {
   type CoherenceIntent,
 } from './coherence.ts'
 import { extractEvidence } from './evidence.ts'
-import type { PublicCommitment, SupersessionState } from './types.ts'
+import {
+  PLAN_MEMORY_VERSION,
+  type AppliedPlanHistoryEntry,
+  type PrivatePlanMemory,
+  type PublicCommitment,
+  type SelectedPlanSummary,
+  type SupersessionState,
+} from './types.ts'
 
-export const PLAN_MEMORY_VERSION = 'private-plan-memory-v2'
+// The plan-memory shapes live in cognition/types.ts, where CognitionState names
+// PrivatePlanMemory; keeping them there rather than here is what lets that
+// module avoid importing this one back. The recording and validation logic
+// below owns them, and they are re-exported so callers still read them from
+// `./plan-memory.ts`.
+export { PLAN_MEMORY_VERSION } from './types.ts'
+export type {
+  AppliedPlanHistoryEntry,
+  PrivatePlanMemory,
+  SelectedPlanSummary,
+} from './types.ts'
+
 /** Finite private memory; older superseded entries are discarded FIFO. */
 export const PLAN_MEMORY_HISTORY_LIMIT = 128
 export const PLAN_MEMORY_SERIALIZED_LIMIT = 4_000_000
-
-export interface SelectedPlanSummary {
-  decision: Decision
-  /** Never optional: a selected decision cannot be recorded without its plan. */
-  plan: Readonly<{
-    version: string
-    candidateId: string
-    policyId: string
-    beliefThroughSeq: number
-  }>
-}
-
-export type AppliedPlanHistoryEntry = {
-  id: string
-  request: DecisionRequest
-  viewThroughSeq: number
-  selected?: SelectedPlanSummary
-  appliedDecision: Decision
-  resolution: AppliedDecisionResolution
-  coherence: CoherenceAssessment
-} & SupersessionState
-
-export interface PrivatePlanMemory {
-  version: typeof PLAN_MEMORY_VERSION
-  coherenceVersion: typeof COHERENCE_MODEL_VERSION
-  viewerSeat: Seat
-  nextOrdinal: number
-  history: readonly AppliedPlanHistoryEntry[]
-}
 
 function viewCursor(view: Pick<PlayerView, 'events'>): number {
   return view.events.reduce((cursor, event) => Math.max(cursor, event.seq), -1)

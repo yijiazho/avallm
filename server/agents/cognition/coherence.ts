@@ -5,7 +5,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/rules.ts'
-import type { PublicCommitment } from './types.ts'
+import type { PublicCommitment } from './commitment-types.ts'
 
 export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v2'
 

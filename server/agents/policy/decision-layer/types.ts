@@ -8,7 +8,7 @@ import type {
   ComponentToken,
   DecisionComponentDefinition,
 } from '../../components/types.ts'
-import type { DecisionComponentRun } from '../../components/kernel.ts'
+import type { DecisionComponentRun } from '../../components/run-types.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
   ForcedPolicyResult,

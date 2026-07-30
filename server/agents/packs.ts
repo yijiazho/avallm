@@ -15,7 +15,7 @@
 
 import { ROSTER } from '../llm/roster.ts'
 import type { Rng } from '../engine/prng.ts'
-import type { AgentDef, LibraryProblem, TableSeat } from './defs.ts'
+import type { AgentDef, LibraryProblem, TableSeat } from './def-types.ts'
 
 export interface AgentPack {
   id: string

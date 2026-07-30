@@ -37,6 +37,7 @@ const CLIENT_TYPECHECK = [
 ]
 const TEST_RATCHET = ['tools/strict-test-ratchet.mjs']
 const ARCHITECTURE = ['tools/architecture-fitness.mjs']
+const ACYCLICITY = ['tools/import-cycles.mjs']
 const INVENTORY = ['tools/test-lanes.mjs', '--check']
 
 test('root verification scripts cannot bypass the funnel', () => {
@@ -67,6 +68,7 @@ test('verification levels compose the intended cumulative checks', () => {
       CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
+      ACYCLICITY,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
     ],
@@ -78,6 +80,7 @@ test('verification levels compose the intended cumulative checks', () => {
       CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
+      ACYCLICITY,
       INVENTORY,
       ['tools/test-lanes.mjs', 'fast'],
       ['tools/test-lanes.mjs', 'contract'],
@@ -90,6 +93,7 @@ test('verification levels compose the intended cumulative checks', () => {
       CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
+      ACYCLICITY,
       INVENTORY,
       ['tools/test-lanes.mjs', 'full'],
     ],
@@ -100,7 +104,7 @@ test('verification fails closed before tests when lane inventory fails', () => {
   const calls: string[][] = []
   const status = runVerification('full', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 5 ? 17 : 0 }
+    return { status: calls.length === 6 ? 17 : 0 }
   }, () => true)
 
   assert.equal(status, 17)
@@ -109,6 +113,7 @@ test('verification fails closed before tests when lane inventory fails', () => {
     CLIENT_TYPECHECK,
     TEST_RATCHET,
     ARCHITECTURE,
+    ACYCLICITY,
     INVENTORY,
   ])
 })
@@ -117,7 +122,7 @@ test('verification stops at the first failing test lane', () => {
   const calls: string[][] = []
   const status = runVerification('contract', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 6 ? 23 : 0 }
+    return { status: calls.length === 7 ? 23 : 0 }
   }, () => true)
 
   assert.equal(status, 23)
@@ -126,6 +131,7 @@ test('verification stops at the first failing test lane', () => {
     CLIENT_TYPECHECK,
     TEST_RATCHET,
     ARCHITECTURE,
+    ACYCLICITY,
     INVENTORY,
     ['tools/test-lanes.mjs', 'fast'],
   ])
@@ -181,6 +187,27 @@ test('verification stops before test inventory when architecture fails', () => {
     CLIENT_TYPECHECK,
     TEST_RATCHET,
     ARCHITECTURE,
+  ])
+})
+
+test('verification stops before test inventory when import cycles are found', () => {
+  const calls: string[][] = []
+  const status = runVerification(
+    'quick',
+    (_command, args) => {
+      calls.push(args)
+      return { status: calls.length === 5 ? 21 : 0 }
+    },
+    () => true,
+  )
+
+  assert.equal(status, 21)
+  assert.deepEqual(calls, [
+    TYPECHECK,
+    CLIENT_TYPECHECK,
+    TEST_RATCHET,
+    ARCHITECTURE,
+    ACYCLICITY,
   ])
 })
 

@@ -8,7 +8,7 @@ import type {
 } from '../../components/types.ts'
 import type {
   DecisionComponentRun,
-} from '../../components/kernel.ts'
+} from '../../components/run-types.ts'
 import type {
   ComponentRef,
   ComponentToken,
