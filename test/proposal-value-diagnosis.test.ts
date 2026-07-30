@@ -566,6 +566,21 @@ test('a pair whose arms proposed from different positions is excluded, not folde
   assert.equal(pairing.onlyCandidate, 0)
 })
 
+test('an explicit baseline that names no variant is refused', () => {
+  assert.throws(
+    () => diagnoseProposalValue(
+      [handArtifact({
+        caseId: 'a',
+        variant: 'structured',
+        untraced: true,
+        proposals: [],
+      })],
+      { baselineVariant: 'compatibilty' },
+    ),
+    /no variant compatibilty in bank hand-nb014 for target servant/,
+  )
+})
+
 test('cells never merge across banks, so populations stay separate', () => {
   const heuristic = handArtifact({
     bank: 'hand-nb014-heuristic',

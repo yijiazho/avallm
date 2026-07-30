@@ -158,8 +158,8 @@ export interface FirstProposalPairing {
   readonly baselineCleanCandidateDirty: number
   readonly candidateCleanBaselineDirty: number
   /**
-   * Pairs where the candidate arm recorded a posterior for the surface, which
-   * is what the next four fields need.
+   * Pairs where the candidate arm recorded a posterior for its surface AND the
+   * baseline's team appears on it, which is what the next four fields need.
    */
   readonly scoredPairs: number
   /** The baseline's team survived forced policy in the candidate arm too. */
@@ -680,9 +680,12 @@ function foldBaselineTeamOnCandidateSurface(
     const team = teamOfScore(score)
     return team !== undefined && teamKey(team) === baseline.teamKey
   })
+  // Every field below shares `scoredPairs` as its denominator, so a pair whose
+  // baseline team is absent from the candidate surface has to leave the count
+  // alone rather than inflate it against a numerator it never contributes to.
+  if (!match) return
   row.scoredPairs++
   row.candidateTeamPosteriorSum += max
-  if (!match) return
   const value = proposalCleanProbability(match) as number
   row.baselineTeamPosteriorSum += value
   if (!match.viable) return
@@ -754,7 +757,15 @@ function pairFirstProposals(
   for (const group of groups.values()) {
     const baselineId = options.baselineVariant ?? group.order[0]
     const baselineCases = group.byVariant.get(baselineId)
-    if (!baselineCases) continue
+    if (!baselineCases) {
+      // The default always resolves, so this is an explicit --baseline that
+      // names nothing. Skipping the group would print an empty pairing section
+      // and read as "this corpus has no matched pairs" rather than as a typo.
+      throw new Error(
+        `no variant ${baselineId} in bank ${group.bank} for target `
+        + `${group.targetRole}`,
+      )
+    }
     for (const variant of group.order) {
       if (variant === baselineId) continue
       const candidateCases = group.byVariant.get(variant)!

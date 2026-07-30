@@ -3815,5 +3815,5 @@ here.
   information, which is the concealment cost NB-012 is separately pricing. And the gate must not be
   clean-proposal rate: the Servant's falls in both populations while its win rate goes `-6.7%` and
   `+5.0%`, so the same proposal degradation costs games only where the opponents convert it.
-  New reader plus 16 focused tests over hand-worked artifacts. Full suite 1165 correctness tests
+  New reader plus 17 focused tests over hand-worked artifacts. Full suite 1182 correctness tests
   plus the three isolated performance tests, strict typecheck, ratchet, and lane inventory.
