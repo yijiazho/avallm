@@ -49,6 +49,12 @@ const LEGACY_ROLE_TRACE_READER =
   'server/agents/admission/legacy-role-trace-v1'
 const CANONICAL_JSON_OWNER =
   'server/agents/components/canonical-json'
+// The shared payload shape guards. A module that imports one and then binds
+// the same name in a nested scope has a guard that silently resolves to
+// something else inside that scope, which is how the private copies these
+// replaced drifted apart in the first place.
+const SHARED_SHAPE_GUARDS =
+  'server/agents/components/canonical-shape'
 const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
 const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
   'validateComposedTraceHostJoin',
@@ -152,6 +158,84 @@ function originalNames(elements) {
   ))
 }
 
+/** The names an import binds locally, so `x as y` yields y rather than x. */
+function localNames(elements) {
+  return elements.map((element) => element.name.text)
+}
+
+/**
+ * Every value name bound below module scope: parameters, destructured
+ * parameter properties, locals, catch bindings, and nested declarations.
+ *
+ * Module-scope declarations are deliberately excluded, because those collide
+ * with an import as a TypeScript duplicate-identifier error already. Anything
+ * that both compiles and reuses an imported name is therefore nested, and
+ * nested means block scope as much as function scope: a top-level
+ * `for (const x of ...)`, a bare block, and a catch clause each introduce a
+ * binding that hides a module import without any enclosing function.
+ */
+function collectScopedBindings(ast) {
+  const bindings = new Set()
+  function addBindingName(name) {
+    if (!name) return
+    if (ts.isIdentifier(name)) {
+      bindings.add(name.text)
+      return
+    }
+    if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (ts.isBindingElement(element)) addBindingName(element.name)
+      }
+    }
+  }
+  // A parameter of a function type, method signature, or call signature is a
+  // label in type space. It binds no value and so hides no guard.
+  function typePosition(node) {
+    const parent = node.parent
+    return Boolean(parent) && (
+      ts.isFunctionTypeNode(parent)
+      || ts.isConstructorTypeNode(parent)
+      || ts.isMethodSignature(parent)
+      || ts.isCallSignatureDeclaration(parent)
+      || ts.isConstructSignatureDeclaration(parent)
+      || ts.isIndexSignatureDeclaration(parent)
+    )
+  }
+  function visit(node, scoped) {
+    // A catch binding is block scoped wherever it appears, so it can never be
+    // the module-level import itself and needs no enclosing-scope test.
+    if (ts.isCatchClause(node)) {
+      addBindingName(node.variableDeclaration?.name)
+    } else if (scoped) {
+      if (ts.isParameter(node)) {
+        if (!typePosition(node)) addBindingName(node.name)
+      } else if (ts.isVariableDeclaration(node)) {
+        addBindingName(node.name)
+      } else if (
+        ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)
+      ) {
+        addBindingName(node.name)
+      }
+    }
+    const opens = ts.isFunctionDeclaration(node)
+      || ts.isFunctionExpression(node)
+      || ts.isArrowFunction(node)
+      || ts.isMethodDeclaration(node)
+      || ts.isConstructorDeclaration(node)
+      || ts.isGetAccessorDeclaration(node)
+      || ts.isSetAccessorDeclaration(node)
+      || ts.isBlock(node)
+      || ts.isForStatement(node)
+      || ts.isForOfStatement(node)
+      || ts.isForInStatement(node)
+      || ts.isCatchClause(node)
+      || ts.isCaseBlock(node)
+    ts.forEachChild(node, (child) => visit(child, scoped || opens))
+  }
+  visit(ast, false)
+  return bindings
+}
+
 function importTypeNames(qualifier) {
   if (!qualifier) return []
   let current = qualifier
@@ -185,13 +269,14 @@ export function inspectSource(sourcePath, source) {
   const edges = []
   const identifiers = new Set()
   const stringLiterals = new Set()
-  function addEdge(node, kind, specifier, names, namespace) {
+  function addEdge(node, kind, specifier, names, namespace, locals = []) {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast))
     edges.push({
       kind,
       specifier,
       names,
       namespace,
+      locals,
       line: line + 1,
     })
   }
@@ -217,6 +302,9 @@ export function inspectSource(sourcePath, source) {
             ? originalNames(bindings.elements)
             : [],
           Boolean(bindings && ts.isNamespaceImport(bindings)),
+          bindings && ts.isNamedImports(bindings)
+            ? localNames(bindings.elements)
+            : [],
         )
       }
     } else if (ts.isExportDeclaration(node)) {
@@ -286,6 +374,7 @@ export function inspectSource(sourcePath, source) {
     edges: Object.freeze(edges),
     identifiers,
     stringLiterals,
+    scopedBindings: collectScopedBindings(ast),
   })
 }
 
@@ -454,6 +543,18 @@ export function auditArchitectureSources(sourceEntries) {
           'historical v1 role trace projections stay behind the isolated legacy reader',
         ))
         continue
+      }
+      if (target === SHARED_SHAPE_GUARDS && edge.kind === 'import') {
+        for (const local of edge.locals) {
+          if (!inspected.scopedBindings.has(local)) continue
+          violations.push(violation(
+            'ARCH013',
+            sourcePath,
+            edge,
+            `${local} is rebound inside a nested scope, so the shared guard `
+              + 'does not resolve there',
+          ))
+        }
       }
       if (
         target === CANONICAL_JSON_OWNER

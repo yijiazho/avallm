@@ -43,8 +43,10 @@ const {
       readonly specifier: string
       readonly names: readonly string[]
       readonly namespace: boolean
+      readonly locals: readonly string[]
       readonly line: number
     }[]
+    readonly scopedBindings: ReadonlySet<string>
   }
 }
 
@@ -275,6 +277,106 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
   }
 })
 
+test('a shared shape guard cannot be rebound in a nested scope', () => {
+  const shadow = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', `
+      import {
+        plainDataRecord as plainRecord,
+        probability,
+      } from '../components/canonical-shape.ts'
+      ${body}
+    `]])
+
+  // Every binding form that compiles. The named-function parameter is the one
+  // a regular expression cannot separate from a wrapped interface field, and
+  // the destructured parameter is the one a search for positional parameters
+  // misses; both were live in this repository.
+  assert.deepEqual(
+    shadow('function add(a, probability) { return a + probability }'),
+    ['ARCH013'],
+    'named function parameter',
+  )
+  assert.deepEqual(
+    shadow('const t = [].reduce((sum, probability) => sum + probability, 0)'),
+    ['ARCH013'],
+    'arrow parameter',
+  )
+  assert.deepEqual(
+    shadow('const t = [].map(({ probability }) => probability)'),
+    ['ARCH013'],
+    'destructured parameter',
+  )
+  assert.deepEqual(
+    shadow('function f() { const probability = 1; return probability }'),
+    ['ARCH013'],
+    'nested local',
+  )
+  assert.deepEqual(
+    shadow('function f() { try { g() } catch (probability) { return 1 } }'),
+    ['ARCH013'],
+    'catch binding',
+  )
+  // The rule follows `x as y`: the local name is what a nested scope can hide.
+  assert.deepEqual(
+    shadow('function f(plainRecord) { return plainRecord }'),
+    ['ARCH013'],
+    'aliased import, local name shadowed',
+  )
+  assert.deepEqual(
+    shadow('function f(plainDataRecord) { return plainDataRecord }'),
+    [],
+    'the pre-alias name binds nothing here',
+  )
+
+  // Block scope hides an import just as well as function scope, and none of
+  // these needs an enclosing function to compile.
+  assert.deepEqual(
+    shadow('for (const probability of []) { fn(probability) }'),
+    ['ARCH013'],
+    'module-level for-of binding',
+  )
+  assert.deepEqual(
+    shadow('{ const probability = 1; fn(probability) }'),
+    ['ARCH013'],
+    'module-level bare block',
+  )
+  assert.deepEqual(
+    shadow('try { fn() } catch (probability) { fn(probability) }'),
+    ['ARCH013'],
+    'module-level catch binding',
+  )
+  assert.deepEqual(
+    shadow('switch (1) { case 1: { const probability = 1; break } }'),
+    ['ARCH013'],
+    'module-level case block',
+  )
+
+  // A parameter in type space labels an argument, it does not bind a value,
+  // so renaming it would satisfy the rule while fixing nothing.
+  assert.deepEqual(
+    shadow('function f() { type R = (probability: number) => number; fn() }'),
+    [],
+    'function type parameter inside a function body',
+  )
+  assert.deepEqual(
+    shadow('function f() { interface X { go(probability: number): void } fn() }'),
+    [],
+    'method signature parameter inside a function body',
+  )
+
+  // Renaming the binding away is the fix, and it has to read as clean.
+  assert.deepEqual(
+    shadow('const t = [].map(({ probability: mass }) => mass)'),
+    [],
+    'destructuring renamed away',
+  )
+  assert.deepEqual(
+    shadow('function f(mass) { return probability(mass) }'),
+    [],
+    'guard called, nothing rebound',
+  )
+})
+
 test('TypeScript AST recognizes multiline imports and export-from declarations', () => {
   const inspected = inspectSource('server/agents/example.ts', `
     import type {
@@ -292,6 +394,7 @@ test('TypeScript AST recognizes multiline imports and export-from declarations',
       specifier: '../../engine/types.ts',
       names: ['Game', 'PlayerView'],
       namespace: false,
+      locals: ['RawGame', 'PlayerView'],
       line: 2,
     },
     {
@@ -299,6 +402,7 @@ test('TypeScript AST recognizes multiline imports and export-from declarations',
       specifier: '../../eval/artifact.ts',
       names: ['toArtifact'],
       namespace: false,
+      locals: [],
       line: 6,
     },
   ])
