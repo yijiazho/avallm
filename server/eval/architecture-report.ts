@@ -5,18 +5,36 @@
 // results by role, decision/call kind, model, and component-version bundle.
 
 import fs from 'node:fs'
-import { parseArgs } from 'node:util'
-import { isDeepStrictEqual } from 'node:util'
-import { isProxy } from 'node:util/types'
-import { pathToFileURL } from 'node:url'
+import {
+  parseArgs,
+} from 'node:util'
+import {
+  isDeepStrictEqual,
+} from 'node:util'
+import {
+  isProxy,
+} from 'node:util/types'
+import {
+  pathToFileURL,
+} from 'node:url'
 import {
   MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES,
   readArtifacts,
 } from './artifact.ts'
-import { computeMetrics } from './metrics.ts'
-import type { ArchitectureRunMetadata, GameArtifact } from './artifact.ts'
-import type { DecisionKind, Role } from '../engine/types.ts'
-import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
+import {
+  computeMetrics,
+} from './metrics.ts'
+import type {
+  ArchitectureRunMetadata,
+  GameArtifact,
+} from './artifact.ts'
+import type {
+  DecisionKind,
+  Role,
+} from '../engine/types.ts'
+import {
+  LANGUAGE_FACTOR_BUNDLE_VERSION,
+} from '../agents/belief/language-factor.ts'
 import {
   validatePublicObserverSnapshot,
 } from '../agents/analysis/observer.ts'
@@ -36,18 +54,18 @@ import {
   PLAN_MEMORY_VERSION,
   validateAppliedPlanOutcomeHostJoin,
 } from '../agents/cognition/plan-memory.ts'
-import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
+import {
+  COHERENCE_MODEL_VERSION,
+} from '../agents/cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
 } from '../agents/analysis/role-objective-types.ts'
 import {
   buildRoleObjectiveSnapshot,
-  validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
 import {
   buildEvilRoleObjectiveSnapshot,
-  validatePrivateEvilRoleObjectiveHostJoin,
 } from '../agents/analysis/evil-objectives.ts'
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
@@ -60,14 +78,10 @@ import {
 import {
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
-  buildRoleUtilityProjection,
-  validatePrivateRoleUtilityHostJoin,
 } from '../agents/analysis/role-utility.ts'
 import {
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
-  buildEvilRoleUtilityProjection,
-  validatePrivateEvilRoleUtilityHostJoin,
 } from '../agents/analysis/evil-role-utility.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
@@ -78,10 +92,11 @@ import {
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 } from '../agents/policy/score.ts'
 import {
-  hypotheticalProposalCandidates,
   legalCandidates,
 } from '../agents/policy/candidates.ts'
-import type { DecisionSnapshot } from './replay.ts'
+import type {
+  DecisionSnapshot,
+} from './replay.ts'
 import {
   authoritativeDecisionReplay,
   decisionTraceReplayJoin,
@@ -101,7 +116,9 @@ import {
 import {
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
 } from '../agents/analysis/morgana-counterfeit-types.ts'
-import { EXACT_BELIEF_MODEL_VERSION } from '../agents/belief/types.ts'
+import {
+  EXACT_BELIEF_MODEL_VERSION,
+} from '../agents/belief/types.ts'
 import {
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -111,7 +128,6 @@ import {
 import {
   architectureIdentityDecisionPlan,
   architectureIdentityVersions,
-  resolvedArchitectureIdentityTraceJoin,
 } from '../agents/components/architecture-metadata.ts'
 import {
   exactOwnDataRecord as exactCurrentArchitectureRecord,
@@ -1430,23 +1446,10 @@ function legacyArchitectureSafety(
           : trace.publicObserver !== undefined
       )
       || (() => {
-        const applicable =
-          roleUtilityApplicable
-          && (
-            trace.request.kind === 'propose'
-            || trace.request.kind === 'vote'
-          )
-        // A retired flat utility payload can never be present, so no decision
-        // reports an applied flat role, evil, or Morgana utility.
-        const applied = false
-        const evilApplicable =
-          evilRoleUtilityApplicable
-          && (
-            trace.request.kind === 'propose'
-            || trace.request.kind === 'vote'
-          )
-        const evilApplied = false
-        const morganaApplied = false
+        // A retired flat utility payload can never be present, so no historical
+        // decision reports an applied flat role, evil, or Morgana utility. The
+        // expected scorer is therefore always the base scorer its declared role
+        // family falls back to.
         const seeded =
           meta.components.scorer
             === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -1454,35 +1457,15 @@ function legacyArchitectureSafety(
             === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
           || meta.components.scorer
             === MORGANA_ROLE_SEEDED_SCORER_VERSION
-        const expectedScorer = morganaApplied
-          ? meta.components.scorer
-          : evilApplied
-            ? meta.components.scorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
-              ? EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              : meta.components.scorer === MORGANA_ROLE_SCORER_VERSION
-                ? EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-                : meta.components.scorer
-          : applied
-            ? meta.components.scorer
-                === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              || meta.components.scorer
-                === MORGANA_ROLE_SEEDED_SCORER_VERSION
-              ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-              : meta.components.scorer
-                  === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-                || meta.components.scorer === MORGANA_ROLE_SCORER_VERSION
-                ? ROLE_OBJECTIVE_SCORER_VERSION
-                : meta.components.scorer
-            : seeded
-              ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-              : (
-                  meta.components.scorer
-                    === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-                  || meta.components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
-                  || meta.components.scorer === MORGANA_ROLE_SCORER_VERSION
-                )
-                ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
-                : meta.components.scorer
+        const expectedScorer = seeded
+          ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+          : (
+              meta.components.scorer === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+              || meta.components.scorer === ROLE_OBJECTIVE_SCORER_VERSION
+              || meta.components.scorer === MORGANA_ROLE_SCORER_VERSION
+            )
+            ? GOOD_PROPOSAL_VOTE_SCORER_VERSION
+            : meta.components.scorer
         return versions.scorer !== expectedScorer
           || versions.configuredScorer !== (
             expectedScorer === meta.components.scorer

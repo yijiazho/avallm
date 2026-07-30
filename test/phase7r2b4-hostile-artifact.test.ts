@@ -12,7 +12,6 @@ import {
 } from '../server/agents/components/kernel.ts'
 import {
   GOOD_ROLE_OBJECTIVE_COMPONENT,
-  GOOD_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,

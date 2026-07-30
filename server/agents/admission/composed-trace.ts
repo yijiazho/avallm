@@ -2,10 +2,21 @@
 // admission for composed decision traces. Transport and evaluation consume
 // this module; neither owns or mirrors these equations.
 
-import { isDeepStrictEqual } from 'node:util'
-import { isProxy } from 'node:util/types'
-import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
-import type { Decision, DecisionRequest, PlayerView } from '../../engine/types.ts'
+import {
+  isDeepStrictEqual,
+} from 'node:util'
+import {
+  isProxy,
+} from 'node:util/types'
+import {
+  MAX_PROPOSALS,
+  QUESTS_TO_WIN,
+} from '../../engine/rules.ts'
+import type {
+  Decision,
+  DecisionRequest,
+  PlayerView,
+} from '../../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
@@ -18,7 +29,6 @@ import {
   buildScorerSituationSurface,
 } from '../analysis/scorer-situation-surface.ts'
 import {
-  FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
   type ForcedPolicyResult,
 } from '../policy/types.ts'
@@ -46,8 +56,12 @@ import {
   type CandidateScore,
   type CandidateScoringContext,
 } from '../policy/score.ts'
-import { projectConfiguredScoreDiagnostics } from '../policy/score-compatibility.ts'
-import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/types.ts'
+import {
+  projectConfiguredScoreDiagnostics,
+} from '../policy/score-compatibility.ts'
+import {
+  GOOD_VOTE_SITUATION_VERSION,
+} from '../analysis/types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
@@ -55,7 +69,9 @@ import {
   decisionTraceIdForRequest,
   type DecisionTrace,
 } from '../trace.ts'
-import type { AgentExecutionMode } from '../brain.ts'
+import type {
+  AgentExecutionMode,
+} from '../brain.ts'
 import {
   LANGUAGE_BELIEF_VERSION_SUFFIX,
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -81,39 +97,33 @@ import {
   validatePublicObserverSnapshot,
   observePublicRecord,
 } from '../analysis/observer.ts'
-import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
+import {
+  PUBLIC_OBSERVER_MODEL_VERSION,
+} from '../analysis/observer-types.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
-  projectJointIdentity,
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
-import { exactBelief } from '../belief/exact.ts'
-import { EXACT_BELIEF_MODEL_VERSION } from '../belief/types.ts'
+import {
+  exactBelief,
+} from '../belief/exact.ts'
+import {
+  EXACT_BELIEF_MODEL_VERSION,
+} from '../belief/types.ts'
 import {
   PLAN_MEMORY_VERSION,
 } from '../cognition/plan-memory.ts'
-import { COHERENCE_MODEL_VERSION } from '../cognition/coherence.ts'
+import {
+  COHERENCE_MODEL_VERSION,
+} from '../cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
-  type RoleObjectiveRole,
 } from '../analysis/role-objective-types.ts'
 import {
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
-  buildRoleUtilityProjection,
-  validatePrivateRoleUtilityHostJoin,
-  validatePrivateRoleUtilityProjection,
 } from '../analysis/role-utility.ts'
-import {
-  buildRoleObjectiveSnapshot,
-  roleObjectiveIdentityScope,
-  validatePrivateRoleObjectiveHostJoin,
-} from '../analysis/role-objectives.ts'
-import {
-  buildEvilRoleObjectiveSnapshot,
-  validatePrivateEvilRoleObjectiveHostJoin,
-} from '../analysis/evil-objectives.ts'
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
@@ -122,13 +132,14 @@ import {
 import {
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
-  buildEvilRoleUtilityProjection,
-  validatePrivateEvilRoleUtilityHostJoin,
-  validatePrivateEvilRoleUtilityProjection,
 } from '../analysis/evil-role-utility.ts'
 
-import { projectPublicRecord } from '../communication/public-record.ts'
-import type { TraceValidationInput } from './trace-primitives.ts'
+import {
+  projectPublicRecord,
+} from '../communication/public-record.ts'
+import type {
+  TraceValidationInput,
+} from './trace-primitives.ts'
 import {
   enumStringArray,
   stringArray,
@@ -145,8 +156,12 @@ import {
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../policy/candidates.ts'
-import { applyForcedPolicy } from '../policy/forced.ts'
-import { heuristicDecide } from '../heuristic.ts'
+import {
+  applyForcedPolicy,
+} from '../policy/forced.ts'
+import {
+  heuristicDecide,
+} from '../heuristic.ts'
 import {
   replayNativeScoresForAdmission,
 } from '../policy/score-layer/admission-replay.ts'
@@ -189,12 +204,9 @@ import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
 } from '../decision-layers/robust-evil-quest-card.ts'
 import {
-  EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
-  GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
 } from '../components/native-score-components.ts'
@@ -220,14 +232,6 @@ import {
   type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
 import {
-  buildMorganaCounterfeitObjective,
-  buildPublicCounterfeitMerlinRead,
-  validatePrivateMorganaCounterfeitHostJoin,
-  validatePrivateMorganaCounterfeitObjective,
-  validatePublicCounterfeitMerlinRead,
-  validatePublicCounterfeitMerlinReadHostJoin,
-} from '../analysis/morgana-counterfeit.ts'
-import {
   MORGANA_COUNTERFEIT_DEGRADATION,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
@@ -240,7 +244,6 @@ import {
   MORGANA_ROLE_UTILITY_DEGRADATION,
   MORGANA_ROLE_UTILITY_CONSTANTS,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
-  buildMorganaRoleUtilityProjection,
   validatePrivateMorganaRoleUtilityHostJoin,
   validatePrivateMorganaRoleUtilityProjection,
 } from '../analysis/morgana-role-utility.ts'

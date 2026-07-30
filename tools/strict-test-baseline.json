@@ -118,7 +118,7 @@
     },
     {
       "path": "test/phase7d1-evil-objectives.test.ts",
-      "sha256": "6dc0e9ff44e1e4f036ae40d959b423b002a70e6fe1e11cdb01af9d7b4359d63b",
+      "sha256": "9dc64817e74421b1df46c66354fec80ad0e0a58b938ec55bbd95da77cbcf8ddd",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -173,7 +173,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "e8b20eac1dbeaf57c740680b353b7ea7d77597d2c64028a53a636ea9f1b7dcb6",
+      "sha256": "a83635af06a94ed092777832dc84e972cc03fb9331614ec94db2439f5fa0a4cc",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {

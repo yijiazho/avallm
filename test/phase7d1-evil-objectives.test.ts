@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import {
+  readFileSync,
+} from 'node:fs'
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
@@ -12,41 +14,66 @@ import {
   validatePrivateEvilRoleObjectiveHostJoin,
   validatePrivateEvilRoleObjectiveSnapshot,
 } from '../server/agents/analysis/evil-objectives.ts'
-import { routedRoleObjectiveModel } from '../server/agents/analysis/role-objective-router.ts'
-import { ROLE_OBJECTIVE_MODEL_VERSION } from '../server/agents/analysis/role-objective-types.ts'
-import { createComposedAgent } from '../server/agents/composed.ts'
-import { componentPayload } from '../server/agents/components/kernel.ts'
+import {
+  routedRoleObjectiveModel,
+} from '../server/agents/analysis/role-objective-router.ts'
+import {
+  ROLE_OBJECTIVE_MODEL_VERSION,
+} from '../server/agents/analysis/role-objective-types.ts'
+import {
+  createComposedAgent,
+} from '../server/agents/composed.ts'
+import {
+  componentPayload,
+} from '../server/agents/components/kernel.ts'
 import {
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
-import { publicCognition } from '../server/agents/cognition/state.ts'
-import { legalCandidates } from '../server/agents/policy/candidates.ts'
+import {
+  publicCognition,
+} from '../server/agents/cognition/state.ts'
+import {
+  legalCandidates,
+} from '../server/agents/policy/candidates.ts'
 import {
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
+import type {
+  DecisionTrace,
+} from '../server/agents/trace.ts'
 import {
-  ROLE_UTILITY_PROJECTION_VERSION,
-} from '../server/agents/analysis/role-utility.ts'
-import type { DecisionTrace } from '../server/agents/trace.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
+  parseStdioDecisionReply,
+} from '../server/agents/stdio.ts'
+import {
+  normalizeAgentOutput,
+} from '../server/agents/types.ts'
 import type {
   DecisionRequest,
   PlayerView,
   Role,
 } from '../server/engine/types.ts'
-import { createGame } from '../server/engine/game.ts'
-import { viewFor } from '../server/engine/view.ts'
+import {
+  createGame,
+} from '../server/engine/game.ts'
+import {
+  viewFor,
+} from '../server/engine/view.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
 } from '../server/eval/architecture-bench.ts'
-import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
-import { architectureReport } from '../server/eval/architecture-report.ts'
-import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import {
+  ARCHITECTURE_BANK,
+} from '../server/eval/architecture-bank.ts'
+import {
+  architectureReport,
+} from '../server/eval/architecture-report.ts'
+import {
+  readDecisionFixtures,
+} from '../server/eval/decision-fixtures.ts'
 import {
   authoritativeDecisionSnapshots,
 } from '../server/eval/trace-replay.ts'
@@ -55,13 +82,15 @@ const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
   fixtures.find((candidate) => candidate.view.role === role)!
 
+// The retired flat fallback is refused at ingress, so an admitted trace can
+// only carry its evil role objective in the generic component run.
 const evilRoleObjective = (trace: DecisionTrace) =>
   trace.components
     ? componentPayload(
         trace.components,
         EVIL_ROLE_OBJECTIVE_COMPONENT,
       )
-    : trace.privateEvilRoleObjective
+    : undefined
 const goodRoleObjective = (trace: DecisionTrace) => componentPayload(
   trace.components!,
   GOOD_ROLE_OBJECTIVE_COMPONENT,
@@ -76,8 +105,8 @@ const evilRoleObjectiveEntry = (trace: DecisionTrace) =>
   )
 const removeEvilRoleObjective = (trace: DecisionTrace) => {
   if (!trace.components) {
-    assert.ok(trace.privateEvilRoleObjective)
-    delete trace.privateEvilRoleObjective
+    // Nothing to remove: a componentless trace cannot carry the retired flat
+    // objective, because ingress refuses the key.
     return
   }
   const index = trace.components!.entries.findIndex(
@@ -131,13 +160,15 @@ function forgeCoherentExactEvilChain(
       evilProbability,
     }),
   )
-  forged.privateEvilRoleObjective = buildEvilRoleObjectiveSnapshot({
-    req,
-    view,
-    identity,
-    observer: forged.publicObserver!,
-    candidates: legalCandidates(req, view),
-  })
+  // Deliberately presents a retired flat projection so admission refuses it.
+  ;(forged as unknown as Record<string, unknown>).privateEvilRoleObjective =
+    buildEvilRoleObjectiveSnapshot({
+      req,
+      view,
+      identity,
+      observer: forged.publicObserver!,
+      candidates: legalCandidates(req, view),
+    })
   return forged
 }
 
@@ -165,7 +196,6 @@ function forgeUnverifiableWeightedDeletion(
   delete forged.componentVersions!.decisionComponents
   forged.version = 'decision-trace-v1'
   delete forged.privateIdentity
-  delete forged.privateEvilRoleObjective
   forged.degradation.push(
     'identity-projection-failed',
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
@@ -201,13 +231,15 @@ function forgeWeightedComplete(
   forged.privateIdentity!.sourceBelief.modelVersion =
     forged.beliefModelVersion
   forged.privateIdentity!.sourceBelief.quality = 'weighted'
-  forged.privateEvilRoleObjective = buildEvilRoleObjectiveSnapshot({
-    req,
-    view,
-    identity: forged.privateIdentity!,
-    observer: forged.publicObserver!,
-    candidates: legalCandidates(req, view),
-  })
+  // Deliberately presents a retired flat projection so admission refuses it.
+  ;(forged as unknown as Record<string, unknown>).privateEvilRoleObjective =
+    buildEvilRoleObjectiveSnapshot({
+      req,
+      view,
+      identity: forged.privateIdentity!,
+      observer: forged.publicObserver!,
+      candidates: legalCandidates(req, view),
+    })
   return forged
 }
 
@@ -604,7 +636,8 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
   )
   partialScope.privateIdentity!.scope.hiddenTeam = false
   delete partialScope.privateIdentity!.hiddenTeamPosterior
-  delete partialScope.privateEvilRoleObjective
+  delete (partialScope as unknown as Record<string, unknown>)
+    .privateEvilRoleObjective
   partialScope.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
   assert.deepEqual(
     parseStdioDecisionReply(

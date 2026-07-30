@@ -7,14 +7,33 @@
 // spend money accidentally.
 
 import fs from 'node:fs'
-import { performance } from 'node:perf_hooks'
-import { parseArgs } from 'node:util'
-import { pathToFileURL } from 'node:url'
-import { createGame } from '../engine/game.ts'
-import { createAgent, createAgentFromDef } from '../agents/registry.ts'
-import { loadAgentLibrary, resolveModel } from '../agents/defs.ts'
-import { runGame } from '../sim/runner.ts'
-import { appendArtifact, toArtifact } from './artifact.ts'
+import {
+  performance,
+} from 'node:perf_hooks'
+import {
+  parseArgs,
+} from 'node:util'
+import {
+  pathToFileURL,
+} from 'node:url'
+import {
+  createGame,
+} from '../engine/game.ts'
+import {
+  createAgent,
+  createAgentFromDef,
+} from '../agents/registry.ts'
+import {
+  loadAgentLibrary,
+  resolveModel,
+} from '../agents/defs.ts'
+import {
+  runGame,
+} from '../sim/runner.ts'
+import {
+  appendArtifact,
+  toArtifact,
+} from './artifact.ts'
 import {
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK,
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
@@ -24,19 +43,28 @@ import {
   STANDARD_ARCHITECTURE_BANK_PROFILE,
   validateArchitectureBank,
 } from './architecture-bank.ts'
-import type { AgentDef } from '../agents/defs.ts'
+import type {
+  AgentDef,
+} from '../agents/defs.ts'
 import type {
   AgentContext,
   AgentSpec,
   AvalonAgent,
 } from '../agents/types.ts'
-import type { OpenRouterClient, SpendEntry } from '../llm/openrouter.ts'
-import type { GameArtifact } from './artifact.ts'
+import type {
+  OpenRouterClient,
+  SpendEntry,
+} from '../llm/openrouter.ts'
+import type {
+  GameArtifact,
+} from './artifact.ts'
 import type {
   ArchitectureBankCase,
   ArchitectureBankProfile,
 } from './architecture-bank.ts'
-import type { Seat } from '../engine/types.ts'
+import type {
+  Seat,
+} from '../engine/types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
@@ -47,8 +75,12 @@ import {
   resolveBrain,
   type AgentExecutionMode,
 } from '../agents/brain.ts'
-import { LANGUAGE_FACTOR_BUNDLE_VERSION } from '../agents/belief/language-factor.ts'
-import { EXACT_BELIEF_MODEL_VERSION } from '../agents/belief/types.ts'
+import {
+  LANGUAGE_FACTOR_BUNDLE_VERSION,
+} from '../agents/belief/language-factor.ts'
+import {
+  EXACT_BELIEF_MODEL_VERSION,
+} from '../agents/belief/types.ts'
 import {
   validatePublicObserverSnapshot,
 } from '../agents/analysis/observer.ts'
@@ -63,18 +95,18 @@ import {
   PLAN_MEMORY_VERSION,
   validateAppliedPlanOutcomeHostJoin,
 } from '../agents/cognition/plan-memory.ts'
-import { COHERENCE_MODEL_VERSION } from '../agents/cognition/coherence.ts'
+import {
+  COHERENCE_MODEL_VERSION,
+} from '../agents/cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
 } from '../agents/analysis/role-objective-types.ts'
 import {
   buildRoleObjectiveSnapshot,
-  validatePrivateRoleObjectiveHostJoin,
 } from '../agents/analysis/role-objectives.ts'
 import {
   buildEvilRoleObjectiveSnapshot,
-  validatePrivateEvilRoleObjectiveHostJoin,
 } from '../agents/analysis/evil-objectives.ts'
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
@@ -87,14 +119,10 @@ import {
 import {
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
-  buildRoleUtilityProjection,
-  validatePrivateRoleUtilityHostJoin,
 } from '../agents/analysis/role-utility.ts'
 import {
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
-  buildEvilRoleUtilityProjection,
-  validatePrivateEvilRoleUtilityHostJoin,
 } from '../agents/analysis/evil-role-utility.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
@@ -105,7 +133,6 @@ import {
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 } from '../agents/policy/score.ts'
 import {
-  hypotheticalProposalCandidates,
   legalCandidates,
 } from '../agents/policy/candidates.ts'
 import {
@@ -131,10 +158,8 @@ import {
 } from '../agents/components/native-score-components.ts'
 import {
   projectResolvedArchitectureIdentity,
-  type
-  ResolvedArchitectureDescriptor,
-  type
-  ResolvedComposedBrain,
+  type ResolvedArchitectureDescriptor,
+  type ResolvedComposedBrain,
 } from '../agents/components/resolved-brain.ts'
 import {
   EVIL_QUEST_ROBUST_POLICY_VERSION,
@@ -1167,16 +1192,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                       && dependencyDegradation.every((code) =>
                         trace.degradation.includes(code))
                     ) return false
-                    if (
-                      dependencyDegradation.some((code) =>
-                        trace.degradation.includes(code))
-                    ) return true
-                    return (
-                      !trace.degradation.includes(
-                        EVIL_ROLE_UTILITY_DEGRADATION,
-                      )
-                      || traceVersions.evilRoleUtility !== undefined
-                    )
+                    // Reaching here means no dependency degradation is present,
+                    // including EVIL_ROLE_UTILITY_DEGRADATION, so nothing else
+                    // can make this branch reject.
+                    return true
                   })()
                 : (
                     traceVersions.evilRoleUtility !== undefined
