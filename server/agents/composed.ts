@@ -110,6 +110,7 @@ import {
   projectResolvedArchitectureIdentity,
   resolveComposedBrain,
   resolvedArchitectureIdentityDigest,
+  type CompatibilityValue,
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
 import type {
@@ -1210,6 +1211,93 @@ function resolveRolePolicyScorer(input: {
 }
 
 /**
+ * Everything one opt-in role feature contributes to brain construction, in one
+ * row.
+ *
+ * A role feature used to be threaded through five parallel sites: an option
+ * flag, a requested-components slice, a compatibility.requests entry, a public
+ * observer disjunct, and a good-objective decision-kind disjunct. Forgetting one
+ * silently mis-wired the feature. The columns below are those sites, so adding a
+ * feature is adding a row here (plus, when it carries private state into
+ * scoring, a payload binding in the scorer walk).
+ *
+ * `components` and `forcesPublicObserver` are deliberately independent: a role
+ * utility requirement that sits only on a base scorer contributes its components
+ * through the chain walk yet does not force the observer, which reads the entry
+ * scorer alone. Fusing the two would silently change the descriptor.
+ */
+interface RoleFeatureSetup {
+  /** Compatibility request entry, always emitted when present (feature knobs). */
+  readonly request?: readonly [key: string, value: CompatibilityValue]
+  /** This feature's disjunct of the aggregate public-observer requirement. */
+  readonly forcesPublicObserver: boolean
+  /** This feature's disjunct of the good-objective all-decision-kinds reach. */
+  readonly forcesGoodObjectiveAllKinds?: boolean
+  /**
+   * Components this feature requests. Concatenated across configured features,
+   * then deduplicated and reordered canonically, so shared components (the good
+   * role objective is wanted by three features) resolve to one request at a
+   * pinned position rather than a per-feature ordering.
+   */
+  readonly components?: readonly ComponentRef[]
+}
+
+/**
+ * The canonical position of every role-feature component in the requested list.
+ *
+ * The resolved descriptor preserves requested order verbatim, so this order is
+ * a byte-level contract, not a convenience. Reordering it, or contributing a
+ * component absent from it, is rejected below rather than silently reshaping the
+ * descriptor.
+ */
+const ROLE_FEATURE_COMPONENT_ORDER: readonly string[] = [
+  GOOD_ROLE_OBJECTIVE_COMPONENT,
+  GOOD_ROLE_UTILITY_COMPONENT,
+  EVIL_ROLE_OBJECTIVE_COMPONENT,
+  EVIL_ROLE_UTILITY_COMPONENT,
+  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+  MORGANA_ROLE_UTILITY_COMPONENT,
+  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  EVIL_QUEST_CARD_ROBUST_COMPONENT,
+].map((component) => `${component.id}@${component.version}`)
+
+function orderedRoleFeatureComponents(
+  contributed: readonly ComponentRef[],
+): readonly ComponentRef[] {
+  const byKey = new Map<string, ComponentRef>()
+  for (const ref of contributed) {
+    const key = `${ref.id}@${ref.version}`
+    const existing = byKey.get(key)
+    // Shared components (the good role objective is wanted by three features)
+    // arrive more than once and collapse to one request. Two features naming
+    // the same id with different tags would instead be a silent last-writer
+    // overwrite, so reject the conflict rather than pick one.
+    if (existing && !isDeepStrictEqual(existing, ref)) {
+      throw new Error(
+        `role features contributed conflicting variants of ${key}`,
+      )
+    }
+    if (!existing) byKey.set(key, ref)
+  }
+  const ordered: ComponentRef[] = []
+  for (const key of ROLE_FEATURE_COMPONENT_ORDER) {
+    const ref = byKey.get(key)
+    if (ref) {
+      ordered.push(ref)
+      byKey.delete(key)
+    }
+  }
+  if (byKey.size > 0) {
+    throw new Error(
+      `role feature requested an uncanonical component: ${
+        [...byKey.keys()].join(', ')
+      }`,
+    )
+  }
+  return ordered
+}
+
+/**
  * Opt-in Phase 3 hybrid. It owns strategic state independently of planner,
  * model, persona, and voice identity and never receives a raw Game.
  */
@@ -1302,41 +1390,105 @@ export function createComposedAgent(
   if (!planMemoryEnabled && options.coherenceIntent !== undefined) {
     throw new Error('coherenceIntent requires planMemory')
   }
+  // The one table that owns every role feature's construction-time fan-out.
+  // Its rows are ordered so the request-bearing rows emit compatibility.requests
+  // in the pinned key order; component order is governed separately by
+  // ROLE_FEATURE_COMPONENT_ORDER. The good/evil/morgana role-utility rows carry
+  // no request: they exist to contribute their components (through the chain
+  // walk) and to force the public observer (through the entry scorer's own
+  // requirement, which the chain walk can outrun).
+  const roleFeatures: readonly RoleFeatureSetup[] = [
+    {
+      request: ['publicObserver', publicObserverConfigured],
+      forcesPublicObserver: publicObserverConfigured,
+    },
+    {
+      request: [
+        'privateIdentity',
+        configuredIdentityScope
+          ? {
+              roleQueries: configuredIdentityScope.roleQueries.map((query) =>
+                typeof query === 'string'
+                  ? query
+                  : { roles: [...query.roles] }),
+              hiddenTeam: configuredIdentityScope.hiddenTeam,
+            }
+          : null,
+      ],
+      forcesPublicObserver: false,
+    },
+    {
+      request: ['roleObjectives', roleObjectivesConfigured],
+      forcesPublicObserver: roleObjectivesConfigured,
+      forcesGoodObjectiveAllKinds: roleObjectivesConfigured,
+      components: roleObjectivesConfigured
+        ? [GOOD_ROLE_OBJECTIVE_COMPONENT]
+        : [],
+    },
+    {
+      request: ['roleObjectiveRouter', roleObjectiveRouterConfigured],
+      forcesPublicObserver: roleObjectiveRouterConfigured,
+      forcesGoodObjectiveAllKinds: roleObjectiveRouterConfigured,
+      components: roleObjectiveRouterConfigured
+        ? [
+            GOOD_ROLE_OBJECTIVE_COMPONENT,
+            EVIL_ROLE_OBJECTIVE_COMPONENT,
+            ...(evilRoleUtilityConfigured
+              ? [EVIL_ROLE_UTILITY_COMPONENT]
+              : []),
+          ]
+        : [],
+    },
+    {
+      request: ['morganaCounterfeitObjectives', morganaCounterfeitConfigured],
+      forcesPublicObserver: morganaCounterfeitConfigured,
+      components: morganaCounterfeitConfigured
+        ? [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT]
+        : [],
+    },
+    {
+      request: ['evilQuestCardPolicy', evilQuestCardPolicyMode ?? null],
+      forcesPublicObserver: false,
+      components: configuredEvilQuestCardComponent
+        ? [configuredEvilQuestCardComponent]
+        : [],
+    },
+    {
+      forcesPublicObserver: scorer.roleUtilityRequirement !== undefined,
+      components: goodRoleUtilityConfigured
+        ? [GOOD_ROLE_OBJECTIVE_COMPONENT, GOOD_ROLE_UTILITY_COMPONENT]
+        : [],
+    },
+    {
+      // The evil role utility component is requested only alongside the router,
+      // so the router row owns it; this row exists for the observer disjunct.
+      forcesPublicObserver: scorer.evilRoleUtilityRequirement !== undefined,
+    },
+    {
+      forcesPublicObserver:
+        scorer.morganaRoleUtilityRequirement !== undefined,
+      components: morganaRoleUtilityConfigured
+        ? [
+            MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+            ...(configuredMorganaRoleUtilityComponent
+              ? [configuredMorganaRoleUtilityComponent]
+              : []),
+          ]
+        : [],
+    },
+  ]
   const componentRegistry = createProductionComponentRegistry(
     {
-      goodObjectiveAllDecisionKinds:
-        roleObjectivesConfigured || roleObjectiveRouterConfigured,
+      goodObjectiveAllDecisionKinds: roleFeatures.some(
+        (feature) => feature.forcesGoodObjectiveAllKinds,
+      ),
     },
   )
   const requestedComponents = [
     ...(options.decisionComponents ?? []),
-    ...(
-      roleObjectivesConfigured
-      || roleObjectiveRouterConfigured
-      || goodRoleUtilityConfigured
-        ? [GOOD_ROLE_OBJECTIVE_COMPONENT]
-        : []
+    ...orderedRoleFeatureComponents(
+      roleFeatures.flatMap((feature) => feature.components ?? []),
     ),
-    ...(goodRoleUtilityConfigured ? [GOOD_ROLE_UTILITY_COMPONENT] : []),
-    ...(roleObjectiveRouterConfigured
-      ? [EVIL_ROLE_OBJECTIVE_COMPONENT]
-      : []),
-    ...(
-      roleObjectiveRouterConfigured && evilRoleUtilityConfigured
-        ? [EVIL_ROLE_UTILITY_COMPONENT]
-        : []
-    ),
-    ...(
-      morganaCounterfeitConfigured || morganaRoleUtilityConfigured
-        ? [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT]
-        : []
-    ),
-    ...(configuredMorganaRoleUtilityComponent
-      ? [configuredMorganaRoleUtilityComponent]
-      : []),
-    ...(configuredEvilQuestCardComponent
-      ? [configuredEvilQuestCardComponent]
-      : []),
   ]
   const resolvedBrain = resolveComposedBrain({
     requestedComponents,
@@ -1391,31 +1543,14 @@ export function createComposedAgent(
     },
     languageEvidenceEnabled:
       configuredLanguageInterpreter !== undefined,
-    publicObserverConfigured:
-      publicObserverConfigured
-      || roleObjectivesConfigured
-      || roleObjectiveRouterConfigured
-      || morganaCounterfeitConfigured
-      || scorer.roleUtilityRequirement !== undefined
-      || scorer.evilRoleUtilityRequirement !== undefined
-      || scorer.morganaRoleUtilityRequirement !== undefined,
+    publicObserverConfigured: roleFeatures.some(
+      (feature) => feature.forcesPublicObserver,
+    ),
     compatibility: {
-      requests: {
-        publicObserver: publicObserverConfigured,
-        privateIdentity: configuredIdentityScope
-          ? {
-              roleQueries: configuredIdentityScope.roleQueries.map((query) =>
-                typeof query === 'string'
-                  ? query
-                  : { roles: [...query.roles] }),
-              hiddenTeam: configuredIdentityScope.hiddenTeam,
-            }
-          : null,
-        roleObjectives: roleObjectivesConfigured,
-        roleObjectiveRouter: roleObjectiveRouterConfigured,
-        morganaCounterfeitObjectives: morganaCounterfeitConfigured,
-        evilQuestCardPolicy: evilQuestCardPolicyMode ?? null,
-      },
+      requests: Object.fromEntries(
+        roleFeatures.flatMap((feature) =>
+          feature.request ? [feature.request] : []),
+      ),
     },
   }, componentRegistry, createConfiguredScoreLayerRegistry(),
   createConfiguredDecisionLayerRegistry())
