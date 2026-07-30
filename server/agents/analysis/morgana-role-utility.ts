@@ -5,7 +5,12 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { canonicalTeam, teamsEqual } from '../../engine/rules.ts'
+import {
+  canonicalTeam,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  teamsEqual,
+} from '../../engine/rules.ts'
 import {
   LEGAL_CANDIDATE_VERSION,
   type PolicyCandidate,
@@ -37,6 +42,7 @@ import {
   type PrivateMorganaCounterfeitObjective,
 } from './morgana-counterfeit-types.ts'
 import {
+  canonicalSeats,
   exactKeys,
   plainDataRecord as plainRecord,
 } from '../components/canonical-shape.ts'
@@ -47,6 +53,9 @@ import type {
   ExactKeyList,
   MissingKeys,
 } from '../key-lists.ts'
+import {
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 
 export const MORGANA_ROLE_UTILITY_PROJECTION_VERSION =
   'morgana-counterfeit-role-utility-v1'
@@ -282,7 +291,7 @@ function buildMorganaRoleUtilityProjectionInternal(
   const d2BandFloor =
     maxD2RoleValue - MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
   const band = survivors.filter(
-    ({ d2Utility }) => d2Utility.roleValue >= d2BandFloor - 1e-12,
+    ({ d2Utility }) => d2Utility.roleValue >= d2BandFloor - PROBABILITY_TOLERANCE,
   )
   const ranks = rankByCounterfeit(
     band.map(({ candidate, counterfeitAssessment }) => ({
@@ -303,7 +312,7 @@ function buildMorganaRoleUtilityProjectionInternal(
     && Math.abs(
       band[0].counterfeitAssessment.counterfeitValue
         - band[1].counterfeitAssessment.counterfeitValue,
-    ) <= MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand + 1e-12
+    ) <= MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
   const seedDomain = MORGANA_ROLE_SEEDED_SCORER_VERSION
   const seedBucket =
     selectionMode === 'seeded-near-equal-vote-within-d2-band'
@@ -339,7 +348,7 @@ function buildMorganaRoleUtilityProjectionInternal(
     const counterfeitAssessment = counterfeitById.get(candidate.id)!
     const inD2ViableBand =
       allowed.has(candidate.id)
-      && d2Utility.roleValue >= d2BandFloor - 1e-12
+      && d2Utility.roleValue >= d2BandFloor - PROBABILITY_TOLERANCE
     return {
       candidateId: candidate.id,
       kind: requestKind,
@@ -410,9 +419,14 @@ export function buildAdmittedMorganaRoleUtilityProjection(
 const safeInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value)
 
-const seatArray = (value: unknown): value is readonly Seat[] =>
-  Array.isArray(value)
-  && value.every((seat) => safeInteger(seat) && seat >= 0)
+/*
+ * The vote team is read through canonicalSeats, bounded by this projection's
+ * own declared table size. It replaced a private seatArray that asked only for
+ * a non-negative safe integer, so a projection could name seat 9999 at a
+ * five-handed table and still be admitted. The table size itself is bounded to
+ * the range the engine deals just below, since an unbounded playerCount would
+ * make the seat bound say nothing.
+ */
 
 /*
  * The projection list appends `seedBucket` and `forcedSelectedCandidateId`
@@ -504,6 +518,8 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     || typeof value.source.beliefModelVersion !== 'string'
     || !safeInteger(value.source.beliefThroughSeq)
     || !safeInteger(value.source.playerCount)
+    || value.source.playerCount < MIN_PLAYERS
+    || value.source.playerCount > MAX_PLAYERS
     || !plainRecord(value.request)
     || !exactKeys(value.request, [
       ...MORGANA_REQUEST_KEYS,
@@ -515,7 +531,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     || !safeInteger(value.request.proposalNum)
     || (
       value.request.kind === 'vote'
-      && !seatArray(value.request.currentTeam)
+      && !canonicalSeats(value.request.currentTeam, value.source.playerCount)
     )
     || ![
       'top-counterfeit-within-d2-band',
@@ -530,7 +546,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     || Math.abs(
       value.d2BandFloor
         - (value.maxD2RoleValue - value.d2ViableBand),
-    ) > 1e-12
+    ) > PROBABILITY_TOLERANCE
     || value.seedDomain !== MORGANA_ROLE_SEEDED_SCORER_VERSION
     || (
       value.seedBucket !== undefined
@@ -564,9 +580,10 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
       assessment,
     ]),
   )
-  const requestTeam = seatArray(value.request.currentTeam)
-    ? value.request.currentTeam
-    : undefined
+  const requestTeam =
+    canonicalSeats(value.request.currentTeam, value.source.playerCount)
+      ? value.request.currentTeam
+      : undefined
   if (
     counterfeitObjective.role !== 'morgana'
     || evilRoleUtility.role !== 'morgana'
@@ -626,7 +643,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
       || typeof candidate.inD2ViableBand !== 'boolean'
       || candidate.inD2ViableBand !== (
         candidate.forcedAllowed
-        && candidate.d2RoleValue >= d2BandFloor - 1e-12
+        && candidate.d2RoleValue >= d2BandFloor - PROBABILITY_TOLERANCE
       )
       || typeof candidate.counterfeitValue !== 'number'
       || !safeInteger(candidate.counterfeitRank)
@@ -662,7 +679,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
   )
   const bandRows = survivors.filter(
     (candidate) =>
-      candidate.d2RoleValue >= d2BandFloor - 1e-12,
+      candidate.d2RoleValue >= d2BandFloor - PROBABILITY_TOLERANCE,
   )
   const ranked = [...bandRows].sort(
     (left, right) =>
@@ -670,7 +687,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
       || compareCandidateIds(left.candidateId, right.candidateId),
   )
   if (
-    Math.abs(value.maxD2RoleValue - maxD2) > 1e-12
+    Math.abs(value.maxD2RoleValue - maxD2) > PROBABILITY_TOLERANCE
     || value.candidates.some((candidate) => {
       const rank = ranked.findIndex(
         (row) => row.candidateId === candidate.candidateId,
@@ -691,7 +708,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     )
     && Math.abs(
       bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
-    ) <= value.seededVoteCounterfeitBand + 1e-12
+    ) <= value.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
   if ((value.seedBucket !== undefined) !== seededEligible) return false
   const expectedSelected = value.forcedSelectedCandidateId
     ?? (

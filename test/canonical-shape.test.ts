@@ -40,9 +40,14 @@ import type { Role } from '../server/engine/types.ts'
 // @ts-expect-error The test supplies the narrow runtime contract below.
 import * as architectureModule from '../tools/architecture-fitness.mjs'
 
-const { SHARED_SHAPE_GUARD_NAMES } = architectureModule as {
-  SHARED_SHAPE_GUARD_NAMES: readonly string[]
-}
+const { SHARED_SHAPE_GUARD_NAMES, SHARED_SHAPE_GUARD_SYNONYMS } =
+  architectureModule as {
+    SHARED_SHAPE_GUARD_NAMES: readonly string[]
+    SHARED_SHAPE_GUARD_SYNONYMS: readonly {
+      readonly name: string
+      readonly guards: readonly string[]
+    }[]
+  }
 
 test('plainRecord admits only a plain-prototype own-data object', () => {
   assert.equal(plainRecord({ a: 1 }), true)
@@ -732,6 +737,33 @@ test('no canonicalRoles consumer carries its own copy of the role names', () => 
     consumers.length >= 4,
     `only found ${consumers.length} consumers: ${consumers.join(', ')}`,
   )
+})
+
+// ARCH016 has a second arm for the copy that renames the guard's word instead
+// of affixing it, which is how `seatArray` and `isRecord` survived every scan
+// above. That arm reads a hand-written synonym table, and a synonym pointing at
+// a guard that no longer exists would silently stop protecting anything, so the
+// table is pinned to the same derived export list the rule uses.
+test('every guard synonym points at a guard that still exists', () => {
+  assert.ok(SHARED_SHAPE_GUARD_SYNONYMS.length > 0, 'the table is empty')
+  const names = SHARED_SHAPE_GUARD_SYNONYMS.map((entry) => entry.name)
+  assert.equal(new Set(names).size, names.length, 'a repeated synonym')
+  for (const entry of SHARED_SHAPE_GUARD_SYNONYMS) {
+    assert.ok(entry.guards.length > 0, `${entry.name} names no guard`)
+    for (const guard of entry.guards) {
+      assert.ok(
+        GUARD_NAMES.includes(guard),
+        `${entry.name} points at ${guard}, which is not a shared guard`,
+      )
+    }
+    // A synonym that is also a guard name would be caught twice and reported
+    // twice, and the exact-name scan above already owns that case.
+    assert.equal(
+      GUARD_NAMES.includes(entry.name),
+      false,
+      `${entry.name} is a guard name, not a synonym for one`,
+    )
+  }
 })
 
 // Shadowing, the quieter sibling of re-declaration, is pinned by the ARCH013

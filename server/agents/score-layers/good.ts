@@ -58,6 +58,7 @@ import {
   type CandidateScorer,
 } from '../policy/score.ts'
 import { sequenceEqual } from '../components/canonical-shape.ts'
+import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
 import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
@@ -707,7 +708,7 @@ function calculateGoodPolicyRows(
     const selectedBySeed =
       bandActive && candidate.decision.vote === seededVote
     const selectionAdjustment = selectedBySeed
-      ? maxBase - row.score.value + 1e-9
+      ? maxBase - row.score.value + SEEDED_SELECTION_MARGIN
       : 0
     return Object.freeze({
       baseValue: row.baseValue,
@@ -879,7 +880,7 @@ function roleDefinition(
               && row.candidate.decision.kind === 'vote'
               && row.candidate.decision.vote === seededVote
             const selectionAdjustment = selectedBySeed
-              ? maxCombined - row.combinedValue + 1e-9
+              ? maxCombined - row.combinedValue + SEEDED_SELECTION_MARGIN
               : 0
             const viable = forcedAllowed && (
               forcedSelection

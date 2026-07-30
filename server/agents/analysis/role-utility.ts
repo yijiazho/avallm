@@ -27,6 +27,11 @@ import {
   plainDataRecord as plainRecord,
   probability,
 } from '../components/canonical-shape.ts'
+import {
+  clampProbability as clamp01,
+  ACCUMULATED_PROBABILITY_TOLERANCE,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
@@ -113,9 +118,6 @@ export interface PrivateRoleUtilityProjection {
   request: RoleUtilityRequest
   assessments: readonly RoleUtilityAssessment[]
 }
-
-const clamp01 = (value: number): number =>
-  Math.max(0, Math.min(1, value))
 
 const boundedInfluence = (value: unknown): value is number =>
   typeof value === 'number'
@@ -494,22 +496,22 @@ function roleUtilitySchema(detached: unknown): boolean {
         + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
       )
       if (
-        Math.abs(distributionTotal - 1) > 1e-9
+        Math.abs(distributionTotal - 1) > ACCUMULATED_PROBABILITY_TOLERANCE
         || Math.abs(distribution[0]
-          - (common.publicTeamCleanProbability as number)) > 1e-12
+          - (common.publicTeamCleanProbability as number)) > PROBABILITY_TOLERANCE
         || Math.abs(publicFailure
           - (common.publicTeamFailureCapabilityProbability as number))
-            > 1e-12
+            > PROBABILITY_TOLERANCE
         || Math.abs(publicInfluence
-          - (common.publicInfluenceValue as number)) > 1e-12
+          - (common.publicInfluenceValue as number)) > PROBABILITY_TOLERANCE
         || Math.abs(tell
-          - (common.directionalKnowledgeTellIndex as number)) > 1e-12
+          - (common.directionalKnowledgeTellIndex as number)) > PROBABILITY_TOLERANCE
         || Math.abs(ambiguity
-          - (common.publicDecisionAmbiguityIndex as number)) > 1e-12
+          - (common.publicDecisionAmbiguityIndex as number)) > PROBABILITY_TOLERANCE
         || Math.abs(exposure
-          - (common.correctedExposureProxyIndex as number)) > 1e-12
+          - (common.correctedExposureProxyIndex as number)) > PROBABILITY_TOLERANCE
         || Math.abs(expectedRoleValue
-          - (common.roleValue as number)) > 1e-12
+          - (common.roleValue as number)) > PROBABILITY_TOLERANCE
       ) return false
     } else if (
       !exactKeys(common, [
@@ -538,7 +540,7 @@ function roleUtilitySchema(detached: unknown): boolean {
           * (common.selfDecoyOpportunityProxyIndex as number),
       )
       if (
-        Math.abs(expectedRoleValue - (common.roleValue as number)) > 1e-12
+        Math.abs(expectedRoleValue - (common.roleValue as number)) > PROBABILITY_TOLERANCE
       ) return false
     }
   }

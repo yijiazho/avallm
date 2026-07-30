@@ -13,7 +13,6 @@ import {
   teamsEqual,
 } from '../../engine/rules.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
-import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import { assertDistribution } from '../belief/invariants.ts'
 import {
   visibleEventCursor,
@@ -57,12 +56,13 @@ import {
   plainDataRecord as plainRecord,
   probability,
 } from '../components/canonical-shape.ts'
-
-const clamp01 = (value: number): number =>
-  Math.max(0, Math.min(1, value))
-
-const close = (left: number, right: number): boolean =>
-  Math.abs(left - right) <= PROBABILITY_TOLERANCE
+import {
+  clampProbability as clamp01,
+  closeProbability as close,
+  latticeCount,
+  PROBABILITY_TOLERANCE,
+  stableProbabilitySum,
+} from '../components/probability-arithmetic.ts'
 
 function fraction(
   numerator: number,
@@ -308,11 +308,11 @@ function validateBeliefForMorgana(
         )
       },
     )
+    // Compensated, for the reason spelled out at the same check in
+    // analysis/mordred-blindness.ts.
     || Math.abs(
-      belief.worlds.reduce(
-        (sum, weighted) => sum + weighted.probability,
-        0,
-      ) - 1,
+      stableProbabilitySum(belief.worlds, (weighted) => weighted.probability)
+      - 1,
     ) > PROBABILITY_TOLERANCE
     || (
       belief.quality === 'constraints-only'
@@ -611,10 +611,10 @@ function validReadRow(
     && total.denominator <= 10
     && total.numerator === proposal.numerator + vote.numerator
     && total.denominator === proposal.denominator + vote.denominator
-    && close(
-      value.merlinProbability as number,
-      (value.merlinWorldNumerator as number) / feasibleWorldCount,
-    )
+    && latticeCount(
+      value.merlinProbability,
+      feasibleWorldCount,
+    ) === value.merlinWorldNumerator
     && close(
       value.smoothedTruthTrackingIndex as number,
       (total.numerator + 1) / (total.denominator + 2),
@@ -668,12 +668,13 @@ function publicCounterfeitReadSchema(value: unknown): boolean {
       0,
     ) !== denominator
   ) return false
+  // Also a count lattice: the index is one seat's Merlin-world count over the
+  // largest such count, so the exact integer is recoverable and a decimal slack
+  // would admit ratios no world set can produce.
   return typed.every(
     (row) =>
-      close(
-        row.relativeMerlinEligibilityIndex,
-        row.merlinWorldNumerator / maxNumerator,
-      ),
+      latticeCount(row.relativeMerlinEligibilityIndex, maxNumerator)
+        === row.merlinWorldNumerator,
   )
 }
 

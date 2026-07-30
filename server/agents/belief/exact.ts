@@ -28,6 +28,7 @@ import {
 } from './worlds.ts'
 import { projectUniformJointWorlds } from './projection.ts'
 import { assertDistribution } from './invariants.ts'
+import { clampProbability } from '../components/probability-arithmetic.ts'
 
 const DEAL_CACHE_LIMIT = 32
 const dealWorldCache = new Map<string, readonly HiddenWorld[]>()
@@ -98,14 +99,23 @@ function uniformWeights(worlds: readonly HiddenWorld[]): readonly WeightedWorld[
   return worlds.map((world) => ({ world, probability }))
 }
 
+/**
+ * True when every world carries the same weight, which selects the exact
+ * counting paths over the weighted-sum ones. An empty list reads as uniform;
+ * that is unreachable here, since every snapshot originates from
+ * beliefFromWeightedWorlds (which rejects empty input and always keeps at
+ * least one positive world) or from validateBelief in identity.ts (which
+ * rejects an empty world list at the host-input boundary).
+ */
+function weightsAreUniform(worlds: readonly WeightedWorld[]): boolean {
+  const first = worlds[0]?.probability
+  return worlds.every((weightedWorld) => weightedWorld.probability === first)
+}
+
 function playerMarginals(
   worlds: readonly WeightedWorld[],
   playerCount: number,
 ): readonly PlayerMarginal[] {
-  const uniform = worlds.every(
-    (weightedWorld) =>
-      weightedWorld.probability === worlds[0]?.probability,
-  )
   return Array.from({ length: playerCount }, (_, seat) => {
     let evilProbability = 0
     let evilWorlds = 0
@@ -115,10 +125,14 @@ function playerMarginals(
         evilProbability += weightedWorld.probability
       }
     }
-    if (uniform) evilProbability = evilWorlds / worlds.length
-    else if (evilWorlds === 0) evilProbability = 0
-    else if (evilWorlds === worlds.length) evilProbability = 1
-    else evilProbability = Math.max(0, Math.min(1, evilProbability))
+    // Snap certainty to exactly 1: summing normalized non-uniform weights lands
+    // a few ULPs short, and consumers read certainty by strict equality. The
+    // calibration bench (server/eval/quest-factor-bench.ts) drops degenerate
+    // rows with `evilProbability === 1`, and its uniform counterpart divides
+    // counts in projection.ts, so dropping this snap would leave the paired
+    // uniform/weighted variants silently filtering different row sets.
+    if (evilWorlds === worlds.length) evilProbability = 1
+    else evilProbability = clampProbability(evilProbability)
     return {
       seat,
       goodProbability: 1 - evilProbability,
@@ -132,10 +146,6 @@ function roleMarginals(
   rolesInPlay: readonly Role[],
   playerCount: number,
 ): readonly RoleMarginal[] {
-  const uniform = worlds.every(
-    (weightedWorld) =>
-      weightedWorld.probability === worlds[0]?.probability,
-  )
   const roles = [...new Set(canonicalRoleMultiset(rolesInPlay))]
   const out: RoleMarginal[] = []
   for (let seat = 0; seat < playerCount; seat++) {
@@ -148,10 +158,9 @@ function roleMarginals(
           probability += weightedWorld.probability
         }
       }
-      if (uniform) probability = matchingWorlds / worlds.length
-      else if (matchingWorlds === 0) probability = 0
-      else if (matchingWorlds === worlds.length) probability = 1
-      else probability = Math.max(0, Math.min(1, probability))
+      // Snap to exactly 1, for the reason spelled out in playerMarginals.
+      if (matchingWorlds === worlds.length) probability = 1
+      else probability = clampProbability(probability)
       out.push({ seat, role, probability })
     }
   }
@@ -233,11 +242,7 @@ export function beliefFromWeightedWorlds(
   if (!Number.isFinite(total) || total <= 0) {
     throw new Error('belief projection requires positive finite total weight')
   }
-  const inputUniform = input.every(
-    (weightedWorld) =>
-      weightedWorld.probability === input[0]?.probability,
-  )
-  if (options.quality === 'constraints-only' && !inputUniform) {
+  if (options.quality === 'constraints-only' && !weightsAreUniform(input)) {
     throw new Error('constraints-only belief projection requires uniform weights')
   }
   const worlds = input
@@ -248,11 +253,7 @@ export function beliefFromWeightedWorlds(
         ? 1 / input.length
         : weightedWorld.probability / total,
     }))
-  const uniform = worlds.every(
-    (weightedWorld) =>
-      weightedWorld.probability === worlds[0]?.probability,
-  )
-  const uniformProjection = uniform
+  const uniformProjection = weightsAreUniform(worlds)
     ? projectUniformJointWorlds(
         view.playerCount,
         view.rolesInPlay,
@@ -343,10 +344,7 @@ export function assessTeams(
 ): readonly TeamAssessment[] {
   if (!proposedTeams.length) return []
   const teams = proposedTeams.map((team) => validateTeam(snapshot, team))
-  const firstProbability = snapshot.worlds[0]?.probability
-  const uniform = snapshot.worlds.every(
-    (weightedWorld) => weightedWorld.probability === firstProbability,
-  )
+  const uniform = weightsAreUniform(snapshot.worlds)
   const maskWeights = new Map<number, number>()
   for (const weightedWorld of snapshot.worlds) {
     let evilMask = 0

@@ -11,6 +11,10 @@ import {
   type GoodVoteFeatures,
 } from './score.ts'
 import { compareCandidateIds } from './candidates.ts'
+import {
+  clampProbabilityOrZero as clampProbability,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 
 export const DECISION_PLAN_VERSION = 'decision-plan-v2'
 export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v2'
@@ -208,17 +212,12 @@ export function plannerOverrideReasonCodes(
   )
 }
 
-function clampProbability(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(1, value))
-}
-
 export function materialPosteriorUncertainty(
   uncertainty: PosteriorUncertainty | undefined,
 ): boolean {
   if (!uncertainty) return false
   return uncertainty.kind === 'selected-team-clean'
-    ? uncertainty.residualProbability > 1e-12
+    ? uncertainty.residualProbability > PROBABILITY_TOLERANCE
     : uncertainty.kind === 'current-versus-alternative-team-clean'
       ? uncertainty.utilityGap <= 0.04
       : uncertainty.compositeUtilityGap <= 0.04
@@ -235,7 +234,7 @@ export function voiceUncertainty(
       version: 'voice-uncertainty-v1',
       kind: uncertainty.kind,
       confidence:
-        uncertainty.residualProbability <= 1e-12 ? 'certain'
+        uncertainty.residualProbability <= PROBABILITY_TOLERANCE ? 'certain'
           : uncertainty.cleanProbability >= 0.75 ? 'high'
             : uncertainty.cleanProbability >= 0.5 ? 'moderate'
               : 'close',

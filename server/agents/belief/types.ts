@@ -19,8 +19,14 @@ import type {
  * collections and tied worlds use CANONICAL_ROLE_ORDER and the world key.
  */
 export const EXACT_BELIEF_MODEL_VERSION = 'exact-constraints-v1'
-export const PROBABILITY_TOLERANCE = 1e-12
 export const DEFAULT_TOP_WORLD_LIMIT = 10
+
+// PROBABILITY_TOLERANCE used to live here, which made the belief layer the
+// owner of a constant that analysis, policy, admission, and the score layers
+// all needed. It moved to components/probability-arithmetic.ts, beside the
+// shared shape guards, so the numeric contract has one home rather than a home
+// plus 83 raw literals. Deliberately not re-exported: a second spelling of the
+// import path is the first step back toward two definitions.
 
 /**
  * The serialization order for role-valued collections: ascending by role name.

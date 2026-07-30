@@ -865,7 +865,8 @@ server/agents/                        # about 41.9k lines in ten owners
     kernel.ts resolved-brain.ts registry.ts production-registry.ts
     native-score-components.ts native-role-components.ts
     robust-evil-quest-card.ts
-    canonical-json.ts architecture-metadata.ts types.ts
+    canonical-json.ts canonical-shape.ts probability-arithmetic.ts
+    architecture-metadata.ts types.ts
   admission/                          #  5.1k  trace canonicalization and host admission
     composed-trace.ts role-trace-v1.ts
     component-host-inputs.ts trace-primitives.ts

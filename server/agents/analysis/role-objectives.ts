@@ -12,13 +12,13 @@ import type {
 } from '../../engine/types.ts'
 import { DECISION_KINDS } from '../../engine/types.ts'
 import {
+  hiddenTeamEvilMarginals,
   JOINT_IDENTITY_MODEL_VERSION,
   type IdentityProjectionScope,
   type PrivateIdentitySnapshot,
   type RoleIdentityPosterior,
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
-import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import { canonicalRoleMultiset } from '../belief/worlds.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
@@ -53,6 +53,10 @@ import {
   probability,
 } from '../components/canonical-shape.ts'
 import {
+  clampProbability as clamp01,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
+import {
   exactHostJoin,
   projectionCodec,
 } from './projection-codec.ts'
@@ -62,8 +66,6 @@ const boundedIndex = (value: unknown): value is number =>
   && Number.isFinite(value)
   && value >= -1
   && value <= 1
-
-const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
 
 function roleCount(roles: readonly Role[], role: Role): number {
   return roles.filter((candidate) => candidate === role).length
@@ -398,18 +400,14 @@ export function buildRoleObjectiveSnapshot(input: {
       identity,
       view.rolesInPlay,
       identity.hiddenTeamPosterior
-        ? Array.from({ length: view.playerCount }, (_, seat) => {
-            const evilProbability = clamp01(
-              identity.hiddenTeamPosterior!.hypotheses.reduce(
-                (sum, hypothesis) =>
-                  sum + (hypothesis.evilSeats.includes(seat)
-                    ? hypothesis.probability
-                    : 0),
-                0,
-              ),
-            )
-            return { seat, goodProbability: 1 - evilProbability, evilProbability }
-          })
+        ? hiddenTeamEvilMarginals(
+            identity.hiddenTeamPosterior,
+            view.playerCount,
+          ).map((evilProbability, seat) => ({
+            seat,
+            goodProbability: 1 - evilProbability,
+            evilProbability,
+          }))
         : // The pair-only Percival scope has no alignment surface. Its cast and
           // source semantics were already validated by the identity projector.
           Array.from({ length: view.playerCount }, (_, seat) => ({

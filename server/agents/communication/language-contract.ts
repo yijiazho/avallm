@@ -6,7 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
-import { exactKeys } from '../components/canonical-shape.ts'
+import { exactKeys, plainRecord } from '../components/canonical-shape.ts'
 import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_EVIDENCE_CLASSES,
@@ -182,9 +182,20 @@ export function projectLanguageInterpreterInput(
   return input
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+/*
+ * Every record check in this module is plainRecord, not plainDataRecord.
+ *
+ * Nothing here runs downstream of the canonical JSON boundary, so nothing hands
+ * these validators a record built with Object.create(null): the interpreter
+ * input is projected from a PlayerView as object literals, the cursor comes
+ * from cognition state, and the evidence batch is whatever an untrusted
+ * interpreter returned. That last one is the reason to keep the prototype pin
+ * rather than relax it. Admitting a null prototype would only widen what an
+ * interpreter can smuggle past parseLanguageEvidence.
+ *
+ * This replaced a private isRecord that admitted a Proxy and any prototype at
+ * all, which is the drift the shared module's header describes.
+ */
 
 function finiteSeat(value: unknown, playerCount: number): value is Seat {
   return Number.isInteger(value)
@@ -243,7 +254,7 @@ function validUtterance(
   throughSeq: number,
 ): value is PublicAttributedUtterance {
   if (
-    !isRecord(value)
+    !plainRecord(value)
     || !exactOptionalKeys(
       value,
       ['sourceSeq', 'channel', 'speaker', 'text'],
@@ -251,7 +262,7 @@ function validUtterance(
     )
     || !safeInteger(value.sourceSeq, 0, throughSeq)
     || !isLanguageUtteranceChannel(value.channel)
-    || !isRecord(value.speaker)
+    || !plainRecord(value.speaker)
     || !exactKeys(value.speaker, ['seat', 'name'])
     || !finiteSeat(value.speaker.seat, playerCount)
     || typeof value.speaker.name !== 'string'
@@ -260,7 +271,7 @@ function validUtterance(
     return false
   }
   if (value.context === undefined) return true
-  return isRecord(value.context)
+  return plainRecord(value.context)
     && exactOptionalKeys(
       value.context,
       ['round', 'proposalNum', 'leader', 'team'],
@@ -284,7 +295,7 @@ function validPublicContext(
   value: unknown,
 ): value is LanguagePublicContext {
   if (
-    !isRecord(value)
+    !plainRecord(value)
     || !exactOptionalKeys(
       value,
       [
@@ -319,7 +330,7 @@ function validPublicContext(
     || !Array.isArray(value.players)
     || value.players.length !== playerCount
     || !value.players.every((player, index) =>
-      isRecord(player)
+      plainRecord(player)
       && exactKeys(player, ['seat', 'name'])
       && player.seat === index
       && typeof player.name === 'string')
@@ -330,7 +341,7 @@ function validPublicContext(
     || !Array.isArray(value.quests)
     || value.quests.length !== 5
     || !value.quests.every((quest, index) =>
-      isRecord(quest)
+      plainRecord(quest)
       && exactOptionalKeys(
         quest,
         ['num', 'teamSize', 'failsRequired'],
@@ -354,7 +365,7 @@ function validPublicContext(
       ))
     || !Array.isArray(value.proposals)
     || !value.proposals.every((proposal) =>
-      isRecord(proposal)
+      plainRecord(proposal)
       && exactOptionalKeys(
         proposal,
         ['round', 'proposalNum', 'leader', 'team'],
@@ -373,7 +384,7 @@ function validPublicContext(
         || (
           Array.isArray(proposal.votes)
           && proposal.votes.every((vote, index) =>
-            isRecord(vote)
+            plainRecord(vote)
             && exactKeys(vote, ['seat', 'vote'])
             && vote.seat === index
             && (vote.vote === 'approve' || vote.vote === 'reject'))
@@ -405,7 +416,7 @@ function validPublicContext(
     && (
       value.outcome === undefined
       || (
-        isRecord(value.outcome)
+        plainRecord(value.outcome)
         && exactKeys(value.outcome, ['winner', 'reason'])
         && (value.outcome.winner === 'good' || value.outcome.winner === 'evil')
         && typeof value.outcome.reason === 'string'
@@ -417,7 +428,7 @@ export function validateLanguageInterpreterInput(
   value: unknown,
 ): asserts value is LanguageInterpreterInput {
   if (
-    !isRecord(value)
+    !plainRecord(value)
     || !exactKeys(value, [
       'schemaVersion',
       'dataClassification',
@@ -471,7 +482,7 @@ function parseLanguageEvidence(
   input: LanguageInterpreterInput,
   interpreterVersion: string,
 ): LanguageEvidence {
-  if (!isRecord(value) || !exactKeys(value, [
+  if (!plainRecord(value) || !exactKeys(value, [
     'schemaVersion',
     'sourceSeq',
     'subject',
@@ -520,7 +531,7 @@ function parseLanguageEvidence(
 export function validateLanguageEvidenceCursor(
   value: unknown,
 ): asserts value is LanguageEvidenceCursor {
-  if (!isRecord(value) || !exactKeys(value, [
+  if (!plainRecord(value) || !exactKeys(value, [
     'schemaVersion',
     'throughSeq',
     'countedSourceSeqs',

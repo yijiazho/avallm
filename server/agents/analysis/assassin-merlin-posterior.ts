@@ -6,7 +6,6 @@ import type {
 } from '../../engine/types.ts'
 import { ROLE_ALIGNMENT, evilPartnersOf } from '../../engine/rules.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
-import { stableProbabilitySum } from '../belief/identity.ts'
 import { assertDistribution } from '../belief/invariants.ts'
 import type {
   BeliefSnapshot,
@@ -26,8 +25,10 @@ import {
   type PrivateAssassinMerlinPosterior,
 } from './assassin-merlin-posterior-types.ts'
 import { probability } from '../components/canonical-shape.ts'
-
-const close = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-12
+import {
+  closeProbability as close,
+  stableProbabilitySum,
+} from '../components/probability-arithmetic.ts'
 
 function resolvedActions(view: PlayerView) {
   return [...view.proposals]

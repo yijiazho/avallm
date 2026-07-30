@@ -27,6 +27,86 @@ export const QUEST_WEIGHTED_BELIEF_VERSION =
   'exact-constraints+quest-card-v1'
 export const QUEST_FACTOR_LOG_LIKELIHOOD_CAP = Math.log(2)
 
+/**
+ * The model itself: every probability this factor prices, in one place.
+ *
+ * These are **analytical conventions, not measured frequencies**. Nothing in
+ * `docs/` reports a fit to human or model play; the migration record calls them
+ * "hand-authored likelihoods" and notes that the held-out calibration win was a
+ * sensitivity check rather than evidence that the numbers describe anybody's
+ * actual behavior. Read each entry as "how a conservative observer prices this
+ * situation", not as an estimate.
+ *
+ * Every entry is a per-evil-player probability of placing a Fail on one quest,
+ * except the two mixture knobs at the bottom. Keys name the situation being
+ * priced: an evil role, how many Fails the quest needs, whether the board is
+ * decisive (either side one quest from winning), the opening quest versus any
+ * later one, and whether two or more non-Oberon evils are aboard and can
+ * therefore coordinate.
+ *
+ * Safety rail: the whole factor's contribution to any world is clamped by
+ * `QUEST_FACTOR_LOG_LIKELIHOOD_CAP`, so no combination of these numbers can
+ * overwhelm hard feasibility or the Fail-count facts. They redistribute
+ * probability inside the feasible set and nothing more.
+ *
+ * Changing any value changes belief output for every seat that runs this
+ * factor, so treat an edit as a new model: bump `QUEST_CARD_FACTOR_VERSION`
+ * (and the derived bundle/belief versions) in the same change. The pinning
+ * assertion in `test/quest-factor.test.ts` is what makes a silent retune fail
+ * the suite.
+ */
+export const QUEST_CARD_MODEL_PARAMETERS = Object.freeze({
+  /**
+   * Oberon has no partners to read and no one reading him, so he plays his own
+   * card on his own account whatever the rest of the table is doing.
+   */
+  oberonAboard: Object.freeze({
+    decisiveBoard: 0.95,
+    openBoard: 0.85,
+  }),
+  /**
+   * Quests needing two Fails. Without two coordinating non-Oberon evils a Fail
+   * is close to wasted, so it is rare; with coordination it is the whole point
+   * of being aboard.
+   */
+  twoFailsRequired: Object.freeze({
+    uncoordinated: 0.08,
+    coordinatedDecisiveBoard: 0.9,
+    coordinatedOpenBoard: 0.72,
+  }),
+  /**
+   * One evil aboard a one-Fail quest. Nobody can cover for a slow play, so the
+   * only restraint is wanting to stay unread, and a decisive board removes even
+   * that. Quest 1 is the cheapest place to buy cover.
+   */
+  loneEvilAboard: Object.freeze({
+    decisiveBoard: 0.88,
+    firstQuest: 0.35,
+    laterQuest: 0.65,
+  }),
+  /**
+   * Several evils aboard a one-Fail quest. Each individual is likelier to hold
+   * back, since a partner can carry the Fail and a double Fail burns the team's
+   * cover for nothing.
+   */
+  multipleEvilAboard: Object.freeze({
+    decisiveBoard: 0.62,
+    firstQuest: 0.25,
+    laterQuest: 0.5,
+  }),
+  /**
+   * Reweighting applied to the "exactly one Fail" outcome when known partners
+   * are aboard a one-Fail quest, before renormalization. Independent Bernoulli
+   * draws understate how often coordinated evils place exactly one card.
+   */
+  coordinatedSingleFailBoost: 1.5,
+  /**
+   * Uniform mixture folded into the final distribution so no legal public card
+   * pattern is ever assigned probability zero by a convention.
+   */
+  uniformMixtureWeight: 0.05,
+})
+
 export interface QuestCardEvidence {
   evidenceId: string
   sourceSeq: number
@@ -105,19 +185,45 @@ function failProbability(
   coordinatedNonOberon: boolean,
   evidence: QuestCardEvidence,
 ): number {
+  const parameters = QUEST_CARD_MODEL_PARAMETERS
   const decisive =
     evidence.scoreBefore.good === 2 || evidence.scoreBefore.evil === 2
-  if (role === 'oberon') return decisive ? 0.95 : 0.85
+  if (role === 'oberon') {
+    return decisive
+      ? parameters.oberonAboard.decisiveBoard
+      : parameters.oberonAboard.openBoard
+  }
   if (evidence.failsRequired === 2) {
-    if (!coordinatedNonOberon) return 0.08
-    return decisive ? 0.9 : 0.72
+    if (!coordinatedNonOberon) return parameters.twoFailsRequired.uncoordinated
+    return decisive
+      ? parameters.twoFailsRequired.coordinatedDecisiveBoard
+      : parameters.twoFailsRequired.coordinatedOpenBoard
   }
+  // Deliberate: `evilCount` counts every evil seat aboard, Oberon included, so
+  // a lone Morgana beside an unseen Oberon is priced on the multi-evil branch
+  // even though the two cannot coordinate. The two axes are separate on
+  // purpose (see docs/agent-architecture-migration.md, Phase 5B record, which
+  // lists "evil count aboard" and "non-Oberon coordination" as distinct
+  // contextual inputs): coordination decides whether partners can divide the
+  // work, while the raw count decides how much Fail pressure the quest is
+  // already under. A second evil aboard raises the chance the quest fails
+  // without this seat's card whether or not this seat knows about it, and the
+  // observer doing the pricing does not know which world it is in either. If
+  // that argument ever stops convincing, the branch to reach for is
+  // `nonOberonCount === 1` rather than `evilCount === 1`, and the evidence that
+  // would settle it is a paired held-out calibration run over Oberon casts
+  // (7 and 10 player) with `server/eval/quest-factor-bench.ts`: swap the branch,
+  // rerun both arms, and keep the variant with the better Brier and log loss.
   if (evilCount === 1) {
-    if (decisive) return 0.88
-    return evidence.questNum === 1 ? 0.35 : 0.65
+    if (decisive) return parameters.loneEvilAboard.decisiveBoard
+    return evidence.questNum === 1
+      ? parameters.loneEvilAboard.firstQuest
+      : parameters.loneEvilAboard.laterQuest
   }
-  if (decisive) return 0.62
-  return evidence.questNum === 1 ? 0.25 : 0.5
+  if (decisive) return parameters.multipleEvilAboard.decisiveBoard
+  return evidence.questNum === 1
+    ? parameters.multipleEvilAboard.firstQuest
+    : parameters.multipleEvilAboard.laterQuest
 }
 
 /**
@@ -145,10 +251,10 @@ export function questFailCountDistribution(
   const raw = convolveBernoulli(probabilities)
   if (evidence.failsRequired === 1 && coordinatedNonOberon && raw.length > 1) {
     // Known partners commonly try to place one Fail rather than doubling.
-    raw[1] *= 1.5
+    raw[1] *= QUEST_CARD_MODEL_PARAMETERS.coordinatedSingleFailBoost
   }
   const total = raw.reduce((sum, probability) => sum + probability, 0)
-  const smoothing = 0.05
+  const smoothing = QUEST_CARD_MODEL_PARAMETERS.uniformMixtureWeight
   return raw.map(
     (probability) =>
       (1 - smoothing) * probability / total
@@ -211,6 +317,49 @@ function weightedSnapshot(
   })
 }
 
+/**
+ * Stable code every consumer matches on. `docs/design-implementation.md` names
+ * it, and admission and eval paths look for exactly this token, so it stays the
+ * first entry of `degradation` no matter what else is appended.
+ */
+export const QUEST_CARD_FACTOR_DEGRADATION = 'quest-card-factor-failed'
+
+/** Prefix of the optional second entry carrying the failure detail. */
+export const QUEST_CARD_FACTOR_DETAIL_PREFIX = 'quest-card-factor-detail:'
+
+/** Cap on the whole detail entry, prefix included. */
+export const QUEST_CARD_FACTOR_DETAIL_MAX_LENGTH = 160
+
+/**
+ * Bounded, house-style diagnosis of a factor failure.
+ *
+ * Without this, an unsupported Fail count, a normalization error, and an
+ * outright programming bug all collapse into one opaque token and a real
+ * regression hides as a quiet belief-quality drop.
+ *
+ * The message is treated as untrusted: it is flattened to single-line printable
+ * ASCII, dashes are normalized to a hyphen so the text cannot smuggle an
+ * em-dash or en-dash into any surface that renders it, and the result is length
+ * capped so no stack trace can ride along. It carries only the error class and
+ * message, never a world, a role, or a seat, so it cannot leak private state.
+ */
+function factorFailureDetail(error: unknown): string {
+  const described = error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : `non-error thrown: ${typeof error}`
+  const cleaned = described
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[^\x20-\x7e]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const budget =
+    QUEST_CARD_FACTOR_DETAIL_MAX_LENGTH - QUEST_CARD_FACTOR_DETAIL_PREFIX.length
+  const bounded = cleaned.length > budget
+    ? `${cleaned.slice(0, budget - 3)}...`
+    : cleaned
+  return `${QUEST_CARD_FACTOR_DETAIL_PREFIX}${bounded || 'no message'}`
+}
+
 export function createQuestWeightedBeliefModel(
   factor: QuestCardLikelihoodFactor = analyticalQuestCardFactor,
 ): BeliefModel {
@@ -220,13 +369,16 @@ export function createQuestWeightedBeliefModel(
     infer(view: PlayerView): BeliefSnapshot {
       try {
         return weightedSnapshot(view, factor)
-      } catch {
+      } catch (error) {
         const fallback = exactBelief(view)
         const degraded: BeliefSnapshot = {
           ...fallback,
           modelVersion: QUEST_WEIGHTED_BELIEF_VERSION,
           quality: 'degraded',
-          degradation: ['quest-card-factor-failed'],
+          degradation: [
+            QUEST_CARD_FACTOR_DEGRADATION,
+            factorFailureDetail(error),
+          ],
         }
         return degraded
       }

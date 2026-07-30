@@ -331,3 +331,113 @@ test('authentic canonical candidates are reusable, detached, and deeply frozen',
   assert.equal(Object.isFrozen(first.trace.components?.entries), true)
   assert.equal(Object.isFrozen(first.trace.components?.entries[0]), true)
 })
+
+// A seat is only meaningful against a table, and admission used to check the
+// integers without the table: the private seat guard here asked for "integer
+// and non-negative" and nothing else, so `team: [0, 9999]` was an admitted
+// trace at a five-handed fixture. The seat lists now run through the shared
+// canonicalSeats, bounded by the host's own rolesInPlay.
+test('an out-of-table seat is refused everywhere a trace names seats', () => {
+  const fixture = readDecisionFixtures().find(
+    (entry) => entry.id === 'servant-vote-after-evidence',
+  )!
+  assert.equal(fixture.view.playerCount, 5)
+  const external = minimalExternalTrace(fixture)
+  // rolesInPlay is the field both host-view arms carry, and its length is the
+  // table. The partial arm is used here because a full PlayerView also drags
+  // in the v1 role dependency host join, which this deliberately bare trace
+  // cannot satisfy either way.
+  const partialHostView = { rolesInPlay: fixture.view.rolesInPlay }
+  const assessment = (team: readonly number[]) => ({
+    candidateId: `legal-candidates-v2:propose:${team.join(',')}`,
+    beliefModelVersion: external.trace.beliefModelVersion,
+    beliefThroughSeq: external.trace.beliefThroughSeq,
+    probabilitySemantics: 'uniform-feasible-joint' as const,
+    team: [...team],
+    cleanProbability: 1,
+    evilCountDistribution: [1, ...team.map(() => 0)],
+    knownFailsAboard: [] as number[],
+  })
+  const relevantTeam = (team: readonly number[]) => ({
+    team: [...team],
+    cleanProbability: 1,
+    evilCountDistribution: [1, ...team.map(() => 0)],
+    knownFailsAboard: [] as number[],
+  })
+  const hypothesis = (evilSeats: readonly number[]) => ({
+    worldKey: evilSeats.join('.'),
+    probability: 1,
+    evilSeats: [...evilSeats],
+  })
+  const carriers = [
+    {
+      label: 'beliefTeamAssessments',
+      legal: { beliefTeamAssessments: [assessment([0, 1])] },
+      hostile: { beliefTeamAssessments: [assessment([0, 9999])] },
+    },
+    {
+      label: 'relevantTeam',
+      legal: { relevantTeam: relevantTeam([0, 1]) },
+      hostile: { relevantTeam: relevantTeam([0, 9999]) },
+    },
+    {
+      label: 'topHypotheses',
+      legal: { topHypotheses: [hypothesis([0, 1])] },
+      hostile: { topHypotheses: [hypothesis([0, 9999])] },
+    },
+  ]
+  for (const carrier of carriers) {
+    assert.equal(
+      resultKind(admitDecisionTrace({
+        kind: 'pre-apply-external',
+        req: fixture.req,
+        decision: external.decision,
+        trace: { ...external.trace, ...carrier.legal },
+        hostView: partialHostView,
+      })),
+      'pre-apply-external:external',
+      `${carrier.label} in range`,
+    )
+    assert.equal(
+      resultKind(admitDecisionTrace({
+        kind: 'pre-apply-external',
+        req: fixture.req,
+        decision: external.decision,
+        trace: { ...external.trace, ...carrier.hostile },
+        hostView: partialHostView,
+      })),
+      'pre-apply-external:external-detached-invalid',
+      `${carrier.label} out of table`,
+    )
+  }
+
+  // The documented remaining gap, pinned so it cannot widen quietly. A trace
+  // declares no table size of its own, so a caller that supplies no host view
+  // at all leaves admission with nothing trustworthy to bound against. The
+  // canonical shape still holds: descending, repeated, sparse, and fractional
+  // seats are refused here exactly as they are above.
+  assert.equal(
+    resultKind(admitDecisionTrace({
+      kind: 'pre-apply-external',
+      req: fixture.req,
+      decision: external.decision,
+      trace: {
+        ...external.trace,
+        beliefTeamAssessments: [assessment([0, 9999])],
+      },
+    })),
+    'pre-apply-external:external',
+  )
+  for (const team of [[1, 0], [1, 1], [0, 0.5]]) {
+    assert.equal(
+      resultKind(admitDecisionTrace({
+        kind: 'pre-apply-external',
+        req: fixture.req,
+        decision: external.decision,
+        trace: { ...external.trace, beliefTeamAssessments: [assessment(team)] },
+      })),
+      'pre-apply-external:external-detached-invalid',
+      `unbounded still canonical: ${team.join(',')}`,
+    )
+  }
+})

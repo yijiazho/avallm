@@ -7,7 +7,6 @@ import { isRole } from '../../engine/types.ts'
 import type { Role, Seat } from '../../engine/types.ts'
 import {
   CANONICAL_ROLE_ORDER,
-  PROBABILITY_TOLERANCE,
   type BeliefSnapshot,
   type PlayerMarginal,
 } from './types.ts'
@@ -19,50 +18,23 @@ import {
   onlyAllowedKeys,
   probability,
 } from '../components/canonical-shape.ts'
+import {
+  addProbability,
+  clampProbability,
+  PROBABILITY_TOLERANCE,
+  stableProbabilitySum,
+  type CompensatedProbability,
+} from '../components/probability-arithmetic.ts'
 
+// The compensated summation used below was written here, because this is where
+// the strict normalization check first met a 58,080-world support and lost. It
+// moved to components/probability-arithmetic.ts for the same reason
+// PROBABILITY_TOLERANCE did: analysis already imported it from this module, so
+// the belief layer owned a numeric kernel that four layers need, and ARCH017
+// scans that module's exports for private copies. Deliberately not re-exported.
 export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
 export const MAX_IDENTITY_ROLE_QUERIES = 16
 export const MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR = 4_096
-
-/**
- * Neumaier compensated summation for bounded probability support.
- *
- * Exact uniform beliefs can contain tens of thousands of worlds. Naive
- * left-to-right addition can accumulate more error than the strict
- * normalization tolerance even when every entry is exactly the same 1/N
- * value. Compensation preserves the caller's probabilities without rounding,
- * renormalizing, or widening the validation tolerance.
- */
-interface CompensatedProbability {
-  sum: number
-  compensation: number
-}
-
-function addProbability(
-  accumulator: CompensatedProbability,
-  addend: number,
-): void {
-  const next = accumulator.sum + addend
-  accumulator.compensation +=
-    Math.abs(accumulator.sum) >= Math.abs(addend)
-      ? (accumulator.sum - next) + addend
-      : (addend - next) + accumulator.sum
-  accumulator.sum = next
-}
-
-export function stableProbabilitySum<T>(
-  values: Iterable<T>,
-  probabilityOf: (value: T) => number,
-): number {
-  const accumulator: CompensatedProbability = {
-    sum: 0,
-    compensation: 0,
-  }
-  for (const value of values) {
-    addProbability(accumulator, probabilityOf(value))
-  }
-  return accumulator.sum + accumulator.compensation
-}
 
 export interface RoleIdentityQuery {
   /** A multiset. Repeated roles request the seats holding every queried copy. */
@@ -98,6 +70,46 @@ export interface HiddenTeamHypothesis {
 
 export interface HiddenTeamPosterior {
   hypotheses: readonly HiddenTeamHypothesis[]
+}
+
+/**
+ * Per-seat evil probability implied by a hidden-team posterior.
+ *
+ * Four modules had written this loop out by hand: twice here, once in
+ * `analysis/evil-objectives.ts` and once in `analysis/role-objectives.ts`. Two
+ * of those four are the two sides of one comparison. The analysis modules
+ * rebuild the marginals and hand them to validatePrivateIdentityHostJoin, which
+ * rebuilds them again from the same posterior and checks the two agree to
+ * PROBABILITY_TOLERANCE. They agreed to the last bit, but only because both
+ * spellings happened to visit the hypotheses in the same order and adding a
+ * literal zero for a non-member seat is exact. Either side reordering its loop,
+ * or one side alone switching to a compensated sum, would have opened a gap
+ * that the tolerance would have absorbed silently. One function removes the
+ * coincidence: the two sides are now the same arithmetic by construction.
+ *
+ * Compensated because it is free here. Every consumer moves together, so the
+ * choice cannot put two call sites into disagreement, and the result is exact
+ * against a counted reference rather than the 6.7e-16 the naive form carried.
+ */
+export function hiddenTeamEvilMarginals(
+  posterior: HiddenTeamPosterior,
+  playerCount: number,
+): readonly number[] {
+  const accumulators = Array.from(
+    { length: playerCount },
+    (): CompensatedProbability => ({ sum: 0, compensation: 0 }),
+  )
+  for (const hypothesis of posterior.hypotheses) {
+    for (const seat of hypothesis.evilSeats) {
+      if (seat >= 0 && seat < playerCount) {
+        addProbability(accumulators[seat], hypothesis.probability)
+      }
+    }
+  }
+  return accumulators.map(
+    (accumulator) =>
+      clampProbability(accumulator.sum + accumulator.compensation),
+  )
 }
 
 export interface PrivateIdentitySnapshot {
@@ -309,10 +321,8 @@ function projectRolePosterior(
   query: ReturnType<typeof canonicalQuery>,
   total: number,
 ): RoleIdentityPosterior {
-  const grouped = new Map<string, {
+  const grouped = new Map<string, CompensatedProbability & {
     assignments: readonly CanonicalRoleAssignment[]
-    sum: number
-    compensation: number
   }>()
   for (const weighted of snapshot.worlds) {
     const assignments = assignmentFor(weighted.world.roleBySeat, query.counts)
@@ -353,10 +363,8 @@ function projectHiddenTeam(
   snapshot: BeliefSnapshot,
   total: number,
 ): HiddenTeamPosterior {
-  const grouped = new Map<string, {
+  const grouped = new Map<string, CompensatedProbability & {
     evilSeats: readonly Seat[]
-    sum: number
-    compensation: number
   }>()
   for (const weighted of snapshot.worlds) {
     const evilSeats = weighted.world.alignmentBySeat
@@ -494,15 +502,10 @@ function reconcilesRoleAndTeamPosteriors(
   playerCount: number,
 ): boolean {
   if (snapshot.hiddenTeamPosterior === undefined) return true
-  const hidden = snapshot.hiddenTeamPosterior as {
-    hypotheses: readonly { evilSeats: readonly Seat[]; probability: number }[]
-  }
-  const evilBySeat = Array<number>(playerCount).fill(0)
-  for (const hypothesis of hidden.hypotheses) {
-    for (const seat of hypothesis.evilSeats) {
-      evilBySeat[seat] += hypothesis.probability
-    }
-  }
+  const evilBySeat = hiddenTeamEvilMarginals(
+    snapshot.hiddenTeamPosterior as HiddenTeamPosterior,
+    playerCount,
+  )
 
   const marginalsByRole = new Map<Role, readonly number[]>()
   for (const posterior of snapshot.rolePosteriors as RoleIdentityPosterior[]) {
@@ -779,12 +782,10 @@ export function validatePrivateIdentityHostJoin(
   ) return false
 
   if (!value.hiddenTeamPosterior) return true
-  const evilBySeat = Array<number>(playerCount).fill(0)
-  for (const hypothesis of value.hiddenTeamPosterior.hypotheses) {
-    for (const seat of hypothesis.evilSeats) {
-      evilBySeat[seat] += hypothesis.probability
-    }
-  }
+  const evilBySeat = hiddenTeamEvilMarginals(
+    value.hiddenTeamPosterior,
+    playerCount,
+  )
   return marginals.every(
     (marginal, seat) =>
       Math.abs(marginal.evilProbability - evilBySeat[seat])

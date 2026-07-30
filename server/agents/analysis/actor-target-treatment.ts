@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Seat } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/rules.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
-import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import {
   observePublicRecord,
 } from './observer.ts'
@@ -27,9 +26,9 @@ import {
   plainRecord,
   probability,
 } from '../components/canonical-shape.ts'
-
-const close = (left: number, right: number): boolean =>
-  Math.abs(left - right) <= PROBABILITY_TOLERANCE
+import {
+  closeProbability as close,
+} from '../components/probability-arithmetic.ts'
 
 function fraction(
   numerator: number,

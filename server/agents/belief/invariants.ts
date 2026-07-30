@@ -17,7 +17,7 @@
 // the heuristic (it never stalls the game), exactly as it already does for the
 // structurally identical throws in identity.ts.
 
-import { PROBABILITY_TOLERANCE } from './types.ts'
+import { PROBABILITY_TOLERANCE } from '../components/probability-arithmetic.ts'
 
 /** A belief distribution violated its own numeric contract. */
 export class BeliefInvariantError extends Error {}

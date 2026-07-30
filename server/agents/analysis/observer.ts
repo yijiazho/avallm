@@ -27,6 +27,10 @@ import {
   onlyAllowedKeys,
   probability,
 } from '../components/canonical-shape.ts'
+import {
+  latticeCount,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 
 const PUBLIC_OBSERVER_CACHE_LIMIT = 16
 const exactProjectionCache = new Map<string, {
@@ -243,32 +247,16 @@ export function observePublicRecord(
   }
 }
 
-// Validate in count space, where an exact uniform marginal is an integer number
-// of feasible worlds divided by feasibleWorldCount. Sixteen denominator-scaled
-// machine epsilons admit ordinary division round trips while keeping one-world
-// snapshots effectively exact instead of granting them a fixed decimal slack.
-const PUBLIC_OBSERVER_COUNT_ULP_MULTIPLIER = 16
-const PUBLIC_OBSERVER_PROBABILITY_TOLERANCE = 1e-12
+// The count-space argument this module used to make privately now lives with
+// latticeCount in components/probability-arithmetic.ts, where the other sites
+// checking a uniform marginal against an integer world count can reach it. The
+// tolerance beside it was a second spelling of PROBABILITY_TOLERANCE and is
+// gone with it.
 
 function factorial(value: number): number {
   let result = 1
   for (let factor = 2; factor <= value; factor++) result *= factor
   return result
-}
-
-function latticeCount(
-  value: unknown,
-  feasibleWorldCount: number,
-): number | undefined {
-  if (!probability(value)) return undefined
-  const scaled = value * feasibleWorldCount
-  const nearest = Math.round(scaled)
-  const tolerance = PUBLIC_OBSERVER_COUNT_ULP_MULTIPLIER
-    * Number.EPSILON
-    * feasibleWorldCount
-  return Math.abs(scaled - nearest) <= tolerance
-    ? nearest
-    : undefined
 }
 
 /** Strict JSON boundary used by external and persisted-artifact readers. */
@@ -301,7 +289,7 @@ export function validatePublicObserverSnapshot(
     || Math.abs(
       snapshot.entropy
       - Math.log2(snapshot.feasibleWorldCount as number),
-    ) > 1e-12
+    ) > PROBABILITY_TOLERANCE
     || !Array.isArray(snapshot.seats)
     || snapshot.seats.length !== snapshot.playerCount
   ) {
@@ -353,7 +341,7 @@ export function validatePublicObserverSnapshot(
       || evilCount === undefined
       || Math.abs(
         goodProbability + evilProbability - 1,
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || !Array.isArray(roles)
       || !behavior
       || typeof behavior !== 'object'
@@ -383,9 +371,6 @@ export function validatePublicObserverSnapshot(
     let seatWorldOccurrences = 0
     let seatGoodWorldOccurrences = 0
     let seatEvilWorldOccurrences = 0
-    let seatProbabilityTotal = 0
-    let seatGoodProbability = 0
-    let seatEvilProbability = 0
     let previousRoleRank = -1
     for (let roleIndex = 0; roleIndex < roles.length; roleIndex++) {
       const roleValue = roles[roleIndex]
@@ -412,16 +397,22 @@ export function validatePublicObserverSnapshot(
         (roleWorldOccurrences.get(role) ?? 0) + count
       if (!Number.isSafeInteger(aggregateRoleOccurrences)) return false
       roleWorldOccurrences.set(role, aggregateRoleOccurrences)
-      const roleProbability = marginal.probability as number
-      seatProbabilityTotal += roleProbability
       if (ROLE_ALIGNMENT[role] === 'good') {
         seatGoodWorldOccurrences += count
-        seatGoodProbability += roleProbability
       } else {
         seatEvilWorldOccurrences += count
-        seatEvilProbability += roleProbability
       }
     }
+    // Integer equalities only. This seat's role marginals, its goodProbability
+    // and its evilProbability all came back from latticeCount, so each is
+    // within COUNT_LATTICE_ULP_MULTIPLIER machine epsilons of its k/N, and
+    // there are at most CANONICAL_ROLE_ORDER.length of them. The three float
+    // sums that used to stand here (roles total 1, good roles total
+    // goodProbability, evil roles total evilProbability) are therefore implied
+    // by the three integer equalities below with more than an order of
+    // magnitude to spare, at any world count. They could reject nothing these
+    // cannot, so they are gone rather than compensated;
+    // test/probability-arithmetic.test.ts pins the bound that makes that true.
     if (
       !Number.isSafeInteger(seatWorldOccurrences)
       || !Number.isSafeInteger(seatGoodWorldOccurrences)
@@ -429,14 +420,6 @@ export function validatePublicObserverSnapshot(
       || seatWorldOccurrences !== feasibleWorldCount
       || seatGoodWorldOccurrences !== goodCount
       || seatEvilWorldOccurrences !== evilCount
-      || Math.abs(seatProbabilityTotal - 1)
-        > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
-      || Math.abs(
-        seatGoodProbability - (assessment.goodProbability as number),
-      ) > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
-      || Math.abs(
-        seatEvilProbability - (assessment.evilProbability as number),
-      ) > PUBLIC_OBSERVER_PROBABILITY_TOLERANCE
     ) return false
     if (sharedRoles === undefined) {
       sharedRoles = seatRoles

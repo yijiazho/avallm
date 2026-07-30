@@ -10,7 +10,6 @@ import {
 } from 'node:util/types'
 import {
   hasDistinctSeats,
-  isCanonicalTeam,
   MAX_PROPOSALS,
   QUESTS_TO_WIN,
 } from '../../engine/rules.ts'
@@ -64,10 +63,18 @@ import {
   type CandidateScoringContext,
 } from '../policy/score.ts'
 import {
+  canonicalSeats,
+  denseArray,
   exactKeys,
   onlyAllowedKeys,
   probability,
 } from '../components/canonical-shape.ts'
+import {
+  ACCUMULATED_PROBABILITY_TOLERANCE,
+  PROBABILITY_TOLERANCE,
+  SEEDED_SELECTION_MARGIN,
+  SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from '../policy/score-compatibility.ts'
@@ -589,22 +596,63 @@ export type _CurrentVersusAlternativeUncertaintyKeysSound =
       DuplicateKeys<typeof CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS>
     >
 
-function seatArray(value: unknown): value is readonly number[] {
-  return Array.isArray(value)
-    && value.every((entry) => Number.isInteger(entry) && entry >= 0)
+/**
+ * The table size a trace's seat lists are bounded by, or undefined when the
+ * caller supplied no host context at all.
+ *
+ * `rolesInPlay` is the one field both host-view arms carry, and its length is
+ * the table size, so a partial `Pick<PlayerView, 'rolesInPlay'>` bounds the
+ * seats just as well as a full view. It is also the only trustworthy source
+ * here: a DecisionTrace declares no table size of its own, and reading one off
+ * the payload would let the payload pick its own bound.
+ *
+ * `parseExternalDecisionReply` may be called with no host view at all, and that
+ * path therefore gets the canonical seat shape without the upper bound. Every
+ * finalized path holds a full PlayerView and is always bounded.
+ */
+function hostTableSize(
+  hostView: Pick<PlayerView, 'rolesInPlay'> | undefined,
+): number | undefined {
+  if (!hostView || !Array.isArray(hostView.rolesInPlay)) return undefined
+  return hostView.rolesInPlay.length
 }
 
-function validRelevantTeam(value: unknown): boolean {
+/** No trustworthy table size, so bound the seat list by nothing but integers. */
+const UNBOUNDED_TABLE = Number.MAX_SAFE_INTEGER
+
+/**
+ * canonicalSeats against the host's table, when the caller supplied one.
+ *
+ * This module used to carry a private `seatArray` that kept only "integer and
+ * non-negative": no density, no safe-integer bound, no ordering, and above all
+ * no table bound, so an admitted trace could name seat 9999 at a five-handed
+ * table. Three call sites re-added distinct-and-ascending inline and none of
+ * them re-added the bound, which is exactly the defect the shared guard
+ * module's header describes.
+ */
+function canonicalTraceSeats(
+  value: unknown,
+  playerCount: number | undefined,
+  allowEmpty = false,
+): value is readonly Seat[] {
+  return canonicalSeats(value, playerCount ?? UNBOUNDED_TABLE, allowEmpty)
+}
+
+function validRelevantTeam(
+  value: unknown,
+  playerCount: number | undefined,
+): boolean {
   if (value === undefined) return true
   const team = value as Record<string, unknown>
   return !!team
     && typeof team === 'object'
-    && seatArray(team.team)
+    && canonicalTraceSeats(team.team, playerCount)
     && probability(team.cleanProbability)
     && Array.isArray(team.evilCountDistribution)
     && team.evilCountDistribution.length === team.team.length + 1
     && team.evilCountDistribution.every(probability)
-    && seatArray(team.knownFailsAboard)
+    // A good viewer knows no fails aboard, so the empty list is the norm here.
+    && canonicalTraceSeats(team.knownFailsAboard, playerCount, true)
 }
 
 function validComponentVersions(value: unknown): boolean {
@@ -937,11 +985,14 @@ function validBeliefPlayerMarginals(value: unknown): boolean {
       && probability(marginal.evilProbability)
       && Math.abs(
         marginal.goodProbability + marginal.evilProbability - 1,
-      ) <= 1e-9
+      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
   })
 }
 
-function validBeliefTeamAssessments(value: unknown): boolean {
+function validBeliefTeamAssessments(
+  value: unknown,
+  playerCount: number | undefined,
+): boolean {
   if (value === undefined) return true
   if (!Array.isArray(value)) return false
   const ids = new Set<string>()
@@ -964,21 +1015,23 @@ function validBeliefTeamAssessments(value: unknown): boolean {
       && ['uniform-feasible-joint', 'weighted-joint'].includes(
         assessment.probabilitySemantics as string,
       )
-      && seatArray(team)
-      && isCanonicalTeam(team)
+      && canonicalTraceSeats(team, playerCount)
       && probability(assessment.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
       && distribution.every(probability)
       && Math.abs(
         distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= 1e-9
-      && Math.abs(distribution[0] - assessment.cleanProbability) <= 1e-12
-      && seatArray(assessment.knownFailsAboard)
+      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      && Math.abs(distribution[0] - assessment.cleanProbability) <= PROBABILITY_TOLERANCE
+      && canonicalTraceSeats(assessment.knownFailsAboard, playerCount, true)
   })
 }
 
-function validCandidateScores(value: unknown): boolean {
+function validCandidateScores(
+  value: unknown,
+  playerCount: number | undefined,
+): boolean {
   if (value === undefined) return true
   return Array.isArray(value) && value.every((entry) => {
     const score = entry as Record<string, unknown>
@@ -996,16 +1049,15 @@ function validCandidateScores(value: unknown): boolean {
       && typeof features.beliefModelVersion === 'string'
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
-      && seatArray(team)
-      && isCanonicalTeam(team)
+      && canonicalTraceSeats(team, playerCount)
       && probability(features.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
       && distribution.every(probability)
       && Math.abs(
         distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= 1e-9
-      && Math.abs(distribution[0] - features.cleanProbability) <= 1e-12
+      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      && Math.abs(distribution[0] - features.cleanProbability) <= PROBABILITY_TOLERANCE
     )
     const currentDistribution = features?.currentEvilCountDistribution
     const alternativeDistribution =
@@ -1051,24 +1103,22 @@ function validCandidateScores(value: unknown): boolean {
       && typeof features.beliefModelVersion === 'string'
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
-      && seatArray(currentTeam)
-      && isCanonicalTeam(currentTeam)
+      && canonicalTraceSeats(currentTeam, playerCount)
       && probability(features.currentCleanProbability)
       && Array.isArray(currentDistribution)
       && currentDistribution.length === currentTeam.length + 1
       && currentDistribution.every(probability)
       && Math.abs(
         currentDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= 1e-9
+      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
       && Math.abs(
         currentDistribution[0] - features.currentCleanProbability,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.bestAlternativeCandidateId === 'string'
       && features.bestAlternativeCandidateId.startsWith(
         `${LEGAL_CANDIDATE_VERSION}:propose:`,
       )
-      && seatArray(alternativeTeam)
-      && isCanonicalTeam(alternativeTeam)
+      && canonicalTraceSeats(alternativeTeam, playerCount)
       && features.bestAlternativeCandidateId === (
         `${LEGAL_CANDIDATE_VERSION}:propose:`
         + alternativeTeam.join(',')
@@ -1080,11 +1130,11 @@ function validCandidateScores(value: unknown): boolean {
       && alternativeDistribution.every(probability)
       && Math.abs(
         alternativeDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= 1e-9
+      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
       && Math.abs(
         alternativeDistribution[0]
         - features.bestAlternativeCleanProbability,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && !!boardScore
       && typeof boardScore === 'object'
       && Number.isInteger(boardScore.good)
@@ -1094,32 +1144,32 @@ function validCandidateScores(value: unknown): boolean {
       && typeof features.futureQuestsRemain === 'boolean'
       && typeof features.stake === 'number'
       && Number.isFinite(features.stake)
-      && Math.abs(features.stake - expectedValue.stake) <= 1e-12
+      && Math.abs(features.stake - expectedValue.stake) <= PROBABILITY_TOLERANCE
       && typeof features.alternativeRealization === 'number'
       && Number.isFinite(features.alternativeRealization)
       && Math.abs(
         features.alternativeRealization - expectedValue.alternativeRealization,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.hammerPenalty === 'number'
       && Number.isFinite(features.hammerPenalty)
       && Math.abs(
         features.hammerPenalty - expectedValue.hammerPenalty,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.informationBonus === 'number'
       && Number.isFinite(features.informationBonus)
       && Math.abs(
         features.informationBonus - expectedValue.informationBonus,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.approveUtility === 'number'
       && Number.isFinite(features.approveUtility)
       && Math.abs(
         features.approveUtility - expectedValue.approveUtility,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.rejectUtility === 'number'
       && Number.isFinite(features.rejectUtility)
       && Math.abs(
         features.rejectUtility - expectedValue.rejectUtility,
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof features.baseUtility === 'number'
       && Number.isFinite(features.baseUtility)
       && typeof features.selectionAdjustment === 'number'
@@ -1178,14 +1228,14 @@ function validCandidateScores(value: unknown): boolean {
             Number(role.roleValue)
             - Number(role.survivorMeanRoleValue)
           ),
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && typeof role.combinedValue === 'number'
       && Number.isFinite(role.combinedValue)
       && Math.abs(
         Number(role.combinedValue)
         - Number(role.baseValue)
         - Number(role.roleAdjustment),
-      ) <= 1e-12
+      ) <= PROBABILITY_TOLERANCE
       && (
         role.selectionMode === 'top-composite'
         || role.selectionMode === 'seeded-composite-band'
@@ -1344,6 +1394,8 @@ function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
 
 interface ComposedTraceContext {
   readonly trace: TraceValidationInput
+  /** Host table size for seat bounds, undefined when no host view was given. */
+  readonly playerCount: number | undefined
   readonly scores: Array<Record<string, unknown>>
   readonly ids: string[]
   readonly components: Record<string, unknown> | undefined
@@ -1551,7 +1603,10 @@ function validPlannerRelations(ctx: ComposedTraceContext): boolean {
 }
 
 function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
-  const { trace, scores, chosen, chosenScore, chosenFeatures, action, intent } = ctx
+  const {
+    trace, scores, chosen, chosenScore, chosenFeatures, action, intent,
+    playerCount,
+  } = ctx
   if (intent !== undefined) {
     if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
       return false
@@ -1591,7 +1646,19 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       ||
       intent.version !== COMMUNICATION_INTENT_VERSION
       || intent.channel !== expectedChannel
-      || !seatArray(intent.targetSeats)
+      // Bounded and dense, but deliberately not canonicalSeats. A planner names
+      // the seats it is addressing in whatever order it chose, and a discussion
+      // intent addresses nobody, so ascending order and non-emptiness are the
+      // two parts of the canonical contract this list does not carry. The bound
+      // is the part that was missing. Distinctness is the engine's predicate,
+      // which is why it is not spelled out again here.
+      || !denseArray(intent.targetSeats)
+      || !intent.targetSeats.every(
+        (seat) =>
+          Number.isSafeInteger(seat)
+          && (seat as number) >= 0
+          && (playerCount === undefined || (seat as number) < playerCount),
+      )
       || !hasDistinctSeats(intent.targetSeats as readonly Seat[])
       || !Array.isArray(claimCodes)
       || new Set(claimCodes).size !== claimCodes.length
@@ -1677,7 +1744,7 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
           || !Number.isFinite(uncertainty.compositeUtilityGap)
           || Math.abs(
             Number(uncertainty.compositeUtilityGap) - expectedGap,
-          ) > 1e-12
+          ) > PROBABILITY_TOLERANCE
         ) return false
       } else if (chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION) {
         if (
@@ -1689,7 +1756,7 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
           || Math.abs(
             (uncertainty.residualProbability as number)
             - (1 - (chosenFeatures.cleanProbability as number)),
-          ) > 1e-12
+          ) > PROBABILITY_TOLERANCE
         ) {
           return false
         }
@@ -1713,7 +1780,7 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
               (chosenFeatures.approveUtility as number)
               - (chosenFeatures.rejectUtility as number),
             ),
-          ) > 1e-12
+          ) > PROBABILITY_TOLERANCE
         ) {
           return false
         }
@@ -1777,7 +1844,7 @@ function validGoodRoleFeatureScores(ctx: ComposedTraceContext): boolean {
         || role.role !== roleProjection.role
         || role.kind !== (trace.request as DecisionRequest).kind
         || role.baseValue !== expectedBase
-        || Math.abs(Number(role.survivorMeanRoleValue) - mean) > 1e-12
+        || Math.abs(Number(role.survivorMeanRoleValue) - mean) > PROBABILITY_TOLERANCE
       ) return false
     }
     const mode = (
@@ -1886,10 +1953,10 @@ function validGoodRoleFeatureScores(ctx: ComposedTraceContext): boolean {
                               score.roleObjectiveFeatures as
                                 Record<string, unknown>
                             ).combinedValue,
-                          ) + 1e-9
+                          ) + SEEDED_SELECTION_MARGIN
                         : 0
                     ),
-                  ) > 1e-15)
+                  ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE)
               )
             : (
                 viable.length !== 1
@@ -2029,10 +2096,10 @@ function validEvilRoleFeatureScores(ctx: ComposedTraceContext): boolean {
                       Number(feature.selectionAdjustment)
                         - (
                           score.candidateId === selectedId
-                            ? maxValue - Number(feature.roleValue) + 1e-9
+                            ? maxValue - Number(feature.roleValue) + SEEDED_SELECTION_MARGIN
                             : 0
                         ),
-                    ) > 1e-15
+                    ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE
                 })
               )
             : (
@@ -2275,12 +2342,12 @@ function validVoteFeatureScores(ctx: ComposedTraceContext): boolean {
                   score.features as Record<string, unknown>
                 const expectedAdjustment =
                   score.candidateId === seededCandidateId
-                    ? maxBase - (features.baseUtility as number) + 1e-9
+                    ? maxBase - (features.baseUtility as number) + SEEDED_SELECTION_MARGIN
                     : 0
                 return Math.abs(
                   (features.selectionAdjustment as number)
                   - expectedAdjustment,
-                ) > 1e-15
+                ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE
               })
             )
           : (
@@ -2345,7 +2412,10 @@ function validForcedPolicyRelation(ctx: ComposedTraceContext): boolean {
   return true
 }
 
-function validComposedTraceRelations(trace: TraceValidationInput): boolean {
+function validComposedTraceRelations(
+  trace: TraceValidationInput,
+  playerCount: number | undefined,
+): boolean {
   if (trace.candidateScores === undefined) {
     return validAbsentCandidateScores(trace)
   }
@@ -2387,6 +2457,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     || (action.kind === 'finalize' && action.stick === false)
   const ctx: ComposedTraceContext = {
     trace,
+    playerCount,
     scores,
     ids,
     components,
@@ -2923,6 +2994,7 @@ function validDecisionTrace(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const trace = value as Record<string, unknown>
   const fullHostView = isFullPlayerView(hostView) ? hostView : undefined
+  const playerCount = hostTableSize(hostView)
   const throughSeq = trace.beliefThroughSeq
   const hypotheses = trace.topHypotheses
   return (
@@ -2947,7 +3019,7 @@ function validDecisionTrace(
     )
     && validBeliefProvenance(trace.beliefProvenance)
     && validBeliefPlayerMarginals(trace.beliefPlayerMarginals)
-    && validBeliefTeamAssessments(trace.beliefTeamAssessments)
+    && validBeliefTeamAssessments(trace.beliefTeamAssessments, playerCount)
     && validBeliefTraceRelations(trace)
     && Array.isArray(hypotheses)
     && hypotheses.every((entry) => {
@@ -2956,9 +3028,9 @@ function validDecisionTrace(
         && typeof hypothesis === 'object'
         && typeof hypothesis.worldKey === 'string'
         && probability(hypothesis.probability)
-        && seatArray(hypothesis.evilSeats)
+        && canonicalTraceSeats(hypothesis.evilSeats, playerCount)
     })
-    && validRelevantTeam(trace.relevantTeam)
+    && validRelevantTeam(trace.relevantTeam, playerCount)
     && enumStringArray(trace.factCodes, ANALYSIS_FACT_CODES)
     && enumStringArray(trace.reasonCodes, FORCED_PLAY_REASON_CODES)
     && isDeepStrictEqual(trace.action, decision)
@@ -3000,7 +3072,7 @@ function validDecisionTrace(
       decision,
       fullHostView,
     )
-    && validCandidateScores(trace.candidateScores)
+    && validCandidateScores(trace.candidateScores, playerCount)
     && (
       trace.structuredCandidateId === undefined
       || typeof trace.structuredCandidateId === 'string'
@@ -3023,7 +3095,7 @@ function validDecisionTrace(
     )
     && validForcedPolicyResult(trace.forcedPolicyResult)
     && validDecisionFrameTrace(trace.decisionFrame)
-    && validComposedTraceRelations(trace)
+    && validComposedTraceRelations(trace, playerCount)
   )
 }
 
@@ -3190,7 +3262,7 @@ function validExactComposedTraceHostJoin(
           || !validTrustedPassiveComponentAttribution(trace)
         )
       )
-      || !validCandidateScores(trace.candidateScores)
+      || !validCandidateScores(trace.candidateScores, view.playerCount)
       || !validForcedPolicyResult(trace.forcedPolicyResult)
       || !validExactDecisionFrameTrace(trace, selectedDecision)
       || !validPublicObserverTrace(
@@ -3445,7 +3517,7 @@ function validExactComposedTraceHostJoin(
 
     const relationTrace: DecisionTrace = structuredClone(trace)
     relationTrace.action = structuredClone(selectedDecision)
-    return validComposedTraceRelations(relationTrace)
+    return validComposedTraceRelations(relationTrace, view.playerCount)
   } catch {
     return false
   }

@@ -4,7 +4,7 @@ import {
   assessTeam,
   exactBelief,
 } from '../server/agents/belief/exact.ts'
-import { PROBABILITY_TOLERANCE } from '../server/agents/belief/types.ts'
+import { PROBABILITY_TOLERANCE } from '../server/agents/components/probability-arithmetic.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { Decision, PlayerView, Seat } from '../server/engine/types.ts'
 

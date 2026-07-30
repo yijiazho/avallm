@@ -5,7 +5,10 @@
 // reads player-authored text or asks a provider to interpret it.
 
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
-import { exactKeys } from '../components/canonical-shape.ts'
+import { exactKeys, plainRecord } from '../components/canonical-shape.ts'
+import {
+  ACCUMULATED_PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 import type {
   Alignment,
   PlayerView,
@@ -151,15 +154,25 @@ function finiteSeat(value: unknown, playerCount: number): value is Seat {
     && (value as number) < playerCount
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+/*
+ * plainRecord, not plainDataRecord: nothing on this path runs downstream of the
+ * canonical JSON boundary, so no caller hands these validators a record built
+ * with Object.create(null). The inference context is an object literal built by
+ * projectLanguageInferenceContext, the evidence comes back from an interpreter
+ * reply through admitLanguageEvidence, and the factor state is assembled in
+ * composed.ts; the only structuredClone on the way preserves Object.prototype.
+ * The null-prototype relaxation would buy nothing here and would cost the
+ * prototype pin on an untrusted interpreter's output.
+ *
+ * This replaced a private isRecord that admitted a Proxy and any prototype at
+ * all, which is the drift the shared module's header describes.
+ */
 
 export function validateLanguageInferenceContext(
   value: unknown,
 ): asserts value is LanguageInferenceContext {
   if (
-    !isRecord(value)
+    !plainRecord(value)
     || !exactKeys(value, [
       'schemaVersion',
       'viewerSeat',
@@ -185,7 +198,7 @@ export function validateLanguageInferenceContext(
   const throughSeq = value.throughSeq as number
   if (
     !value.sources.every((source) =>
-      isRecord(source)
+      plainRecord(source)
       && exactKeys(source, ['sourceSeq', 'speakerSeat'])
       && Number.isSafeInteger(source.sourceSeq)
       && (source.sourceSeq as number) >= 0
@@ -232,7 +245,7 @@ function validateEvidence(
   sources: ReadonlyMap<number, Seat>,
 ): asserts value is LanguageEvidence {
   if (
-    !isRecord(value)
+    !plainRecord(value)
     || !exactKeys(value, [
       'schemaVersion',
       'sourceSeq',
@@ -312,7 +325,7 @@ function validateBaseBelief(
   }
   if (
     !Number.isFinite(probabilityTotal)
-    || Math.abs(probabilityTotal - 1) > 1e-9
+    || Math.abs(probabilityTotal - 1) > ACCUMULATED_PROBABILITY_TOLERANCE
     || base.provenance.some((item) => item.factorId === 'language')
     || base.modelVersion.includes('bounded-language-v1')
   ) {
@@ -493,7 +506,7 @@ function validateApplicationContract(
     factor.id !== 'language'
     || factor.version !== LANGUAGE_LIKELIHOOD_FACTOR_VERSION
     || typeof factor.logLikelihood !== 'function'
-    || !isRecord(state)
+    || !plainRecord(state)
     || !exactKeys(state, ['evidence', 'cursor'])
     || !Array.isArray(state.evidence)
   ) {

@@ -6,9 +6,9 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { DECISION_KINDS } from '../../engine/types.ts'
-import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import { canonicalRoleMultiset } from '../belief/worlds.ts'
 import {
+  hiddenTeamEvilMarginals,
   JOINT_IDENTITY_MODEL_VERSION,
   type HiddenTeamPosterior,
   type PrivateIdentitySnapshot,
@@ -54,6 +54,11 @@ import type {
   ExactKeyList,
   MissingKeys,
 } from '../key-lists.ts'
+import {
+  clampProbability,
+  latticeCount,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
@@ -165,9 +170,9 @@ function failureProbability(
   distribution: readonly number[],
   failsRequired: number,
 ): number {
-  return Math.max(0, Math.min(1, distribution
+  return clampProbability(distribution
     .slice(failsRequired)
-    .reduce((sum, mass) => sum + mass, 0)))
+    .reduce((sum, mass) => sum + mass, 0))
 }
 
 function oberonUnseenPosterior(
@@ -694,11 +699,13 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
       || standing.feasibleWorldDenominator !== source.observerFeasibleWorldCount
       || (standing.evilWorldNumerator as number)
         > (standing.feasibleWorldDenominator as number)
-      || Math.abs(
-        (standing.evilWorldNumerator as number)
-          / (standing.feasibleWorldDenominator as number)
-          - (standing.evilProbability as number),
-      ) > PROBABILITY_TOLERANCE
+      // A public-uniform marginal is an integer count of feasible worlds over
+      // the denominator beside it, so the question is which integer rather than
+      // whether a fixed decimal slack covers the gap. See latticeCount.
+      || latticeCount(
+        standing.evilProbability,
+        standing.feasibleWorldDenominator as number,
+      ) !== standing.evilWorldNumerator
       || standing.observationSemantics !== 'public-counts-no-data-is-null'
       || standing.proxySemantics
         !== 'bounded-deterministic-indices-not-probabilities'
@@ -934,25 +941,14 @@ export function validatePrivateEvilRoleObjectiveHostJoin(
   if (!validatePrivateEvilRoleObjectiveSnapshot(value)) return false
   const hidden = input.identity.hiddenTeamPosterior
   if (!hidden) return false
-  const marginals = Array.from(
-    { length: input.view.playerCount },
-    (_, seat) => {
-      const evilProbability = hidden.hypotheses.reduce(
-        (sum, hypothesis) =>
-          sum + (
-            hypothesis.evilSeats.includes(seat)
-              ? hypothesis.probability
-              : 0
-          ),
-        0,
-      )
-      return {
-        seat,
-        goodProbability: Math.max(0, Math.min(1, 1 - evilProbability)),
-        evilProbability: Math.max(0, Math.min(1, evilProbability)),
-      }
-    },
-  )
+  const marginals = hiddenTeamEvilMarginals(
+    hidden,
+    input.view.playerCount,
+  ).map((evilProbability, seat) => ({
+    seat,
+    goodProbability: clampProbability(1 - evilProbability),
+    evilProbability,
+  }))
   return validatePrivateIdentityHostJoin(
     input.identity,
     input.view.rolesInPlay,

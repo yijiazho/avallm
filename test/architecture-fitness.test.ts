@@ -617,6 +617,224 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
   )
 })
 
+// The affix arm above reads the guard's own word, so a copy that renames the
+// word outright walks straight past it. Two did: `seatArray`, a canonicalSeats
+// with the table bound dropped, and `isRecord`, a plainRecord with the proxy
+// and prototype checks dropped. Both lived in modules that already imported
+// some other guard from the shared module, so the import hatch did not cover
+// them either.
+test('a shared shape guard cannot be re-declared under a known synonym', () => {
+  const copy = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', body]])
+  const importing = (guard: string, body: string) =>
+    rules([['server/agents/analysis/probe.ts', `
+      import { ${guard} } from '../components/canonical-shape.ts'
+      ${body}
+    `]])
+
+  assert.deepEqual(
+    copy('function isRecord(v: unknown): v is Record<string, 1> { return !!v }'),
+    ['ARCH016'],
+    'the record synonym',
+  )
+  assert.deepEqual(
+    copy('const seatArray = (v: unknown): boolean => Array.isArray(v)'),
+    ['ARCH016'],
+    'the seat-list synonym',
+  )
+
+  // Same escape hatch, and still per guard: importing the record guard clears
+  // the record synonym and leaves the seat one reported.
+  assert.deepEqual(
+    importing(
+      'plainRecord',
+      'function isRecord(v: unknown): boolean { return plainRecord(v) }',
+    ),
+    [],
+    'wrapper with the record guard in scope',
+  )
+  assert.deepEqual(
+    importing(
+      'plainDataRecord',
+      'function isRecord(v: unknown): boolean { return plainDataRecord(v) }',
+    ),
+    [],
+    'either record guard opens the hatch for the record synonym',
+  )
+  assert.deepEqual(
+    importing(
+      'plainRecord',
+      'const seatArray = (v: unknown): boolean => plainRecord(v)',
+    ),
+    ['ARCH016'],
+    'a different guard does not open the hatch',
+  )
+
+  // Whole names only. An affix on top of a synonym is a much weaker signal, and
+  // language-contract's validSeatArray is the live counterexample: a bounded
+  // seat set in the order the host stored it, which is a deliberate neighbour
+  // of canonicalSeats rather than a copy of it, because the engine keeps a team
+  // in whatever order its leader supplied.
+  assert.deepEqual(
+    copy('function validSeatArray(v: unknown, n: number): boolean { return !!v }'),
+    [],
+    'an affixed synonym is not the synonym',
+  )
+  // The return type still decides, exactly as it does for the affix arm.
+  assert.deepEqual(
+    copy('function seatArray(v: readonly number[]): string { return v.join() }'),
+    [],
+    'a non-predicate of the same name',
+  )
+})
+
+// ARCH016 reads return types, so a helper returning a number never entered its
+// set, and that documented exclusion is where the duplication went: 83 raw
+// tolerance literals, six copies of the unit clamp, four private `close`
+// comparators. ARCH017 is the numeric collector.
+test('a shared numeric helper cannot be re-declared privately', () => {
+  const copy = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', body]])
+  const importing = (helper: string, body: string) =>
+    rules([['server/agents/analysis/probe.ts', `
+      import { ${helper} } from '../components/probability-arithmetic.ts'
+      ${body}
+    `]])
+
+  // The affix arm, mirroring ARCH016's.
+  assert.deepEqual(
+    copy('function safeClampProbability(v: number): number { return v }'),
+    ['ARCH017'],
+    'affixed clamp',
+  )
+  assert.deepEqual(
+    copy('const publicLatticeCount = (v: number): number | undefined => 1'),
+    ['ARCH017'],
+    'affixed lattice count, returning number or undefined',
+  )
+  // A boolean-returning copy is collected too. The owner module holds one
+  // comparator, and a private copy of a tolerance comparator is the exact
+  // defect this rule exists for. Any affix of `closeProbability` also embeds
+  // the shared `probability` guard, so the two rules overlap here by
+  // construction and both report; that is honest rather than a miscount,
+  // because the module has neither name in scope.
+  assert.deepEqual(
+    copy('const isCloseProbability = (a: number, b: number): boolean => a === b'),
+    ['ARCH016', 'ARCH017'],
+    'affixed comparator',
+  )
+
+  // The synonym arm. All four of these were live in this repository.
+  assert.deepEqual(
+    copy('const clamp01 = (v: number): number => Math.max(0, Math.min(1, v))'),
+    ['ARCH017'],
+    'the unit-clamp synonym',
+  )
+  assert.deepEqual(
+    copy('const close = (a: number, b: number): boolean => Math.abs(a - b) < 1'),
+    ['ARCH017'],
+    'the comparator synonym',
+  )
+
+  // Same escape hatch as ARCH016, and still per helper.
+  assert.deepEqual(
+    importing(
+      'clampProbability',
+      'const clamp01 = (v: number): number => clampProbability(v)',
+    ),
+    [],
+    'wrapper with the clamp in scope',
+  )
+  assert.deepEqual(
+    importing(
+      'clampProbability',
+      'const close = (a: number, b: number): boolean => a === b',
+    ),
+    ['ARCH017'],
+    'a different helper does not open the hatch',
+  )
+  assert.deepEqual(
+    rules([['server/agents/analysis/probe.ts', `
+      import * as arithmetic from '../components/probability-arithmetic.ts'
+      const clamp01 = (v: number): number => arithmetic.clampProbability(v)
+    `]]),
+    [],
+    'namespace import opens the hatch for every helper',
+  )
+
+  // Neither a number nor a boolean, so it is not a copy of anything here.
+  assert.deepEqual(
+    copy('const clamp01 = (v: number): string => String(v)'),
+    [],
+    'the return type still decides',
+  )
+  // Module level only, as with ARCH016.
+  assert.deepEqual(
+    copy(`
+      export function outer(v: number): number {
+        const clamp01 = (x: number): number => x
+        return clamp01(v)
+      }
+    `),
+    [],
+    'nested helper',
+  )
+  // The owner module declares the names, so it is not its own offender.
+  assert.deepEqual(
+    rules([[
+      'server/agents/components/probability-arithmetic.ts',
+      'export const clampProbabilityTwice = (v: number): number => v',
+    ]]),
+    [],
+    'the arithmetic module is exempt',
+  )
+})
+
+// The arm that would have caught the finding on the first file rather than the
+// fourteenth. A name-based rule can only find a magnitude somebody named, and
+// none of the 83 were named.
+test('a bare tolerance literal in the agent tree has no owner', () => {
+  const agent = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', body]])
+
+  assert.deepEqual(agent('const t = 1e-12'), ['ARCH017'])
+  assert.deepEqual(agent('const t = 1e-9'), ['ARCH017'])
+  assert.deepEqual(agent('const t = 1e-15'), ['ARCH017'])
+  // A future regime nobody has thought of yet is caught the day it is written,
+  // which is what picking a ceiling buys over listing the known values.
+  assert.deepEqual(agent('const t = 1e-10'), ['ARCH017'])
+  assert.deepEqual(
+    agent('const near = (a: number, b: number) => Math.abs(a - b) <= 0.0000001'),
+    ['ARCH017'],
+    'decimal spelling counts too',
+  )
+  assert.deepEqual(
+    agent('const t = 5e-7\nconst u = 5e-8'),
+    ['ARCH017', 'ARCH017'],
+    'one violation per literal',
+  )
+
+  // The band constants and every other deliberate magnitude in the tree sit
+  // orders of magnitude above the ceiling, so the separator is clean.
+  assert.deepEqual(agent('const band = 0.04'), [])
+  assert.deepEqual(agent('const cap = 3_628_800'), [])
+  assert.deepEqual(agent('const zero = 0'), [])
+  assert.deepEqual(agent('const half = 0.5'), [])
+
+  // Scoped to the probabilistic agent tree. The engine has no probabilities,
+  // and server/eval/ is an offline calibration layer with its own numerics.
+  assert.deepEqual(rules([['server/engine/probe.ts', 'const t = 1e-12']]), [])
+  assert.deepEqual(rules([['server/eval/probe.ts', 'const t = 1e-15']]), [])
+  // The owner module is where the magnitudes live.
+  assert.deepEqual(
+    rules([[
+      'server/agents/components/probability-arithmetic.ts',
+      'export const PROBABILITY_TOLERANCE = 1e-12',
+    ]]),
+    [],
+  )
+})
+
 test('TypeScript AST recognizes multiline imports and export-from declarations', () => {
   const inspected = inspectSource('server/agents/example.ts', `
     import type {

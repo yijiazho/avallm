@@ -26,6 +26,10 @@ import {
   canonicalSeats,
   exactKeys,
 } from '../components/canonical-shape.ts'
+import {
+  clampProbability as clamp01,
+  PROBABILITY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 
 export const EVIL_ROLE_UTILITY_PROJECTION_VERSION =
   'evil-oberon-role-utility-v1'
@@ -136,9 +140,6 @@ export interface PrivateEvilRoleUtilityProjection {
   }
   assessments: readonly EvilRoleUtilityAssessment[]
 }
-
-const clamp01 = (value: number): number =>
-  Math.max(0, Math.min(1, value))
 
 const POSTURE_BY_ROLE: Readonly<Record<EvilObjectiveRole, EvilRolePosture>> =
   Object.freeze({
@@ -621,7 +622,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
             0.5 * assessment.publicActionPlausibilityValue
             + 0.5 * assessment.participantCoverProxyIndex
           ),
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.publicActionPlausibilityValue
           - (
@@ -629,7 +630,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
               ? 1 - assessment.publicTeamFailureCapabilityProbability
               : assessment.publicTeamFailureCapabilityProbability
           ),
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || (
         assessment.direction === 'support'
           ? (
@@ -638,7 +639,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
               || Math.abs(
                 assessment.failureCapacityValue
                   - assessment.teamFailureCapabilityProbability,
-              ) > 1e-12
+              ) > PROBABILITY_TOLERANCE
             )
           : (
               alternativeKeys.length !== 3
@@ -659,7 +660,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
                   - assessment
                     .bestAlternativeFailureCapabilityProbability!
                     * assessment.alternativeRealization,
-              ) > 1e-12
+              ) > PROBABILITY_TOLERANCE
             )
       )
       || values.some(
@@ -670,17 +671,17 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
         assessment.failureCapacityContribution
           - EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
             * assessment.failureCapacityValue,
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.publicCoverContribution
           - EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight
             * assessment.publicCoverValue,
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.futureOpportunityContribution
           - EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
             * assessment.futureOpportunityValue,
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.roleValue
           - (
@@ -688,7 +689,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
             + assessment.publicCoverContribution
             + assessment.futureOpportunityContribution
           ),
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
     ) return false
     const source = assessment.futureOpportunitySource
     if (
@@ -708,7 +709,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
               || Math.abs(
                 assessment.futureOpportunityValue
                   - source.reservedVisibleEvil / source.totalVisibleEvil,
-              ) > 1e-12
+              ) > PROBABILITY_TOLERANCE
             )
           : source.kind === 'oberon-unseen-placement-reserve'
             ? (
@@ -721,7 +722,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
                 || Math.abs(
                   assessment.futureOpportunityValue
                     - (1 - source.unseenEvilOnTeamProbability),
-                ) > 1e-12
+                ) > PROBABILITY_TOLERANCE
               )
             : source.kind === 'rejection-runway'
               ? (
@@ -735,7 +736,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
                   || Math.abs(
                     assessment.futureOpportunityValue
                       - source.rejectionsBeforeHammer / 4,
-                  ) > 1e-12
+                  ) > PROBABILITY_TOLERANCE
                 )
             : (
                 source.kind === 'terminal-none'
@@ -782,7 +783,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       && Math.abs(
         assessment.alternativeRealization
           - expectedAlternativeRealization,
-      ) > 1e-12
+      ) > PROBABILITY_TOLERANCE
     ) return false
     if (assessment.coordination.kind === 'visible-coordination') {
       if (

@@ -92,6 +92,126 @@ export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
   'sequenceEqual',
   'strictCanonicalArray',
 ])
+/**
+ * Whole names this repository has already decided are spellings of a guard.
+ *
+ * `embedsGuardName` catches a private copy that keeps the guard's own word and
+ * affixes it, which is how validCanonicalSeats and finiteProbability were
+ * found. It is blind to a copy that simply picks a different word, and two of
+ * those were live when this table was written. `seatArray` in composed-trace
+ * admission and in the Morgana role utility was canonicalSeats with the table
+ * bound dropped, so an admitted trace could name seat 9999 at a five-handed
+ * table. `isRecord` in the language factor and the language contract was
+ * plainRecord with the proxy and prototype checks dropped. All four modules
+ * already imported some other guard from the shared module, so the import
+ * hatch did not cover them: that exemption is per guard, and it stays per
+ * guard here.
+ *
+ * Matched on the whole predicate name rather than through embedsGuardName. A
+ * synonym is a word this table asserts means the guard; an affix on top of a
+ * synonym is a much weaker signal, and language-contract's validSeatArray is
+ * the live counterexample. It is a bounded seat set in host order, and the
+ * public record cannot promise ascending seats because the engine stores a
+ * team in the order its leader supplied, so it is a deliberate neighbour of
+ * canonicalSeats rather than a copy of it.
+ *
+ * A third spelling is a one-line addition here, and the rule then fails loudly
+ * at whichever module wrote it.
+ */
+export const SHARED_SHAPE_GUARD_SYNONYMS = Object.freeze([
+  Object.freeze({
+    name: 'isRecord',
+    guards: Object.freeze(['plainRecord', 'plainDataRecord']),
+  }),
+  Object.freeze({
+    name: 'isPlainRecord',
+    guards: Object.freeze(['plainRecord', 'plainDataRecord']),
+  }),
+  Object.freeze({
+    name: 'plainRecordCheck',
+    guards: Object.freeze(['plainRecord', 'plainDataRecord']),
+  }),
+  Object.freeze({
+    name: 'seatArray',
+    guards: Object.freeze(['canonicalSeats']),
+  }),
+  Object.freeze({
+    name: 'seatList',
+    guards: Object.freeze(['canonicalSeats']),
+  }),
+])
+// The shared numeric arithmetic: tolerances, clamps, the tolerance comparator,
+// and the count-lattice check.
+const SHARED_PROBABILITY_ARITHMETIC =
+  'server/agents/components/probability-arithmetic'
+/**
+ * The callable exports of that module, pinned here so ARCH017 can name them.
+ *
+ * Hand-listed and then checked against the module's real exports by
+ * test/probability-arithmetic.test.ts, exactly as SHARED_SHAPE_GUARD_NAMES is
+ * checked by test/canonical-shape.test.ts. A helper added there without being
+ * added here would be a helper nobody scans for.
+ */
+export const SHARED_ARITHMETIC_HELPER_NAMES = Object.freeze([
+  'addProbability',
+  'clampProbability',
+  'clampProbabilityOrZero',
+  'closeProbability',
+  'countLatticeTolerance',
+  'latticeCount',
+  'stableProbabilitySum',
+])
+/**
+ * Whole names this repository has already decided are spellings of one of them.
+ *
+ * The same second arm SHARED_SHAPE_GUARD_SYNONYMS is for, and for the same
+ * reason: `embedsGuardName` reads the helper's own word, so a copy that renames
+ * the word outright walks past it. All four of these were live when the table
+ * was written. `clamp01` was the unit clamp in four analysis modules and
+ * `clamp` its bare spelling; `close` was the tolerance comparator in four more,
+ * one of which had lost the constant and written `1e-12` by hand. Same escape
+ * hatch as ARCH016, and still per helper: importing the clamp clears `clamp01`
+ * and leaves a private `close` reported.
+ */
+export const SHARED_ARITHMETIC_HELPER_SYNONYMS = Object.freeze([
+  Object.freeze({
+    name: 'clamp01',
+    helpers: Object.freeze(['clampProbability', 'clampProbabilityOrZero']),
+  }),
+  Object.freeze({
+    name: 'clamp',
+    helpers: Object.freeze(['clampProbability', 'clampProbabilityOrZero']),
+  }),
+  Object.freeze({
+    name: 'close',
+    helpers: Object.freeze(['closeProbability']),
+  }),
+  Object.freeze({
+    name: 'nearlyEqual',
+    helpers: Object.freeze(['closeProbability']),
+  }),
+])
+/**
+ * A positive numeric literal at or below this is a floating-point tolerance,
+ * whatever the author called it.
+ *
+ * Nothing else in the agent tree is this small. The smallest deliberate
+ * magnitude in `server/agents/` outside a tolerance is the `0.04` viability
+ * band, four orders of magnitude above the ceiling, so the test is a clean
+ * separator rather than a threshold that needs tuning. Picking a ceiling rather
+ * than a set of known values is what makes a future `1e-10` a violation on the
+ * day it is written instead of a fifth regime nobody notices.
+ */
+const TOLERANCE_LITERAL_CEILING = 1e-6
+/**
+ * Modules allowed to spell a tolerance literal anyway, by exact literal text.
+ *
+ * Empty, and that is the finding: every one of the 83 raw literals this rule was
+ * written for had a name available and simply was not using it. An entry here is
+ * a claim that some module needs a magnitude the owner module cannot name, which
+ * is a claim worth making explicitly and out loud rather than by typing digits.
+ */
+const TOLERANCE_LITERAL_EXEMPTIONS = new Map([])
 // Engine purity. The engine is the seeded, replayable core: every game is a
 // pure function of its seed and its log, which is what lets the simulator
 // replay a transcript and get the same game back. An ambient clock or an
@@ -365,17 +485,52 @@ function collectScopedBindings(ast) {
  * stops being cheap and starts being a type checker.
  */
 function collectModulePredicates(ast) {
-  const predicates = []
+  return collectModuleSignatures(ast, (type) => (
+    ts.isTypePredicateNode(type)
+    || type.kind === ts.SyntaxKind.BooleanKeyword
+  ))
+}
+
+/**
+ * Module-level numeric helper declarations, by name and line.
+ *
+ * The exact counterpart of collectModulePredicates, reading the same
+ * signatures through the same walk, and it exists because that function's
+ * exclusion turned out to be a hole rather than a boundary. `clampProbability`
+ * returns a number and so never entered the predicate set, which is precisely
+ * why six copies of the unit clamp could accumulate while ARCH016 was
+ * successfully preventing a seventh copy of a shape guard. A collector that
+ * reads `number` is a different collector, not a widening of that one.
+ *
+ * `number | undefined` counts: latticeCount returns the integer or nothing, and
+ * a private copy of it would be written the same way.
+ */
+function collectModuleNumericHelpers(ast) {
+  const numeric = (type) => type.kind === ts.SyntaxKind.NumberKeyword
+  return collectModuleSignatures(ast, (type) => (
+    numeric(type)
+    || (ts.isUnionTypeNode(type) && type.types.some(numeric))
+  ))
+}
+
+/**
+ * The shared walk behind both collectors: every module-level function or
+ * arrow declaration whose annotated return type satisfies `acceptType`.
+ *
+ * The annotation is the whole signal, so a declaration that omits its return
+ * type is invisible here. Every guard-shaped and helper-shaped declaration in
+ * the tree annotates, and inferring one would mean reading bodies, which is
+ * where a name-based rule stops being cheap and starts being a type checker.
+ */
+function collectModuleSignatures(ast, acceptType) {
+  const collected = []
   const record = (name, signature) => {
     if (!name || !ts.isIdentifier(name) || !signature.type) return
-    if (
-      !ts.isTypePredicateNode(signature.type)
-      && signature.type.kind !== ts.SyntaxKind.BooleanKeyword
-    ) return
+    if (!acceptType(signature.type)) return
     const { line } = ast.getLineAndCharacterOfPosition(name.getStart(ast))
-    predicates.push(Object.freeze({ name: name.text, line: line + 1 }))
+    collected.push(Object.freeze({ name: name.text, line: line + 1 }))
   }
-  // Module level only. A predicate nested inside a function is not a second
+  // Module level only. A declaration nested inside a function is not a second
   // definition a later reader can pick up by mistake, and ARCH013 already
   // rejects one that hides an imported guard.
   for (const statement of ast.statements) {
@@ -404,7 +559,31 @@ function collectModulePredicates(ast) {
       )
     }
   }
-  return Object.freeze(predicates)
+  return Object.freeze(collected)
+}
+
+/**
+ * Every positive numeric literal below TOLERANCE_LITERAL_CEILING, by text and
+ * line.
+ *
+ * A name-based rule cannot see a magnitude that was never given a name, and the
+ * whole finding was 83 magnitudes with no name. This is the arm that would have
+ * caught it on the first file rather than on the fourteenth.
+ */
+function collectToleranceLiterals(ast) {
+  const literals = []
+  const visit = (node) => {
+    if (ts.isNumericLiteral(node)) {
+      const value = Number(node.text)
+      if (value > 0 && value <= TOLERANCE_LITERAL_CEILING) {
+        const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast))
+        literals.push(Object.freeze({ text: node.text, line: line + 1 }))
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  return Object.freeze(literals)
 }
 
 /**
@@ -575,6 +754,8 @@ export function inspectSource(sourcePath, source) {
     ambientReads,
     scopedBindings: collectScopedBindings(ast),
     predicates: collectModulePredicates(ast),
+    numericHelpers: collectModuleNumericHelpers(ast),
+    toleranceLiterals: collectToleranceLiterals(ast),
   })
 }
 
@@ -735,6 +916,8 @@ export function auditArchitectureSources(sourceEntries) {
     // ARCH016 below can tell a wrapper around the shared predicate from a second
     // definition of it.
     const guardsInScope = new Set()
+    // The same idea for the numeric half, read by ARCH017 below.
+    const arithmeticInScope = new Set()
     for (const edge of inspected.edges) {
       let target
       try {
@@ -777,6 +960,17 @@ export function auditArchitectureSources(sourceEntries) {
           'historical v1 role trace projections stay behind the isolated legacy reader',
         ))
         continue
+      }
+      if (
+        target === SHARED_PROBABILITY_ARITHMETIC
+        && edge.kind === 'import'
+      ) {
+        if (edge.namespace) {
+          for (const name of SHARED_ARITHMETIC_HELPER_NAMES) {
+            arithmeticInScope.add(name)
+          }
+        }
+        for (const name of edge.names) arithmeticInScope.add(name)
       }
       if (target === SHARED_SHAPE_GUARDS && edge.kind === 'import') {
         if (edge.namespace) {
@@ -1101,6 +1295,12 @@ export function auditArchitectureSources(sourceEntries) {
     // three sit next to the guard they are named after, where a reader can see
     // both. A module that names its predicate after a guard it never imported is
     // telling the reader nothing about which of the two contracts is in force.
+    //
+    // The affix arm reads the guard's own word, so a copy that renames the word
+    // outright walks past it. SHARED_SHAPE_GUARD_SYNONYMS is the second arm: a
+    // short list of whole names that mean a shared guard, each with the guards
+    // whose import would make it a wrapper. Same escape hatch, same per-guard
+    // scope.
     if (moduleIdentity(sourcePath) !== SHARED_SHAPE_GUARDS) {
       for (const predicate of inspected.predicates) {
         for (const guard of SHARED_SHAPE_GUARD_NAMES) {
@@ -1118,6 +1318,100 @@ export function auditArchitectureSources(sourceEntries) {
               + 'reader cannot tell which contract holds',
           ))
         }
+        for (const synonym of SHARED_SHAPE_GUARD_SYNONYMS) {
+          if (
+            predicate.name !== synonym.name
+            || synonym.guards.some((guard) => guardsInScope.has(guard))
+          ) continue
+          violations.push(violation(
+            'ARCH016',
+            sourcePath,
+            undefined,
+            `predicate ${predicate.name} (line ${predicate.line}) is a known `
+              + `spelling of the shared guard ${synonym.guards.join(' or ')} `
+              + 'without importing it, so the reader cannot tell which '
+              + 'contract holds',
+          ))
+        }
+      }
+    }
+
+    // ARCH017. The numeric half of the same defect: a private copy of a shared
+    // arithmetic helper, or a tolerance magnitude written as digits.
+    //
+    // ARCH016 works, and the duplication moved to where it was not looking.
+    // collectModulePredicates reads return types and its doc comment records
+    // the exclusion in as many words: `failProbability`, `clampProbability`,
+    // and `probabilityLabel` return a number or a string, so they never enter
+    // that set. The consequence, measured when this rule was written: against
+    // the one named tolerance constant the tree held 83 raw tolerance literals
+    // across 14 files, six copies of the unit clamp under two names plus five
+    // more spelled inline, and four private `close` comparators, one of which
+    // had dropped the constant and written `1e-12` by hand. Mixed inside single
+    // functions, so one validator checked a sum at 1e-9 and the value beside it
+    // at 1e-12 with nothing naming the difference.
+    //
+    // Three arms, in ascending order of how much they assume.
+    //
+    // The first two mirror ARCH016 exactly, including its per-helper import
+    // hatch: a module with the helper in scope is taken to be wrapping it.
+    // `clamp01` and `close` are the synonyms, because renaming the word is how
+    // eight of the copies stayed invisible.
+    //
+    // The third arm is the one that would have caught the whole finding: in the
+    // agent tree, a positive numeric literal small enough to be a tolerance is
+    // a violation wherever it is not the owner module. A name-based rule can
+    // only ever find a magnitude somebody named, and none of these were named.
+    // The exemption table is deliberately empty; see it for what an entry
+    // would mean.
+    const arithmeticOwner =
+      moduleIdentity(sourcePath) === SHARED_PROBABILITY_ARITHMETIC
+    if (!arithmeticOwner) {
+      const helpers = [...inspected.predicates, ...inspected.numericHelpers]
+      for (const helper of helpers) {
+        for (const shared of SHARED_ARITHMETIC_HELPER_NAMES) {
+          if (
+            helper.name === shared
+            || arithmeticInScope.has(shared)
+            || !embedsGuardName(helper.name, shared)
+          ) continue
+          violations.push(violation(
+            'ARCH017',
+            sourcePath,
+            undefined,
+            `helper ${helper.name} (line ${helper.line}) is named after the `
+              + `shared arithmetic helper ${shared} without importing it, so `
+              + 'the reader cannot tell which contract holds',
+          ))
+        }
+        for (const synonym of SHARED_ARITHMETIC_HELPER_SYNONYMS) {
+          if (
+            helper.name !== synonym.name
+            || synonym.helpers.some((name) => arithmeticInScope.has(name))
+          ) continue
+          violations.push(violation(
+            'ARCH017',
+            sourcePath,
+            undefined,
+            `helper ${helper.name} (line ${helper.line}) is a known spelling `
+              + `of the shared ${synonym.helpers.join(' or ')} without `
+              + 'importing it, so the reader cannot tell which contract holds',
+          ))
+        }
+      }
+    }
+    if (isAgent(sourcePath) && !arithmeticOwner) {
+      const exempt = TOLERANCE_LITERAL_EXEMPTIONS.get(sourcePath)
+      for (const literal of inspected.toleranceLiterals) {
+        if (exempt?.has(literal.text)) continue
+        violations.push(violation(
+          'ARCH017',
+          sourcePath,
+          undefined,
+          `tolerance literal ${literal.text} (line ${literal.line}) has no `
+            + 'owner; name it in components/probability-arithmetic.ts so a '
+            + 'call site says which regime it wanted',
+        ))
       }
     }
 

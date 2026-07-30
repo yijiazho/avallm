@@ -15,8 +15,10 @@ import {
 } from '../server/agents/belief/exact.ts'
 import {
   EXACT_BELIEF_MODEL_VERSION,
-  PROBABILITY_TOLERANCE,
 } from '../server/agents/belief/types.ts'
+import {
+  PROBABILITY_TOLERANCE,
+} from '../server/agents/components/probability-arithmetic.ts'
 import {
   canonicalWorldKey,
   enumerateCanonicalWorlds,

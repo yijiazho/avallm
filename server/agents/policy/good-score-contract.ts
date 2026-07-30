@@ -146,8 +146,9 @@ export interface GoodVoteValue {
  * Three call sites need this arithmetic to agree exactly: the score layer that
  * produces the vote features, the scorer contract that validates them, and the
  * trace admission that restates them from an archived artifact. Admission
- * compares to `1e-12`, so three copies of the formula were three chances to
- * drift, and NB-013's second utility version would have made three copies six.
+ * compares to PROBABILITY_TOLERANCE, so three copies of the formula were three
+ * chances to drift, and NB-013's second utility version would have made three
+ * copies six.
  *
  * The two versions differ in what a quest is worth. Both already price
  * rejecting a clean team, which costs one proposal, through

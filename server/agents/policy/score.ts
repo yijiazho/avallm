@@ -4,6 +4,12 @@ import {
   probability,
   sequenceEqual,
 } from '../components/canonical-shape.ts'
+import {
+  ACCUMULATED_PROBABILITY_TOLERANCE,
+  PROBABILITY_TOLERANCE,
+  SEEDED_SELECTION_MARGIN,
+  SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
+} from '../components/probability-arithmetic.ts'
 import { canonicalTeam } from '../../engine/rules.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
@@ -297,7 +303,7 @@ function validGoodProposalFeatures(
     || features.evilCountDistribution.some((value) => !probability(value))
     || features.evilCountDistribution.some(
       (value, index) =>
-        Math.abs(value - assessment.evilCountDistribution[index]) > 1e-12,
+        Math.abs(value - assessment.evilCountDistribution[index]) > PROBABILITY_TOLERANCE,
     )
   ) {
     return false
@@ -306,13 +312,13 @@ function validGoodProposalFeatures(
     (sum, value) => sum + value,
     0,
   )
-  return Math.abs(total - 1) <= 1e-9
+  return Math.abs(total - 1) <= ACCUMULATED_PROBABILITY_TOLERANCE
     && Math.abs(
       features.cleanProbability - features.evilCountDistribution[0],
-    ) <= 1e-12
+    ) <= PROBABILITY_TOLERANCE
     && Math.abs(
       features.cleanProbability - assessment.cleanProbability,
-    ) <= 1e-12
+    ) <= PROBABILITY_TOLERANCE
 }
 
 function sameDistribution(
@@ -321,7 +327,7 @@ function sameDistribution(
 ): boolean {
   return left.length === right.length
     && left.every(
-      (value, index) => Math.abs(value - right[index]) <= 1e-12,
+      (value, index) => Math.abs(value - right[index]) <= PROBABILITY_TOLERANCE,
     )
 }
 
@@ -423,7 +429,7 @@ function goodVoteUtility(
     || !sequenceEqual(projection.bestAlternative.team, best.team)
     || Math.abs(
       projection.bestAlternative.cleanProbability - best.cleanProbability,
-    ) > 1e-12
+    ) > PROBABILITY_TOLERANCE
     || !sameDistribution(
       projection.bestAlternative.evilCountDistribution,
       best.evilCountDistribution,
@@ -431,7 +437,7 @@ function goodVoteUtility(
     || Math.abs(
       projection.currentTeam.cleanProbability
       - context.analysis.currentTeam!.cleanProbability,
-    ) > 1e-12
+    ) > PROBABILITY_TOLERANCE
     || !sameDistribution(
       projection.currentTeam.evilCountDistribution,
       context.analysis.currentTeam!.evilCountDistribution,
@@ -507,7 +513,7 @@ function validGoodVoteFeatures(
     && sequenceEqual(features.currentTeam, expected.currentTeam)
     && Math.abs(
       features.currentCleanProbability - expected.currentCleanProbability,
-    ) <= 1e-12
+    ) <= PROBABILITY_TOLERANCE
     && sameDistribution(
       features.currentEvilCountDistribution,
       expected.currentEvilCountDistribution,
@@ -521,7 +527,7 @@ function validGoodVoteFeatures(
     && Math.abs(
       features.bestAlternativeCleanProbability
       - expected.bestAlternativeCleanProbability,
-    ) <= 1e-12
+    ) <= PROBABILITY_TOLERANCE
     && sameDistribution(
       features.bestAlternativeEvilCountDistribution,
       expected.bestAlternativeEvilCountDistribution,
@@ -532,15 +538,15 @@ function validGoodVoteFeatures(
     && features.rejectionsBeforeHammer
       === context.analysis.rejectionsBeforeHammer
     && features.futureQuestsRemain === expected.futureQuestsRemain
-    && Math.abs(features.stake - expected.stake) <= 1e-12
+    && Math.abs(features.stake - expected.stake) <= PROBABILITY_TOLERANCE
     && Math.abs(
       features.alternativeRealization - expected.alternativeRealization,
-    ) <= 1e-12
-    && Math.abs(features.hammerPenalty - expected.hammerPenalty) <= 1e-12
-    && Math.abs(features.informationBonus - expected.informationBonus) <= 1e-12
-    && Math.abs(features.approveUtility - expected.approveUtility) <= 1e-12
-    && Math.abs(features.rejectUtility - expected.rejectUtility) <= 1e-12
-    && Math.abs(features.baseUtility - baseUtility) <= 1e-12
+    ) <= PROBABILITY_TOLERANCE
+    && Math.abs(features.hammerPenalty - expected.hammerPenalty) <= PROBABILITY_TOLERANCE
+    && Math.abs(features.informationBonus - expected.informationBonus) <= PROBABILITY_TOLERANCE
+    && Math.abs(features.approveUtility - expected.approveUtility) <= PROBABILITY_TOLERANCE
+    && Math.abs(features.rejectUtility - expected.rejectUtility) <= PROBABILITY_TOLERANCE
+    && Math.abs(features.baseUtility - baseUtility) <= PROBABILITY_TOLERANCE
     && features.viableBand === GOOD_VOTE_UTILITY_CONSTANTS.viableBand
     && features.inViableBand === (
       Math.abs(expected.approveUtility - expected.rejectUtility)
@@ -779,10 +785,10 @@ export function validateCandidateScores(
                 (
                   isExpectedSeededVote(score.candidateId)
                 )
-                  ? maxBase - features.baseUtility + 1e-9
+                  ? maxBase - features.baseUtility + SEEDED_SELECTION_MARGIN
                   : 0
               ),
-            ) > 1e-15
+            ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE
           )
         ))
     ) {

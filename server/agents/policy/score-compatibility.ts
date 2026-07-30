@@ -14,6 +14,7 @@ import {
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
 } from '../analysis/role-utility.ts'
+import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts'
 import type { ScoreLayerRow } from './score-layer/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -162,7 +163,7 @@ function projectGood(
                 (candidate) => candidate.id === score.candidateId,
               )!.decision as { kind: 'vote'; vote: string }
             ).vote === seededVote
-              ? maxBase - baseRow.baseValue + 1e-9
+              ? maxBase - baseRow.baseValue + SEEDED_SELECTION_MARGIN
               : 0,
           selectionMode: seeded ? 'seeded-band' as const : 'top-utility' as const,
           ...(seedBucket === undefined ? {} : { seedBucket }),
@@ -264,7 +265,7 @@ function projectGood(
         bandActive
         && row.candidate.decision.kind === 'vote'
         && row.candidate.decision.vote === seededVote
-          ? maxCombined - row.combinedValue + 1e-9
+          ? maxCombined - row.combinedValue + SEEDED_SELECTION_MARGIN
           : 0,
       ...(seedBucket === undefined ? {} : { seedBucket }),
       utility: structuredClone(row.utility),
@@ -358,7 +359,7 @@ function projectEvil(
             (candidate) => candidate.id === row.candidateId,
           )!.decision as { kind: 'vote'; vote: string }
         ).vote === seededVote
-          ? maxValue - utility.roleValue + 1e-9
+          ? maxValue - utility.roleValue + SEEDED_SELECTION_MARGIN
           : 0,
       ...(seedBucket === undefined ? {} : { seedBucket }),
       utility: structuredClone(utility),

@@ -17,7 +17,6 @@ import type {
   BeliefSnapshot,
   WeightedWorld,
 } from '../belief/types.ts'
-import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import {
   canonicalRoleMultiset,
   canonicalWorldKey,
@@ -57,12 +56,12 @@ import {
   plainRecord,
   probability,
 } from '../components/canonical-shape.ts'
-
-const close = (left: number, right: number): boolean =>
-  Math.abs(left - right) <= PROBABILITY_TOLERANCE
-
-const clampProbability = (value: number): number =>
-  Math.max(0, Math.min(1, value))
+import {
+  clampProbability,
+  closeProbability as close,
+  PROBABILITY_TOLERANCE,
+  stableProbabilitySum,
+} from '../components/probability-arithmetic.ts'
 
 function matrixIndex(
   playerCount: number,
@@ -159,11 +158,14 @@ function validateBeliefForMordred(
         })
       )
     })
+    // Compensated, like every other world total this tree compares at the
+    // strict tolerance. A Mordred view leaves at most 420 feasible worlds, so
+    // `reduce` also passed here, but that bound is a fact about what one seat's
+    // partner knowledge rules out, not about this line. The same expression
+    // over a servant's 60,480 worlds lands 1.6e-12 from 1 and rejects a correct
+    // belief.
     || !close(
-      belief.worlds.reduce(
-        (sum, weighted) => sum + weighted.probability,
-        0,
-      ),
+      stableProbabilitySum(belief.worlds, (weighted) => weighted.probability),
       1,
     )
     || (

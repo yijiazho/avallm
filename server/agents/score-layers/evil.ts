@@ -6,6 +6,7 @@ import {
   EVIL_ROLE_UTILITY_COMPONENT,
 } from '../components/native-score-components.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
+import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -153,7 +154,7 @@ function evilDefinition(
               && candidate.decision.kind === 'vote'
               && candidate.decision.vote === seededVote
             const selectionAdjustment = selectedBySeed
-              ? maxValue - utility.roleValue + 1e-9
+              ? maxValue - utility.roleValue + SEEDED_SELECTION_MARGIN
               : 0
             const viable = forcedAllowed && (
               forcedSelection
