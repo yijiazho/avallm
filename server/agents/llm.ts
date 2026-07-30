@@ -23,7 +23,11 @@ import {
   type ExperimentalBeliefMode,
 } from './experimental.ts'
 import type { CognitionState } from './cognition/types.ts'
-import { createDecisionTrace, type DecisionTrace } from './trace.ts'
+import {
+  createDecisionTrace,
+  finalizeProvisionalAppliedTrace,
+  type DecisionTrace,
+} from './trace.ts'
 import {
   resolveBrain,
   usesCompactBeliefSummary,
@@ -41,6 +45,10 @@ export interface LlmAgentOpts {
   brain?: LlmBrainConfig
   /** Compatibility input for Phase 2 definitions and direct callers. */
   beliefMode?: ExperimentalBeliefMode
+  /**
+   * Private sink of last resort. Traces ride the decide() envelope, so a host
+   * with its own store persists them itself and never reaches this.
+   */
   onDecisionTrace?: (trace: DecisionTrace) => void
 }
 
@@ -166,19 +174,21 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
     }
   }
 
-  function recordTrace(
+  // The trace rides back on the decide() envelope, so the host persists it
+  // only after the engine has accepted the action (design doc §9).
+  function buildTrace(
     req: DecisionRequest,
     view: PlayerView,
     decision: Decision,
-  ): void {
-    if (!opts.onDecisionTrace || !compactBeliefSummary) return
+  ): DecisionTrace | undefined {
+    if (!compactBeliefSummary) return undefined
     const candidateTeams =
       decision.kind === 'propose' || (decision.kind === 'finalize' && !decision.stick)
         ? [decision.team]
         : []
     const context = beliefContext(view, candidateTeams)
-    if (!context) return
-    opts.onDecisionTrace({
+    if (!context) return undefined
+    const trace: DecisionTrace = {
       ...createDecisionTrace(
       req,
       view,
@@ -188,12 +198,48 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       pendingTraceDegradation,
       ),
       agentMode: 'raw-llm',
-    })
+    }
     pendingTraceDegradation = []
+    return trace
+  }
+
+  /** The envelope's optional trace field, present only when there is one. */
+  function traceEnvelope(
+    req: DecisionRequest,
+    view: PlayerView,
+    decision: Decision,
+  ): Pick<AgentDecision, 'trace'> {
+    const trace = buildTrace(req, view, decision)
+    return trace ? { trace } : {}
   }
 
   return {
-    async decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision> {
+    privateTraceSink(trace) {
+      opts.onDecisionTrace?.(trace)
+    },
+    /**
+     * Raw-LLM traces have nothing to add once an action is legal, so the only
+     * work here is the record for a fallback this agent never chose: decide()
+     * threw, so there is no envelope trace for the host to finalize.
+     */
+    finalizeAppliedTrace(outcome) {
+      if (outcome.provisionalTrace) {
+        return finalizeProvisionalAppliedTrace(outcome)
+      }
+      if (outcome.resolution === 'selected-applied') return undefined
+      if (!pendingTraceDegradation.includes('decision-fallback')) {
+        pendingTraceDegradation.push('decision-fallback')
+      }
+      return buildTrace(
+        outcome.request,
+        outcome.view,
+        outcome.appliedDecision,
+      )
+    },
+    async decide(
+      req: DecisionRequest,
+      view: PlayerView,
+    ): Promise<AgentDecision> {
       pendingTraceDegradation = []
       await maybeReflect(view)
       // Good's quest card is forced (the engine coerces fail -> success), so
@@ -206,8 +252,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
           decision.notes = pendingNotes
           pendingNotes = null
         }
-        recordTrace(req, view, decision)
-        return { decision }
+        return { decision, ...traceEnvelope(req, view, decision) }
       }
       const kind = req.kind as LlmCallKind
       const first = await callKind(kind, view)
@@ -259,19 +304,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
           // silent proposal — the table will notice
         }
       }
-      recordTrace(req, view, decision)
-      return { decision }
-    },
-    recordFallbackTrace(
-      req: DecisionRequest,
-      view: PlayerView,
-      decision: Decision,
-    ): void {
-      if (!compactBeliefSummary) return
-      if (!pendingTraceDegradation.includes('decision-fallback')) {
-        pendingTraceDegradation.push('decision-fallback')
-      }
-      recordTrace(req, view, decision)
+      return { decision, ...traceEnvelope(req, view, decision) }
     },
   }
 }

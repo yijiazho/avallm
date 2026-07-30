@@ -114,7 +114,7 @@ export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
   }
 
   return {
-    recordDecisionTrace(trace) {
+    privateTraceSink(trace) {
       opts.onDecisionTrace?.(trace)
     },
     async decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision> {

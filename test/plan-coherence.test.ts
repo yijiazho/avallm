@@ -87,7 +87,7 @@ async function decideAndAcknowledge(
   view: PlayerView,
 ) {
   const output = await agent.decide(req, view)
-  const finalized = agent.recordAppliedDecisionOutcome!({
+  const finalized = agent.finalizeAppliedTrace!({
     request: req,
     view,
     selectedDecision: output.decision,
@@ -106,7 +106,7 @@ test('plan memory commits only after legality acknowledgment and returns a detac
   assert.equal(output.trace!.privatePlanOutcome, undefined)
   assert.equal(output.trace!.coherenceIntent, 'maintain')
 
-  const finalized = agent.recordAppliedDecisionOutcome!({
+  const finalized = agent.finalizeAppliedTrace!({
     request: req,
     view,
     selectedDecision: output.decision,
@@ -137,7 +137,7 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
   const agent = createComposedAgent({ seed: 'phase7b2-history', planMemory: true })
   const first = await agent.decide(req, view)
   const fallback = heuristicDecide(req, view, 'phase7b2-history')
-  agent.recordAppliedDecisionOutcome!({
+  agent.finalizeAppliedTrace!({
     request: req,
     view,
     selectedDecision: first.decision,
@@ -151,7 +151,7 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
   )
 
   const second = await agent.decide(req, view)
-  agent.recordAppliedDecisionOutcome!({
+  agent.finalizeAppliedTrace!({
     request: req,
     view,
     selectedDecision: second.decision,
@@ -168,7 +168,7 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
     seed: 'phase7b2-history',
     planMemory: true,
   })
-  errorAgent.recordAppliedDecisionOutcome!({
+  errorAgent.finalizeAppliedTrace!({
     request: req,
     view,
     appliedDecision: fallback,
@@ -361,7 +361,7 @@ test('same-view replay and plan-memory-off decisions are byte-equivalent', async
     resolution: 'selected-applied' as const,
     provisionalTrace: structuredClone(off.trace!),
   }
-  const offFinalized = offAgent.recordAppliedDecisionOutcome!(
+  const offFinalized = offAgent.finalizeAppliedTrace!(
     structuredClone(offOutcome),
   )!
   assert.deepEqual(offFinalized, off.trace)
@@ -405,7 +405,7 @@ test('plan-off acknowledgment records canonical normalized voice without degrada
     resolution: 'selected-applied' as const,
     provisionalTrace: structuredClone(output.trace!),
   }
-  const finalized = agent.recordAppliedDecisionOutcome!(
+  const finalized = agent.finalizeAppliedTrace!(
     structuredClone(hostOutcome),
   )!
   assert.deepEqual(finalized.action, applied)
@@ -432,7 +432,7 @@ test('sim acknowledges only after apply, swallows hook failure, and never leaks 
       )
       return [player.seat, {
         decide: base.decide.bind(base),
-        recordAppliedDecisionOutcome() {
+        finalizeAppliedTrace() {
           acknowledgedLogLength = game.log.length
           if (!threw) {
             threw = true
@@ -508,11 +508,16 @@ test('public cognition and live server source retain the private post-apply boun
   const applyAt = serverSource.indexOf(
     'appliedDecision = applyDecisionWithOutcome(',
   )
-  const hookAt = serverSource.indexOf(
-    'agent.recordAppliedDecisionOutcome(',
-    applyAt,
-  )
-  assert.ok(applyAt >= 0 && hookAt > applyAt)
+  const recordAt = serverSource.indexOf('recordAppliedDecision({', applyAt)
+  assert.ok(applyAt >= 0 && recordAt > applyAt)
+  // The lifecycle hook has exactly one caller, the owned helper, so no host can
+  // reach it before the engine has accepted an action.
+  for (const host of ['../server/server.ts', '../server/sim/runner.ts']) {
+    assert.doesNotMatch(
+      readFileSync(new URL(host, import.meta.url), 'utf8'),
+      /\.finalizeAppliedTrace\(/,
+    )
+  }
 })
 
 test('engine outcome reports canonical good cards, leader leans, teams, and speech', () => {
@@ -667,13 +672,13 @@ test('runtime host outcome is immutable against hook mutation and forgery degrad
     player.seat === target
       ? {
           decide: inner.decide.bind(inner),
-          recordAppliedDecisionOutcome(outcome) {
+          finalizeAppliedTrace(outcome) {
             outcome.resolution = 'fallback-after-illegal-decision'
             outcome.selectedDecision = {
               kind: 'propose',
               team: [3, 4],
             }
-            return inner.recordAppliedDecisionOutcome!(outcome)
+            return inner.finalizeAppliedTrace!(outcome)
           },
         }
       : createAgent(
@@ -739,10 +744,10 @@ test('finalized traces cannot mutate provisional stable telemetry', async () => 
     probe.mutate(supplied.provisionalTrace)
     if (probe.name === 'decision identity') {
       assert.throws(
-        () => agent.recordAppliedDecisionOutcome!(supplied),
+        () => agent.finalizeAppliedTrace!(supplied),
         /does not match the pending selected plan/,
       )
-      const recovered = agent.recordAppliedDecisionOutcome!(
+      const recovered = agent.finalizeAppliedTrace!(
         structuredClone(hostOutcome),
       )!
       assert.equal(
@@ -751,7 +756,7 @@ test('finalized traces cannot mutate provisional stable telemetry', async () => 
       )
       continue
     }
-    const finalized = agent.recordAppliedDecisionOutcome!(supplied)!
+    const finalized = agent.finalizeAppliedTrace!(supplied)!
     assert.equal(
       validateFinalizedAppliedTraceHostJoin(finalized, hostOutcome),
       false,
@@ -779,7 +784,7 @@ test('untouched provisional trace owns plan enablement and coherence intent', as
     resolution: 'selected-applied' as const,
     provisionalTrace: structuredClone(selected.trace!),
   }
-  const finalized = enabled.recordAppliedDecisionOutcome!(
+  const finalized = enabled.finalizeAppliedTrace!(
     structuredClone(enabledOutcome),
   )!
   assert.equal(finalized.coherenceIntent, 'conceal')
@@ -824,7 +829,7 @@ test('untouched provisional trace owns plan enablement and coherence intent', as
     resolution: 'selected-applied' as const,
     provisionalTrace: structuredClone(offSelected.trace!),
   }
-  const promoted = off.recordAppliedDecisionOutcome!(
+  const promoted = off.finalizeAppliedTrace!(
     structuredClone(offOutcome),
   )!
   promoted.componentVersions = {
@@ -861,7 +866,7 @@ test('uncloneable provisional telemetry and a throwing hook cannot re-enter lega
           } as never,
         }
       },
-      recordAppliedDecisionOutcome() {
+      finalizeAppliedTrace() {
         throw new Error('telemetry failed after apply')
       },
     },
@@ -1090,9 +1095,9 @@ test('agent-error fallback memory uses each exact supplied view without belief i
     player.seat === target
       ? {
           decide: inner.decide.bind(inner),
-          recordAppliedDecisionOutcome(outcome) {
+          finalizeAppliedTrace(outcome) {
             outcomes.push(structuredClone(outcome))
-            return inner.recordAppliedDecisionOutcome!(outcome)
+            return inner.finalizeAppliedTrace!(outcome)
           },
         }
       : createAgent(
@@ -1325,12 +1330,12 @@ test('artifacts, architecture bench, and report bind finalized plan attribution 
     })
     return {
       decide: inner.decide.bind(inner),
-      recordDecisionTrace(trace) {
+      privateTraceSink(trace) {
         context.onDecisionTrace?.(trace)
       },
-      recordAppliedDecisionOutcome(outcome) {
+      finalizeAppliedTrace(outcome) {
         outcome.resolution = 'fallback-after-illegal-decision'
-        return inner.recordAppliedDecisionOutcome!(outcome)
+        return inner.finalizeAppliedTrace!(outcome)
       },
     }
   }
@@ -1376,9 +1381,9 @@ test('architecture bench rejects generation-time target trace drops', async () =
     let emitted = 0
     return {
       decide: inner.decide.bind(inner),
-      recordAppliedDecisionOutcome:
-        inner.recordAppliedDecisionOutcome!.bind(inner),
-      recordDecisionTrace(trace) {
+      finalizeAppliedTrace:
+        inner.finalizeAppliedTrace!.bind(inner),
+      privateTraceSink(trace) {
         emitted++
         if (emitted !== 2) context.onDecisionTrace?.(trace)
       },

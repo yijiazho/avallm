@@ -237,6 +237,7 @@ import {
 import {
   COMPONENT_DECISION_TRACE_VERSION,
   createDecisionTrace,
+  finalizeProvisionalAppliedTrace,
   projectBaseTraceComponentVersions,
   type DecisionTrace,
 } from './trace.ts'
@@ -1196,27 +1197,15 @@ export function createComposedAgent(
         ? structuredClone(appliedPlanMemory)
         : undefined
     },
-    recordDecisionTrace(trace) {
+    privateTraceSink(trace) {
       onDecisionTrace?.(trace)
     },
-    recordAppliedDecisionOutcome(
+    finalizeAppliedTrace(
       outcome: AppliedDecisionOutcome,
     ): DecisionTrace | undefined {
-      if (!planMemoryEnabled) {
-        if (!outcome.provisionalTrace) return undefined
-        const finalized = structuredClone(outcome.provisionalTrace)
-        finalized.action = structuredClone(outcome.appliedDecision)
-        if (
-          outcome.resolution !== 'selected-applied'
-          && !finalized.degradation.includes('decision-fallback')
-        ) {
-          finalized.degradation = [
-            ...finalized.degradation,
-            'decision-fallback',
-          ]
-        }
-        return finalized
-      }
+      // Without plan memory there is nothing to acknowledge, so the shared
+      // default finalization is the whole answer.
+      if (!planMemoryEnabled) return finalizeProvisionalAppliedTrace(outcome)
       if (outcome.request.seat !== outcome.view.seat) {
         throw new Error('applied outcome view seat does not match request')
       }

@@ -806,7 +806,7 @@ function identityVariant(
         },
       })
       return {
-        recordDecisionTrace(trace) {
+        privateTraceSink(trace) {
           context.onDecisionTrace?.(trace)
         },
         async decide(req, view) {

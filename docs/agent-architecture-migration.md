@@ -63,7 +63,7 @@ The current system already has strong foundations that should be retained.
 |---|---|---|
 | Game logic | Pure event-sourced engine under `server/engine/` | Keep |
 | Hidden information | `viewFor(game, seat)` produces the only `PlayerView` agents receive | Keep and extend tests |
-| Agent boundary | Every agent returns `AgentDecision { decision, trace? }`; the transitional `AgentOutput` union is deleted | Keep the external stdio wire permissive; that adapter is the only place a bare `Decision` is still accepted |
+| Agent boundary | Every agent returns `AgentDecision { decision, trace? }`; the transitional `AgentOutput` union is deleted, and one post-legality hook plus one private sink replace the three-method trace lifecycle (NB-015) | Keep the external stdio wire permissive; that adapter is the only place a bare `Decision` is still accepted |
 | Agent construction | Registry maps heuristic, random, stdio, and LLM specs; the composed constructor is opt-in | Add an explicit composed registry/definition mode only with Phase 4 rollout evidence |
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
@@ -292,6 +292,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
 | NB-014 | NB-010 | Fix good proposal value at an information-poor seat | Structured proposal value alone lowers the Servant's clean initial-proposal rate by `-10.6%` (95% `-20.6%` to `-1.1%`) and its win rate by `-6.7%`, while Merlin and Percival lose nothing on that channel. Diagnose why the proposal scorer serves a seat with no private knowledge worst, and treat clean-proposal rate as a diagnostic rather than the objective: Merlin's cleanliness also falls while its win rate rises. | `ready` |
 | NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `good-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
+| NB-015 | Phase 3 follow-on | Collapse the three-method trace lifecycle behind one hook and one host helper | Complete. `recordDecisionTrace`, `recordFallbackTrace`, and `recordAppliedDecisionOutcome` become one `finalizeAppliedTrace` hook plus a `privateTraceSink` destination, and `recordAppliedDecision()` in `server/agents/applied-trace.ts` is the single call each host makes after the engine accepts an action. The post-legality ordering, the detached host outcome, the finalized-trace host join, and the degraded fallback live in that one place rather than being duplicated in the sim runner and the server pump, and a finalized trace can still differ from the provisional one. Raw-LLM traces move onto the decide() envelope so they are persisted after legality with the applied action named. Every degradation path is unchanged. | `landed` |
 | NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `role-policy`, `evil-policy`, and `morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. The test-only `AgentOutput` normalizer adapters it added are gone with the union itself; see the progress log. | `landed` |
 
 NB-006 is directly discoverable with
@@ -853,6 +854,8 @@ Non-blocking Phase 3C follow-ups:
       path and the existing paid-call gate; Phase 3 defines the injection contracts only.
 - [x] Collapse the transitional `AgentOutput` union after external and direct callers have had a
       compatibility window; until then runners remain the single normalization boundary.
+- [x] Collapse the trace lifecycle behind one hook and one host helper, so a runner no longer has
+      to know the ordering between engine legality and telemetry (NB-015).
 - [ ] Cache the compatibility policy's repeated cognition work if the opt-in constructor is used
       in larger benchmarks before Phase 4 replaces that scorer.
 
@@ -3703,3 +3706,27 @@ here.
   permuted-deal case pass, which is the gap the follow-up described. These two are the complete set
   of paired reports in the tree, so the law now has no second definition to drift from. Full suite
   1149 correctness tests plus the three isolated performance tests.
+
+- NB-015 one trace lifecycle behind one host call. The three optional telemetry methods fall to two
+  with distinct jobs: `finalizeAppliedTrace` is the whole lifecycle, and `privateTraceSink` is only a
+  destination for hosts that keep no store of their own. `recordAppliedDecision()`
+  (`server/agents/applied-trace.ts`) is the single call the sim runner, the server pump, and the eval
+  drivers make once `applyDecisionWithOutcome` has accepted an action: it detaches the host
+  request/view/action so a hook cannot reach back into them, invokes the hook, keeps the returned
+  trace only if `validateFinalizedAppliedTraceHostJoin` still binds it to what the engine accepted,
+  and otherwise records the degraded outcome trace. The two runners previously carried
+  near-identical copies of that sequence; the helper's own behavior is unchanged from those copies,
+  including the case where a declining hook degrades the provisional record rather than publishing
+  it. Two shared finalizers replace duplicated bodies: `finalizeProvisionalAppliedTrace` (used by the
+  composed host with plan memory off and by the raw-LLM agent) and `bindFallbackAppliedTrace` for the
+  one lane with no provisional trace to join against, where `decide` threw and the agent still has an
+  account of the fallback it did not choose. Behavior change worth naming: raw-LLM traces now ride
+  the decide() envelope and are persisted by the host after legality instead of being pushed to the
+  agent's own sink mid-decision, so a raw-LLM trace names the action the engine applied; the agent
+  option that used to receive them is now only the sink of last resort. Every degradation path is
+  unchanged: agent error, illegal decision, throwing hook, and uncloneable telemetry still land on
+  the heuristic without stalling. The server source scan in `plan-coherence` now pins both halves of
+  the ordering law, that the record call follows the apply call and that no host calls the hook
+  directly. Verification: full API-free suite 1170 correctness tests plus the three isolated
+  performance tests, 416 contract tests, strict server typecheck, and the ratchet at the same 37
+  pinned exemptions with five refreshed hashes.

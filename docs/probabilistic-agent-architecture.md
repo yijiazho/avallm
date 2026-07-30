@@ -757,6 +757,10 @@ interface AgentDecision {
 
 interface AvalonAgent {
   decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision>
+  /** One post-legality trace-lifecycle hook, reached only through the host helper. */
+  finalizeAppliedTrace?(outcome: AppliedDecisionOutcome): DecisionTrace | undefined
+  /** Private sink of last resort, used only when the host provides none. */
+  privateTraceSink?(trace: DecisionTrace): void
   dispose?(): void
 }
 ```
@@ -764,10 +768,19 @@ interface AvalonAgent {
 The runner unwraps `decision` for `applyDecision` and records an envelope trace only after the
 engine accepts that action. `DecisionTrace` can contain component versions, posterior summaries,
 candidate scores, degradation state, and token cost. It must never enter another live player's
-view. The bare-decision branch is a migration aid, not the final plugin contract.
+view.
 
-Legacy agents can be adapted with `{ decision }`. External stdio agents should gain the trace field
-only as an optional protocol extension.
+That ordering is owned by `recordAppliedDecision()` in `server/agents/applied-trace.ts`, the one
+call each host makes once an action is legal. The helper detaches its own request, view, and applied
+action, invokes the agent's single hook, checks the returned trace still joins to what the engine
+accepted, degrades the record rather than trusting a mismatch, and persists. Hosts hold no part of
+the lifecycle, and a finalized trace is free to differ from the provisional one: the applied action
+can be a coerced or fallback decision the agent never selected.
+
+Agents with no telemetry of their own return `{ decision }` and implement no hook. External stdio
+agents keep sending a bare `{ decision }` on the wire, which `parseStdioDecisionReply` translates
+into the envelope at the process boundary; the trace field there remains an optional protocol
+extension, admitted only after validation.
 
 The composed-agent host resolves one typed brain before a decision. That resolved brain owns
 component selection, versions, dependency order, score and decision layers, and configured versus

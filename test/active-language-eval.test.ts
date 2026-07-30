@@ -103,7 +103,7 @@ function staticTraceVariant(
           }
           return { decision: output.decision, trace }
         },
-        recordDecisionTrace(trace) {
+        privateTraceSink(trace) {
           context.onDecisionTrace?.(trace)
         },
       }

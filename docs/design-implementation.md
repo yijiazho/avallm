@@ -98,9 +98,12 @@ interface AgentDecision {
 
 Notification of game events needs no separate callback: `view` carries the seat-filtered event
 log, so agents are stateless-by-default and any memory (scratchpads, believed-sides tables) is
-their own business. Server and simulator runners normalize the transitional raw/enveloped union
-before engine legality checks. The composed agent owns persistent typed cognition in its closure;
-changing its injected planner/model or voice does not reset that strategic state.
+their own business. The envelope is the only in-process shape; an external stdio agent may still
+send a bare decision, which `parseStdioDecisionReply` wraps at the process boundary. Runners unwrap
+`decision` for the legality check and hand the rest of the trace lifecycle to
+`recordAppliedDecision()` (`server/agents/applied-trace.ts`), which runs only after the engine
+accepts an action. The composed agent owns persistent typed cognition in its closure; changing its
+injected planner/model or voice does not reset that strategic state.
 
 **Agent specs and registry.** Table setup maps each seat to an `AgentSpec`; a registry constructs
 the agent (an alias-map-as-allowlist pattern):
@@ -375,7 +378,7 @@ opt-in full-reveal artifact path. They never enter the engine event log, `Player
 client response. Auxiliary parse failures are recorded even when the provider call itself
 succeeded. A trace-bearing envelope remains pending until `applyDecision` accepts its action; an
 illegal attempt is discarded before the heuristic fallback runs. When the runner substitutes a
-heuristic, an optional telemetry hook upserts that stable decision identity with the fallback
+heuristic, the same post-legality hook upserts that stable decision identity with the fallback
 action actually applied. External stdio traces must satisfy the complete required base schema,
 stable request-derived identity, and mode/component relationships. The free architecture benchmark
 can inject explicitly labeled structured or fake-client hybrid agents and checks those declarations

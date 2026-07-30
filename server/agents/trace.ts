@@ -593,6 +593,54 @@ export function validateFinalizedAppliedTraceHostJoin(
   }
 }
 
+/**
+ * The default finalization of an envelope trace, once the engine has accepted
+ * an action: the provisional telemetry unchanged, renamed to the action that
+ * actually applied, and marked when a fallback stood in for the selection.
+ * Agents whose acknowledgment adds nothing of their own return this, so the
+ * shape the host validates has exactly one definition.
+ */
+export function finalizeProvisionalAppliedTrace(
+  outcome: AppliedDecisionOutcome,
+): DecisionTrace | undefined {
+  if (!outcome.provisionalTrace) return undefined
+  const finalized = structuredClone(outcome.provisionalTrace)
+  finalized.action = structuredClone(outcome.appliedDecision)
+  if (
+    outcome.resolution !== 'selected-applied'
+    && !finalized.degradation.includes('decision-fallback')
+  ) {
+    finalized.degradation = [...finalized.degradation, 'decision-fallback']
+  }
+  return finalized
+}
+
+/**
+ * Admit a trace an agent built for a decision it never returned (decide()
+ * failed, so there is no provisional trace to join against). There is nothing
+ * to compare it with, so bind it to the action the engine accepted rather than
+ * trusting whichever action the agent named.
+ */
+export function bindFallbackAppliedTrace(
+  trace: DecisionTrace,
+  appliedDecision: Decision,
+  resolution: AppliedDecisionOutcome['resolution'],
+): DecisionTrace | undefined {
+  try {
+    const bound = structuredClone(trace)
+    bound.action = structuredClone(appliedDecision)
+    if (
+      resolution !== 'selected-applied'
+      && !bound.degradation.includes('decision-fallback')
+    ) {
+      bound.degradation = [...bound.degradation, 'decision-fallback']
+    }
+    return bound
+  } catch {
+    return undefined
+  }
+}
+
 /** A detached, applied-action trace for a failed optional acknowledgment. */
 export function degradedAppliedOutcomeTrace(
   provisional: DecisionTrace | undefined,

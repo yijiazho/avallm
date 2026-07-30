@@ -1394,7 +1394,7 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
           activeView = view
           return inner.decide(req, view)
         },
-        recordDecisionTrace(trace) {
+        privateTraceSink(trace) {
           context.onDecisionTrace!(degrade(trace, activeReq, activeView))
         },
       }

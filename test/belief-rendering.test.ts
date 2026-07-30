@@ -64,7 +64,6 @@ test('default LLM prompts omit belief visibility and experimental prompts receiv
   assert.ok(defaults.flat().every((text) => !text.includes('EXACT BELIEF SUMMARY')))
 
   const experimental: string[][] = []
-  const traces: DecisionTrace[] = []
   const experimentalAgent = createLlmAgent({
     modelId: 'deepseek-flash',
     client: captureClient(
@@ -72,9 +71,11 @@ test('default LLM prompts omit belief visibility and experimental prompts receiv
       experimental,
     ),
     beliefMode: EXPERIMENTAL_BELIEF_MODE,
-    onDecisionTrace: (trace) => traces.push(trace),
   })
-  await experimentalAgent.decide(req, view)
+  // The trace rides the decide() envelope now, so the host owns persisting it.
+  const traces: DecisionTrace[] = []
+  const experimentalOutput = await experimentalAgent.decide(req, view)
+  if (experimentalOutput.trace) traces.push(experimentalOutput.trace)
   assert.ok(experimental.flat().some((text) => text.includes('EXACT BELIEF SUMMARY')))
   assert.equal(traces.length, 1)
   assert.equal(traces[0].statedReasoning, 'uses exact summary')
@@ -106,7 +107,6 @@ test('parsed-but-unusable reflection output is recorded as trace degradation', a
     JSON.stringify({ suspicions: [] }),
     JSON.stringify({ vote: 'approve', thinking: 'continue' }),
   ]
-  const traces: DecisionTrace[] = []
   const agent = createLlmAgent({
     modelId: 'deepseek-flash',
     client: {
@@ -117,14 +117,15 @@ test('parsed-but-unusable reflection output is recorded as trace degradation', a
       getSpend: () => ({}),
     },
     beliefMode: EXPERIMENTAL_BELIEF_MODE,
-    onDecisionTrace: (trace) => traces.push(trace),
   })
-  await agent.decide({
+  const traces: DecisionTrace[] = []
+  const reflected = await agent.decide({
     kind: 'vote',
     seat: view.seat,
     round: view.round,
     proposalNum: view.proposalNum,
   }, view)
+  if (reflected.trace) traces.push(reflected.trace)
   assert.deepEqual(traces[0].degradation, ['reflection-failed'])
 })
 

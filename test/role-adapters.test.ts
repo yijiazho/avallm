@@ -347,7 +347,7 @@ test('one composed agent serializes overlapping decisions and releases after fai
   assert.equal(secondOutput.trace!.request.kind, 'propose')
   assert.deepEqual(firstOutput.decision, secondOutput.decision)
   assert.throws(
-    () => agent.recordAppliedDecisionOutcome!({
+    () => agent.finalizeAppliedTrace!({
       request: {
         ...fixture.req,
         proposalNum: fixture.req.proposalNum + 1,
@@ -361,7 +361,7 @@ test('one composed agent serializes overlapping decisions and releases after fai
     /does not match the pending selected plan/,
   )
   for (const output of [firstOutput, secondOutput]) {
-    agent.recordAppliedDecisionOutcome!({
+    agent.finalizeAppliedTrace!({
       request: fixture.req,
       view: fixture.view,
       selectedDecision: output.decision,

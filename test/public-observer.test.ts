@@ -624,7 +624,7 @@ function observerVariant(forgeMissingPayload = false): ArchitectureVariant {
         publicObserver: true,
       })
       return {
-        recordDecisionTrace(trace) {
+        privateTraceSink(trace) {
           context.onDecisionTrace?.(trace)
         },
         async decide(req, view) {

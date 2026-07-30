@@ -11,11 +11,8 @@ import type {
   AppliedDecisionResolution,
   AvalonAgent,
 } from '../agents/types.ts'
-import {
-  degradedAppliedOutcomeTrace,
-  validateFinalizedAppliedTraceHostJoin,
-  type DecisionTrace,
-} from '../agents/trace.ts'
+import { recordAppliedDecision } from '../agents/applied-trace.ts'
+import type { DecisionTrace } from '../agents/trace.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Seat } from '../engine/types.ts'
 
 export interface DegradedDecision {
@@ -38,84 +35,6 @@ export interface RunOpts {
   /** Private trace sink; traces never enter Game or PlayerView. */
   onDecisionTrace?: (trace: DecisionTrace) => void
   maxSteps?: number
-}
-
-function recordFallbackTrace(
-  agent: AvalonAgent,
-  req: DecisionRequest,
-  view: ReturnType<typeof viewFor>,
-  decision: Decision,
-): void {
-  try {
-    agent.recordFallbackTrace?.(req, view, decision)
-  } catch {
-    // Optional telemetry must never turn a legal fallback into a stalled game.
-  }
-}
-
-function recordAppliedTrace(
-  agent: AvalonAgent,
-  trace: DecisionTrace | undefined,
-  sink: RunOpts['onDecisionTrace'],
-): void {
-  if (!trace) return
-  try {
-    if (sink) sink(trace)
-    else agent.recordDecisionTrace?.(trace)
-  } catch {
-    // Optional telemetry must never turn a legal action into a stalled game.
-  }
-}
-
-function finalizeAppliedTrace(
-  agent: AvalonAgent,
-  input: {
-    req: DecisionRequest
-    view: ReturnType<typeof viewFor>
-    selectedDecision?: Decision
-    appliedDecision: Decision
-    resolution: AppliedDecisionResolution
-    trace?: DecisionTrace
-  },
-): DecisionTrace | undefined {
-  if (!agent.recordAppliedDecisionOutcome) {
-    return input.resolution === 'selected-applied' ? input.trace : undefined
-  }
-  try {
-    const hostOutcome = {
-      request: { ...input.req },
-      view: structuredClone(input.view),
-      ...(input.selectedDecision
-        ? { selectedDecision: structuredClone(input.selectedDecision) }
-        : {}),
-      appliedDecision: structuredClone(input.appliedDecision),
-      resolution: input.resolution,
-      ...(input.trace
-        ? { provisionalTrace: structuredClone(input.trace) }
-        : {}),
-    }
-    const finalized = agent.recordAppliedDecisionOutcome(
-      structuredClone(hostOutcome),
-    )
-    const detached = finalized ? structuredClone(finalized) : undefined
-    return detached
-      && validateFinalizedAppliedTraceHostJoin(
-        detached,
-        hostOutcome,
-      )
-      ? detached
-      : degradedAppliedOutcomeTrace(
-          input.trace,
-          input.appliedDecision,
-          input.resolution,
-        )
-  } catch {
-    return degradedAppliedOutcomeTrace(
-      input.trace,
-      input.appliedDecision,
-      input.resolution,
-    )
-  }
 }
 
 export async function runGame(opts: RunOpts): Promise<RunResult> {
@@ -155,9 +74,13 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
         seat: req.seat, kind: req.kind, atEvent: game.log.length,
         error: err instanceof Error ? err.message : String(err),
       })
-      const decision = heuristicDecide(req, view, game.seed)
-      recordFallbackTrace(agent, req, view, decision)
-      return { req, view, agent, decision, selected: false }
+      return {
+        req,
+        view,
+        agent,
+        decision: heuristicDecide(req, view, game.seed),
+        selected: false,
+      }
     }
   }
 
@@ -194,7 +117,6 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
           error: err instanceof Error ? err.message : String(err),
         })
         const fallback = heuristicDecide(req, viewFor(game, req.seat), game.seed)
-        recordFallbackTrace(agent, req, view, fallback)
         appliedDecision = applyDecisionWithOutcome(
           game,
           req.seat,
@@ -203,16 +125,19 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
         selectedDecision = decision
         resolution = 'fallback-after-illegal-decision'
       }
-      // Optional cognition and telemetry are outside the legality transaction.
-      const finalized = finalizeAppliedTrace(agent, {
+      // Optional cognition and telemetry are outside the legality transaction:
+      // one call owns finalizing and persisting, and it runs only now that the
+      // engine has accepted an action.
+      recordAppliedDecision({
+        agent,
         req,
         view,
         ...(selectedDecision ? { selectedDecision } : {}),
         appliedDecision,
         resolution,
-        trace,
+        ...(trace ? { provisionalTrace: trace } : {}),
+        ...(opts.onDecisionTrace ? { sink: opts.onDecisionTrace } : {}),
       })
-      recordAppliedTrace(agent, finalized, opts.onDecisionTrace)
       await flushEvents()
     }
   }

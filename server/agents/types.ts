@@ -14,26 +14,24 @@ export interface AvalonAgent {
    * so runners never see two shapes.
    */
   decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision>
-  /** Persist a trace supplied through AgentDecision in the private sink. */
-  recordDecisionTrace?(trace: DecisionTrace): void
   /**
-   * Optional private telemetry hook. Runners call this only when the decision
-   * ultimately applied was their heuristic fallback rather than decide()'s
-   * result. It does not affect gameplay or enter PlayerView.
+   * The single trace-lifecycle hook. Hosts never call it directly: they call
+   * recordAppliedDecision() (server/agents/applied-trace.ts), which invokes it
+   * exactly once per decision and only after the engine has accepted an
+   * action, so no trace can describe a rejected one. What it returns is the
+   * finalized record and may differ from the provisional envelope trace;
+   * undefined declines to acknowledge, which the host records as degraded
+   * rather than trusting the provisional trace.
    */
-  recordFallbackTrace?(
-    req: DecisionRequest,
-    view: PlayerView,
-    decision: Decision,
-  ): void
-  /**
-   * Private post-legality acknowledgment. Runners invoke it only after the
-   * applied decision has passed engine legality. A returned detached trace is
-   * the finalized trace that runners persist in place of the provisional one.
-   */
-  recordAppliedDecisionOutcome?(
+  finalizeAppliedTrace?(
     outcome: AppliedDecisionOutcome,
   ): DecisionTrace | undefined
+  /**
+   * Private trace sink of last resort, used only when the host provides none.
+   * A destination, not part of the lifecycle: the host still owns what gets
+   * persisted and when.
+   */
+  privateTraceSink?(trace: DecisionTrace): void
   dispose?(): void
 }
 
@@ -42,6 +40,13 @@ export type AppliedDecisionResolution =
   | 'fallback-after-agent-error'
   | 'fallback-after-illegal-decision'
 
+/**
+ * What the host knows once the engine has accepted an action, handed to
+ * finalizeAppliedTrace as a detached copy: mutating it cannot move the join the
+ * host validates the returned trace against. `selectedDecision` is absent when
+ * decide() failed, and `appliedDecision` can differ from it after a coercion or
+ * a fallback.
+ */
 export interface AppliedDecisionOutcome {
   request: DecisionRequest
   view: PlayerView
@@ -51,6 +56,7 @@ export interface AppliedDecisionOutcome {
   provisionalTrace?: DecisionTrace
 }
 
+/** The one shape decide() returns: the engine action plus private telemetry. */
 export interface AgentDecision {
   decision: Decision
   trace?: DecisionTrace

@@ -46,10 +46,9 @@ import { getClient } from './llm/client.ts'
 import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, nameIsReserved, validateRoles } from './engine/rules.ts'
 import type { AvalonAgent } from './agents/types.ts'
+import { recordAppliedDecision } from './agents/applied-trace.ts'
 import {
-  degradedAppliedOutcomeTrace,
   upsertDecisionTrace,
-  validateFinalizedAppliedTraceHostJoin,
   type DecisionTrace,
 } from './agents/trace.ts'
 import {
@@ -560,11 +559,6 @@ async function pump(s: Session): Promise<void> {
             error: err instanceof Error ? err.message : String(err),
           })
           const decision = heuristicDecide(req, view, s.game.seed)
-          try {
-            agent.recordFallbackTrace?.(req, view, decision)
-          } catch {
-            // Optional private telemetry never blocks the live game.
-          }
           return { req, view, agent, decision, trace: undefined, fallback: true }
         }
       }))
@@ -598,11 +592,6 @@ async function pump(s: Session): Promise<void> {
             viewFor(s.game, req.seat),
             s.game.seed,
           )
-          try {
-            agent.recordFallbackTrace?.(req, view, fallbackDecision)
-          } catch {
-            // Optional private telemetry never blocks the live game.
-          }
           appliedDecision = applyDecisionWithOutcome(
             s.game,
             req.seat,
@@ -613,51 +602,18 @@ async function pump(s: Session): Promise<void> {
           resolution = 'fallback-after-illegal-decision'
           wasFallback = true
         }
-        // Optional post-apply cognition is isolated from engine legality.
-        let finalizedTrace = resolution === 'selected-applied'
-          ? trace
-          : undefined
-        if (agent.recordAppliedDecisionOutcome) {
-          try {
-            const hostOutcome = {
-              request: { ...req },
-              view: structuredClone(view),
-              ...(selectedDecision
-                ? { selectedDecision: structuredClone(selectedDecision) }
-                : {}),
-              appliedDecision: structuredClone(appliedDecision),
-              resolution,
-              ...(trace
-                ? { provisionalTrace: structuredClone(trace) }
-                : {}),
-            }
-            const supplied = agent.recordAppliedDecisionOutcome(
-              structuredClone(hostOutcome),
-            )
-            const detached = supplied ? structuredClone(supplied) : undefined
-            finalizedTrace = detached
-              && validateFinalizedAppliedTraceHostJoin(detached, hostOutcome)
-              ? detached
-              : degradedAppliedOutcomeTrace(
-                  trace,
-                  appliedDecision,
-                  resolution,
-                )
-          } catch {
-            finalizedTrace = degradedAppliedOutcomeTrace(
-              trace,
-              appliedDecision,
-              resolution,
-            )
-          }
-        }
-        if (finalizedTrace) {
-          try {
-            upsertDecisionTrace(s.decisionTraces, finalizedTrace)
-          } catch {
-            // Optional private telemetry never blocks the live game.
-          }
-        }
+        // Optional post-apply cognition is isolated from engine legality: one
+        // call finalizes and persists, and only now that the action is legal.
+        recordAppliedDecision({
+          agent,
+          req,
+          view,
+          ...(selectedDecision ? { selectedDecision } : {}),
+          appliedDecision,
+          resolution,
+          ...(trace ? { provisionalTrace: trace } : {}),
+          sink: (finalized) => upsertDecisionTrace(s.decisionTraces, finalized),
+        })
         if (wasFallback) {
           for (let seq = seqStart; seq < s.game.log.length; seq++) s.degradedSeqs.push(seq)
         }

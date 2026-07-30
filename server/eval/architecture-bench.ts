@@ -281,39 +281,19 @@ function withDecisionTiming(
         })
       }
     },
-    ...(agent.recordDecisionTrace
+    ...(agent.finalizeAppliedTrace
       ? {
-          recordDecisionTrace: (trace: DecisionTrace) =>
-            agent.recordDecisionTrace!.call(agent, trace),
-        }
-      : {}),
-    ...(agent.recordFallbackTrace
-      ? {
-          recordFallbackTrace: (
-            req: Parameters<NonNullable<
-              AvalonAgent['recordFallbackTrace']
-            >>[0],
-            view: Parameters<NonNullable<
-              AvalonAgent['recordFallbackTrace']
-            >>[1],
-            decision: Parameters<NonNullable<
-              AvalonAgent['recordFallbackTrace']
-            >>[2],
-          ) => agent.recordFallbackTrace!.call(
-            agent,
-            req,
-            view,
-            decision,
-          ),
-        }
-      : {}),
-    ...(agent.recordAppliedDecisionOutcome
-      ? {
-          recordAppliedDecisionOutcome: (
+          finalizeAppliedTrace: (
             outcome: Parameters<NonNullable<
-              AvalonAgent['recordAppliedDecisionOutcome']
+              AvalonAgent['finalizeAppliedTrace']
             >>[0],
-          ) => agent.recordAppliedDecisionOutcome!.call(agent, outcome),
+          ) => agent.finalizeAppliedTrace!.call(agent, outcome),
+        }
+      : {}),
+    ...(agent.privateTraceSink
+      ? {
+          privateTraceSink: (trace: DecisionTrace) =>
+            agent.privateTraceSink!.call(agent, trace),
         }
       : {}),
     ...(agent.dispose
