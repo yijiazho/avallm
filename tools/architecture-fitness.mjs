@@ -60,7 +60,7 @@ const SHARED_SHAPE_GUARDS =
 // replay a transcript and get the same game back. An ambient clock or an
 // unseeded random breaks that silently, since a nondeterministic engine still
 // passes every assertion that does not happen to compare two runs.
-const ENGINE_FORBIDDEN_AMBIENT = new Set([
+const AMBIENT_NONDETERMINISM = new Set([
   'Date.now',
   'new Date',
   'Math.random',
@@ -71,7 +71,24 @@ const ENGINE_FORBIDDEN_AMBIENT = new Set([
 // Pure standard-library modules the engine may still use. Everything else,
 // node builtin or npm package, is either I/O or ambient state, and the
 // production server carries no runtime dependencies to import anyway.
-const ENGINE_PURE_MODULES = new Set(['node:util', 'node:assert'])
+const PURE_MODULES = new Set(['node:util', 'node:assert'])
+// Prompt builders. The stable system-prefix is assembled from module
+// constants so provider prompt caches hit; a per-process value baked into that
+// prefix busts the cache for every call of every process, costs real money,
+// and reddens nothing, because no assertion compares two processes.
+const PROMPT_BUILDERS = new Set([
+  'server/agents/prompts.ts',
+  'server/agents/facts.ts',
+  'server/agents/board.ts',
+])
+// The one deliberate exception, documented at its call site: an eval-only
+// global A/B lever for the facts dossier, read at call time so a harness can
+// set it per process and tests can flip it. Enumerated here so that a second
+// ambient read cannot join it silently, and so deleting the lever leaves a
+// stale entry rather than a quiet re-opening.
+const PROMPT_BUILDER_AMBIENT_ALLOWED = new Map([
+  ['server/agents/facts.ts', new Set(['process.env.AVALON_NO_DOSSIER'])],
+])
 const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
 const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
   'validateComposedTraceHostJoin',
@@ -173,6 +190,26 @@ function originalNames(elements) {
   return elements.map((element) => (
     element.propertyName?.text ?? element.name.text
   ))
+}
+
+/** True when this access is itself the base of a longer chain. */
+function extendsIntoParent(node) {
+  return Boolean(node.parent)
+    && ts.isPropertyAccessExpression(node.parent)
+    && node.parent.expression === node
+}
+
+/** `a.b.c` for a chain rooted at an identifier, otherwise undefined. */
+function dottedChain(node) {
+  const parts = []
+  let current = node
+  while (ts.isPropertyAccessExpression(current)) {
+    parts.unshift(current.name.text)
+    current = current.expression
+  }
+  if (!ts.isIdentifier(current)) return undefined
+  parts.unshift(current.text)
+  return parts.join('.')
 }
 
 /** The names an import binds locally, so `x as y` yields y rather than x. */
@@ -308,11 +345,12 @@ export function inspectSource(sourcePath, source) {
     if (ts.isIdentifier(node)) identifiers.add(node.text)
     if (ts.isStringLiteralLike(node)) stringLiterals.add(node.text)
     // Qualified reads, so a local variable named `now` is not confused with
-    // the `Date.now` that actually reads a clock.
-    if (
-      ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)
-    ) {
-      ambientReads.add(`${node.expression.text}.${node.name.text}`)
+    // the `Date.now` that actually reads a clock. The whole chain is recorded,
+    // not its first two segments, so an allowlist can name a single
+    // environment variable rather than the whole of `process.env`.
+    if (ts.isPropertyAccessExpression(node) && !extendsIntoParent(node)) {
+      const chain = dottedChain(node)
+      if (chain !== undefined) ambientReads.add(chain)
     }
     if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
       ambientReads.add(`new ${node.expression.text}`)
@@ -430,6 +468,36 @@ function isArtifactOrArchitectureReport(target, names) {
       || name.startsWith('ArchitectureReport')
       || name === 'ArchitectureBenchmarkReport'
     ))
+}
+
+/**
+ * One implementation of "this module is pure" for every layer that claims it.
+ *
+ * Two copies of this predicate is how the guards it protects drifted apart in
+ * the first place: extending the ambient prefixes or fixing the bare-specifier
+ * test must upgrade every purity rule at once, not whichever one the author
+ * happened to be editing.
+ */
+function collectPurityViolations(violations, rule, sourcePath, inspected, text) {
+  for (const read of inspected.ambientReads) {
+    const ambient = AMBIENT_NONDETERMINISM.has(read)
+      || [...AMBIENT_NONDETERMINISM].some((entry) => read.startsWith(`${entry}.`))
+      || read.startsWith('process.')
+    if (!ambient || text.allowed?.has(read)) continue
+    violations.push(violation(
+      rule,
+      sourcePath,
+      undefined,
+      `${text.ambient} ${read}, ${text.ambientWhy}`,
+    ))
+  }
+  for (const edge of inspected.edges) {
+    const bare = !edge.specifier.startsWith('.')
+      && !edge.specifier.startsWith('/')
+      && !edge.specifier.startsWith('server/')
+    if (!bare || PURE_MODULES.has(edge.specifier)) continue
+    violations.push(violation(rule, sourcePath, edge, text.module))
+  }
 }
 
 function violation(rule, importer, edge, detail) {
@@ -905,33 +973,21 @@ export function auditArchitectureSources(sourceEntries) {
       }
     }
     if (isEngine(sourcePath)) {
-      for (const read of inspected.ambientReads) {
-        // Qualified reads throughout: `process` is an ordinary word for a
-        // handler or a field, and only `process.something` reads the global.
-        if (
-          !ENGINE_FORBIDDEN_AMBIENT.has(read)
-          && !read.startsWith('process.')
-        ) continue
-        violations.push(violation(
-          'ARCH014',
-          sourcePath,
-          undefined,
-          `engine code reads ambient ${read}, so a game stops being a pure `
-            + 'function of its seed and log',
-        ))
-      }
-      for (const edge of inspected.edges) {
-        const bare = !edge.specifier.startsWith('.')
-          && !edge.specifier.startsWith('/')
-          && !edge.specifier.startsWith('server/')
-        if (!bare || ENGINE_PURE_MODULES.has(edge.specifier)) continue
-        violations.push(violation(
-          'ARCH014',
-          sourcePath,
-          edge,
-          'engine code can only import pure standard-library modules',
-        ))
-      }
+      collectPurityViolations(violations, 'ARCH014', sourcePath, inspected, {
+        ambient: 'engine code reads ambient',
+        ambientWhy:
+          'so a game stops being a pure function of its seed and log',
+        module: 'engine code can only import pure standard-library modules',
+      })
+    }
+    if (PROMPT_BUILDERS.has(sourcePath)) {
+      collectPurityViolations(violations, 'ARCH015', sourcePath, inspected, {
+        ambient: 'prompt builder reads ambient',
+        ambientWhy:
+          'so the cacheable prefix stops being a function of the PlayerView alone',
+        module: 'prompt builders can only import pure standard-library modules',
+        allowed: PROMPT_BUILDER_AMBIENT_ALLOWED.get(sourcePath),
+      })
     }
     if (
       sourcePath.startsWith(CONCRETE_SCORE_LAYER_PREFIX)

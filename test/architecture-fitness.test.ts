@@ -326,6 +326,65 @@ test('the engine cannot read a clock, a random, or the filesystem', () => {
   )
 })
 
+test('prompt builders cannot read ambient state into the cacheable prefix', () => {
+  const at = (file: string, body: string) =>
+    rules([[file, body]]).filter((rule) => rule === 'ARCH015')
+
+  // The stable prefix is assembled from module constants so provider prompt
+  // caches hit. A per-process value baked into it busts the cache for every
+  // call of every process and reddens nothing, because no assertion in the
+  // suite compares two processes.
+  assert.deepEqual(
+    at('server/agents/prompts.ts', 'export const t = `s ${Date.now()}`'),
+    ['ARCH015'],
+  )
+  assert.deepEqual(
+    at('server/agents/prompts.ts', 'export const t = Math.random()'),
+    ['ARCH015'],
+  )
+  assert.deepEqual(
+    at('server/agents/board.ts', 'export const t = process.env.X'),
+    ['ARCH015'],
+  )
+  assert.deepEqual(
+    at('server/agents/prompts.ts', "import { readFileSync } from 'node:fs'"),
+    ['ARCH015'],
+  )
+
+  // The dossier lever is allowed by name, not by file. A second ambient read
+  // in the same module is still a violation, so the exception cannot widen
+  // into a general exemption.
+  assert.deepEqual(
+    at(
+      'server/agents/facts.ts',
+      "export const on = () => process.env.AVALON_NO_DOSSIER !== '1'",
+    ),
+    [],
+    'the documented eval A/B lever',
+  )
+  assert.deepEqual(
+    at('server/agents/facts.ts', 'export const t = () => Date.now()'),
+    ['ARCH015'],
+    'a second ambient read in the same module',
+  )
+  assert.deepEqual(
+    at('server/agents/facts.ts', 'export const t = process.env.SOME_NEW_FLAG'),
+    ['ARCH015'],
+    'the allowlist names one variable, not the whole of process.env',
+  )
+
+  // Scoped to the builders. The LLM adapter reads its own env lever and is
+  // not assembling a cacheable prefix.
+  assert.deepEqual(
+    at('server/agents/llm.ts', 'export const t = process.env.AVALON_REFLECT_CADENCE'),
+    [],
+  )
+  assert.deepEqual(
+    at('server/agents/prompts.ts', "import { isDeepStrictEqual } from 'node:util'"),
+    [],
+  )
+})
+
 test('a shared shape guard cannot be rebound in a nested scope', () => {
   const shadow = (body: string) =>
     rules([['server/agents/analysis/probe.ts', `

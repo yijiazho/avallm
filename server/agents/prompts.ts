@@ -1,6 +1,8 @@
-// Pure prompt builders for LLM bots. Consume ONLY PlayerView (the
-// hidden-information chokepoint) — never raw Game. Stable fragments are
-// module constants so provider prompt caches can hit.
+// Prompt builders for LLM bots. Purity here is machine-checked, not a
+// convention: ARCH002 rejects importing raw Game (PlayerView is the
+// hidden-information chokepoint) and ARCH015 rejects ambient reads and impure
+// imports. Stable fragments stay module constants because the prefix has to be
+// byte-identical across calls for provider prompt caches to hit.
 //
 // HOUSE STYLE FOR EVERY STRING THE MODEL SEES (test/talk-norms.test.ts enforces
 // it over rendered prompts, so a violation reddens the suite):

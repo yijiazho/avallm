@@ -317,8 +317,13 @@ measurably improves play in social-deduction settings and costs ~100 tokens.
 
 ### Per-bot context construction
 
-Every prompt is built by a **pure builder** (no I/O, rule text as module constants so provider
-prompt caches can hit, testable in isolation):
+Every prompt is built by a **pure builder**, and both halves are mechanized: ARCH002 rejects a
+builder importing raw `Game`, and ARCH015 rejects ambient reads and impure imports in
+`prompts.ts`, `facts.ts`, and `board.ts`. The point of the purity is cache economics. Rule text
+lives in module constants so the stable prefix is byte-identical across calls and provider prompt
+caches hit; a per-process value baked into that prefix busts the cache for every call of every
+process and no assertion would notice. One deliberate exception is enumerated in ARCH015: the
+eval-only `AVALON_NO_DOSSIER` A/B lever in `facts.ts`.
 
 1. **System prompt** (stable prefix, cache-friendly): Avalon rules digest (~400 tokens), the bot's
    identity (name, seat), **role + private knowledge** (from `viewFor(seat).privateInfo` only),
