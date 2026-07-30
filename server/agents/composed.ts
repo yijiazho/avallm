@@ -899,6 +899,71 @@ function composedTrace(
 }
 
 /**
+ * Project the acting seat's private identity posterior for one decision.
+ *
+ * Returns the cognition state to continue from instead of mutating one. A failed
+ * projection has to leave cognition exactly as it was, carrying only a
+ * degradation code, and that invariant is easy to misread when the success path
+ * assigns a shared local from inside a try block.
+ */
+function projectDecisionIdentity(
+  cognition: CognitionState,
+  scope: IdentityProjectionScope,
+): Readonly<{
+  cognition: CognitionState
+  identity?: PrivateIdentitySnapshot
+  degradation: readonly string[]
+}> {
+  try {
+    const identity = projectJointIdentity(cognition.belief, scope)
+    return {
+      cognition: {
+        ...cognition,
+        identity,
+        versions: {
+          ...cognition.versions,
+          identityModel: JOINT_IDENTITY_MODEL_VERSION,
+        },
+      },
+      identity,
+      degradation: [],
+    }
+  } catch {
+    return { cognition, degradation: ['identity-projection-failed'] }
+  }
+}
+
+/**
+ * The seat's public-observer projection, observed at most once and only when
+ * something actually asks for it.
+ *
+ * Laziness is not an optimization here. Whether this seat observed the public
+ * record at all is private evidence that the trace reports, and `onFirstUse`
+ * marks the moment it became true, so the observation and the signal that it
+ * happened have to stay welded together. Component host inputs pull `provide`
+ * on demand, which is why the memo cannot be replaced by an eager value.
+ */
+function lazyPublicObserver(
+  view: PlayerView,
+  onFirstUse: () => void,
+): Readonly<{
+  provide: () => PublicObserverSnapshot
+  observed: () => PublicObserverSnapshot | undefined
+}> {
+  let snapshot: PublicObserverSnapshot | undefined
+  return {
+    provide(): PublicObserverSnapshot {
+      if (!snapshot) {
+        snapshot = observePublicRecord(projectPublicRecord(view))
+        onFirstUse()
+      }
+      return snapshot
+    },
+    observed: () => snapshot,
+  }
+}
+
+/**
  * Offer the scored candidate set to the planner and admit at most one bounded
  * choice from it.
  *
@@ -1648,22 +1713,15 @@ export function createComposedAgent(
         let resolvedScorer = roleScope.scorer
         let privateIdentity: PrivateIdentitySnapshot | undefined
         if (decisionIdentityScope) {
-          try {
-            privateIdentity = projectJointIdentity(
-              cognition.belief,
-              decisionIdentityScope,
-            )
-            cognition = {
-              ...cognition,
-              identity: privateIdentity,
-              versions: {
-                ...cognition.versions,
-                identityModel: JOINT_IDENTITY_MODEL_VERSION,
-              },
-            }
-          } catch {
-            degradation.push('identity-projection-failed')
-          }
+          const projected = projectDecisionIdentity(
+            cognition,
+            decisionIdentityScope,
+          )
+          cognition = projected.cognition
+          privateIdentity = projected.identity
+          degradation.push(...projected.degradation)
+          // Staged whether or not the projection succeeded: the seat reached
+          // the identity phase either way.
           stage('identity')
         }
         const legacyPublicObserverApplicable = Boolean(
@@ -1672,15 +1730,8 @@ export function createComposedAgent(
           || evilRoleObjectiveApplicable
           || morganaCounterfeitApplicable
         )
-        let publicObserver: PublicObserverSnapshot | undefined
-        const providePublicObserver = (): PublicObserverSnapshot => {
-          if (!publicObserver) {
-            publicObserver =
-              observePublicRecord(projectPublicRecord(view))
-            stage('observer')
-          }
-          return publicObserver
-        }
+        const observer = lazyPublicObserver(view, () => stage('observer'))
+        const providePublicObserver = observer.provide
         if (legacyPublicObserverApplicable) {
           providePublicObserver()
         }
@@ -1790,7 +1841,7 @@ export function createComposedAgent(
           legacyPublicObserverApplicable
           || genericPublicObserverApplicable
         )
-          ? publicObserver
+          ? observer.observed()
           : undefined
         /**
          * Every configured payload a scorer may depend on, in the order the
