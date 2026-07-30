@@ -64,9 +64,9 @@ export class BeliefInvariantError extends Error {}
  * total no matter how many there are.
  *
  * Dropping the widening makes this guard roughly n times stricter, which is the
- * point of a postcondition. The scaled form still exists as accumulatedTolerance
- * in components/probability-arithmetic.ts, for the validators that check a total
- * they did not sum themselves and so cannot compensate.
+ * point of a postcondition. No scaled counterpart survives anywhere: every
+ * total in the tree is compensated now, so the single-value tolerance is the
+ * only one a probability comparison spends.
  */
 export function assertDistribution(
   values: readonly number[],

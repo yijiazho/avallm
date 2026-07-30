@@ -67,7 +67,7 @@ import {
   probability,
 } from '../components/canonical-shape.ts'
 import {
-  accumulatedTolerance,
+  stableProbabilitySum,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
@@ -982,7 +982,7 @@ function validBeliefPlayerMarginals(value: unknown): boolean {
       && probability(marginal.evilProbability)
       && Math.abs(
         marginal.goodProbability + marginal.evilProbability - 1,
-      ) <= accumulatedTolerance(2)
+      ) <= PROBABILITY_TOLERANCE
   })
 }
 
@@ -1018,8 +1018,8 @@ function validBeliefTeamAssessments(
       && distribution.length === team.length + 1
       && distribution.every(probability)
       && Math.abs(
-        distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= accumulatedTolerance(distribution.length)
+        stableProbabilitySum(distribution, (mass) => mass) - 1,
+      ) <= PROBABILITY_TOLERANCE
       && Math.abs(distribution[0] - assessment.cleanProbability) <= PROBABILITY_TOLERANCE
       && canonicalTraceSeats(assessment.knownFailsAboard, playerCount, true)
   })
@@ -1052,8 +1052,8 @@ function validCandidateScores(
       && distribution.length === team.length + 1
       && distribution.every(probability)
       && Math.abs(
-        distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= accumulatedTolerance(distribution.length)
+        stableProbabilitySum(distribution, (mass) => mass) - 1,
+      ) <= PROBABILITY_TOLERANCE
       && Math.abs(distribution[0] - features.cleanProbability) <= PROBABILITY_TOLERANCE
     )
     const currentDistribution = features?.currentEvilCountDistribution
@@ -1106,8 +1106,8 @@ function validCandidateScores(
       && currentDistribution.length === currentTeam.length + 1
       && currentDistribution.every(probability)
       && Math.abs(
-        currentDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= accumulatedTolerance(currentDistribution.length)
+        stableProbabilitySum(currentDistribution, (mass) => mass) - 1,
+      ) <= PROBABILITY_TOLERANCE
       && Math.abs(
         currentDistribution[0] - features.currentCleanProbability,
       ) <= PROBABILITY_TOLERANCE
@@ -1126,8 +1126,8 @@ function validCandidateScores(
       && alternativeDistribution.length === alternativeTeam.length + 1
       && alternativeDistribution.every(probability)
       && Math.abs(
-        alternativeDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= accumulatedTolerance(alternativeDistribution.length)
+        stableProbabilitySum(alternativeDistribution, (mass) => mass) - 1,
+      ) <= PROBABILITY_TOLERANCE
       && Math.abs(
         alternativeDistribution[0]
         - features.bestAlternativeCleanProbability,

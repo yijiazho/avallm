@@ -30,7 +30,7 @@ import {
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
-  accumulatedTolerance,
+  stableProbabilitySum,
   PROBABILITY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
@@ -460,9 +460,9 @@ function roleUtilitySchema(detached: unknown): boolean {
         || !probability(common.correctedExposureProxyIndex)
       ) return false
       const distribution = common.publicEvilCountDistribution as number[]
-      const distributionTotal = distribution.reduce(
-        (sum, entry) => sum + entry,
-        0,
+      const distributionTotal = stableProbabilitySum(
+        distribution,
+        (entry) => entry,
       )
       const failsRequired = detached.request.failsRequired as number
       const publicFailure = distribution
@@ -495,8 +495,7 @@ function roleUtilitySchema(detached: unknown): boolean {
         + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
       )
       if (
-        Math.abs(distributionTotal - 1)
-          > accumulatedTolerance(distribution.length)
+        Math.abs(distributionTotal - 1) > PROBABILITY_TOLERANCE
         || Math.abs(distribution[0]
           - (common.publicTeamCleanProbability as number)) > PROBABILITY_TOLERANCE
         || Math.abs(publicFailure

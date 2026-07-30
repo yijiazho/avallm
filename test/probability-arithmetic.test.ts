@@ -18,7 +18,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import {
-  accumulatedTolerance,
   addProbability,
   clampProbability,
   clampProbabilityOrZero,
@@ -56,31 +55,15 @@ const CONSTANT_NAMES = [
   'SELECTION_ADJUSTMENT_REPLAY_TOLERANCE',
 ]
 
-test('the two tolerance regimes stay distinct and correctly ordered', () => {
-  // Whatever the values become, the accumulated regime must stay the looser of
-  // the two: it covers error that compounds across a sum, the other covers a
-  // single division round trip. Collapsing them is the change this pins
-  // against, in either direction. The accumulated one scales with the term
-  // count, so the comparison is made at a term count, and a one-term sum is
-  // the degenerate case where the two legitimately coincide.
-  assert.ok(
-    accumulatedTolerance(2) > PROBABILITY_TOLERANCE,
-    'the accumulated tolerance must be the looser of the two',
-  )
-  assert.equal(
-    accumulatedTolerance(1),
-    PROBABILITY_TOLERANCE,
-    'a single term accumulates nothing, so it spends the single-value budget',
-  )
-  assert.equal(
-    accumulatedTolerance(0),
-    PROBABILITY_TOLERANCE,
-    'an empty sum must not produce a zero tolerance that nothing can satisfy',
-  )
-  assert.ok(
-    accumulatedTolerance(6) > accumulatedTolerance(2),
-    'more terms must buy more slack, or the scaling is not doing anything',
-  )
+test('one probability tolerance, and the two non-probability ones around it', () => {
+  // There is exactly one tolerance a probability comparison may spend. Two
+  // looser companions have been tried and removed, a flat 1e-9 and a
+  // term-scaled accumulatedTolerance, both because the sites reaching for them
+  // owned their own summation and could compensate instead. A new constant
+  // between PROBABILITY_TOLERANCE and the seeded margin is the regression this
+  // pins against: it would be a second budget six call sites inherit silently.
+  // The export list itself is pinned by CONSTANT_NAMES below, which is what
+  // actually fails if a third probability tolerance reappears.
   // A replayed selection adjustment is recomputed from identical doubles, so it
   // is held tighter than any probability comparison.
   assert.ok(
@@ -125,9 +108,9 @@ test('closeProbability spends exactly the single-value tolerance', () => {
   // Not the accumulated regime. A sum check that reached for this comparator
   // would be three orders of magnitude stricter than the site it replaced.
   assert.equal(
-    closeProbability(1, 1 + accumulatedTolerance(1000)),
+    closeProbability(1, 1 + 1e-9),
     false,
-    'the comparator must not quietly grant the accumulated slack',
+    'the comparator must not quietly grant a looser, accumulated-sized slack',
   )
   // NaN is not close to anything, which is what makes the comparator safe in an
   // AND-chain over untrusted values: an unusable payload fails closed.

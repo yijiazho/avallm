@@ -42,33 +42,26 @@ import { probability } from './canonical-shape.ts'
  */
 export const PROBABILITY_TOLERANCE = 1e-12
 
-/**
- * Slack for a total summed term by term, scaled by how many terms there were.
+/*
+ * There is deliberately no second, looser tolerance for accumulated sums.
  *
- * A naive left-to-right sum can round once per addition and the roundings do
- * not cancel, so the error a validator has to forgive is proportional to the
- * term count. Each term here is a probability at most 1, so one rounding is at
- * most half an ulp of 1, and PROBABILITY_TOLERANCE per term leaves about four
- * orders of magnitude of headroom over that bound. A genuine normalization bug
- * misses by a whole fraction, which is orders of magnitude above the ceiling at
- * any term count this tree produces, so the scaling never hides a real defect.
+ * Two have been tried and both were removed. A flat 1e-9 came first, sized for
+ * "a worst case the call site cannot see". Then a scaled accumulatedTolerance
+ * (PROBABILITY_TOLERANCE per term), which was the better frame and survived
+ * about a day: it existed for validators that check a total they did not sum
+ * and so cannot compensate, and on inspection every one of its seven call sites
+ * ran the reduce itself. There were no instances of the case it was written
+ * for.
  *
- * This replaced a flat 1e-9. That constant was picked to cover "a worst case
- * the call site cannot see", which was the wrong frame: the call site knows
- * exactly how many terms it added, and once it says so the tolerance follows.
- * The flat value was simultaneously about 170x too loose for a six-term
- * distribution and, at the one site that streams a 60,480-world belief, too
- * tight to be reached for honestly. `belief/invariants.ts` arrived at this same
- * scaling independently for its distribution postconditions; this is the one
- * definition both now use.
- *
- * Reaching for this at all is the second-best answer. A total built with
- * stableProbabilitySum below compares at PROBABILITY_TOLERANCE regardless of
- * length, which is the better one wherever the summation is ours to change:
- * fix the sum and the scaled tolerance stops being necessary.
+ * So the rule is the one below rather than a constant: if a comparison needs
+ * more than PROBABILITY_TOLERANCE, the summation is the thing to fix. Every
+ * total in this tree is now built with stableProbabilitySum or addProbability
+ * and compares at the single-value tolerance regardless of length, measured
+ * exact through 60,480 terms and 1.1e-16 at 3.6M. A future site that genuinely
+ * receives a pre-summed total it cannot recompute would need slack again, and
+ * should say so at the call site rather than reintroduce a shared constant that
+ * six other sites quietly inherit.
  */
-export const accumulatedTolerance = (termCount: number): number =>
-  PROBABILITY_TOLERANCE * Math.max(1, termCount)
 
 /**
  * The amount a seeded selection is lifted above the best base value, so the
