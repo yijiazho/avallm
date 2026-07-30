@@ -154,6 +154,7 @@ const SHARED_PROBABILITY_ARITHMETIC =
  * added here would be a helper nobody scans for.
  */
 export const SHARED_ARITHMETIC_HELPER_NAMES = Object.freeze([
+  'accumulatedTolerance',
   'addProbability',
   'clampProbability',
   'clampProbabilityOrZero',

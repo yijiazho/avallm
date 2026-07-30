@@ -30,7 +30,7 @@ import {
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
-  ACCUMULATED_PROBABILITY_TOLERANCE,
+  accumulatedTolerance,
   PROBABILITY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
@@ -495,7 +495,8 @@ function roleUtilitySchema(detached: unknown): boolean {
         + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
       )
       if (
-        Math.abs(distributionTotal - 1) > ACCUMULATED_PROBABILITY_TOLERANCE
+        Math.abs(distributionTotal - 1)
+          > accumulatedTolerance(distribution.length)
         || Math.abs(distribution[0]
           - (common.publicTeamCleanProbability as number)) > PROBABILITY_TOLERANCE
         || Math.abs(publicFailure

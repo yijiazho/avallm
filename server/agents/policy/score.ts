@@ -5,7 +5,7 @@ import {
   sequenceEqual,
 } from '../components/canonical-shape.ts'
 import {
-  ACCUMULATED_PROBABILITY_TOLERANCE,
+  accumulatedTolerance,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
@@ -312,7 +312,8 @@ function validGoodProposalFeatures(
     (sum, value) => sum + value,
     0,
   )
-  return Math.abs(total - 1) <= ACCUMULATED_PROBABILITY_TOLERANCE
+  return Math.abs(total - 1)
+    <= accumulatedTolerance(features.evilCountDistribution.length)
     && Math.abs(
       features.cleanProbability - features.evilCountDistribution[0],
     ) <= PROBABILITY_TOLERANCE

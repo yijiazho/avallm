@@ -18,7 +18,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import {
-  ACCUMULATED_PROBABILITY_TOLERANCE,
+  accumulatedTolerance,
   addProbability,
   clampProbability,
   clampProbabilityOrZero,
@@ -50,7 +50,6 @@ const ARITHMETIC_SOURCE =
 
 /** The value exports, pinned by name so a rename is a visible failure. */
 const CONSTANT_NAMES = [
-  'ACCUMULATED_PROBABILITY_TOLERANCE',
   'COUNT_LATTICE_ULP_MULTIPLIER',
   'PROBABILITY_TOLERANCE',
   'SEEDED_SELECTION_MARGIN',
@@ -61,10 +60,26 @@ test('the two tolerance regimes stay distinct and correctly ordered', () => {
   // Whatever the values become, the accumulated regime must stay the looser of
   // the two: it covers error that compounds across a sum, the other covers a
   // single division round trip. Collapsing them is the change this pins
-  // against, in either direction.
+  // against, in either direction. The accumulated one scales with the term
+  // count, so the comparison is made at a term count, and a one-term sum is
+  // the degenerate case where the two legitimately coincide.
   assert.ok(
-    ACCUMULATED_PROBABILITY_TOLERANCE > PROBABILITY_TOLERANCE,
+    accumulatedTolerance(2) > PROBABILITY_TOLERANCE,
     'the accumulated tolerance must be the looser of the two',
+  )
+  assert.equal(
+    accumulatedTolerance(1),
+    PROBABILITY_TOLERANCE,
+    'a single term accumulates nothing, so it spends the single-value budget',
+  )
+  assert.equal(
+    accumulatedTolerance(0),
+    PROBABILITY_TOLERANCE,
+    'an empty sum must not produce a zero tolerance that nothing can satisfy',
+  )
+  assert.ok(
+    accumulatedTolerance(6) > accumulatedTolerance(2),
+    'more terms must buy more slack, or the scaling is not doing anything',
   )
   // A replayed selection adjustment is recomputed from identical doubles, so it
   // is held tighter than any probability comparison.
@@ -110,7 +125,7 @@ test('closeProbability spends exactly the single-value tolerance', () => {
   // Not the accumulated regime. A sum check that reached for this comparator
   // would be three orders of magnitude stricter than the site it replaced.
   assert.equal(
-    closeProbability(1, 1 + ACCUMULATED_PROBABILITY_TOLERANCE),
+    closeProbability(1, 1 + accumulatedTolerance(1000)),
     false,
     'the comparator must not quietly grant the accumulated slack',
   )

@@ -11,7 +11,9 @@ import {
   tableSize,
 } from '../components/canonical-shape.ts'
 import {
-  ACCUMULATED_PROBABILITY_TOLERANCE,
+  addProbability,
+  PROBABILITY_TOLERANCE,
+  type CompensatedProbability,
 } from '../components/probability-arithmetic.ts'
 import type {
   Alignment,
@@ -305,7 +307,11 @@ function validateBaseBelief(
     throw new Error('language factor public cursor contract mismatch')
   }
   const keys = new Set<string>()
-  let probabilityTotal = 0
+  // Compensated rather than `+=`: this streams the whole feasible support, and
+  // a ten-player servant view carries up to 60,480 worlds. Adding those left to
+  // right drifts as far as 1.6e-12 from 1, so the naive form could only be
+  // checked against a tolerance loose enough to hide a real normalization bug.
+  const probabilityTotal: CompensatedProbability = { sum: 0, compensation: 0 }
   for (const weightedWorld of base.worlds) {
     if (
       keys.has(weightedWorld.world.key)
@@ -323,11 +329,13 @@ function validateBaseBelief(
       throw new Error('language factor base belief contract mismatch')
     }
     keys.add(weightedWorld.world.key)
-    probabilityTotal += weightedWorld.probability
+    addProbability(probabilityTotal, weightedWorld.probability)
   }
   if (
-    !Number.isFinite(probabilityTotal)
-    || Math.abs(probabilityTotal - 1) > ACCUMULATED_PROBABILITY_TOLERANCE
+    !Number.isFinite(probabilityTotal.sum + probabilityTotal.compensation)
+    || Math.abs(
+      probabilityTotal.sum + probabilityTotal.compensation - 1,
+    ) > PROBABILITY_TOLERANCE
     || base.provenance.some((item) => item.factorId === 'language')
     || base.modelVersion.includes('bounded-language-v1')
   ) {

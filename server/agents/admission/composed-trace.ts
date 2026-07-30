@@ -70,7 +70,7 @@ import {
   probability,
 } from '../components/canonical-shape.ts'
 import {
-  ACCUMULATED_PROBABILITY_TOLERANCE,
+  accumulatedTolerance,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
@@ -985,7 +985,7 @@ function validBeliefPlayerMarginals(value: unknown): boolean {
       && probability(marginal.evilProbability)
       && Math.abs(
         marginal.goodProbability + marginal.evilProbability - 1,
-      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      ) <= accumulatedTolerance(2)
   })
 }
 
@@ -1022,7 +1022,7 @@ function validBeliefTeamAssessments(
       && distribution.every(probability)
       && Math.abs(
         distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      ) <= accumulatedTolerance(distribution.length)
       && Math.abs(distribution[0] - assessment.cleanProbability) <= PROBABILITY_TOLERANCE
       && canonicalTraceSeats(assessment.knownFailsAboard, playerCount, true)
   })
@@ -1056,7 +1056,7 @@ function validCandidateScores(
       && distribution.every(probability)
       && Math.abs(
         distribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      ) <= accumulatedTolerance(distribution.length)
       && Math.abs(distribution[0] - features.cleanProbability) <= PROBABILITY_TOLERANCE
     )
     const currentDistribution = features?.currentEvilCountDistribution
@@ -1110,7 +1110,7 @@ function validCandidateScores(
       && currentDistribution.every(probability)
       && Math.abs(
         currentDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      ) <= accumulatedTolerance(currentDistribution.length)
       && Math.abs(
         currentDistribution[0] - features.currentCleanProbability,
       ) <= PROBABILITY_TOLERANCE
@@ -1130,7 +1130,7 @@ function validCandidateScores(
       && alternativeDistribution.every(probability)
       && Math.abs(
         alternativeDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
-      ) <= ACCUMULATED_PROBABILITY_TOLERANCE
+      ) <= accumulatedTolerance(alternativeDistribution.length)
       && Math.abs(
         alternativeDistribution[0]
         - features.bestAlternativeCleanProbability,
