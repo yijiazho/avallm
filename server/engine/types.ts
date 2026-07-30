@@ -90,7 +90,25 @@ export interface Game {
 
 // ---- Decisions (the agent boundary) ----
 
-export type DecisionKind = 'discuss' | 'propose' | 'finalize' | 'vote' | 'quest' | 'assassinate'
+export const DECISION_KINDS = Object.freeze([
+  'discuss',
+  'propose',
+  'finalize',
+  'vote',
+  'quest',
+  'assassinate',
+] as const)
+
+export type DecisionKind = typeof DECISION_KINDS[number]
+
+/**
+ * The runtime half of the union, so a validator outside the engine can ask
+ * whether a stored kind is real without restating the six literals. Frozen
+ * data only: the engine stays a pure function of its seed and log.
+ */
+export function isDecisionKind(value: unknown): value is DecisionKind {
+  return (DECISION_KINDS as readonly unknown[]).includes(value)
+}
 
 export interface DecisionRequest {
   kind: DecisionKind

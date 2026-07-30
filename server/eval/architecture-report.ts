@@ -72,6 +72,7 @@ import {
 } from '../agents/cognition/plan-memory.ts'
 import {
   COHERENCE_MODEL_VERSION,
+  isCoherenceIntent,
 } from '../agents/cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
@@ -1061,9 +1062,7 @@ function legacyArchitectureSafety(
   const declaresPlanMemory =
     meta.components.planMemory === PLAN_MEMORY_VERSION
     && meta.components.coherence === COHERENCE_MODEL_VERSION
-    && ['maintain', 'conceal', 'deceive'].includes(
-      String(declaredCoherenceIntent),
-    )
+    && isCoherenceIntent(declaredCoherenceIntent)
   const invalidPlanDeclaration =
     (
       meta.components.planMemory !== undefined
@@ -1498,9 +1497,7 @@ function legacyArchitectureSafety(
       || (
         declaresPlanMemory
           ? (
-              !['maintain', 'conceal', 'deceive'].includes(
-                String(trace.coherenceIntent),
-              )
+              !isCoherenceIntent(trace.coherenceIntent)
           || trace.coherenceIntent !== declaredCoherenceIntent
           || !decisionTraceReplayJoin(
                 planSnapshots.get(trace.decisionId),

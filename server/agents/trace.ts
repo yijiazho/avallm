@@ -27,6 +27,7 @@ import {
 import {
   COHERENCE_MODEL_VERSION,
   type CoherenceIntent,
+  isCoherenceIntent,
 } from './cognition/coherence.ts'
 import type { AppliedDecisionOutcome } from './types.ts'
 import type {
@@ -502,9 +503,7 @@ export function validateFinalizedAppliedTraceHostJoin(
       || (
         planEnabled
           ? (
-              !['maintain', 'conceal', 'deceive'].includes(
-                String(provisional.coherenceIntent),
-              )
+              !isCoherenceIntent(provisional.coherenceIntent)
               || trace.coherenceIntent !== provisional.coherenceIntent
             )
           : (

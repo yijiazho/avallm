@@ -98,6 +98,7 @@ import {
 } from '../agents/cognition/plan-memory.ts'
 import {
   COHERENCE_MODEL_VERSION,
+  isCoherenceIntent,
 } from '../agents/cognition/coherence.ts'
 import {
   ROLE_OBJECTIVE_DEGRADATION,
@@ -553,8 +554,8 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
     const planMemoryEnabled =
       variant.components.planMemory === PLAN_MEMORY_VERSION
       && variant.components.coherence === COHERENCE_MODEL_VERSION
-    const coherenceIntentValid = ['maintain', 'conceal', 'deceive'].includes(
-      String(variant.components.coherenceIntent),
+    const coherenceIntentValid = isCoherenceIntent(
+      variant.components.coherenceIntent,
     )
     if (
       (variant.components.planMemory !== undefined
@@ -809,9 +810,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         const planMemory =
           expectedComponents.planMemory === PLAN_MEMORY_VERSION
           && expectedComponents.coherence === COHERENCE_MODEL_VERSION
-          && ['maintain', 'conceal', 'deceive'].includes(
-            String(expectedComponents.coherenceIntent),
-          )
+          && isCoherenceIntent(expectedComponents.coherenceIntent)
         if (planMemory) tracedComponents.push('planMemory', 'coherence')
         if (
           expectedComponents.languageEvidence
@@ -1058,9 +1057,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             || (
               planMemory
                 ? (
-                    !['maintain', 'conceal', 'deceive'].includes(
-                      String(trace.coherenceIntent),
-                    )
+                    !isCoherenceIntent(trace.coherenceIntent)
                     || trace.coherenceIntent
                       !== expectedComponents.coherenceIntent
                     || !decisionTraceReplayJoin(snapshot, trace)

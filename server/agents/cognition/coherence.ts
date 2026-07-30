@@ -16,7 +16,25 @@ export const COHERENCE_CONFLICT_CODES = [
 ] as const
 
 export type CoherenceConflictCode = typeof COHERENCE_CONFLICT_CODES[number]
-export type CoherenceIntent = 'maintain' | 'conceal' | 'deceive'
+
+export const COHERENCE_INTENTS = [
+  'maintain',
+  'conceal',
+  'deceive',
+] as const
+
+export type CoherenceIntent = typeof COHERENCE_INTENTS[number]
+
+/**
+ * The runtime half of the union. Every admission boundary that has to decide
+ * whether a stored or declared intent is real reads this instead of spelling
+ * the set out again: a type-only union has nothing to check at runtime, so
+ * each validator was forced to restate it and the compiler could not tie the
+ * copies back to the type.
+ */
+export function isCoherenceIntent(value: unknown): value is CoherenceIntent {
+  return (COHERENCE_INTENTS as readonly unknown[]).includes(value)
+}
 export type CoherenceClassification =
   | 'consistent'
   | 'accidental-conflict'

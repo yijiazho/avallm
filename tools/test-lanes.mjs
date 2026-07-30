@@ -66,6 +66,7 @@ const LANES = Object.freeze({
     'assassin-policy.test.ts',
     'assassin-posterior.test.ts',
     'canonical-shape.test.ts',
+    'closed-sets.test.ts',
     'component-conformance.test.ts',
     'component-kernel.test.ts',
     'component-registry.test.ts',

@@ -129,6 +129,7 @@ import {
 import {
   COHERENCE_MODEL_VERSION,
   type CoherenceIntent,
+  isCoherenceIntent,
 } from './cognition/coherence.ts'
 import { buildCommitments } from './cognition/commitments.ts'
 import { extractEvidence } from './cognition/evidence.ts'
@@ -1295,7 +1296,7 @@ export function createComposedAgent(
         : MORGANA_ROLE_UTILITY_COMPONENT
       : undefined
   const coherenceIntent = options.coherenceIntent ?? 'maintain'
-  if (!['maintain', 'conceal', 'deceive'].includes(coherenceIntent)) {
+  if (!isCoherenceIntent(coherenceIntent)) {
     throw new Error('coherenceIntent must be maintain, conceal, or deceive')
   }
   if (!planMemoryEnabled && options.coherenceIntent !== undefined) {

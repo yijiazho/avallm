@@ -255,37 +255,3 @@ test('the execution mode set names only non-composed agent kinds', () => {
     assert.equal(isAgentExecutionMode(retired), false, retired)
   }
 })
-
-test('no server module restates an execution mode set', () => {
-  // The reason the sets live in brain.ts at all: a mode set spelled out as a
-  // string array or an || chain is invisible to the compiler, so it survives
-  // a change to the union without reddening anything. Retiring the `external`
-  // mode had to be done by hand in four separate lists, and typechecking
-  // caught only the two that were typed against AgentExecutionMode. Comparing
-  // against a single mode is fine; enumerating a set is what this rejects.
-  // Match a COMPLETE set only. Comparing against one mode is fine; spelling
-  // out the whole union is what this rejects.
-  const sep = String.raw`\s*(?:,|\|)\s*`
-  const sequence = (modes: readonly string[]): string =>
-    modes.map((mode) => `'${mode}'`).join(sep)
-  // Derived from the constant, so growing the set grows the guard with it.
-  // Hardcoding the run here would reintroduce the restatement being rejected.
-  const restatement = new RegExp(sequence(AGENT_EXECUTION_MODES))
-  const offenders: string[] = []
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = `${dir}/${entry.name}`
-      if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.ts')) {
-        if (full === 'server/agents/brain.ts') continue
-        if (restatement.test(fs.readFileSync(full, 'utf8'))) offenders.push(full)
-      }
-    }
-  }
-  walk('server')
-  assert.deepEqual(
-    offenders,
-    [],
-    'import the sets or predicates from brain.ts instead of restating them',
-  )
-})

@@ -16,6 +16,7 @@ import type {
   Role,
   Seat,
 } from '../engine/types.ts'
+import { DECISION_KINDS } from '../engine/types.ts'
 
 export const SEAT_VIEW_INSPECTION_SCHEMA = 1
 export const DEFAULT_SEAT_VIEW_FIXTURE_FILE =
@@ -200,9 +201,7 @@ const RAW_GAME_FIELDS = [
   'seed',
 ] as const
 
-const DECISION_KINDS = new Set([
-  'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
-])
+const DECISION_KIND_SET = new Set<string>(DECISION_KINDS)
 const EVENT_TYPES = new Set([
   'gameCreated', 'roleDealt', 'knowledge', 'leadChange',
   'utterance', 'proposal', 'proposalLocked', 'proposalRevised',
@@ -581,7 +580,7 @@ function inspectEventDetail(
       return { kind: type, winner: payload.winner, reason: payload.reason }
     case 'thinking':
       assertSeat(payload.seat, playerCount, 'event thinking payload.seat')
-      if (typeof payload.kind !== 'string' || !DECISION_KINDS.has(payload.kind)) {
+      if (typeof payload.kind !== 'string' || !DECISION_KIND_SET.has(payload.kind)) {
         fail('event thinking payload.kind is not a known decision kind')
       }
       assertString(payload.text, 'event thinking payload.text')
@@ -629,7 +628,7 @@ function validateEvent(value: unknown, playerCount: number, viewer: Seat, index:
 function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   const request = asRecord(req, 'request')
   const inspectedView = asRecord(view, 'view')
-  if (typeof request.kind !== 'string' || !DECISION_KINDS.has(request.kind)) {
+  if (typeof request.kind !== 'string' || !DECISION_KIND_SET.has(request.kind)) {
     fail('request.kind is not a known decision kind')
   }
   assertSafeInteger(request.seat, 'request.seat')

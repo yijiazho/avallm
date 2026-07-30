@@ -10,6 +10,7 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
+import { DECISION_KINDS } from '../../engine/types.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
   type IdentityProjectionScope,
@@ -650,9 +651,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
     || (source.observerFeasibleWorldCount as number) <= 0
     || !canonicalRequestBlock(request, {
       playerCount: source.playerCount as number,
-      kinds: [
-        'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
-      ],
+      kinds: DECISION_KINDS,
     })
     || !plainRecord(objective)
     || objective.role !== snapshot.role

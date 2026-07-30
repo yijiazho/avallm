@@ -20,6 +20,7 @@ import type { DecisionLayerRun } from './policy/decision-layer/types.ts'
 import { projectDecisionLayerRun } from './policy/decision-layer/projection.ts'
 import type { CognitionState } from './cognition/types.ts'
 import type { CoherenceIntent } from './cognition/coherence.ts'
+import { isCoherenceIntent } from './cognition/coherence.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { DecisionPlan } from './policy/plan.ts'
 import type { CandidateScore } from './policy/score.ts'
@@ -136,9 +137,7 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
     descriptor.configuredPipeline.planCoherence.intent
   if (
     planMemoryEnabled
-    && !['maintain', 'conceal', 'deceive'].includes(
-      configuredCoherenceIntent,
-    )
+    && !isCoherenceIntent(configuredCoherenceIntent)
   ) {
     throw new Error(
       'architecture descriptor has an invalid coherence intent',

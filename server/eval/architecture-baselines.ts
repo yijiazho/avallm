@@ -20,6 +20,7 @@ import { architectureReport } from './architecture-report.ts'
 import { readArtifacts } from './artifact.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role, Seat } from '../engine/types.ts'
+import { DECISION_KINDS } from '../engine/types.ts'
 
 export const HEURISTIC_BASELINE_FILE = 'docs/baselines/phase0-heuristic-standard-v1.json'
 export const OBSERVED_LLM_BASELINE_FILE = 'docs/baselines/phase0-prompt-guided-observed.json'
@@ -139,10 +140,6 @@ interface SeatObservation {
 }
 
 const roundCost = (value: number): number => Math.round(value * 10_000) / 10_000
-
-const DECISION_KINDS: readonly DecisionKind[] = [
-  'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
-]
 
 function action(type: string, payload: Record<string, unknown>): {
   kind: DecisionKind

@@ -5,6 +5,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
+import { isDecisionKind } from '../../engine/types.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
 import {
   plainDetachedData,
@@ -16,6 +17,7 @@ import {
   assessLiteralCoherence,
   COHERENCE_MODEL_VERSION,
   coherenceBasisFromView,
+  isCoherenceIntent,
   literalCommitmentBasis,
   type CoherenceAssessment,
   type CoherenceIntent,
@@ -259,9 +261,7 @@ function validSelectedDecision(value: unknown): value is Decision {
   }
   if (encoded.length > 16_384) return false
   const decision = value as Record<string, unknown>
-  if (![
-    'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
-  ].includes(String(decision.kind))) {
+  if (!isDecisionKind(decision.kind)) {
     return false
   }
   const allowed = decision.kind === 'discuss'
@@ -301,9 +301,7 @@ function validRequest(value: unknown, viewerSeat: Seat): value is DecisionReques
     (key) => ['kind', 'seat', 'round', 'proposalNum'].includes(key),
   )
     && Object.keys(req).length === 4
-    && [
-      'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
-    ].includes(String(req.kind))
+    && isDecisionKind(req.kind)
     && Number.isSafeInteger(req.seat)
     && Number(req.seat) >= 0
     && Number(req.seat) <= 9
@@ -478,7 +476,7 @@ function validatePrivatePlanMemoryInner(
           : !validSelectedSummary(entry.selected)
       )
       || entry.coherence.version !== COHERENCE_MODEL_VERSION
-      || !['maintain', 'conceal', 'deceive'].includes(entry.coherence.intent)
+      || !isCoherenceIntent(entry.coherence.intent)
       || !validCommitmentBasis(
         entry.coherence.commitmentBasis,
         entry.request,
