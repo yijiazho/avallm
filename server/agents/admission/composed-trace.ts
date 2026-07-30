@@ -1473,6 +1473,12 @@ function validPlannerRelations(ctx: ComposedTraceContext): boolean {
     trace, scores, chosen, chosenScore, structured, plannerReasons, phase4c,
     components, hasPlanner,
   } = ctx
+  // Sound because validCandidateScores proved every score's shape before this
+  // relation runs: the reason-code helpers below re-run the production scorer's
+  // arithmetic, so they need the typed view. Cast once here rather than
+  // re-spelling it at each guarded call site.
+  const typedScores = scores as unknown as CandidateScore[]
+  const typedChosenScore = chosenScore as unknown as CandidateScore
   if (
     phase4c
     && (
@@ -1512,14 +1518,8 @@ function validPlannerRelations(ctx: ComposedTraceContext): boolean {
                 (reason) => !(
                   hasPlanner
                   && chosen !== structured
-                    ? plannerOverrideReasonCodes(
-                        chosenScore as unknown as CandidateScore,
-                        scores as unknown as CandidateScore[],
-                      )
-                    : selectedStrategicReasonCodes(
-                        chosenScore as unknown as CandidateScore,
-                        scores as unknown as CandidateScore[],
-                      )
+                    ? plannerOverrideReasonCodes(typedChosenScore, typedScores)
+                    : selectedStrategicReasonCodes(typedChosenScore, typedScores)
                 ).includes(reason),
               )
             )
@@ -1535,8 +1535,8 @@ function validPlannerRelations(ctx: ComposedTraceContext): boolean {
               || plannerReasons.some(
                 (reason) =>
                   !plannerOverrideReasonCodes(
-                    chosenScore as unknown as CandidateScore,
-                    scores as unknown as CandidateScore[],
+                    typedChosenScore,
+                    typedScores,
                   ).includes(reason),
               )
             )
@@ -1577,6 +1577,8 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       : []
     const availableStrategicReasons = [
       ...(chosenScore
+        // Sound because validCandidateScores proved the score shape upstream;
+        // the helper re-runs the production scorer, so it needs the typed view.
         ? selectedStrategicReasonCodes(
             chosenScore as unknown as CandidateScore,
             scores as unknown as CandidateScore[],
