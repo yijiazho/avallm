@@ -9,9 +9,11 @@ import {
 } from '../server/eval/architecture-report.ts'
 import {
   addVoteConfusion,
+  approvedVotes,
   countVoteByDirection,
   emptyVoteConfusion,
   teamIsDirty,
+  totalVotes,
   voteRateCount,
 } from '../server/eval/vote-direction.ts'
 import type { VoteConfusionCounts } from '../server/eval/vote-direction.ts'
@@ -112,11 +114,16 @@ test('the four cells stay consistent under addition and unknown vote values', ()
     dirtyApprovals: 1,
     dirtyRejects: 0,
   })
+  // The two published totals are their own definitions, not a denominator
+  // borrowed from a named rate that a later change could recondition.
+  assert.equal(totalVotes(total), 2)
+  assert.equal(approvedVotes(total), 1)
   // A value the engine never emits is left out of every cell rather than
   // folded into a direction, so no denominator can disagree with the cells.
   countVoteByDirection(total, 'abstain', true)
   countVoteByDirection(total, 'abstain', false)
   assert.equal(voteRateCount(total, 'truth').trials, 2)
+  assert.equal(totalVotes(total), 2)
 })
 
 test('an unknown team seat is refused rather than scored as clean', () => {
@@ -167,10 +174,13 @@ function withUniformVotes(
     payload: { team: [...team], votes: [{ seat: target, vote }] },
   })
   const kept = artifact.log.filter((event) => event.type !== 'voteReveal')
+  // Numbered past every retained event, not from kept.length: dropping the real
+  // reveals leaves a shorter list whose tail still holds the higher seq values.
+  const next = Math.max(...kept.map((event) => event.seq)) + 1
   artifact.log = [
     ...kept,
-    reveal(kept.length, [target, ally.seat]),
-    reveal(kept.length + 1, [target, traitor.seat]),
+    reveal(next, [target, ally.seat]),
+    reveal(next + 1, [target, traitor.seat]),
   ]
   return artifact
 }

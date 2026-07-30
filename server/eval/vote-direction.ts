@@ -92,28 +92,47 @@ export function teamIsDirty(
   return dirty
 }
 
+/** Every vote in the tally, whatever the team or direction. */
+export function totalVotes(counts: VoteConfusionCounts): number {
+  return cleanTeamVotes(counts) + dirtyTeamVotes(counts)
+}
+
+/** Approvals in either direction. Reported as a rate, it mixes the two. */
+export function approvedVotes(counts: VoteConfusionCounts): number {
+  return counts.cleanApprovals + counts.dirtyApprovals
+}
+
+function cleanTeamVotes(counts: VoteConfusionCounts): number {
+  return counts.cleanApprovals + counts.cleanRejects
+}
+
+function dirtyTeamVotes(counts: VoteConfusionCounts): number {
+  return counts.dirtyApprovals + counts.dirtyRejects
+}
+
 /** The successes and trials of one named rate over the four cells. */
 export function voteRateCount(
   counts: VoteConfusionCounts,
   of: VoteConfusionRate,
 ): VoteRateCount {
-  const cleanTeamVotes = counts.cleanApprovals + counts.cleanRejects
-  const dirtyTeamVotes = counts.dirtyApprovals + counts.dirtyRejects
   switch (of) {
     case 'dirty-team-approve':
-      return { successes: counts.dirtyApprovals, trials: dirtyTeamVotes }
+      return {
+        successes: counts.dirtyApprovals,
+        trials: dirtyTeamVotes(counts),
+      }
     case 'clean-team-reject':
-      return { successes: counts.cleanRejects, trials: cleanTeamVotes }
+      return {
+        successes: counts.cleanRejects,
+        trials: cleanTeamVotes(counts),
+      }
     case 'truth':
       return {
         successes: counts.cleanApprovals + counts.dirtyRejects,
-        trials: cleanTeamVotes + dirtyTeamVotes,
+        trials: totalVotes(counts),
       }
     case 'approve':
-      return {
-        successes: counts.cleanApprovals + counts.dirtyApprovals,
-        trials: cleanTeamVotes + dirtyTeamVotes,
-      }
+      return { successes: approvedVotes(counts), trials: totalVotes(counts) }
   }
 }
 

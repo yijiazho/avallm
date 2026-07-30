@@ -18,10 +18,11 @@ import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { MAX_PROPOSALS } from '../engine/rules.ts'
 import {
+  approvedVotes,
   countVoteByDirection,
   emptyVoteConfusion,
   teamIsDirty,
-  voteRateCount,
+  totalVotes,
 } from './vote-direction.ts'
 import type { VoteConfusionCounts } from './vote-direction.ts'
 import type { GameArtifact } from './artifact.ts'
@@ -175,8 +176,8 @@ export function diagnoseGoodPolicy(
       )),
       proposals: cell.proposals,
       hammerProposals: cell.hammerProposals,
-      targetVotes: voteRateCount(cell.votes, 'truth').trials,
-      targetApprovals: voteRateCount(cell.votes, 'approve').successes,
+      targetVotes: totalVotes(cell.votes),
+      targetApprovals: approvedVotes(cell.votes),
       rejectedCleanTeams: cell.votes.cleanRejects,
       approvedDirtyTeams: cell.votes.dirtyApprovals,
       questsRun: cell.questsRun,
