@@ -66,10 +66,10 @@ import {
   ComponentRegistryError,
 } from '../server/agents/components/registry.ts'
 import {
-  projectPrivateResolvedComposedBrainCompatibility,
   projectResolvedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
+import { brainComponents } from '../server/agents/brain.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 import type {
   ComponentRef,
@@ -967,9 +967,7 @@ test('resolved base, trace, and artifact agree on E2A observer metadata', async 
     treatment.observerModelVersion,
   )
   assert.equal(
-    projectPrivateResolvedComposedBrainCompatibility(
-      agent.resolvedBrain().description,
-    ).baseComponentVersions.observerModel,
+    brainComponents(agent.resolvedBrain().description.base).observerModel,
     treatment.observerModelVersion,
   )
   assert.equal(

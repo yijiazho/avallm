@@ -254,7 +254,12 @@ export interface CompatibilityVoicedOutputProjection {
   readonly plan: DecisionPlan
 }
 
-/** 7R3 retires this compatibility adapter after scorer ownership extraction. */
+/**
+ * Caller-supplied scoring inputs threaded to both the custom and native
+ * scoring authorities. 7R3 extracted scorer ownership but did not retire this
+ * binding: it is still the live seam that carries the deterministic seed and
+ * the role-utility feature reads into whichever authority scores the frame.
+ */
 export type CompatibilityScoringBindings = Readonly<
   Pick<
     CandidateScoringContext,

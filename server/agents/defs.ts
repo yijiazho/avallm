@@ -25,7 +25,7 @@ import { ROLE_ALIGNMENT, nameIsReserved } from '../engine/rules.ts'
 import { resolvePacks } from './packs.ts'
 import type { ResolvedPack } from './packs.ts'
 import type { Role } from '../engine/types.ts'
-import { EXPERIMENTAL_BELIEF_MODE, resolveBrain } from './brain.ts'
+import { resolveBrain } from './brain.ts'
 import type {
   AgentDef,
   AgentEngine,
@@ -258,11 +258,8 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
         throw new Error('temperature must be a number in [0, 1]')
       }
     }
-    if (e.beliefMode !== undefined && e.beliefMode !== EXPERIMENTAL_BELIEF_MODE) {
-      throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
-    }
-    // The resolver is the one validation authority for component values,
-    // cross-component compatibility, and the Phase 2 beliefMode adapter.
+    // The resolver is the one validation authority for component values and
+    // cross-component compatibility.
     resolveBrain(e)
     if (customChars(e) > AGGREGATE_CAP) {
       throw new Error(`custom prompt text exceeds ${AGGREGATE_CAP} chars total`)
@@ -389,7 +386,6 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',
     unavailable: def.unavailable,
-    beliefMode: llm?.beliefMode,
     brain: resolveBrain(e),
   }
 }

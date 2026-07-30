@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createAgent } from '../server/agents/registry.ts'
 import { createLlmAgent } from '../server/agents/llm.ts'
-import { EXPERIMENTAL_BELIEF_MODE } from '../server/agents/experimental.ts'
+import { BELIEF_RENDERER_VERSION } from '../server/agents/communication/belief-summary.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
@@ -97,7 +97,7 @@ test('runner fallback preserves the ultimate action in a degraded trace', async 
               getTotalCost: () => 0,
               getSpend: () => ({}),
             },
-            beliefMode: EXPERIMENTAL_BELIEF_MODE,
+            brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
             onDecisionTrace: (trace) => upsertDecisionTrace(traces, trace),
           })
         : createAgent(

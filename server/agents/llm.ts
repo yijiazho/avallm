@@ -20,7 +20,6 @@ import type { AgentDecision, AvalonAgent } from './types.ts'
 import {
   experimentalBeliefContext,
   type ExperimentalBeliefContext,
-  type ExperimentalBeliefMode,
 } from './experimental.ts'
 import type { CognitionState } from './cognition/types.ts'
 import {
@@ -43,8 +42,6 @@ export interface LlmAgentOpts {
   prompts?: PromptOverrides // agent-config prompt layers
   temperature?: number      // agent-config override of the per-kind default, [0, 1]
   brain?: LlmBrainConfig
-  /** Compatibility input for Phase 2 definitions and direct callers. */
-  beliefMode?: ExperimentalBeliefMode
   /**
    * Private sink of last resort. Traces ride the decide() envelope, so a host
    * with its own store persists them itself and never reaches this.
@@ -66,7 +63,6 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   const brain = resolveBrain({
     type: 'llm',
     brain: opts.brain,
-    beliefMode: opts.beliefMode,
   })
   const compactBeliefSummary = usesCompactBeliefSummary(brain)
   const tagId = opts.agentId ?? entry.id

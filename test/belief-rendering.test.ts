@@ -5,7 +5,6 @@ import { viewFor } from '../server/engine/view.ts'
 import { createLlmAgent } from '../server/agents/llm.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
 import {
-  EXPERIMENTAL_BELIEF_MODE,
   experimentalBeliefContext,
 } from '../server/agents/experimental.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
@@ -70,7 +69,7 @@ test('default LLM prompts omit belief visibility and experimental prompts receiv
       JSON.stringify({ thinking: 'uses exact summary', team: [view.seat, (view.seat + 1) % 5] }),
       experimental,
     ),
-    beliefMode: EXPERIMENTAL_BELIEF_MODE,
+    brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   })
   // The trace rides the decide() envelope now, so the host owns persisting it.
   const traces: DecisionTrace[] = []
@@ -116,7 +115,7 @@ test('parsed-but-unusable reflection output is recorded as trace degradation', a
       getTotalCost: () => 0,
       getSpend: () => ({}),
     },
-    beliefMode: EXPERIMENTAL_BELIEF_MODE,
+    brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   })
   const traces: DecisionTrace[] = []
   const reflected = await agent.decide({

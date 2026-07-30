@@ -459,21 +459,12 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
     },
   ])
   const requested = [{ id: 'objective', version: 'v1' }]
-  const compatibility = {
-    requests: {
-      roleObjectives: true,
-      roleNames: ['merlin'],
-    },
-  }
   const resolved = resolveComposedBrain({
     requestedComponents: requested,
     scoreLayerOrder: [],
     configuredPipeline: testConfiguredPipeline(),
-    compatibility,
   }, registry)
   requested[0].id = 'changed'
-  compatibility.requests.roleObjectives = false
-  compatibility.requests.roleNames[0] = 'changed'
 
   assert.deepEqual(
     resolved.description.components.requested.map((entry) => entry.id),
@@ -491,12 +482,6 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
     resolved.description.scoreLayerOrder.map((entry) => entry.id),
     [],
   )
-  assert.deepEqual(resolved.description.migration.compatibility, {
-    requests: {
-      roleNames: ['merlin'],
-      roleObjectives: true,
-    },
-  })
   assert.ok(Object.isFrozen(resolved))
   assert.ok(Object.isFrozen(resolved.description))
   assert.ok(Object.isFrozen(resolved.description.base))
@@ -506,13 +491,6 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   assert.ok(Object.isFrozen(resolved.configuredDefinitions))
   assert.ok(Object.isFrozen(resolved.eligibleDefinitions))
   assert.ok(Object.isFrozen(resolved.description.scoreLayerOrder))
-  assert.ok(Object.isFrozen(resolved.description.migration))
-  assert.ok(Object.isFrozen(
-    resolved.description.migration.compatibility,
-  ))
-  assert.ok(Object.isFrozen(
-    (resolved.description.migration.compatibility.requests as object),
-  ))
   assert.doesNotThrow(() => JSON.stringify(resolved.description))
   assert.doesNotMatch(
     JSON.stringify(resolved.description),
@@ -592,20 +570,6 @@ test('composed construction resists later caller option and injection mutation',
   )
   assert.equal(planner.calls(), 1)
   assert.ok(stages.length)
-  assert.deepEqual(
-    construction.description.migration.compatibility.requests,
-    {
-      publicObserver: false,
-      privateIdentity: {
-        hiddenTeam: false,
-        roleQueries: ['merlin'],
-      },
-      roleObjectives: false,
-      roleObjectiveRouter: false,
-      morganaCounterfeitObjectives: false,
-      evilQuestCardPolicy: null,
-    },
-  )
   assert.deepEqual(construction.description.components.requested, [])
   assert.deepEqual(construction.eligibleDefinitions, [])
 })

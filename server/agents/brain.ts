@@ -11,8 +11,6 @@ export const RANDOM_POLICY_VERSION = 'random-v1'
 export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
 export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
 export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v2'
-export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
-export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
 /**
  * Every execution mode, as one runtime list the union derives from.
  *
@@ -95,8 +93,6 @@ export interface LlmBrainConfig {
 export interface LlmBrainSource {
   type?: 'llm'
   brain?: LlmBrainConfig
-  /** Phase 2 compatibility input; mapped once into beliefVisibility. */
-  beliefMode?: ExperimentalBeliefMode
 }
 
 export type BrainSource =
@@ -151,20 +147,6 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
     if (!allowed.has(key)) throw new Error(`brain: unknown component "${key}"`)
   }
 
-  const legacyVisibility = source.beliefMode === EXPERIMENTAL_BELIEF_MODE
-    ? BELIEF_RENDERER_VERSION
-    : undefined
-  if (source.beliefMode !== undefined && legacyVisibility === undefined) {
-    throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
-  }
-  if (
-    legacyVisibility
-    && raw.beliefVisibility !== undefined
-    && raw.beliefVisibility !== legacyVisibility
-  ) {
-    throw new Error('beliefMode conflicts with brain.beliefVisibility')
-  }
-
   const brain: BrainSpec = {
     version: BRAIN_SPEC_VERSION,
       belief: assertOneOf(
@@ -174,7 +156,7 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
     ) as BrainSpec['belief'],
     beliefVisibility: assertOneOf(
       'beliefVisibility',
-      legacyVisibility ?? raw.beliefVisibility ?? DEFAULT_LLM_BRAIN.beliefVisibility,
+      raw.beliefVisibility ?? DEFAULT_LLM_BRAIN.beliefVisibility,
       [COMPAT_CERTAINTIES_VISIBILITY, BELIEF_RENDERER_VERSION],
     ) as BrainSpec['beliefVisibility'],
     policy: assertOneOf(

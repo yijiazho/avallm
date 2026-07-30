@@ -17,7 +17,6 @@ import {
 } from '../server/agents/brain.ts'
 import { EXACT_BELIEF_MODEL_VERSION } from '../server/agents/belief/types.ts'
 import { BELIEF_RENDERER_VERSION } from '../server/agents/communication/belief-summary.ts'
-import { EXPERIMENTAL_BELIEF_MODE } from '../server/agents/experimental.ts'
 import {
   publicInfo,
   validateDef,
@@ -50,23 +49,18 @@ test('resolved LLM brains separate exact inference from compatibility and compac
     observerModel: 'off',
   })
 
-  const legacyExperimental = resolveBrain({
-    type: 'llm',
-    beliefMode: EXPERIMENTAL_BELIEF_MODE,
-  })
-  const configuredExperimental = resolveBrain({
+  const experimental = resolveBrain({
     type: 'llm',
     brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   })
-  assert.deepEqual(legacyExperimental, configuredExperimental)
-  assert.equal(legacyExperimental.belief, EXACT_BELIEF_MODEL_VERSION)
-  assert.equal(legacyExperimental.beliefVisibility, BELIEF_RENDERER_VERSION)
+  assert.equal(experimental.belief, EXACT_BELIEF_MODEL_VERSION)
+  assert.equal(experimental.beliefVisibility, BELIEF_RENDERER_VERSION)
 })
 
 test('new architecture metadata is derived from the resolved runtime brain', () => {
   for (const def of [
     llmDef(),
-    llmDef({ beliefMode: EXPERIMENTAL_BELIEF_MODE }),
+    llmDef({ brain: { beliefVisibility: BELIEF_RENDERER_VERSION } }),
     validateDef({ id: 'heuristic', name: 'Heuristic', engine: { type: 'heuristic' } }),
   ]) {
     assert.deepEqual(
@@ -82,7 +76,7 @@ test('new architecture metadata is derived from the resolved runtime brain', () 
   assert.equal(normal.belief, EXACT_BELIEF_MODEL_VERSION)
   assert.equal(normal.beliefVisibility, COMPAT_CERTAINTIES_VISIBILITY)
   const experimental = defaultComponents(llmDef({
-    beliefMode: EXPERIMENTAL_BELIEF_MODE,
+    brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   }))
   assert.equal(experimental.belief, EXACT_BELIEF_MODEL_VERSION)
   assert.equal(experimental.beliefVisibility, BELIEF_RENDERER_VERSION)
@@ -130,13 +124,6 @@ test('invalid or contradictory brain configurations fail clearly', () => {
     () => llmDef({ brain: { mystery: 'x' } }),
     /unknown component "mystery"/,
   )
-  assert.throws(
-    () => llmDef({
-      beliefMode: EXPERIMENTAL_BELIEF_MODE,
-      brain: { beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY },
-    }),
-    /beliefMode conflicts/,
-  )
 })
 
 test('public metadata exposes resolved brain identity apart from model and persona', () => {
@@ -158,7 +145,7 @@ function captureClient(captures: string[][]): OpenRouterClient {
   }
 }
 
-test('legacy and BrainSpec paths preserve default and compact prompt bytes', async () => {
+test('default and compact visibility select the expected prompt bytes', async () => {
   const game = createGame({ seed: 'brain-prompt-identity', playerCount: 5 })
   const view = viewFor(game, game.leaderSeat)
   const req = {
@@ -180,19 +167,12 @@ test('legacy and BrainSpec paths preserve default and compact prompt bytes', asy
     ),
   )
 
-  const legacy: string[][] = []
   const configured: string[][] = []
-  await createLlmAgent({
-    modelId: 'deepseek-flash',
-    client: captureClient(legacy),
-    beliefMode: EXPERIMENTAL_BELIEF_MODE,
-  }).decide(req, view)
   await createLlmAgent({
     modelId: 'deepseek-flash',
     client: captureClient(configured),
     brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   }).decide(req, view)
-  assert.deepEqual(configured, legacy)
   assert.ok(configured.flat().some((text) => text.includes('EXACT BELIEF SUMMARY')))
 })
 

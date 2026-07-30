@@ -2,7 +2,7 @@
 // An agent receives ONLY its seat's PlayerView — never raw Game state.
 
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
-import type { ExperimentalBeliefMode, LlmBrainConfig } from './brain.ts'
+import type { LlmBrainConfig } from './brain.ts'
 import type { AppliedDecisionOutcome, DecisionTrace } from './trace.ts'
 
 // The applied-decision resolution vocabulary and outcome shape live below this
@@ -73,7 +73,6 @@ export type AgentSpec =
       type: 'llm'
       model: string
       brain?: LlmBrainConfig
-      beliefMode?: ExperimentalBeliefMode
     }
   /** API-free structured brain. It makes no model call on its own. */
   | { type: 'composed'; brain: ComposedBrainPreset }

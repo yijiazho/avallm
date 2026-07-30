@@ -6,6 +6,8 @@
   "about": "Experimental raw LLM baseline with the Phase 2 exact belief summary. It is not the default policy.",
   "engine": {
     "type": "llm",
-    "beliefMode": "exact-summary-v1"
+    "brain": {
+      "beliefVisibility": "compact-belief-v1"
+    }
   }
 }

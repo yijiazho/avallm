@@ -10,7 +10,7 @@
 
 import type { LlmCallKind } from '../llm/call-params.ts'
 import type { Role } from '../engine/types.ts'
-import type { ExperimentalBeliefMode, BrainSpec, LlmBrainConfig } from './brain.ts'
+import type { BrainSpec, LlmBrainConfig } from './brain.ts'
 
 export interface LlmEngine {
   type: 'llm'
@@ -26,8 +26,6 @@ export interface LlmEngine {
   temperature?: number // global sampling override, must be in [0, 1]
   /** Strategic components, independent of model and prompt/persona layers. */
   brain?: LlmBrainConfig
-  /** Explicit, nondefault Phase 2 cognition visibility experiment. */
-  beliefMode?: ExperimentalBeliefMode
 }
 
 export type AgentEngine =
@@ -78,7 +76,6 @@ export interface AgentPublicInfo {
   custom: boolean        // editable (user tier)
   tier: AgentTier
   unavailable?: string
-  beliefMode?: ExperimentalBeliefMode
   brain?: BrainSpec
 }
 

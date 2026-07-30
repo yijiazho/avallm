@@ -43,7 +43,7 @@
     },
     {
       "path": "test/component-registry.test.ts",
-      "sha256": "1290b6b7990b3d75f3b485ab8ccf03e0cc3316a7f10ff32b3108b34d6e0ed165",
+      "sha256": "aac723b62305037c33addd2a4186e199d657dbad5a3b01d6433d3b91126fd443",
       "rationale": "Legacy registry fixtures intentionally mutate readonly contracts."
     },
     {
@@ -118,12 +118,12 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "e9d90825c2da9559244ef28a79887c32a6abb2e9fbf1167f85bd8b57bfb01581",
+      "sha256": "afe3a892fe5a4a0085cbd5e9d77d8390b9791d5fab2cb50e9a0ec24fbff3f224",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "e6ba75779a8a852d719231baf2985fc9d16eb817fa6bfe575f39297ba5776653",
+      "sha256": "1097bbbe30c66689e478cbf9c9bc7e914efb58a54bf0fe120d23730509515264",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {

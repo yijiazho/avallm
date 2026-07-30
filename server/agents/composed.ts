@@ -110,7 +110,6 @@ import {
   projectResolvedArchitectureIdentity,
   resolveComposedBrain,
   resolvedArchitectureIdentityDigest,
-  type CompatibilityValue,
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
 import type {
@@ -1227,8 +1226,6 @@ function resolveRolePolicyScorer(input: {
  * scorer alone. Fusing the two would silently change the descriptor.
  */
 interface RoleFeatureSetup {
-  /** Compatibility request entry, always emitted when present (feature knobs). */
-  readonly request?: readonly [key: string, value: CompatibilityValue]
   /** This feature's disjunct of the aggregate public-observer requirement. */
   readonly forcesPublicObserver: boolean
   /** This feature's disjunct of the good-objective all-decision-kinds reach. */
@@ -1391,34 +1388,14 @@ export function createComposedAgent(
     throw new Error('coherenceIntent requires planMemory')
   }
   // The one table that owns every role feature's construction-time fan-out.
-  // Its rows are ordered so the request-bearing rows emit compatibility.requests
-  // in the pinned key order; component order is governed separately by
-  // ROLE_FEATURE_COMPONENT_ORDER. The good/evil/morgana role-utility rows carry
-  // no request: they exist to contribute their components (through the chain
-  // walk) and to force the public observer (through the entry scorer's own
-  // requirement, which the chain walk can outrun).
+  // Rows force the public observer (through the entry scorer's own requirement,
+  // which the chain walk can outrun) and contribute components; component order
+  // is governed separately by ROLE_FEATURE_COMPONENT_ORDER.
   const roleFeatures: readonly RoleFeatureSetup[] = [
     {
-      request: ['publicObserver', publicObserverConfigured],
       forcesPublicObserver: publicObserverConfigured,
     },
     {
-      request: [
-        'privateIdentity',
-        configuredIdentityScope
-          ? {
-              roleQueries: configuredIdentityScope.roleQueries.map((query) =>
-                typeof query === 'string'
-                  ? query
-                  : { roles: [...query.roles] }),
-              hiddenTeam: configuredIdentityScope.hiddenTeam,
-            }
-          : null,
-      ],
-      forcesPublicObserver: false,
-    },
-    {
-      request: ['roleObjectives', roleObjectivesConfigured],
       forcesPublicObserver: roleObjectivesConfigured,
       forcesGoodObjectiveAllKinds: roleObjectivesConfigured,
       components: roleObjectivesConfigured
@@ -1426,7 +1403,6 @@ export function createComposedAgent(
         : [],
     },
     {
-      request: ['roleObjectiveRouter', roleObjectiveRouterConfigured],
       forcesPublicObserver: roleObjectiveRouterConfigured,
       forcesGoodObjectiveAllKinds: roleObjectiveRouterConfigured,
       components: roleObjectiveRouterConfigured
@@ -1440,14 +1416,12 @@ export function createComposedAgent(
         : [],
     },
     {
-      request: ['morganaCounterfeitObjectives', morganaCounterfeitConfigured],
       forcesPublicObserver: morganaCounterfeitConfigured,
       components: morganaCounterfeitConfigured
         ? [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT]
         : [],
     },
     {
-      request: ['evilQuestCardPolicy', evilQuestCardPolicyMode ?? null],
       forcesPublicObserver: false,
       components: configuredEvilQuestCardComponent
         ? [configuredEvilQuestCardComponent]
@@ -1546,12 +1520,6 @@ export function createComposedAgent(
     publicObserverConfigured: roleFeatures.some(
       (feature) => feature.forcesPublicObserver,
     ),
-    compatibility: {
-      requests: Object.fromEntries(
-        roleFeatures.flatMap((feature) =>
-          feature.request ? [feature.request] : []),
-      ),
-    },
   }, componentRegistry, createConfiguredScoreLayerRegistry(),
   createConfiguredDecisionLayerRegistry())
   const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
@@ -1789,6 +1757,14 @@ export function createComposedAgent(
           // the identity phase either way.
           stage('identity')
         }
+        // The compatibility, config-driven observer path: a raw publicObserver
+        // flag or a custom-scorer role read needs the observer up front, before
+        // component resolution. It is unioned below with
+        // genericPublicObserverApplicable, the component-driven path that
+        // provisions the observer lazily when an admitted component declares the
+        // observer host input. The two are not interchangeable: a role objective
+        // computed by the compatibility custom-scorer chain has no component to
+        // detect, so this eager provide is what puts the observer in its trace.
         const compatibilityPublicObserverApplicable = Boolean(
           publicObserverConfigured
           || roleObjectiveRole

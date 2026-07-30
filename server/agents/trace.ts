@@ -226,7 +226,14 @@ export interface BaseTraceRuntimeActuals {
   readonly scorer: string
   readonly planner: string
   readonly voice: string
-  /** Whether the invocation actually produced the compatibility flat observer. */
+  /**
+   * Whether the invocation produced the observer through the compatibility,
+   * config-driven path (a raw `publicObserver` flag or a custom-scorer role
+   * read) rather than a component that declares the observer host input.
+   * `projectBaseTraceComponentVersions` unions this with the descriptor's
+   * component observer contribution, so the two observer provenances together
+   * decide whether `observerModel` is serialized.
+   */
   readonly compatibilityObserverProduced: boolean
   readonly mechanicalBelief?: string
   readonly beliefPipeline?: string

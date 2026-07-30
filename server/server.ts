@@ -53,7 +53,6 @@ import {
   type DecisionTrace,
 } from './agents/trace.ts'
 import {
-  EXPERIMENTAL_BELIEF_MODE,
   resolveBrain,
   type LlmBrainConfig,
 } from './agents/brain.ts'
@@ -179,11 +178,6 @@ function engineFrom(body: any, base?: LlmEngine): LlmEngine {
       }
       return structuredClone(v) as LlmBrainConfig
     }, base?.brain),
-    beliefMode: pick('beliefMode', (v) => {
-      if (v === null || v === undefined || v === '') return undefined
-      if (v === EXPERIMENTAL_BELIEF_MODE) return v
-      throw new Error(`beliefMode must be "${EXPERIMENTAL_BELIEF_MODE}"`)
-    }, base?.beliefMode),
   }
 }
 

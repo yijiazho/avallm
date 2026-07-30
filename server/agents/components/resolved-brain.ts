@@ -4,7 +4,6 @@ import {
   COMPOSED_POLICY_VERSION,
   isComposedPolicy,
   PLAN_COMMUNICATION_VERSION,
-  brainComponents,
   resolveBrain,
   type BrainSource,
   type BrainSpec,
@@ -47,8 +46,6 @@ import {
   exactOwnDataRecord,
 } from './canonical-json.ts'
 
-export const RESOLVED_COMPOSED_BRAIN_VERSION =
-  'resolved-composed-brain-v1'
 export const RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION =
   'resolved-architecture-descriptor-v1'
 export const MAX_RESOLVED_ARCHITECTURE_IDENTITY_JSON_BYTES = 65_536
@@ -100,18 +97,6 @@ export interface ResolvedConfiguredPipeline {
   }>
 }
 
-export type CompatibilityScalar =
-  | boolean
-  | number
-  | string
-  | null
-  | undefined
-
-export type CompatibilityValue =
-  | CompatibilityScalar
-  | readonly CompatibilityValue[]
-  | Readonly<{ [key: string]: CompatibilityValue }>
-
 export interface ComposedBrainConfig {
   readonly requestedComponents?: readonly ComponentRef[]
   readonly hostCapabilities?: readonly HostCapability[]
@@ -121,25 +106,14 @@ export interface ComposedBrainConfig {
   readonly scoreLayerOrder?: readonly ScoreLayerRef[]
   readonly decisionLayerOrder?: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
-  /**
-   * Temporary, read-only projection of the role-specific configuration that
-   * B3 adapters will migrate. It must contain data only, never callbacks.
-   */
-  readonly compatibility?: Readonly<Record<string, CompatibilityValue>>
   readonly languageEvidenceEnabled?: boolean
   readonly publicObserverConfigured?: boolean
 }
 
 /**
- * The sole construction-time metadata owner for one composed agent.
- *
- * This is private agent state. Consumers that cannot receive migration data
- * must use projectPrivateArchitectureDebug rather than serializing it.
- */
-/**
  * Canonical stable identity shared by the in-process descriptor and detached
- * observability projections. It deliberately excludes migration compatibility
- * data, implementations, providers, and invocation-local values.
+ * observability projections. It deliberately excludes implementations,
+ * providers, and invocation-local values.
  */
 export interface ResolvedArchitectureIdentity {
   readonly version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
@@ -161,12 +135,13 @@ export interface ResolvedArchitectureIdentity {
   readonly configuredPipeline: ResolvedConfiguredPipeline
 }
 
-export interface ResolvedArchitectureDescriptor
-extends ResolvedArchitectureIdentity {
-  readonly migration: Readonly<{
-    readonly compatibility: Readonly<Record<string, CompatibilityValue>>
-  }>
-}
+/**
+ * The sole construction-time metadata owner for one composed agent. Now that
+ * migration-compatibility data is gone, it carries exactly the stable identity;
+ * the alias is kept so trace, artifact, and report call sites keep naming the
+ * private construction shape they consume.
+ */
+export type ResolvedArchitectureDescriptor = ResolvedArchitectureIdentity
 
 export function resolvedArchitectureIdentityVersions(
   identity: ResolvedArchitectureIdentity,
@@ -242,17 +217,6 @@ export type PrivateArchitectureDebugProjection = Readonly<
   ResolvedArchitectureIdentity
 >
 
-export interface PrivateResolvedComposedBrainCompatibilityProjection {
-  readonly version: typeof RESOLVED_COMPOSED_BRAIN_VERSION
-  readonly base: BrainSpec
-  readonly baseComponentVersions: Readonly<Record<string, string>>
-  readonly components: ResolvedComponentGraph
-  readonly requiredHostInputs: readonly ComponentHostInputRef[]
-  readonly scoreLayerOrder: readonly ScoreLayerRef[]
-  readonly decisionLayerOrder: readonly DecisionLayerRef[]
-  readonly compatibility: Readonly<Record<string, CompatibilityValue>>
-}
-
 export interface ResolvedComposedBrain {
   /** Data-only construction description for later trace/manifest projection. */
   readonly description: ResolvedArchitectureDescriptor
@@ -287,46 +251,6 @@ function freezeHostInputRef(
     version: ref.version,
     privacy: ref.privacy,
   })
-}
-
-function freezeCompatibilityValue(
-  value: CompatibilityValue,
-  path: string,
-): CompatibilityValue {
-  if (
-    value === undefined
-    || value === null
-    || typeof value === 'boolean'
-    || typeof value === 'string'
-  ) {
-    return value
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new Error(`${path} must not contain a non-finite number`)
-    }
-    return value
-  }
-  if (Array.isArray(value)) {
-    return Object.freeze(
-      value.map((entry, index) =>
-        freezeCompatibilityValue(entry, `${path}[${index}]`)),
-    )
-  }
-  if (
-    typeof value !== 'object'
-    || Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    throw new Error(`${path} must contain data-only plain objects`)
-  }
-  const result: Record<string, CompatibilityValue> = {}
-  for (const key of Object.keys(value).sort()) {
-    result[key] = freezeCompatibilityValue(
-      (value as Readonly<Record<string, CompatibilityValue>>)[key],
-      `${path}.${key}`,
-    )
-  }
-  return Object.freeze(result)
 }
 
 function freezeConfiguredPipeline(
@@ -777,9 +701,8 @@ export function projectResolvedArchitectureIdentity(
 }
 
 /**
- * Private, data-only construction metadata for trusted diagnostics.
- * Migration-only compatibility configuration is deliberately absent, but
- * the component graph and host-input roots remain seat-private metadata.
+ * Private, data-only construction metadata for trusted diagnostics. The
+ * component graph and host-input roots remain seat-private metadata.
  */
 export function projectPrivateArchitectureDebug(
   descriptor: ResolvedArchitectureDescriptor,
@@ -793,63 +716,6 @@ export function projectPrivateArchitectureDebug(
     scoreLayerOrder: descriptor.scoreLayerOrder,
     decisionLayerOrder: descriptor.decisionLayerOrder,
     configuredPipeline: descriptor.configuredPipeline,
-  })
-}
-
-/** Private projection for trusted in-process diagnostics and migration code. */
-export function projectResolvedArchitecturePrivate(
-  descriptor: ResolvedArchitectureDescriptor,
-): ResolvedArchitectureDescriptor {
-  return descriptor
-}
-
-/**
- * Exact private compatibility construction shape. This is a compatibility edge,
- * not a second metadata source: every field is derived from the descriptor.
- */
-export function projectPrivateResolvedComposedBrainCompatibility(
-  descriptor: ResolvedArchitectureDescriptor,
-): PrivateResolvedComposedBrainCompatibilityProjection {
-  const migration = descriptor.migration.compatibility
-  const requests = Object.hasOwn(migration, 'requests')
-    ? migration.requests as Readonly<Record<string, CompatibilityValue>>
-    : undefined
-  const remainingMigration = Object.fromEntries(
-    Object.entries(migration).filter(([key]) => key !== 'requests'),
-  )
-  const pipeline = descriptor.configuredPipeline
-  const compatibilityRequests = requests === undefined
-    ? undefined
-    : {
-        ...requests,
-        planMemory: pipeline.planCoherence.memory !== 'off',
-        coherenceIntent: pipeline.planCoherence.intent,
-      }
-  const compatibility = freezeCompatibilityValue({
-    ...remainingMigration,
-    beliefModel: Object.freeze({
-      version: pipeline.belief.model,
-      factorsVersion: pipeline.belief.factors,
-    }),
-    languageInterpreterVersion: pipeline.belief.languageInterpreter,
-    languageFactorVersion: pipeline.belief.languageFactor,
-    scorerVersions: Object.freeze([
-      pipeline.scoring.configuredScorer,
-      ...pipeline.scoring.configuredBaseChain,
-    ]),
-    ...(compatibilityRequests === undefined ? {} : { requests: compatibilityRequests }),
-  }, 'compatibility') as Readonly<
-    Record<string, CompatibilityValue>
-  >
-  return Object.freeze({
-    version: RESOLVED_COMPOSED_BRAIN_VERSION,
-    base: descriptor.base,
-    baseComponentVersions: Object.freeze(brainComponents(descriptor.base)),
-    components: descriptor.components,
-    requiredHostInputs: descriptor.requiredHostInputs,
-    scoreLayerOrder: descriptor.scoreLayerOrder,
-    decisionLayerOrder: descriptor.decisionLayerOrder,
-    compatibility,
   })
 }
 
@@ -1086,40 +952,6 @@ export function resolveComposedBrain(
     throw new Error('resolved component declares an unsupported observer model')
   }
   const base = Object.freeze(resolveBrain(source))
-  const compatibility = freezeCompatibilityValue(
-    config.compatibility ?? {},
-    'compatibility',
-  ) as Readonly<Record<string, CompatibilityValue>>
-  const reservedCompatibilityKeys = [
-    'beliefModel',
-    'languageInterpreterVersion',
-    'languageFactorVersion',
-    'scorerVersions',
-  ]
-  for (const key of reservedCompatibilityKeys) {
-    if (Object.hasOwn(compatibility, key)) {
-      throw new Error(
-        `compatibility.${key} duplicates configuredPipeline`,
-      )
-    }
-  }
-  const migrationRequests = compatibility.requests
-  if (migrationRequests !== undefined) {
-    if (
-      !migrationRequests
-      || typeof migrationRequests !== 'object'
-      || Array.isArray(migrationRequests)
-    ) {
-      throw new Error('compatibility.requests must be a plain object')
-    }
-    for (const key of ['planMemory', 'coherenceIntent']) {
-      if (Object.hasOwn(migrationRequests, key)) {
-        throw new Error(
-          `compatibility.requests.${key} duplicates configuredPipeline`,
-        )
-      }
-    }
-  }
   const identity = admitResolvedArchitectureIdentity({
     version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
     base,
@@ -1138,10 +970,7 @@ export function resolveComposedBrain(
   if (!identity) {
     throw new Error('resolved architecture identity failed semantic admission')
   }
-  const description: ResolvedArchitectureDescriptor = Object.freeze({
-    ...identity,
-    migration: Object.freeze({ compatibility }),
-  })
+  const description: ResolvedArchitectureDescriptor = identity
   return Object.freeze({
     description,
     configuredDefinitions,

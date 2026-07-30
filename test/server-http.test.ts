@@ -74,29 +74,26 @@ test('/api/agents/preview renders the exact belief block only when explicitly se
     return response.json() as Promise<{ messages: { content: string }[] }>
   }
   const normal = await preview()
-  const experimental = await preview({ beliefMode: 'exact-summary-v1' })
   const typed = await preview({
     brain: { beliefVisibility: 'compact-belief-v1' },
   })
   assert.ok(normal.messages.every((message) =>
     !message.content.includes('EXACT BELIEF SUMMARY')))
-  assert.ok(experimental.messages.some((message) =>
+  assert.ok(typed.messages.some((message) =>
     message.content.includes('EXACT BELIEF SUMMARY')))
-  assert.deepEqual(typed.messages, experimental.messages)
 
-  const conflicting = await fetch(`${base}/api/agents/preview`, {
+  const invalid = await fetch(`${base}/api/agents/preview`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       role: 'servant',
       kind: 'discuss',
-      beliefMode: 'exact-summary-v1',
-      brain: { beliefVisibility: 'compat-certainties-v1' },
+      brain: { beliefVisibility: 'not-a-visibility' },
     }),
   })
-  assert.equal(conflicting.status, 400)
+  assert.equal(invalid.status, 400)
   assert.match(
-    String((await conflicting.json() as { error?: string }).error),
-    /beliefMode conflicts/,
+    String((await invalid.json() as { error?: string }).error),
+    /beliefVisibility must be one of/,
   )
 })

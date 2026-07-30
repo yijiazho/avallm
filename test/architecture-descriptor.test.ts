@@ -15,14 +15,10 @@ import {
 } from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
-  RESOLVED_COMPOSED_BRAIN_VERSION,
   admitResolvedArchitectureIdentity,
   projectPrivateArchitectureDebug,
   projectResolvedArchitectureIdentity,
-  projectResolvedArchitecturePrivate,
-  projectPrivateResolvedComposedBrainCompatibility,
   resolveComposedBrain,
-  type CompatibilityValue,
   type ResolvedConfiguredPipeline,
 } from '../server/agents/components/resolved-brain.ts'
 import {
@@ -62,7 +58,6 @@ import {
 import {
   COHERENCE_MODEL_VERSION,
 } from '../server/agents/cognition/coherence.ts'
-import { brainComponents } from '../server/agents/brain.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
   projectBaseTraceComponentVersions,
@@ -415,12 +410,10 @@ test('resolved architecture descriptor is deterministic across a configuration m
     assert.ok(Object.isFrozen(
       first.configuredPipeline.scoring.configuredBaseChain,
     ))
-    assert.ok(Object.isFrozen(first.migration))
-    assert.ok(Object.isFrozen(first.migration.compatibility))
   }
 })
 
-test('private debug and exact compatibility shapes are pure descriptor projections', () => {
+test('private debug projection is a pure descriptor projection', () => {
   const descriptor = createComposedAgent({
     seed: 'descriptor-projections',
     privateIdentity: {
@@ -429,11 +422,7 @@ test('private debug and exact compatibility shapes are pure descriptor projectio
     },
   }).resolvedBrain().description
   const debug = projectPrivateArchitectureDebug(descriptor)
-  const privateProjection =
-    projectResolvedArchitecturePrivate(descriptor)
-  const compatibilityProjection = projectPrivateResolvedComposedBrainCompatibility(descriptor)
 
-  assert.equal(privateProjection, descriptor)
   assert.deepEqual(Object.keys(debug), [
     'version',
     'base',
@@ -445,97 +434,13 @@ test('private debug and exact compatibility shapes are pure descriptor projectio
     'configuredPipeline',
   ])
   assert.equal('migration' in debug, false)
-  assert.equal('baseComponentVersions' in descriptor, false)
-  assert.deepEqual(Object.keys(compatibilityProjection), [
-    'version',
-    'base',
-    'baseComponentVersions',
-    'components',
-    'requiredHostInputs',
-    'scoreLayerOrder',
-    'decisionLayerOrder',
-    'compatibility',
-  ])
-  assert.equal(compatibilityProjection.version, RESOLVED_COMPOSED_BRAIN_VERSION)
-  assert.deepEqual(
-    compatibilityProjection.baseComponentVersions,
-    brainComponents(descriptor.base),
-  )
-  assert.deepEqual(Object.keys(descriptor.migration.compatibility), [
-    'requests',
-  ])
-  assert.deepEqual(descriptor.migration.compatibility.requests, {
-    evilQuestCardPolicy: null,
-    morganaCounterfeitObjectives: false,
-    privateIdentity: {
-      hiddenTeam: false,
-      roleQueries: [{ roles: ['merlin'] }],
-    },
-    publicObserver: false,
-    roleObjectiveRouter: false,
-    roleObjectives: false,
-  })
-  assert.deepEqual(Object.keys(compatibilityProjection.compatibility), [
-    'beliefModel',
-    'languageFactorVersion',
-    'languageInterpreterVersion',
-    'requests',
-    'scorerVersions',
-  ])
-  const compatibilityRequests = compatibilityProjection.compatibility.requests as Readonly<
-    Record<string, CompatibilityValue>
-  >
-  assert.deepEqual(Object.keys(compatibilityRequests), [
-    'coherenceIntent',
-    'evilQuestCardPolicy',
-    'morganaCounterfeitObjectives',
-    'planMemory',
-    'privateIdentity',
-    'publicObserver',
-    'roleObjectiveRouter',
-    'roleObjectives',
-  ])
-  const expectedCompatibility = {
-    beliefModel: {
-      factorsVersion: 'off',
-      version: EXACT_BELIEF_MODEL_VERSION,
-    },
-    languageFactorVersion: boundedLanguageLikelihoodFactor.version,
-    languageInterpreterVersion: 'off',
-    requests: {
-      coherenceIntent: 'maintain',
-      evilQuestCardPolicy: null,
-      morganaCounterfeitObjectives: false,
-      planMemory: false,
-      privateIdentity: {
-        hiddenTeam: false,
-        roleQueries: [{ roles: ['merlin'] }],
-      },
-      publicObserver: false,
-      roleObjectiveRouter: false,
-      roleObjectives: false,
-    },
-    scorerVersions: [CANDIDATE_SCORER_VERSION],
-  }
-  assert.deepEqual(compatibilityProjection.compatibility, expectedCompatibility)
-  assert.equal(
-    JSON.stringify(compatibilityProjection.compatibility),
-    JSON.stringify(expectedCompatibility),
-  )
   assert.ok(Object.isFrozen(debug))
-  assert.ok(Object.isFrozen(compatibilityProjection))
-  assert.ok(Object.isFrozen(compatibilityProjection.baseComponentVersions))
 })
 
 test('descriptor snapshots caller pipeline data and owns no implementations', () => {
   const pipeline = testConfiguredPipeline()
   const descriptor = resolveComposedBrain({
     configuredPipeline: pipeline,
-    compatibility: {
-      nested: {
-        values: ['original'],
-      },
-    },
   }, createDecisionComponentRegistry([])).description
 
   const mutableBelief = pipeline.belief as { model: string }
@@ -543,15 +448,11 @@ test('descriptor snapshots caller pipeline data and owns no implementations', ()
     pipeline.scoring.configuredBaseChain as string[]
   mutableBelief.model = 'mutated'
   mutableFallbacks[0] = 'mutated'
-  const nested = descriptor.migration.compatibility.nested as {
-    readonly values: readonly string[]
-  }
   assert.equal(descriptor.configuredPipeline.belief.model, 'test-belief-v1')
   assert.deepEqual(
     descriptor.configuredPipeline.scoring.configuredBaseChain,
     ['test-fallback-v1'],
   )
-  assert.deepEqual(nested.values, ['original'])
   assertDataOnly(descriptor)
 })
 
@@ -613,37 +514,6 @@ test('configured pipeline rejects every invalid scalar and fallback shape', () =
     ['scoring', 'configuredBaseChain'],
     { 0: 'valid-v1', length: 1 },
   )))
-})
-
-test('reserved migration metadata cannot duplicate the canonical pipeline', () => {
-  const registry = createDecisionComponentRegistry([])
-  for (const key of [
-    'beliefModel',
-    'languageInterpreterVersion',
-    'languageFactorVersion',
-    'scorerVersions',
-  ]) {
-    assert.throws(
-      () => resolveComposedBrain({
-        configuredPipeline: testConfiguredPipeline(),
-        compatibility: { [key]: 'duplicate' },
-      }, registry),
-      new RegExp(`compatibility\\.${key} duplicates configuredPipeline`),
-    )
-  }
-  for (const key of ['planMemory', 'coherenceIntent']) {
-    assert.throws(
-      () => resolveComposedBrain({
-        configuredPipeline: testConfiguredPipeline(),
-        compatibility: {
-          requests: { [key]: 'duplicate' },
-        },
-      }, registry),
-      new RegExp(
-        `compatibility\\.requests\\.${key} duplicates configuredPipeline`,
-      ),
-    )
-  }
 })
 
 test('invalid scorer output uses only the named hard fallback', async () => {
