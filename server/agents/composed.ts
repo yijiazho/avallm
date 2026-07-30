@@ -116,7 +116,10 @@ import {
   resolvedArchitectureIdentityDigest,
   type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
-import type { ComponentRef } from './components/types.ts'
+import type {
+  ComponentRef,
+  ComponentToken,
+} from './components/types.ts'
 import type {
   DecisionLayerRun,
 } from './policy/decision-layer/types.ts'
@@ -895,6 +898,41 @@ function composedTrace(
   }
 }
 
+/**
+ * One configured component whose admitted payload a scorer may depend on.
+ *
+ * `apply` captures the component's payload type in a closure so a decision can
+ * hold bindings for unrelated roles in one list, and reports whether the
+ * payload arrived. `requiredByScorer` is a thunk because the answer differs per
+ * requirement: the good and evil requirements are read from the scorer that
+ * entered the decision, while the Morgana requirement is read live, after any
+ * earlier binding has already stepped the scorer down its base chain.
+ */
+interface ScorerPayloadBinding {
+  readonly component: ComponentRef
+  readonly requiredByScorer: () => boolean
+  readonly apply: (run: DecisionComponentRun) => boolean
+}
+
+function scorerPayloadBinding<Payload>(
+  component: ComponentToken<Payload>,
+  requiredByScorer: () => boolean,
+  assign: (payload: Payload | undefined) => void,
+): ScorerPayloadBinding {
+  return {
+    component,
+    requiredByScorer,
+    apply(run: DecisionComponentRun): boolean {
+      const payload = componentPayload(run, component)
+      assign(payload)
+      // Truthiness, not a defined check: every consumer of these payloads
+      // tests them the same way, so a defined-but-falsy payload has to count
+      // as absent here too or the scorer keeps a requirement it cannot read.
+      return Boolean(payload)
+    },
+  }
+}
+
 function resolveRolePolicyScorer(input: {
   configured: CandidateScorer
   req: DecisionRequest
@@ -1590,38 +1628,47 @@ export function createComposedAgent(
         )
           ? publicObserver
           : undefined
-        if (configuredComponentIds.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)) {
-          privateRoleObjective = componentPayload(
-            componentRun,
+        /**
+         * Every configured payload a scorer may depend on, in the order the
+         * scorer's base chain must be walked. The loop below owns the whole
+         * fixpoint: a scorer that declared two requirements neither of its
+         * components could satisfy steps down twice, once per binding, which is
+         * why this stays a sequential pass rather than one combined check.
+         */
+        const scorerPayloadBindings: readonly ScorerPayloadBinding[] = [
+          scorerPayloadBinding(
             GOOD_ROLE_OBJECTIVE_COMPONENT,
-          )
-        }
-        if (configuredComponentIds.has(GOOD_ROLE_UTILITY_COMPONENT.id)) {
-          privateRoleUtility = componentPayload(
-            componentRun,
+            () => false,
+            (payload) => { privateRoleObjective = payload },
+          ),
+          scorerPayloadBinding(
             GOOD_ROLE_UTILITY_COMPONENT,
-          )
-          if (roleScorerApplicable && !privateRoleUtility) {
-            resolvedScorer = resolveRolePolicyScorer({
-              configured: resolvedScorer.baseScorer ?? resolvedScorer,
-              req,
-              view,
-              routedObjective,
-            })
-          }
-        }
-        if (configuredComponentIds.has(EVIL_ROLE_OBJECTIVE_COMPONENT.id)) {
-          privateEvilRoleObjective = componentPayload(
-            componentRun,
+            () => roleScorerApplicable,
+            (payload) => { privateRoleUtility = payload },
+          ),
+          scorerPayloadBinding(
             EVIL_ROLE_OBJECTIVE_COMPONENT,
-          )
-        }
-        if (configuredComponentIds.has(EVIL_ROLE_UTILITY_COMPONENT.id)) {
-          privateEvilRoleUtility = componentPayload(
-            componentRun,
+            () => false,
+            (payload) => { privateEvilRoleObjective = payload },
+          ),
+          scorerPayloadBinding(
             EVIL_ROLE_UTILITY_COMPONENT,
-          )
-          if (evilRoleScorerApplicable && !privateEvilRoleUtility) {
+            () => evilRoleScorerApplicable,
+            (payload) => { privateEvilRoleUtility = payload },
+          ),
+          ...(configuredMorganaRoleUtilityComponent
+            ? [scorerPayloadBinding(
+                configuredMorganaRoleUtilityComponent,
+                () => resolvedScorer.morganaRoleUtilityRequirement
+                  === MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+                (payload) => { privateMorganaRoleUtility = payload },
+              )]
+            : []),
+        ]
+        for (const binding of scorerPayloadBindings) {
+          if (!configuredComponentIds.has(binding.component.id)) continue
+          const satisfied = binding.apply(componentRun)
+          if (!satisfied && binding.requiredByScorer()) {
             resolvedScorer = resolveRolePolicyScorer({
               configured: resolvedScorer.baseScorer ?? resolvedScorer,
               req,
@@ -1644,29 +1691,6 @@ export function createComposedAgent(
             publicMorganaCounterfeitRead = undefined
           }
           stage('morgana-counterfeit')
-        }
-        if (
-          configuredMorganaRoleUtilityComponent !== undefined
-          && configuredComponentIds.has(
-            configuredMorganaRoleUtilityComponent.id,
-          )
-        ) {
-          privateMorganaRoleUtility = componentPayload(
-            componentRun,
-            configuredMorganaRoleUtilityComponent,
-          )
-          if (
-            resolvedScorer.morganaRoleUtilityRequirement
-              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-            && !privateMorganaRoleUtility
-          ) {
-            resolvedScorer = resolveRolePolicyScorer({
-              configured: resolvedScorer.baseScorer ?? resolvedScorer,
-              req,
-              view,
-              routedObjective,
-            })
-          }
         }
         if (configuredEvilQuestCardComponent) {
           const robustQuestCardPolicy = componentPayload(
