@@ -3861,4 +3861,12 @@ here.
   behavior change worth a policy look and not a quality improvement. NB-013 is separately making
   that metric asymmetric; this run touched neither the report fields nor the stored baselines.
   Run it with `node server/eval/full-role-bench.ts --side evil`, optionally sharded by
-  `--target-role`. Full suite 1153 correctness tests plus the three isolated performance tests.
+  `--target-role`. The whole bank was measured three times while landing, once per base as this
+  branch rebased forward: before the NB-015 trace lifecycle and the score-projection refactors,
+  after them, and again after the declared-lean removal and NB-014. All three runs agree exactly,
+  down to the win count in every one of the `32` variant cells, all eight intervals, the `480` of
+  `480` inert ablations, the `477` of `480` divergences, and the clean safety and eligibility
+  record. That is independent evidence those changes preserved behavior, and it is cheap evidence to
+  keep collecting: the bank pins its own deals, so `test/evil-policy-bench.test.ts` fails loudly if
+  a future engine change moves them rather than letting the recorded numbers quietly stop matching
+  the code under them. Full suite 1186 correctness tests plus the three isolated performance tests.
