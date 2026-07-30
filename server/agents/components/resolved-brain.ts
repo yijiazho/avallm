@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
   BRAIN_SPEC_VERSION,
-  COMPOSED_POLICY_VERSION,
   isComposedPolicy,
   PLAN_COMMUNICATION_VERSION,
   resolveBrain,

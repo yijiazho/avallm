@@ -122,7 +122,6 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
   // counted).
   let discussion: GameMetrics['discussion']
   if (a.schema >= 3) {
-    const talkCfg = a.talk as { maxRounds?: number; maxRoundsAfterChange?: number }
     const acc = { segments: 0, roundsTotal: 0, finalizes: 0, revised: 0 }
     let open = false
     let segRounds = 0

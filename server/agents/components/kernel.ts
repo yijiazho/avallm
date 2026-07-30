@@ -44,7 +44,6 @@ import type {
   DecisionComponentEntry,
   DecisionComponentEntryBase,
   DecisionComponentPlan,
-  DecisionComponentPolicyUse,
   DecisionComponentRun,
   PublicDecisionComponentEntry,
   PublicDecisionComponentRun,

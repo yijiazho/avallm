@@ -139,15 +139,34 @@ function compilerOptions(root) {
   return { errors: parsed.errors, options: parsed.options }
 }
 
-function compileRoots(root, relativeRoots) {
+function compileRoots(root, relativeRoots, overrides) {
   const config = compilerOptions(root)
   if (config.errors.length) return config.errors
   const roots = relativeRoots.map((relative) => path.join(root, relative))
   const program = ts.createProgram({
     rootNames: roots,
-    options: config.options,
+    options: { ...config.options, ...overrides },
   })
   return ts.getPreEmitDiagnostics(program)
+}
+
+/** TS6133 unused local, TS6192 whole unused import, TS6196 unused declaration. */
+const UNUSED_DECLARATION_CODES = new Set([6133, 6192, 6196])
+
+/**
+ * The baseline exempts legacy files from STRICTNESS, not from having dead code.
+ * Without this second pass noUnusedLocals would silently stop covering every
+ * exempt file, which is most of the interesting ones. Strictness is disabled so
+ * only the unused-declaration diagnostics can surface here.
+ */
+function unusedDeclarationDiagnostics(root, relativeRoots) {
+  if (!relativeRoots.length) return []
+  return compileRoots(root, relativeRoots, {
+    strict: false,
+    noImplicitAny: false,
+    strictNullChecks: false,
+    noUnusedLocals: true,
+  }).filter((diagnostic) => UNUSED_DECLARATION_CODES.has(diagnostic.code))
 }
 
 function formatDiagnostics(root, diagnostics) {
@@ -209,11 +228,18 @@ export function checkStrictTestRatchet(root = process.cwd()) {
       `strict test typecheck failed for ${strictRoots.length} roots`,
     )
   }
+  const exemptRoots = [...exemptions.keys()].sort()
+  const unused = unusedDeclarationDiagnostics(root, exemptRoots)
+  if (unused.length) {
+    errors.push(
+      `dead declarations in ${unused.length} place(s) across exempt roots`,
+    )
+  }
   return Object.freeze({
     ok: errors.length === 0,
     strictRoots: Object.freeze(strictRoots),
     exemptionCount: exemptions.size,
-    diagnostics: formatDiagnostics(root, diagnostics),
+    diagnostics: formatDiagnostics(root, [...diagnostics, ...unused]),
     errors: Object.freeze(errors),
   })
 }

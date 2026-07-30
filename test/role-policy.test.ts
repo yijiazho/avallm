@@ -67,10 +67,6 @@ import {
   projectConfiguredScoreDiagnostics,
 } from '../server/agents/policy/score-compatibility.ts'
 import {
-  materialPosteriorUncertainty,
-  posteriorUncertainty,
-} from '../server/agents/policy/plan.ts'
-import {
   parseExternalDecisionReply,
 } from '../server/agents/external-reply.ts'
 import {

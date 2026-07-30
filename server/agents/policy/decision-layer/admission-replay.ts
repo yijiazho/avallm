@@ -6,10 +6,6 @@ import {
 } from '../../components/canonical-json.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
 import { componentIdentityKey } from '../../components/registry.ts'
-import type {
-  ComponentRef,
-  DecisionComponentDefinition,
-} from '../../components/types.ts'
 import type { DecisionLayerRegistry } from './registry.ts'
 import {
   DECISION_LAYER_POLICY_USE_STAGE,

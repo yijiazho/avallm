@@ -8,10 +8,8 @@ import {
 import { compareCandidateIds } from '../policy/candidates.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS,
-  EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
 } from '../policy/evil-score-contract.ts'
 import {
   evilRoleObjectiveScorer,

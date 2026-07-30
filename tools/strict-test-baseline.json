@@ -73,12 +73,12 @@
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "f4dd9836014b5e2fe111ca239e31a73a49c05bdf5cda64c6728688fdcbd03525",
+      "sha256": "953b84eb38bd5955f1bb1832441d3a3040112440b5f8254998f4d9355bda43b6",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/facts.test.ts",
-      "sha256": "1b7bc151dc4fa55c33a898c3858ded739ec0fbff1e6125c800d3f0de1d8b14ed",
+      "sha256": "05066602a9c494d5fcfd2865e20890451cfa3fffef26047288a803ac2e210fc0",
       "rationale": "Legacy fact fixture widens role literals to strings."
     },
     {
@@ -88,7 +88,7 @@
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "d0fd9a72463ead7bacebc58bd1bf4bb83972958460b80b52390dfee1191ee4e1",
+      "sha256": "030aa16223250b9754db598b7faab7bb7f511d0e9962cc36454dd971fb28a1b2",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
@@ -113,22 +113,22 @@
     },
     {
       "path": "test/joint-identity.test.ts",
-      "sha256": "c4bd47201bd22b50e7bd7ea884984aef01e66c220b8e7332004de0313ae769f2",
+      "sha256": "7a11b50f42b40183b20af7344be405c8970df515239b9c8b847697edb5f9593e",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "afe3a892fe5a4a0085cbd5e9d77d8390b9791d5fab2cb50e9a0ec24fbff3f224",
+      "sha256": "2afab85168b5a2ff139f1e2a0ec4475c3471439e11df4450554b8d9696fd2f01",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "1097bbbe30c66689e478cbf9c9bc7e914efb58a54bf0fe120d23730509515264",
+      "sha256": "5afbcce576d64ff0f2eeef072332f8d6e7e9c7bf6438b91b75b12255410b3c40",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "30fc8dd9acaa851469680d0e78bed3a947d40e0f39f269a97f8dddacdf99473f",
+      "sha256": "58f7b7fcf493abb691277ded5ea87315d56347f4dfe37aaf5f45a5f63a625a9e",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {

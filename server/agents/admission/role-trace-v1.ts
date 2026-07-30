@@ -708,7 +708,6 @@ export function validRoleTraceV1(input: {
   readonly view: PlayerView | undefined
 }): boolean {
   const { trace, req, view } = input
-  const record = trace as Record<string, unknown>
   return (
     validRoleObjectiveRoute(trace, view)
     && validPrivateRoleObjectiveTrace(

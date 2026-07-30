@@ -12,9 +12,7 @@ import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type {
   DecisionKind,
   DecisionRequest,
-  GameEvent,
   PlayerView,
-  Seat,
 } from '../server/engine/types.ts'
 
 const fixture = (id: string) =>

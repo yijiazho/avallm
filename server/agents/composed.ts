@@ -12,11 +12,9 @@ import {
 } from './analysis/situation-plan.ts'
 import { observePublicRecord } from './analysis/observer.ts'
 import {
-  PUBLIC_OBSERVER_MODEL_VERSION,
   type PublicObserverSnapshot,
 } from './analysis/observer-types.ts'
 import {
-  ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
@@ -26,7 +24,6 @@ import {
   roleObjectiveIdentityScope,
 } from './analysis/role-objectives.ts'
 import {
-  EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   ROLE_OBJECTIVE_ROUTER_VERSION,
   type PrivateEvilRoleObjectiveSnapshot,
@@ -36,19 +33,10 @@ import {
   routedRoleObjectiveModel,
 } from './analysis/role-objective-router.ts'
 import {
-  MORGANA_COUNTERFEIT_DEGRADATION,
-  MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
-  MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
-  type PrivateMorganaCounterfeitObjective,
-  type PublicCounterfeitMerlinReadSnapshot,
-} from './analysis/morgana-counterfeit-types.ts'
-import {
-  ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
 } from './analysis/role-utility.ts'
 import {
-  EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateEvilRoleUtilityProjection,
 } from './analysis/evil-role-utility.ts'
@@ -57,7 +45,6 @@ import {
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
   MORGANA_ROLE_SCORER_DEGRADATION,
-  MORGANA_ROLE_UTILITY_DEGRADATION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateMorganaRoleUtilityProjection,
 } from './analysis/morgana-role-utility.ts'
@@ -73,7 +60,6 @@ import {
   applyBoundedLanguageEvidence,
   boundedLanguageLikelihoodFactor,
   combinedLanguageFactorBundleVersion,
-  LANGUAGE_FACTOR_BUNDLE_VERSION,
   languageBeliefPipelineVersion,
   type LanguageLikelihoodFactor,
 } from './belief/language-factor.ts'
@@ -155,7 +141,6 @@ import {
 import { heuristicDecide } from './heuristic.ts'
 import {
   candidateIdForDecision,
-  candidateTeams,
 } from './policy/candidates.ts'
 import {
   type EvilQuestCardPolicyMode,
@@ -250,7 +235,6 @@ import {
   type CandidatePlanner,
   type PlanVoice,
   type PlannerInput,
-  type PlannerOutput,
   type VoiceInput,
   type VoiceOutput,
 } from './communication/planner-voice-adapter.ts'
@@ -1783,10 +1767,6 @@ export function createComposedAgent(
         let privateRoleUtility: PrivateRoleUtilityProjection | undefined
         let privateEvilRoleUtility:
           PrivateEvilRoleUtilityProjection | undefined
-        let publicMorganaCounterfeitRead:
-          PublicCounterfeitMerlinReadSnapshot | undefined
-        let privateMorganaCounterfeitObjective:
-          PrivateMorganaCounterfeitObjective | undefined
         let privateMorganaRoleUtility:
           PrivateMorganaRoleUtilityProjection | undefined
         const wantsJointProposalAssessments =
@@ -1824,10 +1804,8 @@ export function createComposedAgent(
                 : 'candidate-teams',
         )
         const analysis = analyzedFrame.analysis
-        const candidates = analyzedFrame.legalCandidates
         stage('analysis')
         const universalFrame = withUniversalForcedPolicy(analyzedFrame)
-        const universalForced = universalFrame.universalForced
         const configuredComponentIds = new Set(
           resolvedBrain.description.components.configured.map(
             (component) => component.id,
@@ -1948,19 +1926,7 @@ export function createComposedAgent(
             resolvedScorer = stepped
           }
         }
-        const genericPublicMorganaRead = componentPayload(
-          componentRun,
-          MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-        )
         if (morganaCounterfeitApplicable) {
-          publicMorganaCounterfeitRead = genericPublicMorganaRead
-          privateMorganaCounterfeitObjective = componentPayload(
-            componentRun,
-            MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-          )
-          if (!privateMorganaCounterfeitObjective) {
-            publicMorganaCounterfeitRead = undefined
-          }
           stage('morgana-counterfeit')
         }
         if (configuredEvilQuestCardComponent) {

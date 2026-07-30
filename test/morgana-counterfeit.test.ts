@@ -18,7 +18,6 @@ import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
   type MorganaCounterfeitAssessment,
 } from '../server/agents/analysis/morgana-counterfeit-types.ts'
-import { observePublicRecord } from '../server/agents/analysis/observer.ts'
 import {
   beliefFromWeightedWorlds,
   exactBelief,
@@ -411,7 +410,6 @@ test('Morgana objective integrates per-world Mordred blindness and validates eve
 
 test('changed joint Mordred weights alter causal features without changing mechanics', async () => {
   const { game, view, req } = morganaProposal(9)
-  const exact = exactBelief(view)
   const partner = view.privateInfo.evilPartners![0]
   const weightedModel = {
     version: 'phase7e1a-correlated-mordred-test-v1',

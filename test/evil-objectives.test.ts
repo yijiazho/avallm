@@ -98,10 +98,6 @@ const morganaRoleUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
   GOOD_ROLE_UTILITY_COMPONENT,
 )
-const evilRoleObjectiveEntry = (trace: DecisionTrace) =>
-  trace.components!.entries.find(
-    (entry) => entry.component.id === EVIL_ROLE_OBJECTIVE_COMPONENT.id,
-  )
 const removeEvilRoleObjective = (trace: DecisionTrace) => {
   if (!trace.components) {
     // Nothing to remove: a componentless trace cannot carry the retired flat

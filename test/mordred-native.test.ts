@@ -49,7 +49,6 @@ import {
 } from '../server/agents/analysis/observer.ts'
 import {
   buildPrivateMordredBlindnessObjective,
-  validatePrivateMordredBlindnessHostJoin,
   validatePrivateMordredBlindnessObjective,
 } from '../server/agents/analysis/mordred-blindness.ts'
 import {

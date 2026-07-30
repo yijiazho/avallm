@@ -16,7 +16,6 @@ import {
   type IdentityProjectionScope,
 } from '../server/agents/belief/identity.ts'
 import {
-  beliefFromWeightedWorlds,
   exactBelief,
 } from '../server/agents/belief/exact.ts'
 import type {
@@ -41,7 +40,6 @@ import type { DecisionTrace } from '../server/agents/trace.ts'
 import { createGame } from '../server/engine/game.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
 import type {
-  Alignment,
   PlayerView,
   Role,
   Seat,

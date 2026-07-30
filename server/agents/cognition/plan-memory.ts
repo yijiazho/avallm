@@ -23,7 +23,6 @@ import {
   coherenceBasisFromView,
   isCoherenceIntent,
   literalCommitmentBasis,
-  type CoherenceAssessment,
   type CoherenceIntent,
 } from './coherence.ts'
 import { extractEvidence } from './evidence.ts'
@@ -33,7 +32,6 @@ import {
   type PrivatePlanMemory,
   type PublicCommitment,
   type SelectedPlanSummary,
-  type SupersessionState,
 } from './types.ts'
 
 // The plan-memory shapes live in cognition/types.ts, where CognitionState names

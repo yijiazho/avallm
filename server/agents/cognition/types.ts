@@ -17,8 +17,6 @@ import type { AppliedDecisionResolution } from '../applied-decision.ts'
 import { COHERENCE_MODEL_VERSION } from './coherence.ts'
 import type { CoherenceAssessment } from './coherence.ts'
 import type {
-  CommitmentContext,
-  CommitmentKind,
   PublicCommitment,
   SupersessionState,
 } from './commitment-types.ts'

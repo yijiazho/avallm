@@ -155,6 +155,13 @@ function parseJsonl(text: string, label: string): unknown[] {
   })
 }
 
+/*
+ * _RowKeysSound and _VirtualKeysSound below are exported only so noUnusedLocals
+ * accepts them. Nothing imports them: each is a type-level assertion that fails
+ * the build if its key list drifts from the row shape it claims to cover, so
+ * being referenced is not what makes it work. Deleting one silently removes a
+ * drift check.
+ */
 const ROW_KEYS = [
   'schema', 'evaluation', 'rowId', 'caseId', 'logicalArm',
   'rawVariantId', 'rawAgentDescriptor', 'rawIdentityDigest',
@@ -162,7 +169,7 @@ const ROW_KEYS = [
   'logDigest', 'decisionDigest', 'calls', 'cost', 'degradation',
   'forcedViolations', 'exactAdmission', 'safety', 'terminal',
 ] as const satisfies ExactKeyList<Phase7RoleEvidenceRow>
-type _RowKeysSound =
+export type _RowKeysSound =
   | AssertNever<MissingKeys<Phase7RoleEvidenceRow, typeof ROW_KEYS>>
   | AssertNever<DuplicateKeys<typeof ROW_KEYS>>
 
@@ -259,7 +266,7 @@ const VIRTUAL_KEYS = [
   'beliefThroughSeq', 'guessSeat', 'targets', 'predictionDigest',
   'merlinSeat', 'hit',
 ] as const satisfies ExactKeyList<VirtualAssassinEvidence>
-type _VirtualKeysSound =
+export type _VirtualKeysSound =
   | AssertNever<MissingKeys<VirtualAssassinEvidence, typeof VIRTUAL_KEYS>>
   | AssertNever<DuplicateKeys<typeof VIRTUAL_KEYS>>
 

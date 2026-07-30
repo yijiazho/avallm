@@ -1,5 +1,5 @@
 import { ROLE_ALIGNMENT, teamsEqual } from '../../engine/rules.ts'
-import type { PlayerView, Seat } from '../../engine/types.ts'
+import type { PlayerView } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
 import {
   questFailEvidenceFromQuests,

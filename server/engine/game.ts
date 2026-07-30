@@ -4,13 +4,13 @@
 // touch state. NOTE: applyDecision mutates `game` and returns it.
 
 import {
-  DEFAULT_ROLES, EVIL_COUNT, MAX_PLAYERS, MAX_PROPOSALS, MIN_PLAYERS,
+  DEFAULT_ROLES, MAX_PLAYERS, MAX_PROPOSALS, MIN_PLAYERS,
   QUESTS_PER_GAME, QUESTS_TO_WIN, ROLE_ALIGNMENT, TEAM_SIZES,
   capSpeech, computeKnowledge, failsRequired, nameIsReserved, stripSeatRefs, teamsEqual, validateRoles,
 } from './rules.ts'
 import { makeRng } from './prng.ts'
 import type {
-  Decision, DecisionRequest, Game, GameConfig, GameEvent, Phase, Player,
+  Decision, DecisionRequest, Game, GameEvent, Player,
   Quest, Role, Seat, TalkConfig, Visibility,
 } from './types.ts'
 

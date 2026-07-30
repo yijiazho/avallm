@@ -4,8 +4,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createGame, applyDecision } from '../server/engine/game.ts'
-import { viewFor } from '../server/engine/view.ts'
+import { createGame } from '../server/engine/game.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import { runGame } from '../server/sim/runner.ts'
 import { factsDossier } from '../server/agents/facts.ts'

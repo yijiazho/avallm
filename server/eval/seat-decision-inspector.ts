@@ -10,7 +10,6 @@ import type {
   Decision,
   DecisionRequest,
   PlayerView,
-  Seat,
 } from '../engine/types.ts'
 import { visibleEventCursor } from '../agents/belief/exact.ts'
 import type {

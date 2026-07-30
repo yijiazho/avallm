@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
 import {
   plainDetachedData,
@@ -8,7 +7,6 @@ import {
 import { canonicalTeam } from '../../engine/rules.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
-  type JointProbabilitySemantics,
   type SituationAnalysis,
 } from '../analysis/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
@@ -31,7 +29,6 @@ import {
   MORGANA_ROLE_SCORE_FEATURE_VERSION,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
-  MORGANA_ROLE_UTILITY_CONSTANTS,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   type MorganaRoleCandidateUtility,
   type MorganaRoleSelectionMode,
@@ -41,26 +38,20 @@ import {
   CALIBRATION_COMPATIBILITY_SCORER_VERSION,
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
-  GOOD_PROPOSAL_REASON_CODES,
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
-  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
-  GOOD_VOTE_REASON_CODES,
   GOOD_VOTE_UTILITY_CONSTANTS,
-  GOOD_VOTE_UTILITY_VERSION,
   goodVoteValue,
   isGoodVoteUtilityVersion,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   ROLE_OBJECTIVE_UTILITY_VERSION,
   stablePolicyBucket,
   type GoodProposalFeatures,
-  type GoodProposalReasonCode,
   type GoodVoteFeatures,
   type GoodVoteSelectionMode,
   type GoodVoteUtilityVersion,
@@ -71,7 +62,6 @@ import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
   type EvilRoleObjectiveSelectionMode,
 } from './evil-score-contract.ts'

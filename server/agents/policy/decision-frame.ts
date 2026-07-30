@@ -47,7 +47,6 @@ import type {
 } from './score-layer/types.ts'
 import { projectLayerRun } from './layer-registry-common.ts'
 import {
-  candidateIdForDecision,
   compareCandidateIds,
   legalCandidates,
   validateCandidateRequest,

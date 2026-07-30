@@ -320,6 +320,12 @@ import {
  * The cross-key relational invariants (a role-utility projection implies its
  * objective; plan memory and coherence toggle together) are additive and stay
  * as explicit clauses in the validator.
+ *
+ * The underscore-prefixed aliases throughout this region are exported only so
+ * noUnusedLocals accepts them. Nothing imports them: each is a type-level
+ * assertion that fails the build if its key list drifts from the shape it
+ * claims to cover, so being referenced is not what makes one work. Deleting
+ * one silently removes a drift check.
  */
 
 /** Mandatory attribution keys; optional ones are value-checked individually. */
@@ -328,7 +334,7 @@ const REQUIRED_COMPONENT_VERSION_KEYS = [
   'observerModel', 'analysis', 'candidates', 'forcedPolicy', 'policy',
   'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
 ] as const satisfies ExactKeyList<TraceComponentVersions>
-type _RequiredComponentVersionKeysSound =
+export type _RequiredComponentVersionKeysSound =
   | AssertNever<
       MissingRequiredKeys<
         TraceComponentVersions,
@@ -376,7 +382,7 @@ const OPTIONAL_FREEFORM_VERSION_KEYS = [
  * instantiate with the compiler naming the field, so admission cannot silently
  * stop value-checking it.
  */
-type _OptionalComponentVersionKeysClassified = AssertNever<
+export type _OptionalComponentVersionKeysClassified = AssertNever<
   Exclude<
     OptionalComponentVersionKey,
     | keyof typeof OPTIONAL_COMPONENT_VERSION_VALUES
@@ -396,7 +402,7 @@ const LANGUAGE_TRACE_KEYS = [
   'cumulativeSourceSeqs',
   'degradation',
 ] as const satisfies ExactKeyList<LanguageTraceAttribution>
-type _LanguageTraceKeysSound =
+export type _LanguageTraceKeysSound =
   | AssertNever<
       MissingKeys<LanguageTraceAttribution, typeof LANGUAGE_TRACE_KEYS>
     >
@@ -435,7 +441,7 @@ const ROLE_OBJECTIVE_FEATURE_KEYS = [
 ] as const satisfies ExactKeyList<
   WithoutSeedBucket<RoleObjectiveScoreFeatures>
 >
-type _RoleObjectiveFeatureKeysSound =
+export type _RoleObjectiveFeatureKeysSound =
   | AssertNever<
       MissingKeys<
         WithoutSeedBucket<RoleObjectiveScoreFeatures>,
@@ -461,7 +467,7 @@ const EVIL_ROLE_OBJECTIVE_FEATURE_KEYS = [
 ] as const satisfies ExactKeyList<
   WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>
 >
-type _EvilRoleObjectiveFeatureKeysSound =
+export type _EvilRoleObjectiveFeatureKeysSound =
   | AssertNever<
       MissingKeys<
         WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>,
@@ -491,7 +497,7 @@ const MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS = [
 ] as const satisfies ExactKeyList<
   WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>
 >
-type _MorganaRoleObjectiveFeatureKeysSound =
+export type _MorganaRoleObjectiveFeatureKeysSound =
   | AssertNever<
       MissingKeys<
         WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>,
@@ -511,7 +517,7 @@ const COMMUNICATION_INTENT_KEYS = [
   'uncertainty',
   'tone',
 ] as const satisfies ExactKeyList<CommunicationIntent>
-type _CommunicationIntentKeysSound =
+export type _CommunicationIntentKeysSound =
   | AssertNever<
       MissingKeys<CommunicationIntent, typeof COMMUNICATION_INTENT_KEYS>
     >
@@ -531,7 +537,7 @@ const ROLE_COMPOSITE_UNCERTAINTY_KEYS = [
   'baseKind',
   'compositeUtilityGap',
 ] as const satisfies ExactKeyList<UncertaintyOf<'role-composite-decision'>>
-type _RoleCompositeUncertaintyKeysSound =
+export type _RoleCompositeUncertaintyKeysSound =
   | AssertNever<
       MissingKeys<
         UncertaintyOf<'role-composite-decision'>,
@@ -549,7 +555,7 @@ const SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS = [
   'cleanProbability',
   'residualProbability',
 ] as const satisfies ExactKeyList<UncertaintyOf<'selected-team-clean'>>
-type _SelectedTeamCleanUncertaintyKeysSound =
+export type _SelectedTeamCleanUncertaintyKeysSound =
   | AssertNever<
       MissingKeys<
         UncertaintyOf<'selected-team-clean'>,
@@ -572,7 +578,7 @@ const CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS = [
 ] as const satisfies ExactKeyList<
   UncertaintyOf<'current-versus-alternative-team-clean'>
 >
-type _CurrentVersusAlternativeUncertaintyKeysSound =
+export type _CurrentVersusAlternativeUncertaintyKeysSound =
   | AssertNever<
       MissingKeys<
         UncertaintyOf<'current-versus-alternative-team-clean'>,

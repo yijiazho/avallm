@@ -21,7 +21,7 @@ import {
   createGame,
 } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import type { Role, Seat } from '../server/engine/types.ts'
+import type { Role } from '../server/engine/types.ts'
 import {
   PHASE5_QUEST_BANK_ID,
   runPhase5QuestBench,

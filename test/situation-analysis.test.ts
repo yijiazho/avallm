@@ -6,7 +6,7 @@ import { viewFor } from '../server/engine/view.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
-import type { PlayerView, Role, Seat } from '../server/engine/types.ts'
+import type { PlayerView, Role } from '../server/engine/types.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (id: string) => fixtures.find((candidate) => candidate.id === id)!

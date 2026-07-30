@@ -58,7 +58,6 @@ import type {
   PrivateIdentitySnapshot,
 } from '../belief/identity.ts'
 import {
-  EXACT_BELIEF_MODEL_VERSION,
   type BeliefSnapshot,
 } from '../belief/types.ts'
 import {
@@ -79,8 +78,6 @@ import {
 import {
   buildAdmittedMorganaRoleUtilityProjection,
   decodeCanonicalPrivateMorganaRoleUtilityProjection,
-  MORGANA_ROLE_SCORER_VERSION,
-  MORGANA_ROLE_SEEDED_SCORER_VERSION,
   MORGANA_ROLE_UTILITY_DEGRADATION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   type MorganaRoleSelectionMode,
@@ -96,26 +93,16 @@ import {
   type ForcedPolicyResult,
 } from '../policy/types.ts'
 import {
-  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  ROLE_OBJECTIVE_SCORER_VERSION,
-  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-} from '../policy/score.ts'
-import {
   publicRoleProjection,
   roleProjection,
   type PrivateComponentContext,
 } from './role-projection.ts'
 import type {
-  ComponentHostInputBinding,
   ComponentHostInputDefinition,
   ComponentHostInputToken,
   ComponentToken,
   DecisionComponentDefinition,
 } from './types.ts'
-import type {
-  DecisionComponentPlan,
-} from './kernel.ts'
 import {
   createDecisionComponentRegistry,
   type DecisionComponentRegistry,
