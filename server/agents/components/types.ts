@@ -200,7 +200,7 @@ export type ComponentExecutionResult<Payload> =
 
 export interface DecisionComponentDefinition<Payload = unknown> {
   readonly token: ComponentToken<Payload>
-  readonly source: 'native' | 'legacy-adapter'
+  readonly source: 'native'
   /**
    * Optional declarative contribution to the resolved base brain. Ownership
    * belongs to the component that semantically uses the model, not to a

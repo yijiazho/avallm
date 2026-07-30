@@ -169,7 +169,7 @@ function freezeDefinition(definition: AnyDefinition): AnyDefinition {
       `${identityKey(definition.token)} has an invalid privacy class`,
     )
   }
-  if (!['native', 'legacy-adapter'].includes(definition.source)) {
+  if (definition.source !== 'native') {
     throw new ComponentRegistryError(
       'invalid-definition',
       `${identityKey(definition.token)} has an invalid component source`,
