@@ -4,7 +4,6 @@ import { createComposedAgent } from './composed.ts'
 import { createHeuristicAgent } from './heuristic.ts'
 import { createLlmAgent } from './llm.ts'
 import { createRandomAgent } from './random.ts'
-import { createStdioAgent } from './stdio.ts'
 import { getClient } from '../llm/client.ts'
 import {
   fullRolePolicyScorer,
@@ -50,10 +49,6 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
   switch (spec.type) {
     case 'heuristic': return createHeuristicAgent(ctx)
     case 'random': return createRandomAgent(ctx)
-    case 'stdio': return createStdioAgent({
-      ...spec,
-      onDecisionTrace: ctx.onDecisionTrace,
-    })
     case 'composed':
       return createComposedAgent({
         seed: ctx.seed,
@@ -77,11 +72,6 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
 export function createAgentFromDef(def: AgentDef, ctx: AgentContext, modelOverride?: string): AvalonAgent {
   switch (def.engine.type) {
     case 'heuristic': return createHeuristicAgent(ctx)
-    case 'stdio': return createStdioAgent({
-      ...def.engine,
-      label: def.name,
-      onDecisionTrace: ctx.onDecisionTrace,
-    })
     case 'llm':
       return createLlmAgent({
         modelId: resolveModel(def, modelOverride),

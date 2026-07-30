@@ -2860,7 +2860,6 @@ function validDecisionTrace(
     'raw-llm',
     'heuristic',
     'random',
-    'external',
     'compatibility',
     'structured-only',
     'hybrid',
@@ -3014,7 +3013,7 @@ function validExactDecisionFrameTrace(
 
 /**
  * Shared strict composed-trace admission for persisted artifacts and
- * generation-time benchmark capture. Unlike the stdio envelope validator,
+ * generation-time benchmark capture. Unlike the external envelope validator,
  * this accepts finalized applied-outcome telemetry and validates score/action
  * relations against the selected decision supplied by replay.
  */
@@ -3030,7 +3029,8 @@ interface ExactComposedTraceHostJoinInput {
   deterministicSeed: string
   /**
    * Trusted construction-time witness, when the caller owns the producing
-   * resolved brain. Self-contained stdio and stored traces cannot supply it.
+   * resolved brain. Self-contained external and stored traces cannot supply
+   * it.
    */
   expectedComponentPlan?: DecisionComponentPlan
   /**

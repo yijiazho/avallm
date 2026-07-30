@@ -421,7 +421,7 @@ time. A component declares:
 The exact interface names are deliberately not fixed here. The durable contract is that a new role
 can be implemented by registering a component and, when it has decision authority, its policy layer
 without adding a role-named field to the composed-agent host, common candidate score, common scorer
-context, trace envelope, stdio transport, artifact manifest, or evaluator.
+context, trace envelope, external-reply ingress, artifact manifest, or evaluator.
 
 Configuration and execution have different representations. Configuration names requested
 components and modes. At construction time, a typed resolved brain freezes the requested and
@@ -452,7 +452,7 @@ from the admitted ordered run, not reconstructed from the acting role. Separate 
 configurations remain valuable ablations and degradation baselines, not the production
 composition mechanism.
 
-Admission belongs to the component boundary. Runtime, stdio, architecture-bank generation, stored
+Admission belongs to the component boundary. Runtime, external-reply ingress, architecture-bank generation, stored
 report replay, and artifact validation invoke the same registered reconstruction and validation
 rules instead of independently mirroring each component's equations. Admission distinguishes an
 exact host-reconstructable result from a structurally valid result whose weighted-world source
@@ -751,8 +751,8 @@ The prompt is no longer the authoritative database of strategy or memory.
 
 Phase 3 introduced a compatibility boundary where legacy agents could still return a bare engine
 `Decision` while composed agents returned `AgentDecision`, and runners normalized that transitional
-`AgentOutput` union. The union is now collapsed: every agent returns the envelope, and the external
-stdio wire is the only place a bare decision is still accepted. The boundary is envelope-only, which
+`AgentOutput` union. The union is now collapsed: every agent returns the envelope, and the untrusted
+external reply is the only place a bare decision is still accepted. The boundary is envelope-only, which
 allows agent-owned trace data without adding cognition concepts to the pure engine:
 
 ```ts
@@ -783,10 +783,10 @@ accepted, degrades the record rather than trusting a mismatch, and persists. Hos
 the lifecycle, and a finalized trace is free to differ from the provisional one: the applied action
 can be a coerced or fallback decision the agent never selected.
 
-Agents with no telemetry of their own return `{ decision }` and implement no hook. External stdio
-agents keep sending a bare `{ decision }` on the wire, which `parseStdioDecisionReply` translates
-into the envelope at the process boundary; the trace field there remains an optional protocol
-extension, admitted only after validation.
+Agents with no telemetry of their own return `{ decision }` and implement no hook. An outside
+producer may still send a bare `{ decision }`, which `parseExternalDecisionReply` translates into
+the envelope at the ingress boundary; the trace field there remains an optional extension, admitted
+only after validation.
 
 The composed-agent host resolves one typed brain before a decision. That resolved brain owns
 component selection, versions, dependency order, score and decision layers, and configured versus
@@ -832,7 +832,7 @@ not drift silently.
 server/agents/                        # about 41.9k lines in ten owners
   *.ts                                #  6.4k  agent boundary and the raw-LLM baseline
     types.ts registry.ts defs.ts packs.ts board.ts experimental.ts
-    heuristic.ts random.ts llm.ts stdio.ts composed.ts brain.ts
+    heuristic.ts random.ts llm.ts external-reply.ts composed.ts brain.ts
     prompts.ts facts.ts parse.ts trace.ts
   cognition/                          #  1.9k  observation to typed private memory
     evidence.ts state.ts commitments.ts coherence.ts plan-memory.ts types.ts
@@ -889,7 +889,7 @@ likelihoods were never parameterized, so there is nothing for a subdirectory to 
 `policy/structured.ts` and `policy/hybrid.ts` never became files; that work is split across
 `decision-frame.ts`, `score.ts`, and the two layer kernels. The `agents/` subdirectory never
 existed either, and the agents themselves sit flat at the top level as `llm.ts`, `heuristic.ts`,
-`random.ts`, `stdio.ts`, and `composed.ts`.
+`random.ts`, and `composed.ts`.
 
 ### 11.1 `analysis/` owns role semantics
 

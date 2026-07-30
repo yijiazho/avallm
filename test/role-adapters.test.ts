@@ -25,7 +25,7 @@ import {
 } from '../server/agents/policy/score.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   LANGUAGE_EVIDENCE_VERSION,
 } from '../server/agents/communication/language-types.ts'
@@ -105,7 +105,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   assert.ok(brain.configuredDefinitions.every(
     (definition) => definition.source === 'native',
   ))
-  assert.doesNotThrow(() => parseStdioDecisionReply(
+  assert.doesNotThrow(() => parseExternalDecisionReply(
     fixture.req,
     output,
     'phase7r2b3a admitted native compatibility projection',
@@ -130,7 +130,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   delete stripped.trace!.components
   delete stripped.trace!.componentVersions!.decisionComponents
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       stripped,
       'phase7r2b3a stripped generic run',
@@ -159,7 +159,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   historical.trace!.componentVersions!.roleUtility =
     GOOD_ROLE_UTILITY_COMPONENT.version
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       historical,
       'phase7r2b3a retired flat role trace is refused',
@@ -170,7 +170,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
   const falseLegacy = structuredClone(output)
   falseLegacy.trace!.version = 'decision-trace-v1'
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       falseLegacy,
       'phase7r2b3a legacy trace carrying generic provenance',
@@ -188,7 +188,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
     admitted.envelope.payload.assessments[0].roleValue = 0
   }
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       mutated,
       'phase7r2b3a generic payload mutation',
@@ -214,7 +214,7 @@ test('the independent plan witness preserves configured inapplicable adapters', 
     }],
   )
   assert.equal(output.trace!.components!.entries[0].status, 'inapplicable')
-  assert.doesNotThrow(() => parseStdioDecisionReply(
+  assert.doesNotThrow(() => parseExternalDecisionReply(
     fixture.req,
     output,
     'phase7r2b3a inapplicable native compatibility projection',
@@ -225,7 +225,7 @@ test('the independent plan witness preserves configured inapplicable adapters', 
   erasedRun.trace!.components!.configured = []
   erasedRun.trace!.components!.entries = []
   erasedRun.trace!.components!.policyUse = []
-  assert.deepEqual(parseStdioDecisionReply(
+  assert.deepEqual(parseExternalDecisionReply(
     fixture.req,
     erasedRun,
     'phase7r2b3a erased inapplicable run',
@@ -234,7 +234,7 @@ test('the independent plan witness preserves configured inapplicable adapters', 
 
   const mismatchedWitness = structuredClone(output)
   mismatchedWitness.trace!.componentPlan!.configured = []
-  assert.deepEqual(parseStdioDecisionReply(
+  assert.deepEqual(parseExternalDecisionReply(
     fixture.req,
     mismatchedWitness,
     'phase7r2b3a mismatched plan witness',
@@ -428,7 +428,7 @@ test('adapter invocation is deterministic and does not add a second belief pass'
     )
   }
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       coherentGenericForgery,
       'phase7r2b3a weighted generic and legacy host forgery',
@@ -478,7 +478,7 @@ test('a forced committed choice retains scorer consumption but not action select
   for (const use of evilUses) {
     assert.deepEqual(use.stages, ['candidate-score'])
   }
-  assert.doesNotThrow(() => parseStdioDecisionReply(
+  assert.doesNotThrow(() => parseExternalDecisionReply(
     fixture.req,
     output,
     'phase7r2b3a forced selection attribution',
@@ -567,7 +567,7 @@ test('generic trace admission rejects hostile structure and attribution mutation
     const copy = structuredClone(output)
     mutate(copy)
     assert.deepEqual(
-      parseStdioDecisionReply(
+      parseExternalDecisionReply(
         fixture.req,
         copy,
         'phase7r2b3a hostile generic trace',
@@ -630,7 +630,7 @@ test('generic plan and run arrays reject proxy, sparse, accessor, and alien shap
   for (const mutate of mutations) {
     const copy = structuredClone(output)
     mutate(copy)
-    assert.deepEqual(parseStdioDecisionReply(
+    assert.deepEqual(parseExternalDecisionReply(
       fixture.req,
       copy,
       'phase7r2b3a hostile generic array',
@@ -650,7 +650,7 @@ test('generic degradation and passive policy attribution are registry-bound', as
       hiddenTeam: false,
     },
   }).decide(fixture.req, fixture.view)
-  assert.doesNotThrow(() => parseStdioDecisionReply(
+  assert.doesNotThrow(() => parseExternalDecisionReply(
     fixture.req,
     degraded,
     'phase7r2b3a admitted degradation',
@@ -684,7 +684,7 @@ test('generic degradation and passive policy attribution are registry-bound', as
   ]) {
     const copy = structuredClone(degraded)
     mutate(copy)
-    assert.deepEqual(parseStdioDecisionReply(
+    assert.deepEqual(parseExternalDecisionReply(
       fixture.req,
       copy,
       'phase7r2b3a forged degradation',
@@ -702,7 +702,7 @@ test('generic degradation and passive policy attribution are registry-bound', as
   const forgedUse = structuredClone(passive)
   forgedUse.trace!.components!.policyUse[0].used = true
   forgedUse.trace!.components!.policyUse[0].stages = ['candidate-score']
-  assert.deepEqual(parseStdioDecisionReply(
+  assert.deepEqual(parseExternalDecisionReply(
     fixture.req,
     forgedUse,
     'phase7r2b3a passive objective forged as consumed',

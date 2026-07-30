@@ -14,6 +14,17 @@ this document. Read any lean mention below as history, not as a description of t
 See the C4B oracle retirement note in Phase 7R2C4B for the one place this forced a deletion rather
 than a rewrite.
 
+**Reading note (2026-07-30): the `stdio` agent engine is gone.** It was the cross-language door,
+built for an AvalonBench import that was never going to happen, and the phase record below refers
+to it constantly: the child-process adapter, `parseStdioDecisionReply`, the `external` execution
+mode, and the `external` arm on all six brain component unions. All of that is deleted; the
+rationale is in [ROADMAP.md](ROADMAP.md) "Deliberately not doing". What survives is the boundary
+itself, renamed to `parseExternalDecisionReply` in `server/agents/external-reply.ts`: it still
+converts an untrusted `{ decision, trace? }` reply into an `AgentDecision` and still admits the
+optional trace through the same `pre-apply-external` lifecycle. Read any "stdio" mention below as
+naming that ingress boundary, not a child process, and the §1 baseline table as the pre-migration
+snapshot it was written as.
+
 **Current target phase:** human evaluation checkpoint after Phase 7F2B completed the API-free
 architecture exit audit. Assassin target authority landed at `02242c4`, F1 assembled the complete
 deterministic role policy behind one immutable, role-independent scorer identity, F2A added the

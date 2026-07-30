@@ -36,7 +36,7 @@ import {
   advanceCognition,
   advanceCognitionFromBelief,
 } from '../server/agents/cognition/state.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import { createGame } from '../server/engine/game.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
@@ -641,7 +641,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
     && stages.indexOf('observer') < stages.indexOf('analysis'),
   )
 
-  const accepted = parseStdioDecisionReply(
+  const accepted = parseExternalDecisionReply(
     fixture.req,
     identity,
     'external agent',
@@ -649,25 +649,25 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
   )
   assert.deepEqual(accepted, identity)
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, identity),
+    parseExternalDecisionReply(fixture.req, identity),
     { decision: identity.decision },
   )
   const forgedOff = structuredClone(off)
   forgedOff.trace!.privateIdentity = structuredClone(identity.trace!.privateIdentity)
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, forgedOff),
+    parseExternalDecisionReply(fixture.req, forgedOff),
     { decision: forgedOff.decision },
   )
   const forgedOn = structuredClone(identity)
   delete forgedOn.trace!.privateIdentity
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, forgedOn),
+    parseExternalDecisionReply(fixture.req, forgedOn),
     { decision: forgedOn.decision },
   )
   const wrongBelief = structuredClone(identity)
   wrongBelief.trace!.privateIdentity!.sourceBelief.modelVersion = 'forged'
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, wrongBelief),
+    parseExternalDecisionReply(fixture.req, wrongBelief),
     { decision: wrongBelief.decision },
   )
 
@@ -690,7 +690,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
     substitutedCast.trace!.privateIdentity,
   ))
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       substitutedCast,
       'external agent',
@@ -701,7 +701,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
   const substitutedMarginals = structuredClone(hostBound)
   substituteBeliefMarginals(substitutedMarginals.trace!)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       substitutedMarginals,
       'external agent',
@@ -721,7 +721,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
   assert.ok(degraded.trace!.degradation.includes('identity-projection-failed'))
   assert.equal(degraded.trace!.privateIdentity, undefined)
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, degraded),
+    parseExternalDecisionReply(fixture.req, degraded),
     degraded,
   )
 })

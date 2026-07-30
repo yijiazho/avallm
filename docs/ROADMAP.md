@@ -79,23 +79,20 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 
 ## Agents & ecosystem
 
-14. **AvalonBench bridge** (designed, unbuilt): Python stdio shim wrapping their naive baseline
-    agents as difficulty-calibration seats; the ICLR "Strategist" (MCTS) as a boss seat. Local
-    only — stdio agents never run on shared deployments.
-15. **Per-user agent libraries** — requires identity, so parked until accounts matter for other
+14. **Per-user agent libraries** — requires identity, so parked until accounts matter for other
     reasons. Global-shared library is the right call at friends-scale.
-16. **Roster refresh discipline.** OpenRouter slugs go stale; the roster is one file, additions
+15. **Roster refresh discipline.** OpenRouter slugs go stale; the roster is one file, additions
     should ride the coherence harness (#5). Revisit as OpenRouter's roster shifts.
 
 ## Rules content (engine-ready, unscheduled)
 
-17. **Lady of the Lake** (loyalty inspection, quests 2–4) — biggest good-side buff, rulebook-
+16. **Lady of the Lake** (loyalty inspection, quests 2–4) — biggest good-side buff, rulebook-
     recommended at 7+; **Targeting** (leader picks quest order); **Excalibur** (force-switch a
     played card). Research doc §4 has the exact rules. Each is an engine phase addition + UI.
 
 ## Internal quality (unscheduled)
 
-18. **Parse the decision trace instead of validating it in place.** `validDecisionTrace` is an
+17. **Parse the decision trace instead of validating it in place.** `validDecisionTrace` is an
     honest type guard over `unknown`, so it narrows to a raw record and every downstream helper
     reads fields through a cast: roughly 35 in `admission/composed-trace.ts` alone, plus the
     `TraceValidationInput` union that lets those helpers serve both the guard and the callers who
@@ -116,6 +113,11 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 - **Turn timers** — rejected by design; correspondence pacing is the identity.
 - **Anti-cheat beyond hidden views** — friends-scale; screen-sharing is out of scope.
 - **Prompt-injection "fixes" beyond format guards** — social-engineering the bots is the game.
+- **AvalonBench bridge** — dropped 2026-07-30 after sitting designed-but-unbuilt. The `stdio` agent
+  engine that existed to carry it (child processes speaking newline-delimited JSON) is deleted, with
+  it the `external` execution mode and the `external` arm on six brain component unions. The
+  untrusted reply/trace ingress it guarded survives as `parseExternalDecisionReply`
+  (`server/agents/external-reply.ts`), so a future cross-language door does not start from zero.
 
 ## Known issues ledger
 

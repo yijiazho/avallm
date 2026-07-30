@@ -71,8 +71,8 @@ import {
   posteriorUncertainty,
 } from '../server/agents/policy/plan.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
@@ -457,7 +457,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       gap <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,
     )
     assert.deepEqual(
-      parseStdioDecisionReply(
+      parseExternalDecisionReply(
         fixture.req,
         structuredClone(output),
         'phase7c2-seeded-role',
@@ -478,7 +478,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
         .roleObjectiveFeatures!.selectionAdjustment += 0.01
       forged.trace!.candidateScores![0].value += 0.01
       assert.deepEqual(
-        parseStdioDecisionReply(
+        parseExternalDecisionReply(
           fixture.req,
           forged,
           'phase7c2-seeded-role',
@@ -539,7 +539,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     .roleObjectiveFeatures!.selectionAdjustment += 0.01
   forged.trace!.candidateScores![0].value += 0.01
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       bandFixture.req,
       forged,
       'phase7c2-seeded-role',
@@ -580,7 +580,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
   )
   assert.equal(voiceCalls, 0)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       bandFixture.req,
       structuredClone(planned),
       'phase7c2-private-band',
@@ -759,7 +759,7 @@ test('base scorers cannot inject role telemetry at the score boundary', () => {
   })
 })
 
-test('private role utility is stdio-safe, host-joined, and absent from public voice', async () => {
+test('private role utility is external-ingress-safe, host-joined, and absent from public voice', async () => {
   const voiceInputs: unknown[] = []
   const output = await createComposedAgent({
     seed: 'phase7c2-stdio',
@@ -774,7 +774,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
       },
     },
   }).decide(merlin.req, merlin.view)
-  const parsed = parseStdioDecisionReply(
+  const parsed = parseExternalDecisionReply(
     merlin.req,
     structuredClone(output),
     'phase7c2',
@@ -801,7 +801,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     'role-utility-projection-failed',
   ]
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlin.req,
       deleted,
       'phase7c2',
@@ -829,7 +829,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
     'role-utility-projection-failed',
   ]
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlin.req,
       fullChainDeletion,
       'phase7c2-full-chain-deletion',

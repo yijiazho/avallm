@@ -270,7 +270,7 @@ function latticeCount(
     : undefined
 }
 
-/** Strict JSON boundary used by stdio and persisted-artifact readers. */
+/** Strict JSON boundary used by external and persisted-artifact readers. */
 export function validatePublicObserverSnapshot(
   value: unknown,
 ): value is PublicObserverSnapshot {

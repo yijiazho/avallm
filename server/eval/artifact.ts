@@ -63,7 +63,7 @@ export interface ArtifactPlayer {
   name: string
   role: Role
   alignment: Alignment
-  agent: string // descriptor: 'heuristic' | 'random' | 'llm:<roster id>' | 'def:<agent id>' | 'stdio' | 'human'
+  agent: string // descriptor: 'heuristic' | 'random' | 'llm:<roster id>' | 'def:<agent id>' | 'human'
 }
 
 export interface ArchitectureRunMetadata {

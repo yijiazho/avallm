@@ -315,13 +315,6 @@ export function defaultComponents(def: AgentDef, modelOverride?: string): Record
       ...brainComponents(resolveBrain(def.engine)),
     }
   }
-  if (def.engine.type === 'stdio') {
-    return {
-      agent: `${def.id}@${version}`,
-      model: 'external',
-      ...brainComponents(resolveBrain(def.engine)),
-    }
-  }
   return {
     agent: `${def.id}@${version}`,
     model: resolveModel(def, modelOverride),
@@ -359,7 +352,6 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       'raw-llm',
       'heuristic',
       'random',
-      'external',
       'compatibility',
       'structured-only',
       'hybrid',

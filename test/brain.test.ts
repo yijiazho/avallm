@@ -65,11 +65,6 @@ test('new architecture metadata is derived from the resolved runtime brain', () 
     llmDef(),
     llmDef({ beliefMode: EXPERIMENTAL_BELIEF_MODE }),
     validateDef({ id: 'heuristic', name: 'Heuristic', engine: { type: 'heuristic' } }),
-    validateDef({
-      id: 'external',
-      name: 'External',
-      engine: { type: 'stdio', cmd: 'agent', args: [] },
-    }),
   ]) {
     assert.deepEqual(
       Object.fromEntries(
@@ -90,7 +85,7 @@ test('new architecture metadata is derived from the resolved runtime brain', () 
   assert.equal(experimental.beliefVisibility, BELIEF_RENDERER_VERSION)
 })
 
-test('heuristic, random, and stdio component identities remain truthful', () => {
+test('heuristic, random, and composed component identities remain truthful', () => {
   assert.deepEqual(
     brainComponents(resolveBrain({ type: 'heuristic' })),
     {
@@ -119,16 +114,6 @@ test('heuristic, random, and stdio component identities remain truthful', () => 
       observerModel: 'off',
     },
   )
-  assert.deepEqual(resolveBrain({ type: 'stdio' }), {
-    version: 'brain-spec-v1',
-    mode: 'external',
-    belief: 'external',
-    beliefVisibility: 'external',
-    policy: 'external',
-    communication: 'external',
-    languageEvidence: 'external',
-    observerModel: 'external',
-  })
 })
 
 test('invalid or contradictory brain configurations fail clearly', () => {

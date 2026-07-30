@@ -50,7 +50,6 @@ const LANES = Object.freeze({
     'setup-lattice.test.ts',
     'situation-analysis.test.ts',
     'speech-cap.test.ts',
-    'stdio.test.ts',
     'strict-test-ratchet.test.ts',
     'styles-tokens.test.ts',
     'talk-default.test.ts',

@@ -604,7 +604,7 @@ type ArtifactArchitectureAdmission =
     }>
   | Readonly<{
       provenance: 'non-composed-host-metadata-admitted'
-      mode: 'raw-llm' | 'heuristic' | 'random' | 'external'
+      mode: 'raw-llm' | 'heuristic' | 'random'
     }>
 
 function artifactArchitectureAdmission(
@@ -656,7 +656,6 @@ function artifactArchitectureAdmission(
         artifact.architecture?.components.mode === 'raw-llm'
         || artifact.architecture?.components.mode === 'heuristic'
         || artifact.architecture?.components.mode === 'random'
-        || artifact.architecture?.components.mode === 'external'
       )
     ) {
       return {
@@ -2224,7 +2223,6 @@ function observationPromotionEvidenceEligible(
     game.meta.components.mode === 'raw-llm'
     || game.meta.components.mode === 'heuristic'
     || game.meta.components.mode === 'random'
-    || game.meta.components.mode === 'external'
   ) {
     return game.safety.promotionEvidenceEligible !== false
   }

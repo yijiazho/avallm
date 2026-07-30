@@ -611,7 +611,7 @@ function reconcilesRoleAndTeamPosteriors(
   return true
 }
 
-/** Strict private JSON boundary used by stdio and artifact validation. */
+/** Strict private JSON boundary used by external and artifact validation. */
 export function validatePrivateIdentitySnapshot(
   value: unknown,
 ): value is PrivateIdentitySnapshot {

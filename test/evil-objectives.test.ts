@@ -46,8 +46,8 @@ import type {
   DecisionTrace,
 } from '../server/agents/trace.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -534,7 +534,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
   })
   assert.equal(validatePrivateEvilRoleObjectiveSnapshot(accessor), false)
 
-  const parsed = parseStdioDecisionReply(
+  const parsed = parseExternalDecisionReply(
     selected.req,
     {
       decision: output.decision,
@@ -548,7 +548,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
   removeEvilRoleObjective(deleted)
   deleted.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       { decision: output.decision, trace: deleted },
       'phase7d1 external',
@@ -565,7 +565,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       {
         decision: output.decision,
@@ -578,7 +578,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
   )
 })
 
-test('stdio rejects coherent exact forgery but preserves typed weighted degradation', async () => {
+test('external ingress rejects coherent exact forgery but preserves typed weighted degradation', async () => {
   const selected = fixture('mordred')
   const output = await createComposedAgent({
     seed: 'phase7d1-router',
@@ -594,7 +594,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     selected.view,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       { decision: output.decision, trace: coherentForgery },
       'phase7d1 coherent exact forgery',
@@ -607,7 +607,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     output.trace!,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       { decision: output.decision, trace: weightedDeletion },
       'phase7d1 typed weighted degradation',
@@ -616,7 +616,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     output.decision,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       {
         decision: output.decision,
@@ -639,7 +639,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
     .privateEvilRoleObjective
   partialScope.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       { decision: output.decision, trace: partialScope },
       'phase7d1 weighted partial hidden-team scope',
@@ -655,7 +655,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
   )
   labelPayloadMismatch.degradation.push('identity-projection-failed')
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       selected.req,
       { decision: output.decision, trace: labelPayloadMismatch },
       'phase7d1 weighted identity label payload mismatch',

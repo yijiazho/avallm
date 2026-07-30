@@ -367,7 +367,7 @@ export function applyDecision(
   }
   validateDecisionBeforePreamble(game, seat, decision)
 
-  // Backstops against any decision source (LLM, heuristic, untrusted stdio
+  // Backstops against any decision source (LLM, heuristic, untrusted external
   // agent) emitting an unbounded blob. Kept independent from the agent-side
   // caps in parse.ts, but deliberately >= them so a well-behaved agent's own
   // thinking/scratchpad is never silently re-clipped here.

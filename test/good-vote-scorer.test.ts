@@ -34,7 +34,7 @@ import {
   calculateGoodProposalVoteCandidateScores,
 } from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
@@ -538,7 +538,7 @@ test('combined scorer is opt-in and preserves compatibility and Phase 4A ablatio
     phase4b.trace!.componentVersions!.scorer,
     GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   )
-  assert.deepEqual(parseStdioDecisionReply(vote.req, phase4b), phase4b)
+  assert.deepEqual(parseExternalDecisionReply(vote.req, phase4b), phase4b)
   assert.ok(
     phase4b.trace!.candidateScores!.every(
       (score) =>
@@ -630,7 +630,7 @@ test('tampered vote features and joins degrade to compatibility', async () => {
   )
 })
 
-test('seeded and deterministic traces remain distinguishable and stdio-safe', async () => {
+test('seeded and deterministic traces remain distinguishable and external-ingress-safe', async () => {
   const source = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
@@ -645,12 +645,12 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
     output.trace!.componentVersions!.scorer,
     GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
   )
-  assert.deepEqual(parseStdioDecisionReply(source.req, output), output)
+  assert.deepEqual(parseExternalDecisionReply(source.req, output), output)
   const malformed = structuredClone(output)
   ;(malformed.trace!.candidateScores![0].features as GoodVoteFeatures)
     .selectionMode = 'top-utility'
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, malformed),
+    parseExternalDecisionReply(source.req, malformed),
     { decision: malformed.decision },
   )
   const formulaTamper = structuredClone(output)
@@ -658,7 +658,7 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
     formulaTamper.trace!.candidateScores![0].features as GoodVoteFeatures
   ).hammerPenalty += 0.01
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, formulaTamper),
+    parseExternalDecisionReply(source.req, formulaTamper),
     { decision: formulaTamper.decision },
   )
   const joinTamper = structuredClone(output)
@@ -666,7 +666,7 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
     joinTamper.trace!.candidateScores![0].features as GoodVoteFeatures
   ).bestAlternativeCandidateId = 'legal-candidates-v1:propose:0,1'
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, joinTamper),
+    parseExternalDecisionReply(source.req, joinTamper),
     { decision: joinTamper.decision },
   )
 })

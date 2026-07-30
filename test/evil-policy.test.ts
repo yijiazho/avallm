@@ -64,8 +64,8 @@ import {
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
@@ -323,10 +323,10 @@ test('Oberon policy keeps self-only coordination distinct', async () => {
   }
 })
 
-test('stdio and host replay reject utility, score, seed, and deletion forgeries', async () => {
+test('external ingress and host replay reject utility, score, seed, and deletion forgeries', async () => {
   const input = voteFixture('mordred')
   const output = await decide(input)
-  assert.ok(parseStdioDecisionReply(
+  assert.ok(parseExternalDecisionReply(
     input.req,
     output,
     'phase7d2',
@@ -376,7 +376,7 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
     const forged = mutableClone(output)
     mutate(forged.trace!)
     assert.deepEqual(
-      parseStdioDecisionReply(
+      parseExternalDecisionReply(
         input.req,
         forged,
         'phase7d2 forged',
@@ -1305,8 +1305,8 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     }
     return trace
   }
-  const stdioInput = voteFixture('mordred')
-  const stdioAgent = createComposedAgent({
+  const externalInput = voteFixture('mordred')
+  const externalAgent = createComposedAgent({
     seed: 'phase7d2-weighted-atomic-stdio',
     roleObjectiveRouter: true,
     scorer: seededGoodProposalVoteScorer,
@@ -1316,37 +1316,37 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
       hiddenTeam: true,
     },
   })
-  const stdioBase = await stdioAgent.decide(stdioInput.req, stdioInput.view)
-  const stdioDegraded = {
-    decision: stdioBase.decision,
+  const externalBase = await externalAgent.decide(externalInput.req, externalInput.view)
+  const externalDegraded = {
+    decision: externalBase.decision,
     trace: degrade(
-      stdioBase.trace!,
-      stdioInput.req,
-      stdioInput.view,
+      externalBase.trace!,
+      externalInput.req,
+      externalInput.view,
     ),
   }
-  assert.ok(parseStdioDecisionReply(
-    stdioInput.req,
-    stdioDegraded,
+  assert.ok(parseExternalDecisionReply(
+    externalInput.req,
+    externalDegraded,
     'phase7d2 weighted atomic',
-    stdioInput.view,
+    externalInput.view,
   ).trace)
   const externalAdmission = admitDecisionTrace({
     kind: 'pre-apply-external',
-    trace: stdioDegraded.trace,
-    req: stdioInput.req,
-    decision: stdioDegraded.decision,
-    hostView: stdioInput.view,
+    trace: externalDegraded.trace,
+    req: externalInput.req,
+    decision: externalDegraded.decision,
+    hostView: externalInput.view,
   })
   assert.equal(externalAdmission.kind, 'external-diagnostic')
   assert.equal(externalAdmission.promotionEvidenceEligible, false)
   const weightedAdmission = admitDecisionTrace({
     kind: 'finalized-artifact',
-    trace: stdioDegraded.trace,
-    req: stdioInput.req,
-    view: stdioInput.view,
-    authoritativeAction: stdioDegraded.decision,
-    selectedDecision: stdioDegraded.decision,
+    trace: externalDegraded.trace,
+    req: externalInput.req,
+    view: externalInput.view,
+    authoritativeAction: externalDegraded.decision,
+    selectedDecision: externalDegraded.decision,
     deterministicSeed: 'phase7d2-weighted-atomic-stdio',
   })
   assert.equal(weightedAdmission.kind, 'artifact-diagnostic')

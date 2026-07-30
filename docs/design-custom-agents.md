@@ -157,7 +157,7 @@ Custom layers ride every call of every game the agent plays. Limits:
 
 The first draft proposed persona-public / strategy-private-until-reveal, with an `openSource`
 opt-out. Review pointed out this is **unenforceable at the current trust model**: there are no
-accounts (roadmap #15 is parked), the invite code is shared by exactly the people who'd peek, and
+accounts (roadmap #14 is parked), the invite code is shared by exactly the people who'd peek, and
 the edit flow itself requires an endpoint that returns full defs to any code-holder. Shipping
 secrecy UI while any player can open the editor on any agent mid-game would be theater.
 
@@ -351,4 +351,3 @@ dispositions:
 - **Prompt-injection armor for custom layers.** Authors are invite-gated humans writing their own
   agent's instructions; the injection guard protects against *table talk*, not against the
   author. An author can write a self-sabotaging agent; that's their right.
-- **stdio engines over HTTP** — unchanged hard rule (RCE). File-drop only, local only.

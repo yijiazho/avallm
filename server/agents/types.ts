@@ -9,9 +9,9 @@ import type { DecisionTrace } from './trace.ts'
 export interface AvalonAgent {
   /**
    * Every agent returns the trace-bearing envelope. An agent with nothing to
-   * report supplies only the decision. External processes may still send a
-   * bare decision on the wire; `createStdioAgent` converts at that boundary,
-   * so runners never see two shapes.
+   * report supplies only the decision. Outside producers may still send a
+   * bare decision on the wire; `parseExternalDecisionReply` converts at that
+   * boundary, so runners never see two shapes.
    */
   decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision>
   /**
@@ -81,7 +81,6 @@ export type ComposedBrainPreset = (typeof COMPOSED_BRAIN_PRESETS)[number]
 export type AgentSpec =
   | { type: 'heuristic' }
   | { type: 'random' }
-  | { type: 'stdio'; cmd: string; args: string[]; label?: string }
   | {
       type: 'llm'
       model: string

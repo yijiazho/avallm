@@ -3,7 +3,7 @@
   "exemptions": [
     {
       "path": "test/active-language-eval.test.ts",
-      "sha256": "3d5caf6abce84e72a2a7086e526ce34f7a5ae203c467fb3ada93351d15141c96",
+      "sha256": "de397af4f6933c4318515c9d11e6734a9d8148e51dace0385168d5bbe7039124",
       "rationale": "Legacy language evaluation fixtures need current union narrowing."
     },
     {
@@ -38,7 +38,7 @@
     },
     {
       "path": "test/component-kernel.test.ts",
-      "sha256": "aaedadae702b6fb3263f55453fd977fc1554b6a4abd9e96eff63e1b98aeba335",
+      "sha256": "0e36fd06b0ae15e3126681c8be1417f1a82c7ee42868cc2e2480ba00ec02fc6b",
       "rationale": "Legacy kernel fixtures intentionally mutate readonly contracts."
     },
     {
@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "77e1c1e986c5dc38b96a7ea07d116bc00e89b546712dca9f59cad99aa21e88f6",
+      "sha256": "224509d819c7901d5e9a7a8c22573bab497a4bd9b7bcf5aa8ef61b83b46c6478",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "eebd9ca9c67898404e249c26aa968728e8ea117747e2d72edffcb717e821c852",
+      "sha256": "d0f36cbbf54ae4f82dd949d58cf7bf7fa92e4002fafab9e9ea5bdbf57411c4fd",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -93,12 +93,12 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "15d2c4a6a3d8fbbe783e739408c05614902f6329bf08cf1ca0b6e6de817e4a9a",
+      "sha256": "48161360d838c12f689fe8cb7ac739f404e5d6be0f00310cdea5e1e2e06339dc",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "ebd7d1694e9c006808e86dec89f815cf146b343ce2febbfed2a7b3529e2d3145",
+      "sha256": "97e325d382f4d09ee514702aa56066029afafe311d4cf350c90e74d861769f60",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -113,7 +113,7 @@
     },
     {
       "path": "test/joint-identity.test.ts",
-      "sha256": "680d456c1f3d3b47359b1b52a924752aa0349ed73dc457847e4ea5f3c2d93a01",
+      "sha256": "283d3de0d1b9d5ec8fbc3dc092ca79fdc2125d9a6a79382ce4096b145b14c788",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {
@@ -128,7 +128,7 @@
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "5cd36e3456f6d43513eaba0bf0a9cde269bfa7cb611247cbb6855eea24b50eae",
+      "sha256": "bda4a1ec37dc7bb023df6d1567899c46e41c0aaf0a08285663911c172a70c891",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "path": "test/plan-coherence.test.ts",
-      "sha256": "371e90f46f30ffa29b81d1d7f6c1a38c4df03467421b75dfc83bb16e378c6c60",
+      "sha256": "00092d31f57e1fc353ec6826a08a30d52144a09f559fdd2f226423adddb2e2c7",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {
@@ -153,7 +153,7 @@
     },
     {
       "path": "test/public-observer.test.ts",
-      "sha256": "5b606120485765a0ceded078566640189f07bc8ec47af269d5100e26e72d70bd",
+      "sha256": "6c83c28b80850eaf9d81a006a5b17d20d275fe9963a2b5832f7d3f8f0161367b",
       "rationale": "Legacy observer fixtures intentionally mutate readonly contracts."
     },
     {
@@ -173,7 +173,7 @@
     },
     {
       "path": "test/role-adapters.test.ts",
-      "sha256": "0655da34bb0d80dda3de015990e658409dc68b0d2544b7108997b196bf749d01",
+      "sha256": "82ab7429285acbcf72f7fb4b29d87e310731411c4e152a3da33e4efda9454a0d",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
     },
     {

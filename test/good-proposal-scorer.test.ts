@@ -24,7 +24,7 @@ import {
   calculateGoodProposalCandidateScores as scoreGoodProposalCandidates,
 } from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
@@ -459,7 +459,7 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
         && Number.isFinite(score.value),
     ),
   )
-  assert.deepEqual(parseStdioDecisionReply(source.req, first), first)
+  assert.deepEqual(parseExternalDecisionReply(source.req, first), first)
   const malformed = structuredClone(first)
   malformed.trace!.candidateScores = malformed.trace!.candidateScores!.map(
     (score, index) => index === 0
@@ -473,20 +473,20 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
       : score,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, malformed),
+    parseExternalDecisionReply(source.req, malformed),
     { decision: malformed.decision },
   )
   const mismatchedValue = structuredClone(first)
   mismatchedValue.trace!.candidateScores![0].value = 0.987654321
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, mismatchedValue),
+    parseExternalDecisionReply(source.req, mismatchedValue),
     { decision: mismatchedValue.decision },
   )
   const mismatchedTeam = structuredClone(first)
   const featureScore = mismatchedTeam.trace!.candidateScores![0]
   featureScore.features!.team = [2, 4]
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, mismatchedTeam),
+    parseExternalDecisionReply(source.req, mismatchedTeam),
     { decision: mismatchedTeam.decision },
   )
 
@@ -515,7 +515,7 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
     first.trace!.relevantTeam!,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(voteSource.req, transplanted),
+    parseExternalDecisionReply(voteSource.req, transplanted),
     { decision: transplanted.decision },
   )
 })

@@ -57,8 +57,8 @@ import type {
   PlayerView,
 } from '../server/engine/types.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
@@ -452,7 +452,7 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
     'FORGED',
   ]
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       reasonForgery,
       'a4b diagnostic reason rewrite',
@@ -482,7 +482,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
   erased.trace!.components!.entries = []
   erased.trace!.components!.policyUse = []
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       erased,
       'a4b self-described passive graph',
@@ -519,7 +519,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
   )
   assert.deepEqual(compatibility.trace!.componentPlan!.configured, [])
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       fixture.req,
       compatibility,
       'a4b genuine empty plan',

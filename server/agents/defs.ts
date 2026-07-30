@@ -13,8 +13,7 @@
 //   builtin — one agent per roster model (baseline prompts) + Autopilot
 //   curated — checked-in agents/*.json, version with the repo, read-only
 //   user    — data/agents/*.json, created via POST/PUT /api/agents (llm
-//             engines only) or dropped in by hand (stdio engines are
-//             file-drop ONLY: accepting commands over HTTP would be RCE)
+//             engines only) or dropped in by hand
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -57,7 +56,6 @@ export interface LlmEngine {
 export type AgentEngine =
   | LlmEngine
   | { type: 'heuristic' }
-  | { type: 'stdio'; cmd: string; args: string[] }
 
 export type AgentTier = 'builtin' | 'curated' | 'user'
 
@@ -80,16 +78,16 @@ export interface LibraryProblem {
   reason: string
 }
 
-// What the client sees (never raw stdio commands). Custom prompt configs are
-// deliberately public — transparency is part of the premise, and secrecy is
-// unenforceable under a shared invite code (design doc §4).
+// What the client sees. Custom prompt configs are deliberately public —
+// transparency is part of the premise, and secrecy is unenforceable under a
+// shared invite code (design doc §4).
 export interface AgentPublicInfo {
   id: string
   name: string
   version?: number
   author?: string
   about?: string
-  model: string          // display name of the model, or 'rule-based' / 'external'
+  model: string          // display name of the model, or 'rule-based'
   color: string
   personality?: string
   strategy?: string
@@ -333,10 +331,6 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
     if (customChars(e) > AGGREGATE_CAP) {
       throw new Error(`custom prompt text exceeds ${AGGREGATE_CAP} chars total`)
     }
-  } else if (e.type === 'stdio') {
-    if (typeof e.cmd !== 'string' || !Array.isArray(e.args)) {
-      throw new Error('stdio engine needs cmd + args')
-    }
   } else if (e.type !== 'heuristic') {
     throw new Error(`unknown engine type: ${String((e as any).type)}`)
   }
@@ -431,9 +425,8 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
   // which model is actually answering; a stale suggestion renders as
   // "<id> (unavailable)" instead of throwing so the library can list it.
   const e = def.engine
-  let model = 'external'
-  if (e.type === 'heuristic') model = 'rule-based'
-  else if (e.type === 'llm') {
+  let model = 'rule-based'
+  if (e.type === 'llm') {
     // resolveModel owns the precedence; it can't throw inside the llm branch.
     const resolved = resolveModel(def, modelOverride)
     model = ROSTER.find((r) => r.id === resolved)?.slug ?? `${resolved} (unavailable)`

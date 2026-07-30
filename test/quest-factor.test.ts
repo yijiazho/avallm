@@ -15,7 +15,7 @@ import {
 } from '../server/agents/belief/quest-card-factor.ts'
 import { assessTeam, exactBelief } from '../server/agents/belief/exact.ts'
 import type { HiddenWorld } from '../server/agents/belief/types.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   applyDecision,
   createGame,
@@ -187,7 +187,7 @@ test('absent evidence stays uniform and factor failure degrades safely', () => {
   assert.deepEqual(degraded.worlds, exact.worlds)
 })
 
-test('held-out quest ablation is paired, attributed, and stdio-safe', async () => {
+test('held-out quest ablation is paired, attributed, and external-ingress-safe', async () => {
   const report = await runPhase5QuestBench({
     cases: PHASE4_POLICY_BANK.slice(0, 1),
   })
@@ -226,7 +226,7 @@ test('held-out quest ablation is paired, attributed, and stdio-safe', async () =
   assert.equal(trace!.componentVersions?.factors, 'quest-card-only-v1')
   assert.equal(trace!.beliefProvenance?.[0].factorId, 'quest-card')
   assert.doesNotThrow(() =>
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       trace!.request,
       { decision: trace!.action, trace },
       'phase5b-weighted-trace',

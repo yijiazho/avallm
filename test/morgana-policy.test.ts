@@ -50,8 +50,8 @@ import {
   MORGANA_ROLE_UTILITY_DEGRADATION,
 } from '../server/agents/analysis/morgana-role-utility.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   compatibilityCandidateScores,
@@ -764,7 +764,7 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
     MORGANA_ROLE_SCORER_VERSION,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       input.req,
       result,
       'phase7e1b weighted external admission',
@@ -891,7 +891,7 @@ test('standalone Morgana projection rejects nested team, band, rank, seed, and s
   })
 })
 
-test('stdio and exact host replay reject nested, score, deletion, action, and simultaneous vote-team forgeries', async () => {
+test('external ingress and exact host replay reject nested, score, deletion, action, and simultaneous vote-team forgeries', async () => {
   const proposal = morganaProposal(5)
   const teams = canonicalTeams(
     proposal.view.playerCount,
@@ -903,7 +903,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     roleObjectiveRouter: true,
     scorer: morganaRoleScorer,
   }).decide(input.req, input.view)
-  assert.ok(parseStdioDecisionReply(
+  assert.ok(parseExternalDecisionReply(
     input.req,
     output,
     'phase7e1b',
@@ -987,7 +987,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
   for (const [index, mutate] of mutations.entries()) {
     const forged = mutableClone(output)
     mutate(forged.trace!)
-    const parsed = parseStdioDecisionReply(
+    const parsed = parseExternalDecisionReply(
       input.req,
       forged,
       'phase7e1b forged',
@@ -1068,7 +1068,7 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
   // The self-described external graph is retained as diagnostic telemetry.
   // The trusted host join below rejects the recoverable degradation.
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       input.req,
       forged,
       'phase7e1b coherent degraded D2',

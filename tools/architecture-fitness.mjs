@@ -727,7 +727,7 @@ export function auditArchitectureSources(sourceEntries) {
         && (
           target === 'server/agents/trace'
           || target === 'server/eval/architecture-report'
-          || target === 'server/agents/stdio'
+          || target === 'server/agents/external-reply'
         )
       ) {
         violations.push(violation(

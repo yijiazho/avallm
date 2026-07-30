@@ -12,7 +12,7 @@ import {
   EXACT_BELIEF_MODEL_VERSION,
 } from '../server/agents/belief/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
@@ -55,7 +55,10 @@ function staticTraceVariant(
     paid: false,
     components: external
       ? {
-          mode: 'external',
+          // A self-described producer the host does not reconstruct: the
+          // component versions are opaque strings we do not own, declared
+          // against a real non-composed execution mode.
+          mode: 'raw-llm',
           brain: 'external',
           belief: 'external',
           factors: 'external',
@@ -83,7 +86,7 @@ function staticTraceVariant(
           const output = await inner.decide(req, view)
           const trace = structuredClone(output.trace!)
           if (external) {
-            trace.agentMode = 'external'
+            trace.agentMode = 'raw-llm'
             trace.beliefModelVersion = 'external'
             trace.componentVersions = {
               ...trace.componentVersions!,
@@ -144,7 +147,7 @@ test('active public-dialogue bank exercises mixed belief snapshots for free', as
     && trace.componentVersions.languageEvidence
       === LANGUAGE_FACTOR_BUNDLE_VERSION))
   assert.ok(traces.every((trace) =>
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       trace.request,
       { decision: trace.action, trace },
     ).trace?.decisionId === trace.decisionId))

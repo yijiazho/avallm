@@ -9,7 +9,7 @@ import {
 } from '../server/agents/policy/score.ts'
 import type { AvalonAgent } from '../server/agents/types.ts'
 import { createAgent } from '../server/agents/registry.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { decisionTraceIdForRequest } from '../server/agents/trace.ts'
 import { DECISION_COMPONENT_RUN_VERSION } from '../server/agents/components/kernel.ts'
 import {
@@ -603,7 +603,7 @@ test('every built-in agent answers with the decision envelope', async () => {
   }
 })
 
-test('stdio boundary admits valid telemetry and strips invalid optional traces', () => {
+test('external ingress boundary admits valid telemetry and strips invalid optional traces', () => {
   const source = fixture('servant-vote-after-evidence')
   const action = { kind: 'vote' as const, vote: 'approve' as const }
   const trace = {
@@ -621,11 +621,11 @@ test('stdio boundary admits valid telemetry and strips invalid optional traces',
     action,
   }
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, { decision: action, trace }),
+    parseExternalDecisionReply(source.req, { decision: action, trace }),
     { decision: action, trace },
   )
   const stripsTrace = (reply: unknown) => assert.deepEqual(
-    parseStdioDecisionReply(source.req, reply),
+    parseExternalDecisionReply(source.req, reply),
     { decision: action },
   )
   stripsTrace({
@@ -662,14 +662,14 @@ test('stdio boundary admits valid telemetry and strips invalid optional traces',
       },
   })
   assert.throws(
-    () => parseStdioDecisionReply(source.req, {
+    () => parseExternalDecisionReply(source.req, {
       decision: { kind: 'propose', team: [0, 1] },
     }),
     /invalid decision/,
   )
 })
 
-test('stdio boundary accepts the complete composed trace extension', async () => {
+test('external ingress boundary accepts the complete composed trace extension', async () => {
   const source = fixture('merlin-opening-proposal')
   const agent = createComposedAgent({
     seed: source.source.seed,
@@ -677,11 +677,11 @@ test('stdio boundary accepts the complete composed trace extension', async () =>
   })
   const output = await agent.decide(source.req, source.view)
   assert.deepEqual(
-    parseStdioDecisionReply(source.req, output),
+    parseExternalDecisionReply(source.req, output),
     output,
   )
   const stripsTrace = (reply: typeof output) => assert.deepEqual(
-    parseStdioDecisionReply(source.req, reply),
+    parseExternalDecisionReply(source.req, reply),
     { decision: reply.decision },
   )
   const scorerMismatch = structuredClone(output)

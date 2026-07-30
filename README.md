@@ -67,7 +67,7 @@ AvaLLM is an authoritative server plus a thin client, with one rule running thro
 The code is layered so the game logic never knows or cares what kind of player is answering:
 
 - **`server/engine/`** is pure, deterministic game logic. It is event-sourced (the game log is the record, and each seat's view is derived from it), uses a seeded PRNG, and does no I/O. A single function, `viewFor`, is the one place hidden information gets filtered per seat.
-- **`server/agents/`** is the pluggable player boundary. Every agent answers the same decision request, whether it is an LLM, a heuristic, a random mover, or an external process speaking JSON over stdio. Illegal or malformed output quietly falls back to the heuristic, so a game never stalls.
+- **`server/agents/`** is the pluggable player boundary. Every agent answers the same decision request, whether it is an LLM, a heuristic, a random mover, or the structured composed brain. Illegal or malformed output quietly falls back to the heuristic, so a game never stalls.
 - **`server/llm/`** is the single chokepoint for OpenRouter: spend accounting and a hard ceiling, reasoning-token suppression tuned per model family, and the model roster.
 - **`server/sim/`** holds the headless drivers behind the commands above, and **`server/server.ts`** plus **`client/`** are the web game itself.
 
@@ -81,7 +81,7 @@ The prompts are not one generic "play Avalon well" instruction either. Guidance 
 
 Key sources:
 
-- **AvalonBench**, Light et al., *Evaluating LLMs Playing the Game of Avalon* (2023): the baseline benchmark and failure taxonomy. [paper](https://arxiv.org/abs/2310.05036), plus [Avalon-LLM and the Strategist agent](https://github.com/jonathanmli/Avalon-LLM), an MCTS-and-LLM opponent that AvaLLM is designed to seat over the stdio bridge as an external difficulty check.
+- **AvalonBench**, Light et al., *Evaluating LLMs Playing the Game of Avalon* (2023): the baseline benchmark and failure taxonomy. [paper](https://arxiv.org/abs/2310.05036), plus [Avalon-LLM and the Strategist agent](https://github.com/jonathanmli/Avalon-LLM), an MCTS-and-LLM opponent.
 - **ReCon**, Wang et al., *Recursive Contemplation* (2023): a two-pass draft-then-refine loop with first and second-order perspective-taking to resist deception. [paper](https://arxiv.org/abs/2310.01320)
 - **LLM Agent Society** (arXiv 2310.14985): a modular agent whose role-inference and strategy-memory modules mattered most in ablation.
 - **DeepRole** (CFR plus deductive belief updating) and the **Assassin classifier** (Chuchro, 2022): non-LLM agents showing that spotting Merlin is largely a mechanical vote-signal task.

@@ -18,7 +18,7 @@ import type { Alignment, GameEvent, Phase, Quest, Role, Seat } from './engine/ty
 export interface TranscriptSeat {
   seat: Seat
   name: string
-  agent: string          // 'human' | model display name | 'rule-based' | 'external'
+  agent: string          // 'human' | model display name | 'rule-based'
   role?: Role            // present only when the transcript is a full reveal
   alignment?: Alignment
 }

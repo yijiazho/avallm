@@ -24,7 +24,7 @@ import {
   projectPublicRecord,
   type PublicRecord,
 } from '../server/agents/communication/public-record.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { createGame } from '../server/engine/game.ts'
 import {
   DEFAULT_ROLES,
@@ -583,7 +583,7 @@ test('composed observer is opt-in, attributable, and mechanically inert', async 
   )
   assert.ok(validatePublicObserverSnapshot(on.trace!.publicObserver))
 
-  const accepted = parseStdioDecisionReply(
+  const accepted = parseExternalDecisionReply(
     fixture.req,
     on,
   )
@@ -591,13 +591,13 @@ test('composed observer is opt-in, attributable, and mechanically inert', async 
   const forgedOff = structuredClone(off)
   forgedOff.trace!.publicObserver = structuredClone(on.trace!.publicObserver)
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, forgedOff),
+    parseExternalDecisionReply(fixture.req, forgedOff),
     { decision: forgedOff.decision },
   )
   const forgedOn = structuredClone(on)
   forgedOn.trace!.componentVersions!.observerModel = 'off'
   assert.deepEqual(
-    parseStdioDecisionReply(fixture.req, forgedOn),
+    parseExternalDecisionReply(fixture.req, forgedOn),
     { decision: forgedOn.decision },
   )
 })

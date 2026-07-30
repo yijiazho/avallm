@@ -109,7 +109,6 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
   if (def.engine.type === 'heuristic') {
     return { decision: heuristicDecide(snapshot.req, snapshot.view, snapshot.seed) }
   }
-  if (def.engine.type !== 'llm') return { error: `cannot replay against engine type ${def.engine.type}` }
   const { getClient } = await import('../llm/client.ts')
   const client = getClient()
   const kind = snapshot.kind as LlmCallKind

@@ -59,7 +59,6 @@ const ARCHITECTURE_MODES: readonly AgentExecutionMode[] = [
   'raw-llm',
   'heuristic',
   'random',
-  'external',
   'compatibility',
   'structured-only',
   'hybrid',

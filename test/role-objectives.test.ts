@@ -42,7 +42,7 @@ import {
   publicCognition,
 } from '../server/agents/cognition/state.ts'
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { createGame } from '../server/engine/game.ts'
 import { EVIL_COUNT } from '../server/engine/rules.ts'
 import type {
@@ -674,10 +674,10 @@ test('role objective degradation is typed and stale cognition is dropped before 
   assert.equal(advanced.versions.roleObjective, undefined)
 })
 
-test('stdio and private/public boundaries preserve role objective attribution', async () => {
+test('external ingress and private/public boundaries preserve role objective attribution', async () => {
   const merlin = await roleOutput(merlinFixture)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlinFixture.req,
       merlin,
       'external',
@@ -689,7 +689,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
   roleObjective(forged.trace!)!.objective.assessments[0]
     .publicTeamCleanProbability = 0
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlinFixture.req,
       forged,
       'external',
@@ -703,7 +703,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
     ROLE_OBJECTIVE_DEGRADATION,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlinFixture.req,
       hiddenAsDegraded,
       'external',
@@ -728,7 +728,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
     PUBLIC_OBSERVER_MODEL_VERSION,
   )
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       merlinFixture.req,
       dependencyDegraded,
       'external',
@@ -740,7 +740,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
     const missingDependencyVersion = structuredClone(dependencyDegraded)
     delete missingDependencyVersion.trace!.componentVersions![dependency]
     assert.deepEqual(
-      parseStdioDecisionReply(
+      parseExternalDecisionReply(
         merlinFixture.req,
         missingDependencyVersion,
         'external',
@@ -757,7 +757,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
   addRoleObjectiveFrom(roleForged.trace!, merlin.trace!)
   mutableArray(roleForged.trace!.degradation).push(ROLE_OBJECTIVE_DEGRADATION)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       servantFixture.req,
       roleForged,
       'external',

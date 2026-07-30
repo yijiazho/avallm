@@ -17,8 +17,8 @@ import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   composedPolicyContext,
 } from '../server/agents/communication/composed-renderer.ts'
@@ -232,7 +232,7 @@ test('removed exact quota cannot be configured as a runtime mode', () => {
   )
 })
 
-test('stdio strips forged robust telemetry without discarding its legal action', async () => {
+test('external ingress strips forged robust telemetry without discarding its legal action', async () => {
   const { req, view } = robustQuestFixture()
   const output = await createComposedAgent({
     seed: 'phase7r3b2b-stdio',
@@ -248,7 +248,7 @@ test('stdio strips forged robust telemetry without discarding its legal action',
       : 'legal-candidates-v1:quest:fail'
 
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       req,
       { decision: output.decision, trace: forged },
       'forged robust trace',

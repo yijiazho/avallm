@@ -142,7 +142,7 @@ export interface DecisionComponentInvocation {
 /**
  * In-process-only root supplier. Unlike DecisionComponentInvocation this
  * binding is trusted executable state and must never be serialized into a
- * descriptor, trace, artifact, or stdio message.
+ * descriptor, trace, artifact, or external message.
  */
 export interface DecisionComponentTrustedHostInputProvider<Value = unknown> {
   readonly input: ComponentHostInputToken<Value>
@@ -870,11 +870,12 @@ function executionContextFor(
 /**
  * Re-admit a detached run against canonical host state.
  *
- * This is deliberately separate from detached parsing: stdio can prove that
- * an envelope is bounded and internally coherent without claiming provenance,
- * while a host that owns request/view reconstruction can additionally prove
- * every reconstructable entry through its registered definition. Dependencies
- * are exposed only after their own detached/host admission succeeds.
+ * This is deliberately separate from detached parsing: external ingress can
+ * prove that an envelope is bounded and internally coherent without claiming
+ * provenance, while a host that owns request/view reconstruction can
+ * additionally prove every reconstructable entry through its registered
+ * definition. Dependencies are exposed only after their own detached/host
+ * admission succeeds.
  */
 export function validateDecisionComponentRunHostJoin(
   input: DecisionComponentRunHostJoinInput,

@@ -874,7 +874,7 @@ test('concrete score families stay separate from observability and composition I
       ],
       [
         'server/agents/score-layers/transport-coupled.ts',
-        'import { parseStdioDecisionReply } from "../stdio.ts"',
+        'import { parseExternalDecisionReply } from "../external-reply.ts"',
       ],
       [
         'server/agents/score-layers/legacy-row.ts',
@@ -1073,7 +1073,7 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
       'const value: DecisionComponentTrustedHostInputProvider<unknown> = root',
     ],
     [
-      'server/agents/stdio.ts',
+      'server/agents/external-reply.ts',
       'import type { DecisionComponentTrustedHostInputProvider } from "./components/kernel.ts"',
     ],
     [
@@ -1112,7 +1112,7 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
     violations.map(({ rule, importer }) => [rule, importer]),
     [
       ['ARCH004', 'server/agents/composed.ts'],
-      ['ARCH004', 'server/agents/stdio.ts'],
+      ['ARCH004', 'server/agents/external-reply.ts'],
       ['ARCH004', 'server/agents/trace.ts'],
       ['ARCH004', 'server/eval/artifact.ts'],
       ['ARCH004', 'server/eval/architecture-report.ts'],

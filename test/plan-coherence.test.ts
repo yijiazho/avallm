@@ -51,7 +51,7 @@ import {
   PLAN_MEMORY_VERSION,
 } from '../server/agents/cognition/plan-memory.ts'
 import { COHERENCE_MODEL_VERSION } from '../server/agents/cognition/coherence.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
   validateFinalizedAppliedTraceHostJoin,
@@ -460,7 +460,7 @@ test('serialized plan outcomes reject forged history, coherence, and host joins'
     view,
   ), false)
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       req,
       { decision: finalized!.action, trace: finalized },
       'premature plan-memory child',
@@ -1011,7 +1011,7 @@ test('external plan validators are total, dense, exact, and byte bounded', async
   }
 })
 
-test('stdio cannot claim post-legality degradation before apply', async () => {
+test('external ingress cannot claim post-legality degradation before apply', async () => {
   const { req, view } = firstRequest('phase7b2-stdio-temporal')
   const output = await createComposedAgent({
     seed: 'phase7b2-stdio-temporal',
@@ -1019,7 +1019,7 @@ test('stdio cannot claim post-legality degradation before apply', async () => {
   const forgedIntent = structuredClone(output)
   forgedIntent.trace!.coherenceIntent = 'maintain'
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       req,
       forgedIntent,
       'premature intent child',
@@ -1032,7 +1032,7 @@ test('stdio cannot claim post-legality degradation before apply', async () => {
     APPLIED_OUTCOME_DEGRADATION,
   ]
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       req,
       { decision: output.decision, trace: output.trace },
       'premature degraded child',

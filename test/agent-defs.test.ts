@@ -35,7 +35,6 @@ test('validateDef rejects bad defs', () => {
   assert.throws(() => validateDef({ id: 'ok', name: '', engine: { type: 'heuristic' } }), /name/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', model: 'not-a-model' } }), /unknown roster/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'wat' } }), /engine/)
-  assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'stdio', cmd: 5, args: [] } }), /stdio/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', roleGuidance: { wizard: 'x' } } }), /unknown role/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', roleGuidanceMode: 'merge' } }), /roleGuidanceMode/)
 })

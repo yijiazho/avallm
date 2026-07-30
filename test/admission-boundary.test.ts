@@ -13,18 +13,18 @@ test('trace admission consumers use the agent-owned closed boundary', () => {
     'server/agents/admission/composed-trace.ts',
     'utf8',
   )
-  const stdio = readFileSync('server/agents/stdio.ts', 'utf8')
+  const externalReply = readFileSync('server/agents/external-reply.ts', 'utf8')
   const admissionConsumers = [
     'server/eval/architecture-bench.ts',
     'server/eval/architecture-report.ts',
   ].map((path) => readFileSync(path, 'utf8'))
 
-  assert.match(stdio, /admitDecisionTrace/)
+  assert.match(externalReply, /admitDecisionTrace/)
   assert.doesNotMatch(
-    stdio,
+    externalReply,
     /validate(?:Composed|External|Finalized|Suppressed).*Trace/,
   )
-  assert.doesNotMatch(owner, /from ['"].*(?:stdio|server\/eval)/)
+  assert.doesNotMatch(owner, /from ['"].*(?:external-reply|server\/eval)/)
   for (const source of admissionConsumers) {
     assert.match(source, /admit(?:Canonical)?DecisionTrace/)
     assert.doesNotMatch(

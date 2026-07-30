@@ -37,7 +37,7 @@ import type {
   PlayerView,
   Seat,
 } from '../server/engine/types.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { runArchitectureBench } from '../server/eval/architecture-bench.ts'
 
 const INTERPRETER_VERSION = 'fake-phase6c-v1'
@@ -350,7 +350,7 @@ test('invalid interpreter version is not called and advances the public cursor',
       .belief.languageInterpreter,
     first.trace!.languageEvidence?.interpreterVersion,
   )
-  assert.deepEqual(parseStdioDecisionReply(req, first), first)
+  assert.deepEqual(parseExternalDecisionReply(req, first), first)
   assert.equal(
     first.trace!.languageEvidence?.cursorThroughSeq,
     Math.max(...view.events
@@ -394,7 +394,7 @@ test('runtime non-string interpreter versions fail closed before a call', async 
       .belief.languageInterpreter,
     output.trace!.languageEvidence?.interpreterVersion,
   )
-  assert.deepEqual(parseStdioDecisionReply(req, output), output)
+  assert.deepEqual(parseExternalDecisionReply(req, output), output)
 })
 
 test('interpreter version drift fails closed without corrupting cognition', async () => {
@@ -530,13 +530,13 @@ test('interpreter receives a clone of the public-only projection', async () => {
   assert.ok(!JSON.stringify(output.trace).includes('publicRationale'))
 })
 
-test('language attribution survives stdio validation and artifact JSON', async () => {
+test('language attribution survives external ingress validation and artifact JSON', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
   const output = await createComposedAgent({
     seed: 'phase6c-stdio-artifact',
     languageInterpreter: fakeInterpreter(view.seat, subject, []),
   }).decide(req, view)
-  assert.deepEqual(parseStdioDecisionReply(req, output), output)
+  assert.deepEqual(parseExternalDecisionReply(req, output), output)
   const artifactRoundTrip = JSON.parse(JSON.stringify({
     decisionTraces: [output.trace],
   }))
@@ -548,18 +548,18 @@ test('language attribution survives stdio validation and artifact JSON', async (
   const forged = structuredClone(output)
   ;(forged.trace!.languageEvidence as unknown as Record<string, unknown>)
     .publicRationale = 'must remain excluded'
-  assert.deepEqual(parseStdioDecisionReply(req, forged), { decision: forged.decision })
+  assert.deepEqual(parseExternalDecisionReply(req, forged), { decision: forged.decision })
 
   const missing = structuredClone(output)
   delete missing.trace!.languageEvidence
-  assert.deepEqual(parseStdioDecisionReply(req, missing), { decision: missing.decision })
+  assert.deepEqual(parseExternalDecisionReply(req, missing), { decision: missing.decision })
 
   const futureSource = structuredClone(output)
   futureSource.trace!.languageEvidence!.cumulativeSourceSeqs = [
     futureSource.trace!.languageEvidence!.cursorThroughSeq + 1,
   ]
   assert.deepEqual(
-    parseStdioDecisionReply(req, futureSource),
+    parseExternalDecisionReply(req, futureSource),
     { decision: futureSource.decision },
   )
 
@@ -574,7 +574,7 @@ test('language attribution survives stdio validation and artifact JSON', async (
       'language:forged-interpreter-v1',
     )
   assert.deepEqual(
-    parseStdioDecisionReply(req, forgedProvenance),
+    parseExternalDecisionReply(req, forgedProvenance),
     { decision: forgedProvenance.decision },
   )
 })

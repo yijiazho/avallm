@@ -78,10 +78,8 @@ sample is insufficient to justify promotion.
 ### Pluggable agents (the decision interface is a plugin API)
 
 The three answerers above are the built-ins, but the interface is deliberately a **plugin
-boundary**: any seat can be driven by any agent, including third-party agents written for other
-Avalon frameworks. Design goals: our custom LLM agent is the default table; a rule-based agent
-ships as the baseline/fallback; imported agents (e.g. from AvalonBench) are a supported roster
-option.
+boundary**: any seat can be driven by any agent. Design goals: our custom LLM agent is the
+default table, and a rule-based agent ships as the baseline/fallback.
 
 **In-process interface** (TypeScript, what every agent ultimately implements):
 
@@ -98,8 +96,9 @@ interface AgentDecision {
 
 Notification of game events needs no separate callback: `view` carries the seat-filtered event
 log, so agents are stateless-by-default and any memory (scratchpads, believed-sides tables) is
-their own business. The envelope is the only in-process shape; an external stdio agent may still
-send a bare decision, which `parseStdioDecisionReply` wraps at the process boundary. Runners unwrap
+their own business. The envelope is the only in-process shape; an outside producer may still
+send a bare decision, which `parseExternalDecisionReply` wraps at the ingress boundary
+(`server/agents/external-reply.ts`). Runners unwrap
 `decision` for the legality check and hand the rest of the trace lifecycle to
 `recordAppliedDecision()` (`server/agents/applied-trace.ts`), which runs only after the engine
 accepts an action. The composed agent owns persistent typed cognition in its closure; changing its
@@ -114,37 +113,18 @@ type AgentSpec =
   | { type: 'heuristic' }                      // built-in rule-based baseline (M1, forever-fallback)
   | { type: 'random' }                         // fuzz/testing
   | { type: 'human' }
-  | { type: 'stdio', cmd: string, args: string[], label: string }   // external agent process
 ```
 
-**External agent protocol (the cross-language door).** `stdio` agents are child processes speaking
-newline-delimited JSON: we send `{ id, type: 'decide', request, view }`, they answer
-`{ id, decision, trace? }` (plus a `{ type: 'hello', capabilities }` handshake — agents that can't
-discuss declare it and are auto-passed in table-talk rounds). Same envelope could ride HTTP later;
-stdio first because it's zero-infra and testable in CI with a 20-line dummy agent. External
-decisions go through exactly the same legality validation + fallback ladder as LLM output (§3) —
-a buggy third-party agent degrades to the heuristic, never stalls the game.
+**Untrusted reply ingress.** Any decision that did not come from an in-process built-in crosses
+`parseExternalDecisionReply` (`server/agents/external-reply.ts`): it rejects a reply whose decision
+kind does not match the request, and admits an optional `trace` only through the shared trace
+admission boundary, so a forged or malformed trace is stripped without disturbing a legal action.
+Persisted artifacts cross the same admission owner on the `finalized-artifact` lifecycle. Whatever
+survives goes through exactly the same legality validation + fallback ladder as LLM output (§3) —
+a buggy producer degrades to the heuristic, never stalls the game.
 
-**AvalonBench import (the concrete third-party target).** AvalonBench
-([jonathanmli/Avalon-LLM](https://github.com/jonathanmli/Avalon-LLM)) is Python, built on
-AgentBench; its `Agent` base class (`src/server/tasks/avalon/agents/agent.py`) exposes
-`propose_team(mission_id)`, `vote_on_team(mission_id, team)`, `vote_on_mission(mission_id,
-quest_team)`, `assassinate(num_players)`, `get_believed_sides(num_players)`; discussion exists only
-in the "speakable" variants (`baseline_speakable_agents.py`, `llm_with_discussion.py`); the ICLR
-"Strategist" is `SearchlightLLMAgentWithDiscussion` (`search_agent.py`). The bridge is a small
-Python shim (`agents/bridges/avalonbench_shim.py`) that instantiates any AvalonBench `Agent`
-subclass and speaks our stdio protocol, mapping `propose → propose_team`, `vote → vote_on_team`,
-`quest → vote_on_mission`, `assassinate → assassinate`, and declaring `discuss: false` for
-non-speakable agents. Their naive baselines (`baseline_agents.py`) are the first import target
-(good difficulty calibration); Strategist is the stretch goal (it's MCTS-heavy — expect latency,
-and its search may assume AvalonBench's exact ruleset, so validate against our engine's).
-Mapping notes: AvalonBench uses int player ids and `frozenset` teams (→ JSON arrays), int role
-codes (→ our role strings need a code map), and returns bools for votes/quest cards.
-
-**Boundary rule:** external agents get the same `PlayerView` and nothing else — the hidden-info
-chokepoint (§2) applies unchanged. An imported agent that expects extra observability (e.g.
-AvalonBench's engine callbacks) gets it derived from the view inside the shim, never from raw
-state.
+**Boundary rule:** any such agent gets the same `PlayerView` and nothing else — the hidden-info
+chokepoint (§2) applies unchanged.
 
 ### The agent library (implemented in M2)
 
@@ -170,8 +150,7 @@ models to compare them.
 The library = built-ins (one agent per roster model with baseline prompts, plus **Autopilot**, the
 heuristic player as a first-class pickable agent) + user agents persisted as JSON files in
 `data/agents/` (gitignored). Server API: `GET /api/agents` (browse), `POST /api/agents` (create —
-**llm engines only**; a stdio engine names a command to execute and must never be settable over
-HTTP — stdio defs are file-drop only). Table setup maps each bot seat to a library id with an
+**llm engines only**). Table setup maps each bot seat to a library id with an
 optional per-seat model override — `table` entries are either a bare agent id (legacy) or
 `{agent, model?}`; the same agent may play multiple seats (on the same or different models), names
 deduped. Bad seats (unknown agent/model, a model override on a non-llm engine) are rejected at
@@ -383,7 +362,7 @@ client response. Auxiliary parse failures are recorded even when the provider ca
 succeeded. A trace-bearing envelope remains pending until `applyDecision` accepts its action; an
 illegal attempt is discarded before the heuristic fallback runs. When the runner substitutes a
 heuristic, the same post-legality hook upserts that stable decision identity with the fallback
-action actually applied. External stdio traces must satisfy the complete required base schema,
+action actually applied. Externally supplied traces must satisfy the complete required base schema,
 stable request-derived identity, and mode/component relationships. The free architecture benchmark
 can inject explicitly labeled structured or fake-client hybrid agents and checks those declarations
 against their runtime traces; paid factories require an explicit paid declaration. Architecture
@@ -407,8 +386,8 @@ each feasible world, mixes in a small uniform likelihood so legal play never rec
 probability, and caps the combined factor contribution at `ln(2)`. Exact feasibility remains
 authoritative. A factor error records `quest-card-factor-failed` and returns a normalized
 constraints-only fallback. Traces expose the belief version, factor evidence provenance, player
-marginals, and relevant joint team assessments; stdio admission validates the weighted semantics
-and component identities.
+marginals, and relevant joint team assessments; external-reply admission validates the weighted
+semantics and component identities.
 
 ### Consistency across a game
 
@@ -588,6 +567,8 @@ format/authority escape, not persuasion:
   enough to finish games (heuristic doubles as the forever-fallback).
 - The stdio external-agent protocol: envelope spec, child-process adapter, and a trivial
   JS dummy agent as its CI test — proves pluggability before any real third-party import.
+  (Removed in 2026-07; the AvalonBench import it existed for was never built, and the untrusted
+  reply/trace ingress it guarded now lives in `server/agents/external-reply.ts`.)
 - Headless driver: `node sim.mjs --seed 42 --players 7` plays full games; contract tests for the
   knowledge matrix + view-leak greps; hundreds of simulated games as a fuzz test (no crashes,
   every game terminates).
@@ -621,10 +602,8 @@ than distorting the baseline heuristics further.
   with a known best action, score each model), drop models that fallback >10% or play incoherently.
 - Table-setup screen (pick your opponents), difficulty presets (roster tier mix), streamer-safe
   mode, cost dashboard, snapshot save/resume.
-- AvalonBench bridge: the Python stdio shim wrapping their naive baseline agents (difficulty
-  calibration seats); Strategist (`SearchlightLLMAgentWithDiscussion`) as a stretch "boss" seat.
-  UI: non-model agents get their own badge style ("Rule-based", "Strategist") so the
-  model-identity premise stays honest.
+- UI: non-model agents get their own badge style ("Rule-based") so the model-identity premise
+  stays honest.
 
 ---
 

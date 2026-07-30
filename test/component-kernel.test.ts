@@ -1959,7 +1959,7 @@ test('native output projects through generic cognition, trace, transport, artifa
 
   const cognition = { components }
   const trace = { components }
-  const stdio = JSON.parse(JSON.stringify({ components }))
+  const wire = JSON.parse(JSON.stringify({ components }))
   const artifact = {
     componentManifest: brain.description.components.configured.map(
       (component) => ({
@@ -1977,7 +1977,7 @@ test('native output projects through generic cognition, trace, transport, artifa
     ),
   }
 
-  assert.deepEqual(stdio, { components })
+  assert.deepEqual(wire, { components })
   assert.deepEqual(cognition.components, trace.components)
   assert.deepEqual(artifact, {
     componentManifest: [{
@@ -1993,7 +1993,7 @@ test('native output projects through generic cognition, trace, transport, artifa
   const centralKeys = [
     ...Object.keys(cognition),
     ...Object.keys(trace),
-    ...Object.keys(stdio),
+    ...Object.keys(wire),
     ...Object.keys(artifact),
     ...Object.keys(evaluation),
   ]

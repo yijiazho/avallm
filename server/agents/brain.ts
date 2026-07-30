@@ -17,7 +17,6 @@ export type AgentExecutionMode =
   | 'raw-llm'
   | 'heuristic'
   | 'random'
-  | 'external'
   | 'compatibility'
   | 'structured-only'
   | 'hybrid'
@@ -25,31 +24,25 @@ export type AgentExecutionMode =
 export type BeliefComponent =
   | 'none'
   | typeof EXACT_BELIEF_MODEL_VERSION
-  | 'external'
 export type BeliefVisibility =
   | 'none'
   | typeof COMPAT_CERTAINTIES_VISIBILITY
   | typeof BELIEF_RENDERER_VERSION
-  | 'external'
 export type PolicyComponent =
   | typeof RAW_LLM_POLICY_VERSION
   | typeof HEURISTIC_POLICY_VERSION
   | typeof RANDOM_POLICY_VERSION
   | typeof COMPOSED_POLICY_VERSION
-  | 'external'
 export type CommunicationComponent =
   | 'none'
   | typeof PROMPT_COMMUNICATION_VERSION
   | typeof PLAN_COMMUNICATION_VERSION
-  | 'external'
 export type LanguageEvidenceComponent =
   | 'off'
   | typeof LANGUAGE_FACTOR_BUNDLE_VERSION
-  | 'external'
 export type ObserverModelComponent =
   | 'off'
   | typeof PUBLIC_OBSERVER_MODEL_VERSION
-  | 'external'
 
 /**
  * A fully resolved strategic configuration. Model choice, persona, and prompt
@@ -94,7 +87,6 @@ export type BrainSource =
       languageEvidence?: typeof LANGUAGE_FACTOR_BUNDLE_VERSION
       observerModel?: typeof PUBLIC_OBSERVER_MODEL_VERSION
     }
-  | { type: 'stdio' }
 
 const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
   version: BRAIN_SPEC_VERSION,
@@ -227,17 +219,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         communication: PLAN_COMMUNICATION_VERSION,
         languageEvidence: source.languageEvidence ?? 'off',
         observerModel: source.observerModel ?? 'off',
-      }
-    case 'stdio':
-      return {
-        version: BRAIN_SPEC_VERSION,
-        mode: 'external',
-        belief: 'external',
-        beliefVisibility: 'external',
-        policy: 'external',
-        communication: 'external',
-        languageEvidence: 'external',
-        observerModel: 'external',
       }
   }
 }

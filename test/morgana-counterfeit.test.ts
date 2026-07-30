@@ -39,8 +39,8 @@ import {
 } from '../server/agents/policy/candidates.ts'
 import { CANDIDATE_SCORER_VERSION } from '../server/agents/policy/score.ts'
 import {
-  parseStdioDecisionReply,
-} from '../server/agents/stdio.ts'
+  parseExternalDecisionReply,
+} from '../server/agents/external-reply.ts'
 import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
@@ -472,7 +472,7 @@ test('changed joint Mordred weights alter causal features without changing mecha
     morganaCounterfeitObjective(weightedOutput.trace!),
   ))
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       req,
       {
         decision: weightedOutput.decision,
@@ -715,7 +715,7 @@ test('opt-in is default-off, Morgana-only, kind-scoped, and mechanically inert',
   )
 })
 
-test('strict detached validators and stdio host joins reject hostile mutation and deletion', async () => {
+test('strict detached validators and external ingress host joins reject hostile mutation and deletion', async () => {
   const { game, view, req } = morganaProposal(5)
   const agent = createComposedAgent({
     seed: game.seed,
@@ -725,7 +725,7 @@ test('strict detached validators and stdio host joins reject hostile mutation an
   const trace = output.trace!
   const expectedArchitectureIdentity =
     projectResolvedArchitectureIdentity(agent.resolvedBrain().description)
-  assert.doesNotThrow(() => parseStdioDecisionReply(
+  assert.doesNotThrow(() => parseExternalDecisionReply(
     req,
     { decision: output.decision, trace },
     'phase7e1a',

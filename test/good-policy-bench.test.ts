@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
-import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
+import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { runArchitectureBench } from '../server/eval/architecture-bench.ts'
 import {
   architectureReport,
@@ -168,7 +168,7 @@ test('Phase 4 policy comparison reports confidence, latency, safety, and variati
   )
 })
 
-test('stdio rejects forged admitted planner reasons', async () => {
+test('external ingress rejects forged admitted planner reasons', async () => {
   const artifacts = await runArchitectureBench({
     variants: phase4PolicyVariants().filter(
       (variant) => variant.id === 'hybrid',
@@ -181,7 +181,7 @@ test('stdio rejects forged admitted planner reasons', async () => {
   )
   assert.ok(trace)
   assert.doesNotThrow(() =>
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       trace!.request,
       { decision: trace!.action, trace },
       'phase4d-valid',
@@ -190,7 +190,7 @@ test('stdio rejects forged admitted planner reasons', async () => {
   delete legacy.structuredCandidateId
   delete legacy.plannerReasonCodes
   assert.doesNotThrow(() =>
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       legacy.request,
       { decision: legacy.action, trace: legacy },
       'phase4c-compatible',
@@ -198,7 +198,7 @@ test('stdio rejects forged admitted planner reasons', async () => {
   const forged = structuredClone(trace!)
   forged.plannerReasonCodes = ['INVENTED_PRIVATE_REASON']
   assert.deepEqual(
-    parseStdioDecisionReply(
+    parseExternalDecisionReply(
       forged.request,
       { decision: forged.action, trace: forged },
       'phase4d-forged',
