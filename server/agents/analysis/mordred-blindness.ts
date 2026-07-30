@@ -7,6 +7,7 @@ import type {
 } from '../../engine/types.ts'
 import {
   canonicalTeam,
+  hasDistinctSeats,
   ROLE_ALIGNMENT,
   TEAM_SIZES,
 } from '../../engine/rules.ts'
@@ -251,7 +252,7 @@ export function buildPrivateMordredBlindnessObjective(input: {
       && (
         !currentTeam
         || currentTeam.length !== teamSize
-        || new Set(currentTeam).size !== currentTeam.length
+        || !hasDistinctSeats(currentTeam)
       )
     )
   ) {

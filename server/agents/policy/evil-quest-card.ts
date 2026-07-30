@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { fnv1a } from '../../engine/prng.ts'
 import {
   failsRequired as boardFailsRequired,
+  hasDistinctSeats,
   MAX_PLAYERS,
   MAX_PROPOSALS,
   MIN_PLAYERS,
@@ -170,7 +171,7 @@ export function decodeCanonicalRobustEvilQuestCardPolicy(
     || Number(context.proposalNum) > MAX_PROPOSALS
     || !seat(context.leaderSeat)
     || !currentTeam
-    || new Set(currentTeam).size !== currentTeam.length
+    || !hasDistinctSeats(currentTeam as readonly Seat[])
     || !currentTeam.every(seat)
     || !Number.isSafeInteger(context.teamSize)
     || context.teamSize !== currentTeam.length

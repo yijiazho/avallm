@@ -5,7 +5,7 @@
 import { parseArgs } from 'node:util'
 import { createInterface } from 'node:readline'
 import { createGame } from '../engine/game.ts'
-import { teamsEqual } from '../engine/rules.ts'
+import { hasDistinctSeats, teamsEqual } from '../engine/rules.ts'
 import { eventVisibleTo } from '../engine/view.ts'
 import { createHeuristicAgent } from '../agents/heuristic.ts'
 import { runGame } from './runner.ts'
@@ -81,7 +81,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
         const raw = await ask(`You lead. Pick ${size} seats (${roster}), comma-separated: `)
         const team = raw.split(/[\s,]+/).filter(Boolean).map(Number)
         if (team.length === size && team.every((s) => Number.isInteger(s) && s >= 0 && s < playerCount)
-          && new Set(team).size === size) {
+          && hasDistinctSeats(team)) {
           return { kind: 'propose', team }
         }
         console.log(`Need exactly ${size} distinct valid seats.`)
@@ -98,7 +98,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
         const identical = teamsEqual(team2, view.currentTeam ?? [])
         if (!identical && team2.length === size
           && team2.every((s) => Number.isInteger(s) && s >= 0 && s < playerCount)
-          && new Set(team2).size === size) {
+          && hasDistinctSeats(team2)) {
           const reason = await ask('One sentence to the table on why you changed: ')
           return { kind: 'finalize', stick: false, team: team2, reason }
         }

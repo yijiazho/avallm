@@ -1,5 +1,6 @@
 import type { Role, Seat } from '../../engine/types.ts'
 import {
+  hasDistinctSeats,
   ROLE_ALIGNMENT,
   validateRoles,
 } from '../../engine/rules.ts'
@@ -146,7 +147,7 @@ export function assessPublicJointTeams(
     if (
       team.length === 0
       || team.length > record.playerCount
-      || new Set(team).size !== team.length
+      || !hasDistinctSeats(team)
       || team.some(
         (seat) =>
           !Number.isSafeInteger(seat)

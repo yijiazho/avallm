@@ -6,6 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { isDecisionKind } from '../../engine/types.ts'
+import { hasDistinctSeats } from '../../engine/rules.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
 import {
   plainDetachedData,
@@ -197,7 +198,7 @@ function validDecision(value: unknown): value is Decision {
             && seat >= 0
             && seat <= 9,
         )
-        && new Set(decision.team).size === decision.team.length
+        && hasDistinctSeats(decision.team as readonly Seat[])
         && (
           decision.pitch === undefined
           || (typeof decision.pitch === 'string' && decision.pitch.length <= 400)
@@ -221,7 +222,7 @@ function validDecision(value: unknown): value is Decision {
               && seat >= 0
               && seat <= 9,
           )
-          && new Set(decision.team).size === decision.team.length
+          && hasDistinctSeats(decision.team as readonly Seat[])
           && (
             decision.reason === undefined
             || (typeof decision.reason === 'string' && decision.reason.length <= 400)
@@ -355,7 +356,7 @@ function validCommitmentBasis(
           && seat >= 0
           && seat <= 9,
       )
-      && new Set(payload.team).size === payload.team.length
+      && hasDistinctSeats(payload.team as readonly Seat[])
   })
 }
 
@@ -478,8 +479,7 @@ function validatePrivatePlanMemoryInner(
           || !entry.coherence.currentTeam.every(
             (seat) => Number.isInteger(seat) && seat >= 0 && seat <= 9,
           )
-          || new Set(entry.coherence.currentTeam).size
-            !== entry.coherence.currentTeam.length
+          || !hasDistinctSeats(entry.coherence.currentTeam as readonly Seat[])
         )
       )
       || !isDeepStrictEqual(

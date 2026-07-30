@@ -2,7 +2,7 @@
 // salvage first, explicit parseFailed distinct from empty. Legality beyond
 // shape (team size, seat ranges) is checked by the agent/engine, not here.
 
-import { lastMentionIndex, teamsEqual } from '../engine/rules.ts'
+import { hasDistinctSeats, lastMentionIndex, teamsEqual } from '../engine/rules.ts'
 import type { Decision, PlayerView, Seat } from '../engine/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 
@@ -251,7 +251,7 @@ export function legalityError(d: Decision, view: PlayerView): string | null {
   if (d.kind === 'propose' || (d.kind === 'finalize' && d.stick === false)) {
     const size = view.quests[view.round - 1].teamSize
     if (d.team.length !== size) return `team must have exactly ${size} members, got ${d.team.length}`
-    if (new Set(d.team).size !== d.team.length) return 'team has duplicate seats'
+    if (!hasDistinctSeats(d.team)) return 'team has duplicate seats'
     if (d.team.some((s) => s < 0 || s >= view.playerCount)) return 'team has an invalid seat number'
   }
   if (d.kind === 'finalize' && d.stick === false) {

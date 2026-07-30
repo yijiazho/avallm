@@ -7,6 +7,7 @@ import type {
 } from '../../engine/types.ts'
 import {
   canonicalTeam,
+  hasDistinctSeats,
   ROLE_ALIGNMENT,
   TEAM_SIZES,
   teamsEqual,
@@ -405,7 +406,7 @@ function buildMorganaCounterfeitObjectiveInternal(
       && (
         currentTeam === undefined
         || currentTeam.length !== expectedTeamSize
-        || new Set(currentTeam).size !== currentTeam.length
+        || !hasDistinctSeats(currentTeam)
         || currentTeam.some(
           (seat) =>
             !Number.isSafeInteger(seat)

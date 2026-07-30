@@ -4,6 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
+import { isCanonicalTeam } from '../../engine/rules.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
   assessPublicJointTeams,
@@ -399,8 +400,6 @@ function roleUtilitySchema(detached: unknown): boolean {
       || (common.team as unknown[]).length === 0
       || (common.team as unknown[]).length
         > (detached.source.playerCount as number)
-      || new Set(common.team as unknown[]).size
-        !== (common.team as unknown[]).length
       || !(common.team as unknown[]).every(
         (seat) =>
           typeof seat === 'number'
@@ -408,10 +407,9 @@ function roleUtilitySchema(detached: unknown): boolean {
           && seat >= 0
           && seat < playerCount,
       )
-      || (common.team as number[]).some(
-        (seat, index) =>
-          index > 0 && (common.team as number[])[index - 1] >= seat,
-      )
+      // Strictly ascending forbids a repeat, so this one call covers both the
+      // canonical seat order and the distinctness this schema requires.
+      || !isCanonicalTeam(common.team as readonly Seat[])
       || common.valueSemantics !== ROLE_UTILITY_VALUE_SEMANTICS
       || !probability(common.roleValue)
     ) return false

@@ -1,4 +1,6 @@
 import type { OpenRouterClient } from '../../llm/openrouter.ts'
+import type { Seat } from '../../engine/types.ts'
+import { hasDistinctSeats } from '../../engine/rules.ts'
 import {
   COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
@@ -106,7 +108,7 @@ function communicationDirection(
     )
     || !Array.isArray(targetSeats)
     || !targetSeats.every(Number.isInteger)
-    || new Set(targetSeats).size !== targetSeats.length
+    || !hasDistinctSeats(targetSeats as readonly Seat[])
     || !claimCodes
     || new Set(claimCodes).size !== claimCodes.length
     || !claimCodes.every((code) =>

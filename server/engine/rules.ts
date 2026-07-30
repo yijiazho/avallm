@@ -212,6 +212,23 @@ export function teamsEqual(
   return x.every((s, i) => s === y[i])
 }
 
+// A team is a set of seats, so no seat may appear twice. The Set idiom
+// new Set(team).size === team.length was open-coded across the agent admission,
+// analysis, policy, cognition, and simulation layers; this is the one place it
+// lives. Named for seats because that is what it guards — a proposal team, a
+// communication target list, any seat list that must be a set.
+export function hasDistinctSeats(team: readonly Seat[]): boolean {
+  return new Set(team).size === team.length
+}
+
+// A team in canonical form: seats strictly ascending. Strictly ascending
+// already forbids a repeat, so this implies hasDistinctSeats — the open-coded
+// distinct-then-ascending pair that used to sit side by side over the same
+// array collapses to this single call.
+export function isCanonicalTeam(team: readonly Seat[]): boolean {
+  return team.every((seat, index) => index === 0 || team[index - 1] < seat)
+}
+
 // The knowledge matrix (research doc §3.3). The ONLY producer of night-phase
 // knowledge — deal, viewFor, and tests all share it.
 export function computeKnowledge(players: Player[], seat: Seat): PrivateInfo {

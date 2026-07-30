@@ -3,6 +3,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../engine/types.ts'
+import { hasDistinctSeats } from '../engine/rules.ts'
 import { isDeepStrictEqual } from 'node:util'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
@@ -653,7 +654,7 @@ function validPlannerCommunication(
     && value.version === COMMUNICATION_INTENT_VERSION
     && value.channel === expectedChannel
     && Array.isArray(value.targetSeats)
-    && new Set(value.targetSeats).size === value.targetSeats.length
+    && hasDistinctSeats(value.targetSeats)
     && value.targetSeats.every(
       (seat) => Number.isInteger(seat)
         && view.players.some((player) => player.seat === seat),

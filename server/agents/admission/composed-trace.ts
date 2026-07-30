@@ -9,6 +9,8 @@ import {
   isProxy,
 } from 'node:util/types'
 import {
+  hasDistinctSeats,
+  isCanonicalTeam,
   MAX_PROPOSALS,
   QUESTS_TO_WIN,
 } from '../../engine/rules.ts'
@@ -16,6 +18,7 @@ import type {
   Decision,
   DecisionRequest,
   PlayerView,
+  Seat,
 } from '../../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
@@ -956,10 +959,7 @@ function validBeliefTeamAssessments(value: unknown): boolean {
         assessment.probabilitySemantics as string,
       )
       && seatArray(team)
-      && new Set(team).size === team.length
-      && team.every(
-        (seat, index) => index === 0 || team[index - 1] < seat,
-      )
+      && isCanonicalTeam(team)
       && probability(assessment.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
@@ -991,8 +991,7 @@ function validCandidateScores(value: unknown): boolean {
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
       && seatArray(team)
-      && new Set(team).size === team.length
-      && team.every((seat, index) => index === 0 || team[index - 1] < seat)
+      && isCanonicalTeam(team)
       && probability(features.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
@@ -1047,10 +1046,7 @@ function validCandidateScores(value: unknown): boolean {
       && features.beliefModelVersion.length > 0
       && Number.isInteger(features.beliefThroughSeq)
       && seatArray(currentTeam)
-      && new Set(currentTeam).size === currentTeam.length
-      && currentTeam.every(
-        (seat, index) => index === 0 || currentTeam[index - 1] < seat,
-      )
+      && isCanonicalTeam(currentTeam)
       && probability(features.currentCleanProbability)
       && Array.isArray(currentDistribution)
       && currentDistribution.length === currentTeam.length + 1
@@ -1066,10 +1062,7 @@ function validCandidateScores(value: unknown): boolean {
         `${LEGAL_CANDIDATE_VERSION}:propose:`,
       )
       && seatArray(alternativeTeam)
-      && new Set(alternativeTeam).size === alternativeTeam.length
-      && alternativeTeam.every(
-        (seat, index) => index === 0 || alternativeTeam[index - 1] < seat,
-      )
+      && isCanonicalTeam(alternativeTeam)
       && features.bestAlternativeCandidateId === (
         `${LEGAL_CANDIDATE_VERSION}:propose:`
         + alternativeTeam.join(',')
@@ -1591,8 +1584,7 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       intent.version !== COMMUNICATION_INTENT_VERSION
       || intent.channel !== expectedChannel
       || !seatArray(intent.targetSeats)
-      || new Set(intent.targetSeats as number[]).size
-        !== (intent.targetSeats as number[]).length
+      || !hasDistinctSeats(intent.targetSeats as readonly Seat[])
       || !Array.isArray(claimCodes)
       || new Set(claimCodes).size !== claimCodes.length
       || !claimCodes.every((code) =>
