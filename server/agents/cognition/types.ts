@@ -146,7 +146,18 @@ export const isPublicEvidence = (record: Evidence): record is PublicEvidence =>
   !privateKinds.has(record.kind)
 
 export type CommitmentKind = 'team' | 'vote' | 'utterance'
-export type CommitmentStatus = 'current' | 'superseded'
+
+/**
+ * Whether a superseding record has replaced this one. A `superseded` record
+ * always names its successor; a `current` one never carries a `supersededBy`.
+ * Encoded as a discriminated union so the correlation cannot be violated by
+ * construction (there is no representable `current`-with-successor state).
+ * Shared by the public commitment ledger and the private plan-memory history,
+ * which both track supersession this way.
+ */
+export type SupersessionState =
+  | { status: 'current' }
+  | { status: 'superseded'; supersededBy: string }
 
 export interface CommitmentContext {
   round?: number
@@ -155,7 +166,7 @@ export interface CommitmentContext {
   team?: readonly Seat[]
 }
 
-export interface PublicCommitment {
+export type PublicCommitment = {
   id: string
   sourceId: string
   sourceSeq: number
@@ -167,9 +178,7 @@ export interface PublicCommitment {
     | { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
     | { type: 'vote'; vote: 'approve' | 'reject' }
     | { type: 'utterance'; text: string; channel: 'discussion' | 'pitch' | 'revision-reason' }
-  status: CommitmentStatus
-  supersededBy?: string
-}
+} & SupersessionState
 
 export interface CognitionVersions {
   schema: typeof COGNITION_SCHEMA_VERSION

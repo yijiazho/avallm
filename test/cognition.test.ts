@@ -116,9 +116,12 @@ test('commitment ledger records proposals, revisions, votes, and literal speech'
   const commitments = reconstructCognition(after).commitments
   const teams = commitments.filter((commitment) => commitment.kind === 'team')
   assert.equal(teams.length, 2)
-  assert.equal(teams[0].status, 'superseded')
-  assert.equal(teams[0].supersededBy, teams[1].id)
-  assert.equal(teams[1].status, 'current')
+  const [firstTeam, secondTeam] = teams
+  assert.equal(firstTeam.status, 'superseded')
+  if (firstTeam.status === 'superseded') {
+    assert.equal(firstTeam.supersededBy, secondTeam.id)
+  }
+  assert.equal(secondTeam.status, 'current')
   assert.ok(commitments.some((commitment) =>
     commitment.kind === 'vote'
     && commitment.payload.type === 'vote'

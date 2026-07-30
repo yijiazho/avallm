@@ -21,14 +21,12 @@ import {
   type CoherenceIntent,
 } from './coherence.ts'
 import { extractEvidence } from './evidence.ts'
-import type { PublicCommitment } from './types.ts'
+import type { PublicCommitment, SupersessionState } from './types.ts'
 
 export const PLAN_MEMORY_VERSION = 'private-plan-memory-v2'
 /** Finite private memory; older superseded entries are discarded FIFO. */
 export const PLAN_MEMORY_HISTORY_LIMIT = 128
 export const PLAN_MEMORY_SERIALIZED_LIMIT = 4_000_000
-
-export type PlanMemoryStatus = 'current' | 'superseded'
 
 export interface SelectedPlanSummary {
   decision: Decision
@@ -41,7 +39,7 @@ export interface SelectedPlanSummary {
   }>
 }
 
-export interface AppliedPlanHistoryEntry {
+export type AppliedPlanHistoryEntry = {
   id: string
   request: DecisionRequest
   viewThroughSeq: number
@@ -49,9 +47,7 @@ export interface AppliedPlanHistoryEntry {
   appliedDecision: Decision
   resolution: AppliedDecisionResolution
   coherence: CoherenceAssessment
-  status: PlanMemoryStatus
-  supersededBy?: string
-}
+} & SupersessionState
 
 export interface PrivatePlanMemory {
   version: typeof PLAN_MEMORY_VERSION
@@ -146,10 +142,11 @@ export function recordAppliedPlan(
     basis,
     input.view.currentTeam,
   )
-  const history = (input.memory?.history ?? []).map((entry) =>
-    entry.status === 'current'
-      ? { ...structuredClone(entry), status: 'superseded' as const, supersededBy: id }
-      : structuredClone(entry))
+  const history: AppliedPlanHistoryEntry[] = (input.memory?.history ?? []).map(
+    (entry) =>
+      entry.status === 'current'
+        ? { ...structuredClone(entry), status: 'superseded' as const, supersededBy: id }
+        : structuredClone(entry))
   history.push({
     id,
     request: { ...input.req },
@@ -400,6 +397,15 @@ function validSelectedSummary(value: unknown): value is SelectedPlanSummary {
     && validSelectedPlan(summary.plan)
 }
 
+/**
+ * Reads a possibly-present `supersededBy` off untrusted validator input.
+ * The `SupersessionState` union hides the field on a `current` entry, but the
+ * validators must still reject a persisted `current` record that smuggles a
+ * successor, so they inspect the raw shape rather than the narrowed type.
+ */
+const rawSupersededBy = (entry: AppliedPlanHistoryEntry): unknown =>
+  (entry as { supersededBy?: unknown }).supersededBy
+
 function validatePrivatePlanMemoryInner(
   value: unknown,
 ): value is PrivatePlanMemory {
@@ -523,7 +529,7 @@ function validatePrivatePlanMemoryInner(
     previousOrdinal = ordinal
     if (entry.status === 'current') {
       current++
-      if (index !== memory.history.length - 1 || entry.supersededBy !== undefined) {
+      if (index !== memory.history.length - 1 || rawSupersededBy(entry) !== undefined) {
         return false
       }
     } else if (
@@ -555,7 +561,7 @@ export function validateAppliedPlanOutcome(
   const match = typeof entry.id === 'string'
     ? /:n(\d+)$/.exec(entry.id)
     : null
-  if (!match || entry.status !== 'current' || entry.supersededBy !== undefined) {
+  if (!match || entry.status !== 'current' || rawSupersededBy(entry) !== undefined) {
     return false
   }
   const ordinal = Number(match[1])

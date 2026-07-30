@@ -29,6 +29,7 @@ import {
   recordAppliedPlan,
   validateAppliedPlanOutcomeHostJoin,
   validatePrivatePlanMemory,
+  type AppliedPlanHistoryEntry,
   type PrivatePlanMemory,
 } from '../server/agents/cognition/plan-memory.ts'
 import type { DecisionPlan } from '../server/agents/policy/plan.ts'
@@ -160,8 +161,11 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
     provisionalTrace: second.trace!,
   })
   let memory = agent.planMemorySnapshot()!
-  assert.equal(memory.history[0].status, 'superseded')
-  assert.equal(memory.history[0].supersededBy, memory.history[1].id)
+  const firstEntry = memory.history[0]
+  assert.equal(firstEntry.status, 'superseded')
+  if (firstEntry.status === 'superseded') {
+    assert.equal(firstEntry.supersededBy, memory.history[1].id)
+  }
   assert.equal(memory.history[1].status, 'current')
 
   const errorAgent = createComposedAgent({
@@ -1090,7 +1094,10 @@ test('agent-error fallback memory uses each exact supplied view without belief i
   assert.equal(memory.history.length, outcomes.length)
   for (let index = 0; index < memory.history.length; index++) {
     const outcome = outcomes[index]
-    const detached = structuredClone(memory.history[index])
+    // Forge a detached, standalone `current` outcome from a possibly-superseded
+    // history entry; the union hides `supersededBy`, so loosen it to strip.
+    const detached = structuredClone(memory.history[index]) as
+      AppliedPlanHistoryEntry & { supersededBy?: string }
     detached.status = 'current'
     delete detached.supersededBy
     assert.ok(validateAppliedPlanOutcomeHostJoin(
@@ -1230,9 +1237,12 @@ test('artifacts, architecture bench, and report bind finalized plan attribution 
       .safety.traceAttributionViolations > 0,
   )
   const forgedStatus = structuredClone(artifact)
-  forgedStatus.decisionTraces![0].privatePlanOutcome!.status = 'superseded'
-  forgedStatus.decisionTraces![0].privatePlanOutcome!.supersededBy =
-    'forged-successor'
+  // Forge a superseded-but-detached outcome; the union hides `supersededBy` on
+  // a non-superseded value, so loosen the reference to smuggle one in.
+  const forgedOutcome = forgedStatus.decisionTraces![0].privatePlanOutcome! as
+    AppliedPlanHistoryEntry & { supersededBy?: string }
+  forgedOutcome.status = 'superseded'
+  forgedOutcome.supersededBy = 'forged-successor'
   assert.ok(
     architectureReport([forgedStatus]).variants[0]
       .safety.traceAttributionViolations > 0,
