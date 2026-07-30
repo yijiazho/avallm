@@ -3385,8 +3385,7 @@ function validExactComposedTraceHostJoin(
     })
     if (invalidSeedBucket) return false
 
-    const relationTrace = structuredClone(trace) as unknown as
-      Record<string, unknown>
+    const relationTrace: DecisionTrace = structuredClone(trace)
     relationTrace.action = structuredClone(selectedDecision)
     return validComposedTraceRelations(relationTrace)
   } catch {

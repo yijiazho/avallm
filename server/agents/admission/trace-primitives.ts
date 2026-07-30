@@ -7,7 +7,20 @@ import type { ForcedPolicyResult } from '../policy/types.ts'
 import { FORCED_POLICY_VERSION } from '../policy/types.ts'
 import { FORCED_PLAY_REASON_CODES } from '../analysis/types.ts'
 
-/** Shared shape for validators that accept a trace or a raw record. */
+/**
+ * Shared shape for validators that accept a trace or a raw record.
+ *
+ * The two arms are both live and neither is redundant. validDecisionTrace is a
+ * type guard over `unknown`, so it narrows to a raw record and hands that to
+ * these helpers; the post-admission callers already hold a DecisionTrace and
+ * hand that to the same helpers. Collapsing the union to DecisionTrace would
+ * assert validity inside the code whose job is to establish it, and collapsing
+ * it to Record<string, unknown> only moves the casts out to the call sites.
+ * Both were compiled: 9 errors and 14 errors respectively, not zero either way.
+ * The field-level casts these helpers carry are the cost of that honesty, not
+ * an oversight; ROADMAP item 18 holds the parse-don't-validate rewrite that
+ * would actually retire them.
+ */
 export type TraceValidationInput = Record<string, unknown> | DecisionTrace
 
 /**

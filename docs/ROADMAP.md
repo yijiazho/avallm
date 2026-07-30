@@ -93,6 +93,24 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
     recommended at 7+; **Targeting** (leader picks quest order); **Excalibur** (force-switch a
     played card). Research doc §4 has the exact rules. Each is an engine phase addition + UI.
 
+## Internal quality (unscheduled)
+
+18. **Parse the decision trace instead of validating it in place.** `validDecisionTrace` is an
+    honest type guard over `unknown`, so it narrows to a raw record and every downstream helper
+    reads fields through a cast: roughly 35 in `admission/composed-trace.ts` alone, plus the
+    `TraceValidationInput` union that lets those helpers serve both the guard and the callers who
+    already hold a `DecisionTrace`. None of that is removable by retyping, and both collapses were
+    compiled rather than argued: to `DecisionTrace` it is 9 errors, seven of them the guard handing
+    its own raw record to a helper, so that direction asserts validity inside the code that
+    establishes it; to `Record<string, unknown>` it is 14 errors, every one a `DecisionTrace` call
+    site that would need a fresh cast, so that direction only moves the casts outward. The real fix
+    is a `parseDecisionTrace(value: unknown): DecisionTrace | null` that narrows each field once and
+    builds a typed value, after which the helpers take `DecisionTrace` with no casts. That is a
+    rewrite of a 4,347-line security boundary across 25 `valid*` validators, and it has to preserve
+    every rejection reason exactly, so it wants its own project and a rejection-parity harness
+    (same corpus through both implementations, asserting identical accept/reject *and* identical
+    reason codes) rather than an incremental edit.
+
 ## Deliberately not doing
 
 - **Turn timers** — rejected by design; correspondence pacing is the identity.
