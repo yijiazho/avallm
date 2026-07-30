@@ -7,6 +7,7 @@ const LANES = Object.freeze({
     'architecture-fitness.test.ts',
     'belief-fixtures.test.ts',
     'belief-foundations.test.ts',
+    'belief-invariants.test.ts',
     'belief-rendering.test.ts',
     'belief.test.ts',
     'brain.test.ts',

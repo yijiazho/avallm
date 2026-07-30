@@ -27,6 +27,7 @@ import {
   enumerateCanonicalWorlds,
 } from './worlds.ts'
 import { projectUniformJointWorlds } from './projection.ts'
+import { assertDistribution } from './invariants.ts'
 
 const DEAL_CACHE_LIMIT = 32
 const dealWorldCache = new Map<string, readonly HiddenWorld[]>()
@@ -157,6 +158,34 @@ function roleMarginals(
   return out
 }
 
+// Postcondition for every snapshot beliefFromWeightedWorlds emits: the world
+// weights, each seat's alignment split, and each seat's role spread are all
+// distributions. Checking the emitted object (not the intermediate arrays) means
+// the guard covers both projection sources, the uniform kernel and the local
+// fallbacks, from one place. A violation is a normalization bug in this module,
+// so it throws rather than degrading a knowingly corrupt posterior downstream.
+function assertSnapshotDistributions(snapshot: BeliefSnapshot): void {
+  assertDistribution(
+    snapshot.worlds.map((weightedWorld) => weightedWorld.probability),
+    'belief world distribution',
+  )
+  for (const marginal of snapshot.playerMarginals) {
+    assertDistribution(
+      [marginal.goodProbability, marginal.evilProbability],
+      `seat ${marginal.seat} alignment marginal`,
+    )
+  }
+  const roleProbabilitiesBySeat = new Map<Seat, number[]>()
+  for (const marginal of snapshot.roleMarginals) {
+    const bucket = roleProbabilitiesBySeat.get(marginal.seat) ?? []
+    bucket.push(marginal.probability)
+    roleProbabilitiesBySeat.set(marginal.seat, bucket)
+  }
+  for (const [seat, probabilities] of roleProbabilitiesBySeat) {
+    assertDistribution(probabilities, `seat ${seat} role marginal`)
+  }
+}
+
 export function topWorlds(
   worlds: readonly WeightedWorld[],
   limit = DEFAULT_TOP_WORLD_LIMIT,
@@ -238,7 +267,7 @@ export function beliefFromWeightedWorlds(
           + weightedWorld.probability * Math.log2(weightedWorld.probability),
         0,
       )
-  return {
+  const snapshot: BeliefSnapshot = {
     throughSeq: visibleEventCursor(view),
     modelVersion: options.modelVersion,
     quality: options.quality,
@@ -252,6 +281,8 @@ export function beliefFromWeightedWorlds(
     provenance: structuredClone(options.provenance ?? []),
     degradation: [...(options.degradation ?? [])],
   }
+  assertSnapshotDistributions(snapshot)
+  return snapshot
 }
 
 export function exactBelief(view: PlayerView): BeliefSnapshot {
@@ -348,6 +379,14 @@ export function assessTeams(
     const evilCountDistribution = uniform
       ? evilWorldCounts.map((count) => count / snapshot.worlds.length)
       : evilWorldCounts.map((weight) => weight / totalWeight)
+    // Postcondition guarding the two-denominator split above: the uniform branch
+    // divides by the world count, the weighted branch by the accumulated weight.
+    // If either denominator is wrong the masses stop summing to 1, and clean
+    // probability (index 0) silently misreports how safe the team is.
+    assertDistribution(
+      evilCountDistribution,
+      `team ${team.join('-')} evil-count distribution`,
+    )
     return {
       team,
       cleanProbability: evilCountDistribution[0],
