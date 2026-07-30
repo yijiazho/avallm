@@ -140,8 +140,9 @@ const EXPECTED_SEATS: Readonly<
 /**
  * Target-role major, unlike the player-count-major good bank. The full-role
  * bench groups by target role, and a role here spans an uneven set of table
- * sizes, so grouping first keeps a `--cases` prefix a whole-role slice instead
- * of an arbitrary fragment of three roles.
+ * sizes, so grouping first keeps a `--cases` prefix inside one role at a time
+ * rather than clipping four roles at once. A prefix is still a fragment unless
+ * it lands on a role boundary; `--target-role` is the exact shard.
  */
 export const PHASE7_EVIL_POLICY_BANK: readonly ArchitectureBankCase[] =
   PHASE7_EVIL_TARGET_ROLES.flatMap((targetRole) =>

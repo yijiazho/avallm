@@ -369,9 +369,6 @@ async function main(): Promise<void> {
       }`,
     )
   }
-  const out = values.out ?? `data/eval/${bank.id}${
-    targetRole ? `-${targetRole}` : ''
-  }.jsonl`
   const limit = values.cases === undefined
     ? selected.length
     : Number(values.cases)
@@ -391,6 +388,14 @@ async function main(): Promise<void> {
     values.opponents === 'both'
       ? ['heuristic', 'random']
       : [values.opponents as Phase7FullRolePopulation]
+  // Every narrowing flag has to reach the default path. Two shards that differ
+  // only by population would otherwise append to one file concurrently, and
+  // artifacts here run to hundreds of kilobytes, so the interleaved writes tear
+  // JSON lines apart. assertFreshArchitectureOutput cannot catch that: both
+  // processes check before either writes. The unnarrowed path is unchanged.
+  const out = values.out ?? `data/eval/${bank.id}${
+    targetRole ? `-${targetRole}` : ''
+  }${values.opponents === 'both' ? '' : `-${values.opponents}`}.jsonl`
   assertFreshArchitectureOutput(out)
   const report = await runPhase7FullRoleBench({
     bank,
