@@ -101,7 +101,8 @@ export function projectPublicRecord(view: PlayerView): PublicRecord {
     ...(view.discussionPostRevision === undefined
       ? {}
       : { discussionPostRevision: view.discussionPostRevision }),
-    ...(view.winner ? { winner: view.winner } : {}),
-    ...(view.winReason ? { winReason: view.winReason } : {}),
+    ...(view.outcome
+      ? { winner: view.outcome.winner, winReason: view.outcome.reason }
+      : {}),
   }
 }

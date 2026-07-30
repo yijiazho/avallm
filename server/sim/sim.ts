@@ -349,8 +349,8 @@ async function playGame(i: number): Promise<void> {
   // Tally + artifact writes run synchronously between awaits, so even with games
   // in flight concurrently there is no interleaving here: no shared-state race on
   // the tally, and appendFileSync writes each artifact line atomically.
-  tally[result.game.winner!]++
-  tally.reasons.set(result.game.winReason!, (tally.reasons.get(result.game.winReason!) ?? 0) + 1)
+  tally[result.game.outcome!.winner]++
+  tally.reasons.set(result.game.outcome!.reason, (tally.reasons.get(result.game.outcome!.reason) ?? 0) + 1)
   tally.degraded += result.degraded.length
   // Grade forced plays in-process. toArtifact allocates in memory and writes
   // nothing (its only impurity is a createdAt timestamp), so this runs whether or
@@ -381,7 +381,7 @@ async function playGame(i: number): Promise<void> {
     '',
     revealRoles(game),
     '',
-    `Winner: ${game.winner} (${game.winReason})  [seed ${seed}]`,
+    `Winner: ${game.outcome?.winner} (${game.outcome?.reason})  [seed ${seed}]`,
     ...result.degraded.map((d) => `degraded: seat ${d.seat} ${d.kind} — ${d.error.slice(0, 120)}`),
     // Alongside the reveal, because a blunder is only legible once you know who
     // was evil, and "which decisions were deterministically wrong" is the first
@@ -425,8 +425,8 @@ async function playGame(i: number): Promise<void> {
       // reports violation totals with nothing saying which game or seat, which is
       // the hand-parsing this reporting exists to remove.
       violations: violations.map((v) => ({ seat: v.seat, rule: v.rule, round: v.round, detail: v.detail })),
-      winner: game.winner,
-      winReason: game.winReason,
+      winner: game.outcome?.winner,
+      winReason: game.outcome?.reason,
       revealed: true,
       capturedAt: new Date().toISOString(),
       // The raw JSONL belongs to --out, which writes a replayable artifact.

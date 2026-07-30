@@ -117,7 +117,7 @@ export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
       if (opts.out) appendArtifact(opts.out, artifact)
       artifacts.push(artifact)
       opts.onProgress?.(
-        `${seed} ${variant.padEnd(9)} ${def.id.padEnd(16)} -> ${game.winner} (${game.winReason})`
+        `${seed} ${variant.padEnd(9)} ${def.id.padEnd(16)} -> ${game.outcome?.winner} (${game.outcome?.reason})`
         + (result.degraded.length ? `  [${result.degraded.length} degraded]` : ''),
       )
     }

@@ -1331,7 +1331,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       })
       if (opts.out) appendArtifact(opts.out, artifact)
       artifacts.push(artifact)
-      const targetWon = target.alignment === game.winner
+      const targetWon = target.alignment === game.outcome?.winner
       const cost = llmTags
         ? Object.values(llmTags).reduce((sum, entry) => sum + entry.cost, 0)
         : 0

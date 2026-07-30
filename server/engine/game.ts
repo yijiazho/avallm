@@ -238,8 +238,7 @@ function rotateLeader(game: Game): void {
 }
 
 function endGame(game: Game, winner: 'good' | 'evil', reason: string): void {
-  game.winner = winner
-  game.winReason = reason
+  game.outcome = { winner, reason }
   game.phase = 'gameOver'
   game.discussion = undefined
   emit(game, 'gameOver', { winner, reason }, 'public')

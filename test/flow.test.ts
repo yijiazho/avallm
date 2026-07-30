@@ -123,8 +123,8 @@ test('quest 4 at 7 players survives one fail but not two; assassination decides 
   // Missing Merlin: good wins.
   const notMerlin = g.players.find((p) => p.role === 'servant')!
   applyDecision(g, assassin.seat, { kind: 'assassinate', target: notMerlin.seat })
-  assert.equal(g.winner, 'good')
-  assert.equal(g.winReason, 'assassinMissed')
+  assert.equal(g.outcome?.winner, 'good')
+  assert.equal(g.outcome?.reason, 'assassinMissed')
 })
 
 test('two fails break quest 4 at 7 players', () => {
@@ -150,8 +150,8 @@ test('assassinating Merlin steals the game for evil', () => {
   const assassin = g.players.find((p) => p.role === 'assassin')!
   const merlin = g.players.find((p) => p.role === 'merlin')!
   applyDecision(g, assassin.seat, { kind: 'assassinate', target: merlin.seat })
-  assert.equal(g.winner, 'evil')
-  assert.equal(g.winReason, 'merlinAssassinated')
+  assert.equal(g.outcome?.winner, 'evil')
+  assert.equal(g.outcome?.reason, 'merlinAssassinated')
 })
 
 test('three failed quests end the game immediately, no assassination', () => {
@@ -162,8 +162,8 @@ test('three failed quests end the game immediately, no assassination', () => {
   runRound(g, [evil[0], good[0], good[1]], [evil[0]])
   runRound(g, [evil[0], good[0], good[1]], [evil[0]])
   assert.equal(g.phase, 'gameOver')
-  assert.equal(g.winner, 'evil')
-  assert.equal(g.winReason, 'threeFails')
+  assert.equal(g.outcome?.winner, 'evil')
+  assert.equal(g.outcome?.reason, 'threeFails')
 })
 
 test('illegal decisions are rejected without corrupting state', () => {

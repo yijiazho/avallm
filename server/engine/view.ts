@@ -236,8 +236,7 @@ function createPlayerViewProjection(
             : {}),
         })),
         events: visibleEvents[seat].slice(),
-        winner: candidate.winner,
-        winReason: candidate.winReason,
+        outcome: candidate.outcome ? { ...candidate.outcome } : undefined,
       }
     },
     get projectedEventCount() {
@@ -291,8 +290,7 @@ export function viewForSpectator(game: Game): PlayerView {
     discussionRound: base.discussionRound,
     discussionPostRevision: base.discussionPostRevision,
     transcript: base.transcript,
-    winner: base.winner,
-    winReason: base.winReason,
+    outcome: base.outcome,
   }
 }
 

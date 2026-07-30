@@ -106,7 +106,7 @@ const revealData: RevealPayload = {
   log: [{ seq: 1, type: 'assassination', payload: { assassin: 4, target: 3, wasMerlin: false }, visibility: 'public' }],
   degraded: [],
 }
-const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameOver', winner: 'good', winReason: 'assassinMissed' })
+const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameOver', outcome: { winner: 'good', reason: 'assassinMissed' } })
 
 // Faithful wrappers — mirror App.tsx so the components' parent-scoped styles
 // (aside width, the lacquer action rail, the table zone) resolve as they do in game.

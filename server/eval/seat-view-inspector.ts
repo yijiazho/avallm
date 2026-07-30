@@ -9,6 +9,7 @@ import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { eventVisibleTo } from '../engine/view.ts'
 import type {
+  Alignment,
   DecisionRequest,
   Game,
   GameEvent,
@@ -175,7 +176,7 @@ export interface SeatViewInspection {
     currentTeam?: SeatRef[]
     discussionRound?: number
     discussionPostRevision?: boolean
-    winner?: PlayerView['winner']
+    winner?: Alignment
     winReason?: string
   }
   visibleHistory: {
@@ -715,12 +716,13 @@ function validateBoundary(req: DecisionRequest, view: PlayerView): void {
   if (inspectedView.discussionPostRevision !== undefined) {
     assertBoolean(inspectedView.discussionPostRevision, 'discussionPostRevision')
   }
-  if (inspectedView.winner !== undefined
-      && inspectedView.winner !== 'good'
-      && inspectedView.winner !== 'evil') {
-    fail('winner must be good or evil')
+  if (inspectedView.outcome !== undefined) {
+    const outcome = asRecord(inspectedView.outcome, 'outcome')
+    if (outcome.winner !== 'good' && outcome.winner !== 'evil') {
+      fail('outcome.winner must be good or evil')
+    }
+    assertString(outcome.reason, 'outcome.reason')
   }
-  if (inspectedView.winReason !== undefined) assertString(inspectedView.winReason, 'winReason')
 }
 
 function seatLookup(view: PlayerView): Map<Seat, SeatRef> {
@@ -873,8 +875,9 @@ export function inspectSeatView(
       ...(view.discussionPostRevision === undefined
         ? {}
         : { discussionPostRevision: view.discussionPostRevision }),
-      ...(view.winner === undefined ? {} : { winner: view.winner }),
-      ...(view.winReason === undefined ? {} : { winReason: view.winReason }),
+      ...(view.outcome === undefined
+        ? {}
+        : { winner: view.outcome.winner, winReason: view.outcome.reason }),
     },
     visibleHistory: {
       transcript: view.transcript.map(inspectTranscriptEntry),

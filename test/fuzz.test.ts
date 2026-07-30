@@ -23,14 +23,14 @@ async function play(
 
 function checkInvariants(game: Game, ctx: string): void {
   assert.equal(game.phase, 'gameOver', ctx)
-  assert.ok(game.winner === 'good' || game.winner === 'evil', ctx)
+  assert.ok(game.outcome?.winner === 'good' || game.outcome?.winner === 'evil', ctx)
   const resolved = game.quests.filter((q) => q.result !== undefined)
   const successes = resolved.filter((q) => q.result === 'success').length
   const fails = resolved.filter((q) => q.result === 'fail').length
   assert.ok(successes <= 3 && fails <= 3, ctx)
-  if (game.winReason === 'threeFails') assert.equal(fails, 3, ctx)
-  if (game.winReason === 'threeQuests' || game.winReason === 'assassinMissed'
-    || game.winReason === 'merlinAssassinated') {
+  if (game.outcome?.reason === 'threeFails') assert.equal(fails, 3, ctx)
+  if (game.outcome?.reason === 'threeQuests' || game.outcome?.reason === 'assassinMissed'
+    || game.outcome?.reason === 'merlinAssassinated') {
     assert.equal(successes, 3, ctx)
   }
   for (const q of resolved) {
@@ -71,7 +71,7 @@ test('both sides can win under heuristic play', async () => {
   const winners = new Set<string>()
   for (let s = 0; s < 40 && winners.size < 2; s++) {
     const { game } = await play(7, `win-${s}`, { type: 'heuristic' }, { maxRounds: 0, maxRoundsAfterChange: 0 })
-    winners.add(game.winner!)
+    winners.add(game.outcome!.winner)
   }
   assert.ok(winners.has('good'), 'good never won in 40 games — heuristics degenerate')
   assert.ok(winners.has('evil'), 'evil never won in 40 games — heuristics degenerate')

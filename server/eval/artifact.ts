@@ -490,7 +490,7 @@ function trustedDecisionComponentManifest(
 }
 
 export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
-  if (game.phase !== 'gameOver' || !game.winner || !game.winReason) {
+  if (game.phase !== 'gameOver' || !game.outcome) {
     throw new Error(`artifact requires a finished game (phase: ${game.phase})`)
   }
   if (opts.agents.length !== game.config.playerCount) {
@@ -533,8 +533,8 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
       seat: p.seat, name: p.name, role: p.role, alignment: p.alignment,
       agent: opts.agents[p.seat],
     })),
-    winner: game.winner,
-    winReason: game.winReason,
+    winner: game.outcome.winner,
+    winReason: game.outcome.reason,
     steps: opts.steps,
     degraded: opts.degraded,
     log: structuredClone(game.log),

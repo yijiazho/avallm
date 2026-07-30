@@ -45,7 +45,7 @@ test('replay reproduces archived games event-for-event', async () => {
     const { artifact } = await playAndCapture(seed, playerCount)
     const game = replayGame(artifact) // drift is a hard error inside
     assert.equal(game.log.length, artifact.log.length, `${seed}: full replay`)
-    assert.equal(game.winner, artifact.winner)
+    assert.equal(game.outcome?.winner, artifact.winner)
   }
 })
 

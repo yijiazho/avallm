@@ -90,8 +90,10 @@ export interface Game {
   currentTeam?: Seat[]
   pendingVotes: Record<Seat, 'approve' | 'reject'>
   pendingCards: Record<Seat, 'success' | 'fail'>
-  winner?: Alignment
-  winReason?: string
+  // Present iff the game is finished (phase === 'gameOver'). A single nested
+  // object rather than two correlated optionals: a winner never exists without
+  // the reason that produced it, and neither exists mid-game.
+  outcome?: { winner: Alignment; reason: string }
   log: GameEvent[]
 }
 
@@ -201,6 +203,7 @@ export interface PlayerView {
     prop?: { round: number; proposalNum: number; leader: Seat; team: Seat[] }
   }[]
   events: GameEvent[]           // only events visible to this seat
-  winner?: Alignment
-  winReason?: string
+  // Present iff the game is finished; see Game.outcome. Winner and reason
+  // travel together so a view can never show a winner without its reason.
+  outcome?: { winner: Alignment; reason: string }
 }

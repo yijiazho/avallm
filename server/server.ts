@@ -908,7 +908,7 @@ const server = http.createServer(async (req, res) => {
           // live client only a bare count — so a co-player in a multi-human game
           // gets no bot error detail the UI otherwise withholds.
           degraded: full ? s.degraded : undefined,
-          winner: s.game.winner, winReason: s.game.winReason,
+          winner: s.game.outcome?.winner, winReason: s.game.outcome?.reason,
           revealed: full,
           scopedTo: full ? undefined : (typeof who === 'number' ? who : 'spectator'),
           capturedAt: new Date().toISOString(),

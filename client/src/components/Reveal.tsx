@@ -15,7 +15,7 @@ export function Reveal({ view, reveal, onNewGame, onCopyLog, copyLabel }: {
   copyLabel: string
 }) {
   const [showThinking, setShowThinking] = useState(false)
-  const winnerCls = view.winner === 'good' ? 'ok' : 'bad'
+  const winnerCls = view.outcome?.winner === 'good' ? 'ok' : 'bad'
   // If the game ended on the Knife, name who the Assassin marked — the reveal is
   // the only screen shown at game over, so this beat lives nowhere else now.
   const shot = reveal?.log.find((ev) => ev.type === 'assassination')?.payload as
@@ -24,8 +24,8 @@ export function Reveal({ view, reveal, onNewGame, onCopyLog, copyLabel }: {
   return (
     <div className="reveal">
       <div className={`winner-banner ${winnerCls}`}>
-        {view.winner?.toUpperCase()} WINS
-        <span className="reason">: {winReasonText(view.winReason ?? '')}</span>
+        {view.outcome?.winner.toUpperCase()} WINS
+        <span className="reason">: {winReasonText(view.outcome?.reason ?? '')}</span>
       </div>
       {shot && (
         <div className="assassin-mark">

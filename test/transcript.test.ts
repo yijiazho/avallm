@@ -34,11 +34,11 @@ test('full-reveal transcript exposes roles, the whole log, and the raw JSONL', a
     id: game.id, seed: game.seed, playerCount: game.config.playerCount,
     phase: game.phase, round: game.round, proposalNum: game.proposalNum,
     leaderSeat: game.leaderSeat, quests: game.quests, seats: seatsFor(game, true),
-    log: game.log, winner: game.winner, winReason: game.winReason,
+    log: game.log, winner: game.outcome?.winner, winReason: game.outcome?.reason,
     revealed: true, capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: true,
   })
   assert.match(text, /FULL REVEAL/)
-  assert.match(text, new RegExp(`\\*\\*${game.winner!.toUpperCase()}\\*\\*`))
+  assert.match(text, new RegExp(`\\*\\*${game.outcome!.winner.toUpperCase()}\\*\\*`))
   assert.match(text, /\*\*\* (GOOD|EVIL) wins/)
   // Every seat's role appears (from the seat table) and the raw JSONL carries
   // exactly one line per logged event.
@@ -81,7 +81,7 @@ test('backticks in free-form text do not break the code fences', async () => {
     id: game.id, seed: game.seed, playerCount: game.config.playerCount,
     phase: game.phase, round: game.round, proposalNum: game.proposalNum,
     leaderSeat: game.leaderSeat, quests: game.quests, seats: seatsFor(game, true),
-    log: game.log, winner: game.winner, winReason: game.winReason,
+    log: game.log, winner: game.outcome?.winner, winReason: game.outcome?.reason,
     revealed: true, capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: true,
   })
   // The play-by-play fence must be longer than the 3-backtick run in the body,
