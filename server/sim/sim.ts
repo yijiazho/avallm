@@ -9,17 +9,21 @@ import { createAgent, createAgentFromDef } from '../agents/registry.ts'
 import { loadAgentLibrary } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
-import { runGame } from './runner.ts'
+import { runGame, type RunResult } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import { renderTranscript } from '../transcript.ts'
 import { appendArtifact, toArtifact } from '../eval/artifact.ts'
-import { FORCED_PLAY_RULES, forcedPlayViolations, type ForcedPlayRule } from '../eval/forced.ts'
+import {
+  FORCED_PLAY_RULES, forcedPlayViolations,
+  type ForcedPlayRule, type ForcedPlayViolation,
+} from '../eval/forced.ts'
 import {
   SPEECH_NORMS, SPEECH_NORM_IDS, mergeSpeechNorms, newSpeechNormReport, speechNorms,
 } from '../eval/norms.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import {
   COMPOSED_BRAIN_PRESETS,
+  type AgentContext,
   type AgentSpec,
   type AvalonAgent,
   type ComposedBrainPreset,
@@ -28,7 +32,7 @@ import {
   upsertDecisionTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
-import type { Seat } from '../engine/types.ts'
+import type { Game, Seat } from '../engine/types.ts'
 
 const USAGE = `npm run sim -- [flags]        headless Avalon simulator
 
@@ -238,65 +242,85 @@ const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${f
   : composedBrain ? `composed:${composedBrain}`
   : values.agents!
 
-// `tierTable` is this game's cast for --tier, threaded through rather than read
-// from module state: with --concurrency > 1 several games are in flight at once,
-// each with its own draw, so a shared "current table" would let one game name its
-// seats from another's cast.
-function specFor(seat: Seat, tierTable?: string[]): AgentSpec {
-  if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length].id }
-  if (composedBrain) return { type: 'composed', brain: composedBrain }
-  if (values.agents === 'random') return { type: 'random' }
-  if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
-  return { type: 'heuristic' }
-}
-
-function agentFor(
-  seat: Seat,
-  seed: string,
-  tierTable?: string[],
-  onDecisionTrace?: (trace: DecisionTrace) => void,
-): AvalonAgent {
-  const context = { seed, seat, onDecisionTrace }
-  if (packTable && packDefs) {
-    return createAgentFromDef(packDefs[seat], context, packTable[seat].model)
-  }
-  return createAgent(specFor(seat, tierTable), context)
-}
-
-// LLM tables are named after their models — the premise of the game. A homogeneous
-// table numbers every seat (Kimi 1..Kimi 7) so the transcript can still tell them apart.
-// A pack table is named after its characters (the models still show in the spend
-// breakdown), with the same dedupe if a name repeats.
-function namesFor(count: number, tierTable?: string[]): string[] | undefined {
-  if (!isLlm) return undefined
-  // A --tier cast repeats models freely (4 mid models over 7 seats), so dedupe by
-  // display name the same way a homogeneous table does.
-  if (tierTable) {
-    const used = new Map<string, number>()
-    return Array.from({ length: count }, (_, seat) => {
-      const display = rosterById(tierTable[seat]).displayName
-      const n = (used.get(display) ?? 0) + 1
-      used.set(display, n)
-      return n === 1 ? display : `${display} ${n}`
-    })
-  }
-  if (packDefs) {
-    const used = new Map<string, number>()
-    return packDefs.slice(0, count).map((def) => {
-      const n = (used.get(def.name) ?? 0) + 1
-      used.set(def.name, n)
-      return n === 1 ? def.name : `${def.name} ${n}`
-    })
-  }
-  if (forcedModel) {
-    const entry = rosterById(forcedModel)
-    return Array.from({ length: count }, (_, seat) => `${entry.displayName} ${seat + 1}`)
-  }
-  return Array.from({ length: count }, (_, seat) => {
-    const entry = ROSTER[seat % ROSTER.length]
-    const dup = Math.floor(seat / ROSTER.length)
-    return dup ? `${entry.displayName} ${dup + 1}` : entry.displayName
+// Repeated display names get a numeric suffix (Kimi, Kimi 2, Kimi 3). One helper
+// so the --tier and --pack casts, which both draw names that can collide, dedupe
+// the same way instead of each carrying its own copy of the loop.
+function dedupeNames(displays: string[]): string[] {
+  const used = new Map<string, number>()
+  return displays.map((display) => {
+    const n = (used.get(display) ?? 0) + 1
+    used.set(display, n)
+    return n === 1 ? display : `${display} ${n}`
   })
+}
+
+// The resolved "who sits where" for one game: specs, agents, display names, and
+// per-seat descriptors, all reading from a SINGLE decision instead of each
+// consumer re-running the same flag ladder in its own precedence order.
+interface TablePlan {
+  agent(seat: Seat, ctx: AgentContext): AvalonAgent
+  names(count: number): string[] | undefined
+  descriptor(seat: Seat): string
+  readonly label: string
+}
+
+// Resolve the plan once per game. The --tier cast is drawn here from this game's
+// own seed rather than read from module state: with --concurrency > 1 several
+// games are in flight at once, each with its own draw, so a shared "current
+// table" would let one game name its seats from another's cast. Everything the
+// plan exposes closes over that single draw, so the specs, names, and descriptors
+// can never disagree about which model played which seat.
+function resolveTablePlan(seed: string): TablePlan {
+  const tierTable = tierTableFor(seed)
+
+  const spec = (seat: Seat): AgentSpec => {
+    if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length].id }
+    if (composedBrain) return { type: 'composed', brain: composedBrain }
+    if (values.agents === 'random') return { type: 'random' }
+    if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
+    return { type: 'heuristic' }
+  }
+
+  const agent = (seat: Seat, ctx: AgentContext): AvalonAgent => {
+    if (packTable && packDefs) return createAgentFromDef(packDefs[seat], ctx, packTable[seat].model)
+    return createAgent(spec(seat), ctx)
+  }
+
+  // LLM tables are named after their models — the premise of the game. A --tier
+  // cast repeats models freely (4 mid models over 7 seats) and a pack table is
+  // named after its characters (the models still show in the spend breakdown),
+  // so both dedupe by display name. A homogeneous table numbers every seat
+  // (Kimi 1..Kimi 7) so the transcript can still tell them apart.
+  const names = (count: number): string[] | undefined => {
+    if (!isLlm) return undefined
+    if (tierTable) return dedupeNames(Array.from({ length: count }, (_, seat) => rosterById(tierTable[seat]).displayName))
+    if (packDefs) return dedupeNames(packDefs.slice(0, count).map((def) => def.name))
+    if (forcedModel) {
+      const entry = rosterById(forcedModel)
+      return Array.from({ length: count }, (_, seat) => `${entry.displayName} ${seat + 1}`)
+    }
+    return Array.from({ length: count }, (_, seat) => {
+      const entry = ROSTER[seat % ROSTER.length]
+      const dup = Math.floor(seat / ROSTER.length)
+      return dup ? `${entry.displayName} ${dup + 1}` : entry.displayName
+    })
+  }
+
+  // What actually sat in a seat, for the artifact AND the transcript header, so a
+  // transcript can never disagree with the artifact beside it.
+  const descriptor = (seat: Seat): string => {
+    if (packTable && packDefs) {
+      const engine = packDefs[seat].engine
+      const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
+      return `${packDefs[seat].id}${model ? `:${model}` : ''}`
+    }
+    const s = spec(seat)
+    if (s.type === 'llm') return `llm:${s.model}`
+    if (s.type === 'composed') return `composed:${s.brain}`
+    return s.type
+  }
+
+  return { agent, names, descriptor, label: agentsLabel }
 }
 
 const tally = {
@@ -305,50 +329,17 @@ const tally = {
   norms: newSpeechNormReport(),
 }
 
-// What actually sat in a seat, for the artifact AND the transcript header. One
-// definition so a transcript can never disagree with the artifact beside it
-// about which model played which seat.
-function seatDescriptor(seat: Seat, tierTable?: string[]): string {
-  if (packTable && packDefs) {
-    const engine = packDefs[seat].engine
-    const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
-    return `${packDefs[seat].id}${model ? `:${model}` : ''}`
-  }
-  const spec = specFor(seat, tierTable)
-  if (spec.type === 'llm') return `llm:${spec.model}`
-  if (spec.type === 'composed') return `composed:${spec.brain}`
-  return spec.type
-}
-
-async function playGame(i: number): Promise<void> {
-  const seed = games === 1 ? values.seed! : `${values.seed}-${i}`
-  const tierTable = tierTableFor(seed)
-  const game = createGame({
-    seed, playerCount, names: namesFor(playerCount, tierTable),
-    talk: { maxRounds, maxRoundsAfterChange },
-  })
-  const decisionTraces: DecisionTrace[] = []
-  const agents = new Map<Seat, AvalonAgent>(
-    game.players.map((p) => [
-      p.seat,
-      agentFor(
-        p.seat,
-        seed,
-        tierTable,
-        (trace) => upsertDecisionTrace(decisionTraces, trace),
-      ),
-    ]),
-  )
-  const verbose = games === 1 && !values.quiet
-  const result = await runGame({
-    game, agents,
-    // stdout only. The transcript FILE is rendered from the finished log below,
-    // so nothing needs collecting here.
-    onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
-  })
-  // Tally + artifact writes run synchronously between awaits, so even with games
-  // in flight concurrently there is no interleaving here: no shared-state race on
-  // the tally, and appendFileSync writes each artifact line atomically.
+// Tally the outcome and grade the finished game, returning the forced-play
+// violations (the transcript and verbose footer both reprint them). Tally +
+// artifact writes run synchronously between awaits, so even with games in flight
+// concurrently there is no interleaving here: no shared-state race on the tally,
+// and appendFileSync writes each artifact line atomically.
+function recordResult(
+  game: Game,
+  plan: TablePlan,
+  result: RunResult,
+  decisionTraces: DecisionTrace[],
+): ForcedPlayViolation[] {
   tally[result.game.outcome!.winner]++
   tally.reasons.set(result.game.outcome!.reason, (tally.reasons.get(result.game.outcome!.reason) ?? 0) + 1)
   tally.degraded += result.degraded.length
@@ -363,7 +354,7 @@ async function playGame(i: number): Promise<void> {
   // A metric that decides whether a paid run was worth anything should not be
   // gated behind remembering a flag.
   const artifact = toArtifact(game, {
-    agents: game.players.map((p) => seatDescriptor(p.seat, tierTable)),
+    agents: game.players.map((p) => plan.descriptor(p.seat)),
     degraded: result.degraded,
     steps: result.steps,
     decisionTraces,
@@ -374,9 +365,99 @@ async function playGame(i: number): Promise<void> {
   mergeSpeechNorms(tally.norms, speechNorms(artifact))
   for (const v of violations) tally.blunders.set(v.rule, (tally.blunders.get(v.rule) ?? 0) + 1)
   if (artifactOut) appendArtifact(artifactOut, artifact)
-  // Roles, outcome, and degradations close both the printed transcript and the
-  // written one: a transcript without the reveal cannot be read for play quality,
-  // since who was evil is exactly what the table talk has to be judged against.
+  return violations
+}
+
+// Render the finished game through the SAME renderer as the in-app copy-log
+// button, rather than a sim-only format, and write it into --transcripts. Both
+// artifacts exist to be read after the fact, usually by an LLM analysing a batch,
+// so one shape means whatever you learn to skim in one reads identically in the
+// other. No-op when --transcripts was not passed.
+function writeTranscript(
+  game: Game,
+  plan: TablePlan,
+  result: RunResult,
+  violations: ForcedPlayViolation[],
+  seed: string,
+  i: number,
+): void {
+  if (!values.transcripts) return
+  // Always a full reveal: this is a local debug file for the operator who just
+  // paid for the game, not a per-seat feed. `--reasoning` decides only whether
+  // the seat-private thinking and notes ride along, since including them
+  // multiplies the file size and is not always what you want.
+  const text = renderTranscript({
+    id: game.id,
+    seed,
+    playerCount,
+    phase: game.phase,
+    round: game.round,
+    proposalNum: game.proposalNum,
+    leaderSeat: game.leaderSeat,
+    quests: game.quests,
+    seats: game.players.map((p) => ({
+      seat: p.seat,
+      name: p.name,
+      agent: plan.descriptor(p.seat),
+      role: p.role,
+      alignment: p.alignment,
+    })),
+    log: values.reasoning
+      ? game.log
+      : game.log.filter((ev) => ev.type !== 'thinking' && ev.type !== 'scratchpad'),
+    degraded: result.degraded.map((d) => ({ seat: d.seat, kind: d.kind, error: d.error })),
+    // Into the FILE, not just the verbose footer. Aggregate runs are the whole
+    // measurement path and they set verbose=false, so without this a batch
+    // reports violation totals with nothing saying which game or seat, which is
+    // the hand-parsing this reporting exists to remove.
+    violations: violations.map((v) => ({ seat: v.seat, rule: v.rule, round: v.round, detail: v.detail })),
+    winner: game.outcome?.winner,
+    winReason: game.outcome?.reason,
+    revealed: true,
+    capturedAt: new Date().toISOString(),
+    // The raw JSONL belongs to --out, which writes a replayable artifact.
+    // Repeating it here would double every transcript for no new information.
+    includeRaw: false,
+  })
+  // The seed is arbitrary user text and goes into a FILENAME. An unsanitized
+  // "a/b" resolves into a subdirectory that does not exist, so the write threw
+  // ENOENT after the game had already been played and paid for.
+  const safeSeed = seed.replace(/[^a-zA-Z0-9._-]+/g, '_')
+  fs.writeFileSync(
+    path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${safeSeed}.txt`),
+    text,
+  )
+}
+
+async function playGame(i: number): Promise<void> {
+  const seed = games === 1 ? values.seed! : `${values.seed}-${i}`
+  const plan = resolveTablePlan(seed)
+  const game = createGame({
+    seed, playerCount, names: plan.names(playerCount),
+    talk: { maxRounds, maxRoundsAfterChange },
+  })
+  const decisionTraces: DecisionTrace[] = []
+  const agents = new Map<Seat, AvalonAgent>(
+    game.players.map((p) => [
+      p.seat,
+      plan.agent(p.seat, {
+        seed,
+        seat: p.seat,
+        onDecisionTrace: (trace) => upsertDecisionTrace(decisionTraces, trace),
+      }),
+    ]),
+  )
+  const verbose = games === 1 && !values.quiet
+  const result = await runGame({
+    game, agents,
+    // stdout only. The transcript FILE is rendered from the finished log below,
+    // so nothing needs collecting here.
+    onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
+  })
+  const violations = recordResult(game, plan, result, decisionTraces)
+  // Roles, outcome, and degradations close the printed transcript: a transcript
+  // without the reveal cannot be read for play quality, since who was evil is
+  // exactly what the table talk has to be judged against.
   const footer = [
     '',
     revealRoles(game),
@@ -390,58 +471,7 @@ async function playGame(i: number): Promise<void> {
       `BLUNDER [${v.rule}] Q${v.round}: ${v.name}(seat ${v.seat}·${v.role}) ${FORCED_PLAY_RULES[v.rule]}`),
   ]
   if (verbose) console.log(footer.join('\n'))
-  if (values.transcripts) {
-    // Rendered through the SAME renderer as the in-app copy-log button, rather
-    // than a sim-only format. Both artifacts exist to be read after the fact,
-    // usually by an LLM analysing a batch, so one shape means whatever you learn
-    // to skim in one reads identically in the other.
-    //
-    // Always a full reveal: this is a local debug file for the operator who just
-    // paid for the game, not a per-seat feed. `--reasoning` decides only whether
-    // the seat-private thinking and notes ride along, since including them
-    // multiplies the file size and is not always what you want.
-    const text = renderTranscript({
-      id: game.id,
-      seed,
-      playerCount,
-      phase: game.phase,
-      round: game.round,
-      proposalNum: game.proposalNum,
-      leaderSeat: game.leaderSeat,
-      quests: game.quests,
-      seats: game.players.map((p) => ({
-        seat: p.seat,
-        name: p.name,
-        agent: seatDescriptor(p.seat, tierTable),
-        role: p.role,
-        alignment: p.alignment,
-      })),
-      log: values.reasoning
-        ? game.log
-        : game.log.filter((ev) => ev.type !== 'thinking' && ev.type !== 'scratchpad'),
-      degraded: result.degraded.map((d) => ({ seat: d.seat, kind: d.kind, error: d.error })),
-      // Into the FILE, not just the verbose footer. Aggregate runs are the whole
-      // measurement path and they set verbose=false, so without this a batch
-      // reports violation totals with nothing saying which game or seat, which is
-      // the hand-parsing this reporting exists to remove.
-      violations: violations.map((v) => ({ seat: v.seat, rule: v.rule, round: v.round, detail: v.detail })),
-      winner: game.outcome?.winner,
-      winReason: game.outcome?.reason,
-      revealed: true,
-      capturedAt: new Date().toISOString(),
-      // The raw JSONL belongs to --out, which writes a replayable artifact.
-      // Repeating it here would double every transcript for no new information.
-      includeRaw: false,
-    })
-    // The seed is arbitrary user text and goes into a FILENAME. An unsanitized
-    // "a/b" resolves into a subdirectory that does not exist, so the write threw
-    // ENOENT after the game had already been played and paid for.
-    const safeSeed = seed.replace(/[^a-zA-Z0-9._-]+/g, '_')
-    fs.writeFileSync(
-      path.join(values.transcripts, `game-${String(i + 1).padStart(3, '0')}-${safeSeed}.txt`),
-      text,
-    )
-  }
+  writeTranscript(game, plan, result, violations, seed, i)
 }
 
 // Games are independent, so play up to `concurrency` at once via a fixed worker

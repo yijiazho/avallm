@@ -5,7 +5,8 @@
 import { parseArgs } from 'node:util'
 import { createInterface } from 'node:readline'
 import { createGame } from '../engine/game.ts'
-import { hasDistinctSeats, teamsEqual } from '../engine/rules.ts'
+import { hasDistinctSeats, teamsEqual } from '../engine/seatset.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../engine/knowledge.ts'
 import { eventVisibleTo } from '../engine/view.ts'
 import { createHeuristicAgent } from '../agents/heuristic.ts'
 import { runGame } from './runner.ts'
@@ -58,6 +59,17 @@ const game = createGame({
   talk: { maxRounds: 1, maxRoundsAfterChange: 1 },
 })
 
+// Parse a human-typed seat list into a validated team, or null on any bad
+// input: wrong count, a non-integer/out-of-range seat, or a repeated seat.
+// Propose and finalize share this so the parse-validate rules live in one place.
+function parseTeam(raw: string, size: number): Seat[] | null {
+  const team = raw.split(/[\s,]+/).filter(Boolean).map(Number)
+  if (team.length !== size) return null
+  if (!team.every((s) => Number.isInteger(s) && s >= 0 && s < playerCount)) return null
+  if (!hasDistinctSeats(team)) return null
+  return team
+}
+
 function questBoard(view: PlayerView): string {
   const discs = view.quests.map((q) => {
     if (q.status === 'complete') return ` [${q.teamSize}${q.result === 'success' ? '✓' : '✗'}]`
@@ -78,28 +90,23 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
       const roster = view.players.map((p) => `${p.seat}=${p.name}`).join(' ')
       while (true) {
         const raw = await ask(`You lead. Pick ${size} seats (${roster}), comma-separated: `)
-        const team = raw.split(/[\s,]+/).filter(Boolean).map(Number)
-        if (team.length === size && team.every((s) => Number.isInteger(s) && s >= 0 && s < playerCount)
-          && hasDistinctSeats(team)) {
-          return { kind: 'propose', team }
-        }
+        const team = parseTeam(raw, size)
+        if (team) return { kind: 'propose', team }
         console.log(`Need exactly ${size} distinct valid seats.`)
       }
     }
     case 'finalize': {
-      const team = (view.currentTeam ?? []).map((s) => view.players[s].name).join(', ')
-      const raw = (await ask(`Your team [${team}]. Enter to lock it in, or type a new comma-separated team: `)).trim()
-      if (!raw) return { kind: 'finalize', stick: true }
+      const current = view.currentTeam ?? []
       const size = view.quests[view.round - 1].teamSize
+      const teamLabel = current.map((s) => view.players[s].name).join(', ')
+      const raw = (await ask(`Your team [${teamLabel}]. Enter to lock it in, or type a new comma-separated team: `)).trim()
+      if (!raw) return { kind: 'finalize', stick: true }
       let input = raw
       while (true) {
-        const team2 = input.split(/[\s,]+/).filter(Boolean).map(Number)
-        const identical = teamsEqual(team2, view.currentTeam ?? [])
-        if (!identical && team2.length === size
-          && team2.every((s) => Number.isInteger(s) && s >= 0 && s < playerCount)
-          && hasDistinctSeats(team2)) {
+        const team = parseTeam(input, size)
+        if (team && !teamsEqual(team, current)) {
           const reason = await ask('One sentence to the table on why you changed: ')
-          return { kind: 'finalize', stick: false, team: team2, reason }
+          return { kind: 'finalize', stick: false, team, reason }
         }
         const retry = (await ask(`Need ${size} distinct valid seats, different from the current team (enter to lock instead): `)).trim()
         if (!retry) return { kind: 'finalize', stick: true }
@@ -107,9 +114,10 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
       }
     }
     case 'vote': {
-      const team = (view.currentTeam ?? []).map((s) => view.players[s].name).join(', ')
+      const current = view.currentTeam ?? []
+      const teamLabel = current.map((s) => view.players[s].name).join(', ')
       while (true) {
-        const raw = (await ask(`Vote on [${team}] (a=approve, r=reject): `)).trim().toLowerCase()
+        const raw = (await ask(`Vote on [${teamLabel}] (a=approve, r=reject): `)).trim().toLowerCase()
         if (raw.startsWith('a')) return { kind: 'vote', vote: 'approve' }
         if (raw.startsWith('r')) return { kind: 'vote', vote: 'reject' }
       }
@@ -153,12 +161,15 @@ const agents = new Map<Seat, AvalonAgent>(
 {
   const me = game.players[HUMAN]
   console.log(`\nYou are ${me.role.toUpperCase()} (${me.alignment}).`)
-  const knowledge = game.log.find((ev) => ev.type === 'knowledge' && (ev.payload.seat as Seat) === HUMAN)!
-  const info = knowledge.payload as Record<string, Seat[] | undefined>
-  const label = (seats?: Seat[]) => seats?.map((s) => `${names[s]}(${s})`).join(', ')
-  if (info.knownEvil?.length) console.log(`You see evil: ${label(info.knownEvil as Seat[])}`)
-  if (info.evilPartners?.length) console.log(`Your fellow evil: ${label(info.evilPartners as Seat[])}`)
-  if (info.merlinCandidates?.length) console.log(`Merlin is one of: ${label(info.merlinCandidates as Seat[])}`)
+  const knowledge = game.log.find((ev) => ev.type === 'knowledge' && ev.payload.seat === HUMAN)
+  const info = knowledge?.type === 'knowledge' ? knowledge.payload : { kind: 'none' as const }
+  const label = (seats: readonly Seat[]) => seats.map((s) => `${names[s]}(${s})`).join(', ')
+  const knownEvil = knownEvilOf(info)
+  const evilPartners = evilPartnersOf(info)
+  const merlinCandidates = merlinCandidatesOf(info)
+  if (knownEvil.length) console.log(`You see evil: ${label(knownEvil)}`)
+  if (evilPartners.length) console.log(`Your fellow evil: ${label(evilPartners)}`)
+  if (merlinCandidates.length) console.log(`Merlin is one of: ${label(merlinCandidates)}`)
 }
 
 const result = await runGame({

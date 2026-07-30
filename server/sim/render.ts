@@ -7,22 +7,32 @@ function name(game: Game, seat: Seat): string {
 }
 
 export function renderEvent(ev: GameEvent, game: Game): string | null {
-  const p = ev.payload as Record<string, any>
+  // Switch on the discriminated `ev.type`, then read the per-case typed
+  // `ev.payload`: every field access below is compiler-checked against the
+  // payload that event owns (EventPayloadMap), no hand-casts.
   switch (ev.type) {
-    case 'gameCreated':
-      return `=== Avalon: ${p.playerCount} players, roles: ${(p.rolesInPlay as string[]).join(', ')} ===\n` +
+    case 'gameCreated': {
+      const p = ev.payload
+      return `=== Avalon: ${p.playerCount} players, roles: ${p.rolesInPlay.join(', ')} ===\n` +
         `First leader: ${name(game, p.firstLeader)}`
+    }
     case 'utterance': {
+      const p = ev.payload
       return p.text ? `  ${name(game, p.seat)}: "${p.text}"` : null
     }
-    case 'proposal':
-      return `\n[Q${p.round}.${p.proposalNum}] ${name(game, p.leader)} proposes: ${(p.team as Seat[]).map((s) => name(game, s)).join(', ')}`
-    case 'proposalLocked':
+    case 'proposal': {
+      const p = ev.payload
+      return `\n[Q${p.round}.${p.proposalNum}] ${name(game, p.leader)} proposes: ${p.team.map((s) => name(game, s)).join(', ')}`
+    }
+    case 'proposalLocked': {
+      const p = ev.payload
       return `  ${name(game, p.leader)} locks in the team.`
+    }
     case 'proposalRevised': {
       // Show the change, not just the new roster — a reader (human or bot) should
       // not have to diff it against the proposal line scrolled off above.
-      const from = p.from as Seat[], to = p.to as Seat[]
+      const p = ev.payload
+      const { from, to } = p
       const dropped = from.filter((s) => !to.includes(s)).map((s) => name(game, s)).join(', ')
       const added = to.filter((s) => !from.includes(s)).map((s) => name(game, s)).join(', ')
       // Lower-case verb like "proposes" / "locks in the team": in this renderer
@@ -32,17 +42,24 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
         ` Now: ${to.map((s) => name(game, s)).join(', ')}.${p.reason ? ` Reason: "${p.reason}"` : ''}`
     }
     case 'voteReveal': {
+      const p = ev.payload
       if (p.auto) return `  hammer: AUTO-APPROVED (no vote)`
-      const votes = (p.votes as { seat: Seat; vote: string }[])
+      const votes = p.votes
         .map((v) => `${name(game, v.seat)}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')
       return `  votes: ${votes} -> ${p.approved ? 'APPROVED' : 'rejected'}`
     }
-    case 'questResult':
-      return `  Quest ${p.round}: ${String(p.result).toUpperCase()} (${p.failCount} fail${p.failCount === 1 ? '' : 's'}, needed ${p.failsRequired})`
-    case 'assassination':
+    case 'questResult': {
+      const p = ev.payload
+      return `  Quest ${p.round}: ${p.result.toUpperCase()} (${p.failCount} fail${p.failCount === 1 ? '' : 's'}, needed ${p.failsRequired})`
+    }
+    case 'assassination': {
+      const p = ev.payload
       return `\nAssassin ${name(game, p.assassin)} targets ${name(game, p.target)}: ${p.wasMerlin ? 'MERLIN! Evil wins.' : 'not Merlin.'}`
-    case 'gameOver':
-      return `\n*** ${String(p.winner).toUpperCase()} wins (${p.reason}) ***`
+    }
+    case 'gameOver': {
+      const p = ev.payload
+      return `\n*** ${p.winner.toUpperCase()} wins (${p.reason}) ***`
+    }
     default:
       return null // private events are not rendered publicly
   }
