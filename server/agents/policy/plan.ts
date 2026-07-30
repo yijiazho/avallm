@@ -337,15 +337,40 @@ export function communicationFactProjection(
   }
 }
 
+export interface CommunicationIntentInput {
+  readonly decision: Decision
+  readonly factCodes: readonly string[]
+  readonly selectedScore?: CandidateScore
+  readonly scoreSurface?: readonly CandidateScore[]
+  /** A planner's admitted direction, which replaces the derived channel. */
+  readonly direction?: PlannerCommunicationDirection
+  /**
+   * Absent means the caller applied no filter, so every available reason
+   * survives. An empty array is the opposite instruction, filter to nothing,
+   * so this stays optional rather than defaulting.
+   */
+  readonly selectedReasons?: readonly string[]
+  readonly committedPolicyReasons?: readonly string[]
+}
+
+/**
+ * Named arguments because the tail is five optional values, two of which
+ * (`selectedReasons` and `committedPolicyReasons`) are both `readonly string[]`
+ * and mean opposite things: one filters the reason set down, the other feeds
+ * it. Positionally, transposing the two typechecked.
+ */
 export function defaultCommunicationIntent(
-  decision: Decision,
-  factCodes: readonly string[],
-  selectedScore?: CandidateScore,
-  scoreSurface?: readonly CandidateScore[],
-  direction?: PlannerCommunicationDirection,
-  selectedReasons?: readonly string[],
-  committedPolicyReasons: readonly string[] = [],
+  input: CommunicationIntentInput,
 ): CommunicationIntent | undefined {
+  const {
+    decision,
+    factCodes,
+    selectedScore,
+    scoreSurface,
+    direction,
+    selectedReasons,
+    committedPolicyReasons = [],
+  } = input
   const { safeFactCodes, conceal } = communicationFactProjection(factCodes)
   const availableReasons = [...new Set([
     ...(selectedScore

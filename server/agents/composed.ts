@@ -775,39 +775,88 @@ function committedVoicePlan(
   }
 }
 
-function composedTrace(
-  req: DecisionRequest,
-  view: PlayerView,
-  cognition: CognitionState,
-  analysis: ReturnType<typeof analyzeSituation>,
-  action: Decision,
-  scores: readonly CandidateScore[],
-  structuredCandidateId: string,
-  chosenCandidateId: string,
-  forced: ForcedPolicyResult,
-  plannerVersion: string,
-  voiceVersion: string,
-  scorerVersion: string,
-  degradation: readonly string[],
-  componentPlan: DecisionComponentPlan,
-  decisionComponents: DecisionComponentRun,
-  decisionLayerRun: DecisionLayerRun,
-  scoreLayerRun: LegacyVoicedOutputProjection['scoreLayerRun'],
-  decisionFrame: LegacyVoicedOutputProjection['decisionFrame'],
-  descriptor: ResolvedComposedBrain['description'],
-  architectureIdentityDigest: string,
-  agentMode: AgentExecutionMode,
-  communication: DecisionPlan['communication'],
-  plannerCandidateId?: string,
-  plannerReasonCodes?: readonly string[],
-  factorsVersion = 'off',
-  languageTrace?: LanguageTraceAttribution,
-  legacyObserverProduced = false,
-  publicObserver?: PublicObserverSnapshot,
-  privateIdentity?: PrivateIdentitySnapshot,
-  identityEnabled = false,
-  roleObjectiveRouterEnabled = false,
-): DecisionTrace {
+/**
+ * Everything one decision trace is assembled from.
+ *
+ * These arrive as one object rather than a positional list because the list had
+ * grown past the point where a reader could check it. Its tail was a run of
+ * same-typed values carrying no order a type could defend: `identityEnabled`
+ * and `roleObjectiveRouterEnabled` sat adjacent, both booleans, and transposing
+ * them typechecked while silently mislabelling which substrate the decision
+ * used. Naming every argument at the call site removes that failure entirely.
+ *
+ * Every field is required, including the ones that are legitimately absent for
+ * a given decision. Those declare `| undefined` instead of taking a default, so
+ * a forgotten input fails the build rather than reading as a confident "off".
+ */
+interface ComposedTraceInput {
+  readonly req: DecisionRequest
+  readonly view: PlayerView
+  readonly cognition: CognitionState
+  readonly analysis: ReturnType<typeof analyzeSituation>
+  readonly action: Decision
+  readonly scores: readonly CandidateScore[]
+  readonly structuredCandidateId: string
+  readonly chosenCandidateId: string
+  readonly forced: ForcedPolicyResult
+  readonly plannerVersion: string
+  readonly voiceVersion: string
+  readonly scorerVersion: string
+  readonly degradation: readonly string[]
+  readonly componentPlan: DecisionComponentPlan
+  readonly decisionComponents: DecisionComponentRun
+  readonly decisionLayerRun: DecisionLayerRun
+  readonly scoreLayerRun: LegacyVoicedOutputProjection['scoreLayerRun']
+  readonly decisionFrame: LegacyVoicedOutputProjection['decisionFrame']
+  readonly descriptor: ResolvedComposedBrain['description']
+  readonly architectureIdentityDigest: string
+  readonly agentMode: AgentExecutionMode
+  readonly communication: DecisionPlan['communication']
+  readonly plannerCandidateId: string | undefined
+  readonly plannerReasonCodes: readonly string[] | undefined
+  readonly factorsVersion: string
+  readonly languageTrace: LanguageTraceAttribution | undefined
+  readonly legacyObserverProduced: boolean
+  readonly publicObserver: PublicObserverSnapshot | undefined
+  readonly privateIdentity: PrivateIdentitySnapshot | undefined
+  readonly identityEnabled: boolean
+  readonly roleObjectiveRouterEnabled: boolean
+}
+
+function composedTrace(input: ComposedTraceInput): DecisionTrace {
+  const {
+    req,
+    view,
+    cognition,
+    analysis,
+    action,
+    scores,
+    structuredCandidateId,
+    chosenCandidateId,
+    forced,
+    plannerVersion,
+    voiceVersion,
+    scorerVersion,
+    degradation,
+    componentPlan,
+    decisionComponents,
+    decisionLayerRun,
+    scoreLayerRun,
+    decisionFrame,
+    descriptor,
+    architectureIdentityDigest,
+    agentMode,
+    communication,
+    plannerCandidateId,
+    plannerReasonCodes,
+    factorsVersion,
+    languageTrace,
+    legacyObserverProduced,
+    publicObserver,
+    privateIdentity,
+    identityEnabled,
+    roleObjectiveRouterEnabled,
+  } = input
   const baseVersions = projectBaseTraceComponentVersions(
     descriptor,
     decisionComponents,
@@ -2206,15 +2255,15 @@ export function createComposedAgent(
           throw new Error('composed policy selected candidate without a score')
         }
         const mechanicalDecision = selectedMechanicalDecision(selectedFrame)
-        const communication = defaultCommunicationIntent(
-          mechanicalDecision,
-          analysis.factCodes,
-          chosenScore,
-          compatibilityScored.scores,
-          plannerCommunication,
-          plannerReasonCodes,
-          scoredFrame.candidateBoundary.reasonCodes,
-        )
+        const communication = defaultCommunicationIntent({
+          decision: mechanicalDecision,
+          factCodes: analysis.factCodes,
+          selectedScore: chosenScore,
+          scoreSurface: compatibilityScored.scores,
+          direction: plannerCommunication,
+          selectedReasons: plannerReasonCodes,
+          committedPolicyReasons: scoredFrame.candidateBoundary.reasonCodes,
+        })
         const planStrategicReasons = plannerReasonCodes
           ?? selectedStrategicReasonCodes(
             chosenScore,
@@ -2271,47 +2320,47 @@ export function createComposedAgent(
               candidateTeams: chosenTeamAnalysis.candidateTeams,
             }
           : analysis
-        const trace = composedTrace(
+        const trace = composedTrace({
           req,
           view,
           cognition,
-          traceAnalysis,
+          analysis: traceAnalysis,
           action,
-          legacyOutput.scores,
-          legacyOutput.structuredCandidateId,
-          legacyOutput.selectedCandidateId,
-          legacyOutput.forced,
+          scores: legacyOutput.scores,
+          structuredCandidateId: legacyOutput.structuredCandidateId,
+          chosenCandidateId: legacyOutput.selectedCandidateId,
+          forced: legacyOutput.forced,
           plannerVersion,
           voiceVersion,
-          legacyOutput.scorerVersion,
-          legacyOutput.degradation,
-          configuredComponentPlan,
-          legacyOutput.componentRun,
-          legacyOutput.decisionLayerRun,
-          legacyOutput.scoreLayerRun,
-          legacyOutput.decisionFrame,
-          resolvedBrain.description,
+          scorerVersion: legacyOutput.scorerVersion,
+          degradation: legacyOutput.degradation,
+          componentPlan: configuredComponentPlan,
+          decisionComponents: legacyOutput.componentRun,
+          decisionLayerRun: legacyOutput.decisionLayerRun,
+          scoreLayerRun: legacyOutput.scoreLayerRun,
+          decisionFrame: legacyOutput.decisionFrame,
+          descriptor: resolvedBrain.description,
           architectureIdentityDigest,
-          activePlanner
+          agentMode: activePlanner
             ? 'hybrid'
             : legacyOutput.scorerVersion === CANDIDATE_SCORER_VERSION
               ? 'compatibility'
               : 'structured-only',
-          legacyOutput.plan.communication,
+          communication: legacyOutput.plan.communication,
           plannerCandidateId,
           plannerReasonCodes,
-          configuredLanguageInterpreter
+          factorsVersion: configuredLanguageInterpreter
             ? combinedLanguageFactorBundleVersion(
                 beliefModel.factorsVersion,
               )
             : beliefModel.factorsVersion,
           languageTrace,
-          legacyPublicObserverApplicable,
-          tracePublicObserver,
+          legacyObserverProduced: legacyPublicObserverApplicable,
+          publicObserver: tracePublicObserver,
           privateIdentity,
-          !!decisionIdentityScope,
-          roleObjectiveRouterConfigured,
-        )
+          identityEnabled: !!decisionIdentityScope,
+          roleObjectiveRouterEnabled: roleObjectiveRouterConfigured,
+        })
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {
             throw new Error('pending plan acknowledgment bound exceeded')

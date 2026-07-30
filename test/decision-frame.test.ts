@@ -369,14 +369,14 @@ test('default frame composition preserves every frozen decision seam', async () 
       chosenScore,
       scoreSurface,
     )
-    const communication = defaultCommunicationIntent(
-      mechanical(
+    const communication = defaultCommunicationIntent({
+      decision: mechanical(
         structuredClone(selected.selected.candidate.decision) as Decision,
       ),
-      selected.analysis.factCodes,
-      chosenScore,
+      factCodes: selected.analysis.factCodes,
+      selectedScore: chosenScore,
       scoreSurface,
-    )
+    })
     const committed = commitDecision(
       selected,
       currentPlan(selected, strategicReasons, communication),
