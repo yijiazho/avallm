@@ -286,6 +286,8 @@ while the primary lane runs, then integrate them one at a time.
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `landed` |
 | NB-007 | Phase 7 correctness | Stabilize exact identity projection on large joint support | One compensated accumulator covers source normalization, grouped role and hidden-team mass, and detached lattice admission. The actual 10-player `phase4-good-v1` vote with 58,080 uniform worlds now reaches trusted-exact admission without rounding, tolerance widening, special casing, or invalid-mass renormalization. | `landed` |
 | NB-008 | Post-Phase-7 test consolidation | Extract a shared score-family conformance harness | Consolidate repeated family fixtures for predecessor delegation, bounded specialization, deterministic seed domains, forced-boundary dominance, and native replay. Preserve focused family-specific causal laws; do not replace the generic registry, admission, privacy, and replay suites with another parallel matrix. | `landed` |
+| NB-010 | Phase 7 strength gate | Diagnose the base good policy's adverse win rate against the heuristic population | The full-role stack matches base-composed on win rate in all six measured cells while raising vote-truth accuracy up to `+26.4%`, so the defect is in the Phase 4 base good policy, not the role layers. Work the base proposal and vote value functions against the heuristic population without touching role specialization, and keep both populations in every comparison so the 5C sign flip stays visible. | `ready` |
+| NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `phase4-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
 | NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` remain hash-pinned strict-test exemptions. Their 257 diagnostics are two mechanical classes: unnormalized `AgentOutput` member access and implicitly typed score callbacks. Route them through `normalizeAgentOutput` and annotate the callbacks, then delete the exemptions rather than refreshing their hashes again. | `ready` |
 
 NB-006 is directly discoverable with
@@ -325,7 +327,7 @@ follow-up updates both this register and its phase-local checkbox in the same co
 | 4. Belief-driven production policy | Complete (opt-in; rollout not promoted) | Exact beliefs directly improve proposals and votes |
 | 5. Soft mechanical likelihoods | In progress; quest factor complete | First calibrated behavioral weighting of feasible worlds |
 | 6. Bounded language evidence and commitments | Language path complete and opt-in; commitment coherence pending | Dialogue affects beliefs without owning them |
-| 7. Role-specific observer and identity models | Complete (opt-in; human promotion/evaluation pending) | Generic component boundary, role specializations, full-role composition, and API-free role-bank audit |
+| 7. Role-specific observer and identity models | Complete (opt-in and seatable; promotion blocked on an adverse win rate) | Generic component boundary, role specializations, full-role composition, API-free role-bank audit, and a measured strength gate |
 | 8. Counterfactual value and optional learned inference | Deferred | Search or learned models added only where measured |
 
 ---
@@ -3515,6 +3517,30 @@ here.
   validates it. Separately, the historical v1 role trace projections moved behind
   `admission/legacy-role-trace-v1.ts` with `ARCH012` pinning its single importer, taking the generic
   admission owner from 5,059 to 4,199 lines. Full suite passes 1113 tests.
+- Phase 7 full-role playing-strength gate, and the first seatable composed brain. F2B proved causal
+  correctness, not strength, so `phase7-full-role-bench.ts` reuses the frozen 180-deal
+  `phase4-good-v1` bank and the existing matched-case paired-bootstrap comparison to measure
+  compatibility versus the Phase 4 good base versus the complete role stack, per target role and per
+  free population. The 1,080-game run cost nothing, degraded nothing, and reproduced the Phase 5C
+  sign flip at full strength for the finished architecture. Against the heuristic population the
+  full-role stack loses: Servant win rate is `-15.0%` with a 95% interval of `-25.0%` to `-5.0%`,
+  Percival `-8.3%` (`-20.0%` to `+3.3%`), Merlin `-1.7%` (`-5.0%` to `0.0%`). Against the seeded
+  random population it wins: Merlin `+13.3%` (`0.0%` to `+25.0%`), Percival `+11.7%`, Servant
+  `+8.3%`. Vote-truth accuracy rises sharply in both populations, up to `+26.4%` for Merlin, so the
+  belief machinery is genuinely more accurate while the policy consuming it is exploited by the
+  heuristic population specifically. The decisive new fact is that full-role and base-composed are
+  indistinguishable on win rate in all six cells: the role layers move Percival's clean-proposal
+  rate (`+15.1%`, `+2.3%` to `+28.1%`) but not one game outcome, so the win-rate defect lives in the
+  Phase 4 base good policy rather than in the Phase 7 role specializations. No promotion or demo
+  should present this brain as stronger than the checked-in default. Separately, `AgentSpec` gains
+  an API-free `composed` variant with two named presets, `good-base` and `full-role`, the registry
+  owns their component wiring, and `npm run sim --agents composed [--brain <preset>]` seats them, so
+  the stack is now runnable outside the eval benches. `composed-agent-spec.test.ts` pins each
+  preset's resolved architecture identity to the identity of the bench arm that measured it, so a
+  seated brain and its recorded comparison cannot drift apart. Scope stated plainly:
+  `phase4-good-v1` targets Merlin, Percival, and Servant only, so the evil layers were never causal
+  here and remain unmeasured for strength until a frozen evil-side bank exists. NB-010 owns the base
+  policy diagnosis and NB-011 owns that bank. Full suite 1141 correctness tests.
 - NB-008 shared score-family conformance harness: `test/support/score-family.ts` now owns the five
   cross-family laws every native score specialization must satisfy, and each family declares a data
   descriptor instead of hand-rolling the scaffolding. The laws are predecessor delegation (the

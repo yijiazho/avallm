@@ -1,13 +1,46 @@
 // AgentSpec -> AvalonAgent. The one place that knows how to construct agents.
 
+import { createComposedAgent } from './composed.ts'
 import { createHeuristicAgent } from './heuristic.ts'
 import { createLlmAgent } from './llm.ts'
 import { createRandomAgent } from './random.ts'
 import { createStdioAgent } from './stdio.ts'
 import { getClient } from '../llm/client.ts'
+import {
+  fullRolePolicyScorer,
+  goodProposalVoteScorer,
+} from './policy/score.ts'
 import { promptOverridesOf, resolveModel } from './defs.ts'
 import type { AgentDef } from './defs.ts'
-import type { AgentContext, AgentSpec, AvalonAgent } from './types.ts'
+import type { ComposedAgentOptions } from './composed.ts'
+import type {
+  AgentContext,
+  AgentSpec,
+  AvalonAgent,
+  ComposedBrainPreset,
+} from './types.ts'
+
+/**
+ * The one place a composed preset becomes component wiring. Each preset matches
+ * a measured evaluation arm exactly, so a seated brain and its recorded
+ * comparison cannot drift apart.
+ */
+export function composedBrainOptions(
+  preset: ComposedBrainPreset,
+): Omit<ComposedAgentOptions, 'seed' | 'onDecisionTrace'> {
+  switch (preset) {
+    case 'good-base':
+      return { scorer: goodProposalVoteScorer }
+    case 'full-role':
+      return {
+        scorer: fullRolePolicyScorer,
+        roleObjectiveRouter: true,
+        evilQuestCardPolicy: 'robust-heterogeneous',
+      }
+    default:
+      throw new Error(`unsupported composed brain preset ${String(preset)}`)
+  }
+}
 
 export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
   switch (spec.type) {
@@ -17,6 +50,12 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
       ...spec,
       onDecisionTrace: ctx.onDecisionTrace,
     })
+    case 'composed':
+      return createComposedAgent({
+        seed: ctx.seed,
+        onDecisionTrace: ctx.onDecisionTrace,
+        ...composedBrainOptions(spec.brain),
+      })
     case 'llm':
       return createLlmAgent({
         modelId: spec.model,

@@ -18,7 +18,12 @@ import {
   SPEECH_NORMS, SPEECH_NORM_IDS, mergeSpeechNorms, newSpeechNormReport, speechNorms,
 } from '../eval/norms.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
-import type { AgentSpec, AvalonAgent } from '../agents/types.ts'
+import {
+  COMPOSED_BRAIN_PRESETS,
+  type AgentSpec,
+  type AvalonAgent,
+  type ComposedBrainPreset,
+} from '../agents/types.ts'
 import {
   upsertDecisionTrace,
   type DecisionTrace,
@@ -27,8 +32,12 @@ import type { Seat } from '../engine/types.ts'
 
 const USAGE = `npm run sim -- [flags]        headless Avalon simulator
 
-TABLE (all LLM tables cost money; heuristic/random are free)
-  --agents <kind>       heuristic (default) | random | mixed | llm
+TABLE (all LLM tables cost money; heuristic/random/composed are free)
+  --agents <kind>       heuristic (default) | random | mixed | llm | composed
+  --brain <preset>      composed brain preset (implies --agents composed):
+                        full-role (default) seats the complete Phase 7 role stack,
+                        good-base seats the Phase 4 structured good scorer.
+                        Both are API-free and neither is the default agent.
   --model <roster-id>   force EVERY seat onto one model (implies --agents llm).
                         A homogeneous table isolates prompt quality from model spread.
   --tier <tier>         seat a RANDOM model of this cost tier per seat, redrawn per
@@ -62,6 +71,7 @@ OUTPUT
 EXAMPLES
   npm run sim -- --players 7 --seed 42                    one free game, full transcript
   npm run sim -- --games 200 --talk 0                     aggregate win rates, no API cost
+  npm run sim -- --agents composed --games 200            free full-role stack win rates
   npm run sim -- --agents llm --players 7 --talk 3,2      one real LLM game
   npm run sim -- --tier mid --games 8 --concurrency 4 \\
        --talk 3,2 --transcripts runs/          batch of mid-tier tables, readable after
@@ -79,7 +89,8 @@ const { values } = parseArgs({
     players: { type: 'string', default: '7' },
     seed: { type: 'string', default: 'sim' },
     games: { type: 'string', default: '1' },
-    agents: { type: 'string', default: 'heuristic' }, // heuristic | random | mixed | llm
+    agents: { type: 'string', default: 'heuristic' }, // heuristic | random | mixed | llm | composed
+    brain: { type: 'string' },                        // composed preset: full-role | good-base (implies --agents composed)
     model: { type: 'string' },                        // force EVERY seat onto one roster id (implies --agents llm) — a homogeneous table to isolate prompt quality from model spread
     tier: { type: 'string' },                         // seat a RANDOM model from this cost tier per seat, redrawn per game (implies --agents llm)
     pack: { type: 'string' },                         // seat a curated pack (server/agents/packs.ts), leftovers from the default library (implies --agents llm)
@@ -174,6 +185,27 @@ if (values.pack) {
 const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable !== undefined
   || tierModels !== undefined
 
+// --brain implies --agents composed, mirroring how --model/--tier/--pack imply
+// --agents llm. Validated here so an unknown preset fails before any game runs.
+const composedBrain: ComposedBrainPreset | undefined =
+  values.brain !== undefined
+    ? (() => {
+        if (!COMPOSED_BRAIN_PRESETS.includes(values.brain as ComposedBrainPreset)) {
+          console.error(
+            `--brain must be one of ${COMPOSED_BRAIN_PRESETS.join(', ')}`,
+          )
+          process.exit(1)
+        }
+        return values.brain as ComposedBrainPreset
+      })()
+    : values.agents === 'composed'
+      ? 'full-role'
+      : undefined
+if (composedBrain !== undefined && isLlm) {
+  console.error('--brain seats an API-free brain and cannot combine with an LLM table')
+  process.exit(1)
+}
+
 // A PAID run that already names an output directory gets artifacts beside its
 // transcripts, unless --out says otherwise. The asymmetry is the point: losing
 // the artifacts of a free run costs seconds to recreate, losing the artifacts of
@@ -197,6 +229,7 @@ if (artifactOut && !values.out) {
 const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${forcedModel}` : ''}`
   : forcedModel ? `llm:${forcedModel} (homogeneous)`
   : tierModels ? `llm (tier=${values.tier})`
+  : composedBrain ? `composed:${composedBrain}`
   : values.agents!
 
 // `tierTable` is this game's cast for --tier, threaded through rather than read
@@ -205,6 +238,7 @@ const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${f
 // seats from another's cast.
 function specFor(seat: Seat, tierTable?: string[]): AgentSpec {
   if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length].id }
+  if (composedBrain) return { type: 'composed', brain: composedBrain }
   if (values.agents === 'random') return { type: 'random' }
   if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
   return { type: 'heuristic' }
@@ -275,7 +309,9 @@ function seatDescriptor(seat: Seat, tierTable?: string[]): string {
     return `${packDefs[seat].id}${model ? `:${model}` : ''}`
   }
   const spec = specFor(seat, tierTable)
-  return spec.type === 'llm' ? `llm:${spec.model}` : spec.type
+  if (spec.type === 'llm') return `llm:${spec.model}`
+  if (spec.type === 'composed') return `composed:${spec.brain}`
+  return spec.type
 }
 
 async function playGame(i: number): Promise<void> {

@@ -70,6 +70,20 @@ export function normalizeAgentOutput(output: AgentOutput): AgentDecision {
   return isAgentDecision(output) ? output : { decision: output }
 }
 
+/**
+ * Named opt-in composed-brain configurations. A preset, not an open component
+ * bag: the registry owns the wiring so no caller can seat a half-configured
+ * stack, and each preset names exactly one measured evaluation arm.
+ *
+ * `good-base` is the Phase 4 structured good scorer. `full-role` is the
+ * complete Phase 7F role stack behind one immutable scorer identity. Neither is
+ * the default; promotion remains a separate decision with paired evidence.
+ */
+export type ComposedBrainPreset = 'good-base' | 'full-role'
+
+export const COMPOSED_BRAIN_PRESETS: readonly ComposedBrainPreset[] =
+  Object.freeze(['good-base', 'full-role'])
+
 export type AgentSpec =
   | { type: 'heuristic' }
   | { type: 'random' }
@@ -80,6 +94,8 @@ export type AgentSpec =
       brain?: LlmBrainConfig
       beliefMode?: ExperimentalBeliefMode
     }
+  /** API-free structured brain. It makes no model call on its own. */
+  | { type: 'composed'; brain: ComposedBrainPreset }
   // Milestone 3: { type: 'human' } is constructed directly by the server/CLIs
 
 export interface AgentContext {

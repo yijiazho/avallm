@@ -104,6 +104,7 @@ const LANES = Object.freeze({
   eval: Object.freeze([
     'architecture-bank.test.ts',
     'architecture-eval.test.ts',
+    'composed-agent-spec.test.ts',
     'decision-fixtures.test.ts',
     'eval.test.ts',
     'phase0-baselines.test.ts',
