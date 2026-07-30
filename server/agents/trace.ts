@@ -116,59 +116,8 @@ export interface DecisionTrace {
    */
   architectureIdentityDigest?: string
   statedReasoning?: string
-  /**
-   * Complete ownership/version attribution for composed decisions.
-   *
-   * The opt-in `identityModel`/`planMemory`/`coherence`/`roleObjective`/
-   * `roleObjectiveRouter` set is shared verbatim with the internal
-   * {@link CognitionVersions} via {@link OptInComponentVersions} so the two
-   * cannot drift; the remaining opt-ins below (Morgana projections,
-   * `roleUtility`/`evilRoleUtility`, `decisionComponents`, `configuredScorer`,
-   * and the optional `mechanicalBelief`/`beliefPipeline`) are wire-only.
-   */
-  componentVersions?: Readonly<{
-    brain: string
-    /**
-     * Actual version of the resolved snapshot used for this decision. This can
-     * vary between decisions when an opt-in factor has no applicable evidence.
-     */
-    belief: string
-    /** Stable configured identities, present only for opt-in belief pipelines. */
-    mechanicalBelief?: string
-    beliefPipeline?: string
-    beliefVisibility: string
-    factors: string
-    languageEvidence: string
-    observerModel: string
-    /** Additive discriminator for the private generic component run. */
-    decisionComponents?: string
-    /** Absent unless the C2 decision-ready role projection was built. */
-    roleUtility?: string
-    /** Absent unless the D2 evil/Oberon projection was built. */
-    evilRoleUtility?: string
-    /** Resolved public-only Phase 7E1A counterfeit-read projection. */
-    morganaCounterfeitPublicRead?: string
-    /** Resolved private Phase 7E1A candidate objective. */
-    morganaCounterfeitObjective?: string
-    /** Configured Phase 7E1A objective; resolved only for Morgana propose/vote. */
-    configuredMorganaCounterfeitObjective?: string
-    /** Resolved private E1B policy projection. */
-    morganaRoleUtility?: string
-    /** Configured E1B projection, including ineligible/fallback decisions. */
-    configuredMorganaRoleUtility?: string
-    analysis: string
-    candidates: string
-    forcedPolicy: string
-    policy: string
-    /** Configured scorer when applicability/degradation resolved to another. */
-    configuredScorer?: string
-    scorer: string
-    planner: string
-    prompt: string
-    renderer: string
-    communication: string
-    voice: string
-  } & OptInComponentVersions>
+  /** Complete ownership/version attribution for composed decisions. */
+  componentVersions?: Readonly<TraceComponentVersions>
   /** Private generic component execution and causal-use attribution. */
   components?: DecisionComponentRun
   /** Ordered strategic survivor/selection transitions after universal policy. */
@@ -217,8 +166,59 @@ export interface DecisionTrace {
   coherenceIntent?: CoherenceIntent
 }
 
-export type TraceComponentVersions =
-  NonNullable<DecisionTrace['componentVersions']>
+/**
+ * Complete ownership/version attribution carried on a composed decision trace.
+ *
+ * Extends {@link OptInComponentVersions} so the opt-in `identityModel`/
+ * `planMemory`/`coherence`/`roleObjective`/`roleObjectiveRouter` set is shared
+ * verbatim with the internal {@link CognitionVersions} and cannot drift. The
+ * remaining opt-ins here (Morgana projections, `roleUtility`/`evilRoleUtility`,
+ * `decisionComponents`, `configuredScorer`, and the optional `mechanicalBelief`/
+ * `beliefPipeline` that CognitionVersions instead requires) are wire-only.
+ */
+export interface TraceComponentVersions extends OptInComponentVersions {
+  brain: string
+  /**
+   * Actual version of the resolved snapshot used for this decision. This can
+   * vary between decisions when an opt-in factor has no applicable evidence.
+   */
+  belief: string
+  /** Stable configured identities, present only for opt-in belief pipelines. */
+  mechanicalBelief?: string
+  beliefPipeline?: string
+  beliefVisibility: string
+  factors: string
+  languageEvidence: string
+  observerModel: string
+  /** Additive discriminator for the private generic component run. */
+  decisionComponents?: string
+  /** Absent unless the C2 decision-ready role projection was built. */
+  roleUtility?: string
+  /** Absent unless the D2 evil/Oberon projection was built. */
+  evilRoleUtility?: string
+  /** Resolved public-only Phase 7E1A counterfeit-read projection. */
+  morganaCounterfeitPublicRead?: string
+  /** Resolved private Phase 7E1A candidate objective. */
+  morganaCounterfeitObjective?: string
+  /** Configured Phase 7E1A objective; resolved only for Morgana propose/vote. */
+  configuredMorganaCounterfeitObjective?: string
+  /** Resolved private E1B policy projection. */
+  morganaRoleUtility?: string
+  /** Configured E1B projection, including ineligible/fallback decisions. */
+  configuredMorganaRoleUtility?: string
+  analysis: string
+  candidates: string
+  forcedPolicy: string
+  policy: string
+  /** Configured scorer when applicability/degradation resolved to another. */
+  configuredScorer?: string
+  scorer: string
+  planner: string
+  prompt: string
+  renderer: string
+  communication: string
+  voice: string
+}
 
 export interface BaseTraceRuntimeActuals {
   readonly belief: string
