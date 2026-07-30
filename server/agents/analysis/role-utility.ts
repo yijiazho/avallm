@@ -20,10 +20,7 @@ import {
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
-import {
-  validatePrivateRoleObjectiveHostJoin,
-  validatePrivateRoleObjectiveSnapshot,
-} from './role-objectives.ts'
+import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   canonicalizeJson,
@@ -612,34 +609,6 @@ export function decodeCanonicalPrivateRoleUtilityProjection(
   return validatePrivateRoleUtilityProjectionShape(value, false)
     ? value as PrivateRoleUtilityProjection
     : undefined
-}
-
-export function validatePrivateRoleUtilityHostJoin(
-  value: unknown,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    objective: PrivateRoleObjectiveSnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-    identity: Parameters<typeof validatePrivateRoleObjectiveHostJoin>[1]['identity']
-  },
-): value is PrivateRoleUtilityProjection {
-  if (
-    !validatePrivateRoleUtilityProjection(value)
-    || !validatePrivateRoleObjectiveHostJoin(input.objective, {
-      req: input.req,
-      view: input.view,
-      identity: input.identity,
-      observer: input.observer,
-      candidates: input.candidates,
-    })
-  ) return false
-  try {
-    return isDeepStrictEqual(value, buildRoleUtilityProjection(input))
-  } catch {
-    return false
-  }
 }
 
 export function validateAdmittedPrivateRoleUtilityHostJoin(

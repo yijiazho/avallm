@@ -256,10 +256,6 @@ function resolvedArchitectureIdentityInvariants(
   )
 }
 
-/** @deprecated Use ResolvedArchitectureDescriptor. */
-export type ResolvedComposedBrainDescription =
-  ResolvedArchitectureDescriptor
-
 export type PrivateArchitectureDebugProjection = Readonly<
   ResolvedArchitectureIdentity
 >

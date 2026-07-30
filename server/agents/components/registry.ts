@@ -688,10 +688,3 @@ export function createDecisionComponentRegistry(
 export function componentIdentityKey(ref: ComponentRef): string {
   return identityKey(ref)
 }
-
-export function compareComponentRefs(
-  left: ComponentRef,
-  right: ComponentRef,
-): number {
-  return compareRefs(left, right)
-}

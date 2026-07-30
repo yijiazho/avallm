@@ -4,7 +4,7 @@
 // metadata only. Hidden roles may be used later as offline labels, but never
 // as factor inputs or row features.
 
-import type { Alignment, Seat } from '../engine/types.ts'
+import type { Seat } from '../engine/types.ts'
 import type { GameArtifact } from './artifact.ts'
 
 export const MECHANICAL_DATA_SCHEMA = 1
@@ -192,10 +192,4 @@ export function mechanicalDataset(
     rows,
     excluded,
   }
-}
-
-/** Truth is an offline label and is never part of MechanicalEvidenceRow. */
-export interface CalibrationTruth {
-  playerAlignment?: Readonly<{ seat: Seat; alignment: Alignment }>
-  teamClean?: Readonly<{ team: readonly Seat[]; clean: boolean }>
 }

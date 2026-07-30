@@ -116,10 +116,3 @@ export function architectureIdentityVersions(
 ): Record<string, string> {
   return resolvedArchitectureIdentityVersions(identity)
 }
-
-export function sameResolvedArchitectureIdentity(
-  left: ResolvedArchitectureIdentity,
-  right: ResolvedArchitectureIdentity,
-): boolean {
-  return isDeepStrictEqual(left, right)
-}

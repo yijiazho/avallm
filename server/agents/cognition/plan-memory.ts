@@ -618,30 +618,6 @@ export function validatePrivatePlanMemory(
   }
 }
 
-export function validatePrivatePlanMemoryHostJoin(
-  value: unknown,
-  req: DecisionRequest,
-  appliedDecision: Decision,
-  view: PlayerView,
-): value is PrivatePlanMemory {
-  try {
-    if (!validatePrivatePlanMemory(value)) return false
-    const current = value.history.at(-1)!
-    const commitments = buildCommitments(extractEvidence(view))
-    const expectedBasis = coherenceBasisFromView(view, req, commitments)
-    return (
-      value.viewerSeat === view.seat
-      && isDeepStrictEqual(current.request, req)
-      && current.viewThroughSeq === viewCursor(view)
-      && isDeepStrictEqual(current.appliedDecision, appliedDecision)
-      && isDeepStrictEqual(current.coherence.commitmentBasis, expectedBasis)
-      && isDeepStrictEqual(current.coherence.currentTeam, view.currentTeam)
-    )
-  } catch {
-    return false
-  }
-}
-
 export function validateAppliedPlanOutcome(
   value: unknown,
   viewerSeat: Seat,

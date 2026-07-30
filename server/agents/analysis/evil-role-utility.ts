@@ -7,19 +7,9 @@ import type {
 import { MAX_PROPOSALS } from '../../engine/rules.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
-import {
-  JOINT_IDENTITY_MODEL_VERSION,
-  type PrivateIdentitySnapshot,
-} from '../belief/identity.ts'
-import {
-  PUBLIC_OBSERVER_MODEL_VERSION,
-  type PublicObserverSnapshot,
-} from './observer-types.ts'
-import {
-  buildEvilRoleObjectiveSnapshot,
-  validatePrivateEvilRoleObjectiveHostJoin,
-  validatePrivateEvilRoleObjectiveSnapshot,
-} from './evil-objectives.ts'
+import { JOINT_IDENTITY_MODEL_VERSION } from '../belief/identity.ts'
+import { PUBLIC_OBSERVER_MODEL_VERSION } from './observer-types.ts'
+import { validatePrivateEvilRoleObjectiveSnapshot } from './evil-objectives.ts'
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
@@ -938,53 +928,6 @@ export function decodeCanonicalPrivateEvilRoleUtilityProjection(
   return validatePrivateEvilRoleUtilityProjectionShape(value, false)
     ? value as PrivateEvilRoleUtilityProjection
     : undefined
-}
-
-export function validatePrivateEvilRoleUtilityHostJoin(
-  value: unknown,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    objective: PrivateEvilRoleObjectiveSnapshot
-    identity: PrivateIdentitySnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-    alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
-    alternativeCandidates?: readonly PolicyCandidate[]
-  },
-): value is PrivateEvilRoleUtilityProjection {
-  if (
-    !validatePrivateEvilRoleUtilityProjection(value)
-    || !validatePrivateEvilRoleObjectiveHostJoin(input.objective, {
-      req: input.req,
-      view: input.view,
-      identity: input.identity,
-      observer: input.observer,
-      candidates: input.candidates,
-    })
-    || (
-      input.req.kind === 'vote'
-      && (
-        !input.alternativeObjective
-        || !input.alternativeCandidates
-        || !isDeepStrictEqual(
-          input.alternativeObjective,
-          buildEvilRoleObjectiveSnapshot({
-            req: { ...input.req, kind: 'propose' },
-            view: input.view,
-            identity: input.identity,
-            observer: input.observer,
-            candidates: input.alternativeCandidates,
-          }),
-        )
-      )
-    )
-  ) return false
-  try {
-    return isDeepStrictEqual(value, buildEvilRoleUtilityProjection(input))
-  } catch {
-    return false
-  }
 }
 
 export function validateAdmittedPrivateEvilRoleUtilityHostJoin(

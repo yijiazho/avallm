@@ -263,13 +263,11 @@ export interface PlannerOutput {
   communication?: PlannerCommunicationDirection
 }
 
+/** A real LLM adapter implements this bounded contract; tests inject fakes. */
 export interface CandidatePlanner {
   version: string
   choose(input: PlannerInput): Promise<PlannerOutput | undefined>
 }
-
-/** A real LLM adapter implements this bounded contract; tests inject fakes. */
-export type LlmCandidatePlanner = CandidatePlanner
 
 export interface VoiceInput {
   plan: CommittedVoicePlan
