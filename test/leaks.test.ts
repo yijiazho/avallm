@@ -76,7 +76,7 @@ test('spectator views carry only public events and no private info', async () =>
   await runGame({ game: g, agents })
   const view = viewForSpectator(g)
   assert.equal(view.role, 'spectator')
-  assert.deepEqual(view.privateInfo, {})
+  assert.deepEqual(view.privateInfo, { kind: 'none' })
   for (const ev of view.events) {
     assert.equal(ev.visibility, 'public', `spectator saw private event seq=${ev.seq} type=${ev.type}`)
   }
@@ -89,5 +89,5 @@ test('a servant view carries no private info at all', () => {
   const g = createGame({ seed: 'leak-servant', playerCount: 7 })
   const servant = g.players.find((p) => p.role === 'servant')!
   const view: PlayerView = viewFor(g, servant.seat)
-  assert.deepEqual(view.privateInfo, {})
+  assert.deepEqual(view.privateInfo, { kind: 'none' })
 })

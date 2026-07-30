@@ -1,6 +1,8 @@
 import {
   MAX_PROPOSALS,
   QUESTS_TO_WIN,
+  evilPartnersOf,
+  knownEvilOf,
 } from '../../engine/rules.ts'
 import type {
   Alignment,
@@ -82,7 +84,7 @@ export function knownFailsAboard(
   if (view.alignment !== 'evil' || !team) return []
   const legallyKnown = new Set<Seat>([
     view.seat,
-    ...(view.privateInfo.evilPartners ?? []),
+    ...evilPartnersOf(view.privateInfo),
   ])
   return team.filter((seat) => legallyKnown.has(seat)).sort((a, b) => a - b)
 }
@@ -166,8 +168,8 @@ function minimalQuestProof(
 
 function directPrivateSeat(view: PlayerView, seat: Seat): boolean {
   return seat === view.seat
-    || (view.privateInfo.knownEvil ?? []).includes(seat)
-    || (view.privateInfo.evilPartners ?? []).includes(seat)
+    || knownEvilOf(view.privateInfo).includes(seat)
+    || evilPartnersOf(view.privateInfo).includes(seat)
 }
 
 function directSingleQuestProof(

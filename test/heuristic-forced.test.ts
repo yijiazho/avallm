@@ -16,6 +16,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import type { Decision, DecisionRequest, Game, Seat } from '../server/engine/types.ts'
 
@@ -218,7 +219,7 @@ test('an evil leader seats a partner on the quest that needs two Fails', () => {
   assert.notEqual(g.players[leader].role, 'oberon') // Oberon has no partner to seat
 
   const d = decide(g, 'propose', leader) as { kind: 'propose'; team: Seat[] }
-  const partners = viewFor(g, leader).privateInfo.evilPartners ?? []
+  const partners = evilPartnersOf(viewFor(g, leader).privateInfo)
   const aboard = d.team.filter((s) => s === leader || partners.includes(s))
   // One Fail cannot sink this quest, so a team with only the leader on it is a
   // team its own side cannot fail — the propose-side of the same board read.
@@ -232,7 +233,7 @@ test('the one-evil-per-team default still holds on the quests that need one Fail
   })
   const leader = g.leaderSeat
   const d = decide(g, 'propose', leader) as { kind: 'propose'; team: Seat[] }
-  const partners = viewFor(g, leader).privateInfo.evilPartners ?? []
+  const partners = evilPartnersOf(viewFor(g, leader).privateInfo)
   assert.equal(d.team.filter((s) => partners.includes(s)).length, 0,
     'no visible pair on a quest one card can sink')
 })

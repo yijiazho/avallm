@@ -172,7 +172,7 @@ test('invalid scorer output cannot reopen forced candidates or remove totality',
     ...source.view,
     role: 'servant',
     alignment: 'good',
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
   }
   const agent = createComposedAgent({
     seed: source.source.seed,
@@ -321,7 +321,7 @@ test('forced policy dominates the planner', async () => {
     ...source.view,
     role: 'servant',
     alignment: 'good',
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
   }
   let calls = 0
   const agent = createComposedAgent({

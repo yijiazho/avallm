@@ -7,6 +7,7 @@ import {
   MAX_PROPOSALS,
   MIN_PLAYERS,
   QUESTS_PER_GAME,
+  evilPartnersOf,
 } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
@@ -241,7 +242,7 @@ function canonicalVisibleEvil(view: PlayerView): readonly Seat[] {
   if (view.alignment !== 'evil' || view.role === 'oberon') return []
   return [...new Set([
     view.seat,
-    ...(view.privateInfo.evilPartners ?? []),
+    ...evilPartnersOf(view.privateInfo),
   ])].sort((a, b) => a - b)
 }
 

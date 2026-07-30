@@ -48,7 +48,7 @@ function robustQuestFixture(decisive = false): {
   view.name = view.players[4].name
   view.role = 'assassin'
   view.alignment = 'evil'
-  view.privateInfo = { evilPartners: [5] }
+  view.privateInfo = { kind: 'evil', evilPartners: [5] }
   if (!decisive) {
     view.quests[0] = {
       ...view.quests[0],

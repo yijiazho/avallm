@@ -1,3 +1,8 @@
+import {
+  evilPartnersOf,
+  knownEvilOf,
+  merlinCandidatesOf,
+} from '../../engine/rules.ts'
 import type { PlayerView, Role, Seat } from '../../engine/types.ts'
 import {
   worldSatisfiesQuestRecord,
@@ -32,9 +37,9 @@ export function visibleEventCursor(view: PlayerView): number {
 
 function dealCacheKey(view: PlayerView): string {
   const privateInfo = [
-    ...(view.privateInfo.knownEvil ?? []).map((seat) => `m${seat}`),
-    ...(view.privateInfo.evilPartners ?? []).map((seat) => `e${seat}`),
-    ...(view.privateInfo.merlinCandidates ?? []).map((seat) => `p${seat}`),
+    ...knownEvilOf(view.privateInfo).map((seat) => `m${seat}`),
+    ...evilPartnersOf(view.privateInfo).map((seat) => `e${seat}`),
+    ...merlinCandidatesOf(view.privateInfo).map((seat) => `p${seat}`),
   ].join(',')
   return [
     canonicalRoleMultiset(view.rolesInPlay).join('|'),

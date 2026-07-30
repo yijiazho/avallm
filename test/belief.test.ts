@@ -3,7 +3,12 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import { DEFAULT_ROLES } from '../server/engine/rules.ts'
+import {
+  DEFAULT_ROLES,
+  evilPartnersOf,
+  knownEvilOf,
+  merlinCandidatesOf,
+} from '../server/engine/rules.ts'
 import {
   assessTeam,
   exactBelief,
@@ -140,7 +145,7 @@ test('Merlin sees every non-Mordred evil while Mordred remains hidden', () => {
     roles: DEFAULT_ROLES[9],
   })
   const view = viewAs(game, 'merlin')
-  const visible = view.privateInfo.knownEvil ?? []
+  const visible = knownEvilOf(view.privateInfo)
   const mordred = seatOf(game, 'mordred')
   assert.ok(!visible.includes(mordred))
 
@@ -167,7 +172,7 @@ test('evil partner lists are complete except for Oberon, who learns no partners'
     roles: DEFAULT_ROLES[7],
   })
   const morganaView = viewAs(game, 'morgana')
-  const partners = morganaView.privateInfo.evilPartners ?? []
+  const partners = evilPartnersOf(morganaView.privateInfo)
   const morganaSnapshot = exactBelief(morganaView)
   for (const { world } of morganaSnapshot.worlds) {
     const worldPartners = world.roleBySeat
@@ -182,7 +187,7 @@ test('evil partner lists are complete except for Oberon, who learns no partners'
   }
 
   const oberonView = viewAs(game, 'oberon')
-  assert.deepEqual(oberonView.privateInfo, {})
+  assert.deepEqual(oberonView.privateInfo, { kind: 'none' })
   assert.equal(exactBelief(oberonView).worlds.length, 360)
 })
 
@@ -193,7 +198,7 @@ test('Percival candidates hold Merlin and Morgana between them', () => {
     roles: DEFAULT_ROLES[5],
   })
   const view = viewAs(game, 'percival')
-  const candidates = view.privateInfo.merlinCandidates ?? []
+  const candidates = merlinCandidatesOf(view.privateInfo)
   assert.equal(candidates.length, 2)
   for (const { world } of exactBelief(view).worlds) {
     assert.deepEqual(
@@ -345,17 +350,14 @@ function rotateView(view: PlayerView, shift: number): PlayerView {
     players: view.players
       .map((player) => ({ ...player, seat: rotate(player.seat) }))
       .sort((a, b) => a.seat - b.seat),
-    privateInfo: {
-      ...(view.privateInfo.knownEvil
-        ? { knownEvil: rotateSeats(view.privateInfo.knownEvil) }
-        : {}),
-      ...(view.privateInfo.evilPartners
-        ? { evilPartners: rotateSeats(view.privateInfo.evilPartners) }
-        : {}),
-      ...(view.privateInfo.merlinCandidates
-        ? { merlinCandidates: rotateSeats(view.privateInfo.merlinCandidates) }
-        : {}),
-    },
+    privateInfo: ((info) => {
+      switch (info.kind) {
+        case 'merlin': return { kind: 'merlin' as const, knownEvil: rotateSeats(info.knownEvil)! }
+        case 'percival': return { kind: 'percival' as const, merlinCandidates: rotateSeats(info.merlinCandidates)! }
+        case 'evil': return { kind: 'evil' as const, evilPartners: rotateSeats(info.evilPartners)! }
+        case 'none': return { kind: 'none' as const }
+      }
+    })(view.privateInfo),
     quests: view.quests.map((quest) => ({
       ...quest,
       ...(quest.team ? { team: rotateSeats(quest.team) } : {}),
@@ -435,7 +437,7 @@ test('inconsistent legal-shape evidence fails clearly instead of returning an em
   })
   const view = viewAs(game, 'merlin')
   assert.throws(
-    () => exactBelief({ ...view, privateInfo: { knownEvil: [] } }),
+    () => exactBelief({ ...view, privateInfo: { kind: 'merlin', knownEvil: [] } }),
     /found no feasible worlds for seat \d+ \(merlin\)/,
   )
 })

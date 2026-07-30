@@ -126,7 +126,7 @@ function goodVoteView(
     name: 'Analyst',
     role: 'servant',
     alignment: 'good',
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
     phase: 'vote',
     round: decisive ? 3 : 1,
     proposalNum: options.proposalNum ?? 1,

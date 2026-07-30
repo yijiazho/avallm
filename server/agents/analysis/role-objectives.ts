@@ -1,5 +1,8 @@
 import { isDeepStrictEqual } from 'node:util'
-import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import {
+  ROLE_ALIGNMENT,
+  merlinCandidatesOf,
+} from '../../engine/rules.ts'
 import type {
   Decision,
   DecisionRequest,
@@ -494,7 +497,7 @@ export function buildRoleObjectiveSnapshot(input: {
     }
   }
   const pairs = pairPosterior(identity)
-  const privateCandidateSeats = [...(view.privateInfo.merlinCandidates ?? [])]
+  const privateCandidateSeats = [...merlinCandidatesOf(view.privateInfo)]
     .sort((left, right) => left - right)
   const pairCandidateSeats = [...new Set(pairs.hypotheses.flatMap(
     (hypothesis) => [

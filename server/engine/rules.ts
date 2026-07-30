@@ -233,19 +233,44 @@ export function isCanonicalTeam(team: readonly Seat[]): boolean {
 // knowledge — deal, viewFor, and tests all share it.
 export function computeKnowledge(players: Player[], seat: Seat): PrivateInfo {
   const me = players[seat]
-  const info: PrivateInfo = {}
   const seatsOf = (pred: (p: Player) => boolean) =>
     players.filter(pred).map((p) => p.seat).sort((a, b) => a - b)
 
   if (me.role === 'merlin') {
-    info.knownEvil = seatsOf((p) => p.alignment === 'evil' && p.role !== 'mordred')
-  } else if (me.role === 'percival') {
-    info.merlinCandidates = seatsOf((p) => p.role === 'merlin' || p.role === 'morgana')
-  } else if (me.alignment === 'evil' && me.role !== 'oberon') {
-    info.evilPartners = seatsOf(
-      (p) => p.alignment === 'evil' && p.role !== 'oberon' && p.seat !== seat,
-    )
+    return { kind: 'merlin', knownEvil: seatsOf((p) => p.alignment === 'evil' && p.role !== 'mordred') }
+  }
+  if (me.role === 'percival') {
+    return { kind: 'percival', merlinCandidates: seatsOf((p) => p.role === 'merlin' || p.role === 'morgana') }
+  }
+  if (me.alignment === 'evil' && me.role !== 'oberon') {
+    return {
+      kind: 'evil',
+      evilPartners: seatsOf((p) => p.alignment === 'evil' && p.role !== 'oberon' && p.seat !== seat),
+    }
   }
   // Oberon and Servants learn nothing.
-  return info
+  return { kind: 'none' }
+}
+
+// Accessors for the one array a seat's PrivateInfo carries, or [] when its kind
+// carries none. These are how consumers read knowledge without narrowing the
+// union at every site: the old `view.privateInfo.evilPartners ?? []` reads
+// become `evilPartnersOf(view.privateInfo)`, and the discriminant makes the
+// "wrong role's field" state unrepresentable rather than merely absent.
+export const knownEvilOf = (info: PrivateInfo): readonly Seat[] =>
+  info.kind === 'merlin' ? info.knownEvil : []
+export const evilPartnersOf = (info: PrivateInfo): readonly Seat[] =>
+  info.kind === 'evil' ? info.evilPartners : []
+export const merlinCandidatesOf = (info: PrivateInfo): readonly Seat[] =>
+  info.kind === 'percival' ? info.merlinCandidates : []
+
+// A deep copy decoupled from the source arrays, for callers that store the
+// knowledge past the life of the view it came from (e.g. cognition evidence).
+export function clonePrivateInfo(info: PrivateInfo): PrivateInfo {
+  switch (info.kind) {
+    case 'merlin': return { kind: 'merlin', knownEvil: info.knownEvil.slice() }
+    case 'percival': return { kind: 'percival', merlinCandidates: info.merlinCandidates.slice() }
+    case 'evil': return { kind: 'evil', evilPartners: info.evilPartners.slice() }
+    case 'none': return { kind: 'none' }
+  }
 }

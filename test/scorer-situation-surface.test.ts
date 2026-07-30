@@ -31,6 +31,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../server/engine/types.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 
@@ -205,7 +206,7 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
   const d3ViewBase = viewFor(d3Game, d3Seat)
   const visibleEvil = [
     d3Seat,
-    ...(d3ViewBase.privateInfo.evilPartners ?? []),
+    ...evilPartnersOf(d3ViewBase.privateInfo),
   ]
   const d3View: PlayerView = {
     ...d3ViewBase,

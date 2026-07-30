@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView, Role } from '../server/engine/types.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import {
   buildPrivateAssassinMerlinPosterior,
   decodeCanonicalPrivateAssassinMerlinPosterior,
@@ -46,7 +47,7 @@ function assassinFixture(
   view.round = 3
   view.proposalNum = 1
   if (evidence) {
-    const partner = view.privateInfo.evilPartners![0]
+    const partner = evilPartnersOf(view.privateInfo)[0]!
     const [first, second, filler] = view.players
       .map((player) => player.seat)
       .filter((seat) => seat !== view.seat && seat !== partner)
@@ -115,7 +116,7 @@ test('rejected votes count while auto-approved proposals carry no vote evidence'
   const fixture = assassinFixture()
   const belief = exactBelief(fixture.view)
   const baseline = buildPrivateAssassinMerlinPosterior({ ...fixture, belief })
-  const partner = fixture.view.privateInfo.evilPartners![0]
+  const partner = evilPartnersOf(fixture.view.privateInfo)[0]!
   const [candidate, filler] = fixture.view.players
     .map((player) => player.seat)
     .filter((seat) => seat !== fixture.view.seat && seat !== partner)
@@ -202,7 +203,7 @@ test('truth outside the captured seat view cannot affect the posterior', () => {
   const unknown = fixture.game.players.filter(
     (player) =>
       player.seat !== fixture.view.seat
-      && !fixture.view.privateInfo.evilPartners!.includes(player.seat),
+      && !evilPartnersOf(fixture.view.privateInfo).includes(player.seat),
   )
   ;[unknown[0].role, unknown[1].role] = [unknown[1].role, unknown[0].role]
   ;[unknown[0].alignment, unknown[1].alignment] = [

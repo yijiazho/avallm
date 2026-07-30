@@ -4,6 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { createGame } from '../server/engine/game.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type {
   DecisionRequest,
@@ -247,7 +248,7 @@ test('hand-worked worlds expose blindness separately from public treatment', () 
     treatment,
     candidates: legalCandidates(input.req, input.view),
   })
-  const visiblePartners = new Set(input.view.privateInfo.evilPartners ?? [])
+  const visiblePartners = new Set(evilPartnersOf(input.view.privateInfo))
   const selfTeam = objective.assessments.find(
     (assessment) =>
       assessment.team.seats.includes(input.view.seat)
@@ -278,13 +279,13 @@ test('hand-worked worlds expose blindness separately from public treatment', () 
 
 test('two-Fail threshold and anomalous treatment use direct joint worlds', () => {
   const input = mordredProposal(9, 4)
-  const visiblePartner = input.view.privateInfo.evilPartners![0]
+  const visiblePartner = evilPartnersOf(input.view.privateInfo)[0]!
   const filler = input.view.players
     .map((player) => player.seat)
     .filter(
       (seat) =>
         seat !== input.view.seat
-        && !input.view.privateInfo.evilPartners!.includes(seat),
+        && !evilPartnersOf(input.view.privateInfo).includes(seat),
     )
     .slice(0, 3)
   const team = [
@@ -343,7 +344,7 @@ test('two-Fail threshold and anomalous treatment use direct joint worlds', () =>
       && candidate.team.seats.every(
         (seat) =>
           seat === input.view.seat
-          || !input.view.privateInfo.evilPartners!.includes(seat),
+          || !evilPartnersOf(input.view.privateInfo).includes(seat),
       ),
   )!
   assert.equal(selfOnly.merlinBlindWindowProbability, 1)
@@ -371,7 +372,7 @@ test('native applicability distinguishes role, cast, and decision kind', () => {
   const servant = structuredClone(input.view)
   servant.role = 'servant'
   servant.alignment = 'good'
-  servant.privateInfo = {}
+  servant.privateInfo = { kind: 'none' }
   assert.equal(objective.applies(context(servant, input.req)), false)
   assert.equal(treatment.applies(context(servant, input.req)), true)
 
@@ -518,7 +519,7 @@ test('public treatment and weighted joint worlds change only their owned terms',
     .find(
       (seat) =>
         seat !== history.seat
-        && !history.privateInfo.evilPartners!.includes(seat),
+        && !evilPartnersOf(history.privateInfo).includes(seat),
     )!
   history.quests[0] = {
     ...history.quests[0],
@@ -584,7 +585,7 @@ test('public treatment and weighted joint worlds change only their owned terms',
       && entry.team.seats.every(
         (seat) =>
           seat === history.seat
-          || !history.privateInfo.evilPartners!.includes(seat),
+          || !evilPartnersOf(history.privateInfo).includes(seat),
       ),
   )!.team.teamId
   const exactValue = observed.assessments.find(
@@ -625,11 +626,9 @@ test('seat rotation, names, and private canaries cannot change semantics', () =>
     treatment,
   )
   const privateCanary = structuredClone(view)
-  privateCanary.privateInfo = {
-    evilPartners: [...(view.privateInfo.evilPartners ?? [])],
-    knownEvil: [view.seat],
-    merlinCandidates: [view.seat],
-  }
+  // Arbitrary planted private knowledge, distinct from the source view: the
+  // public projection must scrub it to the same record either way.
+  privateCanary.privateInfo = { kind: 'merlin', knownEvil: [view.seat] }
   assert.deepEqual(
     projectPublicRecord(privateCanary),
     projectPublicRecord(view),

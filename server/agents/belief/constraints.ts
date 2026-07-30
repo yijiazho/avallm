@@ -1,4 +1,10 @@
-import { ROLE_ALIGNMENT, teamsEqual } from '../../engine/rules.ts'
+import {
+  ROLE_ALIGNMENT,
+  evilPartnersOf,
+  knownEvilOf,
+  merlinCandidatesOf,
+  teamsEqual,
+} from '../../engine/rules.ts'
 import type { PlayerView } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
 import {
@@ -46,7 +52,7 @@ export function worldSatisfiesView(
       .map((role, seat) => ({ role, seat }))
       .filter(({ role }) => ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred')
       .map(({ seat }) => seat)
-    if (!teamsEqual(visibleEvil, view.privateInfo.knownEvil ?? [])) return false
+    if (!teamsEqual(visibleEvil, knownEvilOf(view.privateInfo))) return false
   }
 
   if (view.alignment === 'evil' && view.role !== 'oberon') {
@@ -57,7 +63,7 @@ export function worldSatisfiesView(
         && ROLE_ALIGNMENT[role] === 'evil'
         && role !== 'oberon')
       .map(({ seat }) => seat)
-    if (!teamsEqual(visiblePartners, view.privateInfo.evilPartners ?? [])) return false
+    if (!teamsEqual(visiblePartners, evilPartnersOf(view.privateInfo))) return false
   }
 
   if (view.role === 'percival') {
@@ -65,7 +71,7 @@ export function worldSatisfiesView(
       .map((role, seat) => ({ role, seat }))
       .filter(({ role }) => role === 'merlin' || role === 'morgana')
       .map(({ seat }) => seat)
-    if (!teamsEqual(candidates, view.privateInfo.merlinCandidates ?? [])) return false
+    if (!teamsEqual(candidates, merlinCandidatesOf(view.privateInfo))) return false
   }
 
   return worldSatisfiesQuestRecord(view, world, options)

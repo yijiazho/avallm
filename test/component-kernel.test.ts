@@ -1662,7 +1662,7 @@ test('public components receive only projected public context', async () => {
   const { request, view } = fixture()
   request.seat = 991
   view.seat = 997
-  view.privateInfo.knownEvil = [998]
+  view.privateInfo = { kind: 'merlin', knownEvil: [998] }
   const run = await runDecisionComponents(brain, request, view)
 
   assert.equal(run.entries[0].status, 'admitted')

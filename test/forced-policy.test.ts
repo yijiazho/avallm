@@ -37,7 +37,7 @@ const asMinion = (
   role: 'minion',
   rolesInPlay: view.rolesInPlay.map((role) =>
     role === 'oberon' ? 'minion' : role),
-  privateInfo: { evilPartners: [...partners] },
+  privateInfo: { kind: 'evil', evilPartners: [...partners] },
 })
 
 function policyResult(
@@ -69,7 +69,7 @@ test('good quest cards are forced to Success', () => {
     ...base.view,
     role: 'servant',
     alignment: 'good',
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
   }
   const result = policyResult({ ...base.req, seat: view.seat }, view)
   assert.equal(result.forced.version, FORCED_POLICY_VERSION)

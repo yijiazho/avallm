@@ -274,7 +274,7 @@ export function viewForSpectator(game: Game): PlayerView {
     name: 'Spectator',
     role: 'spectator' as PlayerView['role'],
     alignment: 'good', // placeholder, never rendered for spectators
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
     events: game.log.filter((ev) => ev.visibility === 'public'),
     // public record, seat-independent
     playerCount: base.playerCount,

@@ -158,11 +158,17 @@ export type Decision =
 
 // ---- Views (the hidden-information chokepoint) ----
 
-export interface PrivateInfo {
-  evilPartners?: SeatSet     // evil (except Oberon): fellow evil, minus Oberon, minus self
-  knownEvil?: SeatSet        // Merlin: all evil except Mordred
-  merlinCandidates?: SeatSet // Percival: {Merlin, Morgana}, unordered
-}
+// What a seat privately learns at deal time, discriminated by the role that
+// produced the knowledge. Exactly one kind applies per seat, so the shapes are
+// mutually exclusive by construction: a seat can never hold both `knownEvil`
+// and `merlinCandidates`. Loyal Servants and Oberon learn nothing ('none').
+// Built in one place (computeKnowledge in rules.ts) and read through the
+// knownEvilOf/evilPartnersOf/merlinCandidatesOf accessors there.
+export type PrivateInfo =
+  | { kind: 'none' }
+  | { kind: 'merlin'; knownEvil: SeatSet }        // all evil except Mordred
+  | { kind: 'percival'; merlinCandidates: SeatSet } // {Merlin, Morgana}, unordered
+  | { kind: 'evil'; evilPartners: SeatSet }       // fellow evil, minus Oberon, minus self
 
 export interface ProposalRecord {
   round: number

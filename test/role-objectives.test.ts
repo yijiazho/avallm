@@ -44,7 +44,7 @@ import {
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { createGame } from '../server/engine/game.ts'
-import { EVIL_COUNT } from '../server/engine/rules.ts'
+import { EVIL_COUNT, merlinCandidatesOf } from '../server/engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -211,7 +211,7 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
   assert.equal(pair.includesMorgana, true)
   assert.deepEqual(
     pair.privateCandidateSeats,
-    [...percivalFixture.view.privateInfo.merlinCandidates!]
+    [...merlinCandidatesOf(percivalFixture.view.privateInfo)]
       .sort((left, right) => left - right),
   )
   assert.equal(
@@ -245,10 +245,10 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
     ...structuredClone(percivalFixture.view),
     phase: 'vote',
     currentTeam: [
-      percivalFixture.view.privateInfo.merlinCandidates![0],
+      merlinCandidatesOf(percivalFixture.view.privateInfo)[0]!,
       percivalFixture.view.players.find(
         (player) =>
-          !percivalFixture.view.privateInfo.merlinCandidates!.includes(
+          !merlinCandidatesOf(percivalFixture.view.privateInfo).includes(
             player.seat,
           ),
       )!.seat,
@@ -260,7 +260,7 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
     round: voteView.round,
     proposalNum: voteView.proposalNum,
   }
-  const favoredMerlin = percivalFixture.view.privateInfo.merlinCandidates![0]
+  const favoredMerlin = merlinCandidatesOf(percivalFixture.view.privateInfo)[0]!
   const pairWeightedModel = {
     version: 'phase7c1-percival-pair-weighted-v1',
     factorsVersion: 'phase7c1-pair-test-factor-v1',
@@ -351,7 +351,7 @@ test('Percival without Morgana uses the normal tagged null coordinate', () => {
   )
   assert.deepEqual(
     snapshot.objective.pairPosterior.privateCandidateSeats,
-    view.privateInfo.merlinCandidates,
+    merlinCandidatesOf(view.privateInfo),
   )
   assert.ok(validatePrivateRoleObjectiveHostJoin(snapshot, {
     req,

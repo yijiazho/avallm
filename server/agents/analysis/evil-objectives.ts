@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
+import { evilPartnersOf } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -344,7 +345,7 @@ export function buildEvilRoleObjectiveSnapshot(input: {
     ? [view.seat]
     : [...new Set([
         view.seat,
-        ...(view.privateInfo.evilPartners ?? []),
+        ...evilPartnersOf(view.privateInfo),
       ])].sort((left, right) => left - right)
   if (
     coordination.some(

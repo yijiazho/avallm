@@ -30,7 +30,7 @@ const rolesInPlay: Role[] = ['merlin', 'percival', 'servant', 'servant', 'assass
 
 const base: PlayerView = {
   seat: 0, name: 'You', role: 'servant', alignment: 'good',
-  privateInfo: {}, playerCount: 7, rolesInPlay, players,
+  privateInfo: { kind: 'none' }, playerCount: 7, rolesInPlay, players,
   phase: 'discussion', round: 1, proposalNum: 1, leaderSeat: 0,
   quests: [
     { num: 1, teamSize: 2, failsRequired: 1 },
@@ -168,11 +168,11 @@ const VARIANTS: Variant[] = [
   // Loyal Servant sees nothing, plus the spectator's Witness card. A live run only
   // reaches whichever the deal hands the human. (Morgana/Mordred share the Minion's
   // evilPartners branch, differing only in arcana; represented here by the Minion.)
-  { id: 'role-merlin', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'merlin', alignment: 'good', privateInfo: { knownEvil: [4, 5] } })} /></Aside> },
-  { id: 'role-percival', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'percival', alignment: 'good', privateInfo: { merlinCandidates: [1, 5] } })} /></Aside> },
-  { id: 'role-servant', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'servant', alignment: 'good', privateInfo: {} })} /></Aside> },
-  { id: 'role-minion', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'minion', alignment: 'evil', privateInfo: { evilPartners: [4, 5] }, rolesInPlay: ['merlin', 'percival', 'servant', 'servant', 'assassin', 'morgana', 'minion'] })} /></Aside> },
-  { id: 'role-oberon', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'oberon', alignment: 'evil', privateInfo: {} })} /></Aside> },
+  { id: 'role-merlin', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'merlin', alignment: 'good', privateInfo: { kind: 'merlin', knownEvil: [4, 5] } })} /></Aside> },
+  { id: 'role-percival', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'percival', alignment: 'good', privateInfo: { kind: 'percival', merlinCandidates: [1, 5] } })} /></Aside> },
+  { id: 'role-servant', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'servant', alignment: 'good', privateInfo: { kind: 'none' } })} /></Aside> },
+  { id: 'role-minion', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'minion', alignment: 'evil', privateInfo: { kind: 'evil', evilPartners: [4, 5] }, rolesInPlay: ['merlin', 'percival', 'servant', 'servant', 'assassin', 'morgana', 'minion'] })} /></Aside> },
+  { id: 'role-oberon', sel: '.role-card', node: <Aside><RoleCard view={v({ role: 'oberon', alignment: 'evil', privateInfo: { kind: 'none' } })} /></Aside> },
   { id: 'role-spectator', sel: '.role-card', node: <Aside><SpectatorCard /></Aside> },
   // The expanded name editor — reachable in-app only by clicking "Change name".
   { id: 'name-editor', sel: '.name-editor', node: <Aside><NameEditor initialOpen current="Allen" rename={async () => {}} /></Aside> },

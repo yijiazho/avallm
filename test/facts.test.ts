@@ -13,7 +13,7 @@ import type { PlayerView, ProposalRecord, Quest, Seat } from '../server/engine/t
 // Minimal synthetic view — only the fields the dossier reads.
 function view(over: Partial<PlayerView>): PlayerView {
   return {
-    seat: 0, name: 'P0', role: 'servant', alignment: 'good', privateInfo: {},
+    seat: 0, name: 'P0', role: 'servant', alignment: 'good', privateInfo: { kind: 'none' },
     playerCount: 5, rolesInPlay: [], players: Array.from({ length: 5 }, (_, s) => ({ seat: s, name: `P${s}` })),
     phase: 'vote', round: 2, proposalNum: 1, leaderSeat: 0,
     quests: [], proposals: [], transcript: [], events: [],

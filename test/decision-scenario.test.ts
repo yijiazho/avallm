@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createGame } from '../server/engine/game.ts'
+import { knownEvilOf } from '../server/engine/rules.ts'
 import type {
   Game,
   PlayerView,
@@ -164,7 +165,7 @@ test('scenario view remains filtered to the target seat', () => {
 
   assert.equal(scenario.view.seat, merlin.seat)
   assert.equal(scenario.view.role, 'merlin')
-  assert.ok(scenario.view.privateInfo.knownEvil?.length)
+  assert.ok(knownEvilOf(scenario.view.privateInfo).length)
   const dealt = scenario.view.events.filter((event) =>
     event.type === 'roleDealt')
   assert.deepEqual(

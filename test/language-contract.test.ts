@@ -97,11 +97,7 @@ test('private view fields and private events cannot enter interpreter input', ()
   const view = viewFor(game, 0)
   view.role = 'merlin'
   view.alignment = 'evil'
-  view.privateInfo = {
-    knownEvil: [1, 2],
-    evilPartners: [3],
-    merlinCandidates: [0, 4],
-  }
+  view.privateInfo = { kind: 'evil', evilPartners: [0, 1, 2, 3, 4] }
   const privateEvent: GameEvent = {
     seq: Math.max(...view.events.map((event) => event.seq)) + 1,
     type: 'scratchpad',

@@ -2,6 +2,7 @@ import type {
   Alignment,
   Decision,
   DecisionRequest,
+  PrivateInfo,
   Role,
   Seat,
 } from '../../engine/types.ts'
@@ -51,11 +52,10 @@ interface EvidencePayloads {
     role: Role
     alignment: Alignment
   }
-  'private-knowledge': {
-    knownEvil?: readonly Seat[]
-    evilPartners?: readonly Seat[]
-    merlinCandidates?: readonly Seat[]
-  }
+  // The seat's deal-time private knowledge, verbatim from the engine. One
+  // shared type, so the discriminant that makes the shapes mutually exclusive
+  // holds here too rather than being re-flattened into three optionals.
+  'private-knowledge': PrivateInfo
   'leader-change': {
     round: number
     proposalNum: number

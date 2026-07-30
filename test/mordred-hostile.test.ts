@@ -10,6 +10,7 @@ import {
 import { viewFor } from '../server/engine/view.ts'
 import {
   ROLE_ALIGNMENT,
+  evilPartnersOf,
 } from '../server/engine/rules.ts'
 import type {
   DecisionRequest,
@@ -303,9 +304,8 @@ test('treatment is exactly reconstructed from public executed quests only', () =
 
   const privateMutation = structuredClone(input.view)
   privateMutation.privateInfo = {
+    kind: 'evil',
     evilPartners: input.view.players.map((player) => player.seat),
-    knownEvil: [],
-    merlinCandidates: [],
   }
   privateMutation.events = []
   privateMutation.transcript = []
@@ -335,7 +335,7 @@ test('weighted correlated worlds use exact joint sums, not marginal products', (
   input.view.events = []
   const base = exactBelief(input.view)
   const visiblePartners = new Set(
-    input.view.privateInfo.evilPartners ?? [],
+    evilPartnersOf(input.view.privateInfo),
   )
   const uncertain = input.view.players
     .map((player) => player.seat)
@@ -478,17 +478,14 @@ function rotateView(source: PlayerView, offset: number): PlayerView {
       name: `rotated-${rotate(player.seat)}`,
     }))
     .sort((left, right) => left.seat - right.seat)
-  view.privateInfo = {
-    ...(source.privateInfo.evilPartners
-      ? { evilPartners: seats(source.privateInfo.evilPartners) }
-      : {}),
-    ...(source.privateInfo.knownEvil
-      ? { knownEvil: seats(source.privateInfo.knownEvil) }
-      : {}),
-    ...(source.privateInfo.merlinCandidates
-      ? { merlinCandidates: seats(source.privateInfo.merlinCandidates) }
-      : {}),
-  }
+  view.privateInfo = ((info) => {
+    switch (info.kind) {
+      case 'merlin': return { kind: 'merlin' as const, knownEvil: seats(info.knownEvil)! }
+      case 'percival': return { kind: 'percival' as const, merlinCandidates: seats(info.merlinCandidates)! }
+      case 'evil': return { kind: 'evil' as const, evilPartners: seats(info.evilPartners)! }
+      case 'none': return { kind: 'none' as const }
+    }
+  })(source.privateInfo)
   view.quests = source.quests.map((quest) => ({
     ...quest,
     ...(quest.team ? { team: seats(quest.team) } : {}),
@@ -638,7 +635,7 @@ test('applicability excludes no-Merlin, non-Mordred, and wrong-kind hosts', asyn
   const nonMordred = structuredClone(input.view)
   nonMordred.role = 'servant'
   nonMordred.alignment = 'good'
-  nonMordred.privateInfo = {}
+  nonMordred.privateInfo = { kind: 'none' }
   cases.push({
     req: input.req,
     view: nonMordred,

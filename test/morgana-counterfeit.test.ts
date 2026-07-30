@@ -54,6 +54,7 @@ import type {
 import { createGame } from '../server/engine/game.ts'
 import {
   DEFAULT_ROLES,
+  evilPartnersOf,
   validateRoles,
 } from '../server/engine/rules.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -364,14 +365,14 @@ test('Morgana objective integrates per-world Mordred blindness and validates eve
     publicRead,
     candidates,
   }))
-  const partner = view.privateInfo.evilPartners![0]
+  const partner = evilPartnersOf(view.privateInfo)[0]!
   const assessment = objective.assessments.find(
     (candidate) =>
       candidate.candidate.team.includes(partner)
       && candidate.candidate.team.filter(
         (seat) =>
           seat === view.seat
-          || view.privateInfo.evilPartners!.includes(seat),
+          || evilPartnersOf(view.privateInfo).includes(seat),
       ).length === 1,
   )!
   const direct = Array<number>(assessment.candidate.team.length + 1).fill(0)
@@ -410,7 +411,7 @@ test('Morgana objective integrates per-world Mordred blindness and validates eve
 
 test('changed joint Mordred weights alter causal features without changing mechanics', async () => {
   const { game, view, req } = morganaProposal(9)
-  const partner = view.privateInfo.evilPartners![0]
+  const partner = evilPartnersOf(view.privateInfo)[0]!
   const weightedModel = {
     version: 'phase7e1a-correlated-mordred-test-v1',
     factorsVersion: 'phase7e1a-test-factor-v1',
@@ -489,7 +490,7 @@ test('composed Morgana analysis atomically rejects worlds outside the filtered v
     'phase7e1a-forged-partner-swap-v1',
     (view) => {
       const snapshot = structuredClone(exactBelief(view))
-      const partner = view.privateInfo.evilPartners![0]
+      const partner = evilPartnersOf(view.privateInfo)[0]!
       const world = structuredClone(snapshot.worlds[0].world)
       const goodSeat = world.alignmentBySeat.findIndex(
         (alignment) => alignment === 'good',
@@ -520,7 +521,7 @@ test('composed Morgana analysis atomically rejects worlds outside the filtered v
     .filter(
       (seat) =>
         seat !== questCase.view.seat
-        && !questCase.view.privateInfo.evilPartners!.includes(seat),
+        && !evilPartnersOf(questCase.view.privateInfo).includes(seat),
     )
   questCase.view.quests[0] = {
     ...questCase.view.quests[0],

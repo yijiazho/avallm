@@ -24,7 +24,7 @@
 // forced-and-followed while still failing for reasons the seat could not see —
 // that is the correct accounting for decision quality.
 
-import { QUESTS_TO_WIN, computeKnowledge, failsRequired } from '../engine/rules.ts'
+import { QUESTS_TO_WIN, computeKnowledge, evilPartnersOf, failsRequired } from '../engine/rules.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { Player, Role, Seat } from '../engine/types.ts'
 
@@ -71,7 +71,7 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
   for (const p of players) {
     if (p.alignment !== 'evil') continue
     const info = computeKnowledge(players, p.seat)
-    visible.set(p.seat, new Set<Seat>([p.seat, ...(info.evilPartners ?? [])]))
+    visible.set(p.seat, new Set<Seat>([p.seat, ...evilPartnersOf(info)]))
   }
   const isEvil = (s: Seat) => players[s]?.alignment === 'evil'
   const knownAboard = (seat: Seat, team: readonly Seat[]) =>

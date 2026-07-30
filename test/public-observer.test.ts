@@ -543,11 +543,7 @@ test('observer result is identical across seats and rejects private canaries 5-1
     canary.name = 'PRIVATE_CANARY'
     canary.role = 'oberon'
     canary.alignment = 'evil'
-    canary.privateInfo = {
-      knownEvil: [1],
-      evilPartners: [2],
-      merlinCandidates: [3, 4],
-    }
+    canary.privateInfo = { kind: 'evil', evilPartners: [1, 2, 3, 4] }
     Object.assign(canary, {
       cognition: 'PRIVATE_COGNITION',
       posterior: 'PRIVATE_POSTERIOR',

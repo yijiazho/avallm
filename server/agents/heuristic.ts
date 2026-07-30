@@ -7,6 +7,7 @@
 
 import { makeRng, fnv1a } from '../engine/prng.ts'
 import type { Rng } from '../engine/prng.ts'
+import { evilPartnersOf, knownEvilOf } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
@@ -26,9 +27,9 @@ function knownEvilSeats(view: PlayerView): Set<Seat> {
   const s = new Set<Seat>()
   if (view.alignment === 'evil') {
     s.add(view.seat)
-    for (const p of view.privateInfo.evilPartners ?? []) s.add(p)
+    for (const p of evilPartnersOf(view.privateInfo)) s.add(p)
   }
-  for (const p of view.privateInfo.knownEvil ?? []) s.add(p)
+  for (const p of knownEvilOf(view.privateInfo)) s.add(p)
   return s
 }
 
@@ -78,7 +79,7 @@ function decidePropose(view: PlayerView, rng: Rng): Decision {
   const ranked = rankBySuspicion(view).filter((s) => s !== view.seat)
   const team: Seat[] = [view.seat]
   if (view.alignment === 'evil') {
-    const partners = new Set(view.privateInfo.evilPartners ?? [])
+    const partners = new Set(evilPartnersOf(view.privateInfo))
     // A quest that needs TWO Fails needs two of US: one card sinks nothing
     // there, and a partner we can see is the only second Fail we can count on
     // (an Oberon is invisible to us, as we are to it, so a team that happens to

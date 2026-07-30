@@ -55,6 +55,7 @@ function evilView(
     role,
     alignment: 'evil',
     privateInfo: {
+      kind: 'evil',
       evilPartners: visibleEvil.filter((partner) => partner !== seat),
     },
     players,

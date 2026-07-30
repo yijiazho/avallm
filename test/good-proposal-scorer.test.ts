@@ -100,7 +100,7 @@ function genericGoodProposalView(): PlayerView {
     name: 'Analyst',
     role: 'servant',
     alignment: 'good',
-    privateInfo: {},
+    privateInfo: { kind: 'none' },
     players: source.view.players.map((player) => ({ ...player })),
     events: [],
     transcript: [],

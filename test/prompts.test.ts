@@ -46,7 +46,7 @@ test('percival knowledge co-locates its two candidates with their quest records 
   const players = Array.from({ length: 5 }, (_, s) => ({ seat: s, name: `P${s}` }))
   const base = {
     seat: 0, name: 'P0', role: 'percival', alignment: 'good',
-    privateInfo: { merlinCandidates: [2, 4] },
+    privateInfo: { kind: 'percival', merlinCandidates: [2, 4] },
     playerCount: 5,
     rolesInPlay: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
     players,
@@ -83,7 +83,7 @@ test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tel
   const players = Array.from({ length: 5 }, (_, s) => ({ seat: s, name: `P${s}` }))
   const base = {
     seat: 0, name: 'P0', role: 'merlin', alignment: 'good',
-    privateInfo: { knownEvil: [3, 4] },
+    privateInfo: { kind: 'merlin', knownEvil: [3, 4] },
     playerCount: 5,
     rolesInPlay: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
     players,

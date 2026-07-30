@@ -4,7 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, evilPartnersOf } from '../../engine/rules.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import { stableProbabilitySum } from '../belief/identity.ts'
 import type {
@@ -128,7 +128,7 @@ export function buildPrivateEvilSeatMerlinPosterior(input: {
     ) throw new Error('evil-seat predictor requires legal positive worlds')
     byMerlin[merlin].push(weighted)
   }
-  const visiblePartners = new Set(view.privateInfo.evilPartners ?? [])
+  const visiblePartners = new Set(evilPartnersOf(view.privateInfo))
   const rows = Array.from({ length: view.playerCount }, (_, seat) => seat)
     .filter((seat) => seat !== view.seat)
     .map((seat) => {

@@ -21,7 +21,12 @@
 // Code comments are exempt: they never reach the model. This block, for
 // instance, is free to use dashes.
 
-import { MAX_PROPOSALS, ROLE_ALIGNMENT, mentionsName } from '../engine/rules.ts'
+import {
+  MAX_PROPOSALS,
+  ROLE_ALIGNMENT,
+  evilPartnersOf,
+  mentionsName,
+} from '../engine/rules.ts'
 import { knownEvilAboard, matchPoint } from './board.ts'
 import { analyzeSituation } from './analysis/situation.ts'
 import { exactBelief } from './belief/exact.ts'
@@ -398,7 +403,7 @@ function dealKnowledgeText(
   const info = view.privateInfo
   const named = (seats: readonly Seat[]) => seats.map((s) => nameOf(view, s)).join(', ')
 
-  if (info.knownEvil?.length) {
+  if (info.kind === 'merlin') {
     const gap = view.rolesInPlay.includes('mordred')
       ? ` Mordred is dealt, and they are the one evil hidden from you, so exactly one more evil sits among the others.`
       : ` That list is the whole of evil, so every other seat is good: ${named(certain.knownGood)}. It is settled, not a read you are still forming.`
@@ -412,7 +417,8 @@ function dealKnowledgeText(
       : base
   }
   if (view.alignment === 'evil') {
-    if (!info.evilPartners?.length) {
+    const evilPartners = evilPartnersOf(info)
+    if (!evilPartners.length) {
       return `You are evil, but your fellow evil are unknown to you (and they do not know you).${compositionLine(view)}`
     }
     const gap = view.rolesInPlay.includes('oberon')
@@ -427,9 +433,9 @@ function dealKnowledgeText(
     const hunt = certain.alignmentComplete && certain.merlinCandidates.length
       ? ` Merlin is one of ${named(certain.merlinCandidates)}, and nothing narrows that but their play.`
       : ''
-    return `Your fellow EVIL players: ${named(info.evilPartners)}.${gap}${hunt}`
+    return `Your fellow EVIL players: ${named(evilPartners)}.${gap}${hunt}`
   }
-  if (info.merlinCandidates?.length) {
+  if (info.kind === 'percival') {
     const pair = info.merlinCandidates
     // Percival's "pair" is only a pair when a Morgana was dealt to fill it. The
     // picker allows Percival without Morgana (his own candidate list is then just
@@ -692,7 +698,7 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     // this text — it is a measurement of the rule, not of the wording.
     // Gated on actually having a partner to seat: an Oberon leader cannot see
     // one, so for it this is the normal round it plays like.
-    const partners = v.privateInfo.evilPartners ?? []
+    const partners = evilPartnersOf(v.privateInfo)
     const needsTwo = v.quests[v.round - 1].failsRequired === 2 && partners.length > 0
     // At 7+ players quest 4 is the only two-Fail quest, and reaching it always
     // means one side sits on two — so today this always resolves to a real match
@@ -845,7 +851,7 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     return `You are on the quest team and you are evil, so you may play "success" or "fail". A Fail is only worth playing when it buys more than it costs. ${call}`
   },
   assassinate: (v) => {
-    const partners = v.privateInfo.evilPartners ?? []
+    const partners = evilPartnersOf(v.privateInfo)
     const known = new Set<Seat>([v.seat, ...partners])
     const candidates = v.players.filter((p) => !known.has(p.seat)).map((p) => nameOf(v, p.seat))
     // The highest-leverage single call in the game (>50% of evil wins run

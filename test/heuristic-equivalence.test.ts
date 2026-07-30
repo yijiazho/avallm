@@ -12,10 +12,16 @@ import {
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 
 const PHASE3A_HEURISTIC_BANK_HASH =
-  '0c6a67ef0c269f0ab5fc46fb8a9d5e55216bd2290f1551a7b6c689a4ad6db52f'
+  'f1248c779f9b515f8ac201c6ee4a3f8635c2c6af1a8335e0a587c306da66e76c'
 // Captured from a clean worktree at Phase 3A commit
 // ee8803b81ec7688db2fc2a2bf311590824c00fcf before the policy rewrite, using
-// the exact seed/log/degraded projection below.
+// the exact seed/log/degraded projection below. Rehashed when PrivateInfo
+// became a role-discriminated union: the private-knowledge evidence payload and
+// the engine knowledge event now carry a `kind` discriminant. Decisions are
+// byte-identical (the sibling test above still passes); stripping exactly those
+// added `kind` fields from the projection reproduces the prior hash
+// 0c6a67ef0c269f0ab5fc46fb8a9d5e55216bd2290f1551a7b6c689a4ad6db52f, so this is a
+// pure serialization change with no behavior drift.
 
 test('frozen Phase 3A decision fixtures remain byte-equivalent', () => {
   for (const fixture of readDecisionFixtures()) {

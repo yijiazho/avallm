@@ -31,6 +31,7 @@ import {
   expectedDecisions,
 } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
+import { evilPartnersOf, knownEvilOf } from '../server/engine/rules.ts'
 import type {
   DecisionRequest,
   GameEvent,
@@ -84,8 +85,8 @@ function proposalAfterPublicConversation(): {
   const view = viewFor(game, req.seat)
   const subject = view.players.find((player) =>
     player.seat !== view.seat
-    && !view.privateInfo.knownEvil?.includes(player.seat)
-    && !view.privateInfo.evilPartners?.includes(player.seat)
+    && !knownEvilOf(view.privateInfo).includes(player.seat)
+    && !evilPartnersOf(view.privateInfo).includes(player.seat)
   )?.seat
   assert.notEqual(subject, undefined)
   return { req, view, subject: subject! }

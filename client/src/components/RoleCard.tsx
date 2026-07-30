@@ -26,16 +26,16 @@ export function RoleCard({ view }: { view: PlayerView }) {
             {ROLE_INFO[view.role]?.name ?? view.role} · {view.alignment}
           </div>
           <p className="role-desc">{ROLE_INFO[view.role]?.desc}</p>
-          {info.knownEvil && info.knownEvil.length > 0 && (
+          {info.kind === 'merlin' && info.knownEvil.length > 0 && (
             <p className="rc-know">You see evil: <b>{info.knownEvil.map(name).join(', ')}</b></p>
           )}
-          {info.evilPartners && info.evilPartners.length > 0 && (
+          {info.kind === 'evil' && info.evilPartners.length > 0 && (
             <p className="rc-know">Fellow evil: <b>{info.evilPartners.map(name).join(', ')}</b></p>
           )}
-          {view.alignment === 'evil' && (!info.evilPartners || info.evilPartners.length === 0) && (
+          {view.alignment === 'evil' && !(info.kind === 'evil' && info.evilPartners.length > 0) && (
             <p className="rc-know">You work alone; the other evil don't know you either.</p>
           )}
-          {info.merlinCandidates && info.merlinCandidates.length > 0 && (
+          {info.kind === 'percival' && info.merlinCandidates.length > 0 && (
             <p className="rc-know">Merlin is one of: <b>{info.merlinCandidates.map(name).join(' / ')}</b></p>
           )}
           <p className="roles-in-play">In play: {view.rolesInPlay.join(', ')}</p>

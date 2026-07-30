@@ -747,18 +747,19 @@ function inspectPrivateKnowledge(
   view: PlayerView,
   refs: Map<Seat, SeatRef>,
 ): InspectedPrivateKnowledge {
-  if (view.privateInfo.knownEvil !== undefined) {
-    return { kind: 'known-evil', seats: refsFor(view.privateInfo.knownEvil, refs) }
+  const info = view.privateInfo
+  if (info.kind === 'merlin') {
+    return { kind: 'known-evil', seats: refsFor(info.knownEvil, refs) }
   }
-  if (view.privateInfo.merlinCandidates !== undefined) {
+  if (info.kind === 'percival') {
     return {
       kind: 'merlin-candidates',
-      seats: refsFor(view.privateInfo.merlinCandidates, refs),
+      seats: refsFor(info.merlinCandidates, refs),
       ordering: 'unordered',
     }
   }
-  if (view.privateInfo.evilPartners !== undefined) {
-    return { kind: 'evil-partners', seats: refsFor(view.privateInfo.evilPartners, refs) }
+  if (info.kind === 'evil') {
+    return { kind: 'evil-partners', seats: refsFor(info.evilPartners, refs) }
   }
   return { kind: 'none', seats: [] }
 }

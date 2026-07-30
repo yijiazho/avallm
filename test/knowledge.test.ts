@@ -3,6 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../server/engine/rules.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { Game, Player, Seat } from '../server/engine/types.ts'
 
@@ -21,31 +22,32 @@ test('knowledge matrix holds for every role, player count, and seed', () => {
         const info = view.privateInfo
         const ctx = `players=${playerCount} seed=${s} seat=${me.seat} role=${me.role}`
 
+        // The discriminant IS the "exactly one shape" guarantee: asserting the
+        // kind rules out the other two fields, which no longer exist on the
+        // variant, so the old "other field is undefined" checks are now static.
         if (me.role === 'merlin') {
           const expected = seatsWhere(g, (p) => p.alignment === 'evil' && p.role !== 'mordred')
-          assert.deepEqual(sorted(info.knownEvil!), expected, `merlin sees evil minus mordred: ${ctx}`)
-          assert.equal(info.evilPartners, undefined, ctx)
-          assert.equal(info.merlinCandidates, undefined, ctx)
+          assert.equal(info.kind, 'merlin', ctx)
+          assert.deepEqual(sorted([...knownEvilOf(info)]), expected, `merlin sees evil minus mordred: ${ctx}`)
         } else if (me.role === 'percival') {
           const expected = seatsWhere(g, (p) => p.role === 'merlin' || p.role === 'morgana')
-          assert.deepEqual(sorted(info.merlinCandidates!), expected, `percival pair: ${ctx}`)
-          assert.equal(info.knownEvil, undefined, ctx)
-          assert.equal(info.evilPartners, undefined, ctx)
+          assert.equal(info.kind, 'percival', ctx)
+          assert.deepEqual(sorted([...merlinCandidatesOf(info)]), expected, `percival pair: ${ctx}`)
         } else if (me.role === 'oberon' || me.alignment === 'good') {
           // Oberon and Servants learn nothing.
-          assert.deepEqual(info, {}, `no knowledge: ${ctx}`)
+          assert.deepEqual(info, { kind: 'none' }, `no knowledge: ${ctx}`)
         } else {
           // Evil (non-Oberon): fellow evil, minus Oberon, minus self.
           const expected = seatsWhere(
             g, (p) => p.alignment === 'evil' && p.role !== 'oberon' && p.seat !== me.seat,
           )
-          assert.deepEqual(sorted(info.evilPartners!), expected, `evil partners: ${ctx}`)
-          assert.ok(!info.evilPartners!.includes(me.seat), ctx)
-          assert.equal(info.knownEvil, undefined, ctx)
+          assert.equal(info.kind, 'evil', ctx)
+          assert.deepEqual(sorted([...evilPartnersOf(info)]), expected, `evil partners: ${ctx}`)
+          assert.ok(!evilPartnersOf(info).includes(me.seat), ctx)
         }
 
         // Sanity: nobody's private info names a good player as evil.
-        for (const s2 of [...(info.knownEvil ?? []), ...(info.evilPartners ?? [])]) {
+        for (const s2 of [...knownEvilOf(info), ...evilPartnersOf(info)]) {
           assert.ok(evil.includes(s2), `${ctx}: seat ${s2} flagged evil but is good`)
         }
       }

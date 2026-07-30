@@ -67,11 +67,10 @@ test('public record and language context reject private canaries', () => {
   canaryView.name = 'PRIVATE_VIEWER_NAME'
   canaryView.role = 'mordred'
   canaryView.alignment = 'evil'
-  canaryView.privateInfo = {
-    evilPartners: [1, 2],
-    knownEvil: [3, 4],
-    merlinCandidates: [5, 6],
-  }
+  // Planted private seats that the public projection must scrub, whatever the
+  // knowledge kind. One valid variant carrying every marker seat is enough:
+  // scrubbing drops the whole privateInfo key, not one field at a time.
+  canaryView.privateInfo = { kind: 'evil', evilPartners: [1, 2, 3, 4, 5, 6] }
   canaryView.transcript.push({
     seat: 0,
     name: 'PRIVATE_TRANSCRIPT_NAME',

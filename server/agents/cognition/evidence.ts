@@ -1,3 +1,4 @@
+import { clonePrivateInfo } from '../../engine/rules.ts'
 import type { GameEvent, PlayerView, Seat } from '../../engine/types.ts'
 import type { Evidence } from './types.ts'
 
@@ -65,17 +66,7 @@ export function evidenceFromEvent(
         sourceSeq: event.seq,
         kind: 'private-knowledge',
         actor: view.seat,
-        payload: {
-          ...(view.privateInfo.knownEvil
-            ? { knownEvil: view.privateInfo.knownEvil.slice() }
-            : {}),
-          ...(view.privateInfo.evilPartners
-            ? { evilPartners: view.privateInfo.evilPartners.slice() }
-            : {}),
-          ...(view.privateInfo.merlinCandidates
-            ? { merlinCandidates: view.privateInfo.merlinCandidates.slice() }
-            : {}),
-        },
+        payload: clonePrivateInfo(view.privateInfo),
       }]
     case 'leadChange':
       return [{

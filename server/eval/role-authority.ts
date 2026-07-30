@@ -145,7 +145,7 @@ function robustD3(): Fixture {
   view.name = view.players[4].name
   view.role = 'assassin'
   view.alignment = 'evil'
-  view.privateInfo = { evilPartners: [5] }
+  view.privateInfo = { kind: 'evil', evilPartners: [5] }
   view.quests[1] = {
     ...view.quests[1],
     failCount: 1,

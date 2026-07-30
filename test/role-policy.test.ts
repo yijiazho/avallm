@@ -57,6 +57,7 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
+import { knownEvilOf, merlinCandidatesOf } from '../server/engine/rules.ts'
 import {
   replayNativeScoresForAdmission,
 } from '../server/agents/policy/score-layer/admission-replay.ts'
@@ -278,7 +279,7 @@ function questFourTwoFailMerlinFixture() {
   view.leaderSeat = target.seat
   assert.equal(view.quests[3]!.failsRequired, 2)
   const seats = view.players.map((player) => player.seat)
-  const evilSeat = view.privateInfo.knownEvil![0]!
+  const evilSeat = knownEvilOf(view.privateInfo)[0]!
   const team = (questIndex: number, requiredSeat?: number) => {
     const size = view.quests[questIndex]!.teamSize
     return requiredSeat === undefined
@@ -351,7 +352,7 @@ test('Percival proposal and vote consume pair influence and self-decoy utility',
       )
     }
   }
-  const favored = percival.view.privateInfo.merlinCandidates![0]
+  const favored = merlinCandidatesOf(percival.view.privateInfo)[0]!
   const weighted = {
     version: 'phase7c2-percival-weighted-v1',
     factorsVersion: 'phase7c2-test-factor-v1',
@@ -403,7 +404,7 @@ test('Percival proposal and vote consume pair influence and self-decoy utility',
   const vote = voteFixture(percival)
   vote.view.currentTeam = [1, 2]
   const [favorFirst, favorSecond] = await Promise.all(
-    percival.view.privateInfo.merlinCandidates!.map((favoredSeat) =>
+    merlinCandidatesOf(percival.view.privateInfo).map((favoredSeat) =>
       decide(vote, false, {
         seed: 'phase7c2-percival-vote-flip',
         beliefModel: weightedFor(favoredSeat),

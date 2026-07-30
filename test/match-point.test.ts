@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
 import type { Game, Seat } from '../server/engine/types.ts'
 
@@ -161,7 +162,7 @@ test('an evil voter on a team its side can sink is told to approve it', () => {
   assert.match(ask, /an opportunity, not a threat, so approve it/)
   assert.ok(!ask.includes('last lever your side has'), 'the reject branch is mutually exclusive')
   // Its partner reads the same team the same way.
-  const partner = viewFor(g, leader).privateInfo.evilPartners?.[0]
+  const partner = evilPartnersOf(viewFor(g, leader).privateInfo)[0]
   if (partner !== undefined) {
     assert.match(askFor(g, 'vote', partner), /Your side already holds this quest/)
   }

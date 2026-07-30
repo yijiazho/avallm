@@ -306,6 +306,7 @@ function robustQuestNativeFixture() {
   view.role = 'assassin'
   view.alignment = 'evil'
   view.privateInfo = {
+    kind: 'evil',
     evilPartners: [5],
   }
   view.quests[0] = {

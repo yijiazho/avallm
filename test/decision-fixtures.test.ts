@@ -32,10 +32,10 @@ test('frozen decision fixtures cover every decision kind and private-knowledge s
     [...new Set(fixtures.map((fixture) => fixture.req.kind))].sort(),
     ['assassinate', 'discuss', 'finalize', 'propose', 'quest', 'vote'],
   )
-  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.knownEvil))
-  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.merlinCandidates))
-  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.evilPartners))
-  assert.ok(fixtures.some((fixture) => Object.keys(fixture.view.privateInfo).length === 0))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.kind === 'merlin'))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.kind === 'percival'))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.kind === 'evil'))
+  assert.ok(fixtures.some((fixture) => fixture.view.privateInfo.kind === 'none'))
 })
 
 test('frozen decision fixtures expose only events visible to the viewing seat', () => {

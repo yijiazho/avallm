@@ -57,6 +57,9 @@ import {
   createGame,
 } from '../server/engine/game.ts'
 import {
+  evilPartnersOf,
+} from '../server/engine/rules.ts'
+import {
   viewFor,
 } from '../server/engine/view.ts'
 import {
@@ -339,7 +342,7 @@ test('visible evil and Oberon expose distinct exact joint knowledge', async () =
       assassin.coordination.seats,
       [
         fixture('assassin').view.seat,
-        ...fixture('assassin').view.privateInfo.evilPartners!,
+        ...evilPartnersOf(fixture('assassin').view.privateInfo),
       ].sort((left, right) => left - right),
     )
     assert.equal(assassin.coordination.excludesUnseenOberon, true)

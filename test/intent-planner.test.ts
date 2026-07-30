@@ -492,7 +492,7 @@ test('direct planner communication rejects extra private-shaped fields', async (
             targetSeats: [],
             claimCodes: ['EXPLAIN_COMMITTED_TEAM'],
             tone: 'natural',
-            privateInfo: { knownEvil: [2, 3] },
+            privateInfo: { kind: 'merlin', knownEvil: [2, 3] },
           },
         } as never
       },

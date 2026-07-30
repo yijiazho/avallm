@@ -502,6 +502,7 @@ function coordinatedQuestView(
     role,
     alignment: 'evil',
     privateInfo: {
+      kind: 'evil',
       evilPartners: visibleEvil.filter((candidate) => candidate !== seat),
     },
     players,

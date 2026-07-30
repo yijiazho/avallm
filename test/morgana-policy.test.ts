@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView } from '../server/engine/types.ts'
+import { evilPartnersOf } from '../server/engine/rules.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import { componentPayload } from '../server/agents/components/kernel.ts'
 import {
@@ -574,7 +575,7 @@ test('an E1A-only malformed belief degrades narrowly to D2', async () => {
     factorsVersion: 'off',
     infer(view: PlayerView) {
       const snapshot = structuredClone(exactBelief(view))
-      const partner = view.privateInfo.evilPartners![0]
+      const partner = evilPartnersOf(view.privateInfo)[0]!
       const world = structuredClone(snapshot.worlds[0].world)
       const goodSeat = world.alignmentBySeat.findIndex(
         (alignment) => alignment === 'good',
@@ -730,7 +731,7 @@ test('two unanswered requirements walk two steps down the base chain', async () 
 
 test('weighted runtime stays causal and host admission preserves nonpromotion', async () => {
   const input = morganaProposal(9)
-  const partner = input.view.privateInfo.evilPartners![0]
+  const partner = evilPartnersOf(input.view.privateInfo)[0]!
   const weightedModel = {
     version: 'phase7e1b-weighted-mordred-v1',
     factorsVersion: 'phase7e1b-test-factor-v1',

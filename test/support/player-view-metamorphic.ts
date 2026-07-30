@@ -21,17 +21,14 @@ export function rotatePlayerView(
     name: players.find((player) => player.seat === rotate(copy.seat))!.name,
     players,
     leaderSeat: rotate(copy.leaderSeat),
-    privateInfo: {
-      ...(copy.privateInfo.knownEvil
-        ? { knownEvil: seats(copy.privateInfo.knownEvil) }
-        : {}),
-      ...(copy.privateInfo.evilPartners
-        ? { evilPartners: seats(copy.privateInfo.evilPartners) }
-        : {}),
-      ...(copy.privateInfo.merlinCandidates
-        ? { merlinCandidates: seats(copy.privateInfo.merlinCandidates) }
-        : {}),
-    },
+    privateInfo: ((info) => {
+      switch (info.kind) {
+        case 'merlin': return { kind: 'merlin' as const, knownEvil: seats(info.knownEvil)! }
+        case 'percival': return { kind: 'percival' as const, merlinCandidates: seats(info.merlinCandidates)! }
+        case 'evil': return { kind: 'evil' as const, evilPartners: seats(info.evilPartners)! }
+        case 'none': return { kind: 'none' as const }
+      }
+    })(copy.privateInfo),
     quests: copy.quests.map((quest) => ({
       ...quest,
       ...(quest.team ? { team: seats(quest.team) } : {}),
