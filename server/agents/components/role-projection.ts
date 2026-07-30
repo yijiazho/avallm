@@ -1,11 +1,12 @@
 /**
- * The shared lifecycle skeleton for native private role components.
+ * The shared lifecycle skeleton for native role components.
  *
- * Every role projection, objective, and private observer repeats the same
- * five mechanical steps: narrow the private context, assemble the build
- * input, wrap the built payload in an envelope, decode a detached payload,
- * and re-derive the payload for host admission. Only the assembly and the
- * semantics differ per role, so those are the only things a caller supplies.
+ * Every role projection, objective, and observer repeats the same five
+ * mechanical steps: narrow the context to its declared privacy, assemble the
+ * build input, wrap the built payload in an envelope, decode a detached
+ * payload, and re-derive the payload for host admission. Only the input
+ * assembly and the role semantics ever differ, so those are the only things a
+ * caller supplies.
  *
  * Owning the skeleton here is what lets a new role be added by registering a
  * component rather than by copying a template (docs/probabilistic-agent-
@@ -21,28 +22,36 @@ import type {
   ComponentRef,
   ComponentToken,
   DecisionComponentDefinition,
+  DecisionComponentPrivacy,
   HostCapability,
   PrivateDecisionComponentApplicabilityContext,
+  PublicDecisionComponentApplicabilityContext,
 } from './types.ts'
 
 /**
- * The payload bound every private role component shares.
+ * The payload bound every role component shares.
  *
  * Roles whose payload is bounded by its own much smaller structure state
  * their own cap at the definition instead of inheriting this one.
  */
 export const DEFAULT_ROLE_PROJECTION_JSON_BYTES = 1_048_576
 
-/**
- * A private component context: the applicability context plus the readers
- * the kernel grants once a component is eligible to run.
- */
-export type PrivateComponentContext = Extract<
-  Parameters<DecisionComponentDefinition['execute']>[0],
-  { privacy: 'private' }
->
+type ExecutionContext = Parameters<DecisionComponentDefinition['execute']>[0]
 
-export interface RoleProjectionSpec<Payload, JoinInput> {
+/** An execution context already narrowed to a private component. */
+export type PrivateComponentContext =
+  Extract<ExecutionContext, { privacy: 'private' }>
+
+/** An execution context already narrowed to a public component. */
+export type PublicComponentContext =
+  Extract<ExecutionContext, { privacy: 'public' }>
+
+interface ProjectionSpec<
+  Payload,
+  JoinInput,
+  Applicability,
+  Context,
+> {
   readonly token: ComponentToken<Payload>
   readonly degradationCode: string
   readonly dependencies?: readonly ComponentRef[]
@@ -50,22 +59,21 @@ export interface RoleProjectionSpec<Payload, JoinInput> {
   readonly hostRequirements?: readonly HostCapability[]
   readonly brainContribution?:
     DecisionComponentDefinition<Payload>['brainContribution']
+  readonly deterministicSeedDomain?: string
   /** Defaults to {@link DEFAULT_ROLE_PROJECTION_JSON_BYTES}. */
   readonly maxPayloadBytes?: number
   /**
-   * Role applicability. The privacy check is already applied, so this only
-   * states the role, phase, and decision-kind conditions.
+   * Role applicability. The privacy check is already applied, so this states
+   * only the role, phase, and decision-kind conditions.
    */
-  applies(
-    context: PrivateDecisionComponentApplicabilityContext,
-  ): boolean
+  applies(context: Applicability): boolean
   /**
-   * Assemble the build and host-join input from one private context.
+   * Assemble the build and host-join input from one context.
    *
    * Execution and host admission must re-derive the payload from identical
    * inputs, so both paths call this rather than each assembling their own.
    */
-  join(context: PrivateComponentContext): JoinInput
+  join(context: Context): JoinInput
   build(input: JoinInput): Payload
   decode(value: CanonicalJsonValue): Payload | undefined
   hostJoin(payload: Payload, input: JoinInput): boolean
@@ -76,27 +84,32 @@ export interface RoleProjectionSpec<Payload, JoinInput> {
   detachedExact?(payload: Payload): boolean
   /**
    * Whether a host-admitted payload is exact. Defaults to the detached rule.
-   * Roles whose exactness depends on an upstream dependency read it from the
-   * join input rather than from the payload.
+   * Roles whose exactness depends on an upstream dependency or host input
+   * read it from the join input rather than from the payload.
    */
   hostExact?(payload: Payload, input: JoinInput): boolean
 }
 
-function privateContext(
-  context: Parameters<DecisionComponentDefinition['execute']>[0],
-): PrivateComponentContext {
-  if (context.privacy !== 'private') {
-    throw new Error('private native component received public context')
-  }
-  return context
-}
+export type RoleProjectionSpec<Payload, JoinInput> = ProjectionSpec<
+  Payload,
+  JoinInput,
+  PrivateDecisionComponentApplicabilityContext,
+  PrivateComponentContext
+>
 
-/**
- * Build one native private component definition from its role semantics.
- */
-export function roleProjection<Payload, JoinInput>(
-  spec: RoleProjectionSpec<Payload, JoinInput>,
+export type PublicRoleProjectionSpec<Payload, JoinInput> = ProjectionSpec<
+  Payload,
+  JoinInput,
+  PublicDecisionComponentApplicabilityContext,
+  PublicComponentContext
+>
+
+function define<Payload, JoinInput>(
+  privacy: DecisionComponentPrivacy,
+  spec: ProjectionSpec<Payload, JoinInput, never, never>,
 ): DecisionComponentDefinition<Payload> {
+  const applies = spec.applies as (context: unknown) => boolean
+  const join = spec.join as (context: ExecutionContext) => JoinInput
   const detachedExact = spec.detachedExact ?? ((): boolean => true)
   const hostExact = spec.hostExact
     ?? ((payload: Payload): boolean => detachedExact(payload))
@@ -115,6 +128,18 @@ export function roleProjection<Payload, JoinInput>(
     degradationCode: spec.degradationCode,
   })
 
+  // Execution asserts the declared privacy because a mismatch there is a
+  // composition bug the kernel should surface. Host admission instead fails
+  // closed, so a mismatched context can never admit a payload.
+  const executionInput = (context: ExecutionContext): JoinInput => {
+    if (context.privacy !== privacy) {
+      throw new Error(
+        `${privacy} native component received ${context.privacy} context`,
+      )
+    }
+    return join(context)
+  }
+
   return {
     token: spec.token,
     source: 'native',
@@ -127,15 +152,18 @@ export function roleProjection<Payload, JoinInput>(
     maxPayloadBytes:
       spec.maxPayloadBytes ?? DEFAULT_ROLE_PROJECTION_JSON_BYTES,
     degradationCode: spec.degradationCode,
+    ...(spec.deterministicSeedDomain === undefined
+      ? {}
+      : { deterministicSeedDomain: spec.deterministicSeedDomain }),
     applies(context) {
-      return context.privacy === 'private' && spec.applies(context)
+      return context.privacy === privacy && applies(context)
     },
     execute(context) {
       return {
         status: 'produced',
         envelope: componentEnvelope(
           spec.token,
-          spec.build(spec.join(privateContext(context))),
+          spec.build(executionInput(context)),
         ),
       }
     },
@@ -146,10 +174,35 @@ export function roleProjection<Payload, JoinInput>(
         : reject()
     },
     admitHost({ payload, host }) {
-      const input = spec.join(privateContext(host))
+      if (host.privacy !== privacy) return reject()
+      const input = join(host)
       return spec.hostJoin(payload, input)
         ? admit(payload, hostExact(payload, input))
         : reject()
     },
   }
+}
+
+/** Build one native private component definition from its role semantics. */
+export function roleProjection<Payload, JoinInput>(
+  spec: RoleProjectionSpec<Payload, JoinInput>,
+): DecisionComponentDefinition<Payload> {
+  return define('private', spec as ProjectionSpec<
+    Payload,
+    JoinInput,
+    never,
+    never
+  >)
+}
+
+/** Build one native public component definition from its role semantics. */
+export function publicRoleProjection<Payload, JoinInput>(
+  spec: PublicRoleProjectionSpec<Payload, JoinInput>,
+): DecisionComponentDefinition<Payload> {
+  return define('public', spec as ProjectionSpec<
+    Payload,
+    JoinInput,
+    never,
+    never
+  >)
 }

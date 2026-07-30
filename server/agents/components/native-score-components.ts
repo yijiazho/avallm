@@ -107,14 +107,16 @@ import {
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 } from '../policy/score.ts'
-import { componentEnvelope } from './kernel.ts'
+import {
+  publicRoleProjection,
+  roleProjection,
+  type PrivateComponentContext,
+} from './role-projection.ts'
 import type {
-  ComponentAdmissionResult,
   ComponentHostInputBinding,
   ComponentHostInputDefinition,
   ComponentHostInputToken,
   ComponentToken,
-  DecisionComponentContext,
   DecisionComponentDefinition,
 } from './types.ts'
 import type {
@@ -222,33 +224,12 @@ ComponentHostInputToken<string> = Object.freeze({
   privacy: 'private',
 })
 
-function admitted<Payload>(
-  payload: Payload,
-  exact: boolean,
-): ComponentAdmissionResult<Payload> {
-  return {
-    admitted: true,
-    payload,
-    verification: exact ? 'exact' : 'structural',
-    promotionEligible: exact,
-  }
-}
-
-function rejected<Payload>(
-  degradationCode: string,
-): ComponentAdmissionResult<Payload> {
-  return { admitted: false, degradationCode }
-}
-
-function privateContext(context: DecisionComponentContext): {
+function identityContext(context: PrivateComponentContext): {
   req: Readonly<DecisionRequest>
   view: Readonly<PlayerView>
   identity: PrivateIdentitySnapshot
   observer: PublicObserverSnapshot
 } {
-  if (context.privacy !== 'private') {
-    throw new Error('private role adapter received public context')
-  }
   return {
     req: context.request,
     view: context.view,
@@ -257,14 +238,11 @@ function privateContext(context: DecisionComponentContext): {
   }
 }
 
-function privateObserverContext(context: DecisionComponentContext): {
+function observerContext(context: PrivateComponentContext): {
   req: Readonly<DecisionRequest>
   view: Readonly<PlayerView>
   observer: PublicObserverSnapshot
 } {
-  if (context.privacy !== 'private') {
-    throw new Error('private role component received public context')
-  }
   return {
     req: context.request,
     view: context.view,
@@ -286,186 +264,111 @@ export interface NativeScoreComponentConfiguration {
 export function nativeScoreComponentDefinitions(
   configuration: NativeScoreComponentConfiguration,
 ): readonly DecisionComponentDefinition<any>[] {
-  const goodObjective: DecisionComponentDefinition<
-    PrivateRoleObjectiveSnapshot
-  > = {
+  const goodObjective = roleProjection({
     token: GOOD_ROLE_OBJECTIVE_COMPONENT,
-    source: 'native',
-    dependencies: [],
+    degradationCode: ROLE_OBJECTIVE_DEGRADATION,
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    hostRequirements: [],
     maxPayloadBytes: MAX_ROLE_OBJECTIVE_JSON_BYTES,
-    degradationCode: ROLE_OBJECTIVE_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && (context.view.role === 'merlin' || context.view.role === 'percival')
+      return (context.view.role === 'merlin' || context.view.role === 'percival')
         && (
           configuration.goodObjectiveAllDecisionKinds
           || context.request.kind === 'propose'
           || context.request.kind === 'vote'
         )
     },
-    execute(context) {
-      const { req, view, identity, observer } = privateContext(context)
-      const payload = buildRoleObjectiveSnapshot({
+    join(context) {
+      const { req, view, identity, observer } = identityContext(context)
+      return {
         req,
         view,
         identity,
         observer,
         candidates: legalCandidates(req, view),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(GOOD_ROLE_OBJECTIVE_COMPONENT, payload),
       }
     },
-    validateDetached(payload) {
-      const decoded = decodeCanonicalPrivateRoleObjectiveSnapshot(payload)
-      return decoded
-        ? admitted(decoded, exactQuality(decoded))
-        : rejected(ROLE_OBJECTIVE_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const { req, view, identity, observer } = privateContext(host)
-      return validateAdmittedPrivateRoleObjectiveHostJoin(payload, {
-        req,
-        view,
-        identity,
-        observer,
-        candidates: legalCandidates(req, view),
-      })
-        ? admitted(payload, exactQuality(payload))
-        : rejected(ROLE_OBJECTIVE_DEGRADATION)
-    },
-  }
+    build: buildRoleObjectiveSnapshot,
+    decode: decodeCanonicalPrivateRoleObjectiveSnapshot,
+    hostJoin: validateAdmittedPrivateRoleObjectiveHostJoin,
+    detachedExact: exactQuality,
+  })
 
-  const goodUtility: DecisionComponentDefinition<
-    PrivateRoleUtilityProjection
-  > = {
+  const goodUtility = roleProjection({
     token: GOOD_ROLE_UTILITY_COMPONENT,
-    source: 'native',
+    degradationCode: ROLE_UTILITY_DEGRADATION,
     dependencies: [GOOD_ROLE_OBJECTIVE_COMPONENT],
     requiredHostInputs: [
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    hostRequirements: [],
     maxPayloadBytes: MAX_ROLE_UTILITY_JSON_BYTES,
-    degradationCode: ROLE_UTILITY_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && (context.view.role === 'merlin' || context.view.role === 'percival')
+      return (context.view.role === 'merlin' || context.view.role === 'percival')
         && (context.request.kind === 'propose' || context.request.kind === 'vote')
     },
-    execute(context) {
-      const { req, view, observer } = privateObserverContext(context)
-      const payload = buildAdmittedRoleUtilityProjection({
+    join(context) {
+      const { req, view, observer } = observerContext(context)
+      return {
         req,
         view,
         objective: context.dependencies.require(GOOD_ROLE_OBJECTIVE_COMPONENT),
         observer,
         candidates: legalCandidates(req, view),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(GOOD_ROLE_UTILITY_COMPONENT, payload),
       }
     },
-    validateDetached(payload) {
-      const decoded = decodeCanonicalPrivateRoleUtilityProjection(payload)
-      return decoded
-        ? admitted(decoded, true)
-        : rejected(ROLE_UTILITY_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const { req, view, observer } = privateObserverContext(host)
-      const objective = host.dependencies.require(GOOD_ROLE_OBJECTIVE_COMPONENT)
-      return validateAdmittedPrivateRoleUtilityHostJoin(payload, {
-        req,
-        view,
-        objective,
-        observer,
-        candidates: legalCandidates(req, view),
-      })
-        ? admitted(payload, exactQuality(objective))
-        : rejected(ROLE_UTILITY_DEGRADATION)
-    },
-  }
+    build: buildAdmittedRoleUtilityProjection,
+    decode: decodeCanonicalPrivateRoleUtilityProjection,
+    hostJoin: validateAdmittedPrivateRoleUtilityHostJoin,
+    hostExact: (_payload, input) => exactQuality(input.objective),
+  })
 
-  const evilObjective: DecisionComponentDefinition<
-    PrivateEvilRoleObjectiveSnapshot
-  > = {
+  const evilObjective = roleProjection({
     token: EVIL_ROLE_OBJECTIVE_COMPONENT,
-    source: 'native',
-    dependencies: [],
+    degradationCode: EVIL_ROLE_OBJECTIVE_DEGRADATION,
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    hostRequirements: [],
     maxPayloadBytes: MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
-    degradationCode: EVIL_ROLE_OBJECTIVE_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && context.view.alignment === 'evil'
+      return context.view.alignment === 'evil'
     },
-    execute(context) {
-      const { req, view, identity, observer } = privateContext(context)
-      const payload = buildEvilRoleObjectiveSnapshot({
+    join(context) {
+      const { req, view, identity, observer } = identityContext(context)
+      return {
         req,
         view,
         identity,
         observer,
         candidates: legalCandidates(req, view),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(EVIL_ROLE_OBJECTIVE_COMPONENT, payload),
       }
     },
-    validateDetached(payload) {
-      const decoded = decodeCanonicalPrivateEvilRoleObjectiveSnapshot(payload)
-      return decoded
-        ? admitted(decoded, exactQuality(decoded))
-        : rejected(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const { req, view, identity, observer } = privateContext(host)
-      return validateAdmittedPrivateEvilRoleObjectiveHostJoin(payload, {
-        req,
-        view,
-        identity,
-        observer,
-        candidates: legalCandidates(req, view),
-      })
-        ? admitted(payload, exactQuality(payload))
-        : rejected(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-    },
-  }
+    build: buildEvilRoleObjectiveSnapshot,
+    decode: decodeCanonicalPrivateEvilRoleObjectiveSnapshot,
+    hostJoin: validateAdmittedPrivateEvilRoleObjectiveHostJoin,
+    detachedExact: exactQuality,
+  })
 
-  const evilUtility: DecisionComponentDefinition<
-    PrivateEvilRoleUtilityProjection
-  > = {
+  const evilUtility = roleProjection({
     token: EVIL_ROLE_UTILITY_COMPONENT,
-    source: 'native',
+    degradationCode: EVIL_ROLE_UTILITY_DEGRADATION,
     dependencies: [EVIL_ROLE_OBJECTIVE_COMPONENT],
     requiredHostInputs: [
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    hostRequirements: [],
     maxPayloadBytes: MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
-    degradationCode: EVIL_ROLE_UTILITY_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && context.view.alignment === 'evil'
+      return context.view.alignment === 'evil'
         && (context.request.kind === 'propose' || context.request.kind === 'vote')
     },
-    execute(context) {
-      const { req, view, identity, observer } = privateContext(context)
-      const candidates = legalCandidates(req, view)
+    join(context) {
+      const { req, view, identity, observer } = identityContext(context)
+      // A vote is scored against the proposals this seat could have made
+      // instead, so the alternative objective is part of the build input
+      // rather than something each path recomputes for itself.
       const alternativeCandidates = req.kind === 'vote'
         ? hypotheticalProposalCandidates(view)
         : undefined
@@ -478,128 +381,51 @@ export function nativeScoreComponentDefinitions(
             candidates: alternativeCandidates,
           })
         : undefined
-      const payload = buildAdmittedEvilRoleUtilityProjection({
+      return {
         req,
         view,
         objective: context.dependencies.require(EVIL_ROLE_OBJECTIVE_COMPONENT),
-        candidates,
+        candidates: legalCandidates(req, view),
         ...(alternativeObjective ? { alternativeObjective } : {}),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(EVIL_ROLE_UTILITY_COMPONENT, payload),
       }
     },
-    validateDetached(payload) {
-      const decoded = decodeCanonicalPrivateEvilRoleUtilityProjection(payload)
-      return decoded
-        ? admitted(decoded, true)
-        : rejected(EVIL_ROLE_UTILITY_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const { req, view, identity, observer } = privateContext(host)
-      const candidates = legalCandidates(req, view)
-      const alternativeCandidates = req.kind === 'vote'
-        ? hypotheticalProposalCandidates(view)
-        : undefined
-      const alternativeObjective = alternativeCandidates
-        ? buildEvilRoleObjectiveSnapshot({
-            req: { ...req, kind: 'propose' },
-            view,
-            identity,
-            observer,
-            candidates: alternativeCandidates,
-          })
-        : undefined
-      const objective = host.dependencies.require(EVIL_ROLE_OBJECTIVE_COMPONENT)
-      return validateAdmittedPrivateEvilRoleUtilityHostJoin(payload, {
-        req,
-        view,
-        objective,
-        candidates,
-        ...(alternativeObjective
-          ? { alternativeObjective }
-          : {}),
-      })
-        ? admitted(payload, exactQuality(objective))
-        : rejected(EVIL_ROLE_UTILITY_DEGRADATION)
-    },
-  }
+    build: buildAdmittedEvilRoleUtilityProjection,
+    decode: decodeCanonicalPrivateEvilRoleUtilityProjection,
+    hostJoin: validateAdmittedPrivateEvilRoleUtilityHostJoin,
+    hostExact: (_payload, input) => exactQuality(input.objective),
+  })
 
-  const morganaPublicRead: DecisionComponentDefinition<
-    PublicCounterfeitMerlinReadSnapshot
-  > = {
+  const morganaPublicRead = publicRoleProjection({
     token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-    source: 'native',
-    dependencies: [],
-    requiredHostInputs: [],
-    hostRequirements: [],
-    maxPayloadBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
     degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
+    maxPayloadBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
     applies(context) {
-      return context.privacy === 'public'
-        && (
-          context.decision.kind === 'propose'
-          || context.decision.kind === 'vote'
-        )
+      return context.decision.kind === 'propose'
+        || context.decision.kind === 'vote'
     },
-    execute(context) {
-      if (context.privacy !== 'public') {
-        throw new Error('public Morgana observer received private context')
-      }
-      const payload = buildPublicCounterfeitMerlinRead(
-        context.publicRecord,
-      )
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(
-          MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-          payload,
-        ),
-      }
-    },
-    validateDetached(payload) {
-      const decoded = decodeCanonicalPublicCounterfeitMerlinRead(payload)
-      return decoded
-        ? admitted(decoded, true)
-        : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      return host.privacy === 'public'
-        && validateAdmittedPublicCounterfeitMerlinReadHostJoin(
-          payload,
-          host.publicRecord,
-        )
-        ? admitted(payload, true)
-        : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
-    },
-  }
+    join: (context) => context.publicRecord,
+    build: buildPublicCounterfeitMerlinRead,
+    decode: decodeCanonicalPublicCounterfeitMerlinRead,
+    hostJoin: validateAdmittedPublicCounterfeitMerlinReadHostJoin,
+  })
 
-  const morganaObjective: DecisionComponentDefinition<
-    PrivateMorganaCounterfeitObjective
-  > = {
+  const morganaObjective = roleProjection({
     token: MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-    source: 'native',
+    degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
     dependencies: [MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT],
     requiredHostInputs: [
       PRIVATE_BELIEF_INPUT,
     ],
-    hostRequirements: [],
     maxPayloadBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
-    degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && context.view.role === 'morgana'
+      return context.view.role === 'morgana'
         && (
           context.request.kind === 'propose'
           || context.request.kind === 'vote'
         )
     },
-    execute(context) {
-      if (context.privacy !== 'private') {
-        throw new Error('Morgana adapter received public context')
-      }
-      const payload = buildAdmittedMorganaCounterfeitObjective({
+    join(context) {
+      return {
         req: context.request,
         view: context.view,
         belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
@@ -607,137 +433,71 @@ export function nativeScoreComponentDefinitions(
           MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
         ),
         candidates: legalCandidates(context.request, context.view),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(
-          MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-          payload,
-        ),
       }
     },
-    validateDetached(payload) {
-      const decoded =
-        decodeCanonicalPrivateMorganaCounterfeitObjective(payload)
-      return decoded
-        ? admitted(
-            decoded,
-            decoded.source.beliefQuality === 'constraints-only',
-          )
-        : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      if (host.privacy !== 'private') {
-        return rejected(MORGANA_COUNTERFEIT_DEGRADATION)
-      }
-      const belief = host.hostInputs.require(PRIVATE_BELIEF_INPUT)
-      return validateAdmittedPrivateMorganaCounterfeitHostJoin(payload, {
-        req: host.request,
-        view: host.view,
-        belief,
-        publicRead: host.dependencies.require(
-          MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-        ),
-        candidates: legalCandidates(host.request, host.view),
-      })
-        ? admitted(payload, belief.quality === 'constraints-only')
-        : rejected(MORGANA_COUNTERFEIT_DEGRADATION)
-    },
-  }
+    build: buildAdmittedMorganaCounterfeitObjective,
+    decode: decodeCanonicalPrivateMorganaCounterfeitObjective,
+    hostJoin: validateAdmittedPrivateMorganaCounterfeitHostJoin,
+    detachedExact: (payload) =>
+      payload.source.beliefQuality === 'constraints-only',
+    hostExact: (_payload, input) =>
+      input.belief.quality === 'constraints-only',
+  })
 
   const morganaUtility = (
     token: ComponentToken<PrivateMorganaRoleUtilityProjection>,
     selectionMode: MorganaRoleSelectionMode,
-  ): DecisionComponentDefinition<PrivateMorganaRoleUtilityProjection> => ({
-    token,
-    source: 'native',
-    dependencies: [
-      EVIL_ROLE_UTILITY_COMPONENT,
-      MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-    ],
-    requiredHostInputs: [
-      PRIVATE_FORCED_POLICY_INPUT,
-      PRIVATE_DETERMINISTIC_SEED_INPUT,
-    ],
-    hostRequirements: [],
-    maxPayloadBytes: MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
-    degradationCode: MORGANA_ROLE_UTILITY_DEGRADATION,
-    deterministicSeedDomain:
-      selectionMode === 'seeded-near-equal-vote-within-d2-band'
-        ? MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-        : undefined,
-    applies(context) {
-      return context.privacy === 'private'
-        && context.view.role === 'morgana'
-        && (
-          context.request.kind === 'propose'
-          || context.request.kind === 'vote'
-        )
-    },
-    execute(context) {
-      if (context.privacy !== 'private') {
-        throw new Error('Morgana utility adapter received public context')
-      }
-      const payload = buildAdmittedMorganaRoleUtilityProjection({
-        req: context.request,
-        view: context.view,
-        candidates: legalCandidates(context.request, context.view),
-        forced: context.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT),
-        counterfeitObjective: context.dependencies.require(
-          MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-        ),
-        evilRoleUtility: context.dependencies.require(
-          EVIL_ROLE_UTILITY_COMPONENT,
-        ),
-        selectionMode,
-        deterministicSeed: context.hostInputs.require(
-          PRIVATE_DETERMINISTIC_SEED_INPUT,
-        ),
-      })
-      return {
-        status: 'produced',
-        envelope: componentEnvelope(token, payload),
-      }
-    },
-    validateDetached(payload) {
-      const decoded =
-        decodeCanonicalPrivateMorganaRoleUtilityProjection(payload)
-      return decoded
-        ? admitted(
-            decoded,
-            decoded.counterfeitObjective.source.beliefQuality
-              === 'constraints-only',
-          )
-        : rejected(MORGANA_ROLE_UTILITY_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      if (host.privacy !== 'private') {
-        return rejected(MORGANA_ROLE_UTILITY_DEGRADATION)
-      }
-      const objective = host.dependencies.require(
+  ): DecisionComponentDefinition<PrivateMorganaRoleUtilityProjection> =>
+    roleProjection({
+      token,
+      degradationCode: MORGANA_ROLE_UTILITY_DEGRADATION,
+      dependencies: [
+        EVIL_ROLE_UTILITY_COMPONENT,
         MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-      )
-      return validateAdmittedPrivateMorganaRoleUtilityHostJoin(payload, {
-        req: host.request,
-        view: host.view,
-        candidates: legalCandidates(host.request, host.view),
-        forced: host.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT),
-        counterfeitObjective: objective,
-        evilRoleUtility: host.dependencies.require(
-          EVIL_ROLE_UTILITY_COMPONENT,
-        ),
-        selectionMode,
-        deterministicSeed: host.hostInputs.require(
-          PRIVATE_DETERMINISTIC_SEED_INPUT,
-        ),
-      })
-        ? admitted(
-            payload,
-            objective.source.beliefQuality === 'constraints-only',
+      ],
+      requiredHostInputs: [
+        PRIVATE_FORCED_POLICY_INPUT,
+        PRIVATE_DETERMINISTIC_SEED_INPUT,
+      ],
+      maxPayloadBytes: MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
+      ...(selectionMode === 'seeded-near-equal-vote-within-d2-band'
+        ? { deterministicSeedDomain: MORGANA_ROLE_UTILITY_PROJECTION_VERSION }
+        : {}),
+      applies(context) {
+        return context.view.role === 'morgana'
+          && (
+            context.request.kind === 'propose'
+            || context.request.kind === 'vote'
           )
-        : rejected(MORGANA_ROLE_UTILITY_DEGRADATION)
-    },
-  })
+      },
+      join(context) {
+        return {
+          req: context.request,
+          view: context.view,
+          candidates: legalCandidates(context.request, context.view),
+          forced: context.hostInputs.require(PRIVATE_FORCED_POLICY_INPUT),
+          counterfeitObjective: context.dependencies.require(
+            MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
+          ),
+          evilRoleUtility: context.dependencies.require(
+            EVIL_ROLE_UTILITY_COMPONENT,
+          ),
+          selectionMode,
+          deterministicSeed: context.hostInputs.require(
+            PRIVATE_DETERMINISTIC_SEED_INPUT,
+          ),
+        }
+      },
+      build: buildAdmittedMorganaRoleUtilityProjection,
+      decode: decodeCanonicalPrivateMorganaRoleUtilityProjection,
+      hostJoin: validateAdmittedPrivateMorganaRoleUtilityHostJoin,
+      detachedExact: (payload) =>
+        payload.counterfeitObjective.source.beliefQuality
+          === 'constraints-only',
+      hostExact: (_payload, input) =>
+        input.counterfeitObjective.source.beliefQuality
+          === 'constraints-only',
+    })
 
   return Object.freeze([
     goodObjective,
