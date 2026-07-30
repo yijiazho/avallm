@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { capSpeech } from '../server/engine/rules.ts'
+import { capSpeech } from '../server/engine/names.ts'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { DEFAULT_ROLES } from '../server/engine/rules.ts'
 

@@ -26,7 +26,7 @@ function assertNoLeaks(g: Game, seat: Seat): void {
   // event types never appear for another seat.
   for (const ev of view.events) {
     assert.ok(eventVisibleTo(ev, seat), `${ctx}: leaked event seq=${ev.seq} type=${ev.type}`)
-    if (PRIVATE_EVENT_TYPES.has(ev.type)) {
+    if (PRIVATE_EVENT_TYPES.has(ev.type) && 'seat' in ev.payload) {
       assert.equal(ev.payload.seat, seat, `${ctx}: private ${ev.type} for another seat`)
     }
   }

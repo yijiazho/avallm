@@ -18,8 +18,8 @@ export function Reveal({ view, reveal, onNewGame, onCopyLog, copyLabel }: {
   const winnerCls = view.outcome?.winner === 'good' ? 'ok' : 'bad'
   // If the game ended on the Knife, name who the Assassin marked — the reveal is
   // the only screen shown at game over, so this beat lives nowhere else now.
-  const shot = reveal?.log.find((ev) => ev.type === 'assassination')?.payload as
-    { assassin: Seat; target: Seat; wasMerlin: boolean } | undefined
+  const shotEvent = reveal?.log.find((ev) => ev.type === 'assassination')
+  const shot = shotEvent?.type === 'assassination' ? shotEvent.payload : undefined
   const shotName = (s: Seat) => reveal?.players.find((p) => p.seat === s)?.name ?? `seat ${s}`
   return (
     <div className="reveal">
@@ -108,37 +108,39 @@ function ThinkingTimeline({ reveal }: { reveal: RevealPayload }) {
   return (
     <div className="thinking-timeline">
       {rows.map((ev) => {
-        const p = ev.payload
         if (ev.type === 'scratchpad') {
           return (
             <div key={ev.seq} className="think-row notes-row">
-              <span className="feed-speaker">{name(p.seat as Seat)}</span>
+              <span className="feed-speaker">{name(ev.payload.seat)}</span>
               <span className="think-kind">[notes]</span>
-              <em>{p.text as string}</em>
+              <em>{ev.payload.text}</em>
             </div>
           )
         }
         if (ev.type === 'thinking') {
           return (
             <div key={ev.seq} className="think-row">
-              <span className="feed-speaker">{name(p.seat as Seat)}</span>
-              <span className="think-kind">[{p.kind as string}]</span>
-              <em>{p.text as string}</em>
+              <span className="feed-speaker">{name(ev.payload.seat)}</span>
+              <span className="think-kind">[{ev.payload.kind}]</span>
+              <em>{ev.payload.text}</em>
             </div>
           )
         }
         if (ev.type === 'questCard') {
           return (
-            <div key={ev.seq} className={`think-row card-${p.card}`}>
-              <span className="feed-speaker">{name(p.seat as Seat)}</span>
-              <span>secretly played <b>{String(p.card).toUpperCase()}</b></span>
+            <div key={ev.seq} className={`think-row card-${ev.payload.card}`}>
+              <span className="feed-speaker">{name(ev.payload.seat)}</span>
+              <span>secretly played <b>{String(ev.payload.card).toUpperCase()}</b></span>
             </div>
           )
         }
         if (ev.type === 'proposal') {
-          return <div key={ev.seq} className="think-row marker">· {name(p.leader as Seat)} proposes (Q{p.round as number}.{p.proposalNum as number}) ·</div>
+          return <div key={ev.seq} className="think-row marker">· {name(ev.payload.leader)} proposes (Q{ev.payload.round}.{ev.payload.proposalNum}) ·</div>
         }
-        return <div key={ev.seq} className="think-row marker big">═ Quest {p.round as number}: {String(p.result).toUpperCase()} ═</div>
+        if (ev.type === 'questResult') {
+          return <div key={ev.seq} className="think-row marker big">═ Quest {ev.payload.round}: {String(ev.payload.result).toUpperCase()} ═</div>
+        }
+        return null
       })}
     </div>
   )

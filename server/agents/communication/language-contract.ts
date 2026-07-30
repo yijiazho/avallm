@@ -59,8 +59,10 @@ function attributedUtterances(
   events: readonly GameEvent[],
 ): readonly PublicAttributedUtterance[] {
   const names = new Map<Seat, string>()
-  const initialNames = events.find((event) => event.type === 'gameCreated')
-    ?.payload.names
+  const createdEvent = events.find((event) => event.type === 'gameCreated')
+  const initialNames = createdEvent?.type === 'gameCreated'
+    ? createdEvent.payload.names
+    : undefined
   if (Array.isArray(initialNames)) {
     initialNames.forEach((name, seat) => names.set(seat, String(name)))
   } else {
@@ -77,24 +79,23 @@ function attributedUtterances(
   }
 
   for (const event of events) {
-    const payload = event.payload
     if (event.type === 'rename') {
-      names.set(payload.seat as Seat, String(payload.to))
+      names.set(event.payload.seat, event.payload.to)
       continue
     }
     if (event.type === 'proposal') {
       proposal = {
-        round: payload.round as number,
-        proposalNum: payload.proposalNum as number,
-        leader: payload.leader as Seat,
-        team: (payload.team as Seat[]).slice(),
+        round: event.payload.round,
+        proposalNum: event.payload.proposalNum,
+        leader: event.payload.leader,
+        team: event.payload.team.slice(),
       }
-      if (typeof payload.pitch === 'string' && payload.pitch.length > 0) {
+      if (typeof event.payload.pitch === 'string' && event.payload.pitch.length > 0) {
         utterances.push({
           sourceSeq: event.seq,
           channel: 'proposal-pitch',
-          speaker: speaker(payload.leader as Seat),
-          text: payload.pitch,
+          speaker: speaker(event.payload.leader),
+          text: event.payload.pitch,
           context: copyUtteranceContext(proposal),
         })
       }
@@ -102,17 +103,17 @@ function attributedUtterances(
     }
     if (event.type === 'proposalRevised') {
       proposal = {
-        round: payload.round as number,
-        proposalNum: payload.proposalNum as number,
-        leader: payload.leader as Seat,
-        team: (payload.to as Seat[]).slice(),
+        round: event.payload.round,
+        proposalNum: event.payload.proposalNum,
+        leader: event.payload.leader,
+        team: event.payload.to.slice(),
       }
-      if (typeof payload.reason === 'string' && payload.reason.length > 0) {
+      if (typeof event.payload.reason === 'string' && event.payload.reason.length > 0) {
         utterances.push({
           sourceSeq: event.seq,
           channel: 'revision-reason',
-          speaker: speaker(payload.leader as Seat),
-          text: payload.reason,
+          speaker: speaker(event.payload.leader),
+          text: event.payload.reason,
           context: copyUtteranceContext(proposal),
         })
       }
@@ -120,22 +121,21 @@ function attributedUtterances(
     }
     if (
       event.type === 'utterance'
-      && typeof payload.text === 'string'
-      && payload.text.length > 0
+      && event.payload.text.length > 0
     ) {
       const context = proposal
         ? {
             ...proposal,
             team: proposal.team.slice(),
-            discussionRound: payload.round as number,
-            ...(payload.postRevision === true ? { postRevision: true } : {}),
+            discussionRound: event.payload.round,
+            ...(event.payload.postRevision === true ? { postRevision: true } : {}),
           }
         : undefined
       utterances.push({
         sourceSeq: event.seq,
         channel: 'discussion',
-        speaker: speaker(payload.seat as Seat),
-        text: payload.text,
+        speaker: speaker(event.payload.seat),
+        text: event.payload.text,
         ...(context ? { context } : {}),
       })
     }

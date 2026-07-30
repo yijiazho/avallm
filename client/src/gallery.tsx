@@ -69,9 +69,9 @@ const tableView = v({
     ],
   }],
   events: [
-    { seq: 1, type: 'proposal', payload: { leader: 2, round: 2, proposalNum: 1 }, visibility: 'public' },
-    { seq: 2, type: 'utterance', payload: { seat: 3, text: 'Fine by me.' }, visibility: 'public' },
-    { seq: 3, type: 'utterance', payload: { seat: 5, text: 'I want a better reason than that.' }, visibility: 'public' },
+    { seq: 1, type: 'proposal', payload: { leader: 2, round: 2, proposalNum: 1, team: [2, 3] }, visibility: 'public' },
+    { seq: 2, type: 'utterance', payload: { seat: 3, text: 'Fine by me.', round: 1 }, visibility: 'public' },
+    { seq: 3, type: 'utterance', payload: { seat: 5, text: 'I want a better reason than that.', round: 1 }, visibility: 'public' },
   ],
 })
 
@@ -141,16 +141,17 @@ const FeedZone = ({ children }: { children: React.ReactNode }) => <main>{childre
 // The vote is a disc in both states; the quest, two rows down, is still a card.
 const voteLeadIn: GameEvent[] = [
   { seq: 1, type: 'proposal', payload: { leader: 2, team: [0, 3], round: 1, proposalNum: 1, pitch: 'Two quiet seats. No reason to overthink the first one.' }, visibility: 'public' },
-  { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet." }, visibility: 'public' },
-  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.' }, visibility: 'public' },
-  { seq: 4, type: 'utterance', payload: { seat: 6, text: '' }, visibility: 'public' },
-  { seq: 5, type: 'proposalLocked', payload: { leader: 2 }, visibility: 'public' },
+  { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet.", round: 1 }, visibility: 'public' },
+  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.', round: 1 }, visibility: 'public' },
+  { seq: 4, type: 'utterance', payload: { seat: 6, text: '', round: 1 }, visibility: 'public' },
+  { seq: 5, type: 'proposalLocked', payload: { leader: 2, round: 1, proposalNum: 1, team: [0, 3] }, visibility: 'public' },
 ]
 // Mixed 4-3 so both faces of the token are on screen at once, and approved so the
 // tally reads in the lit colour.
 const voteRevealEvent: GameEvent = {
   seq: 6, type: 'voteReveal',
   payload: {
+    round: 1, proposalNum: 1, team: [0, 3],
     approved: true,
     votes: [
       { seat: 0, vote: 'approve' }, { seat: 1, vote: 'reject' }, { seat: 2, vote: 'approve' },

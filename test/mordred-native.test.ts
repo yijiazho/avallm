@@ -4,7 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { createGame } from '../server/engine/game.ts'
-import { evilPartnersOf } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type {
   DecisionRequest,

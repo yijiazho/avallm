@@ -5,13 +5,8 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import {
-  canonicalTeam,
-  hasDistinctSeats,
-  ROLE_ALIGNMENT,
-  TEAM_SIZES,
-  teamsEqual,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, TEAM_SIZES } from '../../engine/rules.ts'
+import { canonicalTeam, hasDistinctSeats, teamsEqual } from '../../engine/seatset.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import { assertDistribution } from '../belief/invariants.ts'
 import {

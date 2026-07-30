@@ -13,56 +13,55 @@ export function nameOf(a: GameArtifact, seat: Seat): string {
   return `${a.players[seat].name}(seat ${seat})`
 }
 
-function teamText(a: GameArtifact, team: Seat[]): string {
+function teamText(a: GameArtifact, team: readonly Seat[]): string {
   return team.map((s) => a.players[s].name).join('/')
 }
 
 function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null {
-  const p = ev.payload
   const tag = `[seq ${ev.seq}]`
   switch (ev.type) {
     case 'leadChange':
-      return `${tag} — quest ${p.round as number}, proposal ${p.proposalNum as number}: ${nameOf(a, p.seat as Seat)} leads —`
+      return `${tag} — quest ${ev.payload.round}, proposal ${ev.payload.proposalNum}: ${nameOf(a, ev.payload.seat)} leads —`
     case 'utterance': {
       // sanitize-at-boundary: player/agent free text is untrusted and enters an
       // LLM prompt here (probe/judge), so strip injection markup exactly like
       // the live prompt path does (server/agents/prompts.ts).
-      const text = sanitizeSpeech((p.text as string) ?? '')
-      return `${tag} ${nameOf(a, p.seat as Seat)}: ${text ? `"${text}"` : '(passes)'}`
+      const text = sanitizeSpeech(ev.payload.text ?? '')
+      return `${tag} ${nameOf(a, ev.payload.seat)}: ${text ? `"${text}"` : '(passes)'}`
     }
     case 'proposal': {
-      const pitch = typeof p.pitch === 'string' ? ` — pitch: "${sanitizeSpeech(p.pitch)}"` : ''
-      return `${tag} ${nameOf(a, p.leader as Seat)} proposes [${teamText(a, p.team as Seat[])}]${pitch}`
+      const pitch = typeof ev.payload.pitch === 'string' ? ` — pitch: "${sanitizeSpeech(ev.payload.pitch)}"` : ''
+      return `${tag} ${nameOf(a, ev.payload.leader)} proposes [${teamText(a, ev.payload.team)}]${pitch}`
     }
     case 'proposalLocked':
-      return `${tag} ${nameOf(a, p.leader as Seat)} locks in the team`
+      return `${tag} ${nameOf(a, ev.payload.leader)} locks in the team`
     case 'proposalRevised': {
-      const reason = typeof p.reason === 'string' ? ` — "${sanitizeSpeech(p.reason)}"` : ''
-      return `${tag} ${nameOf(a, p.leader as Seat)} REVISES the team to [${teamText(a, p.to as Seat[])}]${reason}`
+      const reason = typeof ev.payload.reason === 'string' ? ` — "${sanitizeSpeech(ev.payload.reason)}"` : ''
+      return `${tag} ${nameOf(a, ev.payload.leader)} REVISES the team to [${teamText(a, ev.payload.to)}]${reason}`
     }
     case 'voteReveal': {
-      if (p.auto === true) return `${tag} HAMMER: team [${teamText(a, p.team as Seat[])}] auto-approved, no vote`
-      const votes = (p.votes as { seat: Seat; vote: string }[])
+      if (ev.payload.auto === true) return `${tag} HAMMER: team [${teamText(a, ev.payload.team)}] auto-approved, no vote`
+      const votes = ev.payload.votes
         .map((v) => `${a.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')
-      return `${tag} votes: ${votes} -> ${(p.approved as boolean) ? 'APPROVED' : 'rejected'}`
+      return `${tag} votes: ${votes} -> ${ev.payload.approved ? 'APPROVED' : 'rejected'}`
     }
     case 'questResult':
-      return `${tag} QUEST ${p.round as number}: ${(p.result as string).toUpperCase()} (${p.failCount as number} fail cards, ${p.failsRequired as number} needed)`
+      return `${tag} QUEST ${ev.payload.round}: ${ev.payload.result.toUpperCase()} (${ev.payload.failCount} fail cards, ${ev.payload.failsRequired} needed)`
     case 'assassination':
-      return `${tag} assassination: ${nameOf(a, p.assassin as Seat)} names ${nameOf(a, p.target as Seat)} as Merlin -> ${(p.wasMerlin as boolean) ? 'CORRECT' : 'wrong'}`
+      return `${tag} assassination: ${nameOf(a, ev.payload.assassin)} names ${nameOf(a, ev.payload.target)} as Merlin -> ${ev.payload.wasMerlin ? 'CORRECT' : 'wrong'}`
     case 'gameOver':
-      return `${tag} GAME OVER: ${p.winner as string} wins (${p.reason as string})`
+      return `${tag} GAME OVER: ${ev.payload.winner} wins (${ev.payload.reason})`
     case 'rename':
-      return `${tag} (${p.from as string} changed name to ${p.to as string})`
+      return `${tag} (${ev.payload.from} changed name to ${ev.payload.to})`
     // ---- private events: full record only ----
     case 'thinking':
-      return full ? `${tag} [private thinking, ${nameOf(a, p.seat as Seat)} on ${p.kind as string}]: ${sanitizeSpeech(p.text as string)}` : null
+      return full ? `${tag} [private thinking, ${nameOf(a, ev.payload.seat)} on ${ev.payload.kind}]: ${sanitizeSpeech(ev.payload.text)}` : null
     case 'scratchpad':
-      return full ? `${tag} [private notes, ${nameOf(a, p.seat as Seat)}]: ${sanitizeSpeech(p.text as string)}` : null
+      return full ? `${tag} [private notes, ${nameOf(a, ev.payload.seat)}]: ${sanitizeSpeech(ev.payload.text)}` : null
     case 'voteCast':
-      return full ? `${tag} [private] ${nameOf(a, p.seat as Seat)} votes ${p.vote as string}` : null
+      return full ? `${tag} [private] ${nameOf(a, ev.payload.seat)} votes ${ev.payload.vote}` : null
     case 'questCard':
-      return full ? `${tag} [private] ${nameOf(a, p.seat as Seat)} plays ${p.card as string}` : null
+      return full ? `${tag} [private] ${nameOf(a, ev.payload.seat)} plays ${ev.payload.card}` : null
     default:
       return null // gameCreated/roleDealt/knowledge: covered by the headers
   }
@@ -74,7 +73,8 @@ function header(a: GameArtifact, withRoles: boolean, withOutcome: boolean): stri
       ? `${p.name}(seat ${p.seat}) = ${p.role.toUpperCase()} (${p.alignment})`
       : `${p.name}(seat ${p.seat})`)
     .join(', ')
-  const roles = (a.log[0]?.payload?.rolesInPlay as string[] | undefined)?.join(', ') ?? ''
+  const created = a.log[0]
+  const roles = created?.type === 'gameCreated' ? created.payload.rolesInPlay.join(', ') : ''
   return [
     `Players: ${players}.`,
     `Roles in play: ${roles}.`,

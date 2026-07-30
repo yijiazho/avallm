@@ -4,7 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { isCanonicalTeam } from '../../engine/rules.ts'
+import { isCanonicalTeam } from '../../engine/seatset.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
   assessPublicJointTeams,

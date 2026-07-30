@@ -21,13 +21,9 @@
 // Code comments are exempt: they never reach the model. This block, for
 // instance, is free to use dashes.
 
-import {
-  MAX_PROPOSALS,
-  ROLE_ALIGNMENT,
-  evilPartnersOf,
-  isCompletedQuest,
-  mentionsName,
-} from '../engine/rules.ts'
+import { MAX_PROPOSALS, ROLE_ALIGNMENT, isCompletedQuest } from '../engine/rules.ts'
+import { mentionsName } from '../engine/names.ts'
+import { evilPartnersOf } from '../engine/knowledge.ts'
 import { knownEvilAboard, matchPoint } from './board.ts'
 import { analyzeSituation } from './analysis/situation.ts'
 import { exactBelief } from './belief/exact.ts'

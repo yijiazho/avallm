@@ -395,7 +395,7 @@ interface FeedRow {
   pitch?: string
   sub?: string
   cls?: string
-  votes?: { seat: number; vote: string }[]
+  votes?: readonly { seat: number; vote: string }[]
   ayes?: number
   nays?: number
   teamSize?: number
@@ -404,30 +404,29 @@ interface FeedRow {
 
 function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerView): FeedRow | null {
   const viewSeat = view.seat
-  const p = ev.payload
   // The narrated lines address the viewer in the second person ("You take"),
   // everyone else in the third ("Sol takes"). Verb agreement follows suit.
   const you = (s: number | undefined) => s === viewSeat
   switch (ev.type) {
     case 'leadChange': {
-      const seat = p.seat as number
-      return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the crown' : 'takes the crown', text: `· quest ${p.round}` }
+      const seat = ev.payload.seat
+      return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the crown' : 'takes the crown', text: `· quest ${ev.payload.round}` }
     }
     case 'utterance': {
-      if (p.text) return { key: ev.seq, kind: 'talk', seat: p.seat as Seat, text: p.text as string }
+      if (ev.payload.text) return { key: ev.seq, kind: 'talk', seat: ev.payload.seat, text: ev.payload.text }
       // Silence is information too.
-      return { key: ev.seq, kind: 'quiet', seat: p.seat as Seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(p.seat as Seat))}.` }
+      return { key: ev.seq, kind: 'quiet', seat: ev.payload.seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(ev.payload.seat))}.` }
     }
     case 'proposal': {
-      const team = (p.team as number[]).map(name).join(' · ')
+      const team = ev.payload.team.map(name).join(' · ')
       return {
-        key: ev.seq, kind: 'deed', seat: p.leader as Seat, verb: you(p.leader as Seat) ? 'propose' : 'proposes',
-        text: `${team} for quest ${p.round} · proposal ${p.proposalNum} of 5`,
-        pitch: p.pitch ? String(p.pitch) : undefined,
+        key: ev.seq, kind: 'deed', seat: ev.payload.leader, verb: you(ev.payload.leader) ? 'propose' : 'proposes',
+        text: `${team} for quest ${ev.payload.round} · proposal ${ev.payload.proposalNum} of 5`,
+        pitch: ev.payload.pitch ? String(ev.payload.pitch) : undefined,
       }
     }
     case 'proposalLocked': {
-      const seat = p.leader as number
+      const seat = ev.payload.leader
       return {
         key: ev.seq, kind: 'deed', glyph: '🔏 ', seat,
         verb: you(seat) ? 'lock in the team' : 'locks in the team',
@@ -435,62 +434,62 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       }
     }
     case 'proposalRevised': {
-      const seat = p.leader as number
-      const to = (p.to as number[]).map(name).join(' · ')
+      const seat = ev.payload.leader
+      const to = ev.payload.to.map(name).join(' · ')
       return {
         key: ev.seq, kind: 'deed', glyph: '⟲ ', seat,
         verb: you(seat) ? 'revise the team' : 'revises the team',
-        text: `${to} · quest ${p.round}`,
-        pitch: p.reason ? String(p.reason) : undefined,
+        text: `${to} · quest ${ev.payload.round}`,
+        pitch: ev.payload.reason ? String(ev.payload.reason) : undefined,
       }
     }
     case 'voteReveal': {
-      if (p.auto) {
+      if (ev.payload.auto) {
         return {
           key: ev.seq, kind: 'deed', glyph: '🔨 ', cls: 'hammer',
           text: 'The hammer falls · the 5th proposal is locked in automatically, no vote.',
         }
       }
-      const votes = p.votes as { seat: number; vote: string }[]
+      const votes = ev.payload.votes
       const ayes = votes.filter((v) => v.vote === 'approve').length
       return {
         key: ev.seq,
         kind: 'votereveal',
-        cls: p.approved ? 'ok' : 'bad',
+        cls: ev.payload.approved ? 'ok' : 'bad',
         votes, ayes, nays: votes.length - ayes,
-        text: p.approved ? 'APPROVED' : 'REJECTED',
+        text: ev.payload.approved ? 'APPROVED' : 'REJECTED',
       }
     }
     case 'questResult': {
-      const won = p.result === 'success'
+      const won = ev.payload.result === 'success'
       // teamSize is authoritative on the quest (set at game start); the team may
       // not be recorded on it, so don't derive size from team length.
-      const teamSize = view.quests[(p.round as number) - 1]?.teamSize ?? 3
+      const teamSize = view.quests[ev.payload.round - 1]?.teamSize ?? 3
       return {
         key: ev.seq,
         kind: 'questreveal',
         cls: won ? 'ok' : 'bad',
-        teamSize, failCount: p.failCount as number | undefined,
-        text: `Quest ${p.round} · ${won ? 'SUCCESS' : 'SABOTAGED'}`,
-        sub: `${p.failCount} fail card${p.failCount === 1 ? '' : 's'} revealed, ${p.failsRequired} needed`,
+        teamSize, failCount: ev.payload.failCount,
+        text: `Quest ${ev.payload.round} · ${won ? 'SUCCESS' : 'SABOTAGED'}`,
+        sub: `${ev.payload.failCount} fail card${ev.payload.failCount === 1 ? '' : 's'} revealed, ${ev.payload.failsRequired} needed`,
       }
     }
     case 'assassination':
       return {
         key: ev.seq, kind: 'moment', cls: 'gold',
         text: `The Knife is drawn`,
-        sub: `${name(p.assassin as Seat)} is the Assassin, and names ${name(p.target as Seat)} as Merlin. ${p.wasMerlin ? 'Correct. Evil steals the game.' : 'Wrong.'}`,
+        sub: `${name(ev.payload.assassin)} is the Assassin, and names ${name(ev.payload.target)} as Merlin. ${ev.payload.wasMerlin ? 'Correct. Evil steals the game.' : 'Wrong.'}`,
       }
     case 'gameOver':
       return {
-        key: ev.seq, kind: 'moment', cls: p.winner === 'good' ? 'ok' : 'bad',
-        text: `${String(p.winner).toUpperCase()} WINS`,
-        sub: winReasonText(String(p.reason)),
+        key: ev.seq, kind: 'moment', cls: ev.payload.winner === 'good' ? 'ok' : 'bad',
+        text: `${String(ev.payload.winner).toUpperCase()} WINS`,
+        sub: winReasonText(String(ev.payload.reason)),
       }
     case 'gameCreated':
-      return { key: ev.seq, kind: 'deed', text: `The table is set: ${p.playerCount} players. Roles in play: ${(p.rolesInPlay as string[]).join(', ')}.` }
+      return { key: ev.seq, kind: 'deed', text: `The table is set: ${ev.payload.playerCount} players. Roles in play: ${ev.payload.rolesInPlay.join(', ')}.` }
     case 'rename':
-      return { key: ev.seq, kind: 'quiet', text: `${p.from} is now known as ${p.to}.` }
+      return { key: ev.seq, kind: 'quiet', text: `${ev.payload.from} is now known as ${ev.payload.to}.` }
     default:
       return null
   }

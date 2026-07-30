@@ -1,5 +1,5 @@
 import { test } from 'node:test'
-import { mutable } from './support/mutable.ts'
+import { mutable, type Mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -12,10 +12,18 @@ import {
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type {
   DecisionRequest,
+  GameEvent,
   Player,
   PlayerView,
   Role,
 } from '../server/engine/types.ts'
+
+// These tests deliberately smuggle an extra `ignoredTruth` field into event
+// payloads to prove the inspector never echoes unknown payload data. The typed
+// GameEvent union rejects excess properties, so the sentinel events are built
+// through this widening cast on purpose.
+const withSentinel = (event: unknown): Mutable<GameEvent> =>
+  event as Mutable<GameEvent>
 
 function playerWithRole(players: Player[], role: Role): Player {
   const player = players.find((candidate) => candidate.role === role)
@@ -201,7 +209,7 @@ test('visible private reasoning details remain causally distinguishable', () => 
   const inspectWith = (thinking: string, scratchpad: string) => {
     const view = structuredClone(fixture.view) as PlayerView
     mutable(view).events.push(
-      {
+      withSentinel({
         seq: 998,
         type: 'thinking',
         payload: {
@@ -211,8 +219,8 @@ test('visible private reasoning details remain causally distinguishable', () => 
           ignoredTruth: 'must-not-cross',
         },
         visibility: { only: [view.seat] },
-      },
-      {
+      }),
+      withSentinel({
         seq: 999,
         type: 'scratchpad',
         payload: {
@@ -222,7 +230,7 @@ test('visible private reasoning details remain causally distinguishable', () => 
           ignoredTruth: 'must-not-cross',
         },
         visibility: { only: [view.seat] },
-      },
+      }),
     )
     return inspectSeatView(fixture.req, view)
   }
@@ -245,7 +253,7 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
   ) => {
     const view = structuredClone(fixture.view) as PlayerView
     mutable(view).events.push(
-      {
+      withSentinel({
         seq: 997,
         type: 'proposal',
         payload: {
@@ -257,8 +265,8 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
           ignoredTruth: 'must-not-cross',
         },
         visibility: 'public',
-      },
-      {
+      }),
+      withSentinel({
         seq: 998,
         type: 'voteReveal',
         payload: {
@@ -270,8 +278,8 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
           ignoredTruth: 'must-not-cross',
         },
         visibility: 'public',
-      },
-      {
+      }),
+      withSentinel({
         seq: 999,
         type: 'questResult',
         payload: {
@@ -282,7 +290,7 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
           ignoredTruth: 'must-not-cross',
         },
         visibility: 'public',
-      },
+      }),
     )
     return inspectSeatView(fixture.req, view)
   }

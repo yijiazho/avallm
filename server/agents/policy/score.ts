@@ -10,7 +10,7 @@ import {
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'
-import { canonicalTeam } from '../../engine/rules.ts'
+import { canonicalTeam } from '../../engine/seatset.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
   type SituationAnalysis,

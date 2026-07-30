@@ -1,8 +1,4 @@
-import {
-  evilPartnersOf,
-  knownEvilOf,
-  merlinCandidatesOf,
-} from '../../engine/rules.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../../engine/knowledge.ts'
 import type { PlayerView, Role, Seat } from '../../engine/types.ts'
 import {
   worldSatisfiesQuestRecord,

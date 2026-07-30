@@ -99,7 +99,10 @@ test('private view fields and private events cannot enter interpreter input', ()
   mutable(view).role = 'merlin'
   mutable(view).alignment = 'evil'
   mutable(view).privateInfo = { kind: 'evil', evilPartners: [0, 1, 2, 3, 4] }
-  const privateEvent: GameEvent = {
+  // Deliberately smuggles private view fields into a scratchpad payload to prove
+  // they cannot reach interpreter input. The typed GameEvent union rejects these
+  // excess properties, so the sentinel event is built through a widening cast.
+  const privateEvent = {
     seq: Math.max(...view.events.map((event) => event.seq)) + 1,
     type: 'scratchpad',
     payload: {
@@ -110,7 +113,7 @@ test('private view fields and private events cannot enter interpreter input', ()
       alignment: view.alignment,
     },
     visibility: { only: [0] },
-  }
+  } as unknown as GameEvent
   mutable(view).events.push(mutable(privateEvent))
   Object.assign(view.players[0], {
     privateInfo: { sentinel: 'NESTED_PLAYER_SENTINEL' },

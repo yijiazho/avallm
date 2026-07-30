@@ -62,7 +62,7 @@ import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts
 import { compareCandidateIds } from '../policy/candidates.ts'
 import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
-import { canonicalTeam } from '../../engine/rules.ts'
+import { canonicalTeam } from '../../engine/seatset.ts'
 
 export const COMPATIBILITY_SCORE_LAYER = scoreLayerToken(
   'compatibility-score',

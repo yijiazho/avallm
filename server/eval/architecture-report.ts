@@ -60,7 +60,9 @@ import type {
 } from './artifact.ts'
 import type {
   DecisionKind,
+  GameEvent,
   Role,
+  Seat,
 } from '../engine/types.ts'
 import {
   isComposedPolicy,
@@ -363,6 +365,35 @@ interface GameObservation {
 
 function increment(map: Map<string, number>, key: string, amount = 1): void {
   map.set(key, (map.get(key) ?? 0) + amount)
+}
+
+// The seat that ACTED in an event, narrowed off the discriminated payload, or
+// undefined for events with no single actor (voteReveal, questResult, game
+// setup/over). Fed to actionKind, which only compares it against the target.
+function actorSeatOf(ev: GameEvent): Seat | undefined {
+  switch (ev.type) {
+    case 'proposal':
+    case 'proposalLocked':
+    case 'proposalRevised':
+      return ev.payload.leader
+    case 'assassination':
+      return ev.payload.assassin
+    case 'utterance':
+    case 'voteCast':
+    case 'questCard':
+    case 'thinking':
+    case 'scratchpad':
+    case 'roleDealt':
+    case 'knowledge':
+    case 'leadChange':
+    case 'rename':
+      return ev.payload.seat
+    case 'gameCreated':
+    case 'voteReveal':
+    case 'questResult':
+    case 'gameOver':
+      return undefined
+  }
 }
 
 function actionKind(a: GameArtifact, type: string, seat: unknown): DecisionKind | undefined {
@@ -1760,18 +1791,13 @@ function observe(a: GameArtifact): GameObservation {
   let initialProposals = 0
   const voteConfusion = emptyVoteConfusion()
   for (const ev of a.log) {
-    const p = ev.payload
-    const seat = ev.type === 'proposal' || ev.type === 'proposalLocked' || ev.type === 'proposalRevised'
-      ? p.leader
-      : ev.type === 'assassination'
-        ? p.assassin
-        : p.seat
+    const seat = actorSeatOf(ev)
     const kind = actionKind(a, ev.type, seat)
     if (kind) increment(decisions, kind)
-    if (ev.type === 'proposal' && p.leader === meta.targetSeat) {
+    if (ev.type === 'proposal' && ev.payload.leader === meta.targetSeat) {
       initialProposals++
       if (
-        (p.team as number[]).every(
+        ev.payload.team.every(
           (teamSeat) => a.players[teamSeat].alignment === 'good',
         )
       ) {
@@ -1779,14 +1805,13 @@ function observe(a: GameArtifact): GameObservation {
       }
     }
     if (ev.type === 'voteReveal') {
-      const targetVote = (
-        p.votes as Array<{ seat: number; vote: string }>
-      ).find((vote) => vote.seat === meta.targetSeat)
+      const targetVote = ev.payload.votes
+        .find((vote) => vote.seat === meta.targetSeat)
       if (targetVote) {
         countVoteByDirection(
           voteConfusion,
           targetVote.vote,
-          teamIsDirty(a.players, p.team as number[], a.id),
+          teamIsDirty(a.players, ev.payload.team, a.id),
         )
       }
     }

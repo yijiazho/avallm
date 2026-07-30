@@ -1,8 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
-import {
-  ROLE_ALIGNMENT,
-  merlinCandidatesOf,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { merlinCandidatesOf } from '../../engine/knowledge.ts'
 import type {
   Decision,
   DecisionRequest,

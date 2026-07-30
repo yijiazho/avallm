@@ -1,9 +1,5 @@
-import {
-  MAX_PROPOSALS,
-  QUESTS_TO_WIN,
-  evilPartnersOf,
-  knownEvilOf,
-} from '../../engine/rules.ts'
+import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
+import { evilPartnersOf, knownEvilOf } from '../../engine/knowledge.ts'
 import type {
   Alignment,
   PlayerView,

@@ -1,10 +1,6 @@
-import {
-  ROLE_ALIGNMENT,
-  evilPartnersOf,
-  knownEvilOf,
-  merlinCandidatesOf,
-  teamsEqual,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { teamsEqual } from '../../engine/seatset.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../../engine/knowledge.ts'
 import type { PlayerView } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
 import {

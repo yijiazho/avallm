@@ -2,7 +2,7 @@
 // engine rejects pronoun/game-term names and scrubs spoken seat references.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { nameIsReserved, stripSeatRefs } from '../server/engine/rules.ts'
+import { nameIsReserved, stripSeatRefs } from '../server/engine/names.ts'
 import { applyDecision, createGame, expectedDecisions } from '../server/engine/game.ts'
 import type { Player } from '../server/engine/types.ts'
 

@@ -156,10 +156,12 @@ function LibraryTab({ library }: { library: Library | null }) {
 }
 
 function SetupTab({ view }: { view: PlayerView }) {
-  const created = view.events.find((e) => e.type === 'gameCreated')?.payload
-  // Event payloads are untyped on the wire; gameCreated carries the engine's
-  // TalkConfig, so name it here rather than reading fields off unknown.
-  const talk = created?.talk as TalkConfig | undefined
+  const created = view.events.find((e) => e.type === 'gameCreated')
+  // gameCreated carries the engine's TalkConfig; narrowing on the discriminant
+  // types the payload, so no cast is needed.
+  const talk: TalkConfig | undefined = created?.type === 'gameCreated'
+    ? created.payload.talk
+    : undefined
   const evil = view.rolesInPlay.filter((r) => ROLE_INFO[r]?.side === 'evil').length
   return (
     <div className="ref-list">

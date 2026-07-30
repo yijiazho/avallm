@@ -4,7 +4,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { teamsEqual } from '../../engine/rules.ts'
+import { teamsEqual } from '../../engine/seatset.ts'
 import type {
   ForcedPlayReasonCode,
   SituationAnalysis,

@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import { evilPartnersOf } from '../../engine/rules.ts'
+import { evilPartnersOf } from '../../engine/knowledge.ts'
 import type {
   DecisionRequest,
   PlayerView,

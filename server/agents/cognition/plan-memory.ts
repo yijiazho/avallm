@@ -6,7 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { isDecisionKind } from '../../engine/types.ts'
-import { hasDistinctSeats } from '../../engine/rules.ts'
+import { hasDistinctSeats } from '../../engine/seatset.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
 import {
   plainDetachedData,

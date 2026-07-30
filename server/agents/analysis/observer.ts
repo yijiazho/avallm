@@ -1,9 +1,6 @@
 import type { Role, Seat } from '../../engine/types.ts'
-import {
-  hasDistinctSeats,
-  ROLE_ALIGNMENT,
-  validateRoles,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, validateRoles } from '../../engine/rules.ts'
+import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
   questFailEvidenceFromQuests,
   worldSatisfiesQuestEvidence,

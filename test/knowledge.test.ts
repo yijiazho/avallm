@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
-import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../server/engine/rules.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../server/engine/knowledge.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { Game, Player, Seat } from '../server/engine/types.ts'
 

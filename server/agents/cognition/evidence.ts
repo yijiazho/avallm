@@ -1,4 +1,4 @@
-import { clonePrivateInfo } from '../../engine/rules.ts'
+import { clonePrivateInfo } from '../../engine/knowledge.ts'
 import type { GameEvent, PlayerView, Seat } from '../../engine/types.ts'
 import type { Evidence } from './types.ts'
 
@@ -19,15 +19,15 @@ function publicProposalContext(
     if (event.seq >= throughSeq) break
     if (event.type === 'proposal') {
       context = {
-        round: event.payload.round as number,
-        proposalNum: event.payload.proposalNum as number,
-        team: (event.payload.team as Seat[]).slice(),
+        round: event.payload.round,
+        proposalNum: event.payload.proposalNum,
+        team: event.payload.team.slice(),
       }
     } else if (event.type === 'proposalRevised' && context) {
       context = {
-        round: event.payload.round as number,
-        proposalNum: event.payload.proposalNum as number,
-        team: (event.payload.to as Seat[]).slice(),
+        round: event.payload.round,
+        proposalNum: event.payload.proposalNum,
+        team: event.payload.to.slice(),
       }
     }
   }
@@ -39,7 +39,6 @@ export function evidenceFromEvent(
   view: PlayerView,
   event: GameEvent,
 ): readonly Evidence[] {
-  const p = event.payload
   switch (event.type) {
     case 'gameCreated':
       return [{
@@ -47,13 +46,13 @@ export function evidenceFromEvent(
         sourceSeq: event.seq,
         kind: 'game-setup',
         payload: {
-          playerCount: p.playerCount as number,
-          rolesInPlay: (p.rolesInPlay as PlayerView['rolesInPlay']).slice(),
-          firstLeader: p.firstLeader as Seat,
+          playerCount: event.payload.playerCount,
+          rolesInPlay: event.payload.rolesInPlay.slice(),
+          firstLeader: event.payload.firstLeader,
         },
       }]
     case 'roleDealt':
-      if (p.seat !== view.seat) return []
+      if (event.payload.seat !== view.seat) return []
       return [{
         id: eventId(event.seq, 'private-role'),
         sourceSeq: event.seq,
@@ -62,7 +61,7 @@ export function evidenceFromEvent(
         payload: { role: view.role, alignment: view.alignment },
       }]
     case 'knowledge':
-      if (p.seat !== view.seat) return []
+      if (event.payload.seat !== view.seat) return []
       return [{
         id: eventId(event.seq, 'private-knowledge'),
         sourceSeq: event.seq,
@@ -75,20 +74,20 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'leader-change'),
         sourceSeq: event.seq,
         kind: 'leader-change',
-        actor: p.seat as Seat,
-        payload: { round: p.round as number, proposalNum: p.proposalNum as number },
+        actor: event.payload.seat,
+        payload: { round: event.payload.round, proposalNum: event.payload.proposalNum },
       }]
     case 'proposal':
       return [{
         id: eventId(event.seq, 'proposal'),
         sourceSeq: event.seq,
         kind: 'proposal',
-        actor: p.leader as Seat,
+        actor: event.payload.leader,
         payload: {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          team: (p.team as Seat[]).slice(),
-          ...(typeof p.pitch === 'string' ? { pitch: p.pitch } : {}),
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          team: event.payload.team.slice(),
+          ...(typeof event.payload.pitch === 'string' ? { pitch: event.payload.pitch } : {}),
         },
       }]
     case 'proposalLocked':
@@ -96,11 +95,11 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'proposal-locked'),
         sourceSeq: event.seq,
         kind: 'proposal-locked',
-        actor: p.leader as Seat,
+        actor: event.payload.leader,
         payload: {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          team: (p.team as Seat[]).slice(),
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          team: event.payload.team.slice(),
         },
       }]
     case 'proposalRevised':
@@ -108,13 +107,13 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'proposal-revised'),
         sourceSeq: event.seq,
         kind: 'proposal-revised',
-        actor: p.leader as Seat,
+        actor: event.payload.leader,
         payload: {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          from: (p.from as Seat[]).slice(),
-          to: (p.to as Seat[]).slice(),
-          ...(typeof p.reason === 'string' ? { reason: p.reason } : {}),
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          from: event.payload.from.slice(),
+          to: event.payload.to.slice(),
+          ...(typeof event.payload.reason === 'string' ? { reason: event.payload.reason } : {}),
         },
       }]
     case 'utterance': {
@@ -126,11 +125,11 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'utterance'),
         sourceSeq: event.seq,
         kind: 'utterance',
-        actor: p.seat as Seat,
+        actor: event.payload.seat,
         payload: {
-          text: String(p.text ?? ''),
-          discussionRound: p.round as number,
-          postRevision: p.postRevision === true,
+          text: event.payload.text,
+          discussionRound: event.payload.round,
+          postRevision: event.payload.postRevision === true,
           round,
           proposalNum,
           ...(team ? { team } : {}),
@@ -143,17 +142,16 @@ export function evidenceFromEvent(
         sourceSeq: event.seq,
         kind: 'vote-reveal',
         payload: {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          team: (p.team as Seat[]).slice(),
-          votes: ((p.votes ?? []) as { seat: Seat; vote: 'approve' | 'reject' }[])
-            .map((vote) => ({ ...vote })),
-          approved: p.approved as boolean,
-          automatic: p.auto === true,
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          team: event.payload.team.slice(),
+          votes: event.payload.votes.map((vote) => ({ ...vote })),
+          approved: event.payload.approved,
+          automatic: event.payload.auto === true,
         },
       }]
     case 'questResult': {
-      const questNum = p.round as number
+      const questNum = event.payload.round
       return [{
         id: eventId(event.seq, 'quest-result'),
         sourceSeq: event.seq,
@@ -161,9 +159,9 @@ export function evidenceFromEvent(
         payload: {
           questNum,
           team: teamAt(view, questNum),
-          failCount: p.failCount as number,
-          failsRequired: p.failsRequired as number,
-          result: p.result as 'success' | 'fail',
+          failCount: event.payload.failCount,
+          failsRequired: event.payload.failsRequired,
+          result: event.payload.result,
         },
       }]
     }
@@ -172,23 +170,23 @@ export function evidenceFromEvent(
         id: eventId(event.seq, 'rename'),
         sourceSeq: event.seq,
         kind: 'rename',
-        actor: p.seat as Seat,
-        payload: { from: String(p.from), to: String(p.to) },
+        actor: event.payload.seat,
+        payload: { from: event.payload.from, to: event.payload.to },
       }]
     case 'assassination':
       return [{
         id: eventId(event.seq, 'assassination'),
         sourceSeq: event.seq,
         kind: 'assassination',
-        actor: p.assassin as Seat,
-        payload: { target: p.target as Seat, wasMerlin: p.wasMerlin as boolean },
+        actor: event.payload.assassin,
+        payload: { target: event.payload.target, wasMerlin: event.payload.wasMerlin },
       }]
     case 'gameOver':
       return [{
         id: eventId(event.seq, 'game-result'),
         sourceSeq: event.seq,
         kind: 'game-result',
-        payload: { winner: p.winner as 'good' | 'evil', reason: String(p.reason) },
+        payload: { winner: event.payload.winner, reason: event.payload.reason },
       }]
     // Hidden votes/cards and private model scratch data are deliberately not
     // evidence. voteReveal is the public vote source once the table can see it.

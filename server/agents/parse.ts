@@ -2,7 +2,8 @@
 // salvage first, explicit parseFailed distinct from empty. Legality beyond
 // shape (team size, seat ranges) is checked by the agent/engine, not here.
 
-import { hasDistinctSeats, lastMentionIndex, teamsEqual } from '../engine/rules.ts'
+import { lastMentionIndex } from '../engine/names.ts'
+import { hasDistinctSeats, teamsEqual } from '../engine/seatset.ts'
 import type { Decision, PlayerView, Seat } from '../engine/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 

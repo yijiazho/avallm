@@ -117,17 +117,92 @@ export const EVENT_TYPES = Object.freeze([
 
 export type EventType = typeof EVENT_TYPES[number]
 
+// The typed payload carried by each event kind. The map keys ARE EventType, so
+// a missing/extra entry is a compile error and the two lists cannot drift. Each
+// GameEvent below pairs a `type` literal with exactly its payload, so reading
+// `ev.payload.<field>` after narrowing on `ev.type` needs no cast: the field is
+// present (or a compile error), not `unknown`. Built stylistically like the
+// PrivateInfo union further down. `emit` (game.ts) is keyed off this map, so
+// every emit site is checked against the payload its event owns.
+export interface EventPayloadMap {
+  gameCreated: {
+    playerCount: number
+    names: string[]
+    rolesInPlay: Role[]
+    firstLeader: Seat
+    talk: TalkConfig
+  }
+  roleDealt: { seat: Seat; role: Role; alignment: Alignment }
+  // The seat's night-phase knowledge, tagged with the seat it belongs to.
+  knowledge: { seat: Seat } & PrivateInfo
+  leadChange: { seat: Seat; round: number; proposalNum: number }
+  utterance: {
+    seat: Seat
+    text: string
+    round: number            // the discussion round the utterance was spoken in
+    postRevision?: true
+  }
+  proposal: {
+    round: number
+    proposalNum: number
+    leader: Seat
+    team: Seat[]
+    pitch?: string
+  }
+  proposalLocked: {
+    round: number
+    proposalNum: number
+    leader: Seat
+    team: Seat[]
+  }
+  proposalRevised: {
+    round: number
+    proposalNum: number
+    leader: Seat
+    from: Seat[]
+    to: Seat[]
+    reason?: string
+  }
+  voteCast: { seat: Seat; vote: 'approve' | 'reject' }
+  voteReveal: {
+    round: number
+    proposalNum: number
+    team: Seat[]
+    votes: { seat: Seat; vote: 'approve' | 'reject' }[]
+    approved: boolean
+    auto?: true               // the 5th ("hammer") proposal, auto-approved
+  }
+  questCard: { seat: Seat; card: 'success' | 'fail' }
+  questResult: {
+    round: number
+    failCount: number
+    result: 'success' | 'fail'
+    failsRequired: number
+  }
+  assassination: { assassin: Seat; target: Seat; wasMerlin: boolean }
+  gameOver: { winner: Alignment; reason: string }
+  thinking: { seat: Seat; kind: DecisionKind; text: string }
+  rename: { seat: Seat; from: string; to: string }
+  scratchpad: { seat: Seat; round: number; text: string }
+}
+
 // Events are the authoritative record and are deep-frozen the instant they are
 // emitted (freezeEventValue in game.ts). The type mirrors that: an event is
 // immutable once created, and game.log is an append-only sequence the engine
 // alone extends (through emit's single owned cast) — no consumer may push,
 // splice, reassign, or reach in and rewrite a payload field.
-export interface GameEvent {
-  readonly seq: number
-  readonly type: EventType
-  readonly payload: DeepReadonly<Record<string, unknown>>
-  readonly visibility: DeepReadonly<Visibility>
-}
+//
+// A `type`-discriminated event: each member pairs one EventType literal with the
+// payload that type owns (from EventPayloadMap). The distribution over EventType
+// keeps this in lockstep with the map, so adding an event kind is a single edit.
+export type GameEvent = {
+  [K in EventType]: {
+    readonly seq: number
+    readonly type: K
+    readonly payload: DeepReadonly<EventPayloadMap[K]>
+    readonly visibility: DeepReadonly<Visibility>
+  }
+}[EventType]
 
 export interface Game {
   id: string

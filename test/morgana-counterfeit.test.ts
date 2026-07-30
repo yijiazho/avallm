@@ -52,11 +52,8 @@ import type {
   Role,
 } from '../server/engine/types.ts'
 import { createGame } from '../server/engine/game.ts'
-import {
-  DEFAULT_ROLES,
-  evilPartnersOf,
-  validateRoles,
-} from '../server/engine/rules.ts'
+import { DEFAULT_ROLES, validateRoles } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import { viewFor } from '../server/engine/view.ts'
 import {
   runArchitectureBench,

@@ -1,4 +1,4 @@
-import { teamsEqual } from '../../engine/rules.ts'
+import { teamsEqual } from '../../engine/seatset.ts'
 import type {
   Decision,
   DecisionKind,

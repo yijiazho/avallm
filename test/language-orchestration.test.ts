@@ -32,7 +32,7 @@ import {
   expectedDecisions,
 } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import { evilPartnersOf, knownEvilOf } from '../server/engine/rules.ts'
+import { evilPartnersOf, knownEvilOf } from '../server/engine/knowledge.ts'
 import type {
   DecisionRequest,
   GameEvent,
@@ -470,7 +470,6 @@ test('unexpected cognition commit failure advances no language state', async () 
       seat: (view.seat + 1) % view.playerCount,
       text: 'A new public batch for the atomic-state test.',
       round: view.round,
-      postRevision: false,
     },
   }
   mutable(advanced).events.push(mutable(publicUtterance))

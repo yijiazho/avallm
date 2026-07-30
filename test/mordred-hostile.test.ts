@@ -8,10 +8,8 @@ import {
   createGame,
 } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import {
-  ROLE_ALIGNMENT,
-  evilPartnersOf,
-} from '../server/engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import type {
   DecisionRequest,
   PlayerView,

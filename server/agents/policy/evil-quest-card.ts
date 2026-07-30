@@ -2,14 +2,14 @@ import { isDeepStrictEqual } from 'node:util'
 import { fnv1a } from '../../engine/prng.ts'
 import {
   failsRequired as boardFailsRequired,
-  hasDistinctSeats,
   isCompletedQuest,
   MAX_PLAYERS,
   MAX_PROPOSALS,
   MIN_PLAYERS,
   QUESTS_PER_GAME,
-  evilPartnersOf,
 } from '../../engine/rules.ts'
+import { hasDistinctSeats } from '../../engine/seatset.ts'
+import { evilPartnersOf } from '../../engine/knowledge.ts'
 import type {
   DecisionRequest,
   DeepReadonly,

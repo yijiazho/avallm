@@ -5,12 +5,8 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import {
-  canonicalTeam,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  teamsEqual,
-} from '../../engine/rules.ts'
+import { MAX_PLAYERS, MIN_PLAYERS } from '../../engine/rules.ts'
+import { canonicalTeam, teamsEqual } from '../../engine/seatset.ts'
 import {
   LEGAL_CANDIDATE_VERSION,
   type PolicyCandidate,

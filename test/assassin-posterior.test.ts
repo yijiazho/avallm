@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView, Role } from '../server/engine/types.ts'
-import { evilPartnersOf } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import {
   buildPrivateAssassinMerlinPosterior,
   decodeCanonicalPrivateAssassinMerlinPosterior,

@@ -24,7 +24,8 @@
 // forced-and-followed while still failing for reasons the seat could not see —
 // that is the correct accounting for decision quality.
 
-import { QUESTS_TO_WIN, computeKnowledge, evilPartnersOf, failsRequired } from '../engine/rules.ts'
+import { QUESTS_TO_WIN, failsRequired } from '../engine/rules.ts'
+import { computeKnowledge, evilPartnersOf } from '../engine/knowledge.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { Player, Role, Seat } from '../engine/types.ts'
 

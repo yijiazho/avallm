@@ -6,11 +6,14 @@
 import {
   DEFAULT_ROLES, MAX_PLAYERS, MAX_PROPOSALS, MIN_PLAYERS,
   QUESTS_PER_GAME, QUESTS_TO_WIN, ROLE_ALIGNMENT, TEAM_SIZES,
-  capSpeech, computeKnowledge, failsRequired, nameIsReserved, stripSeatRefs, teamsEqual, validateRoles,
+  failsRequired, validateRoles,
 } from './rules.ts'
+import { capSpeech, nameIsReserved, stripSeatRefs } from './names.ts'
+import { canonicalTeam, teamsEqual } from './seatset.ts'
+import { computeKnowledge } from './knowledge.ts'
 import { makeRng } from './prng.ts'
 import type {
-  Decision, DecisionRequest, Game, GameEvent, Player,
+  Decision, DecisionRequest, EventPayloadMap, EventType, Game, GameEvent, Player,
   Quest, Role, Seat, TalkConfig, Visibility,
 } from './types.ts'
 
@@ -33,14 +36,19 @@ function freezeEventValue<T>(value: T): T {
   return Object.freeze(value)
 }
 
-function emit(game: Game, type: GameEvent['type'], payload: Record<string, unknown>, visibility: Visibility): void {
+function emit<K extends EventType>(
+  game: Game,
+  type: K,
+  payload: EventPayloadMap[K],
+  visibility: Visibility,
+): void {
   const seq = game.log.length
   const event = freezeEventValue({
     seq,
     type,
     payload: structuredClone(payload),
     visibility: structuredClone(visibility),
-  } satisfies GameEvent)
+  } as GameEvent)
   // The one place the append-only log grows. The public type is
   // `readonly GameEvent[]` so no consumer can extend or rewrite it; the engine
   // owns this single write and casts to the mutable view to perform it, then
@@ -369,11 +377,29 @@ function validateDecisionBeforePreamble(
   }
 }
 
-export function applyDecision(
+export interface AppliedDecisionResult {
+  game: Game
+  /** The canonical, normalized action the engine recorded for this decision. */
+  appliedDecision: Decision
+}
+
+/**
+ * The single authoritative apply path. Validates the decision (illegal input
+ * throws EngineError and leaves the log untouched), emits its private preamble
+ * and public events, mutates `game`, and returns BOTH the game and the exact
+ * normalized Decision it recorded — team sorted, speech capped, the good-plays-
+ * success rule applied, thinking/notes trimmed. The canonical action is built
+ * here as the events are emitted, never scraped back out of the log.
+ *
+ * The public entry points are thin wrappers: applyDecision for callers that
+ * only advance the game, applyDecisionWithOutcome for callers that also need the
+ * recorded action.
+ */
+function applyDecisionCore(
   game: Game,
   seat: Seat,
   suppliedDecision: Decision,
-): Game {
+): AppliedDecisionResult {
   // Snapshot the complete untrusted value before reading even its kind. This
   // prevents accessors or retained mutable references from changing a field
   // between validation, private preamble emission, and authoritative apply.
@@ -385,26 +411,30 @@ export function applyDecision(
       `unexpected decision ${decision.kind} from seat ${seat} in phase ${game.phase}`,
     )
   }
+  // The one legality gate. Everything below MAY ASSUME the decision is valid:
+  // the switch normalizes and records, it does not re-check. Do not reintroduce
+  // shape guards here — extend validateDecisionBeforePreamble instead.
   validateDecisionBeforePreamble(game, seat, decision)
 
   // Backstops against any decision source (LLM, heuristic, untrusted external
   // agent) emitting an unbounded blob. Kept independent from the agent-side
   // caps in parse.ts, but deliberately >= them so a well-behaved agent's own
-  // thinking/scratchpad is never silently re-clipped here.
+  // thinking/scratchpad is never silently re-clipped here. The trimmed values
+  // are what the events record, so they are also what appliedDecision carries.
+  const privateFields: { thinking?: string; notes?: string } = {}
   if (typeof decision.thinking === 'string' && decision.thinking.trim()) {
-    emit(game, 'thinking', {
-      seat, kind: decision.kind, text: decision.thinking.trim().slice(0, 3000),
-    }, { only: [seat] })
+    const text = decision.thinking.trim().slice(0, 3000)
+    emit(game, 'thinking', { seat, kind: decision.kind, text }, { only: [seat] })
+    privateFields.thinking = text
   }
   if (typeof decision.notes === 'string' && decision.notes.trim()) {
-    emit(game, 'scratchpad', {
-      seat, round: game.round, text: decision.notes.trim().slice(0, 8000),
-    }, { only: [seat] })
+    const text = decision.notes.trim().slice(0, 8000)
+    emit(game, 'scratchpad', { seat, round: game.round, text }, { only: [seat] })
+    privateFields.notes = text
   }
 
   switch (decision.kind) {
     case 'discuss': {
-      if (typeof decision.say !== 'string') throw new EngineError('say must be a string')
       const say = capSpeech(stripSeatRefs(decision.say, game.players), 600)
       const d = game.discussion!
       emit(game, 'utterance', {
@@ -425,20 +455,30 @@ export function applyDecision(
           d.remaining = speakerOrder(game)
         }
       }
-      return game
+      return { game, appliedDecision: { kind: 'discuss', say, ...privateFields } }
     }
 
     case 'propose': {
-      game.currentTeam = validateTeam(game, decision.team)
+      // Already validated; canonicalTeam just sorts the known-good seats.
+      const team = canonicalTeam(decision.team).slice()
+      game.currentTeam = team
+      const pitch = typeof decision.pitch === 'string' && decision.pitch.trim()
+        ? capSpeech(stripSeatRefs(decision.pitch.trim(), game.players), 400)
+        : undefined
       emit(game, 'proposal', {
         round: game.round, proposalNum: game.proposalNum,
-        leader: seat, team: game.currentTeam,
-        ...(typeof decision.pitch === 'string' && decision.pitch.trim()
-          ? { pitch: capSpeech(stripSeatRefs(decision.pitch.trim(), game.players), 400) }
-          : {}),
+        leader: seat, team,
+        ...(pitch !== undefined ? { pitch } : {}),
       }, 'public')
       afterProposal(game)
-      return game
+      return {
+        game,
+        appliedDecision: {
+          kind: 'propose', team: team.slice(),
+          ...(pitch !== undefined ? { pitch } : {}),
+          ...privateFields,
+        },
+      }
     }
 
     case 'finalize': {
@@ -448,30 +488,33 @@ export function applyDecision(
           leader: seat, team: teamOnTable(game).slice(),
         }, 'public')
         goToVoteOrQuest(game)
-        return game
+        return { game, appliedDecision: { kind: 'finalize', stick: true, ...privateFields } }
       }
-      if (decision.stick !== false) throw new EngineError('stick must be true or false')
-      const to = validateTeam(game, decision.team)
+      // Already validated: stick is false, the team is legal and differs from
+      // the one on the table.
+      const to = canonicalTeam(decision.team).slice()
       const from = teamOnTable(game)
-      if (teamsEqual(to, from)) {
-        throw new EngineError('revised team is identical to the proposal — use stick: true')
-      }
       game.currentTeam = to
+      const reason = typeof decision.reason === 'string' && decision.reason.trim()
+        ? capSpeech(stripSeatRefs(decision.reason.trim(), game.players), 400)
+        : undefined
       emit(game, 'proposalRevised', {
         round: game.round, proposalNum: game.proposalNum,
         leader: seat, from: from.slice(), to: to.slice(),
-        ...(typeof decision.reason === 'string' && decision.reason.trim()
-          ? { reason: capSpeech(stripSeatRefs(decision.reason.trim(), game.players), 400) }
-          : {}),
+        ...(reason !== undefined ? { reason } : {}),
       }, 'public')
       if (!startDiscussion(game, true)) goToVoteOrQuest(game)
-      return game
+      return {
+        game,
+        appliedDecision: {
+          kind: 'finalize', stick: false, team: to.slice(),
+          ...(reason !== undefined ? { reason } : {}),
+          ...privateFields,
+        },
+      }
     }
 
     case 'vote': {
-      if (decision.vote !== 'approve' && decision.vote !== 'reject') {
-        throw new EngineError(`invalid vote: ${String(decision.vote)}`)
-      }
       game.pendingVotes[seat] = decision.vote
       emit(game, 'voteCast', { seat, vote: decision.vote }, { only: [seat] })
       if (Object.keys(game.pendingVotes).length === game.config.playerCount) {
@@ -494,13 +537,10 @@ export function applyDecision(
           enterProposalCycle(game)
         }
       }
-      return game
+      return { game, appliedDecision: { kind: 'vote', vote: decision.vote, ...privateFields } }
     }
 
     case 'quest': {
-      if (decision.card !== 'success' && decision.card !== 'fail') {
-        throw new EngineError(`invalid quest card: ${String(decision.card)}`)
-      }
       const player = game.players[seat]
       // Rule, not honor system: good cannot play fail.
       const card = player.alignment === 'good' ? 'success' : decision.card
@@ -544,114 +584,38 @@ export function applyDecision(
           enterProposalCycle(game)
         }
       }
-      return game
+      // The recorded card is the played card (good's fail is coerced to
+      // success), so appliedDecision reports what actually went down.
+      return { game, appliedDecision: { kind: 'quest', card, ...privateFields } }
     }
 
     case 'assassinate': {
       const target = decision.target
-      if (!Number.isInteger(target) || target < 0 || target >= game.config.playerCount) {
-        throw new EngineError(`invalid assassination target: ${String(target)}`)
-      }
-      if (target === seat) throw new EngineError('assassin cannot target self')
       const wasMerlin = game.players[target].role === 'merlin'
       emit(game, 'assassination', { assassin: seat, target, wasMerlin }, 'public')
       endGame(game, wasMerlin ? 'evil' : 'good', wasMerlin ? 'merlinAssassinated' : 'assassinMissed')
-      return game
+      return { game, appliedDecision: { kind: 'assassinate', target, ...privateFields } }
     }
   }
 }
 
-export interface AppliedDecisionResult {
-  game: Game
-  /** Canonical action reconstructed from the authoritative emitted events. */
-  appliedDecision: Decision
+export function applyDecision(
+  game: Game,
+  seat: Seat,
+  suppliedDecision: Decision,
+): Game {
+  return applyDecisionCore(game, seat, suppliedDecision).game
 }
 
 /**
- * Compatibility-preserving post-apply API. The existing applyDecision remains
- * the legality authority; this wrapper returns the exact normalized action
- * that its event transaction recorded.
+ * Apply and return the exact normalized action the engine recorded, alongside
+ * the mutated game. Shares applyDecisionCore with applyDecision, so there is
+ * one apply path and the action is never reconstructed from the event log.
  */
 export function applyDecisionWithOutcome(
   game: Game,
   seat: Seat,
   suppliedDecision: Decision,
 ): AppliedDecisionResult {
-  const decision = structuredClone(suppliedDecision)
-  const start = game.log.length
-  applyDecision(game, seat, decision)
-  const events = game.log.slice(start)
-  const thinking = events.find((event) => event.type === 'thinking')
-    ?.payload.text as string | undefined
-  const notes = events.find((event) => event.type === 'scratchpad')
-    ?.payload.text as string | undefined
-  const privateFields = {
-    ...(thinking !== undefined ? { thinking } : {}),
-    ...(notes !== undefined ? { notes } : {}),
-  }
-  const action = events.find((event) => {
-    if (decision.kind === 'discuss') return event.type === 'utterance'
-    if (decision.kind === 'propose') return event.type === 'proposal'
-    if (decision.kind === 'finalize') {
-      return event.type === 'proposalLocked' || event.type === 'proposalRevised'
-    }
-    if (decision.kind === 'vote') return event.type === 'voteCast'
-    if (decision.kind === 'quest') return event.type === 'questCard'
-    return event.type === 'assassination'
-  })
-  if (!action) throw new Error('applied decision emitted no authoritative action event')
-  const payload = action.payload
-  let appliedDecision: Decision
-  switch (decision.kind) {
-    case 'discuss':
-      appliedDecision = {
-        kind: 'discuss',
-        say: payload.text as string,
-        ...privateFields,
-      }
-      break
-    case 'propose':
-      appliedDecision = {
-        kind: 'propose',
-        team: (payload.team as Seat[]).slice(),
-        ...(payload.pitch !== undefined ? { pitch: payload.pitch as string } : {}),
-        ...privateFields,
-      }
-      break
-    case 'finalize':
-      appliedDecision = action.type === 'proposalLocked'
-        ? { kind: 'finalize', stick: true, ...privateFields }
-        : {
-            kind: 'finalize',
-            stick: false,
-            team: (payload.to as Seat[]).slice(),
-            ...(payload.reason !== undefined
-              ? { reason: payload.reason as string }
-              : {}),
-            ...privateFields,
-          }
-      break
-    case 'vote':
-      appliedDecision = {
-        kind: 'vote',
-        vote: payload.vote as 'approve' | 'reject',
-        ...privateFields,
-      }
-      break
-    case 'quest':
-      appliedDecision = {
-        kind: 'quest',
-        card: payload.card as 'success' | 'fail',
-        ...privateFields,
-      }
-      break
-    case 'assassinate':
-      appliedDecision = {
-        kind: 'assassinate',
-        target: payload.target as Seat,
-        ...privateFields,
-      }
-      break
-  }
-  return { game, appliedDecision }
+  return applyDecisionCore(game, seat, suppliedDecision)
 }

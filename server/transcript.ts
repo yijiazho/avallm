@@ -215,6 +215,9 @@ function renderLine(ev: GameEvent, who: (s: Seat) => string): string | null {
     case 'rename':
       return sub(`rename: seat ${p.seat} "${p.from}" → "${p.to}"`)
     default:
-      return sub(`${ev.type}: ${JSON.stringify(p)}`)
+      // Unreachable while the switch stays exhaustive over EventType; kept as a
+      // defensive fallback for any future event kind. `ev` is `never` here, so
+      // the widening cast just recovers its runtime `type` tag.
+      return sub(`${(ev as GameEvent).type}: ${JSON.stringify(p)}`)
   }
 }

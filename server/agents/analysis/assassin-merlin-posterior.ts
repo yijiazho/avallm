@@ -4,7 +4,8 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT, evilPartnersOf } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { evilPartnersOf } from '../../engine/knowledge.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import { assertDistribution } from '../belief/invariants.ts'
 import type {

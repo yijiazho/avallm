@@ -56,9 +56,7 @@ import type {
 import {
   createGame,
 } from '../server/engine/game.ts'
-import {
-  evilPartnersOf,
-} from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import {
   viewFor,
 } from '../server/engine/view.ts'

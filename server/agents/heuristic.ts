@@ -7,7 +7,7 @@
 
 import { makeRng, fnv1a } from '../engine/prng.ts'
 import type { Rng } from '../engine/prng.ts'
-import { evilPartnersOf, knownEvilOf } from '../engine/rules.ts'
+import { evilPartnersOf, knownEvilOf } from '../engine/knowledge.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
 import { analyzeSituation } from './analysis/situation.ts'

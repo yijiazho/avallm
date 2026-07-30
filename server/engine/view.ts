@@ -2,7 +2,7 @@
 // payload, or agent ever touches raw Game; they consume viewFor(game, seat).
 // Contract tests in test/knowledge.test.ts and test/leaks.test.ts pin this.
 
-import { computeKnowledge } from './rules.ts'
+import { computeKnowledge } from './knowledge.ts'
 import type {
   Game, GameEvent, PlayerView, ProposalRecord, Seat,
 } from './types.ts'
@@ -108,56 +108,54 @@ function createPlayerViewProjection(
     }
 
     if (ev.type === 'proposal') {
-      const team = (ev.payload.team as Seat[]).slice()
+      const team = ev.payload.team.slice()
       proposals.push({
-        round: ev.payload.round as number,
-        proposalNum: ev.payload.proposalNum as number,
-        leader: ev.payload.leader as Seat,
+        round: ev.payload.round,
+        proposalNum: ev.payload.proposalNum,
+        leader: ev.payload.leader,
         team,
         ...(typeof ev.payload.pitch === 'string'
           ? { pitch: ev.payload.pitch }
           : {}),
       })
       curProp = {
-        round: ev.payload.round as number,
-        proposalNum: ev.payload.proposalNum as number,
-        leader: ev.payload.leader as Seat,
+        round: ev.payload.round,
+        proposalNum: ev.payload.proposalNum,
+        leader: ev.payload.leader,
         team: team.slice(),
       }
     } else if (ev.type === 'proposalRevised') {
       const rec = proposals[proposals.length - 1]
-      rec.team = (ev.payload.to as Seat[]).slice()
-      rec.revisedFrom = (ev.payload.from as Seat[]).slice()
+      rec.team = ev.payload.to.slice()
+      rec.revisedFrom = ev.payload.from.slice()
       if (typeof ev.payload.reason === 'string') {
         rec.revisedReason = ev.payload.reason
       }
       curProp = {
-        round: ev.payload.round as number,
-        proposalNum: ev.payload.proposalNum as number,
-        leader: ev.payload.leader as Seat,
-        team: (ev.payload.to as Seat[]).slice(),
+        round: ev.payload.round,
+        proposalNum: ev.payload.proposalNum,
+        leader: ev.payload.leader,
+        team: ev.payload.to.slice(),
       }
     } else if (ev.type === 'voteReveal') {
       const rec = proposals[proposals.length - 1]
-      rec.votes = (
-        ev.payload.votes as ProposalRecord['votes']
-      )!.map((vote) => ({ ...vote }))
-      rec.approved = ev.payload.approved as boolean
+      rec.votes = ev.payload.votes.map((vote) => ({ ...vote }))
+      rec.approved = ev.payload.approved
       if (ev.payload.auto === true) rec.auto = true
     } else if (ev.type === 'rename') {
       transcript.push({
-        seat: ev.payload.seat as Seat,
+        seat: ev.payload.seat,
         text:
           `(changed display name from ${ev.payload.from} to ${ev.payload.to})`,
         ...(curProp ? { prop: curProp } : {}),
       })
     } else if (
       ev.type === 'utterance'
-      && (ev.payload.text as string).length > 0
+      && ev.payload.text.length > 0
     ) {
       transcript.push({
-        seat: ev.payload.seat as Seat,
-        text: ev.payload.text as string,
+        seat: ev.payload.seat,
+        text: ev.payload.text,
         ...(curProp ? { prop: curProp } : {}),
       })
     }

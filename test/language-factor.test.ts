@@ -634,7 +634,7 @@ test('public and seat-visible cursors remain distinct with private trailing even
   const privateEvent: GameEvent = {
     seq: Math.max(...view.events.map((event) => event.seq)) + 1,
     type: 'scratchpad',
-    payload: { seat: view.seat, text: 'private trailing note' },
+    payload: { seat: view.seat, round: view.round, text: 'private trailing note' },
     visibility: { only: [view.seat] },
   }
   mutable(view).events.push(mutable(privateEvent))

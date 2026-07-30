@@ -5,12 +5,8 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import {
-  canonicalTeam,
-  hasDistinctSeats,
-  ROLE_ALIGNMENT,
-  TEAM_SIZES,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT, TEAM_SIZES } from '../../engine/rules.ts'
+import { canonicalTeam, hasDistinctSeats } from '../../engine/seatset.ts'
 import { worldSatisfiesView } from '../belief/constraints.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import type {

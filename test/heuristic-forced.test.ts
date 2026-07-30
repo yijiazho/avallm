@@ -17,7 +17,7 @@ import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { asCompletedQuest } from './support/quests.ts'
 import { viewFor } from '../server/engine/view.ts'
-import { evilPartnersOf } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import type { Decision, DecisionRequest, Game, Seat } from '../server/engine/types.ts'
 

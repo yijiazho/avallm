@@ -75,7 +75,7 @@ export interface GameMetrics {
 
 export function computeMetrics(a: GameArtifact): GameMetrics {
   const isEvil = (s: Seat) => a.players[s].alignment === 'evil'
-  const teamHasEvil = (team: Seat[]) => team.some(isEvil)
+  const teamHasEvil = (team: readonly Seat[]) => team.some(isEvil)
 
   const votes = new Map<Seat, { n: number; correct: number }>()
   const talk = new Map<Seat, { utterances: number; passes: number }>()
@@ -88,18 +88,17 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
 
   for (const ev of a.log) {
     if (ev.visibility !== 'public') continue
-    const p = ev.payload
     switch (ev.type) {
       case 'utterance': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const t = talk.get(seat)!
-        if (((p.text as string) ?? '').trim() === '') t.passes++
+        if ((ev.payload.text ?? '').trim() === '') t.passes++
         else t.utterances++
         break
       }
       case 'voteReveal': {
-        const team = (p.team as Seat[]) ?? []
-        for (const v of (p.votes as { seat: Seat; vote: string }[]) ?? []) {
+        const team = ev.payload.team ?? []
+        for (const v of ev.payload.votes ?? []) {
           const e = votes.get(v.seat)!
           e.n++
           if ((v.vote === 'reject') === teamHasEvil(team)) e.correct++
@@ -108,9 +107,9 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
       }
       case 'assassination':
         assassination = {
-          assassin: p.assassin as Seat,
-          target: p.target as Seat,
-          wasMerlin: p.wasMerlin as boolean,
+          assassin: ev.payload.assassin,
+          target: ev.payload.target,
+          wasMerlin: ev.payload.wasMerlin,
         }
         break
     }
@@ -134,11 +133,10 @@ export function computeMetrics(a: GameArtifact): GameMetrics {
     }
     for (const ev of a.log) {
       if (ev.visibility !== 'public') continue
-      const p = ev.payload
       if (ev.type === 'proposal') {
         close(); open = true; segRounds = 0
       } else if (ev.type === 'utterance') {
-        if (open) segRounds = Math.max(segRounds, (p.round as number) ?? 1)
+        if (open) segRounds = Math.max(segRounds, ev.payload.round ?? 1)
       } else if (ev.type === 'proposalLocked') {
         close(); acc.finalizes++
       } else if (ev.type === 'proposalRevised') {

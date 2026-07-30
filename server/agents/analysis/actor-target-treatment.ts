@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { Seat } from '../../engine/types.ts'
-import { teamsEqual } from '../../engine/rules.ts'
+import { teamsEqual } from '../../engine/seatset.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
 import {
   observePublicRecord,

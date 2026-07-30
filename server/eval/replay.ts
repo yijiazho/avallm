@@ -115,30 +115,29 @@ function extractSteps(
   for (const ev of log) {
     onOperation?.('log-event-scanned')
     serializedEvents?.push(JSON.stringify(ev))
-    const p = ev.payload
     switch (ev.type) {
       case 'thinking': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const cur = pending.get(seat) ?? { firstSeq: ev.seq }
-        cur.thinking = p.text as string
+        cur.thinking = ev.payload.text
         pending.set(seat, cur)
         break
       }
       case 'scratchpad': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const cur = pending.get(seat) ?? { firstSeq: ev.seq }
-        cur.notes = p.text as string
+        cur.notes = ev.payload.text
         pending.set(seat, cur)
-        lastScratchpad.set(seat, p.text as string)
+        lastScratchpad.set(seat, ev.payload.text)
         break
       }
       case 'utterance': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'discuss', say: p.text as string,
+            kind: 'discuss', say: ev.payload.text,
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -147,13 +146,13 @@ function extractSteps(
         break
       }
       case 'proposal': {
-        const seat = p.leader as Seat
+        const seat = ev.payload.leader
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'propose', team: (p.team as Seat[]).slice(),
-            ...(typeof p.pitch === 'string' ? { pitch: p.pitch } : {}),
+            kind: 'propose', team: ev.payload.team.slice(),
+            ...(typeof ev.payload.pitch === 'string' ? { pitch: ev.payload.pitch } : {}),
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -162,12 +161,12 @@ function extractSteps(
         break
       }
       case 'voteCast': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'vote', vote: p.vote as 'approve' | 'reject',
+            kind: 'vote', vote: ev.payload.vote,
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -176,12 +175,12 @@ function extractSteps(
         break
       }
       case 'questCard': {
-        const seat = p.seat as Seat
+        const seat = ev.payload.seat
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'quest', card: p.card as 'success' | 'fail',
+            kind: 'quest', card: ev.payload.card,
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -190,12 +189,12 @@ function extractSteps(
         break
       }
       case 'assassination': {
-        const seat = p.assassin as Seat
+        const seat = ev.payload.assassin
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'assassinate', target: p.target as Seat,
+            kind: 'assassinate', target: ev.payload.target,
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -204,7 +203,7 @@ function extractSteps(
         break
       }
       case 'proposalLocked': {
-        const seat = p.leader as Seat
+        const seat = ev.payload.leader
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
@@ -218,13 +217,13 @@ function extractSteps(
         break
       }
       case 'proposalRevised': {
-        const seat = p.leader as Seat
+        const seat = ev.payload.leader
         const pre = take(seat, ev.seq)
         steps.push({
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
-            kind: 'finalize', stick: false, team: (p.to as Seat[]).slice(),
-            ...(typeof p.reason === 'string' ? { reason: p.reason } : {}),
+            kind: 'finalize', stick: false, team: ev.payload.to.slice(),
+            ...(typeof ev.payload.reason === 'string' ? { reason: ev.payload.reason } : {}),
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -234,8 +233,8 @@ function extractSteps(
       }
       case 'rename':
         steps.push({
-          firstSeq: ev.seq, actionSeq: ev.seq, seat: p.seat as Seat,
-          action: { kind: 'rename', to: p.to as string },
+          firstSeq: ev.seq, actionSeq: ev.seq, seat: ev.payload.seat,
+          action: { kind: 'rename', to: ev.payload.to },
           scratchpad: '',
         })
         break
@@ -281,17 +280,15 @@ function initialReplayNames(a: GameArtifact): string[] {
   if (created?.type !== 'gameCreated') {
     throw new Error('artifact log must start with gameCreated')
   }
-  const names = (created.payload.names as string[]).slice()
+  const names = created.payload.names.slice()
   for (let index = a.log.length - 1; index >= 0; index--) {
     const event = a.log[index]
     if (event.type !== 'rename') continue
-    const seat = event.payload.seat as Seat
+    const seat = event.payload.seat
     const from = event.payload.from
     const to = event.payload.to
     if (
       Number.isInteger(seat)
-      && typeof from === 'string'
-      && typeof to === 'string'
       && names[seat] === to
     ) {
       names[seat] = from
@@ -609,6 +606,7 @@ export function snapshotAt(a: GameArtifact, seq: number): DecisionSnapshot {
   const priorPad = a.log.findLast(
     (ev) => ev.type === 'scratchpad' && ev.payload.seat === step.seat && ev.seq < step.firstSeq,
   )
+  const priorPadText = priorPad?.type === 'scratchpad' ? priorPad.payload.text : undefined
   const view = viewFor(game, step.seat)
   const req: DecisionRequest = {
     kind: original.kind, seat: step.seat,
@@ -630,7 +628,7 @@ export function snapshotAt(a: GameArtifact, seq: number): DecisionSnapshot {
     role: a.players[step.seat].role,
     req,
     view,
-    scratchpad: original.notes ?? (priorPad?.payload.text as string | undefined) ?? '',
+    scratchpad: original.notes ?? priorPadText ?? '',
     original,
     ...(trace ? { trace } : {}),
   }

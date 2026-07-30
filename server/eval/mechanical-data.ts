@@ -126,7 +126,6 @@ export function mechanicalDataset(
     let approvedTeam: readonly Seat[] | undefined
     for (const event of artifact.log) {
       if (event.visibility !== 'public') continue
-      const payload = event.payload
       const base = {
         schema: MECHANICAL_DATA_SCHEMA,
         extractorVersion: MECHANICAL_DATA_VERSION,
@@ -141,29 +140,24 @@ export function mechanicalDataset(
         rows.push({
           ...base,
           kind: 'proposal',
-          round: payload.round as number,
-          proposalNum: payload.proposalNum as number,
-          leader: payload.leader as Seat,
-          team: [...(payload.team as Seat[])],
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          leader: event.payload.leader,
+          team: [...event.payload.team],
         })
       } else if (event.type === 'voteReveal') {
-        if (payload.approved === true) {
-          approvedTeam = [...(payload.team as Seat[])]
+        if (event.payload.approved === true) {
+          approvedTeam = [...event.payload.team]
         }
         rows.push({
           ...base,
           kind: 'vote',
-          round: payload.round as number,
-          proposalNum: payload.proposalNum as number,
-          team: [...(payload.team as Seat[])],
-          votes: (
-            payload.votes as Array<{
-              seat: Seat
-              vote: 'approve' | 'reject'
-            }>
-          ).map((vote) => ({ ...vote })),
-          approved: payload.approved as boolean,
-          automatic: payload.auto === true,
+          round: event.payload.round,
+          proposalNum: event.payload.proposalNum,
+          team: [...event.payload.team],
+          votes: event.payload.votes.map((vote) => ({ ...vote })),
+          approved: event.payload.approved,
+          automatic: event.payload.auto === true,
         })
       } else if (event.type === 'questResult') {
         if (!approvedTeam) {
@@ -171,14 +165,14 @@ export function mechanicalDataset(
             `${artifact.id}:${event.seq}: quest result has no public approved team`,
           )
         }
-        const result = payload.result as 'success' | 'fail'
+        const result = event.payload.result
         rows.push({
           ...base,
           kind: 'quest',
-          questNum: payload.round as number,
+          questNum: event.payload.round,
           team: [...approvedTeam],
-          failCount: payload.failCount as number,
-          failsRequired: payload.failsRequired as number,
+          failCount: event.payload.failCount,
+          failsRequired: event.payload.failsRequired,
           result,
         })
         score[result === 'success' ? 'good' : 'evil']++

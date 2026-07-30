@@ -1,6 +1,6 @@
 import type { OpenRouterClient } from '../../llm/openrouter.ts'
 import type { Seat } from '../../engine/types.ts'
-import { hasDistinctSeats } from '../../engine/rules.ts'
+import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
   COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,

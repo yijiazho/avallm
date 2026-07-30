@@ -31,7 +31,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../server/engine/types.ts'
-import { evilPartnersOf } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 

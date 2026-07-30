@@ -171,7 +171,10 @@ function withUniformVotes(
     seq,
     type: 'voteReveal',
     visibility: 'public',
-    payload: { team: [...team], votes: [{ seat: target, vote }] },
+    payload: {
+      round: 1, proposalNum: 1, approved: true,
+      team: [...team], votes: [{ seat: target, vote }],
+    },
   })
   const kept = artifact.log.filter((event) => event.type !== 'voteReveal')
   // Numbered past every retained event, not from kept.length: dropping the real

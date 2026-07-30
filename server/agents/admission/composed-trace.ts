@@ -8,11 +8,8 @@ import {
 import {
   isProxy,
 } from 'node:util/types'
-import {
-  hasDistinctSeats,
-  MAX_PROPOSALS,
-  QUESTS_TO_WIN,
-} from '../../engine/rules.ts'
+import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
+import { hasDistinctSeats } from '../../engine/seatset.ts'
 import type {
   Decision,
   DecisionRequest,

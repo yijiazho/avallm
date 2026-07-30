@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { asCompletedQuest, resolveQuest } from './support/quests.ts'
 import { viewFor } from '../server/engine/view.ts'
-import { evilPartnersOf } from '../server/engine/rules.ts'
+import { evilPartnersOf } from '../server/engine/knowledge.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
 import type { Game, Seat } from '../server/engine/types.ts'
 

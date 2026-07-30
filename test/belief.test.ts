@@ -3,12 +3,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import {
-  DEFAULT_ROLES,
-  evilPartnersOf,
-  knownEvilOf,
-  merlinCandidatesOf,
-} from '../server/engine/rules.ts'
+import { DEFAULT_ROLES } from '../server/engine/rules.ts'
+import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../server/engine/knowledge.ts'
 import {
   assessTeam,
   exactBelief,

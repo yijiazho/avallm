@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mutable } from './support/mutable.ts'
 import test from 'node:test'
 import { createGame } from '../server/engine/game.ts'
-import { knownEvilOf } from '../server/engine/rules.ts'
+import { knownEvilOf } from '../server/engine/knowledge.ts'
 import type {
   Game,
 } from '../server/engine/types.ts'

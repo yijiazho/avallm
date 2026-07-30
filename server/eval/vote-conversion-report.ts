@@ -147,24 +147,22 @@ function observe(artifact: GameArtifact): ConversionObservation {
   const votes = emptyVoteConfusion()
   for (const event of artifact.log) {
     if (event.visibility !== 'public') continue
-    const payload = event.payload
     if (event.type === 'questResult') {
       resolvedQuests++
-      if (payload.result === 'success') successfulQuests++
+      if (event.payload.result === 'success') successfulQuests++
     } else if (event.type === 'assassination') {
       reachedAssassination++
-      if (payload.wasMerlin === false) survivedAssassination++
+      if (event.payload.wasMerlin === false) survivedAssassination++
     } else if (event.type === 'voteReveal') {
-      const targetVote = (
-        payload.votes as Array<{ seat: number; vote: string }>
-      ).find((vote) => vote.seat === meta.targetSeat)
+      const targetVote = event.payload.votes
+        .find((vote) => vote.seat === meta.targetSeat)
       if (!targetVote) continue
       countVoteByDirection(
         votes,
         targetVote.vote,
         teamIsDirty(
           artifact.players,
-          payload.team as number[],
+          event.payload.team,
           artifact.id,
         ),
       )

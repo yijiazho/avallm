@@ -84,18 +84,17 @@ export function buildLedger(log: readonly GameEvent[]): Ledger {
 
   for (const ev of log) {
     if (ev.visibility !== 'public') continue
-    const p = ev.payload
 
     switch (ev.type) {
       case 'proposal': {
         pending = {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          team: (p.team as Seat[]).slice(),
+          round: ev.payload.round,
+          proposalNum: ev.payload.proposalNum,
+          team: ev.payload.team.slice(),
           commitments: [],
         }
         add({
-          seat: p.leader as Seat, stance: 'for',
+          seat: ev.payload.leader, stance: 'for',
           round: pending.round, proposalNum: pending.proposalNum,
           team: pending.team, seq: ev.seq, via: 'proposal',
         }, pending)
@@ -107,13 +106,13 @@ export function buildLedger(log: readonly GameEvent[]): Ledger {
         // the global ledger but never enter the approved set, so the revised
         // team's quest result cannot contradict them.
         pending = {
-          round: p.round as number,
-          proposalNum: p.proposalNum as number,
-          team: (p.to as Seat[]).slice(),
+          round: ev.payload.round,
+          proposalNum: ev.payload.proposalNum,
+          team: ev.payload.to.slice(),
           commitments: [],
         }
         add({
-          seat: p.leader as Seat, stance: 'for',
+          seat: ev.payload.leader, stance: 'for',
           round: pending.round, proposalNum: pending.proposalNum,
           team: pending.team, seq: ev.seq, via: 'proposal',
         }, pending)
@@ -121,8 +120,8 @@ export function buildLedger(log: readonly GameEvent[]): Ledger {
       }
 
       case 'utterance': {
-        const seat = p.seat as Seat
-        const text = (p.text as string) ?? ''
+        const seat = ev.payload.seat
+        const text = ev.payload.text ?? ''
         if (text.trim() === '') {
           const owed = contradictions.filter((c) =>
             c.kind === 'endorsedTeamFailed'
@@ -137,10 +136,10 @@ export function buildLedger(log: readonly GameEvent[]): Ledger {
       }
 
       case 'voteReveal': {
-        const round = p.round as number
+        const round = ev.payload.round
         const target = pending
-          ?? { round, proposalNum: p.proposalNum as number, team: (p.team as Seat[]).slice(), commitments: [] }
-        const votes = (p.votes as { seat: Seat; vote: 'approve' | 'reject' }[]) ?? []
+          ?? { round, proposalNum: ev.payload.proposalNum, team: ev.payload.team.slice(), commitments: [] }
+        const votes = ev.payload.votes ?? []
         for (const v of votes) {
           add({
             seat: v.seat, stance: v.vote === 'approve' ? 'for' : 'against',
@@ -148,14 +147,14 @@ export function buildLedger(log: readonly GameEvent[]): Ledger {
             team: target.team, seq: ev.seq, via: 'vote',
           }, target)
         }
-        if (p.approved as boolean) approvedByRound.set(round, target)
+        if (ev.payload.approved) approvedByRound.set(round, target)
         pending = undefined
         break
       }
 
       case 'questResult': {
-        const round = p.round as number
-        const result = p.result as 'success' | 'fail'
+        const round = ev.payload.round
+        const result = ev.payload.result
         const approved = approvedByRound.get(round)
         if (!approved) break
         for (const c of approved.commitments) {

@@ -58,7 +58,7 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
-import { knownEvilOf, merlinCandidatesOf } from '../server/engine/rules.ts'
+import { knownEvilOf, merlinCandidatesOf } from '../server/engine/knowledge.ts'
 import {
   replayNativeScoresForAdmission,
 } from '../server/agents/policy/score-layer/admission-replay.ts'

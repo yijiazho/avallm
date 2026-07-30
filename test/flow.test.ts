@@ -78,10 +78,10 @@ test('the 5th proposal is auto-approved with no vote, leader rotating after each
 
   // The auto-approval is on the public record as a votes-free voteReveal.
   const auto = g.log.find((ev) => ev.type === 'voteReveal' && ev.payload.auto === true)
-  assert.ok(auto, 'auto-approval emitted')
-  assert.equal(auto!.visibility, 'public')
-  assert.equal(auto!.payload.approved, true)
-  assert.deepEqual(auto!.payload.votes, [])
+  assert.ok(auto?.type === 'voteReveal', 'auto-approval emitted')
+  assert.equal(auto.visibility, 'public')
+  assert.equal(auto.payload.approved, true)
+  assert.deepEqual(auto.payload.votes, [])
 })
 
 test('good quest cards are coerced to success', () => {
@@ -351,7 +351,8 @@ test('the hammer gets discussion and finalize, then skips only the vote', () => 
   talkRound(g)
   // Post-revision talk done: auto-approved voteReveal, straight to quest.
   assert.equal(g.phase, 'quest')
-  const auto = g.log.find((ev) => ev.type === 'voteReveal' && ev.payload.auto === true)!
+  const auto = g.log.find((ev) => ev.type === 'voteReveal' && ev.payload.auto === true)
+  assert.ok(auto?.type === 'voteReveal')
   assert.deepEqual(auto.payload.team, to)
   assert.deepEqual(g.currentTeam, to)
 })
