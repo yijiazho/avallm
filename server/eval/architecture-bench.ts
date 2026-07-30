@@ -24,6 +24,7 @@ import {
   createAgentFromDef,
 } from '../agents/registry.ts'
 import {
+  engineUsesModel,
   loadAgentLibrary,
   resolveModel,
 } from '../agents/defs.ts'
@@ -302,12 +303,16 @@ function withDecisionTiming(
 }
 
 function isPaid(variant: ArchitectureVariant): boolean {
-  return variant.paid === true || variant.agent?.engine.type === 'llm'
+  return variant.paid === true
+    || (
+      variant.agent !== undefined
+      && engineUsesModel(variant.agent.engine)
+    )
 }
 
 export function defaultComponents(def: AgentDef, modelOverride?: string): Record<string, string> {
   const version = def.version ? `v${def.version}` : 'unversioned'
-  if (def.engine.type === 'heuristic') {
+  if (!engineUsesModel(def.engine)) {
     return {
       agent: `${def.id}@${version}`,
       model: 'none',

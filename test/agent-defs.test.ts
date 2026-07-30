@@ -3,17 +3,41 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { builtinDefs, parseTableSeat, publicInfo, resolveModel, validateDef } from '../server/agents/defs.ts'
+import { createAgentFromDef } from '../server/agents/registry.ts'
 import { DEFAULT_MODEL, ROSTER, rosterById } from '../server/llm/roster.ts'
-import { ALIGNMENT_SHARED, buildMessages, EVIL_SHARED, roleGuidanceFor, ROLE_GUIDANCE } from '../server/agents/prompts.ts'
+import type { OpenRouterClient } from '../server/llm/openrouter.ts'
+import {
+  ALIGNMENT_SHARED,
+  buildMessages,
+  EVIL_SHARED,
+  PLAYER_REFERENCE_NORMS,
+  roleGuidanceFor,
+  ROLE_GUIDANCE,
+  TABLE_TALK_NORMS,
+} from '../server/agents/prompts.ts'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
+import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 
-test('built-in library: one agent per roster model plus autopilot, all valid', () => {
+test('built-in library exposes roster, rule-based, and both probabilistic agents', () => {
   const defs = builtinDefs()
-  assert.equal(defs.length, ROSTER.length + 1)
+  assert.equal(defs.length, ROSTER.length + 3)
   for (const def of defs) validateDef(def)
-  assert.ok(defs.some((d) => d.id === 'autopilot' && d.engine.type === 'heuristic'))
+  assert.equal(defs.find((d) => d.id === 'autopilot')?.name, 'Rule-based')
+  assert.deepEqual(
+    defs.find((d) => d.id === 'probabilistic')?.engine,
+    { type: 'composed', brain: 'full-role', adapter: 'none' },
+  )
+  assert.deepEqual(
+    defs.find((d) => d.id === 'probabilistic-llm')?.engine,
+    {
+      type: 'composed',
+      brain: 'full-role',
+      adapter: 'bounded-llm',
+      model: DEFAULT_MODEL,
+    },
+  )
   const ids = defs.map((d) => d.id)
   assert.equal(new Set(ids).size, ids.length)
 })
@@ -21,6 +45,19 @@ test('built-in library: one agent per roster model plus autopilot, all valid', (
 test('publicInfo fills badges and maps engine to a display model', () => {
   const auto = publicInfo(builtinDefs().find((d) => d.id === 'autopilot')!)
   assert.equal(auto.model, 'rule-based')
+  assert.equal(auto.usesModel, false)
+  const probabilistic = publicInfo(
+    builtinDefs().find((d) => d.id === 'probabilistic')!,
+  )
+  assert.equal(probabilistic.model, 'probabilistic')
+  assert.equal(probabilistic.usesModel, false)
+  const hybrid = publicInfo(
+    builtinDefs().find((d) => d.id === 'probabilistic-llm')!,
+    'gemini-flash-lite',
+  )
+  assert.equal(hybrid.model, rosterById('gemini-flash-lite').slug)
+  assert.equal(hybrid.usesModel, true)
+  assert.equal(hybrid.suggestedModel, DEFAULT_MODEL)
   assert.ok(auto.color.length > 0)
   const custom = publicInfo(validateDef({
     id: 'chaos-goblin', name: 'Chaos Goblin',
@@ -37,6 +74,21 @@ test('validateDef rejects bad defs', () => {
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'wat' } }), /engine/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', roleGuidance: { wizard: 'x' } } }), /unknown role/)
   assert.throws(() => validateDef({ id: 'ok', name: 'x', engine: { type: 'llm', roleGuidanceMode: 'merge' } }), /roleGuidanceMode/)
+  assert.throws(() => validateDef({
+    id: 'ok',
+    name: 'x',
+    engine: { type: 'composed', brain: 'unknown', adapter: 'none' },
+  }), /composed brain/)
+  assert.throws(() => validateDef({
+    id: 'ok',
+    name: 'x',
+    engine: {
+      type: 'composed',
+      brain: 'full-role',
+      adapter: 'none',
+      model: DEFAULT_MODEL,
+    },
+  }), /model requires/)
 })
 
 test('llm model is optional — a personality-only agent validates and rides the default', () => {
@@ -69,10 +121,95 @@ test('parseTableSeat accepts both wire shapes and rejects bad overrides', () => 
   }
   assert.deepEqual(parseTableSeat('kimi', byId), { agent: 'kimi' })           // legacy bare id
   assert.deepEqual(parseTableSeat({ agent: 'kimi', model: 'gemini-flash-lite' }, byId), { agent: 'kimi', model: 'gemini-flash-lite' })
+  assert.deepEqual(
+    parseTableSeat({
+      agent: 'probabilistic-llm',
+      model: 'gemini-flash-lite',
+    }, byId),
+    { agent: 'probabilistic-llm', model: 'gemini-flash-lite' },
+  )
   assert.throws(() => parseTableSeat('nope', byId), /unknown agent/)
   assert.throws(() => parseTableSeat({ agent: 'kimi', model: 'nope' }, byId), /unknown roster/)
   // A model override on a non-llm engine is a create-time error, not a start-time surprise.
   assert.throws(() => parseTableSeat({ agent: 'autopilot', model: 'gemini-flash-lite' }, byId), /does not take a model/)
+  assert.throws(() => parseTableSeat({
+    agent: 'probabilistic',
+    model: 'gemini-flash-lite',
+  }, byId), /does not take a model/)
+})
+
+test('web-library probabilistic engines share mechanics while hybrid LLM only plans and speaks', async () => {
+  const defs = builtinDefs()
+  const fixture = readDecisionFixtures().find(
+    ({ req }) => req.kind === 'propose',
+  )!
+  const seed = 'web-library-probabilistic-agent'
+  const pure = createAgentFromDef(
+    defs.find(({ id }) => id === 'probabilistic')!,
+    { seed, seat: fixture.req.seat },
+  )
+  const pureOutput = await pure.decide(fixture.req, fixture.view)
+  assert.equal(pureOutput.decision.kind, 'propose')
+  assert.ok(pureOutput.trace)
+
+  const calls: { model: string; tag: string | undefined }[] = []
+  const systemPrompts: string[] = []
+  const client: OpenRouterClient = {
+    async call(model, messages, options) {
+      calls.push({ model, tag: options?.tag })
+      systemPrompts.push(messages[0]?.content ?? '')
+      if (options?.tag?.endsWith('/planner')) {
+        const request = JSON.parse(messages.at(-1)!.content) as {
+          structuredCandidateId: string
+        }
+        return JSON.stringify({
+          candidateId: request.structuredCandidateId,
+        })
+      }
+      return JSON.stringify({ text: 'I favor this team.' })
+    },
+    getSpend: () => ({}),
+    getTotalCost: () => 0,
+  }
+  const hybrid = createAgentFromDef(
+    defs.find(({ id }) => id === 'probabilistic-llm')!,
+    { seed, seat: fixture.req.seat },
+    'gemini-flash-lite',
+    { client },
+  )
+  const hybridOutput = await hybrid.decide(fixture.req, fixture.view)
+  assert.deepEqual(
+    hybridOutput.decision.kind === 'propose'
+      ? hybridOutput.decision.team
+      : undefined,
+    pureOutput.decision.kind === 'propose'
+      ? pureOutput.decision.team
+      : undefined,
+  )
+  assert.equal(
+    hybridOutput.decision.kind === 'propose'
+      ? hybridOutput.decision.pitch
+      : undefined,
+    'I favor this team.',
+  )
+  assert.deepEqual(calls, [
+    {
+      model: rosterById('gemini-flash-lite').slug,
+      tag: 'agent/probabilistic-llm/planner',
+    },
+    {
+      model: rosterById('gemini-flash-lite').slug,
+      tag: 'agent/probabilistic-llm/voice',
+    },
+  ])
+  assert.ok(
+    systemPrompts.every((prompt) => prompt.includes(PLAYER_REFERENCE_NORMS)),
+    'every production hybrid call carries the player-reference norm',
+  )
+  assert.ok(
+    systemPrompts[1].includes(TABLE_TALK_NORMS),
+    'the production hybrid voice carries the shared table-talk norms',
+  )
 })
 
 test('validateDef: new layer fields — key checks, caps, temperature, CRLF', () => {

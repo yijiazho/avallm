@@ -106,8 +106,8 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
         const autopilot = degraded.has(row.key) && (
           <span
             className="chip autopilot-chip"
-            title="This decision fell back to the rule-based autopilot; the model's reply was unusable"
-          >autopilot</span>
+            title="This decision fell back to Rule-based; the model's reply was unusable"
+          >Rule-based</span>
         )
         if (row.kind === 'votereveal') {
           // Each ballot flips from face-down to the voter's aye/nay. The flip is

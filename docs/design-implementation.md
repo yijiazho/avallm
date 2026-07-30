@@ -47,10 +47,12 @@ client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts h
 
 The engine ⟷ LLM boundary is a **decision interface**: the engine reaches a decision point
 (e.g. "player 3 must vote"), emits a typed `DecisionRequest`, and something answers it with a typed
-`Decision`. Three interchangeable answerers implement the same interface:
+`AgentDecision`. Four interchangeable answerers implement the same interface:
 
 - `heuristicAgent` — deterministic/scripted rules (Milestone 1, and the runtime fallback forever)
 - `llmAgent` — builds a prompt from the bot's view, calls OpenRouter, parses, validates
+- `composedAgent` — exact joint beliefs, typed policy, committed mechanics, and optional bounded
+  LLM planning/voice
 - `humanAgent` — resolves when the human clicks/types in the client
 
 This applies a transport-abstraction pattern at the agent level: a single `LlmTransport` backs both
@@ -62,8 +64,8 @@ Inside `server/agents/`, cognition and `SituationAnalysis` own seat-scoped mecha
 `policy/candidates.ts` owns the finite legal action surface and `policy/forced.ts` owns executable
 forced constraints; neither reads raw `Game`. The heuristic and runtime fallback consume those
 owners before applying ordinary seeded scoring. The engine's `applyDecision` remains the final
-legality authority. Prompt-guided LLM policy remains the production compatibility baseline. The
-opt-in composed path sequences typed cognition, analysis, candidates, forced policy, scoring, a
+legality authority. Prompt-guided LLM policy remains the default compatibility baseline. The
+selectable composed path sequences typed cognition, analysis, candidates, forced policy, scoring, a
 bounded planner, committed plan, and plan-driven voice. Its optional
 `good-proposal-vote-scorer-v1` requests candidate-ID-keyed exact joint team assessments and
 good-side vote situation values from `SituationAnalysis`; the Phase 4A proposal-only scorer and
@@ -72,8 +74,10 @@ and engine legality remains final. The bounded planner may choose only among exa
 teams or the seeded near-equivalent vote band. Its voice adapter sees the committed action and a
 public-safe qualitative projection, never the candidate surface or exact posterior values.
 Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.
-The raw prompt-guided LLM remains the production default because the initial free Phase 4 outcome
-sample is insufficient to justify promotion.
+The setup dropdown exposes both a deterministic `full-role` composed agent and the same mechanical
+brain with bounded LLM planner/voice adapters. Neither is selected by the default table fill. The
+raw prompt-guided LLM remains the default because the paired strength evidence does not justify
+promotion.
 
 ### Pluggable agents (the decision interface is a plugin API)
 
@@ -85,7 +89,7 @@ default table, and a rule-based agent ships as the baseline/fallback.
 
 ```ts
 interface AvalonAgent {
-  decide(req: DecisionRequest, view: PlayerView): Promise<Decision | AgentDecision>
+  decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision>
   // view = viewFor(game, seat) — the ONLY game data an agent ever receives.
 }
 interface AgentDecision {
@@ -112,6 +116,7 @@ type AgentSpec =
   | { type: 'llm', model: ModelId }            // default — our custom agent, §3
   | { type: 'heuristic' }                      // built-in rule-based baseline (M1, forever-fallback)
   | { type: 'random' }                         // fuzz/testing
+  | { type: 'composed', brain: 'good-base' | 'full-role' }
   | { type: 'human' }
 ```
 
@@ -155,13 +160,14 @@ never what it can see or how its output is parsed. That keeps custom agents leak
 comparable (same harness, different brain), and lets one character card be seated across several
 models to compare them.
 
-The library = built-ins (one agent per roster model with baseline prompts, plus **Autopilot**, the
-heuristic player as a first-class pickable agent) + user agents persisted as JSON files in
+The library = built-ins (one agent per roster model with baseline prompts, **Rule-based** under the
+stable `autopilot` id, **Probabilistic**, and **Probabilistic + LLM**) + user agents persisted as JSON files in
 `data/agents/` (gitignored). Server API: `GET /api/agents` (browse), `POST /api/agents` (create —
 **llm engines only**). Table setup maps each bot seat to a library id with an
 optional per-seat model override — `table` entries are either a bare agent id (legacy) or
 `{agent, model?}`; the same agent may play multiple seats (on the same or different models), names
-deduped. Bad seats (unknown agent/model, a model override on a non-llm engine) are rejected at
+deduped. The override applies to raw-LLM agents and the bounded-LLM composed agent, never to
+model-free engines. Bad seats (unknown agent/model, a model override on a model-free engine) are rejected at
 lobby creation, never at game start. The client's
 setup screen has the library browser + create-agent form, and the in-game Reference panel (Rules /
 Roles in play / The table / Setup) shows each opponent's card including its persona — transparency

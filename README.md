@@ -77,6 +77,19 @@ Because the engine cannot tell a human from a model, any mix of players is fully
 
 Good Avalon bots are harder than they sound, and the published research is blunt about why. Out of the box, LLMs are weak at deduction in free text and even worse at acting on the deductions they do reach (the "deduction-action gap"), they over-disclose and talk themselves into trouble, and they still lose to simple rule-based baselines. AvaLLM is built against those findings: it does the deduction in code and hands the bot structured facts, hard-guards moves that are provably losing, and runs a second-order "what does this reveal about me?" check before a bot speaks.
 
+The seat dropdown exposes three useful architecture choices in addition to the individual model
+bots:
+
+- **Rule-based** is the original free heuristic fallback, retained under the stable `autopilot` id.
+- **Probabilistic** is the free deterministic full-role policy over exact joint worlds. It makes no
+  model calls and deliberately does not produce table talk.
+- **Probabilistic + LLM** uses the same full-role scoring and constraints. Before commitment, a
+  selected roster model may choose only within the policy's viable band. After commitment, its
+  voice cannot rewrite the action.
+
+The two probabilistic agents are normal selectable opponents, but the default table still draws
+from the raw model roster while their playing-strength evaluation remains mixed.
+
 The prompts are not one generic "play Avalon well" instruction either. Guidance is specialized by role and by decision: how an evil player should time a fail, when Percival should risk revealing, how the assassin should read the vote record to find Merlin. That whole playbook is distilled in [`docs/research-strategy.md`](docs/research-strategy.md), which draws on both strong-human play and the academic literature; [`docs/design-bot-guidance.md`](docs/design-bot-guidance.md) is where each heuristic gets mapped slot by slot into the prompts.
 
 Key sources:

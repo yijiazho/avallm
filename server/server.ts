@@ -283,7 +283,7 @@ function lobbyPayload(l: Lobby): LobbyPayload {
 }
 
 // Resolve a lobby seat to a seatable def — NEVER throws. An agent deleted (or
-// model-orphaned) after lobby creation falls back to Autopilot, visibly. This
+// model-orphaned) after lobby creation falls back to Rule-based, visibly. This
 // is the one chokepoint for "is this seat playable"; lobbyPayload runs inside
 // the start path (lobbyBroadcast), so a throwing lookup there would strand a
 // just-started session before its first pump.
@@ -291,7 +291,7 @@ function seatDef(t: TableSeat): AgentDef {
   const def = library.find((d) => d.id === t.agent)
   // A seat model override cures a stale def suggestion (parseTableSeat rule).
   if (def && !(def.unavailable && t.model === undefined)) return def
-  console.warn(`[agents] seat fallback: "${t.agent}" ${def ? def.unavailable : 'no longer exists'} — seating Autopilot`)
+  console.warn(`[agents] seat fallback: "${t.agent}" ${def ? def.unavailable : 'no longer exists'} — seating Rule-based`)
   return libById('autopilot')
 }
 
@@ -1041,7 +1041,7 @@ const server = http.createServer(async (req, res) => {
         reloadLibrary()
         // Running games keep their def snapshots; open lobbies stay alive
         // because every seat lookup goes through the non-throwing seatDef
-        // (payloads show Autopilot, and the game starts with Autopilot).
+        // (payloads show Rule-based, and the game starts with Rule-based).
         json(res, 200, { ok: true })
         return
       }

@@ -389,7 +389,7 @@ export function App() {
             />
           )}
           {payload.degraded > 0 && (
-            <div className="degraded-note">{payload.degraded} bot decision{payload.degraded === 1 ? '' : 's'} fell back to autopilot</div>
+            <div className="degraded-note">{payload.degraded} bot decision{payload.degraded === 1 ? '' : 's'} fell back to Rule-based</div>
           )}
         </aside>
       </main>
@@ -682,8 +682,8 @@ const shuffled = <T,>(items: readonly T[]): T[] => {
   return out
 }
 
-const agentIsLlm = (a: AgentInfo | undefined): boolean =>
-  !!a && a.model !== 'rule-based' && a.model !== 'external'
+const agentUsesModel = (a: AgentInfo | undefined): boolean =>
+  a?.usesModel === true
 
 // "Fill with LLMs": the built-in model agents, SHUFFLED, so a table smaller
 // than the roster is a different subset each time rather than always the first
@@ -691,7 +691,9 @@ const agentIsLlm = (a: AgentInfo | undefined): boolean =>
 // Built-ins only: curated characters belong to packs, not to the model fill.
 function defaultTable(library: Library | null, count: number, exclude: string[] = []): TableSeat[] {
   const models = library?.agents
-    .filter((a) => a.tier === 'builtin' && agentIsLlm(a) && !exclude.includes(a.id))
+    .filter((a) =>
+      library.models.some((model) => model.id === a.id)
+      && !exclude.includes(a.id))
     .map((a) => a.id) ?? []
   if (models.length === 0) return Array.from({ length: count }, () => ({ agent: 'autopilot' }))
   // A flat shuffle over every built-in model, mirroring leftoverPool in
@@ -717,7 +719,9 @@ function dealModels(library: Library, ids: string[]): TableSeat[] {
   }
   return ids.map((id) => {
     const info = library.agents.find((a) => a.id === id)
-    return agentIsLlm(info) && !info?.suggestedModel ? { agent: id, model: draw() } : { agent: id }
+    return agentUsesModel(info) && !info?.suggestedModel
+      ? { agent: id, model: draw() }
+      : { agent: id }
   })
 }
 
@@ -1019,10 +1023,10 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
   const builtinAgents = library.agents
     .filter((a) => a.tier === 'builtin')
     .sort((a, b) => {
-      // Keep Autopilot after the default model roster; alphabetize the LLMs by
-      // the same display name the host sees in the menu.
-      const llmOrder = Number(agentIsLlm(b)) - Number(agentIsLlm(a))
-      return llmOrder || a.name.localeCompare(b.name)
+      // Keep model-backed agents before the free local engines, then
+      // alphabetize by the same display name the host sees in the menu.
+      const modelOrder = Number(agentUsesModel(b)) - Number(agentUsesModel(a))
+      return modelOrder || a.name.localeCompare(b.name)
     })
   const customAgents = library.agents.filter((a) => a.custom || a.tier === 'user')
   const packedAgentIds = new Set(packs.flatMap((p) => p.agents))
@@ -1036,7 +1040,7 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
     next[i] = seat
     onChange(next)
   }
-  const seatIsLlm = (s: TableSeat) => agentIsLlm(agentById(s.agent))
+  const seatUsesModel = (s: TableSeat) => agentUsesModel(agentById(s.agent))
   // Per-seat model overrides are power-user plumbing — for a built-in model agent
   // the agent already names its model, so the second dropdown is noise. Hide it by
   // default; reveal on request, or force it open when a seat already carries an
@@ -1044,8 +1048,8 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
   const forced = table.some((s) => s.model || agentById(s.agent)?.unavailable)
   const showOverrides = showModels || forced
   // Only an LLM seat can take a model override, so the toggle is dead weight when
-  // the whole table is autopilot/external.
-  const anyLlm = table.some(seatIsLlm)
+  // the whole table uses local, model-free engines.
+  const anyLlm = table.some(seatUsesModel)
   return (
     <section className="card-panel">
       <h2>
@@ -1062,7 +1066,7 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
           >
             <option value="">choose…</option>
             <option value="models">LLMs</option>
-            <option value="autopilot">Autopilot (free)</option>
+            <option value="autopilot">Rule-based (free)</option>
             {packs.length > 0 && (
               <optgroup label="Packs">
                 {packs.map((p) => <option key={p.id} value={`pack:${p.id}`}>{p.name}</option>)}
@@ -1075,17 +1079,18 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
         {shownPack && <p className="pack-blurb">{shownPack.blurb}</p>}
         {table.map((seat, i) => {
           const info = agentById(seat.agent)
-          const isLlm = seatIsLlm(seat)
+          const isLlm = seatUsesModel(seat)
           const seatSlug = seat.model ? library.models.find((m) => m.id === seat.model)?.slug : undefined
           const agentOption = (a: AgentInfo) => {
-            // Built-in LLMs are the default model roster, so their base model
-            // and price tier remain visible even when this seat has an override.
-            const isDefaultLlm = a.tier === 'builtin' && agentIsLlm(a)
+            // Raw roster agents are the default model choices. Every
+            // model-backed agent still shows its suggested model's price tier,
+            // including the bounded probabilistic hybrid.
+            const isDefaultLlm = library.models.some((model) => model.id === a.id)
             const wearsModel = isDefaultLlm || (
               !(a.id === seat.agent && seatSlug)
-              && (!agentIsLlm(a) || !!a.suggestedModel)
+              && (!agentUsesModel(a) || !!a.suggestedModel)
             )
-            const modelTier = isDefaultLlm
+            const modelTier = a.suggestedModel
               ? library.models.find((m) => m.id === a.suggestedModel)?.tier
               : undefined
             const tierLabel = modelTier ? (TIER_LABEL[modelTier] ?? modelTier) : undefined

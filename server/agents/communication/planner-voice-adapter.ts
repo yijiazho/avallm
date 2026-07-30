@@ -10,6 +10,10 @@ import {
 } from '../policy/plan.ts'
 import type { ComposedPolicyContext } from './composed-renderer.ts'
 import { onlyAllowedKeys } from '../components/canonical-shape.ts'
+import {
+  PLAYER_REFERENCE_NORMS,
+  TABLE_TALK_NORMS,
+} from '../prompts.ts'
 
 export const NO_PLANNER_VERSION = 'planner-off'
 export const NO_VOICE_VERSION = 'voice-off'
@@ -204,7 +208,8 @@ export function createBoundedPlanner(
             content:
               `${BOUNDED_PLANNER_PROMPT_VERSION}. Choose only a viable candidate ID from the supplied context. `
               + 'If you choose a candidate other than structuredCandidateId, include at least one reason code copied from that candidate. '
-              + 'Communication may use only the supplied finite claim codes and seat numbers. Return one JSON object.',
+              + `Communication may use only the supplied finite claim codes and seat numbers. ${PLAYER_REFERENCE_NORMS} `
+              + 'Return one JSON object.',
           },
           {
             role: 'user',
@@ -261,6 +266,7 @@ export function createBoundedVoice(
             role: 'system',
             content:
               `${BOUNDED_VOICE_PROMPT_VERSION}. Render natural Avalon table talk from the committed plan only. `
+              + `${TABLE_TALK_NORMS}\n${PLAYER_REFERENCE_NORMS}\n`
               + 'Do not add a new action, candidate, role fact, or exact numeric probability. '
               + 'Return one JSON object with text and optional thinking.',
           },

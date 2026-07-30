@@ -10,7 +10,7 @@
 //
 // Three tiers, earlier wins on id collision (collisions are surfaced, not
 // silent — see loadAgentLibrary):
-//   builtin — one agent per roster model (baseline prompts) + Autopilot
+//   builtin — roster models plus the local rule-based and composed agents
 //   curated — checked-in agents/*.json, version with the repo, read-only
 //   user    — data/agents/*.json, created via POST/PUT /api/agents (llm
 //             engines only) or dropped in by hand
@@ -32,6 +32,7 @@ import type {
   AgentEngine,
   AgentPublicInfo,
   AgentTier,
+  ComposedEngine,
   LlmEngine,
   LibraryProblem,
   TableSeat,
@@ -45,14 +46,23 @@ export type {
   AgentEngine,
   AgentPublicInfo,
   AgentTier,
+  ComposedEngine,
   LlmEngine,
   LibraryProblem,
   TableSeat,
 } from './def-types.ts'
 
+export function engineUsesModel(
+  engine: AgentEngine,
+): engine is LlmEngine | Extract<ComposedEngine, { adapter: 'bounded-llm' }> {
+  return engine.type === 'llm'
+    || (engine.type === 'composed' && engine.adapter === 'bounded-llm')
+}
+
 export function resolveModel(def: AgentDef, override?: string): string {
-  // `heuristic` is the only non-llm engine, so name it rather than interpolate.
-  if (def.engine.type !== 'llm') throw new Error(`agent ${def.id} has no model (heuristic engine)`)
+  if (!engineUsesModel(def.engine)) {
+    throw new Error(`agent ${def.id} does not take a model`)
+  }
   return override ?? def.engine.model ?? DEFAULT_MODEL
 }
 
@@ -80,7 +90,7 @@ export function promptOverridesOf(engine: LlmEngine): {
 }
 
 // Wire format for lobby tables: a bare agent id (legacy) or {agent, model?}.
-// Throws on unknown agents/models and on model overrides for non-llm engines,
+// Throws on unknown agents/models and on model overrides for model-free engines,
 // so a bad table is rejected at lobby creation, never at game start.
 export function parseTableSeat(raw: unknown, agentById: (id: string) => AgentDef): TableSeat {
   const t: Partial<TableSeat> | null = typeof raw === 'string' ? { agent: raw } : raw as Partial<TableSeat>
@@ -91,8 +101,8 @@ export function parseTableSeat(raw: unknown, agentById: (id: string) => AgentDef
   if (t.model !== undefined) {
     if (typeof t.model !== 'string') throw new Error('seat model must be a roster id')
     rosterById(t.model) // throws on unknown model
-    if (def.engine.type !== 'llm') {
-      throw new Error(`agent ${def.id} is heuristic — it does not take a model`)
+    if (!engineUsesModel(def.engine)) {
+      throw new Error(`agent ${def.id} does not take a model`)
     }
   } else if (def.unavailable) {
     // A stale model suggestion is curable by a seat override; without one the
@@ -155,12 +165,41 @@ export function builtinDefs(): AgentDef[] {
     ...models,
     {
       id: 'autopilot',
-      name: 'Autopilot',
+      name: 'Rule-based',
       author: 'built-in',
       version: 1,
       about: 'The rule-based player from the strategy playbook. Free, instant, and unimaginative.',
       badge: { color: '#5a5f73' },
       engine: { type: 'heuristic' },
+      tier: 'builtin',
+    },
+    {
+      id: 'probabilistic',
+      name: 'Probabilistic',
+      author: 'built-in',
+      version: 1,
+      about: 'The deterministic full-role policy. It reasons over exact joint worlds and plays without model calls or table talk.',
+      badge: { color: '#8b6fd6' },
+      engine: {
+        type: 'composed',
+        brain: 'full-role',
+        adapter: 'none',
+      },
+      tier: 'builtin',
+    },
+    {
+      id: 'probabilistic-llm',
+      name: 'Probabilistic + LLM',
+      author: 'built-in',
+      version: 1,
+      about: 'The same full-role probabilistic mechanics, with a bounded LLM planner and voice that cannot override the committed action.',
+      badge: { color: '#b56fe0' },
+      engine: {
+        type: 'composed',
+        brain: 'full-role',
+        adapter: 'bounded-llm',
+        model: DEFAULT_MODEL,
+      },
       tier: 'builtin',
     },
   ]
@@ -265,6 +304,21 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
     if (customChars(e) > AGGREGATE_CAP) {
       throw new Error(`custom prompt text exceeds ${AGGREGATE_CAP} chars total`)
     }
+  } else if (e.type === 'composed') {
+    if (e.brain !== 'good-base' && e.brain !== 'full-role') {
+      throw new Error('composed brain must be "good-base" or "full-role"')
+    }
+    if (e.adapter !== 'none' && e.adapter !== 'bounded-llm') {
+      throw new Error('composed adapter must be "none" or "bounded-llm"')
+    }
+    if (e.adapter === 'none' && Object.hasOwn(e, 'model')) {
+      throw new Error('model requires the bounded-llm composed adapter')
+    }
+    if (e.adapter === 'bounded-llm' && e.model !== undefined) {
+      if (typeof e.model !== 'string') throw new Error('model must be a roster id')
+      if (!opts.allowUnknownModel) rosterById(e.model)
+    }
+    resolveBrain(e)
   } else if (e.type !== 'heuristic') {
     throw new Error(`unknown engine type: ${String((e as any).type)}`)
   }
@@ -302,7 +356,9 @@ function loadTier(
       seen.add(def.id)
       // Only a STALE suggestion is a problem; no suggestion at all is fine
       // (the seat override or DEFAULT_MODEL backstops it).
-      const suggested = def.engine.type === 'llm' ? def.engine.model : undefined
+      const suggested = engineUsesModel(def.engine)
+        ? def.engine.model
+        : undefined
       if (suggested !== undefined && !ROSTER.some((r) => r.id === suggested)) {
         def.unavailable = `model "${suggested}" is no longer in the roster; pick a new model`
       }
@@ -359,12 +415,13 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
   // which model is actually answering; a stale suggestion renders as
   // "<id> (unavailable)" instead of throwing so the library can list it.
   const e = def.engine
-  // One narrowing: every llm-only field below is `llm?.x`, so a heuristic
-  // engine yields undefined for all of them without repeating the test.
+  // Prompt layers remain LLM-engine-only. A composed hybrid can use a model
+  // without inheriting the raw-LLM prompt customization surface.
   const llm = e.type === 'llm' ? e : undefined
-  let model = 'rule-based'
-  if (llm) {
-    // resolveModel owns the precedence; it can't throw inside the llm branch.
+  const usesModel = engineUsesModel(e)
+  let model = e.type === 'composed' ? 'probabilistic' : 'rule-based'
+  if (usesModel) {
+    // resolveModel owns the precedence; it cannot throw in this branch.
     const resolved = resolveModel(def, modelOverride)
     model = ROSTER.find((r) => r.id === resolved)?.slug ?? `${resolved} (unavailable)`
   }
@@ -375,6 +432,7 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     author: def.author,
     about: def.about,
     model,
+    usesModel,
     color: def.badge?.color ?? hashColor(def.id),
     personality: llm?.personality,
     strategy: llm?.strategy,
@@ -382,7 +440,7 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     roleGuidanceMode: llm?.roleGuidanceMode,
     kindGuidance: llm?.kindGuidance,
     temperature: llm?.temperature,
-    suggestedModel: llm?.model,
+    suggestedModel: usesModel ? e.model : undefined,
     tunedChars: customChars(e),
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',

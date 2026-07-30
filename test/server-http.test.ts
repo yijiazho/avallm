@@ -63,6 +63,30 @@ test('/valid returns 404 for a game the server does not have', async () => {
   assert.equal(r.status, 404)
 })
 
+test('/api/agents exposes two probabilistic choices and the Rule-based label', async () => {
+  const response = await fetch(`${base}/api/agents`)
+  assert.equal(response.status, 200)
+  const payload = await response.json() as {
+    agents: {
+      id: string
+      name: string
+      model: string
+      usesModel: boolean
+      suggestedModel?: string
+    }[]
+  }
+  const byId = (id: string) => payload.agents.find((agent) => agent.id === id)
+  assert.equal(byId('autopilot')?.name, 'Rule-based')
+  assert.equal(byId('autopilot')?.model, 'rule-based')
+  assert.equal(byId('autopilot')?.usesModel, false)
+  assert.equal(byId('probabilistic')?.name, 'Probabilistic')
+  assert.equal(byId('probabilistic')?.model, 'probabilistic')
+  assert.equal(byId('probabilistic')?.usesModel, false)
+  assert.equal(byId('probabilistic-llm')?.name, 'Probabilistic + LLM')
+  assert.equal(byId('probabilistic-llm')?.usesModel, true)
+  assert.equal(typeof byId('probabilistic-llm')?.suggestedModel, 'string')
+})
+
 test('/api/agents/preview renders the exact belief block only when explicitly selected', async () => {
   const preview = async (config: Record<string, unknown> = {}) => {
     const response = await fetch(`${base}/api/agents/preview`, {

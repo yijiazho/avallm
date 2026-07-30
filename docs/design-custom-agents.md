@@ -187,7 +187,7 @@ part of the premise" — the Reference panel already shows each opponent's perso
   persists them, which also makes restores replay the version that was actually playing. A PUT or
   DELETE mid-game therefore affects only future games. A DELETE while the agent is seated in a
   **not-yet-started lobby** must not crash `startLobby`: seats whose library id no longer
-  resolves fall back to Autopilot with a feed notice (same shape as the degrade ladder's
+  resolves fall back to Rule-based with a feed notice (same shape as the degrade ladder's
   visible-substitution rule).
 - `GET /api/agents` — additionally returns the editor's prompt anatomy: baseline `roleGuidance`
   (already there), baseline `kindGuidance` slots (empty today), `TABLE_TALK_NORMS`, and the
@@ -214,7 +214,8 @@ real roles, temperature clamped [0, 1.0], aggregate size cap (§3), CRLF normali
 
 Per roadmap #4, the library becomes three sources merged in precedence order:
 
-1. **Built-ins** — generated from the roster + Autopilot (code).
+1. **Built-ins** — generated from the roster plus Rule-based and the two composed
+   probabilistic choices (code).
 2. **Curated** — NEW: checked-in `agents/*.json`, versioned with the repo, present on every
    deployment. Same schema, loaded read-only, `author: 'curated'`.
 3. **User** — `data/agents/*.json` on the Railway volume at `/app/data` (survives redeploys once

@@ -33,6 +33,8 @@ const CELESTIAL: Record<string, { glyph: string; body: string }> = {
   seed: { glyph: '♆', body: 'Neptune' },
   nemotron: { glyph: '♂', body: 'Mars' },
   autopilot: { glyph: '⚙', body: 'the Clockwork' },
+  probabilistic: { glyph: '◉', body: 'the Oracle' },
+  'probabilistic-llm': { glyph: '✦', body: 'the Augur' },
   // The 2026-07 batch. Deliberately drawn from OUTSIDE OUTER_POOL: that pool is
   // the deterministic fallback for custom agents, so a named seat sharing a
   // glyph with it would collide at the table.

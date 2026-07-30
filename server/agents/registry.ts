@@ -5,13 +5,16 @@ import { createHeuristicAgent } from './heuristic.ts'
 import { createLlmAgent } from './llm.ts'
 import { createRandomAgent } from './random.ts'
 import { getClient } from '../llm/client.ts'
+import { rosterById } from '../llm/roster.ts'
 import {
   fullRolePolicyScorer,
   goodProposalVoteScorer,
 } from './policy/score.ts'
 import { promptOverridesOf, resolveModel } from './defs.ts'
+import { createBoundedPlannerVoice } from './communication/planner-voice-adapter.ts'
 import type { AgentDef } from './defs.ts'
 import type { ComposedAgentOptions } from './composed.ts'
+import type { OpenRouterClient } from '../llm/openrouter.ts'
 import type {
   AgentContext,
   AgentSpec,
@@ -68,13 +71,37 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
 // Library agents (server/agents/defs.ts) — the config-driven construction
 // path used by the web server and table setup. modelOverride is the seat-time
 // (host's) model choice; see resolveModel for precedence.
-export function createAgentFromDef(def: AgentDef, ctx: AgentContext, modelOverride?: string): AvalonAgent {
+export interface AgentFactoryDependencies {
+  client?: OpenRouterClient
+}
+
+export function createAgentFromDef(
+  def: AgentDef,
+  ctx: AgentContext,
+  modelOverride?: string,
+  dependencies: AgentFactoryDependencies = {},
+): AvalonAgent {
   switch (def.engine.type) {
     case 'heuristic': return createHeuristicAgent(ctx)
+    case 'composed': {
+      const adapters = def.engine.adapter === 'bounded-llm'
+        ? createBoundedPlannerVoice({
+            client: dependencies.client ?? getClient(),
+            model: rosterById(resolveModel(def, modelOverride)).slug,
+            tagPrefix: `agent/${def.id}`,
+          })
+        : {}
+      return createComposedAgent({
+        seed: ctx.seed,
+        onDecisionTrace: ctx.onDecisionTrace,
+        ...composedBrainOptions(def.engine.brain),
+        ...adapters,
+      })
+    }
     case 'llm':
       return createLlmAgent({
         modelId: resolveModel(def, modelOverride),
-        client: getClient(),
+        client: dependencies.client ?? getClient(),
         agentId: def.id,
         label: `${def.name}${def.version ? ` v${def.version}` : ''}`,
         prompts: promptOverridesOf(def.engine),

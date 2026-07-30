@@ -52,6 +52,7 @@ export interface AgentInfo {
   // The def's raw model suggestion (roster id), if any; `model` is always the
   // resolved display slug.
   suggestedModel?: string
+  usesModel: boolean
   tunedChars: number
   custom: boolean
   tier: 'builtin' | 'curated' | 'user'
@@ -151,4 +152,3 @@ export interface RevealPayload {
   // Def snapshots taken at game start — the configs that actually played.
   agents?: Record<number, AgentInfo>
 }
-

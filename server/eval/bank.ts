@@ -24,7 +24,13 @@ import { buildMessages, sanitizeSpeech, INJECTION_GUARD } from '../agents/prompt
 import type { Msg } from '../llm/openrouter.ts'
 import { extractObject, legalityError, parseDecision } from '../agents/parse.ts'
 import { heuristicDecide } from '../agents/heuristic.ts'
-import { loadAgentLibrary, promptOverridesOf, resolveModel } from '../agents/defs.ts'
+import {
+  engineUsesModel,
+  loadAgentLibrary,
+  promptOverridesOf,
+  resolveModel,
+} from '../agents/defs.ts'
+import { createAgentFromDef } from '../agents/registry.ts'
 import { rosterById } from '../llm/roster.ts'
 import { CALL_PARAMS } from '../llm/call-params.ts'
 import { readArtifacts } from './artifact.ts'
@@ -108,6 +114,17 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
   const { snapshot } = item
   if (def.engine.type === 'heuristic') {
     return { decision: heuristicDecide(snapshot.req, snapshot.view, snapshot.seed) }
+  }
+  if (def.engine.type === 'composed') {
+    try {
+      const output = await createAgentFromDef(def, {
+        seed: snapshot.seed,
+        seat: snapshot.req.seat,
+      }).decide(snapshot.req, snapshot.view)
+      return { decision: output.decision }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
   }
   const { getClient } = await import('../llm/client.ts')
   const client = getClient()
@@ -263,7 +280,7 @@ async function main(): Promise<void> {
       console.log(`\n${items.length} situations: ${verdicts.fixed} fixed, ${verdicts['same-flaw']} same flaw, `
         + `${verdicts.unclear} unclear${verdicts.failed ? `, ${verdicts.failed} failed to answer` : ''}`)
     }
-    if (values.check || def.engine.type === 'llm') {
+    if (values.check || engineUsesModel(def.engine)) {
       const { getClient } = await import('../llm/client.ts')
       console.log(`spend: $${getClient().getTotalCost().toFixed(4)}`)
     }

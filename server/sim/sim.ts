@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { makeRng } from '../engine/prng.ts'
 import { createAgent, createAgentFromDef } from '../agents/registry.ts'
-import { loadAgentLibrary } from '../agents/defs.ts'
+import { engineUsesModel, loadAgentLibrary } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame, type RunResult } from './runner.ts'
@@ -311,7 +311,8 @@ function resolveTablePlan(seed: string): TablePlan {
   const descriptor = (seat: Seat): string => {
     if (packTable && packDefs) {
       const engine = packDefs[seat].engine
-      const model = packTable[seat].model ?? (engine.type === 'llm' ? engine.model : undefined)
+      const model = packTable[seat].model
+        ?? (engineUsesModel(engine) ? engine.model : undefined)
       return `${packDefs[seat].id}${model ? `:${model}` : ''}`
     }
     const s = spec(seat)

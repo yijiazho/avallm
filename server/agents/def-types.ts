@@ -11,6 +11,7 @@
 import type { LlmCallKind } from '../llm/call-params.ts'
 import type { Role } from '../engine/types.ts'
 import type { BrainSpec, LlmBrainConfig } from './brain.ts'
+import type { ComposedBrainPreset } from './types.ts'
 
 export interface LlmEngine {
   type: 'llm'
@@ -28,8 +29,22 @@ export interface LlmEngine {
   brain?: LlmBrainConfig
 }
 
+export type ComposedEngine =
+  | {
+      type: 'composed'
+      brain: ComposedBrainPreset
+      adapter: 'none'
+    }
+  | {
+      type: 'composed'
+      brain: ComposedBrainPreset
+      adapter: 'bounded-llm'
+      model?: string
+    }
+
 export type AgentEngine =
   | LlmEngine
+  | ComposedEngine
   | { type: 'heuristic' }
 
 export type AgentTier = 'builtin' | 'curated' | 'user'
@@ -62,7 +77,8 @@ export interface AgentPublicInfo {
   version?: number
   author?: string
   about?: string
-  model: string          // display name of the model, or 'rule-based'
+  model: string          // resolved model slug, 'rule-based', or 'probabilistic'
+  usesModel: boolean     // whether the seat accepts a roster-model override
   color: string
   personality?: string
   strategy?: string
@@ -80,9 +96,9 @@ export interface AgentPublicInfo {
 }
 
 // One seat at a lobby table: which agent plays it, and (optionally) which
-// model it runs on — a host-side, per-lobby choice that outranks the def's own
-// suggestion. Model resolution order: seat override > def.engine.model >
-// DEFAULT_MODEL.
+// model it runs on — a host-side, per-lobby choice for model-backed engines
+// that outranks the def's own suggestion. Model resolution order:
+// seat override > def.engine.model > DEFAULT_MODEL.
 export interface TableSeat {
   agent: string
   model?: string // roster id
