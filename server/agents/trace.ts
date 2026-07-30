@@ -216,7 +216,6 @@ export interface TraceComponentVersions extends OptInComponentVersions {
   planner: string
   prompt: string
   renderer: string
-  communication: string
   voice: string
 }
 
@@ -275,7 +274,6 @@ export interface BaseTraceComponentVersionProjection {
       | 'planner'
       | 'prompt'
       | 'renderer'
-      | 'communication'
       | 'voice'
     >
     & Pick<
@@ -393,7 +391,6 @@ export function projectBaseTraceComponentVersions(
       planner: runtime.planner,
       prompt: pipeline.prompt.prompt,
       renderer: pipeline.prompt.renderer,
-      communication: descriptor.base.communication,
       voice: runtime.voice,
     }),
   })

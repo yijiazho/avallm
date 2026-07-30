@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 import {
   BRAIN_SPEC_VERSION,
   isComposedPolicy,
-  PLAN_COMMUNICATION_VERSION,
   resolveBrain,
   type BrainSource,
   type BrainSpec,
@@ -167,7 +166,6 @@ export function resolvedArchitectureIdentityVersions(
     observerModel: identity.base.observerModel,
     observerContribution: identity.componentContributions.observerModel,
     policy: identity.base.policy,
-    communication: identity.base.communication,
     analysis: pipeline.analysis.situation,
     candidates: pipeline.candidateGeneration.legalCandidates,
     forcedPolicy: pipeline.forcedPolicy.policy,
@@ -462,7 +460,6 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
   const record = exactOwnDataRecord(value, [
     'belief',
     'beliefVisibility',
-    'communication',
     'languageEvidence',
     'observerModel',
     'policy',
@@ -474,7 +471,6 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
     || record.belief !== EXACT_BELIEF_MODEL_VERSION
     || record.beliefVisibility !== 'none'
     || !isComposedPolicy(record.policy)
-    || record.communication !== PLAN_COMMUNICATION_VERSION
     || ![
       'off',
       LANGUAGE_FACTOR_BUNDLE_VERSION,

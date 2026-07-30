@@ -332,7 +332,7 @@ import {
 const REQUIRED_COMPONENT_VERSION_KEYS = [
   'brain', 'belief', 'beliefVisibility', 'factors', 'languageEvidence',
   'observerModel', 'analysis', 'candidates', 'forcedPolicy', 'policy',
-  'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
+  'scorer', 'planner', 'prompt', 'renderer', 'voice',
 ] as const satisfies ExactKeyList<TraceComponentVersions>
 export type _RequiredComponentVersionKeysSound =
   | AssertNever<

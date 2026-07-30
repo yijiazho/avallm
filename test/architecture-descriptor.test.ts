@@ -635,7 +635,7 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    '408187f196f3accd1f56b899b8989883f001e6dee6eeaebf83137bf50a0ce8fb',
+    '1293840883e793642315a3cb7c8d2f33ff3757bbcfd9c91224a78c932c62d04f',
   )
   assert.equal(output.trace!.scoreLayerRun, undefined)
   assert.deepEqual(output.trace!.decisionFrame, {
@@ -659,7 +659,6 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     'planner',
     'prompt',
     'renderer',
-    'communication',
     'voice',
   ])
 })
@@ -732,7 +731,6 @@ test('base trace projection fails closed on descriptor and run drift', async () 
     'planner',
     'prompt',
     'renderer',
-    'communication',
     'voice',
   ])
   assert.doesNotMatch(

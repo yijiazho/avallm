@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "e8ffee40441bffd253e211d3352e4c9e1e8eaf155e102888cbe3658f4aa2b613",
+      "sha256": "03f3199f9619a965360575eef4b0f39ac5340ccb7dd555d9eda34badc0d5a1a6",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {

@@ -84,7 +84,6 @@ test('composed engine runs in ownership order and attributes every component', a
     planner: 'fake-planner-v1',
     prompt: 'composed-typed-context-v2',
     renderer: 'composed-policy-renderer-v2',
-    communication: 'plan-voice-v2',
     voice: 'fake-voice-v1',
     decisionComponents: DECISION_COMPONENT_RUN_VERSION,
   })
@@ -475,7 +474,6 @@ test('changing planner/model or voice identity does not reset persistent cogniti
   assert.equal(agent.cognitionCursor(), cursor)
   assert.equal(first.trace!.beliefThroughSeq, second.trace!.beliefThroughSeq)
   assert.equal(second.trace!.componentVersions!.planner, 'model-b')
-  assert.equal(second.trace!.componentVersions!.communication, 'plan-voice-v2')
   assert.equal(second.trace!.componentVersions!.voice, 'persona-b')
 })
 

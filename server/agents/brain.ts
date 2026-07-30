@@ -9,8 +9,6 @@ export const RAW_LLM_POLICY_VERSION = 'prompt-guided-v1'
 export const HEURISTIC_POLICY_VERSION = 'heuristic-policy-v2'
 export const RANDOM_POLICY_VERSION = 'random-v1'
 export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
-export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
-export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v2'
 /**
  * The non-composed policies, as one runtime list rather than a type union.
  *
@@ -49,10 +47,6 @@ export type PolicyComponent =
   | typeof HEURISTIC_POLICY_VERSION
   | typeof RANDOM_POLICY_VERSION
   | typeof COMPOSED_POLICY_VERSION
-export type CommunicationComponent =
-  | 'none'
-  | typeof PROMPT_COMMUNICATION_VERSION
-  | typeof PLAN_COMMUNICATION_VERSION
 export type LanguageEvidenceComponent =
   | 'off'
   | typeof LANGUAGE_FACTOR_BUNDLE_VERSION
@@ -69,7 +63,6 @@ export interface BrainSpec {
   belief: BeliefComponent
   beliefVisibility: BeliefVisibility
   policy: PolicyComponent
-  communication: CommunicationComponent
   languageEvidence: LanguageEvidenceComponent
   observerModel: ObserverModelComponent
 }
@@ -138,7 +131,6 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
     belief: EXACT_BELIEF_MODEL_VERSION,
     beliefVisibility: beliefVisibility as BrainSpec['beliefVisibility'],
     policy: RAW_LLM_POLICY_VERSION,
-    communication: PROMPT_COMMUNICATION_VERSION,
     languageEvidence: 'off',
     observerModel: 'off',
   }
@@ -155,7 +147,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: HEURISTIC_POLICY_VERSION,
-        communication: 'none',
         languageEvidence: 'off',
         observerModel: 'off',
       }
@@ -165,7 +156,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         belief: 'none',
         beliefVisibility: 'none',
         policy: RANDOM_POLICY_VERSION,
-        communication: 'none',
         languageEvidence: 'off',
         observerModel: 'off',
       }
@@ -175,7 +165,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: COMPOSED_POLICY_VERSION,
-        communication: PLAN_COMMUNICATION_VERSION,
         languageEvidence: source.languageEvidence ?? 'off',
         observerModel: source.observerModel ?? 'off',
       }
@@ -189,7 +178,6 @@ export function brainComponents(brain: BrainSpec): Record<string, string> {
     belief: brain.belief,
     beliefVisibility: brain.beliefVisibility,
     policy: brain.policy,
-    communication: brain.communication,
     languageEvidence: brain.languageEvidence,
     observerModel: brain.observerModel,
   }
