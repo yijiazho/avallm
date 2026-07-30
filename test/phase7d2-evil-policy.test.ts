@@ -42,16 +42,18 @@ import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   ROLE_OBJECTIVE_ROUTER_VERSION,
 } from '../server/agents/analysis/evil-objective-types.ts'
-import { ROLE_OBJECTIVE_MODEL_VERSION } from '../server/agents/analysis/role-objective-types.ts'
-import { ROLE_UTILITY_PROJECTION_VERSION } from '../server/agents/analysis/role-utility.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   evilRoleObjectiveScorer,
+  roleObjectiveScorer,
   seededGoodProposalVoteScorer,
   seededEvilRoleObjectiveScorer,
+  seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
@@ -73,6 +75,11 @@ import type {
 } from '../server/engine/types.ts'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
+import {
+  asProposal,
+  assertScoreFamilyConformance,
+  asVote,
+} from './support/score-family.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
@@ -98,41 +105,8 @@ const seededEvilPolicyIdentity = projectResolvedArchitectureIdentity(
   }).resolvedBrain().description,
 )
 
-function proposalFixture(role: Role) {
-  const source = fixture(role)
-  const view: PlayerView = {
-    ...structuredClone(source.view),
-    phase: 'proposal',
-    leaderSeat: source.view.seat,
-    currentTeam: undefined,
-  }
-  const req: DecisionRequest = {
-    kind: 'propose',
-    seat: view.seat,
-    round: view.round,
-    proposalNum: view.proposalNum,
-  }
-  return { req, view }
-}
-
-function voteFixture(role: Role) {
-  const source = fixture(role)
-  const teamSize = source.view.quests[source.view.round - 1].teamSize
-  const view: PlayerView = {
-    ...structuredClone(source.view),
-    phase: 'vote',
-    currentTeam: source.view.players
-      .slice(0, teamSize)
-      .map((player) => player.seat),
-  }
-  const req: DecisionRequest = {
-    kind: 'vote',
-    seat: view.seat,
-    round: view.round,
-    proposalNum: view.proposalNum,
-  }
-  return { req, view }
-}
+const proposalFixture = (role: Role) => asProposal(fixture(role).view)
+const voteFixture = (role: Role) => asVote(fixture(role).view)
 
 function setLegalTwoOneBoard(view: PlayerView, evilSeat: number): void {
   const seats = view.players.map((player) => player.seat)
@@ -178,6 +152,54 @@ async function decide(
       : evilRoleObjectiveScorer,
   }).decide(input.req, input.view)
 }
+
+const familyCase = (
+  label: string,
+  input: { req: DecisionRequest; view: PlayerView },
+  resolvedVersions?: Readonly<Record<string, string>>,
+) => ({
+  label,
+  req: input.req,
+  view: input.view,
+  ...(resolvedVersions ? { resolvedVersions } : {}),
+})
+
+assertScoreFamilyConformance({
+  family: 'evil-role',
+  seed: 'phase7d2-evil-policy',
+  agent: { roleObjectiveRouter: true },
+  deterministic: {
+    scorer: evilRoleObjectiveScorer,
+    version: EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+    components: [EVIL_ROLE_UTILITY_COMPONENT],
+    predecessor: {
+      scorer: roleObjectiveScorer,
+      version: ROLE_OBJECTIVE_SCORER_VERSION,
+    },
+  },
+  seeded: {
+    scorer: seededEvilRoleObjectiveScorer,
+    version: EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    components: [EVIL_ROLE_UTILITY_COMPONENT],
+    predecessor: {
+      scorer: seededRoleObjectiveScorer,
+      version: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    },
+  },
+  eligible: [
+    familyCase('Mordred vote', voteFixture('mordred')),
+    familyCase('Oberon proposal', proposalFixture('oberon')),
+  ],
+  delegating: [
+    // Merlin resolves the C2 role scorer; a Servant falls through to Phase 4.
+    familyCase('Merlin proposal', proposalFixture('merlin')),
+    familyCase('Servant vote', voteFixture('servant'), {
+      [EVIL_ROLE_OBJECTIVE_SCORER_VERSION]: GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+      [EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION]:
+        GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+    }),
+  ],
+})
 
 test('evil proposal utility is exact and failure capacity owns seventy percent', async () => {
   const output = await decide(proposalFixture('assassin'), false)
@@ -252,15 +274,10 @@ test('evil vote rejection compares the canonical best D1 alternative', async () 
   )
 })
 
-test('seeded evil votes vary only in-band and replay exactly', async () => {
+test('the seeded evil vote band equation matches its own diagnostics', async () => {
+  // Per-seed determinism and the seeded identity are family-harness laws.
   const input = voteFixture('mordred')
   const first = await decide(input)
-  const replay = await decide(input)
-  assert.deepEqual(replay, first)
-  assert.equal(
-    first.trace!.componentVersions!.scorer,
-    EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  )
   const scores = first.trace!.candidateScores!
   const inBand = scores[0].evilRoleObjectiveFeatures!.inViableBand
   assert.equal(
@@ -279,29 +296,12 @@ test('seeded evil votes vary only in-band and replay exactly', async () => {
   }
 })
 
-test('configured role chain resolves D2, C2, and Phase 4 truthfully', async () => {
-  const evil = await decide(voteFixture('mordred'))
+test('a delegated decision keeps only its own predecessor utility', async () => {
+  // Chain resolution and D2 utility absence are family-harness laws. What this
+  // test owns is that C2 delegation still produces the good role utility while
+  // a Phase 4 delegation produces none.
   const merlin = await decide(proposalFixture('merlin'))
   const servant = await decide(voteFixture('servant'))
-  assert.equal(
-    evil.trace!.componentVersions!.scorer,
-    EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  )
-  assert.equal(
-    merlin.trace!.componentVersions!.scorer,
-    ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  )
-  assert.equal(
-    servant.trace!.componentVersions!.scorer,
-    GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
-  )
-  for (const trace of [merlin.trace!, servant.trace!]) {
-    assert.equal(
-      trace.componentVersions!.configuredScorer,
-      EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-    )
-    assert.equal(evilUtility(trace), undefined)
-  }
   assert.ok(goodUtility(merlin.trace!))
   assert.equal(goodUtility(servant.trace!), undefined)
 })
@@ -399,7 +399,7 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
   }
 })
 
-test('forced vote selection dominates D2 and malformed D2 falls through C2 to Phase4', async () => {
+test('forced D2 diagnostics are unseeded and malformed D2 falls through to Phase4', async () => {
   const input = voteFixture('mordred')
   const ordinary = await decide(input)
   const candidates = legalCandidates(input.req, input.view)
@@ -456,10 +456,8 @@ test('forced vote selection dominates D2 and malformed D2 falls through C2 to Ph
     },
     evilRoleUtility: evilUtility(ordinary.trace!)!,
   }, replay.rows, EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION)
-  assert.deepEqual(
-    scores.filter((score) => score.viable).map((score) => score.candidateId),
-    [selectedCandidateId],
-  )
+  // Survivor narrowing under force is a family-harness law. This test owns the
+  // unseeded, non-material D2 diagnostics and the malformed fall-through below.
   assert.ok(scores.every((score) =>
     score.evilRoleObjectiveFeatures?.selectionAdjustment === 0
     && score.evilRoleObjectiveFeatures?.seedBucket === undefined))

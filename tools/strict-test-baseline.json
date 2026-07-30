@@ -113,7 +113,7 @@
     },
     {
       "path": "test/phase7c2-role-policy.test.ts",
-      "sha256": "45f30ceb9ae8e12805908cdf1984589c737f34435d5a239393499e2127f1f4e7",
+      "sha256": "acc35865b6379b30bbf6efde2b14a60ccace9de5c27dbbb2ff430b81c9efd411",
       "rationale": "Legacy role-policy fixtures need current union narrowing."
     },
     {
@@ -123,7 +123,7 @@
     },
     {
       "path": "test/phase7d2-evil-policy.test.ts",
-      "sha256": "e301d05d219ec82873d0b56618be26a9911d9dbe0c6cf1aec61647ee5f18783b",
+      "sha256": "1afcc208013620be2649b06802c235dee6096ff1d272ca64c1c4549e42372332",
       "rationale": "Legacy evil-policy fixtures need current decision union narrowing."
     },
     {
@@ -133,7 +133,7 @@
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "93c42dce9d191d01b6a371331572d8b350c2ad48f230bf3e852cf46a6be7587a",
+      "sha256": "a0e2d2c9856ef57438fffbacae48c78307cd76263bf75c1f96eb392ff48896cc",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {

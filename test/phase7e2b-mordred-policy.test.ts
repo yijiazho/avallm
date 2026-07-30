@@ -12,12 +12,6 @@ import {
   normalizeAgentOutput,
 } from '../server/agents/types.ts'
 import {
-  projectResolvedArchitectureIdentity,
-} from '../server/agents/components/resolved-brain.ts'
-import {
-  admitDecisionTrace,
-} from '../server/agents/admission/composed-trace.ts'
-import {
   evilRoleObjectiveScorer,
   mordredBlindnessRoleScorer,
   seededMordredBlindnessRoleScorer,
@@ -36,6 +30,20 @@ import {
 import type {
   ScoreLayerTransformContext,
 } from '../server/agents/policy/score-layer/types.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  seededEvilRoleObjectiveScorer,
+} from '../server/agents/policy/score.ts'
+import {
+  MORDRED_BLINDNESS_COMPONENT,
+} from '../server/agents/components/native-role-components.ts'
+import {
+  asVote,
+  assertScoreFamilyConformance,
+} from './support/score-family.ts'
 
 const ROLES: Role[] = [
   'merlin',
@@ -74,27 +82,77 @@ function mordredProposal(): {
   }
 }
 
-test('Mordred specialization changes a D2-viable proposal and admits exactly', async () => {
+const mordredFixture = mordredProposal()
+
+assertScoreFamilyConformance({
+  family: 'mordred',
+  seed: mordredFixture.game.seed,
+  agent: { roleObjectiveRouter: true },
+  deterministic: {
+    scorer: mordredBlindnessRoleScorer,
+    version: MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
+    components: [MORDRED_BLINDNESS_COMPONENT],
+    predecessor: {
+      scorer: evilRoleObjectiveScorer,
+      version: EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+    },
+  },
+  seeded: {
+    scorer: seededMordredBlindnessRoleScorer,
+    version: MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
+    components: [MORDRED_BLINDNESS_COMPONENT],
+    predecessor: {
+      scorer: seededEvilRoleObjectiveScorer,
+      version: EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    },
+  },
+  eligible: [
+    {
+      label: 'Mordred proposal',
+      req: mordredFixture.req,
+      view: mordredFixture.view,
+    },
+    {
+      label: 'Mordred vote',
+      ...asVote(mordredFixture.view),
+    },
+  ],
+  delegating: [
+    {
+      label: 'Mordred discussion',
+      req: {
+        kind: 'discuss',
+        seat: mordredFixture.view.seat,
+        round: mordredFixture.view.round,
+        proposalNum: mordredFixture.view.proposalNum,
+      },
+      view: { ...structuredClone(mordredFixture.view), phase: 'discussion' },
+      resolvedVersions: {
+        [MORDRED_BLINDNESS_ROLE_SCORER_VERSION]:
+          GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+        [MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION]:
+          GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+      },
+    },
+  ],
+  // This real 9-player deal never lands inside the seeded near-equal D2 band,
+  // so both kinds are invariant here. The band itself is hand-worked below.
+})
+
+test('Mordred blindness value causally changes a D2-viable proposal', async () => {
   const input = mordredProposal()
   const d2 = normalizeAgentOutput(await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: evilRoleObjectiveScorer,
   }).decide(input.req, input.view))
-  const agent = createComposedAgent({
+  const result = normalizeAgentOutput(await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: mordredBlindnessRoleScorer,
-  })
-  const result = normalizeAgentOutput(
-    await agent.decide(input.req, input.view),
-  )
+  }).decide(input.req, input.view))
   const trace = result.trace!
   assert.notDeepEqual(result.decision, d2.decision)
-  assert.equal(
-    trace.componentVersions?.scorer,
-    MORDRED_BLINDNESS_ROLE_SCORER_VERSION,
-  )
   const chosen = trace.candidateScores!.find(
     (score) => score.candidateId === trace.structuredCandidateId,
   )!
@@ -103,58 +161,6 @@ test('Mordred specialization changes a D2-viable proposal and admits exactly', a
     'MORDRED_D2_VIABLE_BAND',
     'MORDRED_BLINDNESS_OPPORTUNITY',
   ])
-  assert.equal(
-    trace.candidateScores!.filter((score) => score.viable).length,
-    1,
-  )
-  assert.equal(admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace,
-    req: input.req,
-    view: input.view,
-    authoritativeAction: result.decision,
-    selectedDecision: result.decision,
-    deterministicSeed: input.game.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-      agent.resolvedBrain().description,
-    ),
-  }).kind, 'trusted-exact')
-})
-
-test('seeded proposals remain deterministic and ineligible requests delegate', async () => {
-  const input = mordredProposal()
-  const first = normalizeAgentOutput(await createComposedAgent({
-    seed: 'proposal-seed-a',
-    roleObjectiveRouter: true,
-    scorer: seededMordredBlindnessRoleScorer,
-  }).decide(input.req, input.view))
-  const second = normalizeAgentOutput(await createComposedAgent({
-    seed: 'proposal-seed-b',
-    roleObjectiveRouter: true,
-    scorer: seededMordredBlindnessRoleScorer,
-  }).decide(input.req, input.view))
-  assert.deepEqual(first.decision, second.decision)
-  assert.equal(
-    first.trace!.componentVersions?.scorer,
-    MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
-  )
-
-  const discussView = structuredClone(input.view)
-  discussView.phase = 'discussion'
-  const discuss = normalizeAgentOutput(await createComposedAgent({
-    seed: input.game.seed,
-    roleObjectiveRouter: true,
-    scorer: mordredBlindnessRoleScorer,
-  }).decide({
-    kind: 'discuss',
-    seat: discussView.seat,
-    round: discussView.round,
-    proposalNum: discussView.proposalNum,
-  }, discussView))
-  assert.equal(
-    discuss.trace!.componentVersions?.scorer,
-    'good-proposal-vote-scorer-v1',
-  )
 })
 
 const APPROVE_ID = 'legal-candidates-v1:vote:approve'

@@ -8,20 +8,12 @@ import {
   expectedDecisions,
 } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
-import type { DecisionRequest, Role } from '../server/engine/types.ts'
+import type {
+  DecisionRequest,
+  PlayerView,
+  Role,
+} from '../server/engine/types.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
-import {
-  admitDecisionTrace,
-} from '../server/agents/admission/composed-trace.ts'
-import {
-  projectResolvedArchitectureIdentity,
-} from '../server/agents/components/resolved-brain.ts'
-import {
-  assassinMerlinTargetScorer,
-} from '../server/agents/policy/score.ts'
-import {
-  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-} from '../server/agents/policy/assassin-score-contract.ts'
 import {
   ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
 } from '../server/agents/components/native-role-components.ts'
@@ -34,6 +26,17 @@ import {
 import type {
   ScoreLayerTransformContext,
 } from '../server/agents/policy/score-layer/types.ts'
+import {
+  ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
+} from '../server/agents/policy/assassin-score-contract.ts'
+import {
+  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  assassinMerlinTargetScorer,
+  evilRoleObjectiveScorer,
+} from '../server/agents/policy/score.ts'
+import {
+  assertScoreFamilyConformance,
+} from './support/score-family.ts'
 
 const ROLES: Role[] = [
   'merlin', 'servant', 'servant', 'assassin', 'mordred',
@@ -44,9 +47,16 @@ function fixture() {
     seed: 'e3b-real', playerCount: 5, roles: ROLES,
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
+  const assassinSeat = game.players.find(
+    (player) => player.role === 'assassin',
+  )!.seat
+  let assassinVote: { req: DecisionRequest; view: PlayerView } | undefined
   while (game.phase !== 'assassination') {
     const req = expectedDecisions(game)[0]
     const view = viewFor(game, req.seat)
+    if (req.kind === 'vote' && req.seat === assassinSeat && !assassinVote) {
+      assassinVote = { req, view }
+    }
     const decision = req.kind === 'quest'
       ? { kind: 'quest' as const, card: 'success' as const }
       : heuristicDecide(req, view, game.seed)
@@ -54,48 +64,56 @@ function fixture() {
   }
   const req = expectedDecisions(game)[0] as DecisionRequest
   const view = viewFor(game, req.seat)
-  return { game, view, req }
+  if (!assassinVote) throw new Error('fixture reached no Assassin vote')
+  return { game, view, req, assassinVote }
 }
 
-test('Assassin posterior owns the shot and exact causal attribution', async () => {
-  const input = fixture()
+const assassinFixture = fixture()
+
+assertScoreFamilyConformance({
+  family: 'assassin',
+  seed: assassinFixture.game.seed,
+  agent: { roleObjectiveRouter: true },
+  deterministic: {
+    scorer: assassinMerlinTargetScorer,
+    version: ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
+    components: [ASSASSIN_MERLIN_POSTERIOR_COMPONENT],
+    predecessor: {
+      scorer: evilRoleObjectiveScorer,
+      version: EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+    },
+  },
+  eligible: [
+    {
+      label: 'Assassin shot',
+      req: assassinFixture.req,
+      view: assassinFixture.view,
+    },
+  ],
+  delegating: [
+    {
+      label: 'Assassin vote',
+      req: assassinFixture.assassinVote.req,
+      view: assassinFixture.assassinVote.view,
+    },
+  ],
+})
+
+test('Assassin posterior owns the shot and separates it from generic evil value', async () => {
+  const input = assassinFixture
   const base = normalizeAgentOutput(await createComposedAgent({
     seed: input.game.seed, roleObjectiveRouter: true,
   }).decide(input.req, input.view))
-  const agent = createComposedAgent({
+  const result = normalizeAgentOutput(await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: assassinMerlinTargetScorer,
-  })
-  const result = normalizeAgentOutput(await agent.decide(input.req, input.view))
+  }).decide(input.req, input.view))
   assert.notDeepEqual(result.decision, base.decision)
-  assert.equal(
-    result.trace!.componentVersions?.scorer,
-    ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
-  )
   const use = result.trace!.components!.policyUse.find(
     (entry) => entry.component.id === ASSASSIN_MERLIN_POSTERIOR_COMPONENT.id,
   )
-  assert.equal(use?.component.version, ASSASSIN_MERLIN_POSTERIOR_COMPONENT.version)
-  assert.equal(use?.used, true)
   assert.deepEqual(use?.stages, ['candidate-score', 'action-selection'])
-  assert.deepEqual(
-    result.trace!.candidateScores!.filter((row) => row.viable)
-      .map((row) => row.candidateId),
-    [result.trace!.structuredCandidateId],
-  )
-  assert.equal(admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace: result.trace!,
-    req: input.req,
-    view: input.view,
-    authoritativeAction: result.decision,
-    selectedDecision: result.decision,
-    deterministicSeed: input.game.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
-      agent.resolvedBrain().description,
-    ),
-  }).kind, 'trusted-exact')
 })
 
 function context(input: {

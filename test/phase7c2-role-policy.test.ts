@@ -45,8 +45,8 @@ import {
   createRoleObjectiveScorer,
   goodProposalVoteScorer,
   roleObjectiveScorer,
+  seededGoodProposalVoteScorer,
   seededRoleObjectiveScorer,
-  validateCandidateScores,
   type CandidateScore,
 } from '../server/agents/policy/score.ts'
 import {
@@ -88,6 +88,11 @@ import type {
   Role,
 } from '../server/engine/types.ts'
 import { viewFor } from '../server/engine/view.ts'
+import {
+  asProposal,
+  assertScoreFamilyConformance,
+  asVote,
+} from './support/score-family.ts'
 
 const fixtures = readDecisionFixtures()
 const merlin = fixtures.find((fixture) => fixture.view.role === 'merlin')!
@@ -133,39 +138,62 @@ async function decide(
   }).decide(fixture.req, fixture.view)
 }
 
-function voteFixture(source: typeof merlin) {
-  const view: PlayerView = {
-    ...structuredClone(source.view),
-    phase: 'vote',
-    currentTeam: source.view.players
-      .slice(0, source.view.quests[source.view.round - 1].teamSize)
-      .map((player) => player.seat)
-      .sort((left, right) => left - right),
-  }
-  const req: DecisionRequest = {
-    kind: 'vote',
-    seat: view.seat,
-    round: view.round,
-    proposalNum: view.proposalNum,
-  }
-  return { ...source, req, view }
+const voteFixture = (source: typeof merlin) => ({
+  ...source,
+  ...asVote(source.view),
+})
+
+const proposalFixture = (source: typeof merlin) => ({
+  ...source,
+  ...asProposal(source.view),
+})
+
+/** The hand-worked near-equal combined band this suite pins below. */
+function bandVoteFixture(source: typeof merlin) {
+  const fixture = voteFixture(source)
+  fixture.view.currentTeam = [0, 2]
+  return fixture
 }
 
-function proposalFixture(source: typeof merlin) {
-  const view: PlayerView = {
-    ...structuredClone(source.view),
-    phase: 'proposal',
-    leaderSeat: source.view.seat,
-    currentTeam: undefined,
-  }
-  const req: DecisionRequest = {
-    kind: 'propose',
-    seat: view.seat,
-    round: view.round,
-    proposalNum: view.proposalNum,
-  }
-  return { ...source, req, view }
-}
+const familyCase = (
+  label: string,
+  input: { req: DecisionRequest; view: PlayerView },
+) => ({ label, req: input.req, view: input.view })
+
+assertScoreFamilyConformance({
+  family: 'good-role',
+  seed: 'phase7c2-role-policy',
+  deterministic: {
+    scorer: roleObjectiveScorer,
+    version: ROLE_OBJECTIVE_SCORER_VERSION,
+    components: [GOOD_ROLE_UTILITY_COMPONENT],
+    predecessor: {
+      scorer: goodProposalVoteScorer,
+      version: GOOD_PROPOSAL_VOTE_SCORER_VERSION,
+    },
+  },
+  seeded: {
+    scorer: seededRoleObjectiveScorer,
+    version: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    components: [GOOD_ROLE_UTILITY_COMPONENT],
+    predecessor: {
+      scorer: seededGoodProposalVoteScorer,
+      version: GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+    },
+  },
+  eligible: [
+    familyCase('Merlin proposal', proposalFixture(merlin)),
+    familyCase('Merlin vote', voteFixture(merlin)),
+    familyCase('Percival proposal', proposalFixture(percival)),
+    // Hand-worked near-equal combined band: the seeded plan may vary here.
+    familyCase('Percival band vote', bandVoteFixture(percival)),
+  ],
+  delegating: [
+    familyCase('Servant decision', servant),
+    familyCase('Servant proposal', proposalFixture(servant)),
+  ],
+  seedVaryingKinds: ['vote'],
+})
 
 test('Merlin proposal role utility is exact, centered, and causally authoritative', async () => {
   const output = await decide(merlin)
@@ -360,38 +388,16 @@ test('Percival without Morgana retains the explicit null-pair semantics', async 
   ))
 })
 
-test('role scorer is opt-in and ineligible decisions resolve exactly to base', async () => {
+test('a delegated decision carries no role objective, utility, or feature forgery', async () => {
+  // Shared delegation and trusted-exact laws live in the family harness. What
+  // stays here is the C1 objective absence and the base feature-row forgery.
   const role = await decide(servant)
-  const base = await createComposedAgent({
-    seed: 'phase7c2-role-policy',
-    scorer: goodProposalVoteScorer,
-  }).decide(servant.req, servant.view)
-  assert.deepEqual(role.decision, base.decision)
-  assert.deepEqual(role.trace!.candidateScores, base.trace!.candidateScores)
-  assert.equal(
-    role.trace!.componentVersions!.configuredScorer,
-    ROLE_OBJECTIVE_SCORER_VERSION,
-  )
-  assert.equal(
-    role.trace!.componentVersions!.scorer,
-    GOOD_PROPOSAL_VOTE_SCORER_VERSION,
-  )
   assert.equal(role.trace!.componentVersions!.roleObjective, undefined)
   assert.equal(role.trace!.componentVersions!.roleUtility, undefined)
   assert.equal(roleObjective(role.trace!), undefined)
   assert.equal(roleUtility(role.trace!), undefined)
   const proposal = proposalFixture(servant)
   const roleProposal = await decide(proposal)
-  assert.equal(admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace: roleProposal.trace!,
-    req: proposal.req,
-    view: proposal.view,
-    authoritativeAction: roleProposal.decision,
-    selectedDecision: roleProposal.decision,
-    deterministicSeed: 'phase7c2-role-policy',
-    expectedArchitectureIdentity: rolePolicyIdentity,
-  }).kind, 'trusted-exact')
   const forgedBase = structuredClone(roleProposal)
   const forgedScore = forgedBase.trace!.candidateScores!.find(
     (score) =>
@@ -429,18 +435,14 @@ test('role scorer is opt-in and ineligible decisions resolve exactly to base', a
 })
 
 test('seeded role votes vary only inside the combined band and replay exactly', async () => {
+  // Per-seed determinism, the seeded scorer identity, and band stability across
+  // seeds are family-harness laws. This test owns the band equation itself.
   const fixture = voteFixture(merlin)
   const outputs = await Promise.all([
     decide(fixture, true, { seed: 'role-seed-a' }),
-    decide(fixture, true, { seed: 'role-seed-a' }),
     decide(fixture, true, { seed: 'role-seed-b' }),
   ])
-  assert.deepEqual(outputs[0], outputs[1])
   for (const output of outputs) {
-    assert.equal(
-      output.trace!.componentVersions!.scorer,
-      ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-    )
     const scores = output.trace!.candidateScores!
     const role = scores[0].roleObjectiveFeatures!
     const gap = Math.abs(
@@ -483,8 +485,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       )
     }
   }
-  const bandFixture = voteFixture(percival)
-  bandFixture.view.currentTeam = [0, 2]
+  const bandFixture = bandVoteFixture(percival)
   const bandOutput = await decide(
     bandFixture,
     true,
@@ -495,16 +496,6 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       .roleObjectiveFeatures!.inViableBand,
     true,
   )
-  assert.equal(admitDecisionTrace({
-    kind: 'finalized-artifact',
-    trace: bandOutput.trace!,
-    req: bandFixture.req,
-    view: bandFixture.view,
-    authoritativeAction: bandOutput.decision,
-    selectedDecision: bandOutput.decision,
-    deterministicSeed: 'phase7c2-explicit-band',
-    expectedArchitectureIdentity: seededRolePolicyIdentity,
-  }).kind, 'trusted-exact')
   const expectedBucket = bandOutput.trace!.candidateScores![0]
     .roleObjectiveFeatures!.seedBucket
   let oppositeSeedOutput: Awaited<ReturnType<typeof decide>> | undefined
@@ -621,8 +612,6 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     allowedCandidateIds: [selectedCandidateId],
     selectedCandidateId,
   }
-  assert.deepEqual(forced.allowedCandidateIds, [selectedCandidateId])
-  assert.equal(forced.selectedCandidateId, selectedCandidateId)
   const forcedUtility = roleUtility(output.trace!)!
   const replay = replayNativeScoresForAdmission({
     chain: configuredScoreLayerChainForVersion(
@@ -662,9 +651,8 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     },
     roleUtility: forcedUtility,
   }, replay.rows, ROLE_OBJECTIVE_SEEDED_SCORER_VERSION)
-  const forcedSurvivors = forcedScores.filter((score) => score.viable)
-  assert.equal(forcedSurvivors.length, 1)
-  assert.equal(forcedSurvivors[0].candidateId, selectedCandidateId)
+  // Survivor narrowing under force is a family-harness law. What this test
+  // owns is that role diagnostics report a non-material, unseeded gap.
   assert.ok(forcedScores.every((score) =>
     score.roleObjectiveFeatures?.selectionAdjustment === 0
     && score.roleObjectiveFeatures?.seedBucket === undefined))

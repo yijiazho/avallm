@@ -44,9 +44,6 @@ import {
 import { JOINT_IDENTITY_MODEL_VERSION } from '../server/agents/belief/identity.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../server/agents/analysis/observer-types.ts'
 import { ROLE_OBJECTIVE_ROUTER_VERSION } from '../server/agents/analysis/evil-objective-types.ts'
-import { EVIL_ROLE_UTILITY_PROJECTION_VERSION } from '../server/agents/analysis/evil-role-utility.ts'
-import { ROLE_UTILITY_PROJECTION_VERSION } from '../server/agents/analysis/role-utility.ts'
-import { MORGANA_COUNTERFEIT_OBJECTIVE_VERSION } from '../server/agents/analysis/morgana-counterfeit-types.ts'
 import {
   MORGANA_ROLE_SCORER_DEGRADATION,
   MORGANA_ROLE_UTILITY_DEGRADATION,
@@ -74,8 +71,13 @@ import {
 import { canonicalWorldKey } from '../server/agents/belief/worlds.ts'
 import type { Role } from '../server/engine/types.ts'
 import {
-  EVIL_QUEST_ROBUST_POLICY_VERSION,
-} from '../server/agents/policy/evil-quest-card.ts'
+  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  seededEvilRoleObjectiveScorer,
+} from '../server/agents/policy/score.ts'
+import {
+  assertScoreFamilyConformance,
+  asVote,
+} from './support/score-family.ts'
 
 const evilUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
@@ -150,26 +152,63 @@ function canonicalTeams(
   return out
 }
 
-function asVote(
-  view: PlayerView,
-  team: readonly number[],
-): {
-  view: PlayerView
-  req: DecisionRequest
-} {
-  const voteView = structuredClone(view)
-  voteView.phase = 'vote'
-  voteView.currentTeam = [...team]
+
+const morganaFamilyFixture = morganaProposal()
+const morganaOtherEvil = (() => {
+  const { game } = morganaFamilyFixture
+  const other = game.players.find(
+    (player) => player.alignment === 'evil' && player.role !== 'morgana',
+  )!
+  const view = viewFor(game, other.seat)
+  view.phase = 'vote'
+  view.currentTeam = [0, 1, 2].slice(
+    0,
+    view.quests[view.round - 1].teamSize,
+  )
   return {
-    view: voteView,
     req: {
-      kind: 'vote',
-      seat: voteView.seat,
-      round: voteView.round,
-      proposalNum: voteView.proposalNum,
+      kind: 'vote' as const,
+      seat: other.seat,
+      round: view.round,
+      proposalNum: view.proposalNum,
     },
+    view,
   }
-}
+})()
+
+assertScoreFamilyConformance({
+  family: 'morgana',
+  seed: morganaFamilyFixture.game.seed,
+  agent: { roleObjectiveRouter: true },
+  deterministic: {
+    scorer: morganaRoleScorer,
+    version: MORGANA_ROLE_SCORER_VERSION,
+    components: [MORGANA_ROLE_UTILITY_COMPONENT],
+    predecessor: {
+      scorer: evilRoleObjectiveScorer,
+      version: EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+    },
+  },
+  seeded: {
+    scorer: seededMorganaRoleScorer,
+    version: MORGANA_ROLE_SEEDED_SCORER_VERSION,
+    components: [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT],
+    predecessor: {
+      scorer: seededEvilRoleObjectiveScorer,
+      version: EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+    },
+  },
+  eligible: [
+    {
+      label: 'Morgana proposal',
+      req: morganaFamilyFixture.req,
+      view: morganaFamilyFixture.view,
+    },
+  ],
+  delegating: [
+    { label: 'other evil vote', ...morganaOtherEvil },
+  ],
+})
 
 test('opt-in Morgana policy resolves above D2 with exact private attribution', async () => {
   const { game, view, req } = morganaProposal()
@@ -214,61 +253,25 @@ test('opt-in Morgana policy resolves above D2 with exact private attribution', a
   }).kind, 'trusted-exact')
 })
 
-test('Morgana proposals are seed invariant and ineligible roles truthfully resolve to D2', async () => {
-  const { game, view, req } = morganaProposal()
-  const first = await createComposedAgent({
+test('a seed-invariant Morgana proposal records no seed bucket', async () => {
+  // Seed invariance, delegation, and utility absence are family-harness laws.
+  // What this test owns is the absent seed bucket in the private projection.
+  const { req, view } = morganaFamilyFixture
+  const output = await createComposedAgent({
     seed: 'morgana-seed-a',
     roleObjectiveRouter: true,
     scorer: seededMorganaRoleScorer,
   }).decide(req, view)
-  const second = await createComposedAgent({
-    seed: 'morgana-seed-b',
-    roleObjectiveRouter: true,
-    scorer: seededMorganaRoleScorer,
-  }).decide(req, view)
-  assert.deepEqual(first.decision, second.decision)
-  assert.equal(
-    first.trace!.componentVersions!.scorer,
-    MORGANA_ROLE_SEEDED_SCORER_VERSION,
-  )
-  assert.equal(
-    morganaUtility(first.trace!)!.seedBucket,
-    undefined,
-  )
-
-  const other = game.players.find(
-    (player) => player.alignment === 'evil' && player.role !== 'morgana',
-  )!
-  const otherView = viewFor(game, other.seat)
-  otherView.phase = 'vote'
-  otherView.currentTeam = [0, 1, 2].slice(
-    0,
-    otherView.quests[otherView.round - 1].teamSize,
-  )
-  const otherReq: DecisionRequest = {
-    kind: 'vote',
-    seat: other.seat,
-    round: otherView.round,
-    proposalNum: otherView.proposalNum,
-  }
+  assert.equal(morganaUtility(output.trace!)!.seedBucket, undefined)
   const ineligible = await createComposedAgent({
-    seed: game.seed,
+    seed: morganaFamilyFixture.game.seed,
     roleObjectiveRouter: true,
     scorer: morganaRoleScorer,
-  }).decide(otherReq, otherView)
-  assert.equal(
-    ineligible.trace!.componentVersions!.scorer,
-    evilRoleObjectiveScorer.version,
-  )
-  assert.equal(
-    ineligible.trace!.componentVersions!.configuredScorer,
-    MORGANA_ROLE_SCORER_VERSION,
-  )
+  }).decide(morganaOtherEvil.req, morganaOtherEvil.view)
   assert.equal(
     ineligible.trace!.componentVersions!.morganaRoleUtility,
     undefined,
   )
-  assert.equal(morganaUtility(ineligible.trace!), undefined)
 })
 
 test('counterfeit value causally changes an actual proposal only inside the D2 band', async () => {

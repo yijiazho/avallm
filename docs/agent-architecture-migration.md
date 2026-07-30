@@ -285,7 +285,8 @@ while the primary lane runs, then integrate them one at a time.
 | NB-005 | Phase 7 | Harden external public-observer snapshot semantic validation | Before any external observer payload can affect policy, validate a common canonical role set, role/alignment consistency, and the probability lattice implied by the feasible-world count. Runtime snapshots are already exact; the current shape-only external boundary is not policy-authoritative. | `landed` |
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `landed` |
 | NB-007 | Phase 7 correctness | Stabilize exact identity projection on large joint support | One compensated accumulator covers source normalization, grouped role and hidden-team mass, and detached lattice admission. The actual 10-player `phase4-good-v1` vote with 58,080 uniform worlds now reaches trusted-exact admission without rounding, tolerance widening, special casing, or invalid-mass renormalization. | `landed` |
-| NB-008 | Post-Phase-7 test consolidation | Extract a shared score-family conformance harness | Consolidate repeated family fixtures for predecessor delegation, bounded specialization, deterministic seed domains, forced-boundary dominance, and native replay. Preserve focused family-specific causal laws; do not replace the generic registry, admission, privacy, and replay suites with another parallel matrix. | `deferred-until-phase-7-exit` |
+| NB-008 | Post-Phase-7 test consolidation | Extract a shared score-family conformance harness | Consolidate repeated family fixtures for predecessor delegation, bounded specialization, deterministic seed domains, forced-boundary dominance, and native replay. Preserve focused family-specific causal laws; do not replace the generic registry, admission, privacy, and replay suites with another parallel matrix. | `landed` |
+| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` remain hash-pinned strict-test exemptions. Their 257 diagnostics are two mechanical classes: unnormalized `AgentOutput` member access and implicitly typed score callbacks. Route them through `normalizeAgentOutput` and annotate the callbacks, then delete the exemptions rather than refreshing their hashes again. | `ready` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -3514,5 +3515,32 @@ here.
   validates it. Separately, the historical v1 role trace projections moved behind
   `admission/legacy-role-trace-v1.ts` with `ARCH012` pinning its single importer, taking the generic
   admission owner from 5,059 to 4,199 lines. Full suite passes 1113 tests.
+- NB-008 shared score-family conformance harness: `test/support/score-family.ts` now owns the five
+  cross-family laws every native score specialization must satisfy, and each family declares a data
+  descriptor instead of hand-rolling the scaffolding. The laws are predecessor delegation (the
+  specialized configuration yields the predecessor's exact action and scores, reports the configured
+  specialization, resolves the truthful fallback version, and admits no family component),
+  bounded specialization (own scorer version, every legal candidate scored in order, and the
+  structured choice), the seeded domain (per-seed determinism, legal choice, a band the seed selects
+  inside but never resizes, and invariance for every kind not declared varying), forced-boundary
+  dominance, and native replay (trusted-exact admission, a forged score row rejected as
+  `trusted-identity-host-join-failed`, and descriptor-less admission staying
+  `artifact-diagnostic`). All five specializations are wired: C2 good-role, D2 evil-role, E1B
+  Morgana, E2B Mordred, and E3B Assassin, each across its deterministic and seeded variants. The
+  harness reuses `buildScorerSituationSurface`, `applyForcedPolicy`, and
+  `replayNativeScoresForAdmission` to build the same host surface admission builds, so a family
+  cannot satisfy forced dominance through a family-shaped fake context. The base Phase 4 scorer and
+  the F1 full-role relabeler are deliberately out of scope: neither owns a component nor delegates.
+  Three specified behaviors were corrected against what the individual suites had implied. A seeded
+  plan may leave its whole near-equal band viable, so exactly-one-viable is a deterministic-only
+  law. A family layer may legitimately decline a single-survivor forced boundary, so the law binds
+  survivors and viability rather than which layer resolves. Mordred's real 9-player deal never
+  enters the seeded near-equal D2 band, so its declared seed-varying kind was dropped and the
+  harness now rejects an idle varying declaration instead of silently waiving invariance. Family
+  suites keep their hand-worked band equations, hostile payload forgeries, privacy canaries, stdio
+  joins, and bank attribution. C2, D2, and E1B also dropped their duplicate proposal and vote view
+  rewriters for the shared `asProposal`/`asVote` builders. The three legacy suites remain
+  hash-pinned strict-test exemptions with refreshed hashes; NB-009 owns their conversion. Full
+  suite 1138 correctness tests plus the three isolated performance tests.
 - Retired the v1 role projections end to end (MD-005). The seven flat role payloads had no writer: only `createDecisionTrace` for the raw-LLM baseline and the composed v2 builder exist, and neither ever set one, which a live trace probe confirmed. They were reachable only from a stored artifact or an external stdio agent, and reading them cost three parallel validation surfaces. Canonical ingress now refuses the keys for every trace version, the treatment MD-003 used for its own retired keys. Three specified behaviors changed and are pinned the other way: an external stdio agent presenting a historical flat role trace keeps its decision and loses its trace; an external weighted producer can no longer present a complete flat role objective, so generation fails before the report; and the descriptor-less v1 path is exercised through a role-free variant. Both evaluation readers and the admission owner now hold zero references to the retired payloads, and the fields are deleted from the trace type. Full suite 1114 tests.
 
