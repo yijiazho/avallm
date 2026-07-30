@@ -63,6 +63,7 @@ import {
 import {
   exactKeys,
   onlyAllowedKeys,
+  probability,
 } from '../components/canonical-shape.ts'
 import {
   projectConfiguredScoreDiagnostics,
@@ -584,23 +585,16 @@ function seatArray(value: unknown): value is readonly number[] {
     && value.every((entry) => Number.isInteger(entry) && entry >= 0)
 }
 
-function finiteProbability(value: unknown): value is number {
-  return typeof value === 'number'
-    && Number.isFinite(value)
-    && value >= 0
-    && value <= 1
-}
-
 function validRelevantTeam(value: unknown): boolean {
   if (value === undefined) return true
   const team = value as Record<string, unknown>
   return !!team
     && typeof team === 'object'
     && seatArray(team.team)
-    && finiteProbability(team.cleanProbability)
+    && probability(team.cleanProbability)
     && Array.isArray(team.evilCountDistribution)
     && team.evilCountDistribution.length === team.team.length + 1
-    && team.evilCountDistribution.every(finiteProbability)
+    && team.evilCountDistribution.every(probability)
     && seatArray(team.knownFailsAboard)
 }
 
@@ -930,8 +924,8 @@ function validBeliefPlayerMarginals(value: unknown): boolean {
     return !!marginal
       && typeof marginal === 'object'
       && marginal.seat === index
-      && finiteProbability(marginal.goodProbability)
-      && finiteProbability(marginal.evilProbability)
+      && probability(marginal.goodProbability)
+      && probability(marginal.evilProbability)
       && Math.abs(
         marginal.goodProbability + marginal.evilProbability - 1,
       ) <= 1e-9
@@ -966,15 +960,12 @@ function validBeliefTeamAssessments(value: unknown): boolean {
       && team.every(
         (seat, index) => index === 0 || team[index - 1] < seat,
       )
-      && finiteProbability(assessment.cleanProbability)
+      && probability(assessment.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
-      && distribution.every(finiteProbability)
+      && distribution.every(probability)
       && Math.abs(
-        distribution.reduce(
-          (sum, probability) => sum + probability,
-          0,
-        ) - 1,
+        distribution.reduce((sum, mass) => sum + mass, 0) - 1,
       ) <= 1e-9
       && Math.abs(distribution[0] - assessment.cleanProbability) <= 1e-12
       && seatArray(assessment.knownFailsAboard)
@@ -1002,12 +993,12 @@ function validCandidateScores(value: unknown): boolean {
       && seatArray(team)
       && new Set(team).size === team.length
       && team.every((seat, index) => index === 0 || team[index - 1] < seat)
-      && finiteProbability(features.cleanProbability)
+      && probability(features.cleanProbability)
       && Array.isArray(distribution)
       && distribution.length === team.length + 1
-      && distribution.every(finiteProbability)
+      && distribution.every(probability)
       && Math.abs(
-        distribution.reduce((sum, probability) => sum + probability, 0) - 1,
+        distribution.reduce((sum, mass) => sum + mass, 0) - 1,
       ) <= 1e-9
       && Math.abs(distribution[0] - features.cleanProbability) <= 1e-12
     )
@@ -1060,15 +1051,12 @@ function validCandidateScores(value: unknown): boolean {
       && currentTeam.every(
         (seat, index) => index === 0 || currentTeam[index - 1] < seat,
       )
-      && finiteProbability(features.currentCleanProbability)
+      && probability(features.currentCleanProbability)
       && Array.isArray(currentDistribution)
       && currentDistribution.length === currentTeam.length + 1
-      && currentDistribution.every(finiteProbability)
+      && currentDistribution.every(probability)
       && Math.abs(
-        currentDistribution.reduce(
-          (sum, probability) => sum + probability,
-          0,
-        ) - 1,
+        currentDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
       ) <= 1e-9
       && Math.abs(
         currentDistribution[0] - features.currentCleanProbability,
@@ -1087,15 +1075,12 @@ function validCandidateScores(value: unknown): boolean {
         + alternativeTeam.join(',')
       )
       && !isDeepStrictEqual(currentTeam, alternativeTeam)
-      && finiteProbability(features.bestAlternativeCleanProbability)
+      && probability(features.bestAlternativeCleanProbability)
       && Array.isArray(alternativeDistribution)
       && alternativeDistribution.length === alternativeTeam.length + 1
-      && alternativeDistribution.every(finiteProbability)
+      && alternativeDistribution.every(probability)
       && Math.abs(
-        alternativeDistribution.reduce(
-          (sum, probability) => sum + probability,
-          0,
-        ) - 1,
+        alternativeDistribution.reduce((sum, mass) => sum + mass, 0) - 1,
       ) <= 1e-9
       && Math.abs(
         alternativeDistribution[0]
@@ -1183,8 +1168,8 @@ function validCandidateScores(value: unknown): boolean {
       )
       && typeof role.baseValue === 'number'
       && Number.isFinite(role.baseValue)
-      && finiteProbability(role.roleValue)
-      && finiteProbability(role.survivorMeanRoleValue)
+      && probability(role.roleValue)
+      && probability(role.survivorMeanRoleValue)
       && typeof role.roleAdjustment === 'number'
       && Number.isFinite(role.roleAdjustment)
       && Math.abs(
@@ -1237,7 +1222,7 @@ function validCandidateScores(value: unknown): boolean {
       && isEvilObjectiveRole(evilRole.role)
       && evilRole.candidateId === score.candidateId
       && ['propose', 'vote'].includes(evilRole.kind as string)
-      && finiteProbability(evilRole.roleValue)
+      && probability(evilRole.roleValue)
       && (
         evilRole.selectionMode === 'top-role-utility'
         || evilRole.selectionMode === 'seeded-role-utility-band'
@@ -1273,14 +1258,14 @@ function validCandidateScores(value: unknown): boolean {
         === EVIL_ROLE_UTILITY_PROJECTION_VERSION
       && morganaRole.candidateId === score.candidateId
       && ['propose', 'vote'].includes(String(morganaRole.kind))
-      && finiteProbability(morganaRole.d2RoleValue)
-      && finiteProbability(morganaRole.maxD2RoleValue)
+      && probability(morganaRole.d2RoleValue)
+      && probability(morganaRole.maxD2RoleValue)
       && typeof morganaRole.d2BandFloor === 'number'
       && Number.isFinite(morganaRole.d2BandFloor)
       && morganaRole.d2ViableBand
         === MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
       && typeof morganaRole.inD2ViableBand === 'boolean'
-      && finiteProbability(morganaRole.counterfeitValue)
+      && probability(morganaRole.counterfeitValue)
       && Number.isSafeInteger(morganaRole.counterfeitRank)
       && Number(morganaRole.counterfeitRank) >= 0
       && (
@@ -1697,8 +1682,8 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       } else if (chosenFeatures.version === GOOD_PROPOSAL_FEATURE_VERSION) {
         if (
           uncertainty.kind !== 'selected-team-clean'
-          || !finiteProbability(uncertainty.cleanProbability)
-          || !finiteProbability(uncertainty.residualProbability)
+          || !probability(uncertainty.cleanProbability)
+          || !probability(uncertainty.residualProbability)
           || uncertainty.cleanProbability
             !== chosenFeatures.cleanProbability
           || Math.abs(
@@ -1711,8 +1696,8 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       } else if (chosenFeatures.version === GOOD_VOTE_FEATURE_VERSION) {
         if (
           uncertainty.kind !== 'current-versus-alternative-team-clean'
-          || !finiteProbability(uncertainty.currentCleanProbability)
-          || !finiteProbability(
+          || !probability(uncertainty.currentCleanProbability)
+          || !probability(
             uncertainty.bestAlternativeCleanProbability,
           )
           || typeof uncertainty.utilityGap !== 'number'
@@ -2970,7 +2955,7 @@ function validDecisionTrace(
       return !!hypothesis
         && typeof hypothesis === 'object'
         && typeof hypothesis.worldKey === 'string'
-        && finiteProbability(hypothesis.probability)
+        && probability(hypothesis.probability)
         && seatArray(hypothesis.evilSeats)
     })
     && validRelevantTeam(trace.relevantTeam)

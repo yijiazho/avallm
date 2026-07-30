@@ -1,6 +1,10 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
-import { plainDetachedData, sequenceEqual } from '../components/canonical-shape.ts'
+import {
+  plainDetachedData,
+  probability,
+  sequenceEqual,
+} from '../components/canonical-shape.ts'
 import { canonicalTeam } from '../../engine/rules.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
@@ -272,13 +276,6 @@ export interface MorganaRoleObjectiveScoreFeatures {
   utility: MorganaRoleCandidateUtility
 }
 
-function validProbability(value: unknown): value is number {
-  return typeof value === 'number'
-    && Number.isFinite(value)
-    && value >= 0
-    && value <= 1
-}
-
 function validGoodProposalFeatures(
   features: GoodProposalFeatures,
   context: CandidateScoringContext,
@@ -302,12 +299,12 @@ function validGoodProposalFeatures(
     || features.team.length !== decision.team.length
     || features.team.some((seat, index) =>
       seat !== [...decision.team].sort((a, b) => a - b)[index])
-    || !validProbability(features.cleanProbability)
+    || !probability(features.cleanProbability)
     || !Array.isArray(features.evilCountDistribution)
     || features.evilCountDistribution.length !== decision.team.length + 1
     || features.evilCountDistribution.length
       !== assessment.evilCountDistribution.length
-    || features.evilCountDistribution.some((value) => !validProbability(value))
+    || features.evilCountDistribution.some((value) => !probability(value))
     || features.evilCountDistribution.some(
       (value, index) =>
         Math.abs(value - assessment.evilCountDistribution[index]) > 1e-12,

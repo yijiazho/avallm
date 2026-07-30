@@ -487,6 +487,136 @@ test('a shared shape guard cannot be rebound in a nested scope', () => {
   )
 })
 
+test('a shared shape guard cannot be re-declared under an affixed name', () => {
+  const copy = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', body]])
+  const importing = (body: string) =>
+    rules([['server/agents/analysis/probe.ts', `
+      import { exactKeys, probability } from '../components/canonical-shape.ts'
+      ${body}
+    `]])
+
+  // The four shapes that were live in this repository. Each is the shared guard
+  // under a nearby name, and none of the four modules imported the guard, so the
+  // exact-name scan in test/canonical-shape.test.ts saw nothing.
+  assert.deepEqual(
+    copy('function validProbability(v: unknown): v is number { return !!v }'),
+    ['ARCH016'],
+    'type predicate',
+  )
+  assert.deepEqual(
+    copy('function finiteProbability(v: unknown): boolean { return !!v }'),
+    ['ARCH016'],
+    'plain boolean return',
+  )
+  assert.deepEqual(
+    copy(
+      'function assertExactKeys(v: unknown): asserts v is Record<string, 1> {}',
+    ),
+    ['ARCH016'],
+    'assertion signature',
+  )
+  assert.deepEqual(
+    copy('const isCanonicalSeatsish = (v: unknown): boolean => !!v'),
+    ['ARCH016'],
+    'arrow predicate',
+  )
+
+  // The two ways to spell the same copy without tripping the checks above: put
+  // the return type on the variable rather than the arrow, and continue the
+  // guard's name in lowercase instead of starting a new camelCase word.
+  assert.deepEqual(
+    copy('const validProbability: (v: unknown) => boolean = (v) => !!v'),
+    ['ARCH016'],
+    'return type annotated on the variable',
+  )
+  assert.deepEqual(
+    copy('function denseArrays(v: unknown): boolean { return !!v }'),
+    ['ARCH016'],
+    'pluralized guard name',
+  )
+
+  // The discriminator is the return type, not the name, because `probability`
+  // is a shared guard and an ordinary domain noun at the same time. Every one of
+  // these is a real declaration in the tree.
+  assert.deepEqual(
+    copy('function failProbability(d: readonly number[]): number { return d[0] }'),
+    [],
+    'numeric domain helper',
+  )
+  assert.deepEqual(
+    copy('function probabilityLabel(p: number): string { return String(p) }'),
+    [],
+    'string domain helper',
+  )
+  assert.deepEqual(
+    copy('function addProbability(a: { sum: number }, b: number): void {}'),
+    [],
+    'void domain helper',
+  )
+  assert.deepEqual(
+    copy('function improbableThing(v: unknown): boolean { return !!v }'),
+    [],
+    'the guard name is not a camelCase component',
+  )
+
+  // Importing the guard is the escape hatch, and it has to be, or the wrappers
+  // that deliberately sit beside a guard become unexpressible: a labelled throw
+  // around exactKeys, and a half-open interval next to the closed one.
+  assert.deepEqual(
+    importing(`
+      function assertExactKeys(v: object, k: readonly string[]): asserts v is object {
+        if (!exactKeys(v, k)) throw new Error('no')
+      }
+    `),
+    [],
+    'wrapper with the guard in scope',
+  )
+  assert.deepEqual(
+    importing(
+      'const positiveProbability = (v: unknown): v is number =>'
+        + ' probability(v) && v > 0',
+    ),
+    [],
+    'deliberate neighbour with the guard in scope',
+  )
+
+  // A namespace import puts every guard in scope, so it opens the hatch for all
+  // of them rather than for none.
+  assert.deepEqual(
+    rules([['server/agents/analysis/probe.ts', `
+      import * as shapes from '../components/canonical-shape.ts'
+      const validProbability = (v: unknown): boolean => shapes.probability(v)
+    `]]),
+    [],
+    'namespace import',
+  )
+
+  // Module level only: a predicate inside a function body is not a definition a
+  // later reader can pick up by mistake, and ARCH013 owns the case where it
+  // hides an imported guard.
+  assert.deepEqual(
+    copy(`
+      export function outer(v: unknown): boolean {
+        function validProbability(x: unknown): boolean { return !!x }
+        return validProbability(v)
+      }
+    `),
+    [],
+    'nested predicate',
+  )
+
+  // The guard module itself declares the names, so it is not its own offender.
+  assert.deepEqual(
+    rules([[
+      'server/agents/components/canonical-shape.ts',
+      'export const plainRecordOrArray = (v: unknown): boolean => !!v',
+    ]]),
+    [],
+    'the guard module is exempt',
+  )
+})
+
 test('TypeScript AST recognizes multiline imports and export-from declarations', () => {
   const inspected = inspectSource('server/agents/example.ts', `
     import type {

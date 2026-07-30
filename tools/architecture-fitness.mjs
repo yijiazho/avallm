@@ -55,6 +55,29 @@ const CANONICAL_JSON_OWNER =
 // replaced drifted apart in the first place.
 const SHARED_SHAPE_GUARDS =
   'server/agents/components/canonical-shape'
+/**
+ * The callable exports of that module, pinned here so ARCH016 can name them.
+ *
+ * Hand-listed and then checked against the module's real exports by
+ * test/canonical-shape.test.ts, which reads the source and derives the set. A
+ * guard added there without being added here would otherwise be a guard nobody
+ * scans for.
+ */
+export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
+  'canonicalCombinations',
+  'canonicalRequestBlock',
+  'canonicalRoles',
+  'canonicalSeats',
+  'denseArray',
+  'exactKeys',
+  'onlyAllowedKeys',
+  'plainDataRecord',
+  'plainDetachedData',
+  'plainRecord',
+  'probability',
+  'sequenceEqual',
+  'strictCanonicalArray',
+])
 // Engine purity. The engine is the seeded, replayable core: every game is a
 // pure function of its seed and its log, which is what lets the simulator
 // replay a transcript and get the same game back. An ambient clock or an
@@ -290,6 +313,80 @@ function collectScopedBindings(ast) {
   return bindings
 }
 
+/**
+ * Module-level predicate declarations, by name and line.
+ *
+ * Only the *signature* is read, never the body: a declaration counts when its
+ * annotated return type is `boolean`, `x is T`, or `asserts x is T`. That is
+ * what makes ARCH016 usable on names like `probability`, which is both a shared
+ * guard and an ordinary domain noun. `failProbability`, `clampProbability`, and
+ * `probabilityLabel` return a number or a string, so they never enter this set;
+ * `validProbability` and `finiteProbability`, the two private copies that were
+ * live when this was written, are predicates and do.
+ *
+ * The annotation is the whole signal, so a predicate that omits its return type
+ * is invisible here. Every guard-shaped declaration in the tree annotates, and
+ * inferring one would mean reading bodies, which is where a name-based rule
+ * stops being cheap and starts being a type checker.
+ */
+function collectModulePredicates(ast) {
+  const predicates = []
+  const record = (name, signature) => {
+    if (!name || !ts.isIdentifier(name) || !signature.type) return
+    if (
+      !ts.isTypePredicateNode(signature.type)
+      && signature.type.kind !== ts.SyntaxKind.BooleanKeyword
+    ) return
+    const { line } = ast.getLineAndCharacterOfPosition(name.getStart(ast))
+    predicates.push(Object.freeze({ name: name.text, line: line + 1 }))
+  }
+  // Module level only. A predicate nested inside a function is not a second
+  // definition a later reader can pick up by mistake, and ARCH013 already
+  // rejects one that hides an imported guard.
+  for (const statement of ast.statements) {
+    if (ts.isFunctionDeclaration(statement)) {
+      record(statement.name, statement)
+      continue
+    }
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      const initializer = declaration.initializer
+      if (
+        !initializer
+        || (
+          !ts.isArrowFunction(initializer)
+          && !ts.isFunctionExpression(initializer)
+        )
+      ) continue
+      // The return type sits on the initializer in `= (v): boolean =>` and on
+      // the variable in `: (v: unknown) => boolean = (v) =>`. Both spell the
+      // same predicate, and a function type is a signature too, so either end
+      // reads the same way; any other annotation carries no return type of its
+      // own and drops out of `record`.
+      record(
+        declaration.name,
+        initializer.type ? initializer : declaration.type ?? initializer,
+      )
+    }
+  }
+  return Object.freeze(predicates)
+}
+
+/**
+ * Whether `name` carries `guard`: `finiteProbability`, `probabilityOfClean`, and
+ * `denseArrays` all do, `improbable` does not.
+ *
+ * A prefix counts however it continues. Requiring the next character to start a
+ * new camelCase word would let a plural or an adjectival tail through, and
+ * pluralizing an identifier is the cheapest way there is to write a second
+ * definition of it. Mid-name the capitalized form is required, which is what
+ * keeps `improbable` out.
+ */
+function embedsGuardName(name, guard) {
+  return name.startsWith(guard)
+    || name.includes(`${guard[0].toUpperCase()}${guard.slice(1)}`)
+}
+
 function importTypeNames(qualifier) {
   if (!qualifier) return []
   let current = qualifier
@@ -442,6 +539,7 @@ export function inspectSource(sourcePath, source) {
     stringLiterals,
     ambientReads,
     scopedBindings: collectScopedBindings(ast),
+    predicates: collectModulePredicates(ast),
   })
 }
 
@@ -598,6 +696,10 @@ export function auditArchitectureSources(sourceEntries) {
       continue
     }
 
+    // Which shared guards this module has in scope, by their exported names, so
+    // ARCH016 below can tell a wrapper around the shared predicate from a second
+    // definition of it.
+    const guardsInScope = new Set()
     for (const edge of inspected.edges) {
       let target
       try {
@@ -642,6 +744,10 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (target === SHARED_SHAPE_GUARDS && edge.kind === 'import') {
+        if (edge.namespace) {
+          for (const name of SHARED_SHAPE_GUARD_NAMES) guardsInScope.add(name)
+        }
+        for (const name of edge.names) guardsInScope.add(name)
         for (const local of edge.locals) {
           if (!inspected.scopedBindings.has(local)) continue
           violations.push(violation(
@@ -925,6 +1031,44 @@ export function auditArchitectureSources(sourceEntries) {
           edge,
           'component-kernel namespace access is confined to the in-process composition/kernel boundary',
         ))
+      }
+    }
+
+    // ARCH016. A private copy of a shared shape guard, wearing an affixed name.
+    //
+    // test/canonical-shape.test.ts already rejects a module-level declaration
+    // that spells a guard's name exactly, importer or not. What it cannot see is
+    // the same predicate under a nearby name, which is how four of them survived
+    // that scan: assertExactKeys in the role report, validProbability in the
+    // scorer, finiteProbability in trace admission, validCanonicalSeats in
+    // identity. Each was semantically the shared guard, none of them imported it,
+    // and the last one was also weaker than it.
+    //
+    // The escape hatch is the import: a module with the guard in scope is taken
+    // to be wrapping it rather than replacing it, which is what keeps the
+    // deliberate neighbours legal. positiveProbability wants a half-open
+    // interval, validProbabilityLattice checks a normalized sum, and
+    // assertExactKeys wants a labelled throw around the shared predicate; all
+    // three sit next to the guard they are named after, where a reader can see
+    // both. A module that names its predicate after a guard it never imported is
+    // telling the reader nothing about which of the two contracts is in force.
+    if (moduleIdentity(sourcePath) !== SHARED_SHAPE_GUARDS) {
+      for (const predicate of inspected.predicates) {
+        for (const guard of SHARED_SHAPE_GUARD_NAMES) {
+          if (
+            predicate.name === guard
+            || guardsInScope.has(guard)
+            || !embedsGuardName(predicate.name, guard)
+          ) continue
+          violations.push(violation(
+            'ARCH016',
+            sourcePath,
+            undefined,
+            `predicate ${predicate.name} (line ${predicate.line}) is named `
+              + `after the shared guard ${guard} without importing it, so the `
+              + 'reader cannot tell which contract holds',
+          ))
+        }
       }
     }
 

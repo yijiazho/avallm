@@ -24,6 +24,10 @@ import type {
   ExactKeyList,
   MissingKeys,
 } from '../agents/key-lists.ts'
+import {
+  exactKeys,
+  plainRecord,
+} from '../agents/components/canonical-shape.ts'
 
 export const PHASE7_ROLE_REPORT_VERSION = 'phase7-role-report-v1'
 export const PHASE7_ROLE_EVIDENCE_BASELINE = 'docs/baselines/phase7-role-evidence-standard-v1.jsonl'
@@ -112,19 +116,28 @@ export interface Phase7RoleReport {
 const digest = (value: string): string =>
   createHash('sha256').update(value).digest('hex')
 
+/**
+ * The shared key-set predicate, wrapped in the labelled throw this parser wants.
+ *
+ * Only the assertion signature and the message are local. The predicate is
+ * exactKeys itself, so this file no longer carries a second definition of what
+ * "exactly these keys" means; the wrapper survives because five call sites read
+ * better as a statement that names the offending row than as an if/throw pair.
+ *
+ * plainRecord in place of the old hand-rolled object test is deliberate, and it
+ * is a strengthening: the old test admitted a proxy, a null prototype, and a
+ * class instance. Every value here comes straight out of JSON.parse, so none of
+ * those can occur and no legal baseline row changes verdict, but this parser
+ * reads evidence that gates a promotion decision and there is no reason for it
+ * to hold the laxer of two available definitions.
+ */
 function assertExactKeys(
   value: unknown,
   keys: readonly string[],
   label: string,
 ): asserts value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label}: expected object`)
-  }
-  const actual = Object.keys(value).sort()
-  const expected = [...keys].sort()
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`${label}: invalid fields`)
-  }
+  if (!plainRecord(value)) throw new Error(`${label}: expected object`)
+  if (!exactKeys(value, keys)) throw new Error(`${label}: invalid fields`)
 }
 
 function parseJsonl(text: string, label: string): unknown[] {

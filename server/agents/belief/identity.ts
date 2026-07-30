@@ -14,6 +14,7 @@ import {
 import { canonicalRoleMultiset } from './worlds.ts'
 import {
   canonicalRoles,
+  canonicalSeats,
   denseArray,
   onlyAllowedKeys,
   probability,
@@ -471,22 +472,6 @@ const positiveProbability = (value: unknown): value is number =>
   && value > 0
   && value <= 1
 
-function validCanonicalSeats(value: unknown, playerCount: number): value is Seat[] {
-  return denseArray(value)
-    && value.length > 0
-    && value.every((seat, index, all) => {
-      const previous = all[index - 1]
-      return typeof seat === 'number'
-        && Number.isInteger(seat)
-        && seat >= 0
-        && seat < playerCount
-        && (
-          index === 0
-          || (typeof previous === 'number' && previous < seat)
-        )
-    })
-}
-
 function validProbabilityLattice(
   hypotheses: readonly Record<string, unknown>[],
 ): boolean {
@@ -691,7 +676,7 @@ export function validatePrivateIdentitySnapshot(
           || Array.isArray(assignment)
           || !onlyAllowedKeys(assignment, ['role', 'seats'])
           || assignment.role !== expected[0]
-          || !validCanonicalSeats(assignment.seats, playerCount)
+          || !canonicalSeats(assignment.seats, playerCount)
           || assignment.seats.length !== expected[1]
         ) return false
         for (const seat of assignment.seats as Seat[]) {
@@ -725,7 +710,7 @@ export function validatePrivateIdentitySnapshot(
         || Array.isArray(hypothesis)
         || !onlyAllowedKeys(hypothesis, ['evilSeats', 'probability'])
         || !positiveProbability(hypothesis.probability)
-        || !validCanonicalSeats(hypothesis.evilSeats, playerCount)
+        || !canonicalSeats(hypothesis.evilSeats, playerCount)
         || hypothesis.evilSeats.length !== EVIL_COUNT[playerCount]
       ) return false
       const key = (hypothesis.evilSeats as Seat[]).join('.')

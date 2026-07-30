@@ -36,6 +36,13 @@ import {
 import { EVIL_COUNT, validateRoles } from '../server/engine/rules.ts'
 import { isRole, ROLES } from '../server/engine/types.ts'
 import type { Role } from '../server/engine/types.ts'
+// Architecture fitness is an executable JavaScript tool, not a server module.
+// @ts-expect-error The test supplies the narrow runtime contract below.
+import * as architectureModule from '../tools/architecture-fitness.mjs'
+
+const { SHARED_SHAPE_GUARD_NAMES } = architectureModule as {
+  SHARED_SHAPE_GUARD_NAMES: readonly string[]
+}
 
 test('plainRecord admits only a plain-prototype own-data object', () => {
   assert.equal(plainRecord({ a: 1 }), true)
@@ -627,21 +634,19 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
 // given call site. A module that wants a genuinely different predicate should
 // give it a different name, exactly as exactKeys and onlyAllowedKeys do; a
 // module that wants this predicate should import it.
-const GUARD_NAMES = [
-  'canonicalCombinations',
-  'canonicalRequestBlock',
-  'canonicalRoles',
-  'canonicalSeats',
-  'denseArray',
-  'exactKeys',
-  'onlyAllowedKeys',
-  'plainDataRecord',
-  'plainDetachedData',
-  'plainRecord',
-  'probability',
-  'sequenceEqual',
-  'strictCanonicalArray',
-] as const
+//
+// This arm reads names spelled exactly. The near miss it cannot see is a copy
+// wearing an affixed name, which is how four of them lived here for a while:
+// assertExactKeys, validProbability, finiteProbability, validCanonicalSeats.
+// That case is ARCH016, and it went to the architecture rules for the same
+// reason ARCH013 did. It has to tell a predicate from a value to be usable at
+// all, since `probability` is a shared guard and a domain noun at once and the
+// tree is full of legitimate `failProbability`-shaped helpers. A regular
+// expression cannot read a return type; the parser can.
+//
+// The list below is the one the rule uses, imported rather than restated, and
+// the derivation check inside the test pins it to the module's real exports.
+const GUARD_NAMES = SHARED_SHAPE_GUARD_NAMES
 
 test('no server module keeps a private copy of a shared guard', () => {
   const guardSource = readFileSync(
