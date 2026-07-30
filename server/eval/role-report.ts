@@ -111,7 +111,7 @@ export interface Phase7RoleReport {
 const digest = (value: string): string =>
   createHash('sha256').update(value).digest('hex')
 
-function exactKeys(
+function assertExactKeys(
   value: unknown,
   keys: readonly string[],
   label: string,
@@ -152,13 +152,13 @@ const ROW_KEYS = [
 export function parsePhase7RoleEvidence(text: string):
 readonly Phase7RoleEvidenceRow[] {
   const rows = parseJsonl(text, 'role evidence').map((raw, index) => {
-    exactKeys(raw, ROW_KEYS, `role evidence:${index + 1}`)
-    exactKeys(
+    assertExactKeys(raw, ROW_KEYS, `role evidence:${index + 1}`)
+    assertExactKeys(
       raw.exactAdmission,
       ['eligible', 'decisions', 'exact', 'structural'],
       `role evidence:${index + 1}:exactAdmission`,
     )
-    exactKeys(
+    assertExactKeys(
       raw.safety,
       [
         'hiddenChecks', 'hiddenViolations',
@@ -247,7 +247,7 @@ export function parseVirtualAssassinEvidence(text: string):
 readonly VirtualAssassinEvidence[] {
   const rows = parseJsonl(text, 'virtual Assassin evidence')
     .map((raw, index) => {
-      exactKeys(raw, VIRTUAL_KEYS, `virtual Assassin:${index + 1}`)
+      assertExactKeys(raw, VIRTUAL_KEYS, `virtual Assassin:${index + 1}`)
       if (
         raw.version !== PHASE7_VIRTUAL_ASSASSIN_VERSION
         || typeof raw.historyId !== 'string'
@@ -258,7 +258,7 @@ readonly VirtualAssassinEvidence[] {
         throw new Error(`virtual Assassin:${index + 1}: invalid row`)
       }
       for (const [targetIndex, target] of raw.targets.entries()) {
-        exactKeys(
+        assertExactKeys(
           target,
           ['seat', 'knownVisibleEvil', 'probability'],
           `virtual Assassin:${index + 1}:target:${targetIndex}`,

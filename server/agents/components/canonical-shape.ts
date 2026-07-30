@@ -1,13 +1,21 @@
 /**
- * Shape guards shared by the analysis-domain payload validators.
+ * Shape guards shared by every payload validator that admits untrusted data,
+ * in any layer: analysis, belief, policy, cognition, communication, eval.
  *
- * Every analysis module that admits an untrusted component payload needs the
- * same handful of predicates: is this a plain record, is this a dense array, is
- * this exactly these keys, is this a probability. Each module used to carry its
- * own copy, and the copies drifted: some rejected a Proxy and some did not,
- * some pinned the prototype and some did not. A guard that is weaker at one
- * call site than another is a hole at that site only, which is precisely the
- * defect duplication hides.
+ * Each such module needs the same handful of predicates: is this a plain
+ * record, is this a dense array, is this exactly these keys, is this a
+ * probability. Each module used to carry its own copy, and the copies drifted:
+ * some rejected a Proxy and some did not, some pinned the prototype and some
+ * did not. A guard that is weaker at one call site than another is a hole at
+ * that site only, which is precisely the defect duplication hides.
+ *
+ * The scope line above is not decoration. This header once said these guards
+ * were for the analysis domain, and the consolidation it describes did stop at
+ * that boundary: private copies of plainDetachedData survived in policy and in
+ * cognition, and both were weaker than this one. The weakest of the two sat on
+ * validateCandidateScores, the untrusted scorer entry point, which is the worst
+ * place in the tree to hold the laxest copy. So the domain is every layer, and
+ * a validator outside analysis is not thereby outside this module.
  *
  * These are the strict definitions. A caller that needs a laxer check should
  * say so explicitly rather than keep a private copy.
@@ -46,12 +54,58 @@ export const plainDataRecord = (
 }
 
 /**
+ * A dense array that also pins Array.prototype and the canonical key order.
+ *
+ * denseArray runs on host-produced snapshots, where the prototype is not in
+ * question. This one runs on payloads that crossed an untrusted boundary, where
+ * an Array subclass instance or a re-prototyped array is exactly the kind of
+ * exotic that reads as an array to Array.isArray and iterates as something
+ * else. The two live under separate names on purpose, as exactKeys and
+ * onlyAllowedKeys do: the strictness difference is the entire content of the
+ * distinction, so a call site has to say which one it wanted.
+ */
+export const strictCanonicalArray = (value: unknown): value is unknown[] => {
+  if (
+    !Array.isArray(value)
+    || isProxy(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+  ) return false
+  const keys = Reflect.ownKeys(value)
+  if (keys.length !== value.length + 1) return false
+  for (let index = 0; index < value.length; index++) {
+    if (keys[index] !== String(index)) return false
+  }
+  return keys[value.length] === 'length'
+}
+
+/**
  * Recursively assert detached JSON-shaped data: no accessors, no proxies, no
- * exotic prototypes, no cycles, no symbol keys, no non-finite numbers.
+ * exotic prototypes, no cycles, no shared subobjects, no symbol keys, no
+ * non-finite numbers.
+ *
+ * `visited` means seen anywhere in this walk, not seen on the current recursion
+ * stack, so a shared but acyclic subobject is refused alongside a true cycle.
+ * That is deliberate, and it is the one place where this guard refuses
+ * something a cycle detector would admit:
+ *
+ *   - Detached means a tree that survives a JSON round trip unchanged. A DAG
+ *     does not. Every caller here stringifies or structuredClones the payload
+ *     right after validating it, so admitting a DAG means validating one object
+ *     and using a materially different one.
+ *   - Sharing is exponential in both directions. `{left: x, right: x}` nested
+ *     to depth 23 is 24 objects, but it has 2^23 root-to-leaf paths: a
+ *     stack-scoped `seen` walks all of them (~13s), and JSON.stringify expands
+ *     it to 251MB. A byte cap computed after stringify cannot save a caller
+ *     from that, because producing the string is the blowup. Treating a repeat
+ *     as a rejection keeps the walk linear in node count.
+ *
+ * So `visited` is never deleted on the success path. A caller that genuinely
+ * wants DAG-shaped input needs a different guard and a different name, not a
+ * one-line relaxation of this one.
  */
 export function plainDetachedData(
   value: unknown,
-  seen = new Set<object>(),
+  visited = new Set<object>(),
 ): boolean {
   if (
     value === null
@@ -62,19 +116,13 @@ export function plainDetachedData(
   if (
     typeof value !== 'object'
     || isProxy(value)
-    || seen.has(value)
+    || visited.has(value)
   ) return false
-  seen.add(value)
+  visited.add(value)
   const array = Array.isArray(value)
   if (
     array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
+      ? !strictCanonicalArray(value)
       : Object.getPrototypeOf(value) !== Object.prototype
   ) return false
   const descriptors = Object.getOwnPropertyDescriptors(value)
@@ -86,7 +134,7 @@ export function plainDetachedData(
       !descriptor
       || !descriptor.enumerable
       || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
+      || !plainDetachedData(descriptor.value, visited)
     ) return false
   }
   return true
@@ -128,7 +176,7 @@ export const canonicalSeats = (
 
 /** Exactly these keys: same set, same count. Nothing optional. */
 export const exactKeys = (
-  value: Record<string, unknown>,
+  value: object,
   keys: readonly string[],
 ): boolean =>
   Object.keys(value).length === keys.length

@@ -5,6 +5,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { exactKeys } from '../components/canonical-shape.ts'
 import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_EVIDENCE_CLASSES,
@@ -186,15 +187,6 @@ export function projectLanguageInterpreterInput(
   }
   validateLanguageInterpreterInput(input)
   return input
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): boolean {
-  const keys = Object.keys(value)
-  return keys.length === expected.length
-    && keys.every((key) => expected.includes(key))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

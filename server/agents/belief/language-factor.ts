@@ -5,6 +5,7 @@
 // reads player-authored text or asks a provider to interpret it.
 
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
+import { exactKeys } from '../components/canonical-shape.ts'
 import type {
   Alignment,
   PlayerView,
@@ -152,15 +153,6 @@ function finiteSeat(value: unknown, playerCount: number): value is Seat {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): boolean {
-  const keys = Object.keys(value)
-  return keys.length === expected.length
-    && keys.every((key) => expected.includes(key))
 }
 
 export function validateLanguageInferenceContext(

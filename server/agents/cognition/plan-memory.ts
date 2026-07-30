@@ -6,6 +6,10 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
+import {
+  plainDetachedData,
+  strictCanonicalArray,
+} from '../components/canonical-shape.ts'
 import type { AppliedDecisionResolution } from '../types.ts'
 import { buildCommitments } from './commitments.ts'
 import {
@@ -177,21 +181,6 @@ export function recordAppliedPlan(
     throw new Error('recorded private plan memory exceeds its bounded schema')
   }
   return recorded
-}
-
-function strictCanonicalArray(value: unknown): value is unknown[] {
-  if (
-    !Array.isArray(value)
-    || Object.getPrototypeOf(value) !== Array.prototype
-  ) {
-    return false
-  }
-  const keys = Reflect.ownKeys(value)
-  if (keys.length !== value.length + 1) return false
-  for (let index = 0; index < value.length; index++) {
-    if (keys[index] !== String(index)) return false
-  }
-  return keys[value.length] === 'length'
 }
 
 function validDecision(value: unknown): value is Decision {
@@ -412,43 +401,6 @@ function validSelectedPlan(value: unknown): boolean {
     && plan.policyId.length <= 128
     && Number.isSafeInteger(plan.beliefThroughSeq)
     && Number(plan.beliefThroughSeq) >= -1
-}
-
-function plainDetachedData(value: unknown, seen = new Set<object>()): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) {
-    return true
-  }
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? !strictCanonicalArray(value)
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    return false
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  const ownKeys = Reflect.ownKeys(value)
-  for (const key of ownKeys) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) {
-      return false
-    }
-  }
-  return true
 }
 
 function validatePrivatePlanMemoryInner(

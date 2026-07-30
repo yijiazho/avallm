@@ -22,6 +22,7 @@ import {
 } from './evil-objective-types.ts'
 import {
   canonicalSeats,
+  exactKeys,
 } from '../components/canonical-shape.ts'
 
 export const EVIL_ROLE_UTILITY_PROJECTION_VERSION =
@@ -475,13 +476,6 @@ export function buildAdmittedEvilRoleUtilityProjection(
   input: EvilRoleUtilityProjectionInput,
 ): PrivateEvilRoleUtilityProjection {
   return buildEvilRoleUtilityProjectionInternal(input, true)
-}
-
-function exactKeys(value: object, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort()
-  const expected = [...keys].sort()
-  return actual.length === expected.length
-    && actual.every((key, index) => key === expected[index])
 }
 
 function evilRoleUtilitySchema(detached: unknown): boolean {

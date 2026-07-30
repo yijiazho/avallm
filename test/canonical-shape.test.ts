@@ -24,6 +24,7 @@ import {
   plainDetachedData,
   plainRecord,
   probability,
+  strictCanonicalArray,
 } from '../server/agents/components/canonical-shape.ts'
 
 test('plainRecord admits only a plain-prototype own-data object', () => {
@@ -173,6 +174,92 @@ test('plainDetachedData rejects accessors, exotica, and cycles', () => {
   assert.equal(plainDetachedData(() => 1), false)
 })
 
+// The three cases below are the ones two private forks of plainDetachedData
+// got wrong before they were deleted (score.ts and plan-memory.ts each carried
+// their own). Each fork was individually plausible, which is the argument for
+// pinning the answers here rather than at the call sites.
+
+test('plainDetachedData rejects a proxy at any depth', () => {
+  // score.ts's fork omitted the isProxy check entirely, and it guards
+  // validateCandidateScores, the untrusted scorer/plugin entry point. A payload
+  // that answers a validator one way and its consumer another is the exact
+  // thing that boundary exists to refuse, so the weakest copy sat at the one
+  // call site where the input is hostile.
+  assert.equal(plainDetachedData(new Proxy({ a: 1 }, {})), false)
+  assert.equal(plainDetachedData(new Proxy([1, 2], {})), false)
+  assert.equal(plainDetachedData({ nested: new Proxy({ a: 1 }, {}) }), false)
+  assert.equal(plainDetachedData([{ deep: [new Proxy({}, {})] }]), false)
+
+  // A proxy that reports a clean shape and serves a different value on read.
+  let reads = 0
+  const shifty = new Proxy({ a: 1 }, {
+    getOwnPropertyDescriptor: (target, key) => (
+      reads++,
+      { value: reads, writable: true, enumerable: true, configurable: true }
+    ),
+  })
+  assert.equal(plainDetachedData({ scores: [shifty] }), false)
+  assert.equal(reads, 0, 'a rejected payload must not be read at all')
+})
+
+test('plainDetachedData refuses a shared subobject, not just a cycle', () => {
+  // The deliberate call: `visited` means seen anywhere in the walk, so an
+  // acyclic DAG is refused alongside a true cycle. score.ts's fork deleted on
+  // exit and so admitted sharing; the shared guard and plan-memory's fork did
+  // not. Detached means a tree that survives a JSON round trip, and sharing
+  // does not: every caller stringifies or structuredClones right after
+  // validating, so a DAG means validating one payload and using another.
+  const shared = { a: 1 }
+  assert.equal(plainDetachedData({ left: shared, right: shared }), false)
+  assert.equal(plainDetachedData([shared, shared]), false)
+  assert.equal(
+    plainDetachedData({ outer: { inner: shared }, sibling: shared }),
+    false,
+    'sharing across depths counts too',
+  )
+
+  // Equal-but-distinct values are not sharing and stay admitted, so the rule
+  // is about object identity rather than about repeated content.
+  assert.equal(plainDetachedData({ left: { a: 1 }, right: { a: 1 } }), true)
+  assert.equal(plainDetachedData([[], []]), true)
+  assert.equal(plainDetachedData({ a: 'x', b: 'x', c: 1, d: 1 }), true)
+
+  // Why it is a rejection and not a tolerated redundancy: `{left: x, right: x}`
+  // nested 23 deep is 24 objects with 2^23 root-to-leaf paths. A stack-scoped
+  // `seen` walks every path and JSON.stringify expands it to ~251MB, so a byte
+  // cap measured after stringify cannot save the caller. Refusing the repeat
+  // keeps the walk linear in node count: this runs in milliseconds.
+  let bomb: Record<string, unknown> = { leaf: 'x' }
+  for (let depth = 0; depth < 512; depth++) bomb = { left: bomb, right: bomb }
+  assert.equal(plainDetachedData(bomb), false)
+})
+
+test('strictCanonicalArray pins the prototype where denseArray does not', () => {
+  assert.equal(strictCanonicalArray([]), true)
+  assert.equal(strictCanonicalArray([1, 2, 3]), true)
+
+  assert.equal(strictCanonicalArray([, 1]), false)
+  assert.equal(strictCanonicalArray(Object.assign([1], { extra: true })), false)
+  assert.equal(strictCanonicalArray(new Proxy([1, 2], {})), false)
+  assert.equal(strictCanonicalArray({ 0: 1, length: 1 }), false)
+  assert.equal(strictCanonicalArray(null), false)
+
+  // The sole difference from denseArray, and the reason plan-memory used to
+  // fork plainDetachedData rather than import it: an exotic prototype on an
+  // array still answers Array.isArray. plainDetachedData now takes the strict
+  // one, so the fork has nothing left to be stricter about.
+  class Subclassed extends Array {}
+  const subclassed = Subclassed.from([1, 2]) as unknown
+  assert.equal(denseArray(subclassed), true, 'denseArray does not pin this')
+  assert.equal(strictCanonicalArray(subclassed), false)
+  assert.equal(plainDetachedData(subclassed), false)
+  assert.equal(plainDetachedData({ rows: subclassed }), false)
+
+  const reprototyped = Object.setPrototypeOf([1, 2], null) as unknown
+  assert.equal(strictCanonicalArray(reprototyped), false)
+  assert.equal(plainDetachedData(reprototyped), false)
+})
+
 test('canonicalCombinations enumerates ascending seat sets in order', () => {
   assert.deepEqual(canonicalCombinations(4, 2), [
     [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
@@ -193,10 +280,10 @@ test('canonicalCombinations enumerates ascending seat sets in order', () => {
 //
 // Both halves are derived, never listed. The consumer set is discovered by
 // scanning for the import, so a new consumer is covered the moment it is
-// written, and each file is checked against exactly the names it imports, so a
-// same-named predicate that means something else is not a false positive.
-// identity.ts is the live example of the latter: it declares its own
-// `probability` meaning `> 0`, and it does not import ours.
+// written, and each file is checked against exactly the names it imports.
+//
+// This catches importers only. The next test covers the rest of the tree,
+// which is where the surviving private copies actually were.
 const GUARD_SOURCE = 'server/agents/components/canonical-shape.ts'
 
 function serverSources(directory: string): string[] {
@@ -249,6 +336,66 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
   // Guard the guard: if the scan silently matched nothing, the loop above
   // would pass while checking exactly zero files.
   assert.ok(consumers.length >= 10, `only found ${consumers.length} consumers`)
+})
+
+// The test above only inspects modules that already import the guard module,
+// and that is the hole the private copies fit through. score.ts and
+// plan-memory.ts each kept a whole `plainDetachedData` walk without importing
+// anything from canonical-shape, so the consolidation scan never looked at
+// them and the two copies drifted for free: neither rejected a Proxy, and they
+// disagreed with each other and with the shared guard about shared subobjects.
+//
+// So scan every server module, importer or not. Declaring a guard's name
+// privately is the failure regardless of what the file imports, because the
+// next reader has no way to tell which of the two definitions is in force at a
+// given call site. A module that wants a genuinely different predicate should
+// give it a different name, exactly as exactKeys and onlyAllowedKeys do; a
+// module that wants this predicate should import it.
+const GUARD_NAMES = [
+  'canonicalCombinations',
+  'canonicalSeats',
+  'denseArray',
+  'exactKeys',
+  'onlyAllowedKeys',
+  'plainDataRecord',
+  'plainDetachedData',
+  'plainRecord',
+  'probability',
+  'strictCanonicalArray',
+] as const
+
+test('no server module keeps a private copy of a shared guard', () => {
+  const guardSource = readFileSync(
+    new URL(`../${GUARD_SOURCE}`, import.meta.url),
+    'utf8',
+  )
+  // Derived, not asserted by hand: the list above has to stay the full set of
+  // exported guards, or a guard added later is scanned for by nobody.
+  //
+  // Callable exports only. Banning a name across the whole server tree is only
+  // defensible for a predicate, where a second definition means a second
+  // contract; a future `export const MAX_DETACHED_DEPTH = 512` here must not
+  // turn every local constant of that name into a reported "private copy". So
+  // the pattern matches a function or an arrow, and a plain value export drops
+  // out of both halves at once rather than forcing a name onto the ban list.
+  const exported = [...guardSource.matchAll(
+    /^export (?:const (\w+) = \(|function (\w+)\()/gm,
+  )].map((match) => match[1] ?? match[2]!).sort()
+  assert.deepEqual(exported, [...GUARD_NAMES].sort())
+
+  const offenders: string[] = []
+  for (const file of serverSources('server')) {
+    if (file === GUARD_SOURCE) continue
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    for (const guard of GUARD_NAMES) {
+      const declaration = new RegExp(
+        `^(?:export )?(?:async )?(?:const|let|var|function) ${guard}\\b`,
+        'm',
+      )
+      if (declaration.test(source)) offenders.push(`${file}: ${guard}`)
+    }
+  }
+  assert.deepEqual(offenders, [])
 })
 
 // Shadowing, the quieter sibling of re-declaration, is pinned by the ARCH013

@@ -207,7 +207,7 @@ export function plannerOverrideReasonCodes(
   )
 }
 
-function probability(value: number): number {
+function clampProbability(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
 }
@@ -295,7 +295,7 @@ export function posteriorUncertainty(
     }
   }
   if (features?.version === 'good-proposal-features-v1') {
-    const cleanProbability = probability(features.cleanProbability)
+    const cleanProbability = clampProbability(features.cleanProbability)
     return {
       version: POSTERIOR_UNCERTAINTY_VERSION,
       kind: 'selected-team-clean',
@@ -313,10 +313,10 @@ export function posteriorUncertainty(
       semantics: features.semantics,
       beliefModelVersion: features.beliefModelVersion,
       beliefThroughSeq: features.beliefThroughSeq,
-      currentCleanProbability: probability(
+      currentCleanProbability: clampProbability(
         features.currentCleanProbability,
       ),
-      bestAlternativeCleanProbability: probability(
+      bestAlternativeCleanProbability: clampProbability(
         features.bestAlternativeCleanProbability,
       ),
       utilityGap: Math.abs(

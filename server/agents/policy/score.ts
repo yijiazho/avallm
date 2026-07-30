@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
+import { plainDetachedData } from '../components/canonical-shape.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
   type JointProbabilitySemantics,
@@ -249,46 +250,6 @@ export interface MorganaRoleObjectiveScoreFeatures {
   selectedByPolicy: boolean
   seedBucket?: 0 | 1
   utility: MorganaRoleCandidateUtility
-}
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object' || seen.has(value)) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  seen.delete(value)
-  return true
 }
 
 function validProbability(value: unknown): value is number {
@@ -611,21 +572,36 @@ export function validateCandidateScores(
   if (typeof scorerVersion !== 'string' || !scorerVersion.trim()) {
     throw new Error('candidate scorer must have a non-empty version')
   }
-  if (
-    !plainDetachedData(scores)
-    || (
-      (
-        scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
-        || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-        || scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
-        || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-        || scorerVersion === MORGANA_ROLE_SCORER_VERSION
-        || scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
-      )
-      && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
+  // Both rejections below used to share one 'unsafe detached data' message, so
+  // an oversized surface reported itself as a malformed one. They are also the
+  // rejections a plugin author is least able to diagnose from the payload: a
+  // scorer that reuses one frozen constant across rows is refused for the
+  // reuse, which is invisible when inspecting any single row, and the throw is
+  // swallowed by custom-scoring into the native fallback. So each says what it
+  // actually found.
+  if (!plainDetachedData(scores)) {
+    throw new Error(
+      'invalid candidate score surface: scores must be detached JSON-shaped '
+        + 'data. Rejected for a proxy, an accessor, a non-enumerable or symbol '
+        + 'key, an exotic prototype, a non-finite number, or the same object '
+        + 'reachable by two paths (reusing one shared constant across rows '
+        + 'counts, and so does a cycle). Build each row independently.',
     )
+  }
+  if (
+    (
+      scorerVersion === ROLE_OBJECTIVE_SCORER_VERSION
+      || scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      || scorerVersion === EVIL_ROLE_OBJECTIVE_SCORER_VERSION
+      || scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+      || scorerVersion === MORGANA_ROLE_SCORER_VERSION
+      || scorerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
+    )
+    && Buffer.byteLength(JSON.stringify(scores), 'utf8') > 1_048_576
   ) {
-    throw new Error('invalid candidate score surface: unsafe detached data')
+    throw new Error(
+      'invalid candidate score surface: serialized scores exceed 1 MiB',
+    )
   }
   if (scores.length !== context.candidates.length) {
     throw new Error('candidate scorer did not score the complete legal surface')
