@@ -138,8 +138,23 @@ export function indexLayerDefinitions<
   return Object.freeze({ byKey, exposed })
 }
 
+/**
+ * What a resolved layer run has to look like to be projectable.
+ *
+ * The input keeps naming every field even though the projection derives its
+ * output by omission. The two are separate jobs: omission is what keeps the
+ * result's type and value in agreement, while this constraint is what stops a
+ * non-run from being projected at all. Requiring only componentRun would admit
+ * any object carrying that one field, which matters because the argument at
+ * decision-frame's score-layer call site is typed by a cast alone.
+ */
 export interface LayerRunShape {
+  readonly version: string
+  readonly configured: unknown
+  readonly journal: unknown
+  readonly surface: unknown
   readonly componentRun: unknown
+  readonly operations: unknown
 }
 
 /** The detached trace of a layer run: everything about it except componentRun. */
