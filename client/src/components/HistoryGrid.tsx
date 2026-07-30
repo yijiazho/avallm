@@ -2,13 +2,17 @@
 // Rows = players; columns = proposals grouped by quest. Shows per proposal:
 // who led (♛), who was on the team (shaded), and how everyone voted.
 // This is core deduction UI: the vote matrix is the game's primary text.
-import type { PlayerView, ProposalRecord } from '../types.ts'
+import type { PlayerView } from '../types.ts'
+
+// Proposals arrive straight from the read-only view; the grouping keeps that
+// element type so rows reference the view's records without copying them.
+type ViewProposal = PlayerView['proposals'][number]
 
 export function HistoryGrid({ view, onClose }: {
   view: PlayerView
   onClose: () => void
 }) {
-  const rounds: { round: number; proposals: ProposalRecord[] }[] = []
+  const rounds: { round: number; proposals: ViewProposal[] }[] = []
   for (const p of view.proposals) {
     const g = rounds.find((r) => r.round === p.round)
     if (g) g.proposals.push(p)

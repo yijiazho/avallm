@@ -495,7 +495,7 @@ function dealKnowledgeText(
 // vocabulary; the leader's own reason no longer needs to restate it (see
 // OUTPUT_CONTRACTS.finalize).
 export function revisionDelta(
-  from: Seat[], to: Seat[], render: (s: Seat) => string,
+  from: readonly Seat[], to: readonly Seat[], render: (s: Seat) => string,
 ): string {
   const removed = from.filter((s) => !to.includes(s)).map(render)
   const added = to.filter((s) => !from.includes(s)).map(render)

@@ -1,5 +1,23 @@
 // Core engine types. Engine purity is enforced by ARCH014, not by convention.
 
+/**
+ * Deep-readonly mapped type: recursively marks every property and array element
+ * `readonly`. Compile-time only (erased at runtime) and structural — it encodes
+ * an immutability contract in the type, while the engine still enforces the same
+ * invariant at runtime via Object.freeze. Functions and primitives pass through
+ * untouched; arrays (mutable or already-readonly) become ReadonlyArray.
+ *
+ * Scoped to JSON-shaped data (the wire/view types it is used on). It does NOT
+ * special-case built-in collections — applied to a type containing a Map, Set,
+ * Date, or Promise it would map over the instance's own keys instead of
+ * preserving it, so keep those out of the shapes it wraps.
+ */
+export type DeepReadonly<T> =
+  T extends (...args: never[]) => unknown ? T
+  : T extends readonly (infer E)[] ? readonly DeepReadonly<E>[]
+  : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T
+
 export const ROLES = Object.freeze([
   'merlin', 'percival', 'servant',
   'assassin', 'morgana', 'mordred', 'oberon', 'minion',
@@ -80,11 +98,16 @@ export const EVENT_TYPES = Object.freeze([
 
 export type EventType = typeof EVENT_TYPES[number]
 
+// Events are the authoritative record and are deep-frozen the instant they are
+// emitted (freezeEventValue in game.ts). The type mirrors that: an event is
+// immutable once created, and game.log is an append-only sequence the engine
+// alone extends (through emit's single owned cast) — no consumer may push,
+// splice, reassign, or reach in and rewrite a payload field.
 export interface GameEvent {
-  seq: number
-  type: EventType
-  payload: Record<string, unknown>
-  visibility: Visibility
+  readonly seq: number
+  readonly type: EventType
+  readonly payload: DeepReadonly<Record<string, unknown>>
+  readonly visibility: DeepReadonly<Visibility>
 }
 
 export interface Game {
@@ -110,7 +133,7 @@ export interface Game {
   // object rather than two correlated optionals: a winner never exists without
   // the reason that produced it, and neither exists mid-game.
   outcome?: { winner: Alignment; reason: string }
-  log: GameEvent[]
+  readonly log: readonly GameEvent[]
 }
 
 // ---- Decisions (the agent boundary) ----
@@ -188,7 +211,16 @@ export interface PublicPlayer {
   name: string
 }
 
-export interface PlayerView {
+// The seat-scoped projection is a derived, read-only snapshot: viewFor builds it
+// fresh from the log and hands it across the hidden-information chokepoint to
+// prompt builders, the client payload, and every agent. None of them own the
+// game, so none may mutate what they receive. `PlayerView` is therefore the
+// DeepReadonly of its shape (below): every `view: PlayerView` parameter already
+// means the immutable form, and an accidental in-place edit (sorting quests,
+// pushing a transcript entry) is a compile error rather than a silent shared
+// mutation of another seat's projection. The base `PlayerViewShape` types stay
+// mutable for the engine, which owns and rewrites the underlying Game.
+interface PlayerViewShape {
   seat: Seat
   name: string
   role: Role
@@ -229,3 +261,5 @@ export interface PlayerView {
   // travel together so a view can never show a winner without its reason.
   outcome?: { winner: Alignment; reason: string }
 }
+
+export type PlayerView = DeepReadonly<PlayerViewShape>

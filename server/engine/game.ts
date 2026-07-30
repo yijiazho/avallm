@@ -41,7 +41,11 @@ function emit(game: Game, type: GameEvent['type'], payload: Record<string, unkno
     payload: structuredClone(payload),
     visibility: structuredClone(visibility),
   } satisfies GameEvent)
-  game.log.push(event)
+  // The one place the append-only log grows. The public type is
+  // `readonly GameEvent[]` so no consumer can extend or rewrite it; the engine
+  // owns this single write and casts to the mutable view to perform it, then
+  // pins the new index non-writable so even the engine cannot overwrite it.
+  ;(game.log as GameEvent[]).push(event)
   Object.defineProperty(game.log, seq, {
     value: event,
     enumerable: true,

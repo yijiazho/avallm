@@ -33,7 +33,7 @@ export interface TranscriptInput {
   leaderSeat: Seat
   quests: Quest[]
   seats: TranscriptSeat[]
-  log: GameEvent[]                 // already redacted to what the caller may see
+  log: readonly GameEvent[]        // already redacted to what the caller may see
   degraded?: { seat: Seat; kind: string; error: string }[]
   // Deterministically wrong decisions (eval/forced.ts). Optional because only a
   // finished, fully revealed transcript can carry them: a blunder is unreadable

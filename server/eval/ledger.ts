@@ -67,7 +67,7 @@ interface PendingProposal {
   commitments: Commitment[]
 }
 
-export function buildLedger(log: GameEvent[]): Ledger {
+export function buildLedger(log: readonly GameEvent[]): Ledger {
   const commitments: Commitment[] = []
   const contradictions: Contradiction[] = []
   const flags: SilenceFlag[] = []

@@ -140,21 +140,24 @@ function robustD3(): Fixture {
   const source = readDecisionFixtures()
     .find((fixture) => fixture.id === 'oberon-two-fail-quest')
   if (!source) throw new Error('missing robust D3 decision fixture')
-  const view = structuredClone(source.view)
-  view.seat = 4
-  view.name = view.players[4].name
-  view.role = 'assassin'
-  view.alignment = 'evil'
-  view.privateInfo = { kind: 'evil', evilPartners: [5] }
-  view.quests[1] = {
-    ...view.quests[1],
-    failCount: 1,
-    result: 'fail',
-  }
-  view.quests[2] = {
-    ...view.quests[2],
-    failCount: undefined,
-    result: undefined,
+  // Fabricate a distinct seat's view from a fixture. A PlayerView is a
+  // read-only projection, so this builds a fresh view rather than reopening it
+  // for in-place edits — the seat is recast to the assassin and quests 2 and 3
+  // are rewritten (one failed, one reset to unplayed) to reach the target state.
+  const base = structuredClone(source.view)
+  const view = {
+    ...base,
+    seat: 4,
+    name: base.players[4].name,
+    role: 'assassin' as const,
+    alignment: 'evil' as const,
+    privateInfo: { kind: 'evil' as const, evilPartners: [5] },
+    quests: base.quests.map((quest, index) =>
+      index === 1
+        ? { ...quest, failCount: 1, result: 'fail' as const }
+        : index === 2
+          ? { ...quest, failCount: undefined, result: undefined }
+          : quest),
   }
   return {
     caseId: 'robust-d3',

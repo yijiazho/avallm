@@ -11,6 +11,7 @@ import {
 } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
+  DeepReadonly,
   PlayerView,
   ProposalRecord,
   Role,
@@ -292,7 +293,7 @@ function canonicalVisibleEvil(view: PlayerView): readonly Seat[] {
   ])].sort((a, b) => a - b)
 }
 
-function canonicalVotes(proposal: ProposalRecord): string {
+function canonicalVotes(proposal: DeepReadonly<ProposalRecord>): string {
   return [...(proposal.votes ?? [])]
     .sort((left, right) => left.seat - right.seat)
     .map((vote) => `${vote.seat}=${vote.vote}`)

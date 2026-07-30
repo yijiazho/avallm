@@ -172,7 +172,7 @@ export interface GameArtifact {
   winReason: string
   steps: number
   degraded: DegradedDecision[]
-  log: GameEvent[]
+  log: readonly GameEvent[]
   architecture?: ArchitectureRunMetadata
   /** Stable identifiers required to interpret or train from this artifact. */
   strategyVersions?: ArtifactStrategyVersions

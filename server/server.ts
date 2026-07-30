@@ -882,7 +882,7 @@ const server = http.createServer(async (req, res) => {
         // /reveal-equivalent openness applies only once the game is finished.
         if (!over && who === null) return json(res, 403, { error: 'not a player or spectator in this game' })
         const full = over || (s.humans.size === 1 && typeof who === 'number')
-        const log: GameEvent[] = full
+        const log: readonly GameEvent[] = full
           ? s.game.log
           : typeof who === 'number'
             ? viewFor(s.game, who).events

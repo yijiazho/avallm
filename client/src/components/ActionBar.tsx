@@ -124,7 +124,7 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
   const size = view.quests[view.round - 1].teamSize
   const current = view.currentTeam ?? []
   const [revising, setRevising] = useState(false)
-  const [team, setTeam] = useState<Seat[]>(current)
+  const [team, setTeam] = useState<Seat[]>([...current])
   const [reason, setReason] = useState('')
   const hammer = view.proposalNum === 5
   const teamNames = current.map((s) => s === view.seat ? 'You' : view.players[s].name).join(' · ')
@@ -177,7 +177,7 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
           disabled={!canRevise}
           onClick={revise}
         >Change team</button>
-        <button className="ghost" data-t="finalize-back" onClick={() => { setRevising(false); setTeam(current) }}>Back</button>
+        <button className="ghost" data-t="finalize-back" onClick={() => { setRevising(false); setTeam([...current]) }}>Back</button>
       </div>
     </div>
   )

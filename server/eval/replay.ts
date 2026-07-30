@@ -86,7 +86,7 @@ export interface DecisionReplayTimelineOptions {
 // folded into the decision that emitted them so the replayed log reproduces
 // the original seq-for-seq.
 function extractSteps(
-  log: GameEvent[],
+  log: readonly GameEvent[],
   onOperation?: (kind: ReplayOperationKind) => void,
   serializedEvents?: string[],
 ): ReplayStep[] {

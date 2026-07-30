@@ -18,7 +18,7 @@ export function QuestParty({ view, bots }: {
   const onMission = view.phase === 'quest'
   if (!seeking && !onMission) return null
 
-  const team: Seat[] = view.currentTeam ?? []
+  const team: readonly Seat[] = view.currentTeam ?? []
   const teamSize = view.quests[view.round - 1]?.teamSize
   const leaderName = view.players[view.leaderSeat]?.name ?? `seat ${view.leaderSeat}`
   const iLead = view.leaderSeat === view.seat
