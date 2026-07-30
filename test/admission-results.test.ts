@@ -15,7 +15,6 @@ import {
   projectResolvedArchitectureIdentity,
   resolvedArchitectureIdentityDigest,
 } from '../server/agents/components/resolved-brain.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   decisionTraceIdForRequest,
 } from '../server/agents/trace.ts'
@@ -157,9 +156,7 @@ test('only an out-of-band identity can produce trusted exact evidence', async ()
     (entry) => entry.id === 'servant-vote-after-evidence',
   )!
   const agent = createComposedAgent({ seed: fixture.source.seed })
-  const output = normalizeAgentOutput(
-    await agent.decide(fixture.req, fixture.view),
-  )
+  const output = await agent.decide(fixture.req, fixture.view)
   const diagnostic = admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: output.trace!,
@@ -201,9 +198,7 @@ test('self-reported identity cannot mint trust or survive a wrong witness', asyn
     (entry) => entry.id === 'servant-vote-after-evidence',
   )!
   const agent = createComposedAgent({ seed: fixture.source.seed })
-  const output = normalizeAgentOutput(
-    await agent.decide(fixture.req, fixture.view),
-  )
+  const output = await agent.decide(fixture.req, fixture.view)
   const forged = structuredClone(output.trace!)
   forged.architectureIdentityDigest = '0'.repeat(64)
   const withoutWitness = admitDecisionTrace({
@@ -242,9 +237,7 @@ test('canonical admission rejects forged wrappers without reading their trace', 
     (entry) => entry.id === 'servant-vote-after-evidence',
   )!
   const agent = createComposedAgent({ seed: fixture.source.seed })
-  const output = normalizeAgentOutput(
-    await agent.decide(fixture.req, fixture.view),
-  )
+  const output = await agent.decide(fixture.req, fixture.view)
   let reads = 0
   const accessorForgery = Object.freeze({
     kind: 'canonical-decision-trace-candidate',
@@ -302,9 +295,7 @@ test('authentic canonical candidates are reusable, detached, and deeply frozen',
     (entry) => entry.id === 'servant-vote-after-evidence',
   )!
   const agent = createComposedAgent({ seed: fixture.source.seed })
-  const output = normalizeAgentOutput(
-    await agent.decide(fixture.req, fixture.view),
-  )
+  const output = await agent.decide(fixture.req, fixture.view)
   const sourceTrace = structuredClone(output.trace!)
   const originalBeliefModelVersion = sourceTrace.beliefModelVersion
   const expectedPlan = sourceTrace.componentPlan!

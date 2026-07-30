@@ -45,10 +45,7 @@ import type { LlmCallKind } from './llm/call-params.ts'
 import { getClient } from './llm/client.ts'
 import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, nameIsReserved, validateRoles } from './engine/rules.ts'
-import {
-  normalizeAgentOutput,
-  type AvalonAgent,
-} from './agents/types.ts'
+import type { AvalonAgent } from './agents/types.ts'
 import {
   degradedAppliedOutcomeTrace,
   upsertDecisionTrace,
@@ -548,7 +545,7 @@ async function pump(s: Session): Promise<void> {
         const view = viewFor(s.game, req.seat)
         const agent = s.agents.get(req.seat)!
         try {
-          const output = normalizeAgentOutput(await agent.decide(req, view))
+          const output = await agent.decide(req, view)
           return {
             req,
             view,

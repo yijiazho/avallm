@@ -33,7 +33,6 @@ import {
 } from '../server/agents/cognition/plan-memory.ts'
 import type { DecisionPlan } from '../server/agents/policy/plan.ts'
 import {
-  normalizeAgentOutput,
   type AvalonAgent,
 } from '../server/agents/types.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
@@ -87,7 +86,7 @@ async function decideAndAcknowledge(
   req: DecisionRequest,
   view: PlayerView,
 ) {
-  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const output = await agent.decide(req, view)
   const finalized = agent.recordAppliedDecisionOutcome!({
     request: req,
     view,
@@ -102,7 +101,7 @@ async function decideAndAcknowledge(
 test('plan memory commits only after legality acknowledgment and returns a detached finalized trace', async () => {
   const { req, view } = firstRequest()
   const agent = createComposedAgent({ seed: 'phase7b2-fixture', planMemory: true })
-  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const output = await agent.decide(req, view)
   assert.equal(agent.planMemorySnapshot(), undefined)
   assert.equal(output.trace!.privatePlanOutcome, undefined)
   assert.equal(output.trace!.coherenceIntent, 'maintain')
@@ -136,7 +135,7 @@ test('plan memory commits only after legality acknowledgment and returns a detac
 test('selected, applied fallback, agent-error fallback, and supersession histories are explicit', async () => {
   const { req, view } = firstRequest('phase7b2-history')
   const agent = createComposedAgent({ seed: 'phase7b2-history', planMemory: true })
-  const first = normalizeAgentOutput(await agent.decide(req, view))
+  const first = await agent.decide(req, view)
   const fallback = heuristicDecide(req, view, 'phase7b2-history')
   agent.recordAppliedDecisionOutcome!({
     request: req,
@@ -151,7 +150,7 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
     'fallback-after-illegal-decision',
   )
 
-  const second = normalizeAgentOutput(await agent.decide(req, view))
+  const second = await agent.decide(req, view)
   agent.recordAppliedDecisionOutcome!({
     request: req,
     view,
@@ -353,7 +352,7 @@ test('same-view replay and plan-memory-off decisions are byte-equivalent', async
   const offAgent = createComposedAgent({
     seed: 'phase7b2-replay',
   })
-  const off = normalizeAgentOutput(await offAgent.decide(req, view))
+  const off = await offAgent.decide(req, view)
   const offOutcome = {
     request: { ...req },
     view: structuredClone(view),
@@ -391,7 +390,7 @@ test('plan-off acknowledgment records canonical normalized voice without degrada
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const output = await agent.decide(req, view)
   const applied = applyDecisionWithOutcome(
     game,
     req.seat,
@@ -494,7 +493,7 @@ test('serialized plan outcomes reject forged history, coherence, and host joins'
       'premature plan-memory child',
       view,
     ),
-    finalized!.action,
+    { decision: finalized!.action },
   )
 })
 
@@ -727,7 +726,7 @@ test('finalized traces cannot mutate provisional stable telemetry', async () => 
       seed: `phase7b2-stable-${index}`,
       planMemory: true,
     })
-    const output = normalizeAgentOutput(await agent.decide(req, view))
+    const output = await agent.decide(req, view)
     const hostOutcome = {
       request: { ...req },
       view: structuredClone(view),
@@ -768,10 +767,10 @@ test('untouched provisional trace owns plan enablement and coherence intent', as
     planMemory: true,
     coherenceIntent: 'conceal',
   })
-  const selected = normalizeAgentOutput(await enabled.decide(
+  const selected = await enabled.decide(
     enabledSource.req,
     enabledSource.view,
-  ))
+  )
   const enabledOutcome = {
     request: { ...enabledSource.req },
     view: structuredClone(enabledSource.view),
@@ -813,10 +812,10 @@ test('untouched provisional trace owns plan enablement and coherence intent', as
 
   const offSource = firstRequest('phase7b2-plan-ownership-off')
   const off = createComposedAgent({ seed: 'phase7b2-plan-ownership-off' })
-  const offSelected = normalizeAgentOutput(await off.decide(
+  const offSelected = await off.decide(
     offSource.req,
     offSource.view,
-  ))
+  )
   const offOutcome = {
     request: { ...offSource.req },
     view: structuredClone(offSource.view),
@@ -1038,9 +1037,9 @@ test('external plan validators are total, dense, exact, and byte bounded', async
 
 test('stdio cannot claim post-legality degradation before apply', async () => {
   const { req, view } = firstRequest('phase7b2-stdio-temporal')
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: 'phase7b2-stdio-temporal',
-  }).decide(req, view))
+  }).decide(req, view)
   const forgedIntent = structuredClone(output)
   forgedIntent.trace!.coherenceIntent = 'maintain'
   assert.deepEqual(
@@ -1050,7 +1049,7 @@ test('stdio cannot claim post-legality degradation before apply', async () => {
       'premature intent child',
       view,
     ),
-    forgedIntent.decision,
+    { decision: forgedIntent.decision },
   )
   output.trace!.degradation = [
     ...output.trace!.degradation,
@@ -1063,7 +1062,7 @@ test('stdio cannot claim post-legality degradation before apply', async () => {
       'premature degraded child',
       view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 })
 

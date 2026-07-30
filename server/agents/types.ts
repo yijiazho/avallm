@@ -8,10 +8,12 @@ import type { DecisionTrace } from './trace.ts'
 
 export interface AvalonAgent {
   /**
-   * Legacy agents may return a bare Decision. Composed agents return the
-   * trace-bearing envelope. Runners normalize both during the migration.
+   * Every agent returns the trace-bearing envelope. An agent with nothing to
+   * report supplies only the decision. External processes may still send a
+   * bare decision on the wire; `createStdioAgent` converts at that boundary,
+   * so runners never see two shapes.
    */
-  decide(req: DecisionRequest, view: PlayerView): Promise<AgentOutput>
+  decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision>
   /** Persist a trace supplied through AgentDecision in the private sink. */
   recordDecisionTrace?(trace: DecisionTrace): void
   /**
@@ -52,22 +54,6 @@ export interface AppliedDecisionOutcome {
 export interface AgentDecision {
   decision: Decision
   trace?: DecisionTrace
-}
-
-export type AgentOutput = Decision | AgentDecision
-
-export function isAgentDecision(output: AgentOutput): output is AgentDecision {
-  return (
-    typeof output === 'object'
-    && output !== null
-    && 'decision' in output
-    && typeof output.decision === 'object'
-    && output.decision !== null
-  )
-}
-
-export function normalizeAgentOutput(output: AgentOutput): AgentDecision {
-  return isAgentDecision(output) ? output : { decision: output }
 }
 
 /**

@@ -62,7 +62,6 @@ import {
 } from '../server/agents/cognition/coherence.ts'
 import { brainComponents } from '../server/agents/brain.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   projectBaseTraceComponentVersions,
 } from '../server/agents/trace.ts'
@@ -674,9 +673,7 @@ test('invalid scorer output uses only the named hard fallback', async () => {
     invalidOutputFallback: CANDIDATE_SCORER_VERSION,
   })
 
-  const output = normalizeAgentOutput(
-    await agent.decide(source.req, source.view),
-  )
+  const output = await agent.decide(source.req, source.view)
   assert.equal(baseCalls, 0)
   assert.equal(
     output.trace!.componentVersions!.configuredScorer,
@@ -723,9 +720,7 @@ test('mutable planner and voice adapters never mutate the lifetime descriptor', 
       return { text: 'B' }
     },
   })
-  const output = normalizeAgentOutput(
-    await agent.decide(source.req, source.view),
-  )
+  const output = await agent.decide(source.req, source.view)
 
   assert.equal(agent.resolvedBrain().description, descriptor)
   assert.equal(JSON.stringify(descriptor), before)
@@ -753,15 +748,13 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
   const source = readDecisionFixtures().find(
     (entry) => entry.id === 'merlin-opening-proposal',
   )!
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: source.source.seed,
-      scorer: {
-        version: CANDIDATE_SCORER_VERSION,
-        score: compatibilityCandidateScores,
-      },
-    }).decide(source.req, source.view),
-  )
+  const output = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: {
+      version: CANDIDATE_SCORER_VERSION,
+      score: compatibilityCandidateScores,
+    },
+  }).decide(source.req, source.view)
 
   assert.deepEqual(output.decision, {
     kind: 'propose',
@@ -800,12 +793,8 @@ test('exact default singleton truthfully reports deterministic native shadow ide
   )!
   const firstAgent = createComposedAgent({ seed: source.source.seed })
   const secondAgent = createComposedAgent({ seed: source.source.seed })
-  const first = normalizeAgentOutput(
-    await firstAgent.decide(source.req, source.view),
-  )
-  const second = normalizeAgentOutput(
-    await secondAgent.decide(source.req, source.view),
-  )
+  const first = await firstAgent.decide(source.req, source.view)
+  const second = await secondAgent.decide(source.req, source.view)
   assert.deepEqual(first.decision, second.decision)
   assert.equal(
     first.trace!.architectureIdentityDigest,
@@ -832,9 +821,7 @@ test('base trace projection fails closed on descriptor and run drift', async () 
       hiddenTeam: false,
     },
   })
-  const output = normalizeAgentOutput(
-    await agent.decide(source.req, source.view),
-  )
+  const output = await agent.decide(source.req, source.view)
   const versions = output.trace!.componentVersions!
   const run = output.trace!.components!
   const projection = projectBaseTraceComponentVersions(
@@ -906,9 +893,7 @@ test('descriptor owns component observer attribution across inapplicable paths',
     seed: quest.source.seed,
     decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
   })
-  const generic = normalizeAgentOutput(
-    await genericAgent.decide(quest.req, quest.view),
-  )
+  const generic = await genericAgent.decide(quest.req, quest.view)
   assert.equal(
     genericAgent.resolvedBrain().description
       .componentContributions.observerModel,
@@ -932,9 +917,7 @@ test('descriptor owns component observer attribution across inapplicable paths',
     seed: servant.source.seed,
     roleObjectives: true,
   })
-  const legacy = normalizeAgentOutput(
-    await legacyAgent.decide(servant.req, servant.view),
-  )
+  const legacy = await legacyAgent.decide(servant.req, servant.view)
   const descriptor = legacyAgent.resolvedBrain().description
   assert.notEqual(descriptor.base.observerModel, 'off')
   assert.equal(descriptor.componentContributions.observerModel, 'off')

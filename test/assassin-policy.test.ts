@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createComposedAgent } from '../server/agents/composed.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   applyDecision,
   createGame,
@@ -103,14 +102,14 @@ assertScoreFamilyConformance({
 
 test('Assassin posterior owns the shot and separates it from generic evil value', async () => {
   const input = assassinFixture
-  const base = normalizeAgentOutput(await createComposedAgent({
+  const base = await createComposedAgent({
     seed: input.game.seed, roleObjectiveRouter: true,
-  }).decide(input.req, input.view))
-  const result = normalizeAgentOutput(await createComposedAgent({
+  }).decide(input.req, input.view)
+  const result = await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: assassinMerlinTargetScorer,
-  }).decide(input.req, input.view))
+  }).decide(input.req, input.view)
   assert.notDeepEqual(result.decision, base.decision)
   const use = result.trace!.components!.policyUse.find(
     (entry) => entry.component.id === ASSASSIN_MERLIN_POSTERIOR_COMPONENT.id,

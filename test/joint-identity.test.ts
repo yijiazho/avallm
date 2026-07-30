@@ -38,7 +38,6 @@ import {
 } from '../server/agents/cognition/state.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { createGame } from '../server/engine/game.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
 import type {
@@ -651,25 +650,25 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
   assert.deepEqual(accepted, identity)
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, identity),
-    identity.decision,
+    { decision: identity.decision },
   )
   const forgedOff = structuredClone(off)
   forgedOff.trace!.privateIdentity = structuredClone(identity.trace!.privateIdentity)
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, forgedOff),
-    forgedOff.decision,
+    { decision: forgedOff.decision },
   )
   const forgedOn = structuredClone(identity)
   delete forgedOn.trace!.privateIdentity
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, forgedOn),
-    forgedOn.decision,
+    { decision: forgedOn.decision },
   )
   const wrongBelief = structuredClone(identity)
   wrongBelief.trace!.privateIdentity!.sourceBelief.modelVersion = 'forged'
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, wrongBelief),
-    wrongBelief.decision,
+    { decision: wrongBelief.decision },
   )
 
   const hostBound = await createComposedAgent({
@@ -697,7 +696,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
       'external agent',
       fixture.view,
     ),
-    substitutedCast.decision,
+    { decision: substitutedCast.decision },
   )
   const substitutedMarginals = structuredClone(hostBound)
   substituteBeliefMarginals(substitutedMarginals.trace!)
@@ -708,7 +707,7 @@ test('composed identity is orthogonal, private, attributable, and mechanically i
       'external agent',
       fixture.view,
     ),
-    substitutedMarginals.decision,
+    { decision: substitutedMarginals.decision },
   )
 
   const degraded = await createComposedAgent({
@@ -811,7 +810,7 @@ function identityVariant(
           context.onDecisionTrace?.(trace)
         },
         async decide(req, view) {
-          const output = normalizeAgentOutput(await inner.decide(req, view))
+          const output = await inner.decide(req, view)
           if (forgery === 'missing') delete output.trace!.privateIdentity
           if (forgery === 'cast') {
             output.trace!.privateIdentity!.sourceBelief.rolesInPlay =

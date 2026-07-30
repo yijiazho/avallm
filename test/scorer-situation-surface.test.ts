@@ -26,7 +26,6 @@ import {
   seededMorganaRoleScorer,
   seededRoleObjectiveScorer,
 } from '../server/agents/policy/score.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
   DecisionRequest,
@@ -147,9 +146,7 @@ test('runtime uses byte-identical shared surfaces for every frozen decision', as
       fixture.id,
     )
 
-    const output = normalizeAgentOutput(
-      await agent.decide(fixture.req, fixture.view),
-    )
+    const output = await agent.decide(fixture.req, fixture.view)
     assert.equal(
       candidateIdForDecision(output.decision),
       candidateIdForDecision(fixture.baselineDecision),
@@ -309,9 +306,7 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
       jsonBytes(shared.hypotheticalTeamCandidates),
     )
 
-    const output = normalizeAgentOutput(
-      await agent.decide(entry.req, entry.view),
-    )
+    const output = await agent.decide(entry.req, entry.view)
     assert.deepEqual(
       output.trace!.beliefTeamAssessments ?? [],
       analyzed.analysis.policyCandidateAssessments,

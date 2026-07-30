@@ -136,7 +136,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
       'phase7r2b3a stripped generic run',
       fixture.view,
     ),
-    stripped.decision,
+    { decision: stripped.decision },
   )
   // The seven retired flat role projections are refused at canonical ingress.
   // An external agent presenting one keeps its decision and loses its trace,
@@ -165,7 +165,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
       'phase7r2b3a retired flat role trace is refused',
       fixture.view,
     ),
-    historical.decision,
+    { decision: historical.decision },
   )
   const falseLegacy = structuredClone(output)
   falseLegacy.trace!.version = 'decision-trace-v1'
@@ -176,7 +176,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
       'phase7r2b3a legacy trace carrying generic provenance',
       fixture.view,
     ),
-    falseLegacy.decision,
+    { decision: falseLegacy.decision },
   )
   const mutated = structuredClone(output)
   const admitted = mutated.trace!.components!.entries.find(
@@ -194,7 +194,7 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
       'phase7r2b3a generic payload mutation',
       fixture.view,
     ),
-    mutated.decision,
+    { decision: mutated.decision },
   )
 })
 
@@ -230,7 +230,7 @@ test('the independent plan witness preserves configured inapplicable adapters', 
     erasedRun,
     'phase7r2b3a erased inapplicable run',
     fixture.view,
-  ), erasedRun.decision)
+  ), { decision: erasedRun.decision })
 
   const mismatchedWitness = structuredClone(output)
   mismatchedWitness.trace!.componentPlan!.configured = []
@@ -239,7 +239,7 @@ test('the independent plan witness preserves configured inapplicable adapters', 
     mismatchedWitness,
     'phase7r2b3a mismatched plan witness',
     fixture.view,
-  ), mismatchedWitness.decision)
+  ), { decision: mismatchedWitness.decision })
 })
 
 for (const role of ['assassin', 'oberon'] as const) {
@@ -434,7 +434,7 @@ test('adapter invocation is deterministic and does not add a second belief pass'
       'phase7r2b3a weighted generic and legacy host forgery',
       fixture.view,
     ),
-    coherentGenericForgery.decision,
+    { decision: coherentGenericForgery.decision },
   )
 })
 
@@ -573,7 +573,7 @@ test('generic trace admission rejects hostile structure and attribution mutation
         'phase7r2b3a hostile generic trace',
         fixture.view,
       ),
-      copy.decision,
+      { decision: copy.decision },
     )
   }
 })
@@ -635,7 +635,7 @@ test('generic plan and run arrays reject proxy, sparse, accessor, and alien shap
       copy,
       'phase7r2b3a hostile generic array',
       fixture.view,
-    ), copy.decision)
+    ), { decision: copy.decision })
   }
   assert.equal(accessorInvoked, false)
 })
@@ -689,7 +689,7 @@ test('generic degradation and passive policy attribution are registry-bound', as
       copy,
       'phase7r2b3a forged degradation',
       fixture.view,
-    ), copy.decision)
+    ), { decision: copy.decision })
   }
 
   const passive = await createComposedAgent({
@@ -707,7 +707,7 @@ test('generic degradation and passive policy attribution are registry-bound', as
     forgedUse,
     'phase7r2b3a passive objective forged as consumed',
     fixture.view,
-  ), forgedUse.decision)
+  ), { decision: forgedUse.decision })
 })
 
 test('active language resolves once before the generic role graph', async () => {

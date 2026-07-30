@@ -37,7 +37,6 @@ import type {
   PlayerView,
   Seat,
 } from '../server/engine/types.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { runArchitectureBench } from '../server/eval/architecture-bench.ts'
 
@@ -132,25 +131,25 @@ function fakeInterpreter(
 
 test('opt-in orchestration is deterministic and causally reaches scoring', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
-  const off = normalizeAgentOutput(await createComposedAgent({
+  const off = await createComposedAgent({
     seed: 'phase6c-causal',
     scorer: goodProposalScorer,
-  }).decide(req, view))
+  }).decide(req, view)
 
   const callsA: LanguageInterpreterInput[] = []
   const callsB: LanguageInterpreterInput[] = []
   const stages: string[] = []
-  const one = normalizeAgentOutput(await createComposedAgent({
+  const one = await createComposedAgent({
     seed: 'phase6c-causal',
     scorer: goodProposalScorer,
     languageInterpreter: fakeInterpreter(view.seat, subject, callsA),
     onStage: (stage) => stages.push(stage),
-  }).decide(req, view))
-  const two = normalizeAgentOutput(await createComposedAgent({
+  }).decide(req, view)
+  const two = await createComposedAgent({
     seed: 'phase6c-causal',
     scorer: goodProposalScorer,
     languageInterpreter: fakeInterpreter(view.seat, subject, callsB),
-  }).decide(req, structuredClone(view)))
+  }).decide(req, structuredClone(view))
 
   assert.deepEqual(one, two)
   assert.deepEqual(callsA, callsB)
@@ -185,14 +184,14 @@ test('opt-in orchestration is deterministic and causally reaches scoring', async
 
 test('unchanged and viewer-authored reads preserve the exact posterior', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
-  const baseline = normalizeAgentOutput(await createComposedAgent({
+  const baseline = await createComposedAgent({
     seed: 'phase6c-noop',
-  }).decide(req, view))
-  const unchanged = normalizeAgentOutput(await createComposedAgent({
+  }).decide(req, view)
+  const unchanged = await createComposedAgent({
     seed: 'phase6c-noop',
     languageInterpreter: fakeInterpreter(view.seat, subject, [], 'unchanged'),
-  }).decide(req, view))
-  const own = normalizeAgentOutput(await createComposedAgent({
+  }).decide(req, view)
+  const own = await createComposedAgent({
     seed: 'phase6c-noop',
     languageInterpreter: {
       interpreterVersion: INTERPRETER_VERSION,
@@ -207,7 +206,7 @@ test('unchanged and viewer-authored reads preserve the exact posterior', async (
         }]
       },
     },
-  }).decide(req, view))
+  }).decide(req, view)
 
   assert.deepEqual(
     unchanged.trace!.beliefPlayerMarginals,
@@ -223,11 +222,11 @@ test('unchanged and viewer-authored reads preserve the exact posterior', async (
 
 test('quest mechanical provenance composes with language attribution', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: 'phase6c-quest',
     beliefModel: questWeightedBeliefModel,
     languageInterpreter: fakeInterpreter(view.seat, subject, []),
-  }).decide(req, view))
+  }).decide(req, view)
 
   assert.equal(
     output.trace!.componentVersions?.factors,
@@ -261,8 +260,8 @@ test('admitted reads commit even when the language factor degrades', async () =>
     languageInterpreter: fakeInterpreter(view.seat, subject, calls),
     languageFactor: failedFactor,
   })
-  const first = normalizeAgentOutput(await agent.decide(req, view))
-  const second = normalizeAgentOutput(await agent.decide(req, view))
+  const first = await agent.decide(req, view)
+  const second = await agent.decide(req, view)
   assert.equal(calls.length, 1)
   assert.ok(first.trace!.degradation.includes('language-factor-failed'))
   assert.deepEqual(
@@ -274,9 +273,9 @@ test('admitted reads commit even when the language factor degrades', async () =>
 
 test('interpreter failures and malformed replies skip each batch once', async (t) => {
   const { req, view } = proposalAfterPublicConversation()
-  const mechanical = normalizeAgentOutput(await createComposedAgent({
+  const mechanical = await createComposedAgent({
     seed: 'phase6c-failure',
-  }).decide(req, view))
+  }).decide(req, view)
   const cases: readonly {
     name: string
     expected: string
@@ -310,8 +309,8 @@ test('interpreter failures and malformed replies skip each batch once', async (t
           },
         },
       })
-      const first = normalizeAgentOutput(await agent.decide(req, view))
-      const second = normalizeAgentOutput(await agent.decide(req, view))
+      const first = await agent.decide(req, view)
+      const second = await agent.decide(req, view)
       assert.equal(calls, 1)
       assert.ok(first.trace!.degradation.includes(item.expected))
       assert.deepEqual(first.decision, mechanical.decision)
@@ -337,8 +336,8 @@ test('invalid interpreter version is not called and advances the public cursor',
       },
     },
   })
-  const first = normalizeAgentOutput(await agent.decide(req, view))
-  const second = normalizeAgentOutput(await agent.decide(req, view))
+  const first = await agent.decide(req, view)
+  const second = await agent.decide(req, view)
   assert.equal(calls, 0)
   assert.ok(first.trace!.degradation.includes(
     'language-interpreter-invalid-version',
@@ -368,9 +367,9 @@ test('invalid interpreter version is not called and advances the public cursor',
 test('runtime non-string interpreter versions fail closed before a call', async () => {
   const { req, view } = proposalAfterPublicConversation()
   let calls = 0
-  const mechanical = normalizeAgentOutput(await createComposedAgent({
+  const mechanical = await createComposedAgent({
     seed: 'phase6c-non-string-version',
-  }).decide(req, view))
+  }).decide(req, view)
   const agent = createComposedAgent({
     seed: 'phase6c-non-string-version',
     languageInterpreter: {
@@ -381,7 +380,7 @@ test('runtime non-string interpreter versions fail closed before a call', async 
       },
     } as unknown as LanguageInterpreter,
   })
-  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const output = await agent.decide(req, view)
   assert.equal(calls, 0)
   assert.deepEqual(output.decision, mechanical.decision)
   assert.ok(output.trace!.degradation.includes(
@@ -416,9 +415,9 @@ test('interpreter version drift fails closed without corrupting cognition', asyn
     seed: 'phase6c-version-drift',
     languageInterpreter: mutable,
   })
-  const first = normalizeAgentOutput(await agent.decide(req, view))
+  const first = await agent.decide(req, view)
   mutable.interpreterVersion = 'fake-phase6c-v2'
-  const second = normalizeAgentOutput(await agent.decide(req, view))
+  const second = await agent.decide(req, view)
   assert.equal(calls, 1)
   assert.ok(second.trace!.degradation.includes(
     'language-interpreter-invalid-version',
@@ -501,8 +500,8 @@ test('no-speech public history never calls the interpreter', async () => {
       },
     },
   })
-  const first = normalizeAgentOutput(await agent.decide(req, view))
-  const second = normalizeAgentOutput(await agent.decide(req, view))
+  const first = await agent.decide(req, view)
+  const second = await agent.decide(req, view)
   assert.equal(calls, 0)
   assert.equal(
     first.trace!.languageEvidence?.cursorThroughSeq,
@@ -515,7 +514,7 @@ test('interpreter receives a clone of the public-only projection', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
   Object.assign(view.privateInfo, { sentinel: 'PRIVATE_CANARY' })
   let serialized = ''
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: 'phase6c-canary',
     languageInterpreter: {
       interpreterVersion: INTERPRETER_VERSION,
@@ -525,7 +524,7 @@ test('interpreter receives a clone of the public-only projection', async () => {
         return evidenceFor(input, view.seat, subject)
       },
     },
-  }).decide(req, view))
+  }).decide(req, view)
   assert.ok(!serialized.includes('PRIVATE_CANARY'))
   assert.ok(!serialized.includes('"privateInfo"'))
   assert.ok(!JSON.stringify(output.trace).includes('MUTATION'))
@@ -534,10 +533,10 @@ test('interpreter receives a clone of the public-only projection', async () => {
 
 test('language attribution survives stdio validation and artifact JSON', async () => {
   const { req, view, subject } = proposalAfterPublicConversation()
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: 'phase6c-stdio-artifact',
     languageInterpreter: fakeInterpreter(view.seat, subject, []),
-  }).decide(req, view))
+  }).decide(req, view)
   assert.deepEqual(parseStdioDecisionReply(req, output), output)
   const artifactRoundTrip = JSON.parse(JSON.stringify({
     decisionTraces: [output.trace],
@@ -550,11 +549,11 @@ test('language attribution survives stdio validation and artifact JSON', async (
   const forged = structuredClone(output)
   ;(forged.trace!.languageEvidence as unknown as Record<string, unknown>)
     .publicRationale = 'must remain excluded'
-  assert.deepEqual(parseStdioDecisionReply(req, forged), forged.decision)
+  assert.deepEqual(parseStdioDecisionReply(req, forged), { decision: forged.decision })
 
   const missing = structuredClone(output)
   delete missing.trace!.languageEvidence
-  assert.deepEqual(parseStdioDecisionReply(req, missing), missing.decision)
+  assert.deepEqual(parseStdioDecisionReply(req, missing), { decision: missing.decision })
 
   const futureSource = structuredClone(output)
   futureSource.trace!.languageEvidence!.cumulativeSourceSeqs = [
@@ -562,7 +561,7 @@ test('language attribution survives stdio validation and artifact JSON', async (
   ]
   assert.deepEqual(
     parseStdioDecisionReply(req, futureSource),
-    futureSource.decision,
+    { decision: futureSource.decision },
   )
 
   const forgedProvenance = structuredClone(output)
@@ -577,7 +576,7 @@ test('language attribution survives stdio validation and artifact JSON', async (
     )
   assert.deepEqual(
     parseStdioDecisionReply(req, forgedProvenance),
-    forgedProvenance.decision,
+    { decision: forgedProvenance.decision },
   )
 })
 
@@ -658,10 +657,10 @@ test('free architecture bank runs the attributed language pipeline', async () =>
 test('language-off source and trace contracts remain unchanged', async () => {
   const { req, view } = proposalAfterPublicConversation()
   const stages: string[] = []
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: 'phase6c-off-regression',
     onStage: (stage) => stages.push(stage),
-  }).decide(req, view))
+  }).decide(req, view)
   assert.equal(stages[0], 'cognition')
   assert.ok(!stages.includes('language'))
   assert.equal(output.trace!.componentVersions?.languageEvidence, 'off')

@@ -11,9 +11,6 @@ import type {
 } from '../server/engine/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
-  normalizeAgentOutput,
-} from '../server/agents/types.ts'
-import {
   evilRoleObjectiveScorer,
   mordredBlindnessRoleScorer,
   seededMordredBlindnessRoleScorer,
@@ -143,16 +140,16 @@ assertScoreFamilyConformance({
 
 test('Mordred blindness value causally changes a D2-viable proposal', async () => {
   const input = mordredFixture
-  const d2 = normalizeAgentOutput(await createComposedAgent({
+  const d2 = await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: evilRoleObjectiveScorer,
-  }).decide(input.req, input.view))
-  const result = normalizeAgentOutput(await createComposedAgent({
+  }).decide(input.req, input.view)
+  const result = await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,
     scorer: mordredBlindnessRoleScorer,
-  }).decide(input.req, input.view))
+  }).decide(input.req, input.view)
   const trace = result.trace!
   assert.notDeepEqual(result.decision, d2.decision)
   const chosen = trace.candidateScores!.find(

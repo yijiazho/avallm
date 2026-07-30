@@ -13,7 +13,6 @@ import {
   goodProposalScorer,
   goodProposalVoteScorer,
 } from '../server/agents/policy/score.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   defaultComponents,
   runArchitectureBench,
@@ -108,9 +107,7 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
     ...adapters,
   })
 
-  const output = normalizeAgentOutput(
-    await agent.decide(source.req, source.view),
-  )
+  const output = await agent.decide(source.req, source.view)
   assert.equal(output.trace!.agentMode, 'hybrid')
   assert.equal(output.trace!.chosenCandidateId, expectedCandidateId)
   assert.equal(output.decision.kind, 'propose')
@@ -188,10 +185,10 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
 
 test('absent, malformed, and failed adapters degrade to the structured committed action', async () => {
   const source = fixture('merlin-opening-proposal')
-  const structured = normalizeAgentOutput(await createComposedAgent({
+  const structured = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
 
   const malformed = fakeClient((call) =>
     call.opts?.tag?.endsWith('/planner')
@@ -205,9 +202,7 @@ test('absent, malformed, and failed adapters degrade to the structured committed
       model: 'fake/model',
     }),
   })
-  const degraded = normalizeAgentOutput(
-    await malformedAgent.decide(source.req, source.view),
-  )
+  const degraded = await malformedAgent.decide(source.req, source.view)
   assert.deepEqual(degraded.decision.team, structured.decision.team)
   assert.equal(degraded.decision.pitch, undefined)
   assert.ok(degraded.trace!.degradation.includes('planner-no-choice'))
@@ -221,9 +216,7 @@ test('absent, malformed, and failed adapters degrade to the structured committed
     scorer: goodProposalScorer,
     ...createBoundedPlannerVoice({ client: failed, model: 'fake/model' }),
   })
-  const failure = normalizeAgentOutput(
-    await failedAgent.decide(source.req, source.view),
-  )
+  const failure = await failedAgent.decide(source.req, source.view)
   assert.deepEqual(failure.decision.team, structured.decision.team)
   assert.ok(failure.trace!.degradation.includes('planner-failed'))
   assert.ok(failure.trace!.degradation.includes('voice-failed'))
@@ -231,10 +224,10 @@ test('absent, malformed, and failed adapters degrade to the structured committed
 
 test('planner overrides require a viable candidate and a reason owned by that candidate', async () => {
   const source = fixture('merlin-opening-proposal')
-  const base = normalizeAgentOutput(await createComposedAgent({
+  const base = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   for (const reply of [
     {
       candidateId: 'invented:team',
@@ -262,9 +255,7 @@ test('planner overrides require a viable candidate and a reason owned by that ca
         },
       },
     })
-    const output = normalizeAgentOutput(
-      await agent.decide(source.req, source.view),
-    )
+    const output = await agent.decide(source.req, source.view)
     assert.deepEqual(output.decision.team, base.decision.team)
     assert.ok(output.trace!.degradation.some((code) =>
       code === 'planner-invalid-candidate'
@@ -274,10 +265,10 @@ test('planner overrides require a viable candidate and a reason owned by that ca
 
 test('planner cannot trade exact posterior quality for an unqualified override', async () => {
   const source = fixture('merlin-opening-proposal')
-  const structured = normalizeAgentOutput(await createComposedAgent({
+  const structured = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   const scores = structured.trace!.candidateScores!
   const structuredId = structured.trace!.chosenCandidateId!
   const max = Math.max(...scores
@@ -300,7 +291,7 @@ test('planner cannot trade exact posterior quality for an unqualified override',
   const attempt = async (
     candidateId: string,
     reasonCodes: readonly string[],
-  ) => normalizeAgentOutput(await createComposedAgent({
+  ) => await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
     planner: {
@@ -309,7 +300,7 @@ test('planner cannot trade exact posterior quality for an unqualified override',
         return { candidateId, reasonCodes }
       },
     },
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
 
   const dominatedOutput = await attempt(
     dominated.candidateId,
@@ -374,12 +365,12 @@ test('planner inputs and admitted component versions are immutable boundaries', 
       } as never
     },
   }
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
     planner,
     voice,
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   assert.equal(
     output.trace!.componentVersions!.planner,
     'planner-admitted-v1',
@@ -415,11 +406,11 @@ test('bounded adapters reject wrapped JSON and action-shaped voice extras', asyn
       call.opts?.tag?.endsWith('/planner')
         ? reply
         : '{"text":"should not matter"}')
-    const output = normalizeAgentOutput(await createComposedAgent({
+    const output = await createComposedAgent({
       seed: source.source.seed,
       scorer: goodProposalScorer,
       ...createBoundedPlannerVoice({ client, model: 'fake/model' }),
-    }).decide(source.req, source.view))
+    }).decide(source.req, source.view)
     assert.ok(output.trace!.degradation.includes('planner-no-choice'))
   }
 
@@ -431,14 +422,14 @@ test('bounded adapters reject wrapped JSON and action-shaped voice extras', asyn
     }
     return '{"text":"wrapped voice","candidateId":"invented"}'
   })
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
     ...createBoundedPlannerVoice({
       client: extraVoice,
       model: 'fake/model',
     }),
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   assert.ok(output.trace!.degradation.includes('voice-no-output'))
   assert.equal(output.decision.kind, 'propose')
   assert.equal(output.decision.pitch, undefined)
@@ -447,7 +438,7 @@ test('bounded adapters reject wrapped JSON and action-shaped voice extras', asyn
 test('direct planner communication rejects extra private-shaped fields', async () => {
   const source = fixture('merlin-opening-proposal')
   let renderedPlan = ''
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
     planner: {
@@ -473,7 +464,7 @@ test('direct planner communication rejects extra private-shaped fields', async (
         return { text: 'The committed team stands.' }
       },
     },
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   assert.ok(
     output.trace!.degradation.includes('planner-invalid-communication'),
   )
@@ -492,11 +483,11 @@ test('structured intent and hybrid adapter replay deterministically', async () =
       }
       return '{"text":"The plan stands."}'
     })
-    return normalizeAgentOutput(await createComposedAgent({
+    return await createComposedAgent({
       seed: source.source.seed,
       scorer: goodProposalScorer,
       ...createBoundedPlannerVoice({ client, model: 'fake/model' }),
-    }).decide(source.req, source.view))
+    }).decide(source.req, source.view)
   }
   assert.deepEqual(await decide(), await decide())
 })

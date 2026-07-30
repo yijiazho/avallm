@@ -319,6 +319,8 @@ function candidateById(
 
 export function createHeuristicAgent(ctx: AgentContext): AvalonAgent {
   return {
-    decide: async (req, view) => heuristicDecide(req, view, ctx.seed),
+    decide: async (req, view) => ({
+      decision: heuristicDecide(req, view, ctx.seed),
+    }),
   }
 }

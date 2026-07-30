@@ -35,7 +35,6 @@ import {
 } from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
@@ -514,17 +513,17 @@ test('combined scorer is opt-in and preserves compatibility and Phase 4A ablatio
   const vote = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
-  const compatibility = normalizeAgentOutput(await createComposedAgent({
+  const compatibility = await createComposedAgent({
     seed: vote.source.seed,
-  }).decide(vote.req, vote.view))
-  const phase4a = normalizeAgentOutput(await createComposedAgent({
+  }).decide(vote.req, vote.view)
+  const phase4a = await createComposedAgent({
     seed: vote.source.seed,
     scorer: goodProposalScorer,
-  }).decide(vote.req, vote.view))
-  const phase4b = normalizeAgentOutput(await createComposedAgent({
+  }).decide(vote.req, vote.view)
+  const phase4b = await createComposedAgent({
     seed: vote.source.seed,
     scorer: goodProposalVoteScorer,
-  }).decide(vote.req, vote.view))
+  }).decide(vote.req, vote.view)
 
   assert.equal(
     compatibility.trace!.componentVersions!.scorer,
@@ -549,14 +548,14 @@ test('combined scorer is opt-in and preserves compatibility and Phase 4A ablatio
   )
 
   const proposal = proposalFixture()
-  const phase4aProposal = normalizeAgentOutput(await createComposedAgent({
+  const phase4aProposal = await createComposedAgent({
     seed: proposal.source.seed,
     scorer: goodProposalScorer,
-  }).decide(proposal.req, proposal.view))
-  const phase4bProposal = normalizeAgentOutput(await createComposedAgent({
+  }).decide(proposal.req, proposal.view)
+  const phase4bProposal = await createComposedAgent({
     seed: proposal.source.seed,
     scorer: goodProposalVoteScorer,
-  }).decide(proposal.req, proposal.view))
+  }).decide(proposal.req, proposal.view)
   assert.deepEqual(phase4bProposal.decision, phase4aProposal.decision)
   assert.deepEqual(
     phase4bProposal.trace!.candidateScores!.map((score) => ({
@@ -571,7 +570,7 @@ test('tampered vote features and joins degrade to compatibility', async () => {
   const source = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: {
       ...goodProposalVoteScorer,
@@ -589,7 +588,7 @@ test('tampered vote features and joins degrade to compatibility', async () => {
             : score)
       },
     },
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   assert.ok(output.trace!.degradation.includes('scorer-invalid-output'))
   assert.equal(
     output.trace!.componentVersions!.scorer,
@@ -638,10 +637,10 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
   const scorer = createGoodProposalVoteScorer({
     selectionMode: 'seeded-band',
   })
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer,
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   assert.equal(
     output.trace!.componentVersions!.scorer,
     GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
@@ -652,7 +651,7 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
     .selectionMode = 'top-utility'
   assert.deepEqual(
     parseStdioDecisionReply(source.req, malformed),
-    malformed.decision,
+    { decision: malformed.decision },
   )
   const formulaTamper = structuredClone(output)
   ;(
@@ -660,7 +659,7 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
   ).hammerPenalty += 0.01
   assert.deepEqual(
     parseStdioDecisionReply(source.req, formulaTamper),
-    formulaTamper.decision,
+    { decision: formulaTamper.decision },
   )
   const joinTamper = structuredClone(output)
   ;(
@@ -668,7 +667,7 @@ test('seeded and deterministic traces remain distinguishable and stdio-safe', as
   ).bestAlternativeCandidateId = 'legal-candidates-v1:propose:0,1'
   assert.deepEqual(
     parseStdioDecisionReply(source.req, joinTamper),
-    joinTamper.decision,
+    { decision: joinTamper.decision },
   )
 })
 
@@ -709,10 +708,10 @@ test('10-player vote projection remains bounded and JSON-safe', async () => {
     proposalNum: 1,
   }
   const started = performance.now()
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: game.seed,
     scorer: goodProposalVoteScorer,
-  }).decide(request, view))
+  }).decide(request, view)
   const elapsedMs = performance.now() - started
   assert.equal(
     (output.trace!.candidateScores![0].features as GoodVoteFeatures)

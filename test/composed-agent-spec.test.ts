@@ -6,7 +6,6 @@ import {
 } from '../server/agents/registry.ts'
 import {
   COMPOSED_BRAIN_PRESETS,
-  normalizeAgentOutput,
   type ComposedBrainPreset,
 } from '../server/agents/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
@@ -43,10 +42,10 @@ function proposal() {
 test('every composed preset resolves an executable brain', async () => {
   const input = proposal()
   for (const preset of COMPOSED_BRAIN_PRESETS) {
-    const output = normalizeAgentOutput(await createAgent(
+    const output = await createAgent(
       { type: 'composed', brain: preset },
       { seed: input.game.seed, seat: input.req.seat },
-    ).decide(input.req, input.view))
+    ).decide(input.req, input.view)
     assert.equal(output.decision.kind, input.req.kind, preset)
     // A proposal is inside both presets' own decision kinds, so each terminal
     // resolves itself rather than falling back.

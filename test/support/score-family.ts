@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createComposedAgent } from '../../server/agents/composed.ts'
 import type { ComposedAgentOptions } from '../../server/agents/composed.ts'
-import { normalizeAgentOutput } from '../../server/agents/types.ts'
 import type { AgentDecision } from '../../server/agents/types.ts'
 import { componentPayload } from '../../server/agents/components/kernel.ts'
 import type { ComponentToken } from '../../server/agents/components/types.ts'
@@ -76,30 +75,6 @@ export type Mutable<T> =
 /** Detached mutable data for tests that intentionally forge hostile payloads. */
 export function mutableClone<T>(value: T): Mutable<T> {
   return structuredClone(value) as Mutable<T>
-}
-
-type NormalizedComposedAgent =
-  & Omit<ReturnType<typeof createComposedAgent>, 'decide'>
-  & {
-    decide(
-      req: DecisionRequest,
-      view: PlayerView,
-    ): Promise<AgentDecision>
-  }
-
-/**
- * Test adapter for the migrating agent boundary. Production runners normalize
- * legacy bare decisions at ingress; strict tests use the same canonical path
- * before inspecting a composed agent's trace-bearing envelope.
- */
-export function createNormalizedComposedAgent(
-  options: ComposedAgentOptions,
-): NormalizedComposedAgent {
-  const agent = createComposedAgent(options)
-  const normalized = Object.create(agent) as NormalizedComposedAgent
-  normalized.decide = async (req, view) =>
-    normalizeAgentOutput(await agent.decide(req, view))
-  return normalized
 }
 
 export interface ScoreFamilyPredecessor {
@@ -217,9 +192,7 @@ async function decide(
   decision: ScoreFamilyDecisionCase,
   seed = descriptor.seed,
 ): Promise<AgentDecision> {
-  return normalizeAgentOutput(
-    await agentFor(descriptor, scorer, seed).decide(decision.req, decision.view),
-  )
+  return agentFor(descriptor, scorer, seed).decide(decision.req, decision.view)
 }
 
 function identityFor(

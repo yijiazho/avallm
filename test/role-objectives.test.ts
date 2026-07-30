@@ -43,7 +43,6 @@ import {
 } from '../server/agents/cognition/state.ts'
 import { legalCandidates } from '../server/agents/policy/candidates.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { createGame } from '../server/engine/game.ts'
 import { EVIL_COUNT } from '../server/engine/rules.ts'
 import type {
@@ -666,7 +665,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
       'external',
       merlinFixture.view,
     ),
-    forged.decision,
+    { decision: forged.decision },
   )
   const hiddenAsDegraded = structuredClone(merlin)
   removeRoleObjective(hiddenAsDegraded.trace!)
@@ -678,7 +677,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
       'external',
       merlinFixture.view,
     ),
-    hiddenAsDegraded.decision,
+    { decision: hiddenAsDegraded.decision },
   )
   const dependencyDegraded = await createComposedAgent({
     seed: 'phase7c1-stdio-degraded',
@@ -717,7 +716,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
       ),
       dependency === 'identityModel'
         ? missingDependencyVersion
-        : missingDependencyVersion.decision,
+        : { decision: missingDependencyVersion.decision },
     )
   }
 
@@ -732,7 +731,7 @@ test('stdio and private/public boundaries preserve role objective attribution', 
       'external',
       servantFixture.view,
     ),
-    roleForged.decision,
+    { decision: roleForged.decision },
   )
 
   const baseCognition = advanceCognition(undefined, merlinFixture.view)

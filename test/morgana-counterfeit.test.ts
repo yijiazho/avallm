@@ -48,7 +48,6 @@ import {
 import {
   projectResolvedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -473,7 +472,7 @@ test('changed joint Mordred weights alter causal features without changing mecha
     morganaCounterfeitObjective(weightedOutput.trace!),
   ))
   assert.deepEqual(
-    normalizeAgentOutput(parseStdioDecisionReply(
+    parseStdioDecisionReply(
       req,
       {
         decision: weightedOutput.decision,
@@ -481,7 +480,7 @@ test('changed joint Mordred weights alter causal features without changing mecha
       },
       'phase7e1a-weighted-external-admission',
       view,
-    )).decision,
+    ).decision,
     weightedOutput.decision,
   )
 })

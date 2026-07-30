@@ -31,7 +31,7 @@ import {
   roleObjectiveScorer,
   type CandidateScorer,
 } from '../agents/policy/score.ts'
-import { normalizeAgentOutput } from '../agents/types.ts'
+import type { AgentDecision } from '../agents/types.ts'
 import { readDecisionFixtures } from './decision-fixtures.ts'
 import {
   applyDecision,
@@ -171,9 +171,7 @@ function robustD3(): Fixture {
   }
 }
 
-function mechanicalRows(trace: NonNullable<ReturnType<
-  typeof normalizeAgentOutput
->['trace']>): unknown {
+function mechanicalRows(trace: NonNullable<AgentDecision['trace']>): unknown {
   return trace.candidateScores?.map((row) => ({
     candidateId: row.candidateId,
     value: row.value,
@@ -198,17 +196,15 @@ async function authorityRow(input: {
       ? { evilQuestCardPolicy: 'robust-heterogeneous' as const }
       : {}),
   }
-  const reference = normalizeAgentOutput(await createComposedAgent({
+  const reference = await createComposedAgent({
     ...options,
     scorer: input.referenceScorer,
-  }).decide(input.fixture.req, input.fixture.view))
+  }).decide(input.fixture.req, input.fixture.view)
   const agent = createComposedAgent({
     ...options,
     scorer: fullRolePolicyScorer,
   })
-  const full = normalizeAgentOutput(
-    await agent.decide(input.fixture.req, input.fixture.view),
-  )
+  const full = await agent.decide(input.fixture.req, input.fixture.view)
   const admission = admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: full.trace!,

@@ -13,7 +13,6 @@ import {
 } from '../server/agents/belief/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
@@ -81,9 +80,7 @@ function staticTraceVariant(
       const inner = createComposedAgent({ seed: context.seed })
       return {
         async decide(req, view) {
-          const output = normalizeAgentOutput(
-            await inner.decide(req, view),
-          )
+          const output = await inner.decide(req, view)
           const trace = structuredClone(output.trace!)
           if (external) {
             trace.agentMode = 'external'

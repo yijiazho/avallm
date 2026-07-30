@@ -147,7 +147,9 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
   }
 }
 
-const humanAgent: AvalonAgent = { decide: askHuman }
+const humanAgent: AvalonAgent = {
+  decide: async (req, view) => ({ decision: await askHuman(req, view) }),
+}
 const agents = new Map<Seat, AvalonAgent>(
   game.players.map((p) => [
     p.seat,

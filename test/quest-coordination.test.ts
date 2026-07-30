@@ -19,7 +19,6 @@ import {
   buildPrivateEvilQuestCardPolicy,
 } from '../server/agents/policy/evil-quest-card.ts'
 import {
-  normalizeAgentOutput,
   type AgentDecision,
 } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
@@ -246,19 +245,17 @@ test('nondecisive robust D3 is seat-local, deterministic, and assumption-free', 
       seed: 'unrelated-seed-b',
       evilQuestCardPolicy: 'robust-heterogeneous',
     }).decide(questRequest(renamedView), renamedView),
-  ])).map(normalizeAgentOutput)
+  ]))
   assert.deepEqual(outputs[1].decision, outputs[0].decision)
   assert.deepEqual(robustPayload(outputs[1]), robustPayload(outputs[0]))
 })
 
 test('robust D3 private payload stays out of prompt, voice, client, and public surfaces', async () => {
   const view = nondecisive(evilView(4, [4, 5]))
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: 'phase7r3b3a-private-surface',
-      evilQuestCardPolicy: 'robust-heterogeneous',
-    }).decide(questRequest(view), view),
-  )
+  const output = await createComposedAgent({
+    seed: 'phase7r3b3a-private-surface',
+    evilQuestCardPolicy: 'robust-heterogeneous',
+  }).decide(questRequest(view), view)
   assert.ok(robustPayload(output))
   assert.doesNotMatch(
     JSON.stringify(publicDecisionComponentRun(output.trace!.components!)),

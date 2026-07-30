@@ -14,7 +14,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { DecisionTrace } from './trace.ts'
-import type { AgentOutput, AvalonAgent } from './types.ts'
+import type { AgentDecision, AvalonAgent } from './types.ts'
 import {
   admitDecisionTrace,
 } from './admission/composed-trace.ts'
@@ -32,19 +32,24 @@ interface Hello {
   capabilities?: { discuss?: boolean }
 }
 
-/** Optional protocol extension: external agents may return a private trace. */
+/**
+ * Optional protocol extension: external agents may return a private trace.
+ * The wire stays permissive, but this is the boundary that converts it: an
+ * external reply without an admitted trace becomes a trace-less envelope, so
+ * nothing downstream of here has to handle two shapes.
+ */
 export function parseStdioDecisionReply(
   req: DecisionRequest,
   reply: unknown,
   label = 'external agent',
   hostView?: Pick<PlayerView, 'rolesInPlay'>,
-): AgentOutput {
+): AgentDecision {
   const record = reply as Record<string, unknown>
   const decision = record?.decision as Decision | undefined
   if (!decision || decision.kind !== req.kind) {
     throw new Error(`${label} returned invalid decision for ${req.kind}`)
   }
-  if (record.trace === undefined) return decision
+  if (record.trace === undefined) return { decision }
   const admission = admitDecisionTrace({
     kind: 'pre-apply-external',
     req,
@@ -53,7 +58,7 @@ export function parseStdioDecisionReply(
     ...(hostView ? { hostView } : {}),
   })
   if (admission.kind !== 'external-diagnostic') {
-    return decision
+    return { decision }
   }
   return { decision, trace: admission.trace }
 }
@@ -112,10 +117,10 @@ export function createStdioAgent(opts: StdioAgentOpts): AvalonAgent {
     recordDecisionTrace(trace) {
       opts.onDecisionTrace?.(trace)
     },
-    async decide(req: DecisionRequest, view: PlayerView): Promise<AgentOutput> {
+    async decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision> {
       const hello = await start()
       if (req.kind === 'discuss' && hello.capabilities?.discuss === false) {
-        return { kind: 'discuss', say: '' }
+        return { decision: { kind: 'discuss', say: '' } }
       }
       const id = nextId++
       const reply = await new Promise<unknown>((resolve, reject) => {

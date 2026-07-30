@@ -29,7 +29,7 @@ async function playAndCapture(seed: string, playerCount: number): Promise<{ arti
   const agents = new Map<Seat, AvalonAgent>(game.players.map((p) => [p.seat, {
     async decide(req, view) {
       captured.push({ req, view: JSON.parse(JSON.stringify(view)) })
-      return heuristicDecide(req, view, seed)
+      return { decision: heuristicDecide(req, view, seed) }
     },
   }]))
   const result = await runGame({ game, agents })

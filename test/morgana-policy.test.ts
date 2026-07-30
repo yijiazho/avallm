@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { DecisionRequest, PlayerView } from '../server/engine/types.ts'
+import { createComposedAgent } from '../server/agents/composed.ts'
 import { componentPayload } from '../server/agents/components/kernel.ts'
 import {
   EVIL_ROLE_UTILITY_COMPONENT,
@@ -78,11 +79,9 @@ import {
 import {
   assertScoreFamilyConformance,
   asVote,
-  createNormalizedComposedAgent as createComposedAgent,
   mutableClone,
   type Mutable,
 } from './support/score-family.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 
 const evilUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
@@ -678,7 +677,7 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
       'phase7e1b weighted external admission',
       input.view,
     ),
-    result.decision,
+    { decision: result.decision },
   )
   const weightedAdmission = admitDecisionTrace({
     kind: 'finalized-artifact',
@@ -811,12 +810,12 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     roleObjectiveRouter: true,
     scorer: morganaRoleScorer,
   }).decide(input.req, input.view)
-  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
+  assert.ok(parseStdioDecisionReply(
     input.req,
     output,
     'phase7e1b',
     input.view,
-  )).trace)
+  ).trace)
   assert.equal(admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: output.trace!,
@@ -904,7 +903,11 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
     if (index === 6) {
       assert.deepEqual(parsed, forged)
     } else {
-      assert.deepEqual(parsed, forged.decision, `seedless mutation ${index}`)
+      assert.deepEqual(
+        parsed,
+        { decision: forged.decision },
+        `seedless mutation ${index}`,
+      )
     }
     const admission = admitDecisionTrace({
       kind: 'finalized-artifact',

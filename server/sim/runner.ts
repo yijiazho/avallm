@@ -7,10 +7,9 @@
 import { applyDecisionWithOutcome, expectedDecisions } from '../engine/game.ts'
 import { viewFor } from '../engine/view.ts'
 import { heuristicDecide } from '../agents/heuristic.ts'
-import {
-  normalizeAgentOutput,
-  type AppliedDecisionResolution,
-  type AvalonAgent,
+import type {
+  AppliedDecisionResolution,
+  AvalonAgent,
 } from '../agents/types.ts'
 import {
   degradedAppliedOutcomeTrace,
@@ -148,7 +147,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     const agent = agents.get(req.seat)
     if (!agent) throw new Error(`no agent for seat ${req.seat}`)
     try {
-      const output = normalizeAgentOutput(await agent.decide(req, view))
+      const output = await agent.decide(req, view)
       const decision = output.decision
       return { req, view, agent, decision, trace: output.trace, selected: true }
     } catch (err) {

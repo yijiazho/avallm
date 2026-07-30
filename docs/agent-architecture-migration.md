@@ -63,7 +63,7 @@ The current system already has strong foundations that should be retained.
 |---|---|---|
 | Game logic | Pure event-sourced engine under `server/engine/` | Keep |
 | Hidden information | `viewFor(game, seat)` produces the only `PlayerView` agents receive | Keep and extend tests |
-| Agent boundary | Legacy agents return `Decision`; composed agents return `AgentDecision { decision, trace? }` through one compatibility-safe `AgentOutput` contract | Migrate remaining agents to the envelope only when compatibility permits |
+| Agent boundary | Every agent returns `AgentDecision { decision, trace? }`; the transitional `AgentOutput` union is deleted | Keep the external stdio wire permissive; that adapter is the only place a bare `Decision` is still accepted |
 | Agent construction | Registry maps heuristic, random, stdio, and LLM specs; the composed constructor is opt-in | Add an explicit composed registry/definition mode only with Phase 4 rollout evidence |
 | LLM state | `createLlmAgent` closure owns a free-form scratchpad and reflection cadence | Replace as authoritative memory |
 | Mechanical facts | `facts.ts`, `board.ts`, and `roleCertainties()` derive sound prompt facts | Reuse inside typed analysis |
@@ -292,7 +292,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
 | NB-014 | NB-010 | Fix good proposal value at an information-poor seat | Structured proposal value alone lowers the Servant's clean initial-proposal rate by `-10.6%` (95% `-20.6%` to `-1.1%`) and its win rate by `-6.7%`, while Merlin and Percival lose nothing on that channel. Diagnose why the proposal scorer serves a seat with no private knowledge worst, and treat clean-proposal rate as a diagnostic rather than the objective: Merlin's cleanliness also falls while its win rate rises. | `ready` |
 | NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `good-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
-| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `role-policy`, `evil-policy`, and `morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Composed-agent and stdio results route through the canonical `AgentOutput` normalizer in test-only adapters, and hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. | `landed` |
+| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `role-policy`, `evil-policy`, and `morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. The test-only `AgentOutput` normalizer adapters it added are gone with the union itself; see the progress log. | `landed` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -807,10 +807,11 @@ and a bounded communication intent. An absent, unknown, removed, duplicate, non-
 otherwise malformed scorer/planner result degrades to the compatibility scorer and structured
 choice; neither plugin can reopen a forced-policy removal or construct an arbitrary engine action.
 
-`AgentOutput` is a compatibility union during migration. Existing raw-LLM, heuristic, random, and
-stdio callers keep their exact raw `Decision` behavior, while composed agents return
-`AgentDecision { decision, trace? }`; server and simulator runners normalize both. The stdio
-protocol accepts the same trace envelope as an optional extension. Composed traces carry every
+`AgentOutput` was a compatibility union during migration: raw-LLM, heuristic, random, and stdio
+callers kept their raw `Decision` return while composed agents returned
+`AgentDecision { decision, trace? }`, and server and simulator runners normalized both. That union
+is now collapsed (see the progress log); every agent returns the envelope and the runners read it
+directly. The stdio protocol accepts the same trace envelope as an optional extension. Composed traces carry every
 component version from the centrally resolved brain, belief visibility, and inactive factor slots
 through policy, prompt renderer, communication plan, and concrete voice, plus the central forced
 result, candidate scores, chosen ID, planner attempt, and degradation. The stdio boundary validates
@@ -850,7 +851,7 @@ Non-blocking Phase 3C follow-ups:
       viable band before exposing composed agents in the normal table registry.
 - [x] Add the real bounded planner and voice adapters only with an explicit free fake-client test
       path and the existing paid-call gate; Phase 3 defines the injection contracts only.
-- [ ] Collapse the transitional `AgentOutput` union after external and direct callers have had a
+- [x] Collapse the transitional `AgentOutput` union after external and direct callers have had a
       compatibility window; until then runners remain the single normalization boundary.
 - [ ] Cache the compatibility policy's repeated cognition work if the opt-in constructor is used
       in larger benchmarks before Phase 4 replaces that scorer.
@@ -3658,3 +3659,25 @@ here.
   narrow historical-field typing so their forgery and admission assertions are unchanged. The
   register row is corrected here because that commit closed the follow-up without updating either
   the register or this log, which §3.6 requires in the same commit.
+- Collapsed the transitional `AgentOutput` union (Phase 3C follow-up). `AvalonAgent.decide` now
+  returns `AgentDecision` only, and `AgentOutput`, `isAgentDecision`, and `normalizeAgentOutput` are
+  deleted. Heuristic, random, raw-LLM, the terminal human agent, and the stdio adapter wrap their
+  own result; `server.ts` and `sim/runner.ts` read the envelope directly instead of normalizing at
+  the call site. The external wire is deliberately unchanged: a child process may still reply with a
+  bare `{ decision }`, and `parseStdioDecisionReply` is now the single place that shape is converted,
+  which is why the union could go without touching the AvalonBench bridge contract. No decision bytes
+  move, so this is a shape change rather than a behavior change; the composed path already returned
+  the envelope. 157 references across 26 test files were unwrapped mechanically, and three of those
+  edits needed a hand correction the sweep could not make: a test of the deleted normalizer became
+  tautological and was replaced with the law that now matters (every built-in agent answers with the
+  envelope), a ternary whose two branches were an envelope and a bare decision was wrapped whole
+  before being split, and two stdio expectations compared against `.action` rather than `.decision`.
+  The union's last vestige went with it: `createNormalizedComposedAgent` in the shared score-family
+  harness had become an `Object.create` proxy that delegated verbatim, so the three suites that
+  imported it aliased as `createComposedAgent` now import the real constructor.
+  Deleting the union cleared no strict-test exemptions: the audit reports the same 39 failing roots
+  before and after, so the 14 exempt files this touched had their hashes refreshed rather than their
+  exemptions removed. Their remaining diagnostics are a different class from the one NB-009 closed.
+  One more call site arrived on master during the rebase, in the composed-spec suite, and was
+  migrated the same way. Full suite 1148 correctness tests plus the three isolated performance
+  tests, strict typecheck, ratchet, and lane inventory.

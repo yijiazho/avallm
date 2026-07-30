@@ -11,6 +11,7 @@ import {
 } from '../server/agents/components/native-score-components.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
+import { createComposedAgent } from '../server/agents/composed.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import {
   candidateTeams,
@@ -80,11 +81,9 @@ import {
   asProposal,
   assertScoreFamilyConformance,
   asVote,
-  createNormalizedComposedAgent as createComposedAgent,
   mutableClone,
   type Mutable,
 } from './support/score-family.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
@@ -327,12 +326,12 @@ test('Oberon policy keeps self-only coordination distinct', async () => {
 test('stdio and host replay reject utility, score, seed, and deletion forgeries', async () => {
   const input = voteFixture('mordred')
   const output = await decide(input)
-  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
+  assert.ok(parseStdioDecisionReply(
     input.req,
     output,
     'phase7d2',
     input.view,
-  )).trace)
+  ).trace)
   assert.equal(admitDecisionTrace({
     kind: 'finalized-artifact',
     trace: output.trace!,
@@ -383,7 +382,7 @@ test('stdio and host replay reject utility, score, seed, and deletion forgeries'
         'phase7d2 forged',
         input.view,
       ),
-      forged.decision,
+      { decision: forged.decision },
     )
     const admission = admitDecisionTrace({
       kind: 'finalized-artifact',
@@ -1326,12 +1325,12 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
       stdioInput.view,
     ),
   }
-  assert.ok(normalizeAgentOutput(parseStdioDecisionReply(
+  assert.ok(parseStdioDecisionReply(
     stdioInput.req,
     stdioDegraded,
     'phase7d2 weighted atomic',
     stdioInput.view,
-  )).trace)
+  ).trace)
   const externalAdmission = admitDecisionTrace({
     kind: 'pre-apply-external',
     trace: stdioDegraded.trace,

@@ -25,7 +25,6 @@ import {
 } from '../server/agents/score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
 import type {
@@ -307,27 +306,25 @@ test('candidate assessments require a complete ID and team join', () => {
 
 test('tampered posterior features degrade to compatibility at the scorer boundary', async () => {
   const source = proposalFixture()
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: source.source.seed,
-      scorer: {
-        version: GOOD_PROPOSAL_SCORER_VERSION,
-        analysisRequirement: 'joint-proposal-team-assessments',
-        score(context) {
-          return scoreGoodProposalCandidates(context).map((score, index) =>
-            index === 0
-              ? {
-                  ...score,
-                  features: {
-                    ...score.features!,
-                    cleanProbability: 0.123,
-                  },
-                }
-              : score)
-        },
+  const output = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: {
+      version: GOOD_PROPOSAL_SCORER_VERSION,
+      analysisRequirement: 'joint-proposal-team-assessments',
+      score(context) {
+        return scoreGoodProposalCandidates(context).map((score, index) =>
+          index === 0
+            ? {
+                ...score,
+                features: {
+                  ...score.features!,
+                  cleanProbability: 0.123,
+                },
+              }
+            : score)
       },
-    }).decide(source.req, source.view),
-  )
+    },
+  }).decide(source.req, source.view)
   assert.ok(output.trace!.degradation.includes('scorer-invalid-output'))
   assert.equal(
     output.trace!.componentVersions!.scorer,
@@ -369,7 +366,7 @@ test('scorer input mutation cannot reopen a forced-policy removal', async () => 
   const view = { ...source.view, phase: 'proposal' as const }
   const request = { ...source.req, kind: 'propose' as const }
   let removedId = ''
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: {
       version: 'mutating-scorer-v1',
@@ -388,7 +385,7 @@ test('scorer input mutation cannot reopen a forced-policy removal', async () => 
         }))
       },
     },
-  }).decide(request, view))
+  }).decide(request, view)
   assert.ok(output.trace!.degradation.includes('scorer-invalid-output'))
   assert.ok(!output.trace!.forcedPolicyResult!.allowedCandidateIds.includes(
     removedId,
@@ -398,7 +395,7 @@ test('scorer input mutation cannot reopen a forced-policy removal', async () => 
 
 test('validated scores are detached from scorer-retained mutable output', async () => {
   const source = proposalFixture()
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed: source.source.seed,
     scorer: {
       ...goodProposalScorer,
@@ -416,7 +413,7 @@ test('validated scores are detached from scorer-retained mutable output', async 
         return scores
       },
     },
-  }).decide(source.req, source.view))
+  }).decide(source.req, source.view)
   const traced = output.trace!.candidateScores![0]
   assert.equal(traced.value, traced.features!.cleanProbability)
   assert.notEqual(traced.value, 0.123456789)
@@ -424,22 +421,16 @@ test('validated scores are detached from scorer-retained mutable output', async 
 
 test('opt-in composed proposal is posterior-driven and compatibility stays default', async () => {
   const source = proposalFixture()
-  const compatibility = normalizeAgentOutput(
-    await createComposedAgent({ seed: source.source.seed })
-      .decide(source.req, source.view),
-  )
-  const first = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: source.source.seed,
-      scorer: goodProposalScorer,
-    }).decide(source.req, source.view),
-  )
-  const replay = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: source.source.seed,
-      scorer: goodProposalScorer,
-    }).decide(source.req, source.view),
-  )
+  const compatibility = await createComposedAgent({ seed: source.source.seed })
+    .decide(source.req, source.view)
+  const first = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view)
+  const replay = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view)
 
   assert.equal(
     compatibility.trace!.componentVersions!.scorer,
@@ -483,31 +474,29 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
   )
   assert.deepEqual(
     parseStdioDecisionReply(source.req, malformed),
-    malformed.decision,
+    { decision: malformed.decision },
   )
   const mismatchedValue = structuredClone(first)
   mismatchedValue.trace!.candidateScores![0].value = 0.987654321
   assert.deepEqual(
     parseStdioDecisionReply(source.req, mismatchedValue),
-    mismatchedValue.decision,
+    { decision: mismatchedValue.decision },
   )
   const mismatchedTeam = structuredClone(first)
   const featureScore = mismatchedTeam.trace!.candidateScores![0]
   featureScore.features!.team = [2, 4]
   assert.deepEqual(
     parseStdioDecisionReply(source.req, mismatchedTeam),
-    mismatchedTeam.decision,
+    { decision: mismatchedTeam.decision },
   )
 
   const voteSource = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
-  const transplanted = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: voteSource.source.seed,
-      scorer: goodProposalScorer,
-    }).decide(voteSource.req, voteSource.view),
-  )
+  const transplanted = await createComposedAgent({
+    seed: voteSource.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(voteSource.req, voteSource.view)
   transplanted.trace!.candidateScores = first.trace!.candidateScores!.map(
     (score) => ({
       ...structuredClone(score),
@@ -527,7 +516,7 @@ test('opt-in composed proposal is posterior-driven and compatibility stays defau
   )
   assert.deepEqual(
     parseStdioDecisionReply(voteSource.req, transplanted),
-    transplanted.decision,
+    { decision: transplanted.decision },
   )
 })
 
@@ -535,16 +524,12 @@ test('opt-in proposal scorer delegates every out-of-scope decision to compatibil
   const source = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
-  const compatibility = normalizeAgentOutput(
-    await createComposedAgent({ seed: source.source.seed })
-      .decide(source.req, source.view),
-  )
-  const delegated = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: source.source.seed,
-      scorer: goodProposalScorer,
-    }).decide(source.req, source.view),
-  )
+  const compatibility = await createComposedAgent({ seed: source.source.seed })
+    .decide(source.req, source.view)
+  const delegated = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view)
   assert.deepEqual(delegated.decision, compatibility.decision)
   assert.equal(
     delegated.trace!.componentVersions!.scorer,
@@ -661,12 +646,10 @@ test('10-player quest-four surface remains bounded and JSON-safe', async () => {
     proposalNum: 1,
   }
   const started = performance.now()
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: game.seed,
-      scorer: goodProposalScorer,
-    }).decide(request, view),
-  )
+  const output = await createComposedAgent({
+    seed: game.seed,
+    scorer: goodProposalScorer,
+  }).decide(request, view)
   const elapsedMs = performance.now() - started
   assert.equal(output.trace!.candidateScores!.length, 252)
   assertWallClockBelow(

@@ -29,7 +29,7 @@ const view0 = viewFor(game, 0)
 test('clean decision carries thinking into the Decision', async () => {
   const client = fakeClient(() => '{"thinking": "seat 2 is loud", "vote": "approve"}')
   const agent = createLlmAgent({ modelId: 'deepseek-flash', client })
-  const d = await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)
+  const d = (await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)).decision
   assert.deepEqual(d, { kind: 'vote', vote: 'approve', thinking: 'seat 2 is loud' })
   assert.equal(client.calls.length, 1)
   assert.equal(client.calls[0].tag, 'deepseek-flash/vote')
@@ -39,17 +39,17 @@ test('good quest cards skip the LLM call entirely; evil still decides', async ()
   const client = fakeClient(() => '{"thinking": "one fail is enough", "card": "fail"}')
   const good = game.players.find((p) => p.alignment === 'good')!
   const goodAgent = createLlmAgent({ modelId: 'deepseek-flash', client })
-  const d = await goodAgent.decide(
+  const d = (await goodAgent.decide(
     { kind: 'quest', seat: good.seat, round: 1, proposalNum: 1 }, viewFor(game, good.seat),
-  )
+  )).decision
   assert.deepEqual(d, { kind: 'quest', card: 'success' })
   assert.equal(client.calls.length, 0, 'a forced decision must not burn a call')
 
   const evil = game.players.find((p) => p.alignment === 'evil')!
   const evilAgent = createLlmAgent({ modelId: 'deepseek-flash', client })
-  const d2 = await evilAgent.decide(
+  const d2 = (await evilAgent.decide(
     { kind: 'quest', seat: evil.seat, round: 1, proposalNum: 1 }, viewFor(game, evil.seat),
-  )
+  )).decision
   assert.equal((d2 as any).card, 'fail')
   assert.equal(client.calls.length, 1)
   assert.equal(client.calls[0].tag, 'deepseek-flash/quest')
@@ -65,7 +65,7 @@ test('one malformed reply triggers exactly one correction retry', async () => {
     return '{"vote": "reject"}'
   })
   const agent = createLlmAgent({ modelId: 'gemini-flash-lite', client })
-  const d = await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)
+  const d = (await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)).decision
   assert.equal((d as any).vote, 'reject')
   assert.equal(n, 2)
 })
@@ -84,7 +84,7 @@ test('propose is commit-then-explain: pitch generated with the team locked', asy
     throw new Error(`unexpected call ${opts.tag}`)
   })
   const agent = createLlmAgent({ modelId: 'deepseek-flash', client })
-  const d = await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)
+  const d = (await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)).decision
   assert.deepEqual((d as any).team, [0, 2])
   assert.equal((d as any).pitch, 'Clean start with a proven pair.')
   assert.equal(client.calls.length, 2)
@@ -96,7 +96,7 @@ test('a failed pitch call still yields a (silent) proposal', async () => {
     throw new Error('pitch model exploded')
   })
   const agent = createLlmAgent({ modelId: 'gemini-flash-lite', client })
-  const d = await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)
+  const d = (await agent.decide({ kind: 'propose', seat: 0, round: 1, proposalNum: 1 }, view0)).decision
   assert.deepEqual((d as any).team, [0, 1])
   assert.equal((d as any).pitch, undefined)
 })
@@ -151,7 +151,7 @@ test('reflect fires after a quest resolves and feeds the next prompt', async () 
   for (const s of [0, 1]) applyDecision(g, s, { kind: 'quest', card: 'success' })
 
   // Quest 1 resolved; the agent's next decision should reflect first.
-  const d = await agent.decide({ kind: 'vote', seat: 0, round: 2, proposalNum: 1 }, viewFor(g, 0))
+  const d = (await agent.decide({ kind: 'vote', seat: 0, round: 2, proposalNum: 1 }, viewFor(g, 0))).decision
   assert.equal((d as any).kind, 'vote')
   const tags = client.calls.map((c) => c.tag)
   assert.ok(tags.includes('kimi/reflect'), `expected a reflect call, got ${tags}`)
@@ -160,7 +160,7 @@ test('reflect fires after a quest resolves and feeds the next prompt', async () 
   // The refreshed pad rides the post-reflect decision so the engine can log
   // it; a second decision without a new reflect carries no notes.
   assert.match((d as any).notes, /seat 3 \(evil 80%\): failed the quest/)
-  const d2 = await agent.decide({ kind: 'vote', seat: 0, round: 2, proposalNum: 1 }, viewFor(g, 0))
+  const d2 = (await agent.decide({ kind: 'vote', seat: 0, round: 2, proposalNum: 1 }, viewFor(g, 0))).decision
   assert.equal((d2 as any).notes, undefined)
 
   // Engine side: a decision carrying notes lands as a seat-private

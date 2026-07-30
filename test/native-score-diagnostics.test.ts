@@ -50,7 +50,6 @@ import type {
 import {
   MORGANA_ROLE_SCORER_VERSION,
 } from '../server/agents/analysis/morgana-role-utility.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
@@ -191,11 +190,11 @@ async function contextFor(
   view: PlayerView,
   scorer: Parameters<typeof createComposedAgent>[0]['scorer'],
 ): Promise<CandidateScoringContext> {
-  const output = normalizeAgentOutput(await createComposedAgent({
+  const output = await createComposedAgent({
     seed,
     roleObjectiveRouter: true,
     scorer,
-  }).decide(req, view))
+  }).decide(req, view)
   const trace = output.trace!
   const candidates = legalCandidates(req, view)
   const hypotheticalTeamCandidates = hypotheticalProposalCandidates(view)

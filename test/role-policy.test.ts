@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
+import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   beliefFromWeightedWorlds,
   exactBelief,
@@ -93,7 +94,6 @@ import {
   asProposal,
   assertScoreFamilyConformance,
   asVote,
-  createNormalizedComposedAgent as createComposedAgent,
   mutableClone,
 } from './support/score-family.ts'
 
@@ -484,7 +484,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
           'phase7c2-seeded-role',
           fixture.view,
         ),
-        forged.decision,
+        { decision: forged.decision },
       )
     }
   }
@@ -545,7 +545,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       'phase7c2-seeded-role',
       bandFixture.view,
     ),
-    forged.decision,
+    { decision: forged.decision },
   )
 
   const structuredCandidateId = bandOutput.trace!.structuredCandidateId!
@@ -807,7 +807,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
       'phase7c2',
       merlin.view,
     ),
-    deleted.decision,
+    { decision: deleted.decision },
   )
 
   const baseOutput = await createComposedAgent({
@@ -835,7 +835,7 @@ test('private role utility is stdio-safe, host-joined, and absent from public vo
       'phase7c2-full-chain-deletion',
       merlin.view,
     ),
-    fullChainDeletion.decision,
+    { decision: fullChainDeletion.decision },
   )
 })
 

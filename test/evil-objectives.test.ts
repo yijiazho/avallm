@@ -49,9 +49,6 @@ import type {
 import {
   parseStdioDecisionReply,
 } from '../server/agents/stdio.ts'
-import {
-  normalizeAgentOutput,
-} from '../server/agents/types.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -546,7 +543,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
     'phase7d1 external',
     selected.view,
   )
-  assert.deepEqual(normalizeAgentOutput(parsed).decision, output.decision)
+  assert.deepEqual(parsed.decision, output.decision)
   const deleted = structuredClone(trace)
   removeEvilRoleObjective(deleted)
   deleted.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
@@ -557,7 +554,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
       'phase7d1 external',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 
   const scopeAndPayloadDeletion = structuredClone(trace)
@@ -577,7 +574,7 @@ test('strict validation rejects mutation, sparse data, accessors, and deletion',
       'phase7d1 exact scope substitution',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 })
 
@@ -603,19 +600,19 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
       'phase7d1 coherent exact forgery',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 
   const weightedDeletion = forgeUnverifiableWeightedDeletion(
     output.trace!,
   )
   assert.deepEqual(
-    normalizeAgentOutput(parseStdioDecisionReply(
+    parseStdioDecisionReply(
       selected.req,
       { decision: output.decision, trace: weightedDeletion },
       'phase7d1 typed weighted degradation',
       selected.view,
-    )).decision,
+    ).decision,
     output.decision,
   )
   assert.deepEqual(
@@ -628,7 +625,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
       'phase7d1 forged weighted observer',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 
   const partialScope = forgeWeightedComplete(
@@ -648,7 +645,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
       'phase7d1 weighted partial hidden-team scope',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 
   const labelPayloadMismatch = forgeWeightedComplete(
@@ -664,7 +661,7 @@ test('stdio rejects coherent exact forgery but preserves typed weighted degradat
       'phase7d1 weighted identity label payload mismatch',
       selected.view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 })
 
@@ -887,7 +884,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
       return {
         async decide(req, view) {
           const output = await inner.decide(req, view)
-          const normalized = normalizeAgentOutput(output)
+          const normalized = output
           const captured = normalized.trace!
           const hypotheses =
             captured.privateIdentity?.hiddenTeamPosterior?.hypotheses
@@ -943,7 +940,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
       return {
         async decide(req, view) {
           const output = await inner.decide(req, view)
-          const captured = normalizeAgentOutput(output).trace!
+          const captured = output.trace!
           context.onDecisionTrace?.(forgeWeightedComplete(
             captured,
             req,
@@ -988,7 +985,7 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
         async decide(req, view) {
           const output = await inner.decide(req, view)
           const captured = forgeWeightedComplete(
-            normalizeAgentOutput(output).trace!,
+            output.trace!,
             req,
             view,
           )

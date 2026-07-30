@@ -16,7 +16,7 @@ import { buildMessages } from './prompts.ts'
 import type { AskExtra, PromptOverrides } from './prompts.ts'
 import { legalityError, parseDecision } from './parse.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
-import type { AvalonAgent } from './types.ts'
+import type { AgentDecision, AvalonAgent } from './types.ts'
 import {
   experimentalBeliefContext,
   type ExperimentalBeliefContext,
@@ -193,7 +193,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   }
 
   return {
-    async decide(req: DecisionRequest, view: PlayerView): Promise<Decision> {
+    async decide(req: DecisionRequest, view: PlayerView): Promise<AgentDecision> {
       pendingTraceDegradation = []
       await maybeReflect(view)
       // Good's quest card is forced (the engine coerces fail -> success), so
@@ -207,7 +207,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
           pendingNotes = null
         }
         recordTrace(req, view, decision)
-        return decision
+        return { decision }
       }
       const kind = req.kind as LlmCallKind
       const first = await callKind(kind, view)
@@ -260,7 +260,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
         }
       }
       recordTrace(req, view, decision)
-      return decision
+      return { decision }
     },
     recordFallbackTrace(
       req: DecisionRequest,

@@ -203,6 +203,6 @@ test('stdio rejects forged admitted planner reasons', async () => {
       { decision: forged.action, trace: forged },
       'phase4d-forged',
     ),
-    forged.action,
+    { decision: forged.action },
   )
 })

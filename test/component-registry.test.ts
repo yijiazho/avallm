@@ -26,7 +26,6 @@ import {
   compatibilityCandidateScores,
   type CandidateScorer,
 } from '../server/agents/policy/score.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
 
@@ -576,9 +575,7 @@ test('composed construction resists later caller option and injection mutation',
     throw new Error('mutated planner was observed')
   }
 
-  const output = normalizeAgentOutput(
-    await agent.decide(source.req, source.view),
-  )
+  const output = await agent.decide(source.req, source.view)
   assert.equal(
     output.trace!.componentVersions!.scorer,
     'compatibility-scorer-v1',

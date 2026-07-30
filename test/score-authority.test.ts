@@ -23,7 +23,6 @@ import {
 import {
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
 } from '../server/agents/score-layers/morgana.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
   legalCandidates,
@@ -84,9 +83,9 @@ test('default compatibility scoring is native for every frozen decision kind', a
   const kinds = new Set<string>()
   for (const fixture of fixtures) {
     kinds.add(fixture.req.kind)
-    const output = normalizeAgentOutput(await createComposedAgent({
+    const output = await createComposedAgent({
       seed: fixture.source.seed,
-    }).decide(fixture.req, fixture.view))
+    }).decide(fixture.req, fixture.view)
     assert.equal(
       output.trace!.componentVersions!.scorer,
       CANDIDATE_SCORER_VERSION,
@@ -138,10 +137,10 @@ test('custom scorer remains an alternate producer for the sole scored frame', as
       version: COMPATIBILITY_SCORE_LAYER.version,
     }],
   )
-  const output = normalizeAgentOutput(await agent.decide(
+  const output = await agent.decide(
     fixture.req,
     fixture.view,
-  ))
+  )
   assert.equal(calls, 1)
   assert.equal(
     output.trace!.componentVersions!.scorer,
@@ -260,11 +259,11 @@ test('native family replays retain concrete journal and transitive component att
     },
   ] as const
   for (const entry of cases) {
-    const output = normalizeAgentOutput(await createComposedAgent({
+    const output = await createComposedAgent({
       seed: entry.seed,
       roleObjectiveRouter: entry.id === 'd2' || entry.id === 'morgana',
       scorer: entry.scorer,
-    }).decide(entry.req, entry.view))
+    }).decide(entry.req, entry.view)
     const candidates = legalCandidates(entry.req, entry.view)
     const {
       analysis,
@@ -358,9 +357,7 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
     seed: fixture.source.seed,
     scorer: seededRoleObjectiveScorer,
   })
-  const output = normalizeAgentOutput(
-    await agent.decide(fixture.req, fixture.view),
-  )
+  const output = await agent.decide(fixture.req, fixture.view)
   const expectedIdentity = projectResolvedArchitectureIdentity(
     agent.resolvedBrain().description,
   )
@@ -473,9 +470,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     seed: 'a4b-passive-plan',
     roleObjectives: true,
   })
-  const passive = normalizeAgentOutput(
-    await passiveAgent.decide(fixture.req, fixture.view),
-  )
+  const passive = await passiveAgent.decide(fixture.req, fixture.view)
   const passiveIdentity = projectResolvedArchitectureIdentity(
     passiveAgent.resolvedBrain().description,
   )
@@ -518,9 +513,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
   const compatibilityAgent = createComposedAgent({
     seed: 'a4b-empty-plan',
   })
-  const compatibility = normalizeAgentOutput(
-    await compatibilityAgent.decide(fixture.req, fixture.view),
-  )
+  const compatibility = await compatibilityAgent.decide(fixture.req, fixture.view)
   const compatibilityIdentity = projectResolvedArchitectureIdentity(
     compatibilityAgent.resolvedBrain().description,
   )

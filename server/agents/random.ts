@@ -41,6 +41,8 @@ export function randomDecide(req: DecisionRequest, view: PlayerView, seed: strin
 
 export function createRandomAgent(ctx: AgentContext): AvalonAgent {
   return {
-    decide: async (req, view) => randomDecide(req, view, ctx.seed),
+    decide: async (req, view) => ({
+      decision: randomDecide(req, view, ctx.seed),
+    }),
   }
 }

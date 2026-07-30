@@ -30,9 +30,6 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import {
-  normalizeAgentOutput,
-} from '../server/agents/types.ts'
-import {
   readDecisionFixtures,
 } from '../server/eval/decision-fixtures.ts'
 import type {
@@ -109,7 +106,7 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(req, view))
+  const output = await agent.decide(req, view)
   const trace = output.trace!
   const surface = trace.decisionLayerRun!.surface
 
@@ -209,12 +206,10 @@ test('planner context honors an unselected strategic narrowing', async () => {
 
 test('universal selection suppresses robust execution and component use', async () => {
   const { req, view } = robustQuestFixture(true)
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: 'phase7r3b2b-universal-suppression',
-      evilQuestCardPolicy: 'robust-heterogeneous',
-    }).decide(req, view),
-  )
+  const output = await createComposedAgent({
+    seed: 'phase7r3b2b-universal-suppression',
+    evilQuestCardPolicy: 'robust-heterogeneous',
+  }).decide(req, view)
   const run = output.trace!.decisionLayerRun!
   const use = output.trace!.components!.policyUse.find(
     (entry) => entry.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
@@ -239,12 +234,10 @@ test('removed exact quota cannot be configured as a runtime mode', () => {
 
 test('stdio strips forged robust telemetry without discarding its legal action', async () => {
   const { req, view } = robustQuestFixture()
-  const output = normalizeAgentOutput(
-    await createComposedAgent({
-      seed: 'phase7r3b2b-stdio',
-      evilQuestCardPolicy: 'robust-heterogeneous',
-    }).decide(req, view),
-  )
+  const output = await createComposedAgent({
+    seed: 'phase7r3b2b-stdio',
+    evilQuestCardPolicy: 'robust-heterogeneous',
+  }).decide(req, view)
   const forged = structuredClone(output.trace!)
   const forgedSurface = forged.decisionLayerRun!.surface as {
     selectedCandidateId?: string
@@ -261,7 +254,7 @@ test('stdio strips forged robust telemetry without discarding its legal action',
       'forged robust trace',
       view,
     ),
-    output.decision,
+    { decision: output.decision },
   )
 })
 

@@ -25,12 +25,12 @@ import {
   roleObjectiveScorer,
   type CandidateScorer,
 } from '../server/agents/policy/score.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import {
   applyDecision,
   createGame,
   expectedDecisions,
 } from '../server/engine/game.ts'
+import type { AgentDecision } from '../server/agents/types.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -81,9 +81,9 @@ function assassination(): Fixture {
   const req = expectedDecisions(game)[0]
   return { seed: game.seed, req, view: viewFor(game, req.seat) }
 }
-const mechanics = (trace: NonNullable<ReturnType<
-  typeof normalizeAgentOutput
->['trace']>) => trace.candidateScores!.map((row) => ({
+const mechanics = (
+  trace: NonNullable<AgentDecision['trace']>,
+) => trace.candidateScores!.map((row) => ({
   candidateId: row.candidateId,
   value: row.value,
   viable: row.viable,
@@ -96,11 +96,9 @@ async function compare(input: Fixture, isolated: CandidateScorer) {
     roleObjectiveRouter: true,
     scorer,
   })
-  const baseline = normalizeAgentOutput(
-    await make(isolated).decide(input.req, input.view),
-  )
+  const baseline = await make(isolated).decide(input.req, input.view)
   const agent = make(fullRolePolicyScorer)
-  const result = normalizeAgentOutput(await agent.decide(input.req, input.view))
+  const result = await agent.decide(input.req, input.view)
   assert.deepEqual(result.decision, baseline.decision)
   assert.deepEqual(mechanics(result.trace!), mechanics(baseline.trace!))
   assert.equal(

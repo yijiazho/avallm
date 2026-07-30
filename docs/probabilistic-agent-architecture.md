@@ -730,10 +730,11 @@ The prompt is no longer the authoritative database of strategy or memory.
 
 ## 9. Agent boundary and telemetry
 
-Phase 3 introduced a compatibility boundary where legacy agents may still return a bare engine
-`Decision` and composed agents return `AgentDecision`; runners normalize that transitional
-`AgentOutput` union. The target boundary remains envelope-only, allowing agent-owned trace data
-without adding cognition concepts to the pure engine:
+Phase 3 introduced a compatibility boundary where legacy agents could still return a bare engine
+`Decision` while composed agents returned `AgentDecision`, and runners normalized that transitional
+`AgentOutput` union. The union is now collapsed: every agent returns the envelope, and the external
+stdio wire is the only place a bare decision is still accepted. The boundary is envelope-only, which
+allows agent-owned trace data without adding cognition concepts to the pure engine:
 
 ```ts
 interface AgentDecision {

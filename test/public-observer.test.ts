@@ -45,7 +45,6 @@ import {
   type ArchitectureVariant,
 } from '../server/eval/architecture-bench.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
-import { normalizeAgentOutput } from '../server/agents/types.ts'
 import { legalCasts } from './casts.ts'
 
 const VANILLA_5: Role[] = [
@@ -593,13 +592,13 @@ test('composed observer is opt-in, attributable, and mechanically inert', async 
   forgedOff.trace!.publicObserver = structuredClone(on.trace!.publicObserver)
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, forgedOff),
-    forgedOff.decision,
+    { decision: forgedOff.decision },
   )
   const forgedOn = structuredClone(on)
   forgedOn.trace!.componentVersions!.observerModel = 'off'
   assert.deepEqual(
     parseStdioDecisionReply(fixture.req, forgedOn),
-    forgedOn.decision,
+    { decision: forgedOn.decision },
   )
 })
 
@@ -629,7 +628,7 @@ function observerVariant(forgeMissingPayload = false): ArchitectureVariant {
           context.onDecisionTrace?.(trace)
         },
         async decide(req, view) {
-          const output = normalizeAgentOutput(await inner.decide(req, view))
+          const output = await inner.decide(req, view)
           if (forgeMissingPayload) delete output.trace!.publicObserver
           return output
         },

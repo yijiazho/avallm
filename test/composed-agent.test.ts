@@ -1,15 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createComposedAgent } from '../server/agents/composed.ts'
+import { createHeuristicAgent } from '../server/agents/heuristic.ts'
+import { createRandomAgent } from '../server/agents/random.ts'
 import {
   goodProposalScorer,
   compatibilityCandidateScores,
 } from '../server/agents/policy/score.ts'
-import {
-  isAgentDecision,
-  normalizeAgentOutput,
-  type AvalonAgent,
-} from '../server/agents/types.ts'
+import type { AvalonAgent } from '../server/agents/types.ts'
 import { createAgent } from '../server/agents/registry.ts'
 import { parseStdioDecisionReply } from '../server/agents/stdio.ts'
 import { decisionTraceIdForRequest } from '../server/agents/trace.ts'
@@ -38,7 +36,6 @@ async function composedDecision(
   const source = fixture(id)
   const agent = createComposedAgent(options)
   const output = await agent.decide(source.req, source.view)
-  assert.ok(isAgentDecision(output))
   return { source, agent, output }
 }
 
@@ -161,8 +158,8 @@ test('candidate scoring is deterministic and JSON-safe', async () => {
     },
   }
   const agent = createComposedAgent({ seed: source.source.seed, scorer })
-  const one = normalizeAgentOutput(await agent.decide(source.req, source.view))
-  const two = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const one = await agent.decide(source.req, source.view)
+  const two = await agent.decide(source.req, source.view)
   assert.deepEqual(two.trace!.candidateScores, first)
   assert.deepEqual(one.trace!.candidateScores, two.trace!.candidateScores)
   assert.doesNotMatch(JSON.stringify(one.trace), /null/)
@@ -196,10 +193,10 @@ test('invalid scorer output cannot reopen forced candidates or remove totality',
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(
+  const output = await agent.decide(
     { ...source.req, seat: view.seat },
     view,
-  ))
+  )
   assert.deepEqual(output.decision, { kind: 'quest', card: 'success' })
   assert.ok(output.trace!.degradation.includes('scorer-invalid-output'))
   assert.equal(
@@ -223,7 +220,7 @@ test('scorer viability must be a boolean', async () => {
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const output = await agent.decide(source.req, source.view)
   assert.ok(output.trace!.degradation.includes('scorer-invalid-output'))
 })
 
@@ -245,7 +242,7 @@ test('planner may select only a supplied viable candidate ID', async () => {
       },
     },
   })
-  const chosen = normalizeAgentOutput(await valid.decide(source.req, source.view))
+  const chosen = await valid.decide(source.req, source.view)
   assert.equal(chosen.trace!.chosenCandidateId, selected)
   assert.equal(chosen.trace!.plannerCandidateId, selected)
 
@@ -258,7 +255,7 @@ test('planner may select only a supplied viable candidate ID', async () => {
       },
     },
   })
-  const degraded = normalizeAgentOutput(await invalid.decide(source.req, source.view))
+  const degraded = await invalid.decide(source.req, source.view)
   assert.ok(degraded.trace!.degradation.includes('planner-invalid-candidate'))
   assert.notEqual(degraded.trace!.chosenCandidateId, 'invented:action')
   assert.deepEqual(degraded.decision.team, source.baselineDecision.team)
@@ -285,7 +282,7 @@ test('planner communication must match the committed action channel and lean', a
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const output = await agent.decide(source.req, source.view)
   assert.ok(output.trace!.degradation.includes('planner-invalid-communication'))
 })
 
@@ -315,7 +312,7 @@ test('planner cannot publish private analysis fact codes', async () => {
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, view))
+  const output = await agent.decide(source.req, view)
   assert.ok(output.trace!.degradation.includes('planner-invalid-communication'))
 })
 
@@ -338,10 +335,10 @@ test('forced policy dominates the planner', async () => {
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(
+  const output = await agent.decide(
     { ...source.req, seat: view.seat },
     view,
-  ))
+  )
   assert.equal(calls, 0)
   assert.deepEqual(output.decision, { kind: 'quest', card: 'success' })
   assert.match(output.trace!.chosenCandidateId!, /quest:success$/)
@@ -363,7 +360,7 @@ test('proposal action is committed before voice and voice cannot alter it', asyn
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const output = await agent.decide(source.req, source.view)
   assert.deepEqual(committed, {
     kind: 'propose',
     team: source.baselineDecision.team,
@@ -403,7 +400,7 @@ test('revision reason and discussion speech are plan-driven without changing mec
       },
     },
   })
-  const revised = normalizeAgentOutput(await revision.decide(final.req, final.view))
+  const revised = await revision.decide(final.req, final.view)
   assert.equal(revised.trace!.chosenCandidateId, revisionId)
   assert.equal(revised.decision.kind, 'finalize')
   assert.equal(revised.decision.stick, false)
@@ -423,7 +420,7 @@ test('revision reason and discussion speech are plan-driven without changing mec
       },
     },
   })
-  const spoken = normalizeAgentOutput(await talker.decide(discuss.req, discuss.view))
+  const spoken = await talker.decide(discuss.req, discuss.view)
   assert.equal(spoken.decision.kind, 'discuss')
   assert.equal(spoken.decision.say, 'I will keep this grounded.')
   assert.equal(
@@ -447,7 +444,7 @@ test('voice failure keeps the committed action and becomes silent degradation', 
         },
       },
     })
-    const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+    const output = await agent.decide(source.req, source.view)
     assert.ok(output.trace!.degradation.includes('voice-failed'))
     if (output.decision.kind === 'propose') assert.equal(output.decision.pitch, undefined)
     else if (output.decision.kind === 'discuss') assert.equal(output.decision.say, '')
@@ -463,7 +460,7 @@ test('changing planner/model or voice identity does not reset persistent cogniti
       async speak() { return { text: 'A' } },
     },
   })
-  const first = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const first = await agent.decide(source.req, source.view)
   const cursor = agent.cognitionCursor()
   agent.setPlanner({
     version: 'model-b',
@@ -475,7 +472,7 @@ test('changing planner/model or voice identity does not reset persistent cogniti
     version: 'persona-b',
     async speak() { return { text: 'B' } },
   })
-  const second = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const second = await agent.decide(source.req, source.view)
   assert.equal(agent.cognitionCursor(), cursor)
   assert.equal(first.trace!.beliefThroughSeq, second.trace!.beliefThroughSeq)
   assert.equal(second.trace!.componentVersions!.planner, 'model-b')
@@ -509,7 +506,7 @@ test('trace attributes the exact planner and voice instances used across awaits'
       },
     },
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const output = await agent.decide(source.req, source.view)
   assert.equal(output.trace!.componentVersions!.planner, 'planner-used')
   assert.equal(output.trace!.componentVersions!.voice, 'voice-used')
 })
@@ -590,11 +587,21 @@ test('sim records an envelope trace only after its action passes engine legality
   assert.ok(!traces.some((trace) => trace.decisionId === 'illegal-attempt'))
 })
 
-test('AgentOutput compatibility normalizes raw and trace-bearing decisions', () => {
-  const raw: Decision = { kind: 'vote', vote: 'approve' }
-  assert.deepEqual(normalizeAgentOutput(raw), { decision: raw })
-  const wrapped = { decision: raw }
-  assert.equal(normalizeAgentOutput(wrapped), wrapped)
+test('every built-in agent answers with the decision envelope', async () => {
+  const source = fixture('servant-vote-after-evidence')
+  const ctx = { seed: 'envelope-seed', seat: source.req.seat }
+  const agents = {
+    heuristic: createHeuristicAgent(ctx),
+    random: createRandomAgent(ctx),
+    composed: createComposedAgent({ seed: ctx.seed }),
+  }
+  for (const [label, agent] of Object.entries(agents)) {
+    const output = await agent.decide(source.req, source.view)
+    // The envelope is the only shape runners see. A bare Decision would still
+    // carry `kind`, so that is what a regression here would look like.
+    assert.equal('kind' in output, false, label)
+    assert.equal(output.decision.kind, source.req.kind, label)
+  }
 })
 
 test('stdio boundary admits valid telemetry and strips invalid optional traces', () => {
@@ -620,7 +627,7 @@ test('stdio boundary admits valid telemetry and strips invalid optional traces',
   )
   const stripsTrace = (reply: unknown) => assert.deepEqual(
     parseStdioDecisionReply(source.req, reply),
-    action,
+    { decision: action },
   )
   stripsTrace({
       decision: action,
@@ -669,14 +676,14 @@ test('stdio boundary accepts the complete composed trace extension', async () =>
     seed: source.source.seed,
     scorer: goodProposalScorer,
   })
-  const output = normalizeAgentOutput(await agent.decide(source.req, source.view))
+  const output = await agent.decide(source.req, source.view)
   assert.deepEqual(
     parseStdioDecisionReply(source.req, output),
     output,
   )
   const stripsTrace = (reply: typeof output) => assert.deepEqual(
     parseStdioDecisionReply(source.req, reply),
-    reply.decision,
+    { decision: reply.decision },
   )
   const scorerMismatch = structuredClone(output)
   scorerMismatch.trace!.candidateScores = scorerMismatch.trace!.candidateScores!
