@@ -2332,30 +2332,45 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
   }
 }
 
-function assertMatched(a: GameObservation, b: GameObservation): void {
-  const comparable = {
-    seed: a.artifact.seed,
-    playerCount: a.artifact.playerCount,
-    roles: a.artifact.roles,
-    talk: a.artifact.talk,
-    deal: a.artifact.players.map((p) => p.role),
-    targetRole: a.meta.targetRole,
-    targetSeat: a.meta.targetSeat,
-    names: a.artifact.players.map((p) => p.name),
-    opponents: a.artifact.players.map((p) => p.seat === a.meta.targetSeat ? '<variant>' : p.agent),
-  }
-  const other = {
-    seed: b.artifact.seed,
-    playerCount: b.artifact.playerCount,
-    roles: b.artifact.roles,
-    talk: b.artifact.talk,
-    deal: b.artifact.players.map((p) => p.role),
-    targetRole: b.meta.targetRole,
-    targetSeat: b.meta.targetSeat,
-    names: b.artifact.players.map((p) => p.name),
-    opponents: b.artifact.players.map((p) => p.seat === b.meta.targetSeat ? '<variant>' : p.agent),
-  }
-  if (JSON.stringify(comparable) !== JSON.stringify(other)) {
+/**
+ * The minimum an observation must expose to be checked for matching. Any
+ * paired-variant report can satisfy this, so the law below has one definition
+ * rather than one per report.
+ */
+export interface MatchedVariantInput {
+  artifact: Pick<GameArtifact, 'seed' | 'playerCount' | 'roles' | 'talk' | 'players'>
+  meta: Pick<ArchitectureRunMetadata, 'caseId' | 'targetRole' | 'targetSeat'>
+}
+
+const matchedFacets = (game: MatchedVariantInput) => ({
+  caseId: game.meta.caseId,
+  seed: game.artifact.seed,
+  playerCount: game.artifact.playerCount,
+  roles: game.artifact.roles,
+  talk: game.artifact.talk,
+  deal: game.artifact.players.map((p) => p.role),
+  targetRole: game.meta.targetRole,
+  targetSeat: game.meta.targetSeat,
+  names: game.artifact.players.map((p) => p.name),
+  opponents: game.artifact.players.map(
+    (p) => p.seat === game.meta.targetSeat ? '<variant>' : p.agent,
+  ),
+})
+
+/**
+ * A paired delta is only meaningful when the two games differ solely at the
+ * target seat. Comparing the configured role list is not enough: the dealt
+ * seat-to-role assignment, the seat names the prompts render, and the agent at
+ * every other seat all change play, so every one of them is compared here.
+ * The case identity is compared too. Both current callers look the baseline up
+ * by the candidate's case, which makes it redundant there, but this is the
+ * exported law and a caller that pairs some other way must not lose the check.
+ */
+export function assertMatchedVariants(
+  a: MatchedVariantInput,
+  b: MatchedVariantInput,
+): void {
+  if (JSON.stringify(matchedFacets(a)) !== JSON.stringify(matchedFacets(b))) {
     throw new Error(`${a.meta.caseId}: variants are not matched on deal and table configuration`)
   }
 }
@@ -2392,7 +2407,7 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
       const pairs = byVariant.get(candidate)!.flatMap((candidateGame) => {
         const baselineGame = baselineByCase.get(candidateGame.meta.caseId)
         if (!baselineGame) return []
-        assertMatched(baselineGame, candidateGame)
+        assertMatchedVariants(baselineGame, candidateGame)
         return [{
           baseline: baselineGame,
           candidate: candidateGame,

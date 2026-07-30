@@ -250,6 +250,65 @@ test('Phase 5C hand-worked report exposes the full conversion diagnosis', () => 
   assert.match(rendered, /95%/)
 })
 
+test('the direct conversion report rejects every unmatched-table facet', () => {
+  // The benchmark path runs the architecture report first, which would catch
+  // these. A caller invoking the post-hoc report directly gets no such pass, so
+  // each facet is checked here at the report's own boundary.
+  const perturb = (
+    label: string,
+    mutate: (artifact: GameArtifact) => void,
+  ): void => {
+    const artifacts = handCorpus()
+    const candidate = artifacts.find(
+      (artifact) =>
+        artifact.architecture!.variant === 'quest-proposal-only'
+        && artifact.architecture!.caseId === 'case-a',
+    )!
+    mutate(candidate)
+    assert.throws(
+      () => phase5VoteConversionReport(artifacts),
+      /variants are not matched/,
+      label,
+    )
+  }
+
+  // Same configured role list, different seat-to-role deal: the old local
+  // validator compared only `roles`, so this paired two different games.
+  perturb('permuted deal', (artifact) => {
+    const [first, second] = [artifact.players[1].role, artifact.players[2].role]
+    artifact.players[1].role = second
+    artifact.players[2].role = first
+  })
+  perturb('different opponent agent', (artifact) => {
+    artifact.players[3].agent = 'random'
+  })
+  perturb('different seat names', (artifact) => {
+    artifact.players[2].name = 'Renamed'
+  })
+  perturb('different talk configuration', (artifact) => {
+    artifact.talk = { ...artifact.talk, maxRounds: 2 }
+  })
+  perturb('different seed', (artifact) => {
+    artifact.seed = 'hand-case-a-other'
+  })
+
+  const mixedPopulation = handCorpus()
+  const candidate = mixedPopulation.find(
+    (artifact) =>
+      artifact.architecture!.variant === 'quest-proposal-only'
+      && artifact.architecture!.caseId === 'case-a',
+  )!
+  candidate.tags = { opponentPopulation: 'random-opponents' }
+  assert.throws(
+    () => phase5VoteConversionReport(mixedPopulation),
+    /one bank and one population/,
+  )
+
+  // The unperturbed corpus still reports, so the checks above are not simply
+  // rejecting everything.
+  assert.ok(phase5VoteConversionReport(handCorpus()).variants.length)
+})
+
 test('Phase 5C lanes preserve proposal-only and v1 vote attribution', async () => {
   const variants = phase5VoteConversionVariants()
   assert.deepEqual(

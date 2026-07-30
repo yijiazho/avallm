@@ -8,6 +8,7 @@ import type {
   ArchitectureRunMetadata,
   GameArtifact,
 } from './artifact.ts'
+import { assertMatchedVariants } from './architecture-report.ts'
 import type {
   RateDeltaEstimate,
   RateEstimate,
@@ -378,24 +379,21 @@ function sameComponents(
   return { ...first }
 }
 
+/**
+ * Deal, names, and the opponent cast come from the shared architecture-report
+ * law, so this report cannot drift into accepting a pair that one would reject.
+ * The opponent population is checked here because only this report splits its
+ * corpus by it.
+ */
 function assertMatched(
   baseline: ConversionObservation,
   candidate: ConversionObservation,
 ): void {
-  const left = baseline.artifact
-  const right = candidate.artifact
-  if (
-    baseline.meta.caseId !== candidate.meta.caseId
-    || left.seed !== right.seed
-    || left.playerCount !== right.playerCount
-    || baseline.meta.targetRole !== candidate.meta.targetRole
-    || baseline.meta.targetSeat !== candidate.meta.targetSeat
-    || JSON.stringify(left.roles) !== JSON.stringify(right.roles)
-    || JSON.stringify(left.talk) !== JSON.stringify(right.talk)
-    || baseline.population !== candidate.population
-  ) {
+  assertMatchedVariants(baseline, candidate)
+  if (baseline.population !== candidate.population) {
     throw new Error(
-      `${candidate.meta.caseId}: Phase 5C variants are not matched`,
+      `${candidate.meta.caseId}: Phase 5C variants are not matched`
+      + ` on opponent population`,
     )
   }
 }

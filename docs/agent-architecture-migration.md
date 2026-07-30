@@ -1182,7 +1182,7 @@ small paid/human study; production defaults remain unchanged.
 
 Non-blocking Phase 5C follow-up:
 
-- [ ] Reuse the architecture report's complete matched-table validator in the direct conversion
+- [x] Reuse the architecture report's complete matched-table validator in the direct conversion
       report API. The supported benchmark path already runs that validator first, so this is
       defense-in-depth for callers that invoke the post-hoc report directly.
 
@@ -3681,3 +3681,18 @@ here.
   One more call site arrived on master during the rebase, in the composed-spec suite, and was
   migrated the same way. Full suite 1148 correctness tests plus the three isolated performance
   tests, strict typecheck, ratchet, and lane inventory.
+- Gave both paired-variant reports one matched-table law. The Phase 5C conversion report carried its
+  own weaker copy: it compared the configured role list, seed, player count, talk settings, target
+  role/seat, and opponent population, but not the dealt seat-to-role assignment, the seat names the
+  prompts render, or the agent seated at each non-target seat. A permuted deal under the same
+  configured roles therefore paired two structurally different games, and the resulting bootstrap
+  delta was reported with an interval as though the pair were matched. The benchmark path hid this
+  because it runs `architectureReport` first, whose validator is complete; only a direct
+  `phase5VoteConversionReport` caller was exposed, and the Phase 5C suite is itself such a caller.
+  The architecture validator is now exported as `assertMatchedVariants` over a structural
+  `MatchedVariantInput`, so both reports check the same ten facets, and the conversion report keeps
+  only the opponent-population check that is genuinely its own. A new boundary test perturbs each
+  facet in turn and confirms the direct API refuses; reverting to the old local copy makes the
+  permuted-deal case pass, which is the gap the follow-up described. These two are the complete set
+  of paired reports in the tree, so the law now has no second definition to drift from. Full suite
+  1149 correctness tests plus the three isolated performance tests.
