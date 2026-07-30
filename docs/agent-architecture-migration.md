@@ -3967,7 +3967,7 @@ here.
   delta is `-100%`. NB-013's second half still owes the policy change: weight the two directions in
   the good vote value function, then require the dirty-team approval rate to fall on the paired bench
   with the win rate not falling. Nothing is gated on the new number yet, no default moved, and no
-  paid lane ran. Full suite 1154 correctness tests plus the three isolated performance tests.
+  paid lane ran. Full suite 1195 correctness tests plus the isolated performance tests.
 - NB-013 second half: the asymmetric vote objective, and the gate its first half was built to read.
   `good-vote-utility-board-swing-v1` values a vote branch by the board slot it risks,
   `P(clean) - P(dirty)`, where the symmetric utility valued it by `P(clean)` alone and so left the
@@ -4027,5 +4027,5 @@ here.
   seat approves a `97.5%`-dirty team at full runway (approve `-0.9207` against reject `-1.0000`) and
   rejects the same team with the hammer imminent (`-0.9000`). That is inverted twice: rejection should
   be cheaper with runway to spare, and the hammer is the one place rejecting buys nothing because the
-  team is auto-approved. A signed value needs a discount toward the status quo, not toward zero. Full suite 1166 correctness tests plus the three
-  isolated performance tests.
+  team is auto-approved. A signed value needs a discount toward the status quo, not toward zero. Full suite 1207 correctness tests plus the isolated
+  performance tests.
