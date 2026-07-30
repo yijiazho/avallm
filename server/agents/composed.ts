@@ -904,6 +904,50 @@ function composedTrace(
 }
 
 /**
+ * Speak the committed plan, when a voice is configured and the plan has anything
+ * to say.
+ *
+ * Voice can decorate the committed action but never replace it, so every path
+ * here returns the mechanical decision with at most speech attached, and each
+ * failure names itself. The caller feeds the result through withDecisionVoice(),
+ * which independently rejects a result that altered the committed mechanics, so
+ * this function is the polite half of that contract rather than its enforcement.
+ */
+async function speakCommittedPlan(input: {
+  voice: PlanVoice | undefined
+  plan: DecisionPlan
+  mechanicalDecision: Decision
+  onSpeak: () => void
+}): Promise<Readonly<{ action: Decision; degradationCode?: string }>> {
+  const { voice, plan, mechanicalDecision } = input
+  if (!voice || !plan.communication) {
+    return { action: structuredClone(mechanicalDecision) }
+  }
+  input.onSpeak()
+  try {
+    const voicePlan = committedVoicePlan(plan)
+    const output = await voice.speak({
+      plan: structuredClone(voicePlan),
+      renderedPlan: renderCommittedVoicePlan(voicePlan),
+    })
+    return output
+      ? { action: withVoice(plan.decision, output) }
+      : {
+          action: structuredClone(mechanicalDecision),
+          degradationCode: 'voice-no-output',
+        }
+  } catch {
+    // Rebuilt from the plan's own copy rather than returning whatever the failed
+    // attempt left behind, so a voice that throws midway cannot leak a partially
+    // decorated action.
+    return {
+      action: structuredClone(plan.decision),
+      degradationCode: 'voice-failed',
+    }
+  }
+}
+
+/**
  * The degradation code to record if this scorer fails, or undefined when it is
  * not a role scorer and has no role-specific code.
  *
@@ -2194,31 +2238,18 @@ export function createComposedAgent(
         const committedFrame = commitDecision(selectedFrame, plan)
         stage('plan-committed')
 
-        let action = structuredClone(mechanicalDecision)
-        let voiceDegradation: string | undefined
-        if (activeVoice && plan.communication) {
-          stage('voice')
-          try {
-            const voicePlan = committedVoicePlan(plan)
-            const output = await activeVoice.speak({
-              plan: structuredClone(voicePlan),
-              renderedPlan: renderCommittedVoicePlan(voicePlan),
-            })
-            if (!output) {
-              voiceDegradation = 'voice-no-output'
-            } else {
-              action = withVoice(plan.decision, output)
-            }
-          } catch {
-            voiceDegradation = 'voice-failed'
-            action = structuredClone(plan.decision)
-          }
-        }
+        const spoken = await speakCommittedPlan({
+          voice: activeVoice,
+          plan,
+          mechanicalDecision,
+          onSpeak: () => stage('voice'),
+        })
+        let action = spoken.action
         const voicedFrame = withDecisionVoice(committedFrame, {
           version: activeVoice?.version ?? NO_VOICE_VERSION,
           result: action,
-          ...(voiceDegradation
-            ? { degradationCode: voiceDegradation }
+          ...(spoken.degradationCode
+            ? { degradationCode: spoken.degradationCode }
             : {}),
         })
         const legacyOutput = projectVoicedFrameForLegacy(voicedFrame)
