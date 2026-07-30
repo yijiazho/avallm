@@ -4,10 +4,11 @@
 // drift problem, and the helpers are pure types with no imports, so any layer
 // above the engine can reach them.
 //
-// The three assertions compose to cover the three ways a hand-written list rots:
-// ExactKeyList rejects a name that is not a key (typo, or a field renamed out
-// from under it), NoMissingKeys rejects a key the list forgot (a field added
-// without extending its validator), and NoDuplicateKeys rejects a repeat.
+// Three checks cover the three ways a hand-written list rots. `ExactKeyList`
+// rejects a name that is not a key (a typo, or a field renamed out from under
+// it) and is applied with `satisfies` on the list itself. The other two are
+// computations fed to `AssertNever`: `MissingKeys` yields a key the list forgot,
+// `DuplicateKeys` yields a repeated entry, and either is a compile error.
 
 /**
  * A runtime key list bound to the compile-time shape it guards. Every entry has
@@ -17,8 +18,20 @@
 export type ExactKeyList<T> = readonly (keyof T & string)[]
 
 /**
+ * Fails to compile unless `T` is `never`, and names the offending type when it
+ * is not. The alias body is deliberately an identity: all of the work is in the
+ * constraint, which is what lets a type-level computation become an assertion.
+ *
+ * One assertion rather than a differently named one per computation, because
+ * the check never varies: it is always "this must have come out empty". What is
+ * being asserted is already named by the argument, as in
+ * `AssertNever<MissingKeys<Row, typeof ROW_KEYS>>`.
+ */
+export type AssertNever<T extends never> = T
+
+/**
  * Keys of `T` that `List` fails to name, or `never` when the list is complete.
- * Pair it with `NoMissingKeys` to bind the two directions at once: `ExactKeyList`
+ * Pair it with `AssertNever` to bind the two directions at once: `ExactKeyList`
  * rejects keys that do not exist, this rejects keys that were never listed.
  */
 export type MissingKeys<T, List extends readonly PropertyKey[]> =
@@ -38,17 +51,16 @@ export type MissingRequiredKeys<T, List extends readonly PropertyKey[]> =
   Exclude<RequiredKeys<T>, List[number]>
 
 /**
- * Type-level assertion that a key list is exhaustive. Instantiating it with a
- * leftover key fails the `never` constraint, and the compiler names the missing
- * field in the error, so adding a field to a validated shape cannot pass review
- * without also extending the validator that guards it.
- */
-export type NoMissingKeys<Leftover extends never> = Leftover
-
-/**
  * The first key `List` repeats, or `never` when every entry is distinct. Walks
  * the tuple accumulating what it has already seen, so it only resolves for a
  * literal tuple (an `as const` list); a widened `string[]` yields `never`.
+ *
+ * Worth asserting even though duplicates are harmless for plain membership
+ * checks, because of the case that motivated it: the Morgana call site in
+ * `admission/composed-trace.ts` compares the assembled list's length against the
+ * trace's own key count, so one repeated entry inflates the length and refuses
+ * every otherwise valid trace. Any caller that measures a list rather than only
+ * querying it has that hazard.
  */
 export type DuplicateKeys<
   List extends readonly PropertyKey[],
@@ -61,13 +73,3 @@ export type DuplicateKeys<
     ? Head
     : DuplicateKeys<Rest, Seen | Head>
   : never
-
-/**
- * Type-level assertion that a key list repeats nothing. Duplicates are harmless
- * for plain membership checks, which is why this looks redundant until you meet
- * the case that motivated it: the Morgana call site in `admission/composed-trace.ts`
- * compares the assembled list's length against the trace's own key count, so one
- * repeated entry inflates the length and refuses every otherwise valid trace.
- * Any caller that measures a list rather than only querying it has that hazard.
- */
-export type NoDuplicateKeys<Repeated extends never> = Repeated

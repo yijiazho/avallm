@@ -159,12 +159,11 @@ import type {
   TraceValidationInput,
 } from './trace-primitives.ts'
 import type {
+  AssertNever,
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
   MissingRequiredKeys,
-  NoDuplicateKeys,
-  NoMissingKeys,
 } from '../key-lists.ts'
 import {
   enumStringArray,
@@ -291,11 +290,11 @@ import {
 /*
  * The key lists below are the runtime half of shapes that are also declared as
  * TypeScript types. Each is bound to its declaring type three ways: `satisfies
- * ExactKeyList<T>` rejects a key that `T` does not have, the paired
- * `NoMissingKeys` alias rejects a key of `T` that the list forgot, and
- * `NoDuplicateKeys` rejects a repeated entry. Adding a field to one of those
- * shapes without extending its list here is a compile error naming the field, so
- * admission cannot silently stop guarding it.
+ * ExactKeyList<T>` rejects a key that `T` does not have, `MissingKeys` fed to
+ * `AssertNever` rejects a key of `T` that the list forgot, and `DuplicateKeys`
+ * fed to the same assertion rejects a repeated entry. Adding a field to one of
+ * those shapes without extending its list here is a compile error naming the
+ * field, so admission cannot silently stop guarding it.
  *
  * The duplicate arm matters most for the Morgana list, the one site that reads
  * its list through the counting `exactKeys` rather than the permissive
@@ -320,13 +319,13 @@ const REQUIRED_COMPONENT_VERSION_KEYS = [
   'scorer', 'planner', 'prompt', 'renderer', 'communication', 'voice',
 ] as const satisfies ExactKeyList<TraceComponentVersions>
 type _RequiredComponentVersionKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingRequiredKeys<
         TraceComponentVersions,
         typeof REQUIRED_COMPONENT_VERSION_KEYS
       >
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof REQUIRED_COMPONENT_VERSION_KEYS>>
+  | AssertNever<DuplicateKeys<typeof REQUIRED_COMPONENT_VERSION_KEYS>>
 
 const LANGUAGE_TRACE_KEYS = [
   'inputSchemaVersion',
@@ -340,10 +339,10 @@ const LANGUAGE_TRACE_KEYS = [
   'degradation',
 ] as const satisfies ExactKeyList<LanguageTraceAttribution>
 type _LanguageTraceKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<LanguageTraceAttribution, typeof LANGUAGE_TRACE_KEYS>
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof LANGUAGE_TRACE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof LANGUAGE_TRACE_KEYS>>
 
 /*
  * The three role feature lists omit `seedBucket`, which each call site appends
@@ -379,13 +378,13 @@ const ROLE_OBJECTIVE_FEATURE_KEYS = [
   WithoutSeedBucket<RoleObjectiveScoreFeatures>
 >
 type _RoleObjectiveFeatureKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         WithoutSeedBucket<RoleObjectiveScoreFeatures>,
         typeof ROLE_OBJECTIVE_FEATURE_KEYS
       >
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof ROLE_OBJECTIVE_FEATURE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof ROLE_OBJECTIVE_FEATURE_KEYS>>
 
 const EVIL_ROLE_OBJECTIVE_FEATURE_KEYS = [
   'version',
@@ -405,13 +404,13 @@ const EVIL_ROLE_OBJECTIVE_FEATURE_KEYS = [
   WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>
 >
 type _EvilRoleObjectiveFeatureKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         WithoutSeedBucket<EvilRoleObjectiveScoreFeatures>,
         typeof EVIL_ROLE_OBJECTIVE_FEATURE_KEYS
       >
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof EVIL_ROLE_OBJECTIVE_FEATURE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof EVIL_ROLE_OBJECTIVE_FEATURE_KEYS>>
 
 const MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS = [
   'version',
@@ -435,13 +434,13 @@ const MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS = [
   WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>
 >
 type _MorganaRoleObjectiveFeatureKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         WithoutSeedBucket<MorganaRoleObjectiveScoreFeatures>,
         typeof MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS
       >
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof MORGANA_ROLE_OBJECTIVE_FEATURE_KEYS>>
 
 const COMMUNICATION_INTENT_KEYS = [
   'version',
@@ -455,10 +454,10 @@ const COMMUNICATION_INTENT_KEYS = [
   'tone',
 ] as const satisfies ExactKeyList<CommunicationIntent>
 type _CommunicationIntentKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<CommunicationIntent, typeof COMMUNICATION_INTENT_KEYS>
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof COMMUNICATION_INTENT_KEYS>>
+  | AssertNever<DuplicateKeys<typeof COMMUNICATION_INTENT_KEYS>>
 
 /* One list per `PosteriorUncertainty` variant, keyed off the same discriminant
  * the validator switches on, so a new variant field cannot slip past admission. */
@@ -475,13 +474,13 @@ const ROLE_COMPOSITE_UNCERTAINTY_KEYS = [
   'compositeUtilityGap',
 ] as const satisfies ExactKeyList<UncertaintyOf<'role-composite-decision'>>
 type _RoleCompositeUncertaintyKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         UncertaintyOf<'role-composite-decision'>,
         typeof ROLE_COMPOSITE_UNCERTAINTY_KEYS
       >
     >
-  | NoDuplicateKeys<DuplicateKeys<typeof ROLE_COMPOSITE_UNCERTAINTY_KEYS>>
+  | AssertNever<DuplicateKeys<typeof ROLE_COMPOSITE_UNCERTAINTY_KEYS>>
 
 const SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS = [
   'version',
@@ -493,13 +492,13 @@ const SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS = [
   'residualProbability',
 ] as const satisfies ExactKeyList<UncertaintyOf<'selected-team-clean'>>
 type _SelectedTeamCleanUncertaintyKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         UncertaintyOf<'selected-team-clean'>,
         typeof SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS
       >
     >
-  | NoDuplicateKeys<
+  | AssertNever<
       DuplicateKeys<typeof SELECTED_TEAM_CLEAN_UNCERTAINTY_KEYS>
     >
 
@@ -516,13 +515,13 @@ const CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS = [
   UncertaintyOf<'current-versus-alternative-team-clean'>
 >
 type _CurrentVersusAlternativeUncertaintyKeysSound =
-  | NoMissingKeys<
+  | AssertNever<
       MissingKeys<
         UncertaintyOf<'current-versus-alternative-team-clean'>,
         typeof CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS
       >
     >
-  | NoDuplicateKeys<
+  | AssertNever<
       DuplicateKeys<typeof CURRENT_VERSUS_ALTERNATIVE_UNCERTAINTY_KEYS>
     >
 
