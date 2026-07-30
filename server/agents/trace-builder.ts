@@ -25,7 +25,7 @@ import type { LanguageTraceAttribution } from './communication/language-orchestr
 import type { DecisionPlan } from './policy/plan.ts'
 import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
-import type { LegacyVoicedOutputProjection } from './policy/decision-frame.ts'
+import type { CompatibilityVoicedOutputProjection } from './policy/decision-frame.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,
   createDecisionTrace,
@@ -64,8 +64,8 @@ export interface ComposedTraceInput {
   readonly componentPlan: DecisionComponentPlan
   readonly decisionComponents: DecisionComponentRun
   readonly decisionLayerRun: DecisionLayerRun
-  readonly scoreLayerRun: LegacyVoicedOutputProjection['scoreLayerRun']
-  readonly decisionFrame: LegacyVoicedOutputProjection['decisionFrame']
+  readonly scoreLayerRun: CompatibilityVoicedOutputProjection['scoreLayerRun']
+  readonly decisionFrame: CompatibilityVoicedOutputProjection['decisionFrame']
   readonly descriptor: ResolvedComposedBrain['description']
   readonly architectureIdentityDigest: string
   readonly communication: DecisionPlan['communication']
@@ -73,7 +73,7 @@ export interface ComposedTraceInput {
   readonly plannerReasonCodes: readonly string[] | undefined
   readonly factorsVersion: string
   readonly languageTrace: LanguageTraceAttribution | undefined
-  readonly legacyObserverProduced: boolean
+  readonly compatibilityObserverProduced: boolean
   readonly publicObserver: PublicObserverSnapshot | undefined
   readonly privateIdentity: PrivateIdentitySnapshot | undefined
   readonly identityEnabled: boolean
@@ -107,7 +107,7 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
     plannerReasonCodes,
     factorsVersion,
     languageTrace,
-    legacyObserverProduced,
+    compatibilityObserverProduced,
     publicObserver,
     privateIdentity,
     identityEnabled,
@@ -122,7 +122,7 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
       scorer: scorerVersion,
       planner: plannerVersion,
       voice: voiceVersion,
-      legacyObserverProduced,
+      compatibilityObserverProduced,
       ...(descriptor.base.languageEvidence !== 'off'
         ? {
             mechanicalBelief: cognition.versions.mechanicalBelief,

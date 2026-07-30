@@ -20,7 +20,7 @@ import {
   projectPrivateArchitectureDebug,
   projectResolvedArchitectureIdentity,
   projectResolvedArchitecturePrivate,
-  projectPrivateResolvedComposedBrainLegacy,
+  projectPrivateResolvedComposedBrainCompatibility,
   resolveComposedBrain,
   type CompatibilityValue,
   type ResolvedConfiguredPipeline,
@@ -420,7 +420,7 @@ test('resolved architecture descriptor is deterministic across a configuration m
   }
 })
 
-test('private debug and exact legacy shapes are pure descriptor projections', () => {
+test('private debug and exact compatibility shapes are pure descriptor projections', () => {
   const descriptor = createComposedAgent({
     seed: 'descriptor-projections',
     privateIdentity: {
@@ -431,7 +431,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
   const debug = projectPrivateArchitectureDebug(descriptor)
   const privateProjection =
     projectResolvedArchitecturePrivate(descriptor)
-  const legacy = projectPrivateResolvedComposedBrainLegacy(descriptor)
+  const compatibilityProjection = projectPrivateResolvedComposedBrainCompatibility(descriptor)
 
   assert.equal(privateProjection, descriptor)
   assert.deepEqual(Object.keys(debug), [
@@ -446,7 +446,7 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
   ])
   assert.equal('migration' in debug, false)
   assert.equal('baseComponentVersions' in descriptor, false)
-  assert.deepEqual(Object.keys(legacy), [
+  assert.deepEqual(Object.keys(compatibilityProjection), [
     'version',
     'base',
     'baseComponentVersions',
@@ -456,9 +456,9 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
     'decisionLayerOrder',
     'compatibility',
   ])
-  assert.equal(legacy.version, RESOLVED_COMPOSED_BRAIN_VERSION)
+  assert.equal(compatibilityProjection.version, RESOLVED_COMPOSED_BRAIN_VERSION)
   assert.deepEqual(
-    legacy.baseComponentVersions,
+    compatibilityProjection.baseComponentVersions,
     brainComponents(descriptor.base),
   )
   assert.deepEqual(Object.keys(descriptor.migration.compatibility), [
@@ -475,17 +475,17 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
     roleObjectiveRouter: false,
     roleObjectives: false,
   })
-  assert.deepEqual(Object.keys(legacy.compatibility), [
+  assert.deepEqual(Object.keys(compatibilityProjection.compatibility), [
     'beliefModel',
     'languageFactorVersion',
     'languageInterpreterVersion',
     'requests',
     'scorerVersions',
   ])
-  const legacyRequests = legacy.compatibility.requests as Readonly<
+  const compatibilityRequests = compatibilityProjection.compatibility.requests as Readonly<
     Record<string, CompatibilityValue>
   >
-  assert.deepEqual(Object.keys(legacyRequests), [
+  assert.deepEqual(Object.keys(compatibilityRequests), [
     'coherenceIntent',
     'evilQuestCardPolicy',
     'morganaCounterfeitObjectives',
@@ -517,14 +517,14 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
     },
     scorerVersions: [CANDIDATE_SCORER_VERSION],
   }
-  assert.deepEqual(legacy.compatibility, expectedCompatibility)
+  assert.deepEqual(compatibilityProjection.compatibility, expectedCompatibility)
   assert.equal(
-    JSON.stringify(legacy.compatibility),
+    JSON.stringify(compatibilityProjection.compatibility),
     JSON.stringify(expectedCompatibility),
   )
   assert.ok(Object.isFrozen(debug))
-  assert.ok(Object.isFrozen(legacy))
-  assert.ok(Object.isFrozen(legacy.baseComponentVersions))
+  assert.ok(Object.isFrozen(compatibilityProjection))
+  assert.ok(Object.isFrozen(compatibilityProjection.baseComponentVersions))
 })
 
 test('descriptor snapshots caller pipeline data and owns no implementations', () => {
@@ -840,7 +840,7 @@ test('base trace projection fails closed on descriptor and run drift', async () 
       scorer: versions.scorer,
       planner: versions.planner,
       voice: versions.voice,
-      legacyObserverProduced: false,
+      compatibilityObserverProduced: false,
     },
   )
 
@@ -886,7 +886,7 @@ test('base trace projection fails closed on descriptor and run drift', async () 
         scorer: versions.scorer,
         planner: versions.planner,
         voice: versions.voice,
-        legacyObserverProduced: false,
+        compatibilityObserverProduced: false,
       },
     ),
     /does not match the architecture descriptor/,

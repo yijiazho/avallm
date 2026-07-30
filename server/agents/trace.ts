@@ -203,8 +203,8 @@ export interface BaseTraceRuntimeActuals {
   readonly scorer: string
   readonly planner: string
   readonly voice: string
-  /** Whether the invocation actually produced the legacy flat observer. */
-  readonly legacyObserverProduced: boolean
+  /** Whether the invocation actually produced the compatibility flat observer. */
+  readonly compatibilityObserverProduced: boolean
   readonly mechanicalBelief?: string
   readonly beliefPipeline?: string
 }
@@ -313,7 +313,7 @@ export function projectBaseTraceComponentVersions(
     descriptor.componentContributions.observerModel !== 'off'
   if (
     (
-      runtime.legacyObserverProduced
+      runtime.compatibilityObserverProduced
       || componentObserverConfigured
     )
     && descriptor.base.observerModel === 'off'
@@ -336,7 +336,7 @@ export function projectBaseTraceComponentVersions(
       factors: runtime.factors,
       languageEvidence: descriptor.base.languageEvidence,
       observerModel: (
-        runtime.legacyObserverProduced
+        runtime.compatibilityObserverProduced
         || componentObserverConfigured
       )
         ? descriptor.base.observerModel

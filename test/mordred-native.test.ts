@@ -33,7 +33,7 @@ import {
   PRIVATE_PUBLIC_OBSERVER_INPUT,
 } from '../server/agents/components/native-score-components.ts'
 import {
-  projectPrivateResolvedComposedBrainLegacy,
+  projectPrivateResolvedComposedBrainCompatibility,
   projectResolvedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
@@ -171,7 +171,7 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
     'exact-public-observer-v1',
   )
   assert.equal(
-    projectPrivateResolvedComposedBrainLegacy(
+    projectPrivateResolvedComposedBrainCompatibility(
       agent.resolvedBrain().description,
     ).baseComponentVersions.observerModel,
     'exact-public-observer-v1',

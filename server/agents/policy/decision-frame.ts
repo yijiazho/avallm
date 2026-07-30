@@ -200,7 +200,7 @@ export interface ScoredPolicyCompatibilityDto {
   readonly structuredCandidateId: string
 }
 
-export type LegacyPlannerResolution =
+export type CompatibilityPlannerResolution =
   | Readonly<{ kind: 'not-run' }>
   | Readonly<{
       kind: 'accepted'
@@ -217,7 +217,7 @@ export type LegacyPlannerResolution =
 
 type SelectedData = ScoredData & {
   readonly selected: Immutable<ViableCandidate>
-  readonly planner: Immutable<LegacyPlannerResolution>
+  readonly planner: Immutable<CompatibilityPlannerResolution>
 }
 export type SelectedDecisionFrame = Stage<'selected', SelectedData>
 type CommittedData = SelectedData & {
@@ -239,7 +239,7 @@ export interface DecisionFrameTrace {
   }
 }
 
-export interface LegacyVoicedOutputProjection {
+export interface CompatibilityVoicedOutputProjection {
   readonly action: Decision
   readonly scores: readonly CandidateScore[]
   readonly forced: ForcedPolicyResult
@@ -255,7 +255,7 @@ export interface LegacyVoicedOutputProjection {
 }
 
 /** 7R3 retires this compatibility adapter after scorer ownership extraction. */
-export type LegacyScoringBindings = Readonly<
+export type CompatibilityScoringBindings = Readonly<
   Pick<
     CandidateScoringContext,
     | 'deterministicSeed'
@@ -266,7 +266,7 @@ export type LegacyScoringBindings = Readonly<
   >
 >
 
-export interface LegacyScoringResolution {
+export interface CompatibilityScoringResolution {
   readonly appliedScorer: CandidateScorer
   readonly scores: readonly CandidateScore[]
   readonly degradation: readonly string[]
@@ -310,7 +310,7 @@ function scoringContext(
   frame:
     | PostComponentDecisionFrame
     | NativeScoreLayersResolvedDecisionFrame,
-  supplied: LegacyScoringBindings,
+  supplied: CompatibilityScoringBindings,
 ): CandidateScoringContext {
   return Object.freeze({
     ...supplied,
@@ -347,7 +347,7 @@ export function projectScoringContext(
   frame:
     | PostComponentDecisionFrame
     | NativeScoreLayersResolvedDecisionFrame,
-  supplied: LegacyScoringBindings,
+  supplied: CompatibilityScoringBindings,
 ): CandidateScoringContext {
   return structuredClone(scoringContext(frame, supplied))
 }
@@ -588,11 +588,11 @@ function customStructuredChoice(
 /** Run the C4B scorer/fallback owner synchronously against one exact frame. */
 export function withCustomScoring(
   frame: PostComponentDecisionFrame,
-  bindings: (run: DecisionComponentRun) => LegacyScoringBindings,
+  bindings: (run: DecisionComponentRun) => CompatibilityScoringBindings,
   resolve: (
     context: Readonly<CandidateScoringContext>,
     run: DecisionComponentRun,
-  ) => LegacyScoringResolution,
+  ) => CompatibilityScoringResolution,
 ): ScoredDecisionFrame {
   const run = legacy<DecisionComponentRun>(frame.componentRun)
   const supplied = bindings(run)
@@ -813,7 +813,7 @@ export function nativeDiagnosticOwnerVersion(
  */
 export function withNativeScoringAuthority(
   frame: NativeScoreLayersResolvedDecisionFrame,
-  bindings: LegacyScoringBindings,
+  bindings: CompatibilityScoringBindings,
   diagnostics: NativeScoreDiagnostics,
 ): ScoredDecisionFrame {
   const scorerVersion = nativeScorerVersion(frame)
@@ -859,7 +859,7 @@ export function withNativeScoringAuthority(
 
 export function selectDecisionCandidate(
   frame: ScoredDecisionFrame,
-  planner: LegacyPlannerResolution,
+  planner: CompatibilityPlannerResolution,
   attributeStructuredChoice?: (
     run: DecisionComponentRun,
   ) => DecisionComponentRun,
@@ -970,10 +970,10 @@ export function withDecisionVoice(
   }) as VoicedDecisionFrame
 }
 
-/** Detached DTO for legacy trace, memory, and agent-output consumers. */
-export function projectVoicedFrameForLegacy(
+/** Detached DTO for the compatibility trace, memory, and agent-output consumers. */
+export function projectVoicedFrameForCompatibility(
   frame: VoicedDecisionFrame,
-): LegacyVoicedOutputProjection {
+): CompatibilityVoicedOutputProjection {
   return structuredClone({
     action: frame.result,
     scores: frame.scores,
@@ -997,5 +997,5 @@ export function projectVoicedFrameForLegacy(
       voice: frame.voice,
     },
     plan: frame.plan,
-  }) as LegacyVoicedOutputProjection
+  }) as CompatibilityVoicedOutputProjection
 }

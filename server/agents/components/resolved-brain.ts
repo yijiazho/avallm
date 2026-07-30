@@ -241,7 +241,7 @@ export type PrivateArchitectureDebugProjection = Readonly<
   ResolvedArchitectureIdentity
 >
 
-export interface PrivateResolvedComposedBrainLegacyProjection {
+export interface PrivateResolvedComposedBrainCompatibilityProjection {
   readonly version: typeof RESOLVED_COMPOSED_BRAIN_VERSION
   readonly base: BrainSpec
   readonly baseComponentVersions: Readonly<Record<string, string>>
@@ -803,12 +803,12 @@ export function projectResolvedArchitecturePrivate(
 }
 
 /**
- * Exact private historical construction shape. This is a compatibility edge,
+ * Exact private compatibility construction shape. This is a compatibility edge,
  * not a second metadata source: every field is derived from the descriptor.
  */
-export function projectPrivateResolvedComposedBrainLegacy(
+export function projectPrivateResolvedComposedBrainCompatibility(
   descriptor: ResolvedArchitectureDescriptor,
-): PrivateResolvedComposedBrainLegacyProjection {
+): PrivateResolvedComposedBrainCompatibilityProjection {
   const migration = descriptor.migration.compatibility
   const requests = Object.hasOwn(migration, 'requests')
     ? migration.requests as Readonly<Record<string, CompatibilityValue>>
@@ -817,7 +817,7 @@ export function projectPrivateResolvedComposedBrainLegacy(
     Object.entries(migration).filter(([key]) => key !== 'requests'),
   )
   const pipeline = descriptor.configuredPipeline
-  const legacyRequests = requests === undefined
+  const compatibilityRequests = requests === undefined
     ? undefined
     : {
         ...requests,
@@ -836,8 +836,8 @@ export function projectPrivateResolvedComposedBrainLegacy(
       pipeline.scoring.configuredScorer,
       ...pipeline.scoring.configuredBaseChain,
     ]),
-    ...(legacyRequests === undefined ? {} : { requests: legacyRequests }),
-  }, 'legacyCompatibility') as Readonly<
+    ...(compatibilityRequests === undefined ? {} : { requests: compatibilityRequests }),
+  }, 'compatibility') as Readonly<
     Record<string, CompatibilityValue>
   >
   return Object.freeze({

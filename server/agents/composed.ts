@@ -188,7 +188,7 @@ import {
   commitDecision,
   projectScoredFrameForCompatibility,
   projectScoringContext,
-  projectVoicedFrameForLegacy,
+  projectVoicedFrameForCompatibility,
   selectDecisionCandidate,
   selectedMechanicalDecision,
   withDecisionAnalysis,
@@ -203,8 +203,8 @@ import {
   withResolvedDecisionLayers,
   withResolvedComponents,
   withUniversalForcedPolicy,
-  type LegacyPlannerResolution,
-  type LegacyScoringBindings,
+  type CompatibilityPlannerResolution,
+  type CompatibilityScoringBindings,
   type NativeScoreLayersResolvedDecisionFrame,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
@@ -473,7 +473,7 @@ function scorerRequires(
   return false
 }
 
-function attributeLegacyRolePolicyUse(
+function attributeCompatibilityRolePolicyUse(
   run: DecisionComponentRun,
   appliedScorer: CandidateScorer,
   scores: readonly CandidateScore[],
@@ -822,7 +822,7 @@ function roleScorerFallbackDegradation(
 function nativeScoreDiagnostics(
   frame: NativeScoreLayersResolvedDecisionFrame,
   chain: ResolvedScoreLayerChain,
-  bindings: LegacyScoringBindings,
+  bindings: CompatibilityScoringBindings,
 ): readonly CandidateScore[] {
   return projectConfiguredScoreDiagnostics(
     projectScoringContext(frame, bindings),
@@ -917,7 +917,7 @@ async function resolvePlannerChoice(input: {
   scores: readonly CandidateScore[]
   structuredCandidateId: string
   view: PlayerView
-}): Promise<LegacyPlannerResolution> {
+}): Promise<CompatibilityPlannerResolution> {
   const { context, scores, structuredCandidateId, view } = input
   // The catch deliberately spans the clone and the validators, not just
   // choose(). A planner that returns something structuredClone rejects, or a
@@ -1654,7 +1654,7 @@ export function createComposedAgent(
           // the identity phase either way.
           stage('identity')
         }
-        const legacyPublicObserverApplicable = Boolean(
+        const compatibilityPublicObserverApplicable = Boolean(
           publicObserverConfigured
           || roleObjectiveRole
           || evilRoleObjectiveApplicable
@@ -1662,7 +1662,7 @@ export function createComposedAgent(
         )
         const observer = lazyPublicObserver(view, () => stage('observer'))
         const providePublicObserver = observer.provide
-        if (legacyPublicObserverApplicable) {
+        if (compatibilityPublicObserverApplicable) {
           providePublicObserver()
         }
         let privateRoleObjective: PrivateRoleObjectiveSnapshot | undefined
@@ -1768,7 +1768,7 @@ export function createComposedAgent(
                 ),
           )
         const tracePublicObserver = (
-          legacyPublicObserverApplicable
+          compatibilityPublicObserverApplicable
           || genericPublicObserverApplicable
         )
           ? observer.observed()
@@ -1944,7 +1944,7 @@ export function createComposedAgent(
                   appliedScorer,
                   scores,
                   degradation: [...degradation, ...scorerDegradation],
-                  componentRun: attributeLegacyRolePolicyUse(
+                  componentRun: attributeCompatibilityRolePolicyUse(
                     exactRun,
                     appliedScorer,
                     scores,
@@ -1994,7 +1994,7 @@ export function createComposedAgent(
           compatibilityScored.scores,
           compatibilityScored.structuredCandidateId,
         )
-        let plannerResolution: LegacyPlannerResolution = { kind: 'not-run' }
+        let plannerResolution: CompatibilityPlannerResolution = { kind: 'not-run' }
         if (
           activePlanner
           && !scoredFrame.candidateBoundary.selectedCandidateId
@@ -2081,8 +2081,8 @@ export function createComposedAgent(
             ? { degradationCode: spoken.degradationCode }
             : {}),
         })
-        const legacyOutput = projectVoicedFrameForLegacy(voicedFrame)
-        action = legacyOutput.action
+        const compatibilityOutput = projectVoicedFrameForCompatibility(voicedFrame)
+        action = compatibilityOutput.action
 
         const chosenTeamAnalysis = (
           action.kind === 'propose'
@@ -2106,22 +2106,22 @@ export function createComposedAgent(
           cognition,
           analysis: traceAnalysis,
           action,
-          scores: legacyOutput.scores,
-          structuredCandidateId: legacyOutput.structuredCandidateId,
-          chosenCandidateId: legacyOutput.selectedCandidateId,
-          forced: legacyOutput.forced,
+          scores: compatibilityOutput.scores,
+          structuredCandidateId: compatibilityOutput.structuredCandidateId,
+          chosenCandidateId: compatibilityOutput.selectedCandidateId,
+          forced: compatibilityOutput.forced,
           plannerVersion,
           voiceVersion,
-          scorerVersion: legacyOutput.scorerVersion,
-          degradation: legacyOutput.degradation,
+          scorerVersion: compatibilityOutput.scorerVersion,
+          degradation: compatibilityOutput.degradation,
           componentPlan: configuredComponentPlan,
-          decisionComponents: legacyOutput.componentRun,
-          decisionLayerRun: legacyOutput.decisionLayerRun,
-          scoreLayerRun: legacyOutput.scoreLayerRun,
-          decisionFrame: legacyOutput.decisionFrame,
+          decisionComponents: compatibilityOutput.componentRun,
+          decisionLayerRun: compatibilityOutput.decisionLayerRun,
+          scoreLayerRun: compatibilityOutput.scoreLayerRun,
+          decisionFrame: compatibilityOutput.decisionFrame,
           descriptor: resolvedBrain.description,
           architectureIdentityDigest,
-          communication: legacyOutput.plan.communication,
+          communication: compatibilityOutput.plan.communication,
           plannerCandidateId,
           plannerReasonCodes,
           factorsVersion: configuredLanguageInterpreter
@@ -2130,7 +2130,7 @@ export function createComposedAgent(
               )
             : beliefModel.factorsVersion,
           languageTrace,
-          legacyObserverProduced: legacyPublicObserverApplicable,
+          compatibilityObserverProduced: compatibilityPublicObserverApplicable,
           publicObserver: tracePublicObserver,
           privateIdentity,
           identityEnabled: !!decisionIdentityScope,
