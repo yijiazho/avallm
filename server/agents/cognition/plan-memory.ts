@@ -32,7 +32,8 @@ export type PlanMemoryStatus = 'current' | 'superseded'
 
 export interface SelectedPlanSummary {
   decision: Decision
-  plan?: Readonly<{
+  /** Never optional: a selected decision cannot be recorded without its plan. */
+  plan: Readonly<{
     version: string
     candidateId: string
     policyId: string
@@ -73,22 +74,17 @@ function entryId(
 }
 
 function planSummary(
-  selectedDecision: Decision | undefined,
-  plan: DecisionPlan | undefined,
-): SelectedPlanSummary | undefined {
-  if (!selectedDecision) return undefined
+  selectedDecision: Decision,
+  plan: DecisionPlan,
+): SelectedPlanSummary {
   return {
     decision: structuredClone(selectedDecision),
-    ...(plan
-      ? {
-          plan: {
-            version: plan.version,
-            candidateId: plan.candidateId,
-            policyId: plan.policyId,
-            beliefThroughSeq: plan.beliefThroughSeq,
-          },
-        }
-      : {}),
+    plan: {
+      version: plan.version,
+      candidateId: plan.candidateId,
+      policyId: plan.policyId,
+      beliefThroughSeq: plan.beliefThroughSeq,
+    },
   }
 }
 
@@ -110,13 +106,10 @@ export function recordAppliedPlan(
   if (input.view.seat !== input.req.seat) {
     throw new Error('cannot record a plan from another seat view')
   }
-  if (
-    input.resolution === 'selected-applied'
-      ? input.selectedDecision === undefined
-      : input.resolution === 'fallback-after-agent-error'
-        ? input.selectedDecision !== undefined
-        : input.selectedDecision === undefined
-  ) {
+  // Both fallback-after-illegal-decision and selected-applied carry what the
+  // agent chose; only an agent error leaves nothing to have been selected.
+  const expectsSelected = input.resolution !== 'fallback-after-agent-error'
+  if (expectsSelected !== Boolean(input.selectedDecision)) {
     throw new Error('selected decision does not match applied resolution')
   }
   if (
@@ -161,7 +154,7 @@ export function recordAppliedPlan(
     id,
     request: { ...input.req },
     viewThroughSeq: throughSeq,
-    ...(planSummary(input.selectedDecision, input.selectedPlan)
+    ...(input.selectedDecision && input.selectedPlan
       ? { selected: planSummary(input.selectedDecision, input.selectedPlan) }
       : {}),
     appliedDecision: structuredClone(input.appliedDecision),
@@ -286,13 +279,10 @@ function validSelectedDecision(value: unknown): value is Decision {
             ? ['kind', 'card', 'thinking', 'notes']
             : ['kind', 'target', 'thinking', 'notes']
   if (!Object.keys(decision).every((key) => allowed.includes(key))) return false
+  // No undefined case: plainDetachedData has already rejected any property
+  // present with an undefined value, and Object.values skips absent keys.
   const fieldsValid = Object.values(decision).every((field) => {
-    if (
-      field === undefined
-      || typeof field === 'boolean'
-    ) {
-      return true
-    }
+    if (typeof field === 'boolean') return true
     if (typeof field === 'number') return Number.isSafeInteger(field)
     if (typeof field === 'string') return field.length <= 10_000
     return strictCanonicalArray(field)
@@ -383,7 +373,6 @@ function validCommitmentBasis(
 }
 
 function validSelectedPlan(value: unknown): boolean {
-  if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const plan = value as Record<string, unknown>
   return Object.keys(plan).length === 4
@@ -401,6 +390,14 @@ function validSelectedPlan(value: unknown): boolean {
     && plan.policyId.length <= 128
     && Number.isSafeInteger(plan.beliefThroughSeq)
     && Number(plan.beliefThroughSeq) >= -1
+}
+
+function validSelectedSummary(value: unknown): value is SelectedPlanSummary {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const summary = value as Record<string, unknown>
+  return Object.keys(summary).every((key) => ['decision', 'plan'].includes(key))
+    && validSelectedDecision(summary.decision)
+    && validSelectedPlan(summary.plan)
 }
 
 function validatePrivatePlanMemoryInner(
@@ -466,25 +463,13 @@ function validatePrivatePlanMemoryInner(
         'fallback-after-agent-error',
         'fallback-after-illegal-decision',
       ].includes(entry.resolution)
+      // An agent error must leave the key absent outright: a truthiness test
+      // would let a forged `selected: null` through, since plainDetachedData
+      // admits null values.
       || (
-        entry.resolution === 'selected-applied'
-          ? !entry.selected
-          : entry.resolution === 'fallback-after-agent-error'
-            ? entry.selected !== undefined
-            : !entry.selected
-      )
-      || (
-        entry.selected !== undefined
-        && !validSelectedDecision(entry.selected.decision)
-      )
-      || (entry.selected !== undefined && entry.selected.plan === undefined)
-      || (
-        entry.selected !== undefined
-        && (
-          !Object.keys(entry.selected).every((key) =>
-            ['decision', 'plan'].includes(key))
-          || !validSelectedPlan(entry.selected.plan)
-        )
+        entry.resolution === 'fallback-after-agent-error'
+          ? Object.hasOwn(entry, 'selected')
+          : !validSelectedSummary(entry.selected)
       )
       || entry.coherence.version !== COHERENCE_MODEL_VERSION
       || !['maintain', 'conceal', 'deceive'].includes(entry.coherence.intent)

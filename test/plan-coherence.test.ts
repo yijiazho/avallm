@@ -177,6 +177,15 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
   memory = errorAgent.planMemorySnapshot()!
   assert.equal(memory.history[0].selected, undefined)
   assert.equal(memory.history[0].resolution, 'fallback-after-agent-error')
+  assert.ok(Object.hasOwn(memory.history[0], 'selected') === false)
+
+  // An agent-error entry must omit the key outright. A forged null survives
+  // plainDetachedData, so presence, not truthiness, is what the schema pins.
+  for (const forgedSelected of [null, 0, '', false]) {
+    const forged = structuredClone(memory) as any
+    forged.history[0].selected = forgedSelected
+    assert.equal(validatePrivatePlanMemory(forged), false)
+  }
 })
 
 test('plan memory retains illegal selected output syntax while applied decisions remain legal', () => {
@@ -862,7 +871,7 @@ test('external plan validators are total, dense, exact, and byte bounded', async
   }
   probes.push(sparseApplied)
   const hugeCandidate = structuredClone(memory)
-  hugeCandidate.history[0].selected!.plan!.candidateId = 'x'.repeat(1_000_000)
+  hugeCandidate.history[0].selected!.plan.candidateId = 'x'.repeat(1_000_000)
   probes.push(hugeCandidate)
   const hugePitch = structuredClone(memory)
   hugePitch.history[0].appliedDecision = {
