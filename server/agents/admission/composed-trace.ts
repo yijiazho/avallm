@@ -164,6 +164,7 @@ import type {
   ExactKeyList,
   MissingKeys,
   MissingRequiredKeys,
+  RequiredKeys,
 } from '../key-lists.ts'
 import {
   enumStringArray,
@@ -304,12 +305,17 @@ import {
  * but they carry the same assertion so the guarantee does not depend on which
  * predicate a given site happens to use.
  *
- * One deliberate gap: the component-version list below covers only the mandatory
- * keys, because every optional owner carries its own value check further down
- * rather than a presence check. Adding an *optional* key to `componentVersions`
- * therefore compiles clean and is not validated anywhere until someone writes
- * that clause by hand. `validComponentVersions` reads neither key predicate, so
- * treat a new optional owner as needing a matching clause.
+ * The optional attribution keys are handled separately from this mandatory
+ * list, but not by hand-written per-key clauses: `validComponentVersions`
+ * classifies every optional key into exactly one value bucket
+ * (`OPTIONAL_COMPONENT_VERSION_VALUES` for fixed version literals,
+ * `OPTIONAL_FREEFORM_VERSION_KEYS` for any non-empty string, or the bespoke
+ * `configuredScorer` check). The `_OptionalComponentVersionKeysClassified`
+ * alias resolves to `never` only when that classification is exhaustive, so
+ * adding an optional key without a bucket is a compile error naming the field.
+ * The cross-key relational invariants (a role-utility projection implies its
+ * objective; plan memory and coherence toggle together) are additive and stay
+ * as explicit clauses in the validator.
  */
 
 /** Mandatory attribution keys; optional ones are value-checked individually. */
@@ -326,6 +332,54 @@ type _RequiredComponentVersionKeysSound =
       >
     >
   | AssertNever<DuplicateKeys<typeof REQUIRED_COMPONENT_VERSION_KEYS>>
+
+/** The opt-in attribution keys, computed from the shape rather than restated. */
+type OptionalComponentVersionKey = Exclude<
+  keyof TraceComponentVersions & string,
+  RequiredKeys<TraceComponentVersions>
+>
+
+/**
+ * Opt-in keys whose value, when present, must equal one of a fixed set of
+ * resolved version literals. Bound to the shape so a stale key is a type error.
+ */
+const OPTIONAL_COMPONENT_VERSION_VALUES = {
+  planMemory: [PLAN_MEMORY_VERSION],
+  coherence: [COHERENCE_MODEL_VERSION],
+  decisionComponents: [DECISION_COMPONENT_RUN_VERSION],
+  roleObjective: [ROLE_OBJECTIVE_MODEL_VERSION, EVIL_ROLE_OBJECTIVE_MODEL_VERSION],
+  roleObjectiveRouter: [ROLE_OBJECTIVE_ROUTER_VERSION],
+  roleUtility: [ROLE_UTILITY_PROJECTION_VERSION],
+  evilRoleUtility: [EVIL_ROLE_UTILITY_PROJECTION_VERSION],
+  morganaCounterfeitPublicRead: [MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION],
+  morganaCounterfeitObjective: [MORGANA_COUNTERFEIT_OBJECTIVE_VERSION],
+  configuredMorganaCounterfeitObjective: [MORGANA_COUNTERFEIT_OBJECTIVE_VERSION],
+  morganaRoleUtility: [MORGANA_ROLE_UTILITY_PROJECTION_VERSION],
+  configuredMorganaRoleUtility: [MORGANA_ROLE_UTILITY_PROJECTION_VERSION],
+} as const satisfies Partial<
+  Record<OptionalComponentVersionKey, readonly string[]>
+>
+
+/** Opt-in keys admitted as any non-empty string rather than a fixed literal. */
+const OPTIONAL_FREEFORM_VERSION_KEYS = [
+  'mechanicalBelief', 'beliefPipeline', 'identityModel',
+] as const satisfies readonly OptionalComponentVersionKey[]
+
+/*
+ * Exhaustiveness: every optional key must be value-checked by exactly one
+ * bucket above, or the bespoke `configuredScorer` clause. A newly added opt-in
+ * key that no bucket covers leaves a leftover here, and `AssertNever` fails to
+ * instantiate with the compiler naming the field, so admission cannot silently
+ * stop value-checking it.
+ */
+type _OptionalComponentVersionKeysClassified = AssertNever<
+  Exclude<
+    OptionalComponentVersionKey,
+    | keyof typeof OPTIONAL_COMPONENT_VERSION_VALUES
+    | typeof OPTIONAL_FREEFORM_VERSION_KEYS[number]
+    | 'configuredScorer'
+  >
+>
 
 const LANGUAGE_TRACE_KEYS = [
   'inputSchemaVersion',
@@ -554,112 +608,59 @@ function validComponentVersions(value: unknown): boolean {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const versions = value as Record<string, unknown>
-  return REQUIRED_COMPONENT_VERSION_KEYS.every(
-    (key) => typeof versions[key] === 'string' && versions[key].length > 0,
-  )
-    && (
-      versions.mechanicalBelief === undefined
-      || (
-        typeof versions.mechanicalBelief === 'string'
-        && versions.mechanicalBelief.length > 0
-      )
+  const nonEmptyString = (candidate: unknown): candidate is string =>
+    typeof candidate === 'string' && candidate.length > 0
+  // Required keys are always present resolved version strings.
+  if (!REQUIRED_COMPONENT_VERSION_KEYS.every((key) => nonEmptyString(versions[key]))) {
+    return false
+  }
+  // Free-form opt-ins: absent, or any non-empty resolved version string.
+  for (const key of OPTIONAL_FREEFORM_VERSION_KEYS) {
+    if (versions[key] !== undefined && !nonEmptyString(versions[key])) return false
+  }
+  // Fixed-literal opt-ins: absent, or one of the allowed resolved versions.
+  for (const [key, allowed] of Object.entries(
+    OPTIONAL_COMPONENT_VERSION_VALUES as Record<string, readonly string[]>,
+  )) {
+    const present = versions[key]
+    if (present !== undefined && !allowed.includes(present as string)) return false
+  }
+  // configuredScorer records a resolved-away configured choice, so it is present
+  // only as a non-empty string distinct from the scorer actually run.
+  if (
+    versions.configuredScorer !== undefined
+    && !(
+      nonEmptyString(versions.configuredScorer)
+      && versions.configuredScorer !== versions.scorer
     )
-    && (
-      versions.beliefPipeline === undefined
-      || (
-        typeof versions.beliefPipeline === 'string'
-        && versions.beliefPipeline.length > 0
-      )
-    )
-    && (
-      versions.identityModel === undefined
-      || (
-        typeof versions.identityModel === 'string'
-        && versions.identityModel.length > 0
-      )
-    )
-    && (
-      versions.planMemory === undefined
-      || versions.planMemory === PLAN_MEMORY_VERSION
-    )
-    && (
-      versions.coherence === undefined
-      || versions.coherence === COHERENCE_MODEL_VERSION
-    )
-    && (
-      versions.decisionComponents === undefined
-      || versions.decisionComponents === DECISION_COMPONENT_RUN_VERSION
-    )
-    && (
-      versions.roleObjective === undefined
-      || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
-      || versions.roleObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-    )
-    && (
-      versions.roleObjectiveRouter === undefined
-      || versions.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
-    )
-    && (
-      versions.roleUtility === undefined
-      || versions.roleUtility === ROLE_UTILITY_PROJECTION_VERSION
-    )
-    && (
-      versions.evilRoleUtility === undefined
-      || versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    )
-    && (
-      versions.morganaCounterfeitPublicRead === undefined
-      || versions.morganaCounterfeitPublicRead
-        === MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
-    )
-    && (
-      versions.morganaCounterfeitObjective === undefined
-      || versions.morganaCounterfeitObjective
+  ) {
+    return false
+  }
+  // Relational invariants: each role-utility projection implies its source
+  // objective, and plan memory and its coherence projection toggle together.
+  if (
+    versions.roleUtility !== undefined
+    && versions.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
+  ) {
+    return false
+  }
+  if (
+    versions.evilRoleUtility !== undefined
+    && versions.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+  ) {
+    return false
+  }
+  if (
+    versions.morganaRoleUtility !== undefined
+    && !(
+      versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
+      && versions.morganaCounterfeitObjective
         === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
     )
-    && (
-      versions.configuredMorganaCounterfeitObjective === undefined
-      || versions.configuredMorganaCounterfeitObjective
-        === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
-    )
-    && (
-      versions.morganaRoleUtility === undefined
-      || versions.morganaRoleUtility
-        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-    )
-    && (
-      versions.configuredMorganaRoleUtility === undefined
-      || versions.configuredMorganaRoleUtility
-        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-    )
-    && (
-      versions.configuredScorer === undefined
-      || (
-        typeof versions.configuredScorer === 'string'
-        && versions.configuredScorer.length > 0
-        && versions.configuredScorer !== versions.scorer
-      )
-    )
-    && (
-      versions.roleUtility === undefined
-      || versions.roleObjective === ROLE_OBJECTIVE_MODEL_VERSION
-    )
-    && (
-      versions.evilRoleUtility === undefined
-      || versions.roleObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-    )
-    && (
-      versions.morganaRoleUtility === undefined
-      || (
-        versions.evilRoleUtility === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-        && versions.morganaCounterfeitObjective
-          === MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
-      )
-    )
-    && (
-      (versions.planMemory === undefined)
-      === (versions.coherence === undefined)
-    )
+  ) {
+    return false
+  }
+  return (versions.planMemory === undefined) === (versions.coherence === undefined)
 }
 
 function validPlanOutcomeTrace(

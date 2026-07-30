@@ -38,11 +38,11 @@ export type MissingKeys<T, List extends readonly PropertyKey[]> =
   Exclude<keyof T & string, List[number]>
 
 /**
- * Keys of `T` the shape declares as mandatory, computed from `T` itself.
- * Unexported: it exists to build `MissingRequiredKeys` and has no caller of its
- * own, so it is an implementation detail rather than part of this facility.
+ * Keys of `T` the shape declares as mandatory, computed from `T` itself. Builds
+ * `MissingRequiredKeys`, and is also exported for callers that need the inverse
+ * (`Exclude<keyof T, RequiredKeys<T>>` to enumerate a shape's optional keys).
  */
-type RequiredKeys<T> = {
+export type RequiredKeys<T> = {
   [K in keyof T]-?: object extends Pick<T, K> ? never : K
 }[keyof T] & string
 
