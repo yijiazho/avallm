@@ -93,7 +93,7 @@ interface NativeExecutionFixture {
 /**
  * Prove the native seam, not the kernel implementation. Generic hostile
  * envelopes, result wrappers, dependency ordering, and attribution rules
- * remain covered once in phase7r2b2-component-kernel.test.ts.
+ * remain covered once in component-kernel.test.ts.
  */
 export async function assertNativeExecutionContract(
   fixture: NativeExecutionFixture,

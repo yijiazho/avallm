@@ -56,13 +56,13 @@ The three `phase7-*-standard-v1` files are the API-free Phase 7 exit evidence:
 Regenerate all three without provider calls:
 
 ```text
-npm run phase7-role-report -- --generate
+npm run role-report -- --generate
 ```
 
 Check supplied raw evidence against the committed aggregate without replaying the bank:
 
 ```text
-npm run phase7-role-report -- docs/baselines/phase7-role-evidence-standard-v1.jsonl docs/baselines/phase7-virtual-assassin-standard-v1.jsonl --check docs/baselines/phase7-role-report-standard-v1.json
+npm run role-report -- docs/baselines/phase7-role-evidence-standard-v1.jsonl docs/baselines/phase7-virtual-assassin-standard-v1.jsonl --check docs/baselines/phase7-role-report-standard-v1.json
 ```
 
 The twelve virtual guesses are correlated observations from four histories, not twelve independent

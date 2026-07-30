@@ -3,14 +3,14 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 const WALL_CLOCK_SUITES = [
+  'test/active-language-eval.test.ts',
   'test/good-proposal-scorer.test.ts',
   'test/good-vote-scorer.test.ts',
-  'test/phase6d-active-language-eval.test.ts',
-  'test/phase7a-public-observer.test.ts',
-  'test/phase7b1-joint-identity.test.ts',
-  'test/phase7c1-role-objectives.test.ts',
-  'test/phase7c2-role-policy.test.ts',
-  'test/phase7e2a-mordred-native.test.ts',
+  'test/joint-identity.test.ts',
+  'test/mordred-native.test.ts',
+  'test/public-observer.test.ts',
+  'test/role-objectives.test.ts',
+  'test/role-policy.test.ts',
 ]
 
 test('architecture wall-clock budgets pass in the isolated perf lane', () => {

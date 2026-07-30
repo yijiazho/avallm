@@ -290,8 +290,8 @@ while the primary lane runs, then integrate them one at a time.
 | NB-012 | NB-010 | Price concealment in the good value function | Merlin's own vote record is unpriced, so improving vote accuracy identifies the seat to any opponent that reads vote history. Phase 7A's exact public observer already exists and is mechanically inert; give it a bounded, versioned cost term rather than a new belief source, and gate it on the assassination channel falling without three-fail losses rising. Keep both populations in the comparison. | `ready` |
 | NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
 | NB-014 | NB-010 | Fix good proposal value at an information-poor seat | Structured proposal value alone lowers the Servant's clean initial-proposal rate by `-10.6%` (95% `-20.6%` to `-1.1%`) and its win rate by `-6.7%`, while Merlin and Percival lose nothing on that channel. Diagnose why the proposal scorer serves a seat with no private knowledge worst, and treat clean-proposal rate as a diagnostic rather than the objective: Merlin's cleanliness also falls while its win rate rises. | `ready` |
-| NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `phase4-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
-| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Composed-agent and stdio results route through the canonical `AgentOutput` normalizer in test-only adapters, and hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. | `landed` |
+| NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `good-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
+| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `role-policy`, `evil-policy`, and `morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Composed-agent and stdio results route through the canonical `AgentOutput` normalizer in test-only adapters, and hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. | `landed` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -1034,7 +1034,7 @@ behavior from score order. The stdio boundary joins both fields to the chosen sc
 feature-derived override reasons; traces created before these additive fields remain accepted.
 
 `phase4-good-v1` freezes 180 good-side target deals: ten deals each for Merlin, Percival, and the
-first Servant seat at every supported player count. `npm run phase4-policy-bench` compares
+first Servant seat at every supported player count. `npm run good-policy-bench` compares
 compatibility, seeded structured-only, and bounded fake-client hybrid agents on identical deals and
 heuristic opponents. The architecture report now includes Wilson intervals for per-variant rates,
 deterministic paired-bootstrap intervals for matched deltas, clean initial proposals, vote truth
@@ -2788,11 +2788,11 @@ cleanup before the 7R3A equality and deletion audit.
 The compact Phase 7 scorecard is run from the repository root after each authority chunk:
 
 ```powershell
-(rg -n "legacyExemption: '7R3[AB]" test/phase7r2c2-component-conformance.test.ts | Measure-Object).Count
+(rg -n "legacyExemption: '7R3[AB]" test/component-conformance.test.ts | Measure-Object).Count
 (rg -n "withLegacyScoring\(|scoreCandidates\(" server/agents | Measure-Object).Count
 $p=@('server/agents/admission/composed-trace.ts','server/eval/architecture-report.ts','server/agents/communication/composed-renderer.ts'); (rg -n "roleObjective|evilRole|morganaRole" $p | Measure-Object).Count
 (rg -n "canonicalRunInputs|structuredClone|JSON\.parse|canonicalizeJson|exactOwnDataRecord|denseOwnDataArrayValues" server/agents/policy/score-layer server/agents/score-layers 2>$null | Measure-Object).Count
-(Measure-Command { npm.cmd run typecheck; node tools/architecture-fitness.mjs; node --test test/architecture-fitness.test.ts test/phase7r3a1-score-layer.test.ts }).TotalSeconds
+(Measure-Command { npm.cmd run typecheck; node tools/architecture-fitness.mjs; node --test test/architecture-fitness.test.ts test/score-layer.test.ts }).TotalSeconds
 $o=@('tools/capture-phase7r3a-score-oracle.mjs','test/fixtures/phase7r3a-score-equivalence.json','test/phase7r3a-score-equivalence-oracle.test.ts'); ($o | Where-Object { Test-Path $_ }).Count
 $n=0; git diff --numstat d7789a2 -- server/agents/policy/score-layer server/agents/score-layers server/agents/policy/legacy-scoring.ts | ForEach-Object { $x=$_ -split "`t"; if($x[0]-match '^\d+$' -and $x[1]-match '^\d+$'){$n+=[int]$x[0]-[int]$x[1]} }; $n
 ```
@@ -2849,7 +2849,7 @@ Mordred voting, deterministic Minion voting, and Oberon forced selection. Separa
 Merlin and Percival delegation to matching C2, Servant delegation to matching Phase 4, custom
 clone exclusion, and malformed D2's unchanged frozen fallback. Metamorphic candidate-order,
 seed-band, two-Fail, name, and replay laws remain owned by
-`test/phase7d2-evil-policy.test.ts`; A3 consumes those laws rather than restating a weaker
+`test/evil-policy.test.ts`; A3 consumes those laws rather than restating a weaker
 mutation matrix.
 
 **Historical 7R3A4A completion record (superseded by A4B).** Exact deterministic
@@ -3569,7 +3569,7 @@ here.
   not. NB-012 owns concealment cost and NB-013 owns the asymmetric vote objective; both are policy
   changes and neither is attempted here.
 - Phase 7 full-role playing-strength gate, and the first seatable composed brain. F2B proved causal
-  correctness, not strength, so `phase7-full-role-bench.ts` reuses the frozen 180-deal
+  correctness, not strength, so `full-role-bench.ts` reuses the frozen 180-deal
   `phase4-good-v1` bank and the existing matched-case paired-bootstrap comparison to measure
   compatibility versus the Phase 4 good base versus the complete role stack, per target role and per
   free population. The 1,080-game run cost nothing, degraded nothing, and reproduced the Phase 5C

@@ -251,7 +251,7 @@ loop is only as good as the reward signal under it.
 > First real result: the heuristic Merlin ranks #1 (most truth-aligned good player) in 16/16
 > smoke games — maximally conspicuous, as suspected.
 >
-> **Probabilistic-policy extension, 2026-07-27:** `npm run phase4-policy-bench` runs the frozen
+> **Probabilistic-policy extension, 2026-07-27:** `npm run good-policy-bench` runs the frozen
 > 180-deal `phase4-good-v1` bank across compatibility, seeded structured-only, and bounded
 > fake-client hybrid modes without provider calls. Its architecture report adds Wilson intervals,
 > deterministic paired-bootstrap rate deltas, clean-proposal and vote quality, posterior regret,
@@ -268,7 +268,7 @@ loop is only as good as the reward signal under it.
 > paired deltas on identical validation or test rows. Hidden truth remains an offline label, never
 > a factor input.
 >
-> **Phase 5B quest-factor gate, 2026-07-27:** `npm run phase5-quest-bench` replays the frozen
+> **Phase 5B quest-factor gate, 2026-07-27:** `npm run quest-factor-bench` replays the frozen
 > 180-deal good-side bank through uniform/weighted policy lanes and identical-mechanics
 > uniform/weighted calibration lanes. Its persisted predictions make the likelihood update
 > independently auditable. The initial 720-game run improved overall Brier score by `0.001189`,

@@ -20,7 +20,7 @@ import {
 import {
   phase7FullRoleVariantsFor,
   PHASE7_FULL_ROLE_VARIANTS,
-} from '../server/eval/phase7-full-role-bench.ts'
+} from '../server/eval/full-role-bench.ts'
 import { createGame, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { Role } from '../server/engine/types.ts'
