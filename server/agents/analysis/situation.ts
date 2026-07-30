@@ -21,7 +21,7 @@ import type {
   BeliefSnapshot,
   HiddenWorld,
 } from '../belief/types.ts'
-import type { Evidence } from '../cognition/types.ts'
+import { isPublicEvidence, type Evidence } from '../cognition/types.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
@@ -99,8 +99,7 @@ function alignmentOf(
 
 const roleEvidenceIds = (evidence: readonly Evidence[]): readonly string[] =>
   evidence
-    .filter((record) =>
-      record.kind === 'private-role' || record.kind === 'private-knowledge')
+    .filter((record) => !isPublicEvidence(record))
     .map((record) => record.id)
 
 const questEvidenceId = (

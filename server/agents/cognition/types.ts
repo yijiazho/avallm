@@ -100,17 +100,32 @@ interface EvidencePayloads {
 export type EvidenceKind = keyof EvidencePayloads
 
 /**
- * The only kinds a seat learns privately. Every other kind is table-visible.
- * `satisfies` is what keeps this honest: both `PublicEvidence` and the runtime
- * predicate derive from this one list, so a typo or a stale entry after a kind
- * rename fails to compile rather than quietly projecting private records.
+ * Who may see each kind. `Record<EvidenceKind, ...>` is total on purpose: a new
+ * entry in `EvidencePayloads` fails to compile until it declares its audience.
+ * A list of the private kinds would not do that, because a subset that omits a
+ * newly added private kind is still a valid subset, and the kind would default
+ * to table-visible and leak. `PublicEvidence` and `isPublicEvidence` both derive
+ * from this table, so the type and the runtime check cannot disagree.
  */
-const PRIVATE_EVIDENCE_KINDS = [
-  'private-role',
-  'private-knowledge',
-] as const satisfies readonly EvidenceKind[]
+const EVIDENCE_SCOPE = {
+  'game-setup': 'public',
+  'private-role': 'private',
+  'private-knowledge': 'private',
+  'leader-change': 'public',
+  'proposal': 'public',
+  'proposal-locked': 'public',
+  'proposal-revised': 'public',
+  'utterance': 'public',
+  'vote-reveal': 'public',
+  'quest-result': 'public',
+  'rename': 'public',
+  'assassination': 'public',
+  'game-result': 'public',
+} as const satisfies Record<EvidenceKind, 'public' | 'private'>
 
-type PrivateEvidenceKind = (typeof PRIVATE_EVIDENCE_KINDS)[number]
+type PrivateEvidenceKind = {
+  [K in EvidenceKind]: (typeof EVIDENCE_SCOPE)[K] extends 'private' ? K : never
+}[EvidenceKind]
 
 /** Table-level facts with no single author. Every other kind names one seat. */
 type UnattributedEvidenceKind =
@@ -140,10 +155,8 @@ export type AttributedEvidence = Extract<Evidence, { actor: Seat }>
 /** Records the whole table may see. Private kinds cannot inhabit this type. */
 export type PublicEvidence = Exclude<Evidence, { kind: PrivateEvidenceKind }>
 
-const privateKinds: ReadonlySet<EvidenceKind> = new Set(PRIVATE_EVIDENCE_KINDS)
-
 export const isPublicEvidence = (record: Evidence): record is PublicEvidence =>
-  !privateKinds.has(record.kind)
+  EVIDENCE_SCOPE[record.kind] === 'public'
 
 export type CommitmentKind = 'team' | 'vote' | 'utterance'
 
