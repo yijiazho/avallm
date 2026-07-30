@@ -899,6 +899,161 @@ function composedTrace(
 }
 
 /**
+ * Advance typed cognition for one decision, through bounded language evidence
+ * when an interpreter is configured and mechanically otherwise.
+ *
+ * Both arms end in the same place, a cognition state whose belief is the one
+ * every later phase reads, which is why they belong in one owner rather than as
+ * a branch in the middle of decide(). Only the language arm can degrade or
+ * produce interpreter attribution, so those are optional in the result instead
+ * of being threaded back as mutable locals.
+ */
+async function advanceDecisionCognition(input: {
+  cognition: CognitionState | undefined
+  view: PlayerView
+  beliefModel: BeliefModel
+  languageFactor: LanguageLikelihoodFactor
+  interpreter: LanguageInterpreter | undefined
+  configuredLanguageVersion: string | undefined
+  onLanguageEvidence: () => void
+}): Promise<Readonly<{
+  cognition: CognitionState
+  languageTrace?: LanguageTraceAttribution
+  degradation: readonly string[]
+}>> {
+  const { cognition, view, beliefModel, interpreter } = input
+  if (!interpreter) {
+    return {
+      cognition: advanceCognition(cognition, view, beliefModel),
+      degradation: [],
+    }
+  }
+  const interpret = interpreter.interpret.bind(interpreter)
+  const language = await orchestrateLanguageEvidence(
+    view,
+    cognition,
+    {
+      interpreterVersion: interpreter.interpreterVersion,
+      interpret(request: LanguageInterpreterInput) {
+        return interpret(request)
+      },
+    },
+    input.configuredLanguageVersion,
+  )
+  input.onLanguageEvidence()
+  const mechanicalBelief = beliefModel.infer(view)
+  if (mechanicalBelief.modelVersion !== beliefModel.version) {
+    throw new Error(
+      `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
+    )
+  }
+  const resolvedBelief = language.applyEvidence && language.inferenceContext
+    ? applyBoundedLanguageEvidence(
+        view,
+        mechanicalBelief,
+        language.inferenceContext,
+        { evidence: language.reads, cursor: language.cursor },
+        input.languageFactor,
+      )
+    : mechanicalBelief
+  return {
+    cognition: advanceCognitionFromBelief(cognition, view, {
+      belief: resolvedBelief,
+      mechanicalBelief: beliefModel.version,
+      beliefPipeline: languageBeliefPipelineVersion(beliefModel.version),
+      languageEvidence: language.trace.interpreterVersion,
+      languageReads: language.reads,
+      languageCursor: language.cursor,
+    }),
+    languageTrace: language.trace,
+    degradation: language.degradation,
+  }
+}
+
+/**
+ * What the configured scorer and the acting seat imply for one decision.
+ *
+ * These eight values were derived inline in decide() and then read from a dozen
+ * places further down. Resolving them together makes their dependency order
+ * legible, which is not obvious from the reads: the role objective depends on
+ * the resolved scorer's declared requirements, and the identity scope depends in
+ * turn on the role objective. `scorer` is the entry scorer only. Component
+ * results can still step it down its base chain, so decide() keeps that as a
+ * mutable local rather than reading it back from here.
+ */
+interface DecisionRoleScope {
+  readonly routedObjective: RoutedRoleObjectiveModel
+  readonly scorer: CandidateScorer
+  readonly roleUtilityApplicable: boolean
+  readonly evilRoleUtilityApplicable: boolean
+  readonly roleObjectiveRole: RoleObjectiveRole | undefined
+  readonly evilRoleObjectiveApplicable: boolean
+  readonly morganaCounterfeitApplicable: boolean
+  readonly identityScope: IdentityProjectionScope | undefined
+}
+
+function resolveDecisionRoleScope(input: {
+  configuredScorer: CandidateScorer
+  req: DecisionRequest
+  view: PlayerView
+  routerConfigured: boolean
+  roleObjectivesConfigured: boolean
+  morganaCounterfeitConfigured: boolean
+  configuredIdentityScope: IdentityProjectionScope | undefined
+}): DecisionRoleScope {
+  const { req, view, configuredIdentityScope } = input
+  const routedObjective = input.routerConfigured
+    ? routedRoleObjectiveModel(view.role)
+    : 'off'
+  const scorer = resolveRolePolicyScorer({
+    configured: input.configuredScorer,
+    req,
+    view,
+    routedObjective,
+  })
+  const roleUtilityApplicable =
+    scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
+  const evilRoleObjectiveApplicable =
+    routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+  const roleObjectiveRole: RoleObjectiveRole | undefined =
+    (input.roleObjectivesConfigured || roleUtilityApplicable)
+    && (view.role === 'merlin' || view.role === 'percival')
+      ? view.role
+      : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
+        ? view.role as RoleObjectiveRole
+        : undefined
+  return {
+    routedObjective,
+    scorer,
+    roleUtilityApplicable,
+    evilRoleUtilityApplicable:
+      scorer.evilRoleUtilityRequirement
+        === EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+    roleObjectiveRole,
+    evilRoleObjectiveApplicable,
+    morganaCounterfeitApplicable:
+      (
+        input.morganaCounterfeitConfigured
+        || scorer.morganaRoleUtilityRequirement
+          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
+      )
+      && view.role === 'morgana'
+      && (req.kind === 'propose' || req.kind === 'vote'),
+    identityScope: roleObjectiveRole
+      ? mergeIdentityScopes(
+          configuredIdentityScope,
+          roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
+        )
+      : evilRoleObjectiveApplicable
+        ? mergeIdentityScopes(
+            configuredIdentityScope,
+            { roleQueries: [], hiddenTeam: true },
+          )
+        : configuredIdentityScope,
+  }
+}
+
+/**
  * One configured component whose admitted payload a scorer may depend on.
  *
  * `apply` captures the component's payload type in a closure so a decision can
@@ -1359,64 +1514,18 @@ export function createComposedAgent(
         if (invocationVoice && !activeVoice) {
           degradation.push('voice-invalid-version')
         }
-        const interpreter = configuredLanguageInterpreter
-        let languageTrace: LanguageTraceAttribution | undefined
-        if (interpreter) {
-          const interpreterVersion = interpreter.interpreterVersion
-          const interpret = interpreter.interpret.bind(interpreter)
-          const interpreterSnapshot: LanguageInterpreter = {
-            interpreterVersion,
-            interpret(input: LanguageInterpreterInput) {
-              return interpret(input)
-            },
-          }
-          const language = await orchestrateLanguageEvidence(
-            view,
-            cognition,
-            interpreterSnapshot,
-            configuredLanguageVersion,
-          )
-          stage('language')
-          degradation.push(...language.degradation)
-
-          const mechanicalBelief = beliefModel.infer(view)
-          if (mechanicalBelief.modelVersion !== beliefModel.version) {
-            throw new Error(
-              `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
-            )
-          }
-          const resolvedBelief = language.applyEvidence
-            && language.inferenceContext
-            ? applyBoundedLanguageEvidence(
-                view,
-                mechanicalBelief,
-                language.inferenceContext,
-                {
-                  evidence: language.reads,
-                  cursor: language.cursor,
-                },
-                languageFactor,
-              )
-            : mechanicalBelief
-          const nextCognition = advanceCognitionFromBelief(
-            cognition,
-            view,
-            {
-              belief: resolvedBelief,
-              mechanicalBelief: beliefModel.version,
-              beliefPipeline: languageBeliefPipelineVersion(
-                beliefModel.version,
-              ),
-              languageEvidence: language.trace.interpreterVersion,
-              languageReads: language.reads,
-              languageCursor: language.cursor,
-            },
-          )
-          cognition = nextCognition
-          languageTrace = language.trace
-        } else {
-          cognition = advanceCognition(cognition, view, beliefModel)
-        }
+        const advanced = await advanceDecisionCognition({
+          cognition,
+          view,
+          beliefModel,
+          languageFactor,
+          interpreter: configuredLanguageInterpreter,
+          configuredLanguageVersion,
+          onLanguageEvidence: () => stage('language'),
+        })
+        cognition = advanced.cognition
+        const languageTrace = advanced.languageTrace
+        degradation.push(...advanced.degradation)
         stage('cognition')
         if (roleObjectiveRouterConfigured) {
           cognition = {
@@ -1438,50 +1547,26 @@ export function createComposedAgent(
             },
           }
         }
-        const routerConfigured = roleObjectiveRouterConfigured
-        const routedObjective = routerConfigured
-          ? routedRoleObjectiveModel(view.role)
-          : 'off'
-        let resolvedScorer = resolveRolePolicyScorer({
-          configured: scorer,
+        const roleScope = resolveDecisionRoleScope({
+          configuredScorer: scorer,
           req,
           view,
-          routedObjective,
+          routerConfigured: roleObjectiveRouterConfigured,
+          roleObjectivesConfigured,
+          morganaCounterfeitConfigured,
+          configuredIdentityScope,
         })
-        const roleScorerApplicable =
-          resolvedScorer.roleUtilityRequirement
-            === ROLE_UTILITY_PROJECTION_VERSION
-        const evilRoleScorerApplicable =
-          resolvedScorer.evilRoleUtilityRequirement
-            === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-        const roleObjectiveRole: RoleObjectiveRole | undefined =
-          (roleObjectivesConfigured || roleScorerApplicable)
-          && (view.role === 'merlin' || view.role === 'percival')
-            ? view.role
-            : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
-              ? view.role as RoleObjectiveRole
-              : undefined
-        const evilRoleObjectiveApplicable =
-          routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-        const morganaCounterfeitApplicable =
-          (
-            morganaCounterfeitConfigured
-            || resolvedScorer.morganaRoleUtilityRequirement
-              === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-          )
-          && view.role === 'morgana'
-          && (req.kind === 'propose' || req.kind === 'vote')
-        const decisionIdentityScope = roleObjectiveRole
-          ? mergeIdentityScopes(
-              configuredIdentityScope,
-              roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
-            )
-          : evilRoleObjectiveApplicable
-            ? mergeIdentityScopes(
-                configuredIdentityScope,
-                { roleQueries: [], hiddenTeam: true },
-              )
-            : configuredIdentityScope
+        const {
+          routedObjective,
+          roleObjectiveRole,
+          evilRoleObjectiveApplicable,
+          morganaCounterfeitApplicable,
+        } = roleScope
+        const roleScorerApplicable = roleScope.roleUtilityApplicable
+        const evilRoleScorerApplicable = roleScope.evilRoleUtilityApplicable
+        const decisionIdentityScope = roleScope.identityScope
+        // Component results can still step this down its base chain below.
+        let resolvedScorer = roleScope.scorer
         let privateIdentity: PrivateIdentitySnapshot | undefined
         if (decisionIdentityScope) {
           try {
@@ -2080,7 +2165,7 @@ export function createComposedAgent(
           legacyOutput.plan.communication,
           plannerCandidateId,
           plannerReasonCodes,
-          interpreter
+          configuredLanguageInterpreter
             ? combinedLanguageFactorBundleVersion(
                 beliefModel.factorsVersion,
               )
@@ -2090,7 +2175,7 @@ export function createComposedAgent(
           tracePublicObserver,
           privateIdentity,
           !!decisionIdentityScope,
-          routerConfigured,
+          roleObjectiveRouterConfigured,
         )
         if (planMemoryEnabled) {
           if (pendingPlans.length >= 32) {
