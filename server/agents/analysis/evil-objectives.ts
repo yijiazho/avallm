@@ -55,7 +55,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../key-lists.ts'
+} from '../key-list-guards.ts'
 import {
   clampProbability,
   latticeCount,

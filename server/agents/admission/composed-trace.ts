@@ -173,7 +173,7 @@ import type {
   MissingKeys,
   MissingRequiredKeys,
   RequiredKeys,
-} from '../key-lists.ts'
+} from '../key-list-guards.ts'
 import {
   enumStringArray,
   stringArray,

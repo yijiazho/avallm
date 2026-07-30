@@ -48,7 +48,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../key-lists.ts'
+} from '../key-list-guards.ts'
 import {
   PROBABILITY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'

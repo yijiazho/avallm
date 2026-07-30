@@ -24,7 +24,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../agents/key-lists.ts'
+} from '../agents/key-list-guards.ts'
 import {
   exactKeys,
   plainRecord,

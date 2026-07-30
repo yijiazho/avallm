@@ -32,7 +32,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../key-lists.ts'
+} from '../key-list-guards.ts'
 
 export const EVIL_QUEST_CARD_POLICY_VERSION =
   'evil-quest-card-policy-v1'

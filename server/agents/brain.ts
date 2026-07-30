@@ -32,11 +32,15 @@ export const NON_COMPOSED_POLICIES = Object.freeze([
   RANDOM_POLICY_VERSION,
 ] as const)
 
-export function isComposedPolicy(value: unknown): boolean {
+export function isComposedPolicy(
+  value: unknown,
+): value is typeof COMPOSED_POLICY_VERSION {
   return value === COMPOSED_POLICY_VERSION
 }
 
-export function isNonComposedPolicy(value: unknown): boolean {
+export function isNonComposedPolicy(
+  value: unknown,
+): value is (typeof NON_COMPOSED_POLICIES)[number] {
   return (NON_COMPOSED_POLICIES as readonly unknown[]).includes(value)
 }
 

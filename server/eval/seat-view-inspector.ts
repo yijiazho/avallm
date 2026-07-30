@@ -24,7 +24,7 @@ import {
   PHASES,
   ROLES,
 } from '../engine/types.ts'
-import type { ExactKeyList } from '../agents/key-lists.ts'
+import type { ExactKeyList } from '../agents/key-list-guards.ts'
 
 export const SEAT_VIEW_INSPECTION_SCHEMA = 2
 export const DEFAULT_SEAT_VIEW_FIXTURE_FILE =

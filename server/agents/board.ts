@@ -57,6 +57,9 @@ export function matchPoint(view: PlayerView): { good: boolean; evil: boolean } {
 // Deliberately NOT in facts.ts: that layer's contract is facts any player at the
 // table could derive, and every one of these is private to the viewing seat.
 
+// A belief/certainty projection, kept here as part of the compatibility facade
+// rather than moved to a belief module: its importers read it alongside the
+// board reads above, and relocating it would only churn their import paths.
 export function roleCertainties(
   view: PlayerView,
   suppliedBelief?: BeliefSnapshot,

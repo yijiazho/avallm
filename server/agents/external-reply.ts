@@ -35,17 +35,18 @@ export function parseExternalDecisionReply(
   label = 'external agent',
   hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): AgentDecision {
-  const record = reply as Record<string, unknown>
+  const record = reply as Record<string, unknown> | null | undefined
   const decision = record?.decision as Decision | undefined
   if (!decision || decision.kind !== req.kind) {
     throw new Error(`${label} returned invalid decision for ${req.kind}`)
   }
-  if (record.trace === undefined) return { decision }
+  const trace = record?.trace
+  if (trace === undefined) return { decision }
   const admission = admitDecisionTrace({
     kind: 'pre-apply-external',
     req,
     decision,
-    trace: record.trace,
+    trace,
     ...(hostView ? { hostView } : {}),
   })
   if (admission.kind !== 'external-diagnostic') {

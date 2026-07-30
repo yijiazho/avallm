@@ -46,6 +46,10 @@ export const PACKS: AgentPack[] = [
   },
 ]
 
+// A structural alias for AgentPack: the "every member id resolves to a seatable
+// def" invariant that separates a ResolvedPack from a raw AgentPack lives in
+// resolvePacks below, not in the type. The distinct name documents that promise
+// at call sites even though the compiler cannot enforce it.
 export type ResolvedPack = AgentPack
 
 // Drop members whose def is missing or unseatable, and report why. Called at
@@ -123,6 +127,9 @@ export function seatPack(pack: ResolvedPack, botCount: number, agents: AgentDef[
   const members = rng.shuffle(pack.agents)
   const take = Math.min(botCount, members.length)
   const leftovers = leftoverPool(pack, agents, rng)
+  // When the leftover pool is empty (a builtin-LLM-free library), `(i-take) % 0`
+  // is NaN, the index read yields undefined, and the seat falls back to
+  // 'autopilot' rather than throwing on an oversized table.
   const ids = Array.from({ length: botCount }, (_, i) => (
     i < take ? members[i] : leftovers[(i - take) % leftovers.length] ?? 'autopilot'
   ))

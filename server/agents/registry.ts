@@ -65,6 +65,12 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
         brain: spec.brain,
         onDecisionTrace: ctx.onDecisionTrace,
       })
+    default: {
+      // Assigning to `never` keeps the switch exhaustive at build time: a new
+      // agent kind fails to compile here instead of falling through silently.
+      const unhandled: never = spec
+      throw new Error(`unsupported agent spec ${String(unhandled)}`)
+    }
   }
 }
 
@@ -109,5 +115,11 @@ export function createAgentFromDef(
         brain: def.engine.brain,
         onDecisionTrace: ctx.onDecisionTrace,
       })
+    default: {
+      // Assigning to `never` keeps the switch exhaustive at build time: a new
+      // engine variant fails to compile here instead of falling through silently.
+      const unhandled: never = def.engine
+      throw new Error(`unsupported agent engine ${String(unhandled)}`)
+    }
   }
 }
