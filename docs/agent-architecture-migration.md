@@ -3526,7 +3526,10 @@ here.
   dominance, and native replay (trusted-exact admission, a forged score row rejected as
   `trusted-identity-host-join-failed`, and descriptor-less admission staying
   `artifact-diagnostic`). All five specializations are wired: C2 good-role, D2 evil-role, E1B
-  Morgana, E2B Mordred, and E3B Assassin, each across its deterministic and seeded variants. The
+  Morgana, E2B Mordred, and E3B Assassin, each across its deterministic and seeded variants. Native
+  replay covers eligible and delegating decisions alike, because a delegated trace carries the
+  specialization as its configured scorer and the predecessor as its resolved one, and that mismatch
+  is its own host-join shape. The
   harness reuses `buildScorerSituationSurface`, `applyForcedPolicy`, and
   `replayNativeScoresForAdmission` to build the same host surface admission builds, so a family
   cannot satisfy forced dominance through a family-shaped fake context. The base Phase 4 scorer and
@@ -3540,7 +3543,10 @@ here.
   suites keep their hand-worked band equations, hostile payload forgeries, privacy canaries, stdio
   joins, and bank attribution. C2, D2, and E1B also dropped their duplicate proposal and vote view
   rewriters for the shared `asProposal`/`asVote` builders. The three legacy suites remain
-  hash-pinned strict-test exemptions with refreshed hashes; NB-009 owns their conversion. Full
-  suite 1138 correctness tests plus the three isolated performance tests.
+  hash-pinned strict-test exemptions with refreshed hashes; NB-009 owns their conversion. The seeded
+  law is registered only for a family that has a seeded plan, so a family without one no longer
+  reports a green test name for coverage it does not have, and a descriptor whose seeded variant
+  duplicates its deterministic one is refused rather than silently taking the deterministic branch
+  twice. Full suite 1137 correctness tests plus the three isolated performance tests.
 - Retired the v1 role projections end to end (MD-005). The seven flat role payloads had no writer: only `createDecisionTrace` for the raw-LLM baseline and the composed v2 builder exist, and neither ever set one, which a live trace probe confirmed. They were reachable only from a stored artifact or an external stdio agent, and reading them cost three parallel validation surfaces. Canonical ingress now refuses the keys for every trace version, the treatment MD-003 used for its own retired keys. Three specified behaviors changed and are pinned the other way: an external stdio agent presenting a historical flat role trace keeps its decision and loses its trace; an external weighted producer can no longer present a complete flat role objective, so generation fails before the report; and the descriptor-less v1 path is exercised through a role-free variant. Both evaluation readers and the admission owner now hold zero references to the retired payloads, and the fields are deleted from the trace type. Full suite 1114 tests.
 

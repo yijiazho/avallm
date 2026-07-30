@@ -140,7 +140,7 @@ assertScoreFamilyConformance({
 })
 
 test('Mordred blindness value causally changes a D2-viable proposal', async () => {
-  const input = mordredProposal()
+  const input = mordredFixture
   const d2 = normalizeAgentOutput(await createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,

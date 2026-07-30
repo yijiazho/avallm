@@ -211,7 +211,7 @@ assertScoreFamilyConformance({
 })
 
 test('opt-in Morgana policy resolves above D2 with exact private attribution', async () => {
-  const { game, view, req } = morganaProposal()
+  const { game, view, req } = morganaFamilyFixture
   const result = await createComposedAgent({
     seed: game.seed,
     roleObjectiveRouter: true,
@@ -763,7 +763,7 @@ test('Morgana policy values and reasons stay out of rendered planner, voice, com
 })
 
 test('standalone Morgana projection rejects nested team, band, rank, seed, and selection forgeries', async () => {
-  const { game, view, req } = morganaProposal()
+  const { game, view, req } = morganaFamilyFixture
   const result = await createComposedAgent({
     seed: game.seed,
     roleObjectiveRouter: true,
@@ -922,7 +922,7 @@ test('stdio and exact host replay reject nested, score, deletion, action, and si
 })
 
 test('exact reconstructable E1B rejects coherent D2 projection degradation across admission paths', async () => {
-  const input = morganaProposal()
+  const input = morganaFamilyFixture
   const d2Agent = createComposedAgent({
     seed: input.game.seed,
     roleObjectiveRouter: true,

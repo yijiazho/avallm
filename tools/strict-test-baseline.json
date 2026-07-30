@@ -133,7 +133,7 @@
     },
     {
       "path": "test/phase7e1b-morgana-policy.test.ts",
-      "sha256": "a0e2d2c9856ef57438fffbacae48c78307cd76263bf75c1f96eb392ff48896cc",
+      "sha256": "512213ed5fa46a1d5ae8877cd27c8fa27ca03bbcf5d6c9988100637033499201",
       "rationale": "Legacy Morgana policy fixtures need current decision union narrowing."
     },
     {

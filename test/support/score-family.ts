@@ -37,6 +37,9 @@ import { exactBelief } from '../../server/agents/belief/exact.ts'
 import {
   configuredScoreLayerChainForVersion,
 } from '../../server/agents/score-layers/configured.ts'
+import type {
+  DecisionComponentRun,
+} from '../../server/agents/components/kernel.ts'
 import type { DecisionTrace } from '../../server/agents/trace.ts'
 import type {
   DecisionKind,
@@ -196,29 +199,35 @@ function traceOf(output: AgentDecision, label: string): DecisionTrace {
   return trace
 }
 
+function componentsOf(
+  trace: DecisionTrace,
+  label: string,
+): DecisionComponentRun {
+  const components = trace.components
+  if (!components) throw new Error(`${label} produced no component run`)
+  return components
+}
+
 /**
  * Admit one live composed output exactly as a finalized artifact. The expected
- * identity always comes from the same configuration that produced it.
+ * identity always comes from the same configuration that produced it, so it is
+ * always supplied by the caller rather than re-derived here.
  */
 function admitFamilyDecision(input: {
-  readonly descriptor: ScoreFamilyDescriptor
-  readonly scorer: CandidateScorer | undefined
+  readonly seed: string
   readonly decision: ScoreFamilyDecisionCase
   readonly output: AgentDecision
-  readonly seed?: string
-  readonly identity?: ResolvedArchitectureIdentity
-  readonly trace?: DecisionTrace
+  readonly identity: ResolvedArchitectureIdentity
 }): ReturnType<typeof admitDecisionTrace> {
   return admitDecisionTrace({
     kind: 'finalized-artifact',
-    trace: input.trace ?? traceOf(input.output, input.decision.label),
+    trace: traceOf(input.output, input.decision.label),
     req: input.decision.req,
     view: input.decision.view,
     authoritativeAction: input.output.decision,
     selectedDecision: input.output.decision,
-    deterministicSeed: input.seed ?? input.descriptor.seed,
-    expectedArchitectureIdentity:
-      input.identity ?? identityFor(input.descriptor, input.scorer),
+    deterministicSeed: input.seed,
+    expectedArchitectureIdentity: input.identity,
   })
 }
 
@@ -233,7 +242,6 @@ function replayUnderForcedBoundary(input: {
   readonly identity: ResolvedArchitectureIdentity
   readonly trace: DecisionTrace
   readonly seed: string
-  readonly forcedCandidateId?: string
 }): {
   readonly forcedCandidateId: string
   readonly chainVersions: readonly string[]
@@ -260,7 +268,7 @@ function replayUnderForcedBoundary(input: {
     surface.analysis,
     candidates,
   )
-  const forcedCandidateId = input.forcedCandidateId ?? candidates[0].id
+  const forcedCandidateId = candidates[0].id
   const forced = {
     ...universalForced,
     applied: true,
@@ -276,8 +284,7 @@ function replayUnderForcedBoundary(input: {
       return definition ? [definition] : []
     },
   )
-  const components = input.trace.components
-  if (!components) throw new Error('forced replay requires a component run')
+  const components = componentsOf(input.trace, input.decision.label)
   return {
     forcedCandidateId,
     chainVersions: chain.order.map((layer) => layer.version),
@@ -337,6 +344,22 @@ export function assertScoreFamilyConformance(
     familyComponents.length > 0,
     `${family} declares no owned component`,
   )
+  // A seeded variant copied from the deterministic one would take the strict
+  // deterministic branch below and leave the seeded plan wholly unexercised.
+  if (descriptor.seeded) {
+    assert.notEqual(
+      descriptor.seeded.version,
+      descriptor.deterministic.version,
+      `${family} declares one version for both its deterministic and seeded `
+      + 'variants; the seeded plan would never be exercised',
+    )
+    assert.notEqual(
+      descriptor.seeded.scorer,
+      descriptor.deterministic.scorer,
+      `${family} declares one scorer for both its deterministic and seeded `
+      + 'variants; the seeded plan would never be exercised',
+    )
+  }
 
   test(`${family} conformance: predecessor owns delegated decisions`, async () => {
     for (const variant of variants) {
@@ -372,7 +395,7 @@ export function assertScoreFamilyConformance(
         )
         for (const token of familyComponents) {
           assert.equal(
-            componentPayload(trace.components!, token),
+            componentPayload(componentsOf(trace, label), token),
             undefined,
             `${family} ${label} leaked ${token.id} while delegating`,
           )
@@ -419,7 +442,7 @@ export function assertScoreFamilyConformance(
           )
         }
         for (const token of variant.components) {
-          const use = trace.components!.policyUse.find(
+          const use = componentsOf(trace, label).policyUse.find(
             (entry) => entry.component.id === token.id,
           )
           assert.equal(
@@ -441,71 +464,91 @@ export function assertScoreFamilyConformance(
     }
   })
 
-  test(`${family} conformance: seeded selection has an exact domain`, async () => {
-    const seeded = descriptor.seeded
-    if (!seeded) return
-    const declared = descriptor.seedVaryingKinds ?? []
-    const observed = new Set<DecisionKind>()
-    for (const decision of descriptor.eligible) {
-      const first = await decide(descriptor, seeded.scorer, decision, SEEDS[0])
-      const repeat = await decide(descriptor, seeded.scorer, decision, SEEDS[0])
-      assert.deepEqual(
-        first,
-        repeat,
-        `${family} ${decision.label} must be deterministic per seed`,
-      )
-      assert.equal(
-        traceOf(first, decision.label).componentVersions?.scorer,
-        seeded.version,
-        `${family} ${decision.label} must resolve the seeded scorer`,
-      )
-      const legal = legalCandidates(decision.req, decision.view)
-      const chosen = new Set<string>()
-      const bands = new Set<string>()
-      for (const seed of SEEDS) {
-        const trace = traceOf(
-          await decide(descriptor, seeded.scorer, decision, seed),
-          decision.label,
-        )
-        const structured = trace.structuredCandidateId
-        assert.ok(
-          structured !== undefined
-            && legal.some((candidate) => candidate.id === structured),
-          `${family} ${decision.label} chose an illegal candidate`,
-        )
-        chosen.add(structured)
-        const viable = trace.candidateScores!.filter((score) => score.viable)
-          .map((score) => score.candidateId)
-        assert.ok(
-          viable.includes(structured),
-          `${family} ${decision.label} chose outside its own viable band`,
-        )
-        bands.add(viable.join(','))
-      }
-      // The seed selects inside the band. It must never resize the band.
-      assert.equal(
-        bands.size,
-        1,
-        `${family} ${decision.label} let the seed change its viable band`,
-      )
-      if (chosen.size > 1) observed.add(decision.req.kind)
-      if (!declared.includes(decision.req.kind)) {
-        assert.equal(
-          chosen.size,
-          1,
-          `${family} ${decision.label} must be seed invariant`,
-        )
-      }
-    }
-    // An idle declaration would silently drop the invariance law for that kind.
-    for (const kind of declared) {
-      assert.ok(
-        observed.has(kind),
-        `${family} declares ${kind} seed varying but no eligible case varies; `
-        + 'drop the declaration or supply a case inside the seeded band',
-      )
-    }
-  })
+  // Registered only for a family that has a seeded plan. A green test name for
+  // a family without one would read as coverage it does not have.
+  const seeded = descriptor.seeded
+  if (seeded) {
+    test(
+      `${family} conformance: seeded selection has an exact domain`,
+      async () => {
+        const declared = descriptor.seedVaryingKinds ?? []
+        const observed = new Set<DecisionKind>()
+        for (const decision of descriptor.eligible) {
+          const label = decision.label
+          const first = await decide(
+            descriptor,
+            seeded.scorer,
+            decision,
+            SEEDS[0],
+          )
+          const repeat = await decide(
+            descriptor,
+            seeded.scorer,
+            decision,
+            SEEDS[0],
+          )
+          assert.deepEqual(
+            first,
+            repeat,
+            `${family} ${label} must be deterministic per seed`,
+          )
+          assert.equal(
+            traceOf(first, label).componentVersions?.scorer,
+            seeded.version,
+            `${family} ${label} must resolve the seeded scorer`,
+          )
+          const legal = legalCandidates(decision.req, decision.view)
+          const chosen = new Set<string>()
+          const bands = new Set<string>()
+          for (const [index, seed] of SEEDS.entries()) {
+            const trace = traceOf(
+              index === 0
+                ? first
+                : await decide(descriptor, seeded.scorer, decision, seed),
+              label,
+            )
+            const structured = trace.structuredCandidateId
+            assert.ok(
+              structured !== undefined
+                && legal.some((candidate) => candidate.id === structured),
+              `${family} ${label} chose an illegal candidate`,
+            )
+            chosen.add(structured)
+            const viable = (trace.candidateScores ?? [])
+              .filter((score) => score.viable)
+              .map((score) => score.candidateId)
+            assert.ok(
+              viable.includes(structured),
+              `${family} ${label} chose outside its own viable band`,
+            )
+            bands.add(viable.join(','))
+          }
+          // The seed selects inside the band. It never resizes the band.
+          assert.equal(
+            bands.size,
+            1,
+            `${family} ${label} let the seed change its viable band`,
+          )
+          if (chosen.size > 1) observed.add(decision.req.kind)
+          if (!declared.includes(decision.req.kind)) {
+            assert.equal(
+              chosen.size,
+              1,
+              `${family} ${label} must be seed invariant`,
+            )
+          }
+        }
+        // An idle declaration silently drops invariance for that kind.
+        for (const kind of declared) {
+          assert.ok(
+            observed.has(kind),
+            `${family} declares ${kind} seed varying but no eligible case `
+            + 'varies; drop the declaration or supply a case in the band',
+          )
+        }
+      },
+    )
+  }
 
   test(`${family} conformance: a hard boundary dominates family ranking`, async () => {
     for (const variant of variants) {
@@ -546,28 +589,33 @@ export function assertScoreFamilyConformance(
   test(`${family} conformance: exact replay admits and rejects forgeries`, async () => {
     for (const variant of variants) {
       const identity = identityFor(descriptor, variant.scorer)
-      for (const decision of descriptor.eligible) {
+      // A delegated decision carries the specialization as its configured
+      // scorer and the predecessor as its resolved one. That mismatch is its
+      // own host-join shape, so both surfaces must admit exactly.
+      const cases = [...descriptor.eligible, ...descriptor.delegating]
+      for (const decision of cases) {
+        const label = `${decision.label} (${variant.version})`
         const output = await decide(descriptor, variant.scorer, decision)
         assert.equal(
           admitFamilyDecision({
-            descriptor,
-            scorer: variant.scorer,
+            seed: descriptor.seed,
             decision,
             output,
             identity,
           }).kind,
           'trusted-exact',
-          `${family} ${decision.label} must admit exactly`,
+          `${family} ${label} must admit exactly`,
         )
         const forged = structuredClone(output)
-        const rows = traceOf(forged, decision.label).candidateScores!
+        const forgedTrace = traceOf(forged, label)
+        const rows = forgedTrace.candidateScores
+        assert.ok(rows?.length, `${family} ${label} produced no score rows`)
         const target = rows.find(
-          (row) => row.candidateId !== forged.trace!.structuredCandidateId,
+          (row) => row.candidateId !== forgedTrace.structuredCandidateId,
         ) ?? rows[0]
         target.value += 0.01
         const rejected = admitFamilyDecision({
-          descriptor,
-          scorer: variant.scorer,
+          seed: descriptor.seed,
           decision,
           output: forged,
           identity,
@@ -575,18 +623,18 @@ export function assertScoreFamilyConformance(
         assert.equal(
           rejected.kind,
           'rejected',
-          `${family} ${decision.label} admitted a forged score`,
+          `${family} ${label} admitted a forged score`,
         )
         if (rejected.kind === 'rejected') {
           assert.equal(
             rejected.reason,
             'trusted-identity-host-join-failed',
-            `${family} ${decision.label} rejected a forged score for the wrong reason`,
+            `${family} ${label} rejected a forged score for the wrong reason`,
           )
         }
         const detached = admitDecisionTrace({
           kind: 'finalized-artifact',
-          trace: traceOf(output, decision.label),
+          trace: traceOf(output, label),
           req: decision.req,
           view: decision.view,
           authoritativeAction: output.decision,
@@ -596,7 +644,7 @@ export function assertScoreFamilyConformance(
         assert.equal(
           detached.kind,
           'artifact-diagnostic',
-          `${family} ${decision.label} must stay diagnostic without identity`,
+          `${family} ${label} must stay diagnostic without identity`,
         )
       }
     }
