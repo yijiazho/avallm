@@ -332,7 +332,7 @@ export function App() {
 
   const roleTitle = payload.spectator
     ? SPECTATOR_ARCANA.title
-    : `${ARCANA[view.role as Role]?.title ?? view.role} · ${view.alignment}`
+    : `${ARCANA[view.role]?.title ?? view.role} · ${view.alignment}`
 
   return (
     <div className="game">

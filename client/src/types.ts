@@ -1,68 +1,39 @@
-// Client-side mirror of the server's human payload (server/server.ts).
+// The wire contract the server actually sends is owned by server/engine/types.ts
+// and re-exported here rather than restated. These were previously hand-mirrored
+// declarations, and they had drifted: the transcript entries had lost the `prop`
+// segment tag the server sends, GameEvent.type had widened from EventType to
+// string, and GameEvent.payload had widened to `any`, which turned every payload
+// read in the client into an unchecked one. Nothing linked the two files, so
+// nothing could have caught that.
+//
+// The import is type-only, so it is erased at build time and the client keeps its
+// own dependency tree; server/engine/types.ts imports nothing itself. Everything
+// below this block is genuinely client-only: HTTP payload shapes that have no
+// server-side declaration to share.
+export type {
+  Alignment,
+  DecisionRequest,
+  EventType,
+  GameEvent,
+  Phase,
+  PlayerView,
+  PrivateInfo,
+  ProposalRecord,
+  PublicPlayer,
+  Quest,
+  Role,
+  Seat,
+  TalkConfig,
+  Visibility,
+} from '../../server/engine/types.ts'
 
-export type Seat = number
-export type Alignment = 'good' | 'evil'
-export type Phase = 'discussion' | 'proposal' | 'finalize' | 'vote' | 'quest' | 'assassination' | 'gameOver'
-
-export interface Quest {
-  num: number
-  teamSize: number
-  failsRequired: number
-  team?: Seat[]
-  result?: 'success' | 'fail'
-  failCount?: number
-}
-
-export interface ProposalRecord {
-  round: number
-  proposalNum: number
-  leader: Seat
-  team: Seat[]          // the FINAL team (post-revision if revised)
-  pitch?: string
-  revisedFrom?: Seat[]  // original team, present iff the leader revised at finalize
-  revisedReason?: string
-  votes?: { seat: Seat; vote: 'approve' | 'reject' }[]
-  approved?: boolean
-  auto?: boolean   // 5th ("hammer") proposal: approved automatically, no vote
-}
-
-export interface GameEvent {
-  seq: number
-  type: string
-  payload: Record<string, any>
-  visibility: 'public' | { only: Seat[] }
-}
-
-export interface PlayerView {
-  seat: Seat
-  name: string
-  role: string
-  alignment: Alignment
-  privateInfo: { evilPartners?: Seat[]; knownEvil?: Seat[]; merlinCandidates?: Seat[] }
-  playerCount: number
-  rolesInPlay: string[]
-  players: { seat: Seat; name: string }[]
-  phase: Phase
-  round: number
-  proposalNum: number
-  leaderSeat: Seat
-  quests: Quest[]
-  proposals: ProposalRecord[]
-  currentTeam?: Seat[]
-  discussionRound?: number
-  discussionPostRevision?: boolean
-  transcript: { seat: Seat; name: string; text: string }[]
-  events: GameEvent[]
-  winner?: Alignment
-  winReason?: string
-}
-
-export interface DecisionRequest {
-  kind: 'discuss' | 'propose' | 'finalize' | 'vote' | 'quest' | 'assassinate'
-  seat: Seat
-  round: number
-  proposalNum: number
-}
+import type {
+  Alignment,
+  DecisionRequest,
+  GameEvent,
+  PlayerView,
+  Seat,
+} from '../../server/engine/types.ts'
 
 export interface AgentInfo {
   id: string

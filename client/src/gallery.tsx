@@ -11,7 +11,7 @@
 // before shooting (for the seat/quest tooltips).
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import type { AgentInfo, DecisionRequest, GameEvent, PlayerView, RevealPayload } from './types.ts'
+import type { AgentInfo, DecisionRequest, GameEvent, PlayerView, RevealPayload, Role } from './types.ts'
 import { NameEditor } from './components/NameEditor.tsx'
 import { QuestParty } from './components/QuestParty.tsx'
 import { RoleCard } from './components/RoleCard.tsx'
@@ -26,7 +26,7 @@ import './styles.css'
 
 const names = ['You', 'Gemini', 'DeepSeek', 'Claude', 'GPT-OSS', 'Kimi', 'GLM']
 const players = names.map((name, seat) => ({ seat, name }))
-const rolesInPlay = ['merlin', 'percival', 'servant', 'servant', 'assassin', 'morgana', 'oberon']
+const rolesInPlay: Role[] = ['merlin', 'percival', 'servant', 'servant', 'assassin', 'morgana', 'oberon']
 
 const base: PlayerView = {
   seat: 0, name: 'You', role: 'servant', alignment: 'good',

@@ -112,33 +112,33 @@ function ThinkingTimeline({ reveal }: { reveal: RevealPayload }) {
         if (ev.type === 'scratchpad') {
           return (
             <div key={ev.seq} className="think-row notes-row">
-              <span className="feed-speaker">{name(p.seat)}</span>
+              <span className="feed-speaker">{name(p.seat as Seat)}</span>
               <span className="think-kind">[notes]</span>
-              <em>{p.text}</em>
+              <em>{p.text as string}</em>
             </div>
           )
         }
         if (ev.type === 'thinking') {
           return (
             <div key={ev.seq} className="think-row">
-              <span className="feed-speaker">{name(p.seat)}</span>
-              <span className="think-kind">[{p.kind}]</span>
-              <em>{p.text}</em>
+              <span className="feed-speaker">{name(p.seat as Seat)}</span>
+              <span className="think-kind">[{p.kind as string}]</span>
+              <em>{p.text as string}</em>
             </div>
           )
         }
         if (ev.type === 'questCard') {
           return (
             <div key={ev.seq} className={`think-row card-${p.card}`}>
-              <span className="feed-speaker">{name(p.seat)}</span>
+              <span className="feed-speaker">{name(p.seat as Seat)}</span>
               <span>secretly played <b>{String(p.card).toUpperCase()}</b></span>
             </div>
           )
         }
         if (ev.type === 'proposal') {
-          return <div key={ev.seq} className="think-row marker">· {name(p.leader)} proposes (Q{p.round}.{p.proposalNum}) ·</div>
+          return <div key={ev.seq} className="think-row marker">· {name(p.leader as Seat)} proposes (Q{p.round as number}.{p.proposalNum as number}) ·</div>
         }
-        return <div key={ev.seq} className="think-row marker big">═ Quest {p.round}: {String(p.result).toUpperCase()} ═</div>
+        return <div key={ev.seq} className="think-row marker big">═ Quest {p.round as number}: {String(p.result).toUpperCase()} ═</div>
       })}
     </div>
   )

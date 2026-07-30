@@ -2,9 +2,8 @@
 // and game setup. One persistent place to answer "wait, what does Morgana
 // do again?" mid-game.
 import { useState } from 'react'
-import type { AgentInfo, Library, PlayerView } from '../types.ts'
+import type { AgentInfo, Library, PlayerView, TalkConfig } from '../types.ts'
 import { ROLE_INFO, RULES_SUMMARY } from '../setup.ts'
-import type { Role } from '../setup.ts'
 import { agentConfigText, tokenEstimate } from '../agentConfig.ts'
 
 type Tab = 'rules' | 'roles' | 'table' | 'library' | 'setup'
@@ -51,7 +50,7 @@ export function Reference({ view, bots, library, onClose }: {
 }
 
 function RolesTab({ view }: { view: PlayerView }) {
-  const unique = [...new Set(view.rolesInPlay)] as Role[]
+  const unique = [...new Set(view.rolesInPlay)]
   const counts = new Map<string, number>()
   for (const r of view.rolesInPlay) counts.set(r, (counts.get(r) ?? 0) + 1)
   return (
@@ -158,7 +157,10 @@ function LibraryTab({ library }: { library: Library | null }) {
 
 function SetupTab({ view }: { view: PlayerView }) {
   const created = view.events.find((e) => e.type === 'gameCreated')?.payload
-  const evil = view.rolesInPlay.filter((r) => ROLE_INFO[r as Role]?.side === 'evil').length
+  // Event payloads are untyped on the wire; gameCreated carries the engine's
+  // TalkConfig, so name it here rather than reading fields off unknown.
+  const talk = created?.talk as TalkConfig | undefined
+  const evil = view.rolesInPlay.filter((r) => ROLE_INFO[r]?.side === 'evil').length
   return (
     <div className="ref-list">
       <div className="ref-row"><span className="role-toggle-name">Players</span>
@@ -169,8 +171,8 @@ function SetupTab({ view }: { view: PlayerView }) {
         </span></div>
       <div className="ref-row"><span className="role-toggle-name">Table talk</span>
         <span className="role-toggle-desc">
-          {created?.talk
-            ? `after each proposal, ${created.talk.maxRounds} round(s) of discussion (${created.talk.maxRoundsAfterChange} after a revised team), everyone speaking in turn`
+          {talk
+            ? `after each proposal, ${talk.maxRounds} round(s) of discussion (${talk.maxRoundsAfterChange} after a revised team), everyone speaking in turn`
             : '—'}
         </span></div>
       <div className="ref-row"><span className="role-toggle-name">Revision</span>

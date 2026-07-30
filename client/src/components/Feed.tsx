@@ -414,14 +414,14 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the crown' : 'takes the crown', text: `· quest ${p.round}` }
     }
     case 'utterance': {
-      if (p.text) return { key: ev.seq, kind: 'talk', seat: p.seat, text: p.text as string }
+      if (p.text) return { key: ev.seq, kind: 'talk', seat: p.seat as Seat, text: p.text as string }
       // Silence is information too.
-      return { key: ev.seq, kind: 'quiet', seat: p.seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(p.seat))}.` }
+      return { key: ev.seq, kind: 'quiet', seat: p.seat as Seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(p.seat as Seat))}.` }
     }
     case 'proposal': {
       const team = (p.team as number[]).map(name).join(' · ')
       return {
-        key: ev.seq, kind: 'deed', seat: p.leader, verb: you(p.leader) ? 'propose' : 'proposes',
+        key: ev.seq, kind: 'deed', seat: p.leader as Seat, verb: you(p.leader as Seat) ? 'propose' : 'proposes',
         text: `${team} for quest ${p.round} · proposal ${p.proposalNum} of 5`,
         pitch: p.pitch ? String(p.pitch) : undefined,
       }
@@ -465,12 +465,12 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       const won = p.result === 'success'
       // teamSize is authoritative on the quest (set at game start); the team may
       // not be recorded on it, so don't derive size from team length.
-      const teamSize = view.quests[p.round - 1]?.teamSize ?? 3
+      const teamSize = view.quests[(p.round as number) - 1]?.teamSize ?? 3
       return {
         key: ev.seq,
         kind: 'questreveal',
         cls: won ? 'ok' : 'bad',
-        teamSize, failCount: p.failCount,
+        teamSize, failCount: p.failCount as number | undefined,
         text: `Quest ${p.round} · ${won ? 'SUCCESS' : 'SABOTAGED'}`,
         sub: `${p.failCount} fail card${p.failCount === 1 ? '' : 's'} revealed, ${p.failsRequired} needed`,
       }
@@ -479,7 +479,7 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       return {
         key: ev.seq, kind: 'moment', cls: 'gold',
         text: `The Knife is drawn`,
-        sub: `${name(p.assassin)} is the Assassin, and names ${name(p.target)} as Merlin. ${p.wasMerlin ? 'Correct. Evil steals the game.' : 'Wrong.'}`,
+        sub: `${name(p.assassin as Seat)} is the Assassin, and names ${name(p.target as Seat)} as Merlin. ${p.wasMerlin ? 'Correct. Evil steals the game.' : 'Wrong.'}`,
       }
     case 'gameOver':
       return {

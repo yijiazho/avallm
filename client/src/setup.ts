@@ -2,9 +2,11 @@
 // the role-list builder. Mirrors server/engine/rules.ts tables (the server
 // re-validates everything — this is UI convenience, not authority).
 
-export type Role =
-  | 'merlin' | 'percival' | 'servant'
-  | 'assassin' | 'morgana' | 'mordred' | 'oberon' | 'minion'
+// Re-exported from the engine rather than restated: the role set is the engine's
+// to define, and a second copy here could drift from the deal it describes.
+export type { Role } from './types.ts'
+
+import type { Role } from './types.ts'
 
 export const EVIL_COUNT: Record<number, number> = { 5: 2, 6: 2, 7: 3, 8: 3, 9: 3 }
 
