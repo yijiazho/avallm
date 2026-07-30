@@ -354,9 +354,10 @@ assemble that input differently and falsely reject each other. `ARCH008` forbids
 directly.
 
 Third, the fields above are the target sketch, not the landed type. `SituationAnalysis` in
-`analysis/types.ts` extends a `BoardSituation` with hammer proximity and rejection runway, names
-proven alignments `provenGood`/`provenEvil` with typed `deductions` recording their provenance, and
-carries declared leans, vote leverage, fact codes, and forced-play reason codes. `publicObserver`
+`analysis/types.ts` extends a `BoardSituation` that carries hammer proximity and rejection runway,
+names proven alignments `provenGood`/`provenEvil` with typed `deductions` recording their
+provenance, and carries declared leans, vote leverage, fact codes, and forced-play reason
+codes. `publicObserver`
 and `assassinTargets` never became fields: the public observer and the Assassin Merlin posterior are
 separate `analysis/` modules producing their own private snapshots, which is what §5.7 requires of
 any role component.
@@ -814,7 +815,7 @@ server/agents/                        # about 42.0k lines in ten owners
     morgana-counterfeit.ts morgana-role-utility.ts
     mordred-blindness.ts assassin-merlin-posterior.ts
     actor-target-treatment.ts
-    (most of the above carry a sibling *-types.ts)
+    (seven of the above carry a sibling *-types.ts)
   policy/                             #  7.6k  action authority and the generic layer kernels
     candidates.ts forced.ts plan.ts types.ts
     decision-frame.ts                 #   the staged spine every decision walks
@@ -830,6 +831,7 @@ server/agents/                        # about 42.0k lines in ten owners
   components/                         #  5.6k  the generic decision-component substrate
     kernel.ts resolved-brain.ts registry.ts production-registry.ts
     native-score-components.ts native-role-components.ts
+    robust-evil-quest-card.ts
     canonical-json.ts architecture-metadata.ts types.ts
   admission/                          #  5.1k  trace canonicalization and host admission
     composed-trace.ts legacy-role-trace-v1.ts
@@ -843,10 +845,10 @@ server/agents/                        # about 42.0k lines in ten owners
 Four owners postdate the original map and had no place in it. `components/` holds the generic
 decision-component substrate from §5.7: the kernel, the resolved brain, the registries, and the
 canonical JSON and architecture-identity surfaces. `admission/` owns hostile-trace canonicalization
-and host admission, which the earlier map treated as part of the trace envelope. `score-layers/`
-and `decision-layers/` hold the concrete families that the generic `policy/score-layer/` and
-`policy/decision-layer/` kernels execute; splitting concrete from generic is what lets the kernels
-stay role-free.
+and host admission, which §9 names as the shared component admission owner but the map never gave a
+home. `score-layers/` and `decision-layers/` hold the concrete families that the generic
+`policy/score-layer/` and `policy/decision-layer/` kernels execute; splitting concrete from generic
+is what lets the kernels stay role-free.
 
 Three entries in the earlier map never landed as written. `belief/factors/` stayed flat, because
 only two soft factors exist: `quest-card-factor.ts` and `language-factor.ts`. Proposal and vote
@@ -863,13 +865,19 @@ legitimately owns role semantics, and it is the largest subsystem because of it.
 
 The split between the two owners is **authority, not subject matter**. `analysis/` produces
 read-only typed projections; `policy/` and its two concrete layer directories hold the only code
-allowed to pick an action. No module under `analysis/` returns a `Decision` or commits a candidate.
-The role modules read
-`PolicyCandidate` shapes and rank or annotate them into private tagged payloads, and a score or
-decision layer then consumes, ignores, or is configured without each one. `role-objective-router.ts`
-says so in one line: pure routing that never enables policy. A role objective that could commit an
-action would violate the first boundary rule below wherever it lived, so moving the directory would
-not buy that guarantee.
+that can apply one. The role modules read `PolicyCandidate` shapes and rank or annotate them into
+private tagged payloads, and a score or decision layer then consumes, ignores, or is configured
+without each one. `role-objective-router.ts` says so in one line: pure routing that never enables
+policy.
+
+Naming a preference and holding authority are different things, and one module shows the gap.
+`analysis/morgana-role-utility.ts` does put `selectedCandidateId` and `selectedDecision` on its
+private projection, so an analysis payload can carry a fully formed `Decision`. It still commits
+nothing. `score-layers/morgana.ts` checks that id against the legal candidate set and against the
+forced boundary and declines the projection outright when either rejects it, and the commit itself
+happens later in `policy/decision-frame.ts`. A role objective that could apply its own action would
+violate the first boundary rule below wherever it lived, so moving the directory would not buy that
+guarantee.
 
 The placement is also already depended on by the fitness checks. `tools/architecture-fitness.mjs`
 `ARCH005` forbids generic score-layer code from importing anything under `server/agents/analysis/`
@@ -903,10 +911,12 @@ refusing any agent import of `server/engine/game`, `server/engine/view`, or the 
 `ARCH001` and `ARCH002` together keep engine, agent, and evaluation code from depending on each
 other in the wrong direction, which is the import half of the evaluation-isolation rule.
 
-The remaining rules are behavioral and are pinned by tests instead: `test/leaks.test.ts` and
-`test/knowledge.test.ts` for what may cross into rendered text, `test/prompt-coherence.test.ts` and
-`test/phase7b2-plan-coherence.test.ts` for the committed action matching its pitch, reason, and
-lean. Both mechanisms matter; neither alone covers the five.
+The rest are behavioral, and their coverage is uneven in a way worth knowing before trusting the
+list. "Voice does not change committed actions" is pinned by `test/prompt-coherence.test.ts` and
+`test/phase7b2-plan-coherence.test.ts`. The hidden-information boundary these rules exist to protect
+is pinned by `test/leaks.test.ts` and `test/knowledge.test.ts`. "Evidence does not choose actions"
+and "belief does not render prompts" have no mechanical check today and rest on the directory
+layering above, so a green suite is not evidence that either still holds.
 
 ---
 
@@ -964,8 +974,9 @@ can see what was chosen and why.
 - **Full role worlds are the stored representation; alignment is a projection.** `HiddenWorld`
   stores `roleBySeat` with the seat-ordered role string as its identity, keeps `alignmentBySeat`
   alongside it, and duplicate Servant and Minion cards are multiset counts without identity.
-  Alignment and role marginals come out of the shared projection kernel in `belief/projection.ts`.
-  Settled in Phase 1.
+  Alignment and role marginals stay projections rather than a second stored representation: a
+  uniform posterior takes them from the shared kernel in `belief/projection.ts`, and a weighted one
+  from the weight-summing projections in `belief/exact.ts`. Settled in Phase 1.
 - **The hybrid planner chooses one candidate, from a bounded non-dominated set.** Planner output
   names one supplied candidate ID; overriding the top numerical candidate requires a named permitted
   strategic reason; deterministic structured choice remains both an ablation and the fallback, and
