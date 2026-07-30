@@ -13,6 +13,7 @@ import {
   pairedBootstrapRateDelta,
   rate,
   seededRandom,
+  sumOf,
 } from './statistics.ts'
 import type {
   RateCount,
@@ -30,6 +31,7 @@ import type {
   VoteConfusionCounts,
   VoteConfusionRate,
 } from './vote-direction.ts'
+import { renderDelta, renderRate } from './report-format.ts'
 import type { Role } from '../engine/types.ts'
 
 export const PHASE5_VOTE_CONVERSION_REPORT_SCHEMA = 1
@@ -185,27 +187,22 @@ function observe(artifact: GameArtifact): ConversionObservation {
   }
 }
 
-function sum(
-  games: readonly ConversionObservation[],
-  select: (game: ConversionObservation) => number,
-): number {
-  return games.reduce((total, game) => total + select(game), 0)
-}
-
 function summarize(
   games: readonly ConversionObservation[],
 ): ConversionSlice {
-  const resolvedQuests = sum(games, (game) => game.resolvedQuests)
-  const successfulQuests = sum(games, (game) => game.successfulQuests)
-  const reachedAssassination = sum(
+  const resolvedQuests = sumOf(games, (game) => game.resolvedQuests)
+  const successfulQuests = sumOf(games, (game) => game.successfulQuests)
+  const reachedAssassination = sumOf(
     games,
     (game) => game.reachedAssassination,
   )
-  const survivedAssassination = sum(
+  const survivedAssassination = sumOf(
     games,
     (game) => game.survivedAssassination,
   )
-  const wins = sum(games, (game) => game.won)
+  const wins = sumOf(games, (game) => game.won)
+  // Not a sum: this folds per-game confusion counts into one record, so it
+  // stays a reduce rather than becoming a sumOf.
   const votes = games.reduce(
     (counts, game) => addVoteConfusion(counts, game.votes),
     emptyVoteConfusion(),
@@ -431,18 +428,6 @@ export function phase5VoteConversionReport(
       )),
   }
 }
-
-const percent = (value: number): string => `${(value * 100).toFixed(1)}%`
-const renderRate = (value: RateEstimate): string =>
-  value.rate === null
-    ? `n/a (${value.successes}/${value.trials})`
-    : `${percent(value.rate)} (${value.successes}/${value.trials})`
-const renderDelta = (value: RateDeltaEstimate): string =>
-  value.delta === null || !value.interval95
-    ? 'n/a'
-    : `${value.delta >= 0 ? '+' : ''}${percent(value.delta)} `
-      + `(95% ${percent(value.interval95.low)} to `
-      + `${percent(value.interval95.high)})`
 
 export function renderPhase5VoteConversionReport(
   report: VoteConversionReport,

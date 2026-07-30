@@ -24,6 +24,7 @@
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { readArtifacts } from './artifact.ts'
+import { diagnosisPer, diagnosisPercent } from './report-format.ts'
 import { compareCandidateIds } from '../agents/policy/candidates.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { DecisionTrace } from '../agents/trace.ts'
@@ -864,16 +865,6 @@ export function diagnoseProposalValue(
   }
 }
 
-const pct = (numerator: number, denominator: number): string =>
-  denominator === 0
-    ? '    n/a'
-    : `${(100 * numerator / denominator).toFixed(1)}%`.padStart(7)
-
-const per = (numerator: number, denominator: number): string =>
-  denominator === 0
-    ? '  n/a'
-    : (numerator / denominator).toFixed(2).padStart(5)
-
 const label = (cell: ProposalValueCell): string =>
   `  ${cell.targetRole.padEnd(9)} ${cell.variant.padEnd(21)}`
 
@@ -902,12 +893,12 @@ export function renderProposalValueDiagnosis(
     for (const cell of cells) {
       lines.push(
         `${label(cell)}${String(cell.proposals).padStart(6)}`
-        + ` ${per(cell.viableTeams, cell.tracedProposals)}`
-        + `  ${per(cell.argmaxTeams, cell.scoredProposals)}`
-        + ` ${pct(cell.tieDecided, cell.scoredProposals)}`
-        + ` ${per(cell.decisiveMarginSum, cell.scoredProposals)}`
-        + ` ${per(cell.lexRankSum, cell.tracedProposals)}`
-        + ` ${pct(cell.lexFloorChoices, cell.tracedProposals)}`,
+        + ` ${diagnosisPer(cell.viableTeams, cell.tracedProposals)}`
+        + `  ${diagnosisPer(cell.argmaxTeams, cell.scoredProposals)}`
+        + ` ${diagnosisPercent(cell.tieDecided, cell.scoredProposals)}`
+        + ` ${diagnosisPer(cell.decisiveMarginSum, cell.scoredProposals)}`
+        + ` ${diagnosisPer(cell.lexRankSum, cell.tracedProposals)}`
+        + ` ${diagnosisPercent(cell.lexFloorChoices, cell.tracedProposals)}`,
       )
     }
 
@@ -924,13 +915,13 @@ export function renderProposalValueDiagnosis(
     for (const cell of cells) {
       lines.push(
         `${label(cell)}${String(cell.proposals).padStart(6)}`
-        + ` ${pct(cell.cleanProposals, cell.proposals)}`
-        + ` ${pct(cell.viableCleanFractionSum, cell.scoredProposals)}`
-        + ` ${pct(cell.chosenPosteriorSum, cell.scoredProposals)}`
-        + ` ${pct(cell.tieChosenPosteriorSum, cell.tieDecided)}`
-        + ` ${pct(cell.tieArgmaxCleanFractionSum, cell.tieDecided)}`
-        + ` ${pct(cell.tieDecidedClean, cell.tieDecided)}`
-        + ` ${pct(cell.uniqueDecidedClean, cell.uniqueDecided)}`,
+        + ` ${diagnosisPercent(cell.cleanProposals, cell.proposals)}`
+        + ` ${diagnosisPercent(cell.viableCleanFractionSum, cell.scoredProposals)}`
+        + ` ${diagnosisPercent(cell.chosenPosteriorSum, cell.scoredProposals)}`
+        + ` ${diagnosisPercent(cell.tieChosenPosteriorSum, cell.tieDecided)}`
+        + ` ${diagnosisPercent(cell.tieArgmaxCleanFractionSum, cell.tieDecided)}`
+        + ` ${diagnosisPercent(cell.tieDecidedClean, cell.tieDecided)}`
+        + ` ${diagnosisPercent(cell.uniqueDecidedClean, cell.uniqueDecided)}`,
       )
     }
 
@@ -945,12 +936,12 @@ export function renderProposalValueDiagnosis(
     )
     for (const cell of cells) {
       lines.push(
-        `${label(cell)}${pct(cell.targetWins, cell.games)}`
+        `${label(cell)}${diagnosisPercent(cell.targetWins, cell.games)}`
         + `${String(cell.proposals).padStart(7)}`
-        + ` ${pct(cell.approved, cell.proposals)}`
-        + ` ${pct(cell.approvedDirty, cell.proposals)}`
-        + ` ${pct(cell.approvedDirtyFailedQuest, cell.approvedDirty)}`
-        + ` ${pct(cell.sameSizeRepeats, cell.sameSizeRepeatPairs)}`
+        + ` ${diagnosisPercent(cell.approved, cell.proposals)}`
+        + ` ${diagnosisPercent(cell.approvedDirty, cell.proposals)}`
+        + ` ${diagnosisPercent(cell.approvedDirtyFailedQuest, cell.approvedDirty)}`
+        + ` ${diagnosisPercent(cell.sameSizeRepeats, cell.sameSizeRepeatPairs)}`
         + `${String(cell.revisedAway).padStart(9)}`,
       )
     }
@@ -963,7 +954,7 @@ export function renderProposalValueDiagnosis(
       const slices = cell.byProposalNum
         .map((entry) =>
           `p${entry.proposalNum} ${entry.proposals}/`
-          + `${pct(entry.cleanProposals, entry.proposals).trim()}/`
+          + `${diagnosisPercent(entry.cleanProposals, entry.proposals).trim()}/`
           + `${entry.approvedDirty}`)
         .join('  ')
       lines.push(`  ${label(cell).trim().padEnd(31)}${slices}`)
@@ -979,8 +970,8 @@ export function renderProposalValueDiagnosis(
       const slices = cell.byRound
         .map((entry) =>
           `q${entry.round} ${entry.proposals}/`
-          + `${pct(entry.cleanProposals, entry.proposals).trim()}/`
-          + `${pct(entry.argmaxTeams, entry.viableTeams).trim()}`)
+          + `${diagnosisPercent(entry.cleanProposals, entry.proposals).trim()}/`
+          + `${diagnosisPercent(entry.argmaxTeams, entry.viableTeams).trim()}`)
         .join('  ')
       lines.push(`  ${label(cell).trim().padEnd(31)}${slices}`)
     }
@@ -996,9 +987,9 @@ export function renderProposalValueDiagnosis(
       lines.push(
         `  ${pairing.targetRole.padEnd(9)} ${pairing.candidate.padEnd(21)}`
         + `${String(pairing.pairs).padStart(6)}`
-        + ` ${pct(pairing.agreed, pairing.pairs)}`
-        + ` ${pct(pairing.baselineClean, pairing.pairs)}`
-        + ` ${pct(pairing.candidateClean, pairing.pairs)}`
+        + ` ${diagnosisPercent(pairing.agreed, pairing.pairs)}`
+        + ` ${diagnosisPercent(pairing.baselineClean, pairing.pairs)}`
+        + ` ${diagnosisPercent(pairing.candidateClean, pairing.pairs)}`
         + `${String(pairing.baselineCleanCandidateDirty).padStart(11)}`
         + `${String(pairing.candidateCleanBaselineDirty).padStart(11)}`
         + `${String(pairing.unmatchedPosition).padStart(11)}`,
@@ -1016,10 +1007,10 @@ export function renderProposalValueDiagnosis(
       lines.push(
         `  ${pairing.targetRole.padEnd(9)} ${pairing.candidate.padEnd(21)}`
         + `${String(pairing.scoredPairs).padStart(7)}`
-        + ` ${pct(pairing.baselineTeamViable, pairing.scoredPairs)}`
-        + ` ${pct(pairing.baselineTeamInArgmax, pairing.scoredPairs)}`
-        + ` ${pct(pairing.baselineTeamPosteriorSum, pairing.scoredPairs)}`
-        + ` ${pct(pairing.candidateTeamPosteriorSum, pairing.scoredPairs)}`,
+        + ` ${diagnosisPercent(pairing.baselineTeamViable, pairing.scoredPairs)}`
+        + ` ${diagnosisPercent(pairing.baselineTeamInArgmax, pairing.scoredPairs)}`
+        + ` ${diagnosisPercent(pairing.baselineTeamPosteriorSum, pairing.scoredPairs)}`
+        + ` ${diagnosisPercent(pairing.candidateTeamPosteriorSum, pairing.scoredPairs)}`,
       )
     }
   }

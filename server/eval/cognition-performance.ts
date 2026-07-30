@@ -43,6 +43,7 @@ import type {
 } from '../engine/types.ts'
 import type { AvalonAgent } from '../agents/types.ts'
 import { summarizeWarmTimings } from './belief-performance.ts'
+import { sumOf } from './statistics.ts'
 
 export const COGNITION_PERFORMANCE_BENCHMARK =
   'cognition-reconstruct-cost-v1'
@@ -150,7 +151,7 @@ class Samples {
 
   summarize(): PathTiming {
     const warm = summarizeWarmTimings(this.#values)
-    const totalMs = this.#values.reduce((sum, value) => sum + value, 0)
+    const totalMs = sumOf(this.#values, (value) => value)
     return {
       calls: this.#values.length,
       totalMs,

@@ -13,7 +13,6 @@
 // It reads artifacts already written by a bench run. It plays no games, makes no
 // call, and joins the true role deal, so it is offline evaluation only.
 
-import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { MAX_PROPOSALS } from '../engine/rules.ts'
@@ -25,6 +24,8 @@ import {
   totalVotes,
 } from './vote-direction.ts'
 import type { VoteConfusionCounts } from './vote-direction.ts'
+import { readArtifacts } from './artifact.ts'
+import { diagnosisPer, diagnosisPercent } from './report-format.ts'
 import type { GameArtifact } from './artifact.ts'
 
 export const GOOD_POLICY_DIAGNOSIS_VERSION = 'good-policy-diagnosis-v1'
@@ -186,23 +187,6 @@ export function diagnoseGoodPolicy(
   }
 }
 
-export function readArtifacts(path: string): readonly GameArtifact[] {
-  return readFileSync(path, 'utf8')
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as GameArtifact)
-}
-
-const pct = (numerator: number, denominator: number): string =>
-  denominator === 0
-    ? '    n/a'
-    : `${(100 * numerator / denominator).toFixed(1)}%`.padStart(7)
-
-const per = (numerator: number, denominator: number): string =>
-  denominator === 0
-    ? '  n/a'
-    : (numerator / denominator).toFixed(2).padStart(5)
-
 export function renderGoodPolicyDiagnosis(
   diagnosis: GoodPolicyDiagnosis,
 ): string {
@@ -225,17 +209,17 @@ export function renderGoodPolicyDiagnosis(
     )
     for (const cell of diagnosis.cells.filter((row) => row.bank === bank)) {
       const outcomes = Object.entries(cell.outcomes)
-        .map(([key, count]) => `${key} ${pct(count, cell.games).trim()}`)
+        .map(([key, count]) => `${key} ${diagnosisPercent(count, cell.games).trim()}`)
         .join(', ')
       lines.push(
         `  ${cell.targetRole.padEnd(9)} ${cell.variant.padEnd(18)}`
-        + `${pct(cell.targetWins, cell.games)}`
-        + ` ${per(cell.proposals, cell.games)}`
-        + ` ${per(cell.hammerProposals, cell.games)}`
-        + ` ${pct(cell.targetApprovals, cell.targetVotes)}`
-        + ` ${pct(cell.rejectedCleanTeams, cell.targetVotes)}`
-        + ` ${pct(cell.approvedDirtyTeams, cell.targetVotes)}`
-        + ` ${pct(cell.questsFailed, cell.questsRun)}`
+        + `${diagnosisPercent(cell.targetWins, cell.games)}`
+        + ` ${diagnosisPer(cell.proposals, cell.games)}`
+        + ` ${diagnosisPer(cell.hammerProposals, cell.games)}`
+        + ` ${diagnosisPercent(cell.targetApprovals, cell.targetVotes)}`
+        + ` ${diagnosisPercent(cell.rejectedCleanTeams, cell.targetVotes)}`
+        + ` ${diagnosisPercent(cell.approvedDirtyTeams, cell.targetVotes)}`
+        + ` ${diagnosisPercent(cell.questsFailed, cell.questsRun)}`
         + `  ${outcomes}`,
       )
     }

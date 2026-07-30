@@ -13,6 +13,8 @@
 // The bootstrap takes its uniform stream as an argument rather than reaching
 // for Math.random, so a report's intervals are a function of its seed alone.
 
+import { fnv1a } from '../engine/prng.ts'
+
 /** Two-sided 95 percent standard normal quantile, z(0.975). */
 export const NORMAL_QUANTILE_95 = 1.959963984540054
 
@@ -40,6 +42,41 @@ export function mean(values: readonly number[]): number | null {
   return values.length
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : null
+}
+
+/**
+ * Median with the middle pair averaged on an even sample, so a two-sample
+ * median sits between the observations rather than picking one arbitrarily.
+ * Unlike nearestRank this can report a value the corpus never produced, which
+ * is why the two are separate functions rather than nearestRank(values, 0.5).
+ * Returns null for an empty sample.
+ */
+export function median(values: readonly number[]): number | null {
+  if (!values.length) return null
+  const ordered = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(ordered.length / 2)
+  return ordered.length % 2
+    ? ordered[middle]
+    : (ordered[middle - 1] + ordered[middle]) / 2
+}
+
+/** Left fold of a projected field. Total of an empty set is zero, not null. */
+export function sumOf<T>(
+  items: readonly T[],
+  select: (item: T) => number,
+): number {
+  return items.reduce((total, item) => total + select(item), 0)
+}
+
+/**
+ * Mean of a projected field, without materializing the projection. Same fold
+ * order as mean(), so a caller that switches between them keeps its figures.
+ */
+export function meanOf<T>(
+  items: readonly T[],
+  select: (item: T) => number,
+): number | null {
+  return items.length ? sumOf(items, select) / items.length : null
 }
 
 /**
@@ -90,17 +127,25 @@ export function nearestRank(
 }
 
 /**
- * FNV-1a over the seed string into an xorshift32 stream. Named so both reports
- * derive the same uniforms from the same seed; the bootstrap itself only ever
- * sees the resulting function.
+ * The engine's FNV-1a over the seed string, into an xorshift32 stream. Named so
+ * both reports derive the same uniforms from the same seed; the bootstrap itself
+ * only ever sees the resulting function.
+ *
+ * The stream is xorshift32 rather than the engine's mulberry32 (`makeRng`)
+ * because these are published intervals: every figure in docs/ was produced by
+ * this generator, and swapping it would silently move all of them. Only the hash
+ * is shared. test/eval-statistics.test.ts pins the first draws as literals so
+ * any future change to either half has to be deliberate.
+ *
+ * The shared hash is not a drop-in for every string: it folds UTF-16 code units
+ * where the inline loop it replaced folded code points, so the two disagree on
+ * astral characters. Seeds here are `bank:baseline:candidate:metric`, built only
+ * from bank and variant identifiers that are code literals, so no seed reaches
+ * that difference and no untrusted string reaches a seed at all.
  */
 export function seededRandom(seed: string): () => number {
-  let state = 2166136261
-  for (const character of seed) {
-    state ^= character.charCodeAt(0)
-    state = Math.imul(state, 16777619)
-  }
-  state = state >>> 0 || 1
+  // fnv1a can land on zero and xorshift is stuck at zero forever.
+  let state = fnv1a(seed) || 1
   return (): number => {
     state ^= state << 13
     state ^= state >>> 17

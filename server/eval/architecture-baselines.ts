@@ -18,6 +18,7 @@ import {
 } from './architecture-bench.ts'
 import { architectureReport } from './architecture-report.ts'
 import { readArtifacts } from './artifact.ts'
+import { sumOf } from './statistics.ts'
 import type { GameArtifact } from './artifact.ts'
 import type { DecisionKind, Role, Seat } from '../engine/types.ts'
 import { DECISION_KINDS } from '../engine/types.ts'
@@ -176,13 +177,13 @@ function sumDimension(id: string, seats: SeatObservation[]): ObservedDimension {
     seatGames: seats.length,
     wins: seats.filter((seat) => seat.won).length,
     decisions: seats.reduce(
-      (sum, seat) => sum + Object.values(seat.decisions).reduce((a, b) => a + b, 0),
+      (sum, seat) => sum + sumOf(Object.values(seat.decisions), (n) => n),
       0,
     ),
-    calls: seats.reduce((sum, seat) => sum + seat.calls, 0),
-    cost: roundCost(seats.reduce((sum, seat) => sum + seat.cost, 0)),
+    calls: sumOf(seats, (seat) => seat.calls),
+    cost: roundCost(sumOf(seats, (seat) => seat.cost)),
     degraded: seats.reduce(
-      (sum, seat) => sum + Object.values(seat.degraded).reduce((a, b) => a + b, 0),
+      (sum, seat) => sum + sumOf(Object.values(seat.degraded), (n) => n),
       0,
     ),
   }
@@ -253,12 +254,12 @@ export function buildObservedPromptBaseline(directory: string): ObservedPromptBa
     .map((model) => sumDimension(model, seats.filter((seat) => seat.model === model)))
   const byDecisionKind = DECISION_KINDS.map((kind): ObservedDimension => ({
     id: kind,
-    decisions: seats.reduce((sum, seat) => sum + seat.decisions[kind], 0),
+    decisions: sumOf(seats, (seat) => seat.decisions[kind]),
     // These archived transcripts printed exact spend per model but not per
     // call tag, so inventing a kind-level allocation would be false precision.
     calls: null,
     cost: null,
-    degraded: seats.reduce((sum, seat) => sum + seat.degraded[kind], 0),
+    degraded: sumOf(seats, (seat) => seat.degraded[kind]),
   }))
   const winners = artifacts.reduce<Record<string, number>>((acc, artifact) => {
     acc[artifact.winner] = (acc[artifact.winner] ?? 0) + 1

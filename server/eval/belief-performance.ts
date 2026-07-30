@@ -13,7 +13,7 @@ import { viewFor } from '../engine/view.ts'
 import { exactBelief } from '../agents/belief/exact.ts'
 import { buildMessages } from '../agents/prompts.ts'
 import { BELIEF_RENDERER_VERSION } from '../agents/communication/belief-summary.ts'
-import { nearestRank } from './statistics.ts'
+import { median, nearestRank } from './statistics.ts'
 
 interface Timing {
   coldMs: number
@@ -30,39 +30,27 @@ interface CaseResult {
   experimentalPrompt: Timing
 }
 
-const sortedValues = (values: readonly number[]): number[] => {
-  if (!values.length) throw new Error('timing sample must not be empty')
-  return [...values].sort((a, b) => a - b)
-}
+const WARM_PERCENTILE = 0.95
 
-const median = (values: readonly number[]): number => {
-  const sorted = sortedValues(values)
-  const middle = Math.floor(sorted.length / 2)
-  return sorted.length % 2
-    ? sorted[middle]
-    : (sorted[middle - 1] + sorted[middle]) / 2
-}
-
-// Same nearest-rank estimator the reports publish, under a stricter contract: a
-// timing sample is never legitimately empty here, so an absent value is a bug
-// rather than a null to render.
-const nearestRankPercentile = (
-  values: readonly number[],
-  fraction: number,
-): number => {
-  if (!(fraction > 0 && fraction <= 1)) {
-    throw new Error(`percentile fraction must be in (0, 1], got ${fraction}`)
-  }
-  return nearestRank(sortedValues(values), fraction)!
-}
-
+/**
+ * The published reports render an absent estimate as null. A timing sample is
+ * never legitimately empty, so here an absent value is a bug, and one guard at
+ * the top turns the shared estimators' nullable contract into a total one.
+ *
+ * The sample is ordered once and handed to both estimators. Each of them sorts
+ * defensively, but sorting an already-ordered array is a linear pass, so this
+ * keeps one real sort for the two summaries the way the local helper it replaced
+ * did.
+ */
 export function summarizeWarmTimings(values: readonly number[]): {
   medianMs: number
   p95Ms: number
 } {
+  if (!values.length) throw new Error('timing sample must not be empty')
+  const ordered = [...values].sort((left, right) => left - right)
   return {
-    medianMs: median(values),
-    p95Ms: nearestRankPercentile(values, 0.95),
+    medianMs: median(ordered)!,
+    p95Ms: nearestRank(ordered, WARM_PERCENTILE)!,
   }
 }
 

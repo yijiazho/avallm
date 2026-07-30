@@ -295,7 +295,18 @@ test('calibration reports Brier, log loss, curves, populations, and paired delta
   const score = scoreCalibration(baseline)
   assert.equal(score.brier, 0.25)
   assert.ok(Math.abs(score.logLoss - Math.log(2)) < 1e-12)
-  assert.equal(score.curve[0].count, 2)
+  // One bin holding both rows, one of them observed. The bin carries its Wilson
+  // interval, which is the point of binning small: 1/2 is not evidence of a
+  // half, and the interval says so.
+  assert.equal(score.curve.length, 1)
+  assert.equal(score.curve[0].observed.trials, 2)
+  assert.equal(score.curve[0].observed.successes, 1)
+  assert.equal(score.curve[0].observed.rate, 0.5)
+  assert.deepEqual(score.curve[0].observed.interval95, {
+    low: 0.09453120573423074,
+    high: 0.9054687942657693,
+  })
+  assert.equal(score.curve[0].meanProbability, 0.5)
   const report = beliefCalibrationReport(candidate)
   assert.equal(report.overall.rows, 2)
   assert.equal(report.byTarget['player-evil'].rows, 1)

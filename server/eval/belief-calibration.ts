@@ -1,8 +1,14 @@
 // Calibration metrics shared by uniform and weighted belief ablations.
 
+import { meanOf, rate } from './statistics.ts'
+import type { RateEstimate } from './statistics.ts'
 import type { DatasetSplit } from './mechanical-data.ts'
 
-export const BELIEF_CALIBRATION_SCHEMA = 1
+// Schema 2 carries each reliability bin's observed frequency as a RateEstimate
+// rather than a bare number, so the interval travels with the point. The metric
+// definitions did not change, which is why the version string stays at v1: brier,
+// log loss, and every bin's frequency compute exactly as they did.
+export const BELIEF_CALIBRATION_SCHEMA = 2
 export const BELIEF_CALIBRATION_VERSION = 'belief-calibration-v1'
 
 export interface BeliefPredictionRow {
@@ -18,9 +24,14 @@ export interface BeliefPredictionRow {
 export interface CalibrationBin {
   lower: number
   upper: number
-  count: number
   meanProbability: number
-  observedRate: number
+  /**
+   * Observed frequency in this bin, with its Wilson interval. A reliability
+   * curve bins by construction, so bins are small and a bare frequency oversells
+   * its precision exactly where the curve is read most closely. `observed.trials`
+   * is the bin size.
+   */
+  observed: RateEstimate
 }
 
 export interface CalibrationScore {
@@ -67,21 +78,21 @@ export function scoreCalibration(
   }
   validateRows(rows)
   const epsilon = 1e-15
-  const brier = rows.reduce((sum, row) => {
-    const observed = Number(row.observed)
-    return sum + (row.probability - observed) ** 2
-  }, 0) / rows.length
-  const logLoss = -rows.reduce((sum, row) => {
+  // Both scores are means of a per-row term, so they say so. meanOf folds in
+  // place rather than materializing the projection, and rows is non-empty by the
+  // guard above. Negating the mean is the same value as negating the sum before
+  // dividing: negation only flips the sign bit.
+  const brier = meanOf(rows, (row) =>
+    (row.probability - Number(row.observed)) ** 2)!
+  const logLoss = -meanOf(rows, (row) => {
     const probability = Math.min(
       1 - epsilon,
       Math.max(epsilon, row.probability),
     )
-    return sum + (
-      row.observed
-        ? Math.log(probability)
-        : Math.log(1 - probability)
-    )
-  }, 0) / rows.length
+    return row.observed
+      ? Math.log(probability)
+      : Math.log(1 - probability)
+  })!
   const curve: CalibrationBin[] = []
   for (let index = 0; index < binCount; index++) {
     const selected = rows.filter((row) => {
@@ -95,12 +106,12 @@ export function scoreCalibration(
     curve.push({
       lower: index / binCount,
       upper: (index + 1) / binCount,
-      count: selected.length,
-      meanProbability:
-        selected.reduce((sum, row) => sum + row.probability, 0)
-        / selected.length,
-      observedRate:
-        selected.filter((row) => row.observed).length / selected.length,
+      // Non-empty by the guard above, so the mean is never null here.
+      meanProbability: meanOf(selected, (row) => row.probability)!,
+      observed: rate(
+        selected.filter((row) => row.observed).length,
+        selected.length,
+      ),
     })
   }
   return { rows: rows.length, brier, logLoss, curve }

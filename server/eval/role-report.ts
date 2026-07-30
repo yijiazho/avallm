@@ -17,6 +17,7 @@ import {
   PHASE7_VIRTUAL_ASSASSIN_VERSION,
   type VirtualAssassinEvidence,
 } from './virtual-assassin.ts'
+import { sumOf } from './statistics.ts'
 import { ROLE_ALIGNMENT } from '../engine/rules.ts'
 import type {
   AssertNever,
@@ -334,24 +335,10 @@ readonly VirtualAssassinEvidence[] {
   return Object.freeze(rows)
 }
 
-function sum(rows: readonly Phase7RoleEvidenceRow[], field:
-  'calls' | 'cost' | 'degradation' | 'forcedViolations'): number {
-  return rows.reduce((total, row) => total + row[field], 0)
-}
-
 function summarizeArm(rows: readonly Phase7RoleEvidenceRow[]): ArmSummary {
-  const decisions = rows.reduce(
-    (total, row) => total + row.exactAdmission.decisions,
-    0,
-  )
-  const exact = rows.reduce(
-    (total, row) => total + row.exactAdmission.exact,
-    0,
-  )
-  const structural = rows.reduce(
-    (total, row) => total + row.exactAdmission.structural,
-    0,
-  )
+  const total = (select: (row: Phase7RoleEvidenceRow) => number) =>
+    sumOf(rows, select)
+  const structural = total((row) => row.exactAdmission.structural)
   const eligibleRows = rows.filter(
     (row) => row.exactAdmission.eligible,
   ).length
@@ -360,31 +347,23 @@ function summarizeArm(rows: readonly Phase7RoleEvidenceRow[]): ArmSummary {
     goodWins: rows.filter((row) => row.winner === 'good').length,
     evilWins: rows.filter((row) => row.winner === 'evil').length,
     targetWins: rows.filter((row) => row.targetWon).length,
-    calls: sum(rows, 'calls'),
-    cost: sum(rows, 'cost'),
-    degradation: sum(rows, 'degradation'),
-    forcedViolations: sum(rows, 'forcedViolations'),
+    calls: total((row) => row.calls),
+    cost: total((row) => row.cost),
+    degradation: total((row) => row.degradation),
+    forcedViolations: total((row) => row.forcedViolations),
     exactAdmission: Object.freeze({
       eligibleRows,
-      decisions,
-      exact,
+      decisions: total((row) => row.exactAdmission.decisions),
+      exact: total((row) => row.exactAdmission.exact),
       structural,
       promotionEligible:
         eligibleRows === rows.length && structural === 0,
     }),
     safety: Object.freeze({
-      hiddenChecks: rows.reduce(
-        (total, row) => total + row.safety.hiddenChecks, 0,
-      ),
-      hiddenViolations: rows.reduce(
-        (total, row) => total + row.safety.hiddenViolations, 0,
-      ),
-      attributionChecks: rows.reduce(
-        (total, row) => total + row.safety.attributionChecks, 0,
-      ),
-      attributionViolations: rows.reduce(
-        (total, row) => total + row.safety.attributionViolations, 0,
-      ),
+      hiddenChecks: total((row) => row.safety.hiddenChecks),
+      hiddenViolations: total((row) => row.safety.hiddenViolations),
+      attributionChecks: total((row) => row.safety.attributionChecks),
+      attributionViolations: total((row) => row.safety.attributionViolations),
     }),
   })
 }

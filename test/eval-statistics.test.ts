@@ -17,11 +17,44 @@ import {
   BOOTSTRAP_RESAMPLES,
   NORMAL_QUANTILE_95,
   mean,
+  meanOf,
+  median,
   nearestRank,
   pairedBootstrapRateDelta,
   rate,
   seededRandom,
+  sumOf,
 } from '../server/eval/statistics.ts'
+import {
+  diagnosisPer,
+  diagnosisPercent,
+  overviewPercent,
+  renderDelta,
+  renderRate,
+} from '../server/eval/report-format.ts'
+
+/**
+ * Every TypeScript source under server/eval, recursively, minus the module that
+ * legitimately owns the thing being guarded. Recursive because a fork dropped in
+ * a subdirectory is exactly the fork a top-level-only scan would miss.
+ */
+const evalSources = (
+  ...owners: string[]
+): { label: string; source: string }[] => {
+  const root = path.join(import.meta.dirname, '..', 'server', 'eval')
+  const walk = (directory: string): string[] =>
+    fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const absolute = path.join(directory, entry.name)
+      if (entry.isDirectory()) return walk(absolute)
+      return entry.isFile() && entry.name.endsWith('.ts') ? [absolute] : []
+    })
+  return walk(root)
+    .map((absolute) => ({
+      label: path.relative(root, absolute).replaceAll('\\', '/'),
+      source: fs.readFileSync(absolute, 'latin1'),
+    }))
+    .filter(({ label }) => !owners.includes(label))
+}
 
 const interval = (successes: number, trials: number) => {
   const estimate = rate(successes, trials)
@@ -145,6 +178,128 @@ test('mean is null over an empty sample', () => {
   assert.equal(mean([2]), 2)
 })
 
+test('meanOf folds a projection in the same order as mean', () => {
+  assert.equal(meanOf([], (value: number) => value), null)
+  assert.equal(meanOf([{ n: 1 }, { n: 2 }, { n: 4 }], (item) => item.n), 7 / 3)
+  // Same fold order as mean, so a caller switching between them keeps its
+  // published figures down to the last bit.
+  const awkward = [0.1, 0.2, 0.3, 1e-17]
+  assert.equal(meanOf(awkward, (value) => value), mean(awkward))
+})
+
+test('median averages the middle pair on an even sample', () => {
+  assert.equal(median([]), null)
+  assert.equal(median([7]), 7)
+  // The averaged middle is what separates median from nearestRank(values, 0.5):
+  // 1.5 is not in the sample, and 2 (the nearest rank) is.
+  assert.equal(median([1, 2]), 1.5)
+  assert.equal(nearestRank([1, 2], 0.5), 1)
+  assert.equal(median([3, 1, 2]), 2)
+  assert.equal(median([4, 1, 3, 2]), 2.5)
+  // Input order must not matter, and the input must not be mutated.
+  const values = [5, 1, 4, 2, 3]
+  assert.equal(median(values), 3)
+  assert.deepEqual(values, [5, 1, 4, 2, 3])
+  assert.equal(
+    median(Array.from({ length: 20 }, (_, index) => index + 1)),
+    10.5,
+  )
+})
+
+test('sumOf totals a projection and returns zero over nothing', () => {
+  assert.equal(sumOf([], (value: number) => value), 0)
+  assert.equal(sumOf([{ n: 1 }, { n: 2 }, { n: 4 }], (item) => item.n), 7)
+  // Left fold, so the floating-point order is the one the reports published.
+  assert.equal(
+    sumOf([0.1, 0.2, 0.3], (value) => value),
+    0.1 + 0.2 + 0.3,
+  )
+})
+
+test('both paired reports spell a rate the same way', () => {
+  // The fork this replaced rendered the same RateEstimate two ways: the
+  // architecture report showed the Wilson interval and the vote-conversion
+  // report dropped it. One renderer means one spelling.
+  assert.equal(
+    renderRate(rate(42, 180)),
+    '23.3% (42/180, 95% 17.8%-30.0%)',
+  )
+  assert.equal(renderRate(rate(7, 30)), '23.3% (7/30, 95% 11.8%-40.9%)')
+  // A rate over no trials has no interval to show and says so.
+  assert.equal(renderRate(rate(0, 0)), 'n/a (0/0)')
+  assert.equal(
+    renderDelta({ delta: 0.177, interval95: { low: 0.139, high: 0.213 } }),
+    '+17.7% (95% 13.9% to 21.3%)',
+  )
+  assert.equal(
+    renderDelta({ delta: -0.05, interval95: { low: -0.106, high: 0.006 } }),
+    '-5.0% (95% -10.6% to 0.6%)',
+  )
+  assert.equal(renderDelta({ delta: null, interval95: null }), 'n/a')
+})
+
+test('the two percentage conventions stay distinct and column-stable', () => {
+  // Diagnosis tables: one decimal, right-aligned, 'n/a' for an empty
+  // denominator so a column of rates stays a column.
+  assert.equal(diagnosisPercent(1, 4), '  25.0%')
+  assert.equal(diagnosisPercent(1, 0), '    n/a')
+  assert.equal(diagnosisPercent(1, 4).length, diagnosisPercent(1, 0).length)
+  assert.equal(diagnosisPer(7, 2), ' 3.50')
+  assert.equal(diagnosisPer(7, 0), '  n/a')
+  assert.equal(diagnosisPer(7, 2).length, diagnosisPer(7, 0).length)
+  // Report CLI overview: whole numbers and an em dash, deliberately different.
+  assert.equal(overviewPercent(1, 4), '25%')
+  assert.equal(overviewPercent(1, 0), '—')
+})
+
+test('no eval module hand-rolls a published formatter', () => {
+  // Same reasoning as the estimator guard below: renderRate was forked for long
+  // enough to diverge, and the only reason nothing failed is that no test owned
+  // the spelling. A fresh local copy of any of these is that fork returning.
+  //
+  // Declarations only, anchored to the start of a line, so a comment that
+  // mentions a retired spelling while explaining this consolidation does not
+  // redden the suite. Matching is by name, so a fork that renames its helper
+  // still slips through; this is a backstop, not the contract. The contract is
+  // that both reports import one renderer and the tests above pin its output.
+  const names = [
+    'percent',
+    'pct',
+    'per',
+    'renderRate',
+    'renderDelta',
+    'renderMilliseconds',
+  ]
+  const declares = (source: string, name: string): boolean =>
+    new RegExp(
+      String.raw`^\s*(?:export\s+)?(?:const|let|function)\s+${name}\b`,
+      'm',
+    ).test(source)
+  const offenders = evalSources('report-format.ts')
+    .flatMap(({ label, source }) =>
+      names
+        .filter((name) => declares(source, name))
+        .map((name) => `${label}: ${name}`))
+  assert.deepEqual(offenders, [])
+})
+
+test('the seeded stream is pinned to the values that produced the figures', () => {
+  // Every published interval came out of this exact stream: the engine's FNV-1a
+  // over the seed, then xorshift32. Deliberately NOT the engine's makeRng, which
+  // is mulberry32 and would move every one of them. These literals make either
+  // half impossible to change by accident.
+  const random = seededRandom('phase4-good-v1:compatibility:candidate:wins')
+  assert.deepEqual(
+    Array.from({ length: 4 }, () => random()),
+    [
+      0.7616844002623111,
+      0.829826544970274,
+      0.6454424681141973,
+      0.6656277221627533,
+    ],
+  )
+})
+
 test('the seeded stream is a pure function of its seed', () => {
   const draw = (seed: string): number[] => {
     const random = seededRandom(seed)
@@ -211,17 +366,19 @@ test('the paired bootstrap declines input it cannot resample', () => {
 
 test('no eval module carries a second copy of the estimator', () => {
   // The fork this module replaced was invisible: two byte-identical estimators
-  // with no test that could tell them apart. Any reappearance of the z literal
-  // or the xorshift stream outside statistics.ts is that fork coming back. The
-  // FNV constants are not markers: mechanical-data.ts hashes seeds into dataset
-  // splits with them, which is a string hash and not this estimator.
+  // with no test that could tell them apart, so a copy-paste is what this
+  // catches. It matches the z literal and the xorshift shift sequence verbatim,
+  // which is precisely a copy-paste and nothing cleverer: a reimplementation
+  // that renames the variable or writes 1.96 walks straight past. Treat it as a
+  // backstop for the cheapest way to reintroduce the fork, not as a contract.
+  //
+  // The FNV constants are deliberately not markers. mechanical-data.ts folds
+  // them to hash seeds into dataset splits, which is a string hash rather than
+  // this estimator, and statistics.ts no longer spells them at all now that it
+  // shares the engine's fnv1a.
   const marks = ['1.959963984540054', 'state << 13', 'state >>> 17']
-  const root = path.join(import.meta.dirname, '..', 'server', 'eval')
-  const offenders = fs.readdirSync(root)
-    .filter((file) => file.endsWith('.ts') && file !== 'statistics.ts')
-    .filter((file) => {
-      const source = fs.readFileSync(path.join(root, file), 'latin1')
-      return marks.some((mark) => source.includes(mark))
-    })
+  const offenders = evalSources('statistics.ts')
+    .filter(({ source }) => marks.some((mark) => source.includes(mark)))
+    .map(({ label }) => label)
   assert.deepEqual(offenders, [])
 })

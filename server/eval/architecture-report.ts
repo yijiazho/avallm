@@ -37,16 +37,23 @@ import type {
 } from './vote-direction.ts'
 import {
   mean,
+  median,
   nearestRank,
   pairedBootstrapRateDelta,
   rate,
   seededRandom,
+  sumOf,
 } from './statistics.ts'
 import type {
-  RateCount,
   RateDeltaEstimate,
   RateEstimate,
 } from './statistics.ts'
+import {
+  fixed,
+  renderDelta,
+  renderMilliseconds,
+  renderRate,
+} from './report-format.ts'
 import type {
   ArchitectureRunMetadata,
   GameArtifact,
@@ -1912,21 +1919,16 @@ function observe(a: GameArtifact): GameObservation {
 
 function latency(games: readonly GameObservation[]): LatencySummary {
   const values = games.flatMap((game) => game.latencyMs)
+  // Ordered once for all three figures. Both estimators sort defensively, but
+  // sorting an already-ordered array is a linear pass, and the maximum is then
+  // just the last element rather than Math.max(...values) whose spread makes
+  // every sample an argument and overflows the stack on a large enough corpus.
+  const ordered = [...values].sort((left, right) => left - right)
   return {
-    samples: values.length,
-    medianMs: values.length
-      ? values.length % 2
-        ? [...values].sort((left, right) => left - right)[
-            Math.floor(values.length / 2)
-          ]
-        : (() => {
-            const ordered = [...values].sort((left, right) => left - right)
-            const middle = values.length / 2
-            return (ordered[middle - 1] + ordered[middle]) / 2
-          })()
-      : null,
-    p95Ms: nearestRank(values, 0.95),
-    maxMs: values.length ? Math.max(...values) : null,
+    samples: ordered.length,
+    medianMs: median(ordered),
+    p95Ms: nearestRank(ordered, 0.95),
+    maxMs: ordered.length ? ordered[ordered.length - 1] : null,
   }
 }
 
@@ -1934,7 +1936,9 @@ function decisionQuality(
   games: readonly GameObservation[],
 ): ArchitectureDecisionQuality {
   const sum = (select: (game: GameObservation) => number) =>
-    games.reduce((total, game) => total + select(game), 0)
+    sumOf(games, select)
+  // Not a sum: this folds per-game confusion counts into one record, so it
+  // stays a reduce rather than becoming a sumOf.
   const votes = games.reduce(
     (counts, game) => addVoteConfusion(counts, game.voteConfusion),
     emptyVoteConfusion(),
@@ -2168,10 +2172,10 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
       : {}),
     games: games.length,
     wins: games.filter((g) => g.won).length,
-    forcedViolations: games.reduce((sum, g) => sum + g.forced, 0),
-    degraded: games.reduce((sum, g) => sum + g.degraded, 0),
-    calls: games.reduce((sum, g) => sum + g.callCount, 0),
-    cost: games.reduce((sum, g) => sum + g.cost, 0),
+    forcedViolations: sumOf(games, (g) => g.forced),
+    degraded: sumOf(games, (g) => g.degraded),
+    calls: sumOf(games, (g) => g.callCount),
+    cost: sumOf(games, (g) => g.cost),
     decisionQuality: decisionQuality(games),
     latency: latency(games),
     safety: safety(games),
@@ -2182,10 +2186,10 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
         games: selected.length,
         wins: selected.filter((g) => g.won).length,
         voteScore: mean(selected.map((g) => g.voteScore).filter((v): v is number => v !== null)),
-        forcedViolations: selected.reduce((sum, g) => sum + g.forced, 0),
-        degraded: selected.reduce((sum, g) => sum + g.degraded, 0),
-        calls: selected.reduce((sum, g) => sum + g.callCount, 0),
-        cost: selected.reduce((sum, g) => sum + g.cost, 0),
+        forcedViolations: sumOf(selected, (g) => g.forced),
+        degraded: sumOf(selected, (g) => g.degraded),
+        calls: sumOf(selected, (g) => g.callCount),
+        cost: sumOf(selected, (g) => g.cost),
         decisionQuality: decisionQuality(selected),
         latency: latency(selected),
         safety: safety(selected),
@@ -2193,26 +2197,26 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
     }),
     byKind: kinds.map((kind) => ({
       kind,
-      decisions: games.reduce((sum, g) => sum + (g.decisions.get(kind) ?? 0), 0),
-      calls: games.reduce((sum, g) => sum + (g.calls.get(kind)?.calls ?? 0), 0),
+      decisions: sumOf(games, (g) => (g.decisions.get(kind) ?? 0)),
+      calls: sumOf(games, (g) => (g.calls.get(kind)?.calls ?? 0)),
       degraded: games.reduce(
         (sum, g) => sum + g.artifact.degraded.filter(
           (d) => d.seat === g.meta.targetSeat && d.kind === kind,
         ).length,
         0,
       ),
-      cost: games.reduce((sum, g) => sum + (g.calls.get(kind)?.cost ?? 0), 0),
+      cost: sumOf(games, (g) => (g.calls.get(kind)?.cost ?? 0)),
     })),
     byModel: modelIds.map((model) => {
       const entries = games.map((g) => g.models.get(model)).filter((v): v is ArchitectureModelSummary => !!v)
       return {
         model,
-        calls: entries.reduce((sum, entry) => sum + entry.calls, 0),
-        cost: entries.reduce((sum, entry) => sum + entry.cost, 0),
-        promptTokens: entries.reduce((sum, entry) => sum + entry.promptTokens, 0),
-        completionTokens: entries.reduce((sum, entry) => sum + entry.completionTokens, 0),
-        reasoningTokens: entries.reduce((sum, entry) => sum + entry.reasoningTokens, 0),
-        reasoningLeaks: entries.reduce((sum, entry) => sum + entry.reasoningLeaks, 0),
+        calls: sumOf(entries, (entry) => entry.calls),
+        cost: sumOf(entries, (entry) => entry.cost),
+        promptTokens: sumOf(entries, (entry) => entry.promptTokens),
+        completionTokens: sumOf(entries, (entry) => entry.completionTokens),
+        reasoningTokens: sumOf(entries, (entry) => entry.reasoningTokens),
+        reasoningLeaks: sumOf(entries, (entry) => entry.reasoningLeaks),
       }
     }),
   }
@@ -2309,10 +2313,10 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
         baseline,
         candidate,
         matchedCases: deltas.length,
-        wins: deltas.reduce((sum, delta) => sum + delta.wins, 0),
-        forcedViolations: deltas.reduce((sum, delta) => sum + delta.forced, 0),
-        degraded: deltas.reduce((sum, delta) => sum + delta.degraded, 0),
-        cost: deltas.reduce((sum, delta) => sum + delta.cost, 0),
+        wins: sumOf(deltas, (delta) => delta.wins),
+        forcedViolations: sumOf(deltas, (delta) => delta.forced),
+        degraded: sumOf(deltas, (delta) => delta.degraded),
+        cost: sumOf(deltas, (delta) => delta.cost),
         promotionEvidenceEligible: pairs.every(
           ({ baseline: base, candidate: next }) =>
             observationPromotionEvidenceEligible(base)
@@ -2371,21 +2375,6 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
     comparisons,
   }
 }
-
-const fixed = (value: number): string => value.toFixed(4)
-const percent = (value: number): string => `${(value * 100).toFixed(1)}%`
-const renderRate = (value: RateEstimate): string =>
-  value.rate === null || !value.interval95
-    ? `n/a (0/${value.trials})`
-    : `${percent(value.rate)} (${value.successes}/${value.trials}, `
-      + `95% ${percent(value.interval95.low)}-${percent(value.interval95.high)})`
-const renderDelta = (value: RateDeltaEstimate): string =>
-  value.delta === null || !value.interval95
-    ? 'n/a'
-    : `${value.delta >= 0 ? '+' : ''}${percent(value.delta)} `
-      + `(95% ${percent(value.interval95.low)} to ${percent(value.interval95.high)})`
-const renderMilliseconds = (value: number | null): string =>
-  value === null ? 'n/a' : `${value.toFixed(2)}ms`
 
 export function renderArchitectureReport(report: ArchitectureBenchmarkReport): string {
   const lines = [
