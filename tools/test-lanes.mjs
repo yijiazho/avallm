@@ -136,6 +136,7 @@ const LANES = Object.freeze({
   perf: Object.freeze([
     'architecture-performance.test.ts',
     'belief-performance.test.ts',
+    'cognition-performance.test.ts',
   ]),
 })
 

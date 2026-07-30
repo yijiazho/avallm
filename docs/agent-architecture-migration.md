@@ -796,8 +796,12 @@ architecture bank completed without a network or paid LLM call in about 2.4 seco
 
 Non-blocking Phase 3B follow-ups:
 
-- [ ] Cache or increment the heuristic's `CognitionState` if larger simulations show the current
+- [x] Cache or increment the heuristic's `CognitionState` if larger simulations show the current
       reconstruct-per-decision path is material; the present ten-game bank is acceptable.
+      Measured and closed: reconstruct is 84% to 86% of a heuristic decision, so the path is
+      material, but neither remedy reaches it. A per-view cache has a structurally zero hit rate
+      (every decision faces a distinct seat and cursor) and incrementing keeps 97% to 100% of the
+      cost. See the progress log for `cognition-reconstruct-cost-v1`.
 - [x] Add closed-form candidate-count properties by player count and decision kind. Exhaustive
       engine acceptance across the architecture bank currently proves legality, but an independent
       cardinality oracle would strengthen completeness coverage.
@@ -869,8 +873,12 @@ Non-blocking Phase 3C follow-ups:
       compatibility window; until then runners remain the single normalization boundary.
 - [x] Collapse the trace lifecycle behind one hook and one host helper, so a runner no longer has
       to know the ordering between engine legality and telemetry (NB-015).
-- [ ] Cache the compatibility policy's repeated cognition work if the opt-in constructor is used
-      in larger benchmarks before Phase 4 replaces that scorer.
+- [x] Cache the compatibility policy's repeated cognition work if the opt-in constructor is used
+      in larger benchmarks before Phase 4 replaces that scorer. Measured and closed: the duplicate
+      is real and stable at 7.5% to 8.3% of a composed decision across three populations, which
+      does not pay for a determinism-critical guard on a scorer Phase 4 replaces. The prerequisite
+      equality is now pinned, so promoting the composed path makes this a small specified change
+      rather than a fresh investigation. See the progress log for `cognition-reconstruct-cost-v1`.
 
 ### Central policy
 
@@ -3870,3 +3878,50 @@ here.
   keep collecting: the bank pins its own deals, so `test/evil-policy-bench.test.ts` fails loudly if
   a future engine change moves them rather than letting the recorded numbers quietly stop matching
   the code under them. Full suite 1186 correctness tests plus the three isolated performance tests.
+- Measured the two open cognition-caching follow-ups instead of guessing at them. New API-free
+  benchmark `server/eval/cognition-performance.ts` (`npm run cognition-performance`,
+  `cognition-reconstruct-cost-v1`) collects a corpus by playing normal heuristic games, recording
+  the exact request/view pair each deciding seat faced, then replaying those recorded inputs down
+  each timed path. Nothing it does changes a decision. Default population is five games at each of
+  the six player counts, best of two sweeps, reporting the minimum total as the least
+  noise-contaminated estimator on a shared developer host.
+
+  Phase 3B is closed, and not because the cost is small. Reconstruct is `84%` to `86%` of a
+  heuristic decision, measured over 6,105 decisions in 30 games and 3,634 in 18, so the path is
+  material. Neither proposed remedy reaches it. A per-view cache cannot hit at all: both corpora
+  have exactly as many distinct `(game, seat, visible cursor)` keys as decisions, 6,105 of 6,105 and
+  3,634 of 3,634, because a seat never decides twice at the same cursor. That is a structural
+  property, not a measurement, so it is pinned by its own test rather than by a timing budget; if it
+  ever breaks, the follow-up deserves reopening. Incrementing is nearly as expensive as rebuilding,
+  keeping `97%` to `100%` of the reconstruct cost, because `advanceCognition` re-infers the whole
+  belief regardless of the earlier state and only skips re-extracting evidence from events it has
+  already seen. The cost lives in the exact belief projection itself, which is `96%` to `98%` of
+  reconstruct, and the bounded deal cache already removes the enumeration half of it: cold first
+  touches are 225 of 6,105 calls and `7%` of total reconstruct time. So this is a solver question,
+  not a redundant-work question, and neither wording of the follow-up addresses it.
+
+  Phase 3C is closed too. The compatibility call does rebuild cognition the composed agent already
+  advanced for the same seat and cursor, and that duplicate is `7.5%` of a composed decision at one
+  game per player count, `8.3%` at three, and `7.9%` at five. An earlier reading of this same arm
+  reported the whole composed sweep at `968 ms` for three games against `241 s` for five and took
+  that instability as a reason to leave the item open. The instability was a defect in the
+  measurement, not in the system: the composed `decide` is async, and stopping a synchronous clock
+  around the call timed the promise's construction rather than the work. With the timing awaited,
+  three games per player count measure `114 s` against `246 s` for five, and the duplicate's share
+  is stable to within a point across all three populations. The corrected numbers are what the item
+  is closed on.
+
+  Reuse is feasible: chaining `advanceCognition` produces byte-identical state to a fresh
+  `reconstructCognition` across every decision in the corpus, so the composed agent's own cognition
+  could in principle be handed to the compatibility policy. It is not worth doing now. Eight percent
+  is roughly twenty seconds on a four-minute composed sweep, and collecting it means widening a
+  production heuristic entry point and guarding it on facts that are cheap to get wrong: the saving
+  only exists when the belief pipeline is plain exact belief, because a configured language
+  interpreter makes the composed belief deliberately different, and passing it anyway would move the
+  compatibility candidate id, the scored surface, and therefore decision and trace bytes. The
+  composed cognition also carries private role-objective and plan-memory fields the heuristic does
+  not read, so a safe version would pass only the two consumed projections rather than the state.
+  That is a small change, but it buys eight percent on an opt-in non-default path that Phase 4
+  replaces. The equality is pinned by test so a future promotion starts from it. Full suite 1182
+  correctness tests plus six isolated performance tests, strict typecheck, ratchet, and lane
+  inventory.

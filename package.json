@@ -32,6 +32,7 @@
     "role-report": "node server/eval/role-report-cli.ts",
     "architecture-fixtures": "node server/eval/decision-fixtures.ts",
     "belief-performance": "node server/eval/belief-performance.ts",
+    "cognition-performance": "node server/eval/cognition-performance.ts",
     "architecture-baselines": "node server/eval/architecture-baselines.ts",
     "probe": "node server/eval/probe.ts",
     "judge": "node server/eval/judge.ts",
