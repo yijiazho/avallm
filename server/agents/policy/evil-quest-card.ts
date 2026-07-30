@@ -22,6 +22,13 @@ import {
   exactOwnDataRecord,
   type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
+import type {
+  AssertNever,
+  ConcatKeys,
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+} from '../key-lists.ts'
 
 export const EVIL_QUEST_CARD_POLICY_VERSION =
   'evil-quest-card-policy-v1'
@@ -88,30 +95,73 @@ const ROBUST_REASON_CODES: readonly EvilQuestCardPolicyReason[] = [
   'ROBUST_LOCAL_SLOW_PLAY_HOLD',
 ]
 
+/*
+ * This decoder spells the conditional spread out as three variant lists and takes
+ * whichever matches, rather than appending inside one list. The binding is the same
+ * either way: the mandatory half binds against the interface with both optional
+ * groups omitted, so naming one of those keys there is a type error, and both
+ * directions are asserted over the three lists concatenated. Over the concatenation
+ * because that is what catches a key sitting in two of them, which would double
+ * count in the widest variant and refuse every policy that reached it.
+ *
+ * The underscore-prefixed assertion aliases are exported only so noUnusedLocals
+ * accepts them. Nothing imports one: it fails the build if its list drifts from the
+ * shape it covers, so being referenced is not what makes it work, and deleting one
+ * as dead would remove that check silently.
+ */
+type EvilQuestCardOptionalKey =
+  | 'slowPlayProbability'
+  | 'slowPlayBucket'
+  | 'localSlowPlayFail'
+  | 'selectedCard'
+
+const SELECTED_CARD_KEYS = [
+  'selectedCard',
+] as const satisfies ExactKeyList<PrivateEvilQuestCardPolicy>
+
+const SLOW_PLAY_KEYS = [
+  'slowPlayProbability',
+  'slowPlayBucket',
+  'localSlowPlayFail',
+] as const satisfies ExactKeyList<PrivateEvilQuestCardPolicy>
+
+const POLICY_KEYS = [
+  'version', 'policyVersion', 'mode', 'coordinationAssumption',
+  'populationAssumption', 'mixedTableSafe',
+  'promotionEvidenceEligible', 'request', 'role', 'applicable',
+  'sourceContext', 'sourceFingerprint', 'failsRequired',
+  'decisiveBoard', 'visibleEvilCount', 'visibleEvilAboardCount',
+  'reason',
+] as const satisfies ExactKeyList<
+  Omit<PrivateEvilQuestCardPolicy, EvilQuestCardOptionalKey>
+>
+type PolicyAllKeys = ConcatKeys<
+  ConcatKeys<typeof POLICY_KEYS, typeof SLOW_PLAY_KEYS>,
+  typeof SELECTED_CARD_KEYS
+>
+export type _PolicyKeysSound =
+  | AssertNever<MissingKeys<PrivateEvilQuestCardPolicy, PolicyAllKeys>>
+  | AssertNever<DuplicateKeys<PolicyAllKeys>>
+
+const PUBLIC_CONTEXT_KEYS = [
+  'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
+  'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
+  'priorProposals',
+] as const satisfies ExactKeyList<EvilQuestPublicContext>
+export type _PublicContextKeysSound =
+  | AssertNever<MissingKeys<EvilQuestPublicContext, typeof PUBLIC_CONTEXT_KEYS>>
+  | AssertNever<DuplicateKeys<typeof PUBLIC_CONTEXT_KEYS>>
+
 /**
  * Native decoder after the component kernel's canonical, byte-bounded ingress.
  */
 export function decodeCanonicalRobustEvilQuestCardPolicy(
   value: CanonicalJsonValue,
 ): PrivateEvilQuestCardPolicy | undefined {
-  const common = [
-    'version', 'policyVersion', 'mode', 'coordinationAssumption',
-    'populationAssumption', 'mixedTableSafe',
-    'promotionEvidenceEligible', 'request', 'role', 'applicable',
-    'sourceContext', 'sourceFingerprint', 'failsRequired',
-    'decisiveBoard', 'visibleEvilCount', 'visibleEvilAboardCount',
-    'reason',
-  ] as const
   const variants = [
-    common,
-    [...common, 'selectedCard'],
-    [
-      ...common,
-      'slowPlayProbability',
-      'slowPlayBucket',
-      'localSlowPlayFail',
-      'selectedCard',
-    ],
+    POLICY_KEYS,
+    [...POLICY_KEYS, ...SELECTED_CARD_KEYS],
+    [...POLICY_KEYS, ...SLOW_PLAY_KEYS, ...SELECTED_CARD_KEYS],
   ] as const
   const policy = variants
     .map((keys) => exactOwnDataRecord(value, keys))
@@ -120,11 +170,7 @@ export function decodeCanonicalRobustEvilQuestCardPolicy(
   const request = exactOwnDataRecord(policy.request, [
     'kind', 'seat', 'round', 'proposalNum',
   ])
-  const context = exactOwnDataRecord(policy.sourceContext, [
-    'version', 'playerCount', 'round', 'proposalNum', 'leaderSeat',
-    'currentTeam', 'teamSize', 'failsRequired', 'priorQuests',
-    'priorProposals',
-  ])
+  const context = exactOwnDataRecord(policy.sourceContext, PUBLIC_CONTEXT_KEYS)
   if (!request || !context) return undefined
   const playerCount = context.playerCount
   const currentTeam = denseOwnDataArrayValues(context.currentTeam, 10)

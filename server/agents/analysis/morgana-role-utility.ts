@@ -40,6 +40,13 @@ import {
   exactKeys,
   plainDataRecord as plainRecord,
 } from '../components/canonical-shape.ts'
+import type {
+  AssertNever,
+  ConcatKeys,
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+} from '../key-lists.ts'
 
 export const MORGANA_ROLE_UTILITY_PROJECTION_VERSION =
   'morgana-counterfeit-role-utility-v1'
@@ -407,20 +414,81 @@ const seatArray = (value: unknown): value is readonly Seat[] =>
   Array.isArray(value)
   && value.every((seat) => safeInteger(seat) && seat >= 0)
 
+/*
+ * The projection list appends `seedBucket` and `forcedSelectedCandidateId`
+ * independently, and the request list appends `currentTeam` on votes. Each fixed
+ * half binds against the interface with its optional group omitted, so naming one
+ * of those keys there is a type error, and both directions are asserted over the
+ * concatenation of the halves against the full interface. Bound against the whole
+ * interface instead, the fixed half would typecheck while double counting the
+ * optional keys whenever a spread fires, which inflates the length `exactKeys`
+ * compares and refuses every projection that carries them.
+ *
+ * The underscore-prefixed assertion aliases are exported only so noUnusedLocals
+ * accepts them. Nothing imports one: it fails the build if its list drifts from the
+ * shape it covers, so being referenced is not what makes it work, and deleting one
+ * as dead would remove that check silently.
+ */
+type MorganaRoleRequest = PrivateMorganaRoleUtilityProjection['request']
+
+const MORGANA_SEED_BUCKET_KEYS = [
+  'seedBucket',
+] as const satisfies ExactKeyList<PrivateMorganaRoleUtilityProjection>
+
+const MORGANA_FORCED_KEYS = [
+  'forcedSelectedCandidateId',
+] as const satisfies ExactKeyList<PrivateMorganaRoleUtilityProjection>
+
+const MORGANA_PROJECTION_KEYS = [
+  'version', 'role', 'source', 'request', 'selectionMode',
+  'd2ViableBand', 'seededVoteCounterfeitBand', 'maxD2RoleValue',
+  'd2BandFloor', 'seedDomain',
+  'selectedCandidateId', 'selectedDecision',
+  'counterfeitObjective', 'evilRoleUtility',
+  'candidates',
+] as const satisfies ExactKeyList<
+  Omit<
+    PrivateMorganaRoleUtilityProjection,
+    'seedBucket' | 'forcedSelectedCandidateId'
+  >
+>
+type MorganaProjectionAllKeys = ConcatKeys<
+  ConcatKeys<typeof MORGANA_PROJECTION_KEYS, typeof MORGANA_SEED_BUCKET_KEYS>,
+  typeof MORGANA_FORCED_KEYS
+>
+export type _MorganaProjectionKeysSound =
+  | AssertNever<
+      MissingKeys<
+        PrivateMorganaRoleUtilityProjection,
+        MorganaProjectionAllKeys
+      >
+    >
+  | AssertNever<DuplicateKeys<MorganaProjectionAllKeys>>
+
+const MORGANA_VOTE_REQUEST_KEYS = [
+  'currentTeam',
+] as const satisfies ExactKeyList<MorganaRoleRequest>
+
+const MORGANA_REQUEST_KEYS = [
+  'seat', 'kind', 'round', 'proposalNum',
+] as const satisfies ExactKeyList<Omit<MorganaRoleRequest, 'currentTeam'>>
+type MorganaRequestAllKeys = ConcatKeys<
+  typeof MORGANA_REQUEST_KEYS,
+  typeof MORGANA_VOTE_REQUEST_KEYS
+>
+export type _MorganaRequestKeysSound =
+  | AssertNever<MissingKeys<MorganaRoleRequest, MorganaRequestAllKeys>>
+  | AssertNever<DuplicateKeys<MorganaRequestAllKeys>>
+
 function morganaRoleUtilitySchema(value: unknown): boolean {
   if (
     !plainRecord(value)
     || !exactKeys(value, [
-      'version', 'role', 'source', 'request', 'selectionMode',
-      'd2ViableBand', 'seededVoteCounterfeitBand', 'maxD2RoleValue',
-      'd2BandFloor', 'seedDomain',
-      ...(value.seedBucket === undefined ? [] : ['seedBucket']),
-      'selectedCandidateId', 'selectedDecision',
+      ...MORGANA_PROJECTION_KEYS,
+      ...(value.seedBucket === undefined ? [] : MORGANA_SEED_BUCKET_KEYS),
       ...(value.forcedSelectedCandidateId === undefined
         ? []
-        : ['forcedSelectedCandidateId']),
-      'counterfeitObjective', 'evilRoleUtility',
-      'candidates',
+        : MORGANA_FORCED_KEYS),
     ])
     || value.version !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
     || value.role !== 'morgana'
@@ -438,8 +506,8 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     || !safeInteger(value.source.playerCount)
     || !plainRecord(value.request)
     || !exactKeys(value.request, [
-      'seat', 'kind', 'round', 'proposalNum',
-      ...(value.request.kind === 'vote' ? ['currentTeam'] : []),
+      ...MORGANA_REQUEST_KEYS,
+      ...(value.request.kind === 'vote' ? MORGANA_VOTE_REQUEST_KEYS : []),
     ])
     || !['propose', 'vote'].includes(String(value.request.kind))
     || !safeInteger(value.request.seat)

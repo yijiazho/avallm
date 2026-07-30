@@ -47,6 +47,13 @@ import {
   exactKeys,
   probability,
 } from '../components/canonical-shape.ts'
+import type {
+  AssertNever,
+  ConcatKeys,
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+} from '../key-lists.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
@@ -425,6 +432,47 @@ export function buildEvilRoleObjectiveSnapshot(input: {
   return snapshot
 }
 
+/*
+ * The assessment list appends `unseenEvilOnTeamProbability` only when the
+ * assessment carried it, which is the shape where a hand-written binding compiles
+ * and is still wrong: bound against the whole interface the optional key would be
+ * counted twice whenever the spread fires, inflating the length `exactKeys`
+ * compares and refusing every Oberon assessment. So the fixed half binds against
+ * the interface with that key omitted, which makes naming it there a type error,
+ * and both directions are asserted over the concatenation.
+ *
+ * The underscore-prefixed assertion aliases are exported only so noUnusedLocals
+ * accepts them. Nothing imports one: it fails the build if its list drifts from the
+ * shape it covers, so being referenced is not what makes it work, and deleting one
+ * as dead would remove that check silently.
+ */
+const EVIL_CANDIDATE_UNSEEN_KEYS = [
+  'unseenEvilOnTeamProbability',
+] as const satisfies ExactKeyList<EvilCandidateObjective>
+
+const EVIL_CANDIDATE_KEYS = [
+  'candidateId',
+  'kind',
+  'direction',
+  'team',
+  'probabilitySemantics',
+  'teamFailureCapabilityProbability',
+  'evilCountDistribution',
+  'publicProbabilitySemantics',
+  'publicTeamFailureCapabilityProbability',
+  'publicEvilCountDistribution',
+  'coordination',
+] as const satisfies ExactKeyList<
+  Omit<EvilCandidateObjective, 'unseenEvilOnTeamProbability'>
+>
+type EvilCandidateAllKeys = ConcatKeys<
+  typeof EVIL_CANDIDATE_KEYS,
+  typeof EVIL_CANDIDATE_UNSEEN_KEYS
+>
+export type _EvilCandidateKeysSound =
+  | AssertNever<MissingKeys<EvilCandidateObjective, EvilCandidateAllKeys>>
+  | AssertNever<DuplicateKeys<EvilCandidateAllKeys>>
+
 function evilRoleObjectiveSchema(detached: unknown): boolean {
   if (
     !detached
@@ -726,18 +774,8 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
     const hasUnseen = assessment.unseenEvilOnTeamProbability !== undefined
     if (
       !exactKeys(assessment, [
-        'candidateId',
-        'kind',
-        'direction',
-        'team',
-        'probabilitySemantics',
-        'teamFailureCapabilityProbability',
-        'evilCountDistribution',
-        'publicProbabilitySemantics',
-        'publicTeamFailureCapabilityProbability',
-        'publicEvilCountDistribution',
-        'coordination',
-        ...(hasUnseen ? ['unseenEvilOnTeamProbability'] : []),
+        ...EVIL_CANDIDATE_KEYS,
+        ...(hasUnseen ? EVIL_CANDIDATE_UNSEEN_KEYS : []),
       ])
       || typeof assessment.candidateId !== 'string'
       || !['propose', 'finalize', 'vote'].includes(String(assessment.kind))
