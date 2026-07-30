@@ -79,10 +79,12 @@ export function normalizeAgentOutput(output: AgentOutput): AgentDecision {
  * complete Phase 7F role stack behind one immutable scorer identity. Neither is
  * the default; promotion remains a separate decision with paired evidence.
  */
-export type ComposedBrainPreset = 'good-base' | 'full-role'
+export const COMPOSED_BRAIN_PRESETS = Object.freeze(
+  ['good-base', 'full-role'] as const,
+)
 
-export const COMPOSED_BRAIN_PRESETS: readonly ComposedBrainPreset[] =
-  Object.freeze(['good-base', 'full-role'])
+/** Derived from the list, so the two can never name different sets. */
+export type ComposedBrainPreset = (typeof COMPOSED_BRAIN_PRESETS)[number]
 
 export type AgentSpec =
   | { type: 'heuristic' }

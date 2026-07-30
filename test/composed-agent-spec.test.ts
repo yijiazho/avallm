@@ -67,6 +67,31 @@ test('an unknown preset cannot reach the composed constructor', () => {
   )
 })
 
+const presetIdentity = (preset: ComposedBrainPreset) =>
+  projectResolvedArchitectureIdentity(
+    createComposedAgent({
+      seed: 'identity',
+      ...composedBrainOptions(preset),
+    }).resolvedBrain().description,
+  )
+
+/**
+ * `ArchitectureVariant.createTargetAgent` is declared to return the plain agent
+ * boundary, so a bench arm's resolved brain is reachable only by naming the
+ * composed constructor's own return type.
+ */
+const variantIdentity = (variantId: string) => {
+  const variant = phase7FullRoleVariantsFor('merlin').find(
+    (candidate) => candidate.id === variantId,
+  )
+  assert.ok(variant?.createTargetAgent, `${variantId} is not a bench arm`)
+  const agent = variant.createTargetAgent({
+    seed: 'identity',
+    seat: 0,
+  }) as ReturnType<typeof createComposedAgent>
+  return projectResolvedArchitectureIdentity(agent.resolvedBrain().description)
+}
+
 /**
  * The seated preset and the measured evaluation arm must be the same
  * configuration. Comparing resolved architecture identities pins the whole
@@ -74,41 +99,15 @@ test('an unknown preset cannot reach the composed constructor', () => {
  * so a demo cannot quietly seat a stack nobody benchmarked.
  */
 test('the full-role preset is the configuration the bench measures', () => {
-  const seated = projectResolvedArchitectureIdentity(
-    createComposedAgent({
-      seed: 'identity',
-      ...composedBrainOptions('full-role'),
-    }).resolvedBrain().description,
+  assert.deepEqual(
+    presetIdentity('full-role'),
+    variantIdentity(PHASE7_FULL_ROLE_VARIANTS.fullRole),
   )
-  const measured = phase7FullRoleVariantsFor('merlin').find(
-    (variant) => variant.id === PHASE7_FULL_ROLE_VARIANTS.fullRole,
-  )!
-  const benched = projectResolvedArchitectureIdentity(
-    (measured.createTargetAgent!({ seed: 'identity', seat: 0 }) as unknown as {
-      resolvedBrain(): { description: Parameters<
-        typeof projectResolvedArchitectureIdentity
-      >[0] }
-    }).resolvedBrain().description,
-  )
-  assert.deepEqual(seated, benched)
 })
 
 test('the good-base preset is the composed Phase 4 arm', () => {
-  const seated = projectResolvedArchitectureIdentity(
-    createComposedAgent({
-      seed: 'identity',
-      ...composedBrainOptions('good-base'),
-    }).resolvedBrain().description,
+  assert.deepEqual(
+    presetIdentity('good-base'),
+    variantIdentity(PHASE7_FULL_ROLE_VARIANTS.baseComposed),
   )
-  const measured = phase7FullRoleVariantsFor('merlin').find(
-    (variant) => variant.id === PHASE7_FULL_ROLE_VARIANTS.baseComposed,
-  )!
-  const benched = projectResolvedArchitectureIdentity(
-    (measured.createTargetAgent!({ seed: 'identity', seat: 0 }) as unknown as {
-      resolvedBrain(): { description: Parameters<
-        typeof projectResolvedArchitectureIdentity
-      >[0] }
-    }).resolvedBrain().description,
-  )
-  assert.deepEqual(seated, benched)
 })

@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
+import { MAX_PROPOSALS } from '../engine/rules.ts'
 import type { GameArtifact } from './artifact.ts'
 
 export const GOOD_POLICY_DIAGNOSIS_VERSION = 'good-policy-diagnosis-v1'
@@ -116,8 +117,17 @@ export function diagnoseGoodPolicy(
         .filter((player) => player.alignment === 'evil')
         .map((player) => player.seat),
     )
-    const targetSide = artifact.players
-      .find((player) => player.seat === architecture.targetSeat)?.alignment
+    const targetPlayer = artifact.players
+      .find((player) => player.seat === architecture.targetSeat)
+    if (!targetPlayer) {
+      // Silently counting the game would report a 0% win rate for a policy
+      // that may have won it, which is worse than refusing the artifact.
+      throw new Error(
+        `artifact ${artifact.id} has no player at target seat `
+        + `${architecture.targetSeat}`,
+      )
+    }
+    const targetSide = targetPlayer.alignment
     cell.games++
     if (artifact.winner === targetSide) cell.targetWins++
     const outcome = `${artifact.winner}:${artifact.winReason}`
@@ -127,7 +137,7 @@ export function diagnoseGoodPolicy(
       const payload = event.payload as Record<string, unknown>
       if (event.type === 'proposal') {
         cell.proposals++
-        if (payload.proposalNum === 5) cell.hammerProposals++
+        if (payload.proposalNum === MAX_PROPOSALS) cell.hammerProposals++
         continue
       }
       if (event.type === 'voteReveal') {

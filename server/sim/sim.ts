@@ -186,18 +186,24 @@ const isLlm = values.agents === 'llm' || forcedModel !== undefined || packTable 
   || tierModels !== undefined
 
 // --brain implies --agents composed, mirroring how --model/--tier/--pack imply
-// --agents llm. Validated here so an unknown preset fails before any game runs.
+// --agents llm. Validated here so a bad combination fails before any game runs
+// rather than quietly seating a table the flags did not ask for.
+if (
+  values.brain !== undefined
+  && !(COMPOSED_BRAIN_PRESETS as readonly string[]).includes(values.brain)
+) {
+  console.error(`--brain must be one of ${COMPOSED_BRAIN_PRESETS.join(', ')}`)
+  process.exit(1)
+}
+// `--agents` carries a default, so an explicit conflict is only detectable for
+// the kinds nobody would pair with a brain on purpose.
+if (values.brain !== undefined && ['random', 'mixed'].includes(values.agents!)) {
+  console.error(`--brain seats a composed table and conflicts with --agents ${values.agents}`)
+  process.exit(1)
+}
 const composedBrain: ComposedBrainPreset | undefined =
   values.brain !== undefined
-    ? (() => {
-        if (!COMPOSED_BRAIN_PRESETS.includes(values.brain as ComposedBrainPreset)) {
-          console.error(
-            `--brain must be one of ${COMPOSED_BRAIN_PRESETS.join(', ')}`,
-          )
-          process.exit(1)
-        }
-        return values.brain as ComposedBrainPreset
-      })()
+    ? values.brain as ComposedBrainPreset
     : values.agents === 'composed'
       ? 'full-role'
       : undefined

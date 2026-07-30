@@ -160,6 +160,20 @@ test('cells never merge across banks, so populations stay separate', () => {
   assert.match(rendered, /bank test-bank-random\b/)
 })
 
+test('a target seat absent from the cast is refused, not scored as a loss', () => {
+  const stray = artifact({
+    variant: 'candidate',
+    winner: 'good',
+    winReason: 'assassinMissed',
+    votes: [],
+  })
+  ;(stray.architecture as { targetSeat: number }).targetSeat = 9
+  assert.throws(
+    () => diagnoseGoodPolicy([stray]),
+    /no player at target seat 9/,
+  )
+})
+
 test('a non-bench artifact is refused rather than silently grouped', () => {
   const stray = artifact({
     variant: 'candidate',

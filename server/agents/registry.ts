@@ -37,8 +37,12 @@ export function composedBrainOptions(
         roleObjectiveRouter: true,
         evilQuestCardPolicy: 'robust-heterogeneous',
       }
-    default:
-      throw new Error(`unsupported composed brain preset ${String(preset)}`)
+    default: {
+      // Assigning to `never` keeps the switch exhaustive at build time: a new
+      // preset fails to compile here instead of throwing at the first decision.
+      const unhandled: never = preset
+      throw new Error(`unsupported composed brain preset ${String(unhandled)}`)
+    }
   }
 }
 

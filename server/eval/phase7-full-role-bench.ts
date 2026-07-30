@@ -228,6 +228,17 @@ export async function runPhase7FullRoleBench(
     throw new Error('the full-role bench requires unique opponent populations')
   }
   const groups = caseGroups(cases)
+  // The bank is player-count major, so a --cases slice can drop whole target
+  // roles and table sizes. Say so rather than letting the case count imply the
+  // comparison covered the bank it is named after.
+  const fullRoles = new Set(PHASE4_POLICY_BANK.map((entry) => entry.targetRole))
+  if (groups.length !== fullRoles.size || cases.length !== PHASE4_POLICY_BANK.length) {
+    options.onProgress?.(
+      `partial bank: ${cases.length} of ${PHASE4_POLICY_BANK.length} cases, `
+      + `target roles ${groups.map((group) => group.targetRole).join(', ')} `
+      + `of ${[...fullRoles].join(', ')}`,
+    )
+  }
   const byPopulation: Phase7FullRoleBenchReport['byPopulation'] = {}
   for (const opponentKind of opponentKinds) {
     const byRole: Record<string, ArchitectureBenchmarkReport> = {}
