@@ -74,8 +74,16 @@ export function assertDistribution(
     }
     addProbability(total, value)
   }
+  // Finiteness is checked on the total, not just per element, and it has to be
+  // checked explicitly rather than left to the comparison below. Every element
+  // here is finite, but a sum of finite elements can still overflow, and once
+  // it does the compensation term takes an Infinity minus Infinity and becomes
+  // NaN. `Math.abs(NaN - 1) > tolerance` is false, so the tolerance check alone
+  // would admit the most corrupted input this guard exists to reject. The naive
+  // sum this replaced was accidentally safe there, since Infinity propagated
+  // into the comparison and failed it.
   const sum = total.sum + total.compensation
-  if (Math.abs(sum - 1) > tolerance) {
+  if (!Number.isFinite(sum) || Math.abs(sum - 1) > tolerance) {
     throw new BeliefInvariantError(`${label} must sum to 1, got ${sum}`)
   }
   return values

@@ -331,11 +331,12 @@ function validateBaseBelief(
     keys.add(weightedWorld.world.key)
     addProbability(probabilityTotal, weightedWorld.probability)
   }
+  const resolvedTotal = probabilityTotal.sum + probabilityTotal.compensation
   if (
-    !Number.isFinite(probabilityTotal.sum + probabilityTotal.compensation)
-    || Math.abs(
-      probabilityTotal.sum + probabilityTotal.compensation - 1,
-    ) > PROBABILITY_TOLERANCE
+    // Finite first: a compensated total that overflowed carries NaN, and every
+    // tolerance comparison against NaN is false. See invariants.ts.
+    !Number.isFinite(resolvedTotal)
+    || Math.abs(resolvedTotal - 1) > PROBABILITY_TOLERANCE
     || base.provenance.some((item) => item.factorId === 'language')
     || base.modelVersion.includes('bounded-language-v1')
   ) {

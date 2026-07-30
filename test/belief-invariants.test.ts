@@ -58,11 +58,30 @@ test('assertDistribution rejects a negative or non-finite mass', () => {
   assert.throws(() => assertDistribution([Number.NaN, 1], 'd'), /probability mass/)
 })
 
-test('assertDistribution scales its tolerance with the term count', () => {
-  // A wide distribution whose masses carry realistic rounding still passes;
-  // the same absolute drift concentrated in two terms would not.
-  const wide = Array.from({ length: 4096 }, () => 1 / 4096)
-  assert.doesNotThrow(() => assertDistribution(wide, 'wide'))
+test('assertDistribution holds one flat tolerance at any term count', () => {
+  // This used to widen the tolerance to `tolerance * values.length` to survive
+  // a wide distribution. The sum is compensated now, so width costs nothing and
+  // the flat single-value tolerance carries it: 60,480 is the largest feasible
+  // support this tree produces, a ten-player servant view, and a naive sum of
+  // it lands 7.9e-13 from 1 against a 1e-12 budget, a margin of 1.27x. If this
+  // ever starts failing, the compensation was lost, not the tolerance.
+  for (const width of [4096, 60_480]) {
+    const wide = Array.from({ length: width }, () => 1 / width)
+    assert.doesNotThrow(() => assertDistribution(wide, `wide-${width}`))
+  }
+})
+
+test('assertDistribution rejects a total that overflows to non-finite', () => {
+  // Each mass is individually finite and non-negative, so the per-element check
+  // admits both, but their sum overflows. The compensation term then takes an
+  // Infinity minus Infinity and becomes NaN, and every tolerance comparison
+  // against NaN is false. Without an explicit finiteness check on the total the
+  // guard would return the corrupted distribution rather than throw, which is
+  // the exact input it exists to reject.
+  assert.throws(
+    () => assertDistribution([1e308, 1e308], 'overflow'),
+    /must sum to 1/,
+  )
 })
 
 // ---- real snapshots never trip the postconditions ----
