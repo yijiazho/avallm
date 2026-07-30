@@ -20,6 +20,11 @@ export interface RosterEntry {
   slug: string         // OpenRouter model slug
   badge: { color: string }
   tier: 'cheap' | 'mid' | 'premium'
+  // Position in the no-table-posted fallback (DEFAULT_TABLE). Every seated
+  // entry carries one; benched (commented-out) entries have none, so they
+  // cannot leak into the fallback and 500 the lobby. Values only need to be
+  // ordered, not contiguous. See DEFAULT_TABLE below.
+  seatOrder: number
 }
 
 export const ROSTER: RosterEntry[] = [
@@ -28,15 +33,15 @@ export const ROSTER: RosterEntry[] = [
   // ambiguous the moment a second sibling joins.
   {
     id: 'deepseek-flash', displayName: 'DeepSeek Flash', slug: 'deepseek/deepseek-v4-flash',
-    badge: { color: '#4D6BFE' }, tier: 'cheap',
+    badge: { color: '#4D6BFE' }, tier: 'cheap', seatOrder: 1,
   },
   {
     id: 'gemini-flash-lite', displayName: 'Gemini Flash Lite', slug: 'google/gemini-3.1-flash-lite',
-    badge: { color: '#1A73E8' }, tier: 'mid',
+    badge: { color: '#1A73E8' }, tier: 'mid', seatOrder: 2,
   },
   {
     id: 'gemini-flash', displayName: 'Gemini Flash', slug: 'google/gemini-3-flash-preview',
-    badge: { color: '#34A853' }, tier: 'premium',
+    badge: { color: '#34A853' }, tier: 'premium', seatOrder: 14,
   },
   // Haiku is temporarily benched: at ~$1/$5 per M tokens it runs an order of
   // magnitude pricier than every other seat here, which dominates the spend on
@@ -49,11 +54,11 @@ export const ROSTER: RosterEntry[] = [
   // },
   {
     id: 'kimi', displayName: 'Kimi', slug: 'moonshotai/kimi-k2.5',
-    badge: { color: '#16A8A8' }, tier: 'premium',
+    badge: { color: '#16A8A8' }, tier: 'premium', seatOrder: 4,
   },
   {
     id: 'glm', displayName: 'GLM', slug: 'z-ai/glm-4.6',
-    badge: { color: '#8B5CF6' }, tier: 'premium',
+    badge: { color: '#8B5CF6' }, tier: 'premium', seatOrder: 5,
   },
   // GPT-OSS is benched on reliability, not cost. As the cheapest seat it was
   // the source of nearly every mechanical failure in playtests: its reasoning-
@@ -68,7 +73,7 @@ export const ROSTER: RosterEntry[] = [
   // },
   {
     id: 'seed', displayName: 'Seed', slug: 'bytedance-seed/seed-2.0-lite',
-    badge: { color: '#F0424C' }, tier: 'mid',
+    badge: { color: '#F0424C' }, tier: 'mid', seatOrder: 3,
   },
   // Onboarded 2026-07 via docs/model-onboarding.md. Reasoning-suppression probe
   // (reasoning-probe.ts) found effort:'none' is the clean flag (effort:'low'/
@@ -77,7 +82,7 @@ export const ROSTER: RosterEntry[] = [
   // free-tier per-minute rate limit; at $0.085/$0.40 per M it's cheap tier.
   {
     id: 'nemotron', displayName: 'Nemotron', slug: 'nvidia/nemotron-3-super-120b-a12b',
-    badge: { color: '#76B900' }, tier: 'cheap',
+    badge: { color: '#76B900' }, tier: 'cheap', seatOrder: 6,
   },
   // Onboarded 2026-07 as a batch (docs/model-onboarding.md living record).
   // Five new families (Xiaomi, Tencent, Alibaba/Qwen, Mistral, Upstage) plus an
@@ -86,15 +91,15 @@ export const ROSTER: RosterEntry[] = [
   // Seven of the eight ship; each is drawn like any other seated model.
   {
     id: 'deepseek-pro', displayName: 'DeepSeek Pro', slug: 'deepseek/deepseek-v4-pro',
-    badge: { color: '#2A3EB1' }, tier: 'premium',
+    badge: { color: '#2A3EB1' }, tier: 'premium', seatOrder: 13,
   },
   {
     id: 'mimo', displayName: 'MiMo', slug: 'xiaomi/mimo-v2.5',
-    badge: { color: '#F7A600' }, tier: 'cheap',
+    badge: { color: '#F7A600' }, tier: 'cheap', seatOrder: 11,
   },
   {
     id: 'hunyuan', displayName: 'Hunyuan', slug: 'tencent/hy3',
-    badge: { color: '#0052D9' }, tier: 'cheap',
+    badge: { color: '#0052D9' }, tier: 'cheap', seatOrder: 7,
   },
   // MiniMax is benched on reliability, one playtest after being seated. It is
   // the only model so far to PASS the suppression probe and then fail in play:
@@ -112,19 +117,19 @@ export const ROSTER: RosterEntry[] = [
   // },
   {
     id: 'qwen', displayName: 'Qwen', slug: 'qwen/qwen3.7-plus',
-    badge: { color: '#5B4BF5' }, tier: 'mid',
+    badge: { color: '#5B4BF5' }, tier: 'mid', seatOrder: 12,
   },
   {
     id: 'mistral', displayName: 'Mistral', slug: 'mistralai/mistral-small-2603',
-    badge: { color: '#FA520F' }, tier: 'cheap',
+    badge: { color: '#FA520F' }, tier: 'cheap', seatOrder: 10,
   },
   {
     id: 'gpt-nano', displayName: 'GPT Nano', slug: 'openai/gpt-5.4-nano',
-    badge: { color: '#10A37F' }, tier: 'mid',
+    badge: { color: '#10A37F' }, tier: 'mid', seatOrder: 9,
   },
   {
     id: 'solar', displayName: 'Solar', slug: 'upstage/solar-pro-3',
-    badge: { color: '#00838F' }, tier: 'cheap',
+    badge: { color: '#00838F' }, tier: 'cheap', seatOrder: 8,
   },
 ]
 
@@ -146,15 +151,14 @@ export const ROSTER: RosterEntry[] = [
 // Because the pool is drawn flat, a table CAN now seat two Google or two
 // DeepSeek variants; they're distinct models, distinctly badged.
 //
-// Because this names EVERY seated model, benching one means deleting it here
-// as well as commenting out its ROSTER entry: a leftover id would resolve to
-// no agent def and 500 the lobby. test/llm-policies.test.ts walks this list
-// through rosterById, so that mistake reddens the suite rather than shipping.
-export const DEFAULT_TABLE = [
-  'deepseek-flash', 'gemini-flash-lite', 'seed', 'kimi', 'glm', 'nemotron',
-  'hunyuan', 'solar', 'gpt-nano', 'mistral', 'mimo', 'qwen',
-  'deepseek-pro', 'gemini-flash',
-]
+// This order (and membership) is DERIVED from ROSTER's seatOrder rather than
+// hand-listed, so it names EVERY seated model and NOTHING else by construction:
+// benching a model (commenting out its ROSTER entry) drops it from here for
+// free, and a stale id can never survive to resolve to no agent def and 500 the
+// lobby. Set the seatOrder on the entries above to reorder the fallback.
+export const DEFAULT_TABLE: string[] = [...ROSTER]
+  .sort((a, b) => a.seatOrder - b.seatOrder)
+  .map((r) => r.id)
 
 // What a personality-only agent (no model in its def) plays on when the seat
 // doesn't override. Provisional: deepseek-flash is just the cheap starting

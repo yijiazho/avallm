@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { ROSTER, DEFAULT_TABLE, rosterById } from '../server/llm/roster.ts'
-import { policyFor, suppressionFor } from '../server/llm/reasoning-policy.ts'
+import { policyFor } from '../server/llm/reasoning-policy.ts'
 import { providerPrefsFor, providerServedOutsidePolicy } from '../server/llm/provider-policy.ts'
 import { CALL_PARAMS } from '../server/llm/call-params.ts'
 
@@ -23,12 +23,12 @@ test('every roster slug has a known reasoning-policy family', () => {
 })
 
 test('measured suppression flags survive the port', () => {
-  assert.deepEqual(suppressionFor('deepseek/deepseek-v4-flash').value, { effort: 'none' })
-  assert.deepEqual(suppressionFor('moonshotai/kimi-k2.5').value, { effort: 'none' })
-  assert.equal(suppressionFor('google/gemini-3.1-flash-lite').value, null) // suppress by omission
-  assert.deepEqual(suppressionFor('openai/gpt-oss-120b').value, { effort: 'low' })
-  assert.equal(suppressionFor('google/gemini-3.1-pro-preview').canSuppress, false)
-  assert.equal(suppressionFor('anthropic/claude-haiku-4.5').value, null)
+  assert.deepEqual(policyFor('deepseek/deepseek-v4-flash').suppress, { effort: 'none' })
+  assert.deepEqual(policyFor('moonshotai/kimi-k2.5').suppress, { effort: 'none' })
+  assert.equal(policyFor('google/gemini-3.1-flash-lite').suppress, null) // suppress by omission
+  assert.deepEqual(policyFor('openai/gpt-oss-120b').suppress, { effort: 'low' })
+  assert.equal(policyFor('google/gemini-3.1-pro-preview').canSuppress, false)
+  assert.equal(policyFor('anthropic/claude-haiku-4.5').suppress, null)
 })
 
 test('provider policy: glm-5.2 pinned, everything else unconstrained', () => {

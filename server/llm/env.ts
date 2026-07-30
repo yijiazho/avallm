@@ -4,11 +4,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-export function loadEnv(startDir: string = process.cwd(), depth = 8): void {
+// Returns the absolute path of the .env that was loaded, or null if none was
+// found within `depth` levels. Callers can log/surface this so a missing or
+// misplaced .env is distinguishable from a successful load.
+export function loadEnv(startDir: string = process.cwd(), depth = 8): string | null {
   let dir = startDir
   for (let i = 0; i < depth; i++) {
+    const envPath = path.join(dir, '.env')
     try {
-      let text = fs.readFileSync(path.join(dir, '.env'), 'utf8')
+      let text = fs.readFileSync(envPath, 'utf8')
       if (text.length > 0 && text.charCodeAt(0) === 0xfeff) text = text.slice(1)
       for (const line of text.split(/\r?\n/)) {
         const trimmed = line.trim()
@@ -29,7 +33,7 @@ export function loadEnv(startDir: string = process.cwd(), depth = 8): void {
         if (ci !== -1) raw = raw.slice(0, ci)
         process.env[key] = raw.trimEnd()
       }
-      return
+      return envPath
     } catch {
       /* not here — keep walking up */
     }
@@ -37,4 +41,5 @@ export function loadEnv(startDir: string = process.cwd(), depth = 8): void {
     if (parent === dir) break
     dir = parent
   }
+  return null
 }

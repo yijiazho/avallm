@@ -8,7 +8,7 @@
 //   - blank-content-under-json retry (drop response_format, retry once)
 
 import { providerPrefsFor, providerServedOutsidePolicy } from './provider-policy.ts'
-import { suppressionFor } from './reasoning-policy.ts'
+import { policyFor } from './reasoning-policy.ts'
 
 export interface CallOpts {
   tag?: string
@@ -35,6 +35,45 @@ export interface SpendEntry {
 export interface Msg {
   role: 'system' | 'user' | 'assistant'
   content: string
+}
+
+// Structured view of OpenRouter's `usage` object: the raw wire fields are
+// plucked and coerced exactly once (extractUsage), so nothing downstream sees
+// the untyped shape or re-parses the nested reasoning-token path.
+interface Usage {
+  cost: number
+  promptTokens: number
+  completionTokens: number
+  reasoningTokens: number
+}
+
+function extractUsage(raw: any): Usage {
+  return {
+    cost: Number(raw?.cost) || 0,
+    promptTokens: Number(raw?.prompt_tokens) || 0,
+    completionTokens: Number(raw?.completion_tokens) || 0,
+    reasoningTokens: Number(raw?.completion_tokens_details?.reasoning_tokens) || 0,
+  }
+}
+
+// One completed outbound call, as returned by dispatch(): the HTTP concern only.
+// No spend has been recorded and no warning flags computed yet — account() does
+// that, so the mutation and the flags are visible at the call site in call().
+interface Dispatch {
+  content: string
+  usage: Usage
+  provider: string | undefined
+}
+
+// A single call's contribution to the per-tag spend map. Replaces the former
+// positional boolean-soup argument list on recordSpend.
+interface SpendUpdate {
+  tag: string
+  model: string
+  usage: Usage
+  leaked: boolean
+  provider: string | undefined
+  providerViolated: boolean
 }
 
 export class SpendCeilingError extends Error {
@@ -66,12 +105,12 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     return Object.values(SPEND).reduce((s, e) => s + (e.cost || 0), 0)
   }
 
-  // Enforced at the dispatch chokepoint (issue), so EVERY outbound call —
-  // including the blank-under-json retry — is gated, never just the first.
-  // This is refuse-before-call: the crossing call still completes and
-  // concurrent in-flight calls can overshoot, so the cap is best-effort, not
-  // a hard guarantee (no pre-call price is available to reserve against).
-  function enforceCeiling(tag: string): void {
+  // Checked at the dispatch chokepoint, so EVERY outbound call — including the
+  // blank-under-json retry — is gated, never just the first. This is
+  // refuse-before-call: the crossing call still completes and concurrent
+  // in-flight calls can overshoot, so the cap is best-effort, not a hard
+  // guarantee (no pre-call price is available to reserve against).
+  function assertUnderCeiling(tag: string): void {
     const cap = maxSpendUsd()
     if (cap != null && getTotalCost() >= cap) {
       if (!quiet) {
@@ -81,42 +120,41 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     }
   }
 
-  function recordSpend(
-    tag: string, model: string, usage: any, leaked: boolean,
-    provider: string | undefined, providerViolated: boolean,
-  ): void {
-    SPEND[tag] ??= {
+  function recordSpend(u: SpendUpdate): void {
+    SPEND[u.tag] ??= {
       cost: 0, calls: 0, prompt: 0, completion: 0, reasoning: 0,
-      reasoningLeakCalls: 0, providerViolationCalls: 0, model, providers: {},
+      reasoningLeakCalls: 0, providerViolationCalls: 0, model: u.model, providers: {},
     }
-    const s = SPEND[tag]
-    s.model = model
+    const s = SPEND[u.tag]
+    s.model = u.model
     s.calls++
-    if (usage) {
-      s.cost += Number(usage.cost) || 0
-      s.prompt += Number(usage.prompt_tokens) || 0
-      s.completion += Number(usage.completion_tokens) || 0
-      s.reasoning += Number(usage.completion_tokens_details?.reasoning_tokens) || 0
-    }
-    if (leaked) s.reasoningLeakCalls++
-    if (provider) s.providers[provider] = (s.providers[provider] || 0) + 1
-    if (providerViolated) s.providerViolationCalls++
+    s.cost += u.usage.cost
+    s.prompt += u.usage.promptTokens
+    s.completion += u.usage.completionTokens
+    s.reasoning += u.usage.reasoningTokens
+    if (u.leaked) s.reasoningLeakCalls++
+    if (u.provider) s.providers[u.provider] = (s.providers[u.provider] || 0) + 1
+    if (u.providerViolated) s.providerViolationCalls++
   }
 
-  async function issue(
+  // The HTTP concern only: gate on the ceiling, resolve reasoning/provider
+  // params, run the request under the whole-exchange timeout, and return the
+  // structured reply. It does NOT touch SPEND or compute warning flags — that
+  // is account()'s job, kept separate so call() composes the two explicitly.
+  async function dispatch(
     model: string, messages: Msg[], callOpts: CallOpts,
     { omitResponseFormat = false } = {},
-  ): Promise<string> {
-    enforceCeiling(callOpts.tag || 'other')
+  ): Promise<Dispatch> {
+    assertUnderCeiling(callOpts.tag || 'other')
     const key = process.env.OPENROUTER_API_KEY
     if (!key) throw new Error('OPENROUTER_API_KEY not set')
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
-    const policy = suppressionFor(model)
+    const policy = policyFor(model)
     const resolvedReasoning =
       callOpts.reasoning != null ? callOpts.reasoning
       : callOpts.allowReasoning ? null
-      : policy.value
+      : policy.suppress
     const resolvedProvider = callOpts.provider != null ? callOpts.provider : providerPrefsFor(model)
     // The timeout must cover the WHOLE exchange, not just the fetch(). A provider
     // can return headers promptly and then stall the body; if we cleared the timer
@@ -162,37 +200,52 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     } finally {
       clearTimeout(timer)
     }
+    return {
+      content: data.choices?.[0]?.message?.content || '',
+      usage: extractUsage(data.usage),
+      provider: data.provider,
+    }
+  }
+
+  // Mutate SPEND for one completed call and emit the leak/provider warnings. The
+  // warning flags are derived here (not inside dispatch) so that the spend
+  // mutation is an explicit, named step in call() rather than a hidden effect.
+  function account(model: string, callOpts: CallOpts, result: Dispatch): void {
     const tag = callOpts.tag || 'other'
-    const rt = Number(data.usage?.completion_tokens_details?.reasoning_tokens) || 0
+    const rt = result.usage.reasoningTokens
     const allowedReasoning =
       callOpts.allowReasoning === true ||
       (callOpts.reasoning != null && !wantsNoReasoning(callOpts.reasoning))
-    const leaked = rt > 0 && !allowedReasoning && policy.canSuppress
+    const leaked = rt > 0 && !allowedReasoning && policyFor(model).canSuppress
+    // When callOpts.provider is set we never flag; otherwise the resolved prefs
+    // are exactly providerPrefsFor(model), so recompute rather than thread it.
     const providerViolated =
       callOpts.provider == null &&
-      providerServedOutsidePolicy(resolvedProvider as any, data.provider)
-    recordSpend(tag, model, data.usage, leaked, data.provider, providerViolated)
+      providerServedOutsidePolicy(providerPrefsFor(model) as any, result.provider)
+    recordSpend({ tag, model, usage: result.usage, leaked, provider: result.provider, providerViolated })
     if (leaked && !quiet) {
       console.warn(`[openrouter] ${model} (${tag}) emitted ${rt} reasoning tokens despite suppression`)
     }
     if (providerViolated && !quiet) {
-      console.warn(`[openrouter] ${model} (${tag}) served outside its provider allowlist by '${data.provider}'`)
+      console.warn(`[openrouter] ${model} (${tag}) served outside its provider allowlist by '${result.provider}'`)
     }
-    return data.choices?.[0]?.message?.content || ''
   }
 
   async function call(model: string, messages: Msg[], callOpts: CallOpts = {}): Promise<string> {
-    // Ceiling is enforced inside issue() so the retry below is gated too.
-    const content = await issue(model, messages, callOpts)
+    // Ceiling is checked inside dispatch() so the retry below is gated too.
+    const first = await dispatch(model, messages, callOpts)
+    account(model, callOpts, first)
     // Blank under json_object is never valid; retry once without response_format
     // (re-routes providers and removes the known deepseek json×non-think trap).
-    if (callOpts.response_format && isBlank(content)) {
+    if (callOpts.response_format && isBlank(first.content)) {
       if (!quiet) {
         console.warn(`[openrouter] ${model} (${callOpts.tag}) returned BLANK under response_format — retrying without it`)
       }
-      return issue(model, messages, callOpts, { omitResponseFormat: true })
+      const retry = await dispatch(model, messages, callOpts, { omitResponseFormat: true })
+      account(model, callOpts, retry)
+      return retry.content
     }
-    return content
+    return first.content
   }
 
   return { call, getSpend: () => SPEND, getTotalCost }

@@ -1,7 +1,6 @@
-// Contract test: the spend ceiling is enforced at the dispatch chokepoint
-// (issue), so EVERY outbound call is gated — including the blank-under-json
-// retry, which used to bypass the one-shot check in call() and could bill a
-// second time past the cap.
+// Contract test: the spend ceiling is checked inside dispatch(), so EVERY
+// outbound call is gated — including the blank-under-json retry, which used to
+// bypass the one-shot check in call() and could bill a second time past the cap.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createOpenRouter, SpendCeilingError } from '../server/llm/openrouter.ts'

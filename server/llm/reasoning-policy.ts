@@ -70,12 +70,3 @@ export function policyFor(model: string): ReasoningPolicy {
   if (typeof model !== 'string') return UNKNOWN
   return POLICIES.find((p) => p.match.test(model)) ?? UNKNOWN
 }
-
-export function suppressionFor(model: string): {
-  value: Record<string, unknown> | null
-  canSuppress: boolean
-  family: string
-} {
-  const p = policyFor(model)
-  return { value: p.suppress, canSuppress: p.canSuppress, family: p.family }
-}
