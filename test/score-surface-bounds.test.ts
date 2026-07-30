@@ -19,6 +19,9 @@ import {
   type CandidateScore,
   type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
+import {
+  MAX_SCORE_LAYER_SURFACE_JSON_BYTES,
+} from '../server/agents/policy/score-layer/surface.ts'
 
 /** Reads only `candidates.length`, and only after the ceiling has passed. */
 const emptyContext = (): CandidateScoringContext =>
@@ -64,7 +67,7 @@ test('the score surface byte ceiling applies to every scorer version', () => {
       oversized,
       'third-party-scorer-v1',
     ),
-    /exceed 1 MiB/,
+    /serialized scores exceed/,
   )
   // A built-in role version, which was bounded before and still is.
   assert.throws(
@@ -73,7 +76,20 @@ test('the score surface byte ceiling applies to every scorer version', () => {
       oversized,
       ROLE_OBJECTIVE_SCORER_VERSION,
     ),
-    /exceed 1 MiB/,
+    /serialized scores exceed/,
+  )
+})
+
+test('the custom and native surface ceilings stay the same value', () => {
+  // score.ts documents that its ceiling matches the native score-layer one and
+  // explains why it cannot import it: score-layer imports score.ts, so the
+  // dependency cannot run the other way. That argument is sound, and it leaves
+  // the claim unenforced -- raise one constant and the two silently diverge
+  // while the comment still says they agree. A test has no cycle constraint and
+  // can see both modules, so the invariant is pinned from here.
+  assert.equal(
+    MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES,
+    MAX_SCORE_LAYER_SURFACE_JSON_BYTES,
   )
 })
 
@@ -86,11 +102,14 @@ test('the ceiling is a size bound and nothing else', () => {
     Buffer.byteLength(JSON.stringify(small), 'utf8')
       < MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES,
   )
+  // Assert the exact rejection that should follow, not merely "not the size
+  // one". A negative predicate here would be satisfied by any failure at all,
+  // including a TypeError from the minimal context above, so it would keep
+  // passing through precisely the reordering that invalidates this test.
   assert.throws(
     () => validateCandidateScores(emptyContext(), small, 'third-party-v1'),
-    (error: unknown) =>
-      error instanceof Error && !/exceed 1 MiB/.test(error.message),
-    'a small surface must fail on its contents, never on its size',
+    /did not score the complete legal surface/,
+    'a small surface must reach the semantic checks, not fail on its size',
   )
 
   // Order matters: a malformed surface is reported as malformed even when it is

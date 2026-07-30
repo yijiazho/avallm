@@ -599,7 +599,8 @@ export function validateCandidateScores(
       > MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES
   ) {
     throw new Error(
-      'invalid candidate score surface: serialized scores exceed 1 MiB',
+      'invalid candidate score surface: serialized scores exceed '
+        + `${MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES} bytes`,
     )
   }
   if (scores.length !== context.candidates.length) {
