@@ -6,7 +6,7 @@ import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type { Game, Player, Seat } from '../server/engine/types.ts'
 
-const sorted = (xs: Seat[]) => xs.slice().sort((a, b) => a - b)
+const sorted = (xs: readonly Seat[]) => xs.slice().sort((a, b) => a - b)
 const seatsWhere = (g: Game, pred: (p: Player) => boolean) =>
   sorted(g.players.filter(pred).map((p) => p.seat))
 
