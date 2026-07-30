@@ -21,10 +21,9 @@ import {
 import { projectPublicRecord } from '../communication/public-record.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
-  canonicalizeJson,
-  type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../components/canonical-json.ts'
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 import {
   assessPublicJointTeams,
   observePublicRecord,
@@ -466,16 +465,8 @@ export function buildEvilRoleObjectiveSnapshot(input: {
   return snapshot
 }
 
-function validatePrivateEvilRoleObjectiveSnapshotShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateEvilRoleObjectiveSnapshot {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    const detached = canonical.payload
+function evilRoleObjectiveSchema(detached: unknown): boolean {
+  {
     if (
       !detached
       || typeof detached !== 'object'
@@ -927,25 +918,16 @@ function validatePrivateEvilRoleObjectiveSnapshotShape(
       }
     }
     return true
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateEvilRoleObjectiveSnapshot(
-  value: unknown,
-): value is PrivateEvilRoleObjectiveSnapshot {
-  return validatePrivateEvilRoleObjectiveSnapshotShape(value, true)
-}
+const evilRoleObjectiveCodec =
+  projectionCodec<PrivateEvilRoleObjectiveSnapshot>(evilRoleObjectiveSchema)
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateEvilRoleObjectiveSnapshot(
-  value: CanonicalJsonValue,
-): PrivateEvilRoleObjectiveSnapshot | undefined {
-  return validatePrivateEvilRoleObjectiveSnapshotShape(value, false)
-    ? value as PrivateEvilRoleObjectiveSnapshot
-    : undefined
-}
+export const validatePrivateEvilRoleObjectiveSnapshot =
+  evilRoleObjectiveCodec.validate
+export const decodeCanonicalPrivateEvilRoleObjectiveSnapshot =
+  evilRoleObjectiveCodec.decode
 
 interface EvilRoleObjectiveHostJoinInput {
   req: DecisionRequest
@@ -955,19 +937,10 @@ interface EvilRoleObjectiveHostJoinInput {
   candidates: readonly PolicyCandidate[]
 }
 
-function validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(
-  value: PrivateEvilRoleObjectiveSnapshot,
-  input: EvilRoleObjectiveHostJoinInput,
-): boolean {
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildEvilRoleObjectiveSnapshot(input),
-    )
-  } catch {
-    return false
-  }
-}
+const validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal = exactHostJoin(
+  (input: EvilRoleObjectiveHostJoinInput) =>
+    buildEvilRoleObjectiveSnapshot(input),
+)
 
 export function validatePrivateEvilRoleObjectiveHostJoin(
   value: unknown,

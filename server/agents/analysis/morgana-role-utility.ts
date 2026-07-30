@@ -15,10 +15,12 @@ import {
   compareCandidateIds,
 } from '../policy/candidates.ts'
 import {
-  canonicalizeJson,
   type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
+import {
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 import {
   decodeCanonicalPrivateEvilRoleUtilityProjection,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
@@ -417,16 +419,8 @@ const seatArray = (value: unknown): value is readonly Seat[] =>
   Array.isArray(value)
   && value.every((seat) => safeInteger(seat) && seat >= 0)
 
-function validatePrivateMorganaRoleUtilityProjectionShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateMorganaRoleUtilityProjection {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    value = canonical.payload
+function morganaRoleUtilitySchema(value: unknown): boolean {
+  {
     if (
       !plainRecord(value)
       || !exactKeys(value, [
@@ -664,25 +658,18 @@ function validatePrivateMorganaRoleUtilityProjectionShape(
         value.forcedSelectedCandidateId === undefined
         || value.forcedSelectedCandidateId === value.selectedCandidateId
       )
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateMorganaRoleUtilityProjection(
-  value: unknown,
-): value is PrivateMorganaRoleUtilityProjection {
-  return validatePrivateMorganaRoleUtilityProjectionShape(value, true)
-}
+const morganaRoleUtilityCodec =
+  projectionCodec<PrivateMorganaRoleUtilityProjection>(
+    morganaRoleUtilitySchema,
+  )
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateMorganaRoleUtilityProjection(
-  value: CanonicalJsonValue,
-): PrivateMorganaRoleUtilityProjection | undefined {
-  return validatePrivateMorganaRoleUtilityProjectionShape(value, false)
-    ? value as PrivateMorganaRoleUtilityProjection
-    : undefined
-}
+export const validatePrivateMorganaRoleUtilityProjection =
+  morganaRoleUtilityCodec.validate
+export const decodeCanonicalPrivateMorganaRoleUtilityProjection =
+  morganaRoleUtilityCodec.decode
 
 export function validatePrivateMorganaRoleUtilityHostJoin(
   value: unknown,
@@ -695,26 +682,10 @@ export function validatePrivateMorganaRoleUtilityHostJoin(
     )
     || !validatePrivateEvilRoleUtilityProjection(input.evilRoleUtility)
   ) return false
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildMorganaRoleUtilityProjection(input),
-    )
-  } catch {
-    return false
-  }
+  return exactHostJoin(buildMorganaRoleUtilityProjection)(value, input)
 }
 
-export function validateAdmittedPrivateMorganaRoleUtilityHostJoin(
-  value: PrivateMorganaRoleUtilityProjection,
-  input: MorganaRoleUtilityProjectionInput,
-): boolean {
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildMorganaRoleUtilityProjectionInternal(input, true),
-    )
-  } catch {
-    return false
-  }
-}
+export const validateAdmittedPrivateMorganaRoleUtilityHostJoin = exactHostJoin(
+  (input: MorganaRoleUtilityProjectionInput) =>
+    buildMorganaRoleUtilityProjectionInternal(input, true),
+)

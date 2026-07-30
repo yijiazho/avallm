@@ -51,10 +51,9 @@ import {
   probability,
 } from '../components/canonical-shape.ts'
 import {
-  canonicalizeJson,
-  type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../components/canonical-json.ts'
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 
 const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
 const roleRank = new Map(CANONICAL_ROLE_ORDER.map((role, index) => [role, index]))
@@ -613,17 +612,10 @@ function validDistribution(value: unknown, teamSize: number): value is number[] 
     ) <= PROBABILITY_TOLERANCE
 }
 
-function validatePrivateRoleObjectiveSnapshotShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateRoleObjectiveSnapshot {
-  try {
-    const detached = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!detached.ok) return false
-    if (!plainRecord(detached.payload)) return false
-    const snapshot = detached.payload as Record<string, unknown>
+function roleObjectiveSchema(detached: unknown): boolean {
+  {
+    if (!plainRecord(detached)) return false
+    const snapshot = detached as Record<string, unknown>
     const source = snapshot.source as Record<string, unknown>
     const request = snapshot.request as Record<string, unknown>
     const objective = snapshot.objective as Record<string, unknown>
@@ -920,71 +912,48 @@ function validatePrivateRoleObjectiveSnapshotShape(
       ) return false
     }
     return true
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateRoleObjectiveSnapshot(
-  value: unknown,
-): value is PrivateRoleObjectiveSnapshot {
-  return validatePrivateRoleObjectiveSnapshotShape(value, true)
+const roleObjectiveCodec =
+  projectionCodec<PrivateRoleObjectiveSnapshot>(roleObjectiveSchema)
+
+export const validatePrivateRoleObjectiveSnapshot = roleObjectiveCodec.validate
+export const decodeCanonicalPrivateRoleObjectiveSnapshot =
+  roleObjectiveCodec.decode
+
+interface RoleObjectiveHostJoinInput {
+  req: DecisionRequest
+  view: PlayerView
+  identity: PrivateIdentitySnapshot
+  observer: PublicObserverSnapshot
+  candidates: readonly PolicyCandidate[]
 }
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateRoleObjectiveSnapshot(
-  value: CanonicalJsonValue,
-): PrivateRoleObjectiveSnapshot | undefined {
-  return validatePrivateRoleObjectiveSnapshotShape(value, false)
-    ? value as PrivateRoleObjectiveSnapshot
-    : undefined
-}
+/**
+ * The host must observe the record itself rather than trust the observer it
+ * was handed, so a non-authoritative observer rejects the join. Throwing is
+ * how that reaches the shared rebuild-and-compare rule as a rejection.
+ */
+export const validateAdmittedPrivateRoleObjectiveHostJoin = exactHostJoin(
+  (input: RoleObjectiveHostJoinInput) => {
+    const authoritativeObserver = observePublicRecord(
+      projectPublicRecord(input.view),
+    )
+    if (!isDeepStrictEqual(input.observer, authoritativeObserver)) {
+      throw new Error('role objective observer is not authoritative')
+    }
+    return buildRoleObjectiveSnapshot({
+      ...input,
+      observer: authoritativeObserver,
+    })
+  },
+)
 
 export function validatePrivateRoleObjectiveHostJoin(
   value: unknown,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    identity: PrivateIdentitySnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-  },
+  input: RoleObjectiveHostJoinInput,
 ): value is PrivateRoleObjectiveSnapshot {
-  if (!validatePrivateRoleObjectiveSnapshot(value)) return false
-  try {
-    const authoritativeObserver = observePublicRecord(
-      projectPublicRecord(input.view),
-    )
-    if (!isDeepStrictEqual(input.observer, authoritativeObserver)) return false
-    return isDeepStrictEqual(value, buildRoleObjectiveSnapshot({
-      ...input,
-      observer: authoritativeObserver,
-    }))
-  } catch {
-    return false
-  }
-}
-
-export function validateAdmittedPrivateRoleObjectiveHostJoin(
-  value: PrivateRoleObjectiveSnapshot,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    identity: PrivateIdentitySnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-  },
-): boolean {
-  try {
-    const authoritativeObserver = observePublicRecord(
-      projectPublicRecord(input.view),
-    )
-    return isDeepStrictEqual(input.observer, authoritativeObserver)
-      && isDeepStrictEqual(value, buildRoleObjectiveSnapshot({
-        ...input,
-        observer: authoritativeObserver,
-      }))
-  } catch {
-    return false
-  }
+  return validatePrivateRoleObjectiveSnapshot(value)
+    && validateAdmittedPrivateRoleObjectiveHostJoin(value, input)
 }

@@ -30,10 +30,9 @@ import { projectPublicRecord } from '../communication/public-record.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import { candidateIdForDecision } from '../policy/candidates.ts'
 import {
-  canonicalizeJson,
-  type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../components/canonical-json.ts'
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 import {
   MAX_MORGANA_COUNTERFEIT_ASSESSMENTS,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
@@ -628,16 +627,8 @@ function validReadRow(
   )
 }
 
-function validatePublicCounterfeitMerlinReadShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PublicCounterfeitMerlinReadSnapshot {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    value = canonical.payload
+function publicCounterfeitReadSchema(value: unknown): boolean {
+  {
     if (
       !plainRecord(value)
       || !exactKeys(value, [
@@ -685,25 +676,18 @@ function validatePublicCounterfeitMerlinReadShape(
           row.merlinWorldNumerator / maxNumerator,
         ),
     )
-  } catch {
-    return false
   }
 }
 
-export function validatePublicCounterfeitMerlinRead(
-  value: unknown,
-): value is PublicCounterfeitMerlinReadSnapshot {
-  return validatePublicCounterfeitMerlinReadShape(value, true)
-}
+const publicCounterfeitReadCodec =
+  projectionCodec<PublicCounterfeitMerlinReadSnapshot>(
+    publicCounterfeitReadSchema,
+  )
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPublicCounterfeitMerlinRead(
-  value: CanonicalJsonValue,
-): PublicCounterfeitMerlinReadSnapshot | undefined {
-  return validatePublicCounterfeitMerlinReadShape(value, false)
-    ? value as PublicCounterfeitMerlinReadSnapshot
-    : undefined
-}
+export const validatePublicCounterfeitMerlinRead =
+  publicCounterfeitReadCodec.validate
+export const decodeCanonicalPublicCounterfeitMerlinRead =
+  publicCounterfeitReadCodec.decode
 
 function validDistribution(value: unknown, teamSize: number): value is number[] {
   return denseArray(value)
@@ -746,16 +730,8 @@ function canonicalRoles(
   }
 }
 
-function validatePrivateMorganaCounterfeitObjectiveShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateMorganaCounterfeitObjective {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    value = canonical.payload
+function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
+  {
     if (
       !plainRecord(value)
       || !exactKeys(value, [
@@ -993,25 +969,18 @@ function validatePrivateMorganaCounterfeitObjectiveShape(
         }))
     return ids.size === expectedCandidateIds.length
       && expectedCandidateIds.every((candidateId) => ids.has(candidateId))
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateMorganaCounterfeitObjective(
-  value: unknown,
-): value is PrivateMorganaCounterfeitObjective {
-  return validatePrivateMorganaCounterfeitObjectiveShape(value, true)
-}
+const morganaCounterfeitObjectiveCodec =
+  projectionCodec<PrivateMorganaCounterfeitObjective>(
+    morganaCounterfeitObjectiveSchema,
+  )
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateMorganaCounterfeitObjective(
-  value: CanonicalJsonValue,
-): PrivateMorganaCounterfeitObjective | undefined {
-  return validatePrivateMorganaCounterfeitObjectiveShape(value, false)
-    ? value as PrivateMorganaCounterfeitObjective
-    : undefined
-}
+export const validatePrivateMorganaCounterfeitObjective =
+  morganaCounterfeitObjectiveCodec.validate
+export const decodeCanonicalPrivateMorganaCounterfeitObjective =
+  morganaCounterfeitObjectiveCodec.decode
 
 export function validatePublicCounterfeitMerlinReadHostJoin(
   value: unknown,
@@ -1046,16 +1015,7 @@ export function validatePrivateMorganaCounterfeitHostJoin(
     && isDeepStrictEqual(value, buildMorganaCounterfeitObjective(input))
 }
 
-export function validateAdmittedPrivateMorganaCounterfeitHostJoin(
-  value: PrivateMorganaCounterfeitObjective,
-  input: MorganaCounterfeitObjectiveInput,
-): boolean {
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildMorganaCounterfeitObjectiveInternal(input, true),
-    )
-  } catch {
-    return false
-  }
-}
+export const validateAdmittedPrivateMorganaCounterfeitHostJoin = exactHostJoin(
+  (input: MorganaCounterfeitObjectiveInput) =>
+    buildMorganaCounterfeitObjectiveInternal(input, true),
+)
