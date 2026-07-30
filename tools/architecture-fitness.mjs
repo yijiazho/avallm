@@ -1,4 +1,5 @@
 import {
+  existsSync,
   readFileSync,
   readdirSync,
 } from 'node:fs'
@@ -1732,7 +1733,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
  * though nothing else names it, and an earlier census that missed this reported
  * 126 violations instead of 22.
  */
-const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
+export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   // The one deliberate member. Its own doc comment states that it has no
   // production caller and that the arm exists because it is the only path
   // reaching validDecisionTrace, so deleting it would drop those structural
@@ -1771,10 +1772,14 @@ const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ['server/agents/score-layers/configured.ts', new Set([
     'configuredScoreFamilyWiring',
   ])],
+  // createGoodScoreLayerRegistry is deliberately absent: the census that built
+  // this list scanned text, and counted its name inside a synthetic source
+  // string in the fitness suite as a reference. It has no consumer at all, in
+  // production or in a test, which is a different rule's territory than this
+  // one and is why the staleness check flagged the entry on its first run.
   ['server/agents/score-layers/good.ts', new Set([
     'calculateGoodProposalCandidateScores',
     'calculateGoodProposalVoteCandidateScores',
-    'createGoodScoreLayerRegistry',
   ])],
   ['server/eval/active-language-bank.ts', new Set([
     'activeLanguageEvaluationVariant',
@@ -1830,16 +1835,38 @@ function identifierCounts(ast) {
   return counts
 }
 
+/**
+ * Every source under `directory`, or a throw naming what could not be read.
+ *
+ * A partial list is the one result this must never return. ARCH018 decides that
+ * an export has no production consumer by not finding one, so a subtree that
+ * silently failed to enumerate reads as a subtree that referenced nothing, and
+ * the rule reports real exports as dead. Failing loud is the only safe
+ * direction for a check whose verdict is an absence, which is why
+ * collectServerSources next door throws for the same reason.
+ *
+ * A missing top-level directory is not an error: a checkout with no test tree
+ * has nothing for this rule to say, and the caller turns an empty side into no
+ * violations rather than into every export being unreferenced.
+ */
 function collectDirectorySources(root, directory) {
   const entries = []
-  const pending = [path.join(root, directory)]
+  const base = path.join(root, directory)
+  if (!existsSync(base)) return entries
+  const pending = [base]
+  const describe = (error) =>
+    error instanceof Error ? error.message : String(error)
   while (pending.length) {
     const current = pending.pop()
     let children
     try {
       children = readdirSync(current, { withFileTypes: true })
-    } catch {
-      return entries
+    } catch (error) {
+      throw new Error(
+        `cannot enumerate ${
+          normalizeRepoPath(path.relative(root, current))
+        }: ${describe(error)}`,
+      )
     }
     for (const child of children) {
       const absolute = path.join(current, child.name)
@@ -1849,20 +1876,37 @@ function collectDirectorySources(root, directory) {
         continue
       }
       if (!child.isFile() || !SOURCE_EXTENSION.test(child.name)) continue
-      entries.push([
-        normalizeRepoPath(path.relative(root, absolute)),
-        readFileSync(absolute, 'utf8'),
-      ])
+      const relative = normalizeRepoPath(path.relative(root, absolute))
+      try {
+        entries.push([relative, readFileSync(absolute, 'utf8')])
+      } catch (error) {
+        throw new Error(`cannot read ${relative}: ${describe(error)}`)
+      }
     }
   }
   return entries.sort(([left], [right]) => left.localeCompare(right))
 }
 
 export function checkTestOnlyProductionExports(root = process.cwd()) {
-  return auditTestOnlyProductionExports(
-    collectDirectorySources(root, 'server'),
-    collectDirectorySources(root, 'test'),
-  )
+  let server
+  let tests
+  try {
+    server = collectDirectorySources(root, 'server')
+    tests = collectDirectorySources(root, 'test')
+  } catch (error) {
+    return Object.freeze([violation(
+      'ARCH018',
+      'server',
+      undefined,
+      error instanceof Error ? error.message : String(error),
+    )])
+  }
+  // Whether an exempt path still exists is deliberately not asserted here.
+  // This function is generic over `root`, and the fitness suite points it at
+  // synthetic trees, where every real baseline path is legitimately absent.
+  // test/architecture-fitness.test.ts pins existence against the repository
+  // itself, which is the only place the question is well posed.
+  return auditTestOnlyProductionExports(server, tests)
 }
 
 /**
@@ -1887,16 +1931,28 @@ export function auditTestOnlyProductionExports(server, tests) {
   const testCounts = tests.map(parse).map((entry) => entry.counts)
 
   const violations = []
+  // Every exemption that actually suppressed something this run. An entry that
+  // suppresses nothing is reported below rather than left in place: the list is
+  // a ratchet, so it has to be observable when a member is worked off, and a
+  // lingering entry silently pre-exempts a future export that reuses the name.
+  // tools/strict-test-ratchet.mjs treats its own stale exemptions the same way.
+  const consumed = new Map()
   for (const module of serverModules) {
     const exempt = TEST_ONLY_EXPORT_EXEMPTIONS.get(module.sourcePath)
     for (const declared of exportedValueNames(module.ast)) {
-      if (exempt?.has(declared.name)) continue
+      const suppressed = exempt?.has(declared.name) === true
       // The declaration itself contributes one identifier, so anything above
       // one is a real use inside the declaring module.
       if ((module.counts.get(declared.name) ?? 0) > 1) continue
       if (serverModules.some((other) =>
         other !== module && other.counts.has(declared.name))) continue
       if (!testCounts.some((counts) => counts.has(declared.name))) continue
+      if (suppressed) {
+        const names = consumed.get(module.sourcePath) ?? new Set()
+        names.add(declared.name)
+        consumed.set(module.sourcePath, names)
+        continue
+      }
       violations.push(violation(
         'ARCH018',
         module.sourcePath,
@@ -1904,6 +1960,27 @@ export function auditTestOnlyProductionExports(server, tests) {
         `export ${declared.name} (line ${declared.line}) has no production `
           + 'consumer and is reached only from the suite, so the tests are '
           + 'pinning a surface nothing uses',
+      ))
+    }
+  }
+  // Only modules this scan actually saw. The auditor is also driven with
+  // synthetic entries by the fitness suite, and a baseline entry for a real
+  // path is not stale merely because a synthetic scan did not include it.
+  // Whether an exempt path still exists at all is the disk-reading caller's
+  // question, since only it knows it enumerated the whole tree.
+  const scanned = new Set(serverModules.map((module) => module.sourcePath))
+  for (const [sourcePath, names] of TEST_ONLY_EXPORT_EXEMPTIONS) {
+    if (!scanned.has(sourcePath)) continue
+    const used = consumed.get(sourcePath)
+    for (const name of names) {
+      if (used?.has(name)) continue
+      violations.push(violation(
+        'ARCH018',
+        sourcePath,
+        undefined,
+        `exemption for ${name} is stale: it no longer names a production `
+          + 'export that only the suite reaches, so drop the entry rather '
+          + 'than leave it pre-exempting the next export of that name',
       ))
     }
   }

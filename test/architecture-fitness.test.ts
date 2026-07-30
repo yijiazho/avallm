@@ -1630,3 +1630,72 @@ test('a production export reached only from the suite is reported', () => {
     'type and class exports are deliberately not collected',
   )
 })
+
+// The rule's verdict is an absence, so a tree it could not fully read must
+// fail loudly rather than report the unread half as unreferenced.
+test('an unreadable tree is reported, never treated as an empty one', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'arch018-'))
+  try {
+    mkdirSync(path.join(root, 'server', 'agents'), { recursive: true })
+    mkdirSync(path.join(root, 'test'), { recursive: true })
+    writeFileSync(
+      path.join(root, 'server', 'agents', 'probe.ts'),
+      'export const onlyTested = 1',
+    )
+    writeFileSync(
+      path.join(root, 'test', 'probe.test.ts'),
+      'const seen = onlyTested',
+    )
+    const found = (architectureModule as unknown as {
+      checkTestOnlyProductionExports: (
+        root: string,
+      ) => readonly { rule: string }[]
+    }).checkTestOnlyProductionExports(root)
+    assert.deepEqual(found.map((item) => item.rule), ['ARCH018'])
+
+    // A missing test tree is not a failure: there is nothing for the rule to
+    // say, and the alternative is every export reading as unreferenced.
+    rmSync(path.join(root, 'test'), { recursive: true, force: true })
+    assert.deepEqual(
+      (architectureModule as unknown as {
+        checkTestOnlyProductionExports: (
+          root: string,
+        ) => readonly unknown[]
+      }).checkTestOnlyProductionExports(root),
+      [],
+    )
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('every exempted module still exists in the repository', () => {
+  const { TEST_ONLY_EXPORT_EXEMPTIONS } = architectureModule as unknown as {
+    TEST_ONLY_EXPORT_EXEMPTIONS: ReadonlyMap<string, ReadonlySet<string>>
+  }
+  // The audit is generic over its root, so it cannot ask this: a synthetic
+  // tree legitimately lacks every real path. Here the repository is the
+  // fixture, so a renamed or deleted exempt module is a stale entry.
+  for (const sourcePath of TEST_ONLY_EXPORT_EXEMPTIONS.keys()) {
+    assert.ok(
+      existsSync(sourcePath),
+      `exempted module ${sourcePath} no longer exists; drop its entry`,
+    )
+  }
+})
+
+test('an exemption that suppresses nothing is reported as stale', () => {
+  const stale = (architectureModule as unknown as {
+    checkTestOnlyProductionExports: (
+      root: string,
+    ) => readonly { message: string }[]
+  })
+  // The real tree is the fixture here: every pinned entry must still be
+  // suppressing a live violation, or the ratchet cannot be observed shrinking.
+  const violations = stale.checkTestOnlyProductionExports(process.cwd())
+  assert.deepEqual(
+    violations.filter((item) => item.message.includes('is stale')),
+    [],
+    'a pinned exemption stopped matching; drop the entry',
+  )
+})
