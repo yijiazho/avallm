@@ -796,7 +796,7 @@ TypeScript lines at the time of writing and will drift, but the owners and their
 not drift silently.
 
 ```text
-server/agents/                        # about 42.0k lines in ten owners
+server/agents/                        # about 41.9k lines in ten owners
   *.ts                                #  6.4k  agent boundary and the raw-LLM baseline
     types.ts registry.ts defs.ts packs.ts board.ts experimental.ts
     heuristic.ts random.ts llm.ts stdio.ts composed.ts brain.ts
@@ -807,7 +807,7 @@ server/agents/                        # about 42.0k lines in ten owners
     worlds.ts constraints.ts quest-constraints.ts exact.ts
     projection.ts weighting.ts identity.ts
     quest-card-factor.ts language-factor.ts types.ts
-  analysis/                           #  9.1k  decision-ready reads, including role semantics
+  analysis/                           #  9.0k  decision-ready reads, including role semantics
     situation.ts situation-plan.ts scorer-situation-surface.ts types.ts
     observer.ts
     role-objectives.ts role-objective-router.ts role-utility.ts
