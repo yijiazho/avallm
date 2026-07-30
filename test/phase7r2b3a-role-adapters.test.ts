@@ -136,14 +136,19 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
     ),
     stripped.decision,
   )
+  // The seven retired flat role projections are refused at canonical ingress.
+  // An external agent presenting one keeps its decision and loses its trace,
+  // rather than having the projection reconstructed and admitted.
   const historical = structuredClone(stripped)
   delete historical.trace!.componentPlan
   historical.trace!.version = 'decision-trace-v1'
-  historical.trace!.privateRoleObjective = componentPayload(
+  const historicalRecord =
+    historical.trace as unknown as Record<string, unknown>
+  historicalRecord.privateRoleObjective = componentPayload(
     trace.components!,
     GOOD_ROLE_OBJECTIVE_COMPONENT,
   )
-  historical.trace!.privateRoleUtility = componentPayload(
+  historicalRecord.privateRoleUtility = componentPayload(
     trace.components!,
     GOOD_ROLE_UTILITY_COMPONENT,
   )
@@ -155,10 +160,10 @@ test('C1/C2 generic adapters exactly project unchanged Merlin trace payloads', a
     parseStdioDecisionReply(
       fixture.req,
       historical,
-      'phase7r2b3a historical flat trace',
+      'phase7r2b3a retired flat role trace is refused',
       fixture.view,
     ),
-    historical,
+    historical.decision,
   )
   const falseLegacy = structuredClone(output)
   falseLegacy.trace!.version = 'decision-trace-v1'

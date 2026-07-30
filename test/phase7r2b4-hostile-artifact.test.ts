@@ -96,6 +96,49 @@ function rolePolicyVariant(
   }
 }
 
+/**
+ * The same comparison without role components. A variant that declares a role
+ * objective can no longer produce a readable v1 artifact, because the retired
+ * flat payload that used to carry the proof is refused at ingress, so the
+ * descriptor-less v1 path is exercised through a role-free variant.
+ */
+function roleFreeVariant(id: string): ArchitectureVariant {
+  const base = rolePolicyVariant(id)
+  const {
+    roleObjective: _roleObjective,
+    roleUtility: _roleUtility,
+    ...components
+  } = base.components
+  return {
+    ...base,
+    components: {
+      ...components,
+      mode: 'compatibility',
+      scorer: 'compatibility-scorer-v1',
+    },
+    createTargetAgent: (context) => createComposedAgent({
+      seed: context.seed,
+      publicObserver: true,
+      privateIdentity: {
+        roleQueries: [{ roles: ['merlin'] }],
+        hiddenTeam: true,
+      },
+      onDecisionTrace: context.onDecisionTrace,
+    }),
+  }
+}
+
+let roleFreeFixture: Promise<GameArtifact> | undefined
+
+async function roleFreeArtifact(): Promise<GameArtifact> {
+  roleFreeFixture ??= runArchitectureBench({
+    variants: [roleFreeVariant('phase7r2b4-hostile-artifact-role-free')],
+    cases: [merlinCase],
+    bankId: 'phase7r2b4-hostile-artifact-role-free',
+  }).then(([artifact]) => artifact)
+  return structuredClone(await roleFreeFixture)
+}
+
 let trustedFixture: Promise<GameArtifact> | undefined
 
 async function trustedArtifact(): Promise<GameArtifact> {
@@ -126,36 +169,43 @@ function asLegacyArtifact(artifact: GameArtifact): GameArtifact {
   return legacy
 }
 
+/**
+ * A descriptor-less v1 artifact. It carries no role components at all: the
+ * retired flat role projections are refused at canonical ingress, and a v1
+ * trace cannot declare a role component version without one. Descriptor-less
+ * v1 artifacts themselves remain diagnostically readable.
+ */
 function asDescriptorlessV1Artifact(
   artifact: GameArtifact,
 ): GameArtifact {
   const legacy = asLegacyArtifact(artifact)
   delete legacy.strategyVersions!.decisionComponents
   for (const trace of legacy.decisionTraces!) {
-    const objective = componentPayload(
-      trace.components!,
-      GOOD_ROLE_OBJECTIVE_COMPONENT,
-    )
-    const utility = componentPayload(
-      trace.components!,
-      GOOD_ROLE_UTILITY_COMPONENT,
-    )
-    if (objective) {
-      trace.privateRoleObjective = structuredClone(objective)
-      trace.componentVersions!.roleObjective =
-        ROLE_OBJECTIVE_MODEL_VERSION
-    }
-    if (utility) {
-      trace.privateRoleUtility = structuredClone(utility)
-      trace.componentVersions!.roleUtility =
-        ROLE_UTILITY_PROJECTION_VERSION
-    }
     trace.version = DECISION_TRACE_VERSION
     delete trace.componentPlan
     delete trace.components
     delete trace.decisionLayerRun
     delete trace.componentVersions!.decisionComponents
   }
+  return legacy
+}
+
+/** A stored v1 artifact that still presents a retired flat role projection. */
+function withRetiredFlatRolePayload(
+  artifact: GameArtifact,
+): GameArtifact {
+  const legacy = structuredClone(artifact)
+  const trace = legacy.decisionTraces!.find(
+    (candidate) => componentPayload(
+      candidate.components!,
+      GOOD_ROLE_OBJECTIVE_COMPONENT,
+    ) !== undefined,
+  )!
+  ;(trace as unknown as Record<string, unknown>).privateRoleObjective =
+    structuredClone(componentPayload(
+      trace.components!,
+      GOOD_ROLE_OBJECTIVE_COMPONENT,
+    ))
   return legacy
 }
 
@@ -379,7 +429,7 @@ test('historical traces stay diagnostic without gaining trusted promotion', asyn
   assert.equal(preB4Summary.decisionComponents, undefined)
 
   const legacy = asDescriptorlessV1Artifact(
-    await trustedArtifact(),
+    await roleFreeArtifact(),
   )
   const legacySummary = summary(legacy)
   assert.equal(legacySummary.safety.traceAttributionViolations, 0)
@@ -391,9 +441,22 @@ test('historical traces stay diagnostic without gaining trusted promotion', asyn
   assert.equal(legacySummary.decisionComponents, undefined)
 })
 
+test('a retired flat role projection is refused at canonical ingress', async () => {
+  const clean = await trustedArtifact()
+  assert.equal(summary(clean).safety.traceAttributionViolations, 0)
+
+  // The seven retired flat role payloads have no writer. A stored or external
+  // trace presenting one is refused rather than reconstructed, so role
+  // projections cannot re-enter through a historical shape.
+  const forged = withRetiredFlatRolePayload(clean)
+  const forgedSummary = summary(forged)
+  assert.ok(forgedSummary.safety.traceAttributionViolations > 0)
+  assert.equal(forgedSummary.safety.promotionEvidenceEligible, false)
+})
+
 test('descriptor-less v1 report admission requires exact generic replay', async () => {
   const cleanArtifact = asDescriptorlessV1Artifact(
-    await trustedArtifact(),
+    await roleFreeArtifact(),
   )
   const clean = summary(cleanArtifact)
   assert.equal(clean.safety.traceAttributionViolations, 0)

@@ -58,7 +58,7 @@
     },
     {
       "path": "test/forced-policy.test.ts",
-        "sha256": "296b10580726178d5a74e99f317536745915037131f180d7461fdb39bd1f1430",
+      "sha256": "296b10580726178d5a74e99f317536745915037131f180d7461fdb39bd1f1430",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
@@ -118,7 +118,7 @@
     },
     {
       "path": "test/phase7d1-evil-objectives.test.ts",
-      "sha256": "d57396e7dfcd67354da59795d786998bf6ea9ec851f09d489a2d9f3a8d9466cd",
+      "sha256": "6dc0e9ff44e1e4f036ae40d959b423b002a70e6fe1e11cdb01af9d7b4359d63b",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -158,7 +158,7 @@
     },
     {
       "path": "test/phase7r2b3a-role-adapters.test.ts",
-      "sha256": "720d6c241e39c3bfb0f543a194b86d1552979b9987fffed1d47b27473d7809ea",
+      "sha256": "27c9e2ce86c43591513f93e9c523c851a4c17b6018c2f7e41755e944c6768a5d",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
     },
     {
@@ -173,7 +173,7 @@
     },
     {
       "path": "test/phase7r2b4-hostile-artifact.test.ts",
-      "sha256": "4541518666cad6d014dbae5aeaf3a9b0fe25445aacc34aade3c24c7e0e5d8b0c",
+      "sha256": "e8b20eac1dbeaf57c740680b353b7ea7d77597d2c64028a53a636ea9f1b7dcb6",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {

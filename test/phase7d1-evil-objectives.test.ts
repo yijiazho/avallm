@@ -919,39 +919,22 @@ test('architecture bank binds router, resolved model, artifact, and report', asy
       }
     },
   }
-  const [completeArtifact] = await runArchitectureBench({
-    variants: [weightedCompleteVariant],
-    cases: [
-      ARCHITECTURE_BANK.find(
-        (candidate) => candidate.targetRole === 'mordred',
-      )!,
-    ],
-    bankId: 'phase7d1-weighted-complete',
-  })
-  assert.equal(
-    architectureReport([completeArtifact]).variants[0]
-      .safety.traceAttributionViolations,
-    0,
-  )
-
-  const partialArtifact = structuredClone(completeArtifact)
-  const partialTrace = partialArtifact.decisionTraces![0]
-  partialTrace.privateIdentity!.scope.hiddenTeam = false
-  delete partialTrace.privateIdentity!.hiddenTeamPosterior
-  removeEvilRoleObjective(partialTrace)
-  partialTrace.degradation.push(EVIL_ROLE_OBJECTIVE_DEGRADATION)
-  assert.ok(
-    architectureReport([partialArtifact]).variants[0]
-      .safety.traceAttributionViolations > 0,
-  )
-
-  const mismatchArtifact = structuredClone(completeArtifact)
-  mismatchArtifact.decisionTraces![0].degradation.push(
-    'identity-projection-failed',
-  )
-  assert.ok(
-    architectureReport([mismatchArtifact]).variants[0]
-      .safety.traceAttributionViolations > 0,
+  // An external producer can no longer present a complete flat role objective.
+  // The retired payload is refused at canonical ingress, so generation fails
+  // before any report rather than yielding a diagnostic artifact. The declared
+  // plus degraded shape exercised by the weighted-external-degradation variant
+  // below remains the readable external weighted case.
+  await assert.rejects(
+    runArchitectureBench({
+      variants: [weightedCompleteVariant],
+      cases: [
+        ARCHITECTURE_BANK.find(
+          (candidate) => candidate.targetRole === 'mordred',
+        )!,
+      ],
+      bankId: 'phase7d1-weighted-complete',
+    }),
+    /trace components do not match declared components/,
   )
 
   const partialGenerationVariant: ArchitectureVariant = {

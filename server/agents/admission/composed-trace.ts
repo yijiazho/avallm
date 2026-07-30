@@ -2338,20 +2338,46 @@ const MIGRATED_FLAT_DEGRADATIONS = new Set([
   MORGANA_ROLE_UTILITY_DEGRADATION,
 ])
 
+/**
+ * Retired flat role projections. No trace of any version may carry one.
+ *
+ * These payloads have no writer. The composed v2 builder never emitted them and
+ * the v1 builder shared with the raw-LLM baseline never did either, so only an
+ * external or stored trace can present one. Rejecting the keys uniformly at
+ * canonical ingress is the treatment MD-003 applied to its own retired flat
+ * keys: it replaces per-role payload reconstruction with one rule.
+ *
+ * `componentVersions` role identities are deliberately NOT rejected here. A v1
+ * trace may still name a role objective it produced, and that naming stays
+ * diagnostically readable without ever being promotion evidence.
+ */
+const RETIRED_FLAT_ROLE_PAYLOAD_KEYS = Object.freeze([
+  'privateRoleObjective',
+  'privateEvilRoleObjective',
+  'privateRoleUtility',
+  'privateEvilRoleUtility',
+  'publicMorganaCounterfeitRead',
+  'privateMorganaCounterfeitObjective',
+  'privateMorganaRoleUtility',
+] as const)
+
+function traceOmitsRetiredFlatRolePayloads(
+  trace: DecisionTrace | Record<string, unknown>,
+): boolean {
+  const record = trace as unknown as Record<string, unknown>
+  return RETIRED_FLAT_ROLE_PAYLOAD_KEYS.every(
+    (key) => record[key] === undefined,
+  )
+}
+
 function currentTraceOmitsMigratedFlatState(
   trace: DecisionTrace,
 ): boolean {
+  if (!traceOmitsRetiredFlatRolePayloads(trace)) return false
   if (trace.version === DECISION_TRACE_VERSION) return true
   const versions = trace.componentVersions
   return (
-    trace.privateRoleObjective === undefined
-    && trace.privateEvilRoleObjective === undefined
-    && trace.privateRoleUtility === undefined
-    && trace.privateEvilRoleUtility === undefined
-    && trace.publicMorganaCounterfeitRead === undefined
-    && trace.privateMorganaCounterfeitObjective === undefined
-    && trace.privateMorganaRoleUtility === undefined
-    && versions?.roleObjective === undefined
+    versions?.roleObjective === undefined
     && versions?.roleUtility === undefined
     && versions?.evilRoleUtility === undefined
     && versions?.morganaCounterfeitPublicRead === undefined
