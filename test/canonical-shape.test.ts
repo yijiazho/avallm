@@ -513,6 +513,7 @@ const GUARD_NAMES = [
   'plainDetachedData',
   'plainRecord',
   'probability',
+  'sequenceEqual',
   'strictCanonicalArray',
 ] as const
 
