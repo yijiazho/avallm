@@ -9,9 +9,10 @@ import type {
 } from './types.ts'
 import { DECISION_COMPONENT_KINDS } from './types.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../analysis/observer-types.ts'
-
-const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
-const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
+import {
+  LAYER_ID_PATTERN as ID_PATTERN,
+  assertLayerRef,
+} from '../policy/layer-registry-common.ts'
 
 export type ComponentRegistryErrorCode =
   | 'invalid-definition'
@@ -63,17 +64,9 @@ function frozenHostInputRef(
 }
 
 function assertRef(ref: ComponentRef, label: string): void {
-  if (
-    !ref
-    || typeof ref !== 'object'
-    || !ID_PATTERN.test(ref.id)
-    || !VERSION_PATTERN.test(ref.version)
-  ) {
-    throw new ComponentRegistryError(
-      'invalid-definition',
-      `${label} must use canonical non-empty id and version strings`,
-    )
-  }
+  assertLayerRef(ref, label, (message) => {
+    throw new ComponentRegistryError('invalid-definition', message)
+  })
 }
 
 function assertNonEmptyCanonical(

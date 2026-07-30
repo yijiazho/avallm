@@ -5,9 +5,11 @@ import type {
 } from './types.ts'
 import { decisionLayerToken } from './types.ts'
 import { DECISION_COMPONENT_KINDS } from '../../components/types.ts'
-
-const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
-const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
+import {
+  LAYER_ID_PATTERN as ID_PATTERN,
+  LAYER_VERSION_PATTERN as VERSION_PATTERN,
+  assertLayerRef,
+} from '../layer-registry-common.ts'
 
 export type DecisionLayerRegistryErrorCode =
   | 'invalid-definition'
@@ -38,19 +40,9 @@ export function decisionLayerIdentityKey(ref: DecisionLayerRef): string {
 }
 
 function assertRef(ref: DecisionLayerRef, label: string): void {
-  if (
-    !ref
-    || typeof ref !== 'object'
-    || typeof ref.id !== 'string'
-    || typeof ref.version !== 'string'
-    || !ID_PATTERN.test(ref.id)
-    || !VERSION_PATTERN.test(ref.version)
-  ) {
-    throw new DecisionLayerRegistryError(
-      'invalid-definition',
-      `${label} must use canonical non-empty id and version strings`,
-    )
-  }
+  assertLayerRef(ref, label, (message) => {
+    throw new DecisionLayerRegistryError('invalid-definition', message)
+  })
 }
 
 function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {

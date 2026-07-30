@@ -3,12 +3,13 @@ import type {
   ScoreLayerAnalysisRef,
   ScoreLayerAnalysisRequirementContext,
 } from './types.ts'
+import {
+  LAYER_ID_PATTERN as ID_PATTERN,
+  LAYER_VERSION_PATTERN as VERSION_PATTERN,
+} from '../layer-registry-common.ts'
 
 export const MAX_SCORE_LAYER_ANALYSIS_REFS = 64
 export const MAX_SCORE_LAYER_ANALYSIS_STRING_LENGTH = 256
-
-const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
-const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
 
 export type ScoreLayerPreparationEntry =
   | Readonly<{

@@ -5,9 +5,11 @@ import type {
 } from './types.ts'
 import { scoreLayerToken } from './types.ts'
 import { DECISION_COMPONENT_KINDS } from '../../components/types.ts'
-
-const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
-const VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
+import {
+  LAYER_ID_PATTERN as ID_PATTERN,
+  LAYER_VERSION_PATTERN as VERSION_PATTERN,
+  assertLayerRef,
+} from '../layer-registry-common.ts'
 
 export type ScoreLayerRegistryErrorCode =
   | 'invalid-definition'
@@ -50,19 +52,9 @@ export function scoreLayerIdentityKey(ref: ScoreLayerRef): string {
 }
 
 function assertRef(ref: ScoreLayerRef, label: string): void {
-  if (
-    !ref
-    || typeof ref !== 'object'
-    || typeof ref.id !== 'string'
-    || typeof ref.version !== 'string'
-    || !ID_PATTERN.test(ref.id)
-    || !VERSION_PATTERN.test(ref.version)
-  ) {
-    throw new ScoreLayerRegistryError(
-      'invalid-definition',
-      `${label} must use canonical non-empty id and version strings`,
-    )
-  }
+  assertLayerRef(ref, label, (message) => {
+    throw new ScoreLayerRegistryError('invalid-definition', message)
+  })
 }
 
 function freezeRef(ref: ScoreLayerRef): ScoreLayerRef {
