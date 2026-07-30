@@ -9,10 +9,16 @@ import type {
   GameArtifact,
 } from './artifact.ts'
 import { assertMatchedVariants } from './architecture-report.ts'
+import {
+  pairedBootstrapRateDelta,
+  rate,
+  seededRandom,
+} from './statistics.ts'
 import type {
+  RateCount,
   RateDeltaEstimate,
   RateEstimate,
-} from './architecture-report.ts'
+} from './statistics.ts'
 import {
   addVoteConfusion,
   countVoteByDirection,
@@ -27,11 +33,6 @@ import type {
 import type { Role } from '../engine/types.ts'
 
 export const PHASE5_VOTE_CONVERSION_REPORT_SCHEMA = 1
-
-interface RateCount {
-  successes: number
-  trials: number
-}
 
 export interface VoteConfusion extends VoteConfusionCounts {
   cleanRejectRate: RateEstimate
@@ -114,122 +115,12 @@ interface ConversionObservation {
   votes: VoteConfusionCounts
 }
 
-function rate(successes: number, trials: number): RateEstimate {
-  if (!trials) {
-    return { successes, trials, rate: null, interval95: null }
-  }
-  const estimate = successes / trials
-  const z = 1.959963984540054
-  const z2 = z * z
-  const denominator = 1 + z2 / trials
-  const center = (estimate + z2 / (2 * trials)) / denominator
-  const radius = z * Math.sqrt(
-    estimate * (1 - estimate) / trials
-    + z2 / (4 * trials * trials),
-  ) / denominator
-  return {
-    successes,
-    trials,
-    rate: estimate,
-    interval95: {
-      low: Math.max(0, center - radius),
-      high: Math.min(1, center + radius),
-    },
-  }
-}
-
 const rateOf = (
   counts: VoteConfusionCounts,
   of: VoteConfusionRate,
 ): RateEstimate => {
   const { successes, trials } = voteRateCount(counts, of)
   return rate(successes, trials)
-}
-
-function nearestRank(
-  values: readonly number[],
-  probability: number,
-): number | null {
-  if (!values.length) return null
-  const ordered = [...values].sort((left, right) => left - right)
-  return ordered[Math.max(
-    0,
-    Math.ceil(probability * ordered.length) - 1,
-  )]
-}
-
-function seededState(value: string): number {
-  let state = 2166136261
-  for (const character of value) {
-    state ^= character.charCodeAt(0)
-    state = Math.imul(state, 16777619)
-  }
-  return state >>> 0 || 1
-}
-
-/**
- * Deterministic game-paired bootstrap. Count selectors may expose per-game
- * denominators, so quest- and vote-level rates retain deal pairing.
- */
-export function pairedConversionRateDelta<T>(
-  pairs: readonly Readonly<{ baseline: T; candidate: T }>[],
-  select: (value: T) => RateCount,
-  seed: string,
-): RateDeltaEstimate {
-  const aggregate = (
-    selected: readonly T[],
-  ): RateCount => selected.reduce<RateCount>(
-    (total, value) => {
-      const count = select(value)
-      return {
-        successes: total.successes + count.successes,
-        trials: total.trials + count.trials,
-      }
-    },
-    { successes: 0, trials: 0 },
-  )
-  const baseline = aggregate(pairs.map((pair) => pair.baseline))
-  const candidate = aggregate(pairs.map((pair) => pair.candidate))
-  if (!pairs.length || !baseline.trials || !candidate.trials) {
-    return { delta: null, interval95: null }
-  }
-  const delta =
-    candidate.successes / candidate.trials
-    - baseline.successes / baseline.trials
-  let state = seededState(seed)
-  const random = (): number => {
-    state ^= state << 13
-    state ^= state >>> 17
-    state ^= state << 5
-    return (state >>> 0) / 0x1_0000_0000
-  }
-  const samples: number[] = []
-  for (let repetition = 0; repetition < 5_000; repetition++) {
-    const selected: Array<(typeof pairs)[number]> = []
-    for (let index = 0; index < pairs.length; index++) {
-      selected.push(pairs[Math.floor(random() * pairs.length)])
-    }
-    const sampledBaseline = aggregate(
-      selected.map((pair) => pair.baseline),
-    )
-    const sampledCandidate = aggregate(
-      selected.map((pair) => pair.candidate),
-    )
-    if (!sampledBaseline.trials || !sampledCandidate.trials) continue
-    samples.push(
-      sampledCandidate.successes / sampledCandidate.trials
-      - sampledBaseline.successes / sampledBaseline.trials,
-    )
-  }
-  return {
-    delta,
-    interval95: samples.length
-      ? {
-          low: nearestRank(samples, 0.025)!,
-          high: nearestRank(samples, 0.975)!,
-        }
-      : null,
-  }
 }
 
 function observe(artifact: GameArtifact): ConversionObservation {
@@ -419,10 +310,10 @@ function comparison(
   const delta = (
     name: string,
     select: (game: ConversionObservation) => RateCount,
-  ) => pairedConversionRateDelta(
+  ) => pairedBootstrapRateDelta(
     pairs,
     select,
-    `${bank}:${baselineId}:${candidateId}:${name}`,
+    seededRandom(`${bank}:${baselineId}:${candidateId}:${name}`),
   )
   return {
     baseline: baselineId,

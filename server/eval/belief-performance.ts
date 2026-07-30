@@ -13,6 +13,7 @@ import { viewFor } from '../engine/view.ts'
 import { exactBelief } from '../agents/belief/exact.ts'
 import { buildMessages } from '../agents/prompts.ts'
 import { BELIEF_RENDERER_VERSION } from '../agents/communication/belief-summary.ts'
+import { nearestRank } from './statistics.ts'
 
 interface Timing {
   coldMs: number
@@ -42,6 +43,9 @@ const median = (values: readonly number[]): number => {
     : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+// Same nearest-rank estimator the reports publish, under a stricter contract: a
+// timing sample is never legitimately empty here, so an absent value is a bug
+// rather than a null to render.
 const nearestRankPercentile = (
   values: readonly number[],
   fraction: number,
@@ -49,9 +53,7 @@ const nearestRankPercentile = (
   if (!(fraction > 0 && fraction <= 1)) {
     throw new Error(`percentile fraction must be in (0, 1], got ${fraction}`)
   }
-  const sorted = sortedValues(values)
-  const index = Math.ceil(sorted.length * fraction) - 1
-  return sorted[index]
+  return nearestRank(sortedValues(values), fraction)!
 }
 
 export function summarizeWarmTimings(values: readonly number[]): {

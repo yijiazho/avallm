@@ -16,6 +16,7 @@ const LANES = Object.freeze({
     'discuss-nudge.test.ts',
     'discuss-stakes.test.ts',
     'endgame-norm.test.ts',
+    'eval-statistics.test.ts',
     'evil-fold.test.ts',
     'facts.test.ts',
     'flow.test.ts',

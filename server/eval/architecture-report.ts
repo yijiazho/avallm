@@ -35,6 +35,18 @@ import type {
   VoteConfusionCounts,
   VoteConfusionRate,
 } from './vote-direction.ts'
+import {
+  mean,
+  nearestRank,
+  pairedBootstrapRateDelta,
+  rate,
+  seededRandom,
+} from './statistics.ts'
+import type {
+  RateCount,
+  RateDeltaEstimate,
+  RateEstimate,
+} from './statistics.ts'
 import type {
   ArchitectureRunMetadata,
   GameArtifact,
@@ -160,18 +172,6 @@ import {
 } from '../agents/components/kernel.ts'
 
 export const ARCHITECTURE_REPORT_SCHEMA = 3
-
-export interface RateEstimate {
-  successes: number
-  trials: number
-  rate: number | null
-  interval95: Readonly<{ low: number; high: number }> | null
-}
-
-export interface RateDeltaEstimate {
-  delta: number | null
-  interval95: Readonly<{ low: number; high: number }> | null
-}
 
 export interface LatencySummary {
   samples: number
@@ -1910,121 +1910,6 @@ function observe(a: GameArtifact): GameObservation {
   }
 }
 
-function mean(values: number[]): number | null {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
-}
-
-function rate(successes: number, trials: number): RateEstimate {
-  if (!trials) {
-    return { successes, trials, rate: null, interval95: null }
-  }
-  const estimate = successes / trials
-  const z = 1.959963984540054
-  const z2 = z * z
-  const denominator = 1 + z2 / trials
-  const center = (estimate + z2 / (2 * trials)) / denominator
-  const radius = z * Math.sqrt(
-    estimate * (1 - estimate) / trials
-    + z2 / (4 * trials * trials),
-  ) / denominator
-  return {
-    successes,
-    trials,
-    rate: estimate,
-    interval95: {
-      low: Math.max(0, center - radius),
-      high: Math.min(1, center + radius),
-    },
-  }
-}
-
-function nearestRank(values: readonly number[], probability: number): number | null {
-  if (!values.length) return null
-  const ordered = [...values].sort((left, right) => left - right)
-  return ordered[Math.max(
-    0,
-    Math.ceil(probability * ordered.length) - 1,
-  )]
-}
-
-interface RateCount {
-  successes: number
-  trials: number
-}
-
-function seededState(value: string): number {
-  let state = 2166136261
-  for (const character of value) {
-    state ^= character.charCodeAt(0)
-    state = Math.imul(state, 16777619)
-  }
-  return state >>> 0 || 1
-}
-
-function pairedBootstrapRateDelta(
-  pairs: readonly Readonly<{
-    baseline: GameObservation
-    candidate: GameObservation
-  }>[],
-  select: (game: GameObservation) => RateCount,
-  seed: string,
-): RateDeltaEstimate {
-  const aggregate = (
-    selected: readonly GameObservation[],
-  ): RateCount => selected.reduce<RateCount>(
-    (total, game) => {
-      const value = select(game)
-      return {
-        successes: total.successes + value.successes,
-        trials: total.trials + value.trials,
-      }
-    },
-    { successes: 0, trials: 0 },
-  )
-  const baseline = aggregate(pairs.map((pair) => pair.baseline))
-  const candidate = aggregate(pairs.map((pair) => pair.candidate))
-  if (!pairs.length || !baseline.trials || !candidate.trials) {
-    return { delta: null, interval95: null }
-  }
-  const delta =
-    candidate.successes / candidate.trials
-    - baseline.successes / baseline.trials
-  let state = seededState(seed)
-  const random = (): number => {
-    state ^= state << 13
-    state ^= state >>> 17
-    state ^= state << 5
-    return (state >>> 0) / 0x1_0000_0000
-  }
-  const samples: number[] = []
-  for (let repetition = 0; repetition < 5_000; repetition++) {
-    const selected: Array<(typeof pairs)[number]> = []
-    for (let index = 0; index < pairs.length; index++) {
-      selected.push(pairs[Math.floor(random() * pairs.length)])
-    }
-    const sampledBaseline = aggregate(
-      selected.map((pair) => pair.baseline),
-    )
-    const sampledCandidate = aggregate(
-      selected.map((pair) => pair.candidate),
-    )
-    if (!sampledBaseline.trials || !sampledCandidate.trials) continue
-    samples.push(
-      sampledCandidate.successes / sampledCandidate.trials
-      - sampledBaseline.successes / sampledBaseline.trials,
-    )
-  }
-  return {
-    delta,
-    interval95: samples.length
-      ? {
-          low: nearestRank(samples, 0.025)!,
-          high: nearestRank(samples, 0.975)!,
-        }
-      : null,
-  }
-}
-
 function latency(games: readonly GameObservation[]): LatencySummary {
   const values = games.flatMap((game) => game.latencyMs)
   return {
@@ -2439,7 +2324,9 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
             successes: Number(game.won),
             trials: 1,
           }),
-          `${games[0].meta.bank}:${baseline}:${candidate}:wins`,
+          seededRandom(
+            `${games[0].meta.bank}:${baseline}:${candidate}:wins`,
+          ),
         ),
         cleanInitialProposalRateDelta: pairedBootstrapRateDelta(
           pairs,
@@ -2447,12 +2334,16 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
             successes: game.cleanInitialProposals,
             trials: game.initialProposals,
           }),
-          `${games[0].meta.bank}:${baseline}:${candidate}:proposals`,
+          seededRandom(
+            `${games[0].meta.bank}:${baseline}:${candidate}:proposals`,
+          ),
         ),
         voteTruthAccuracyDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'truth'),
-          `${games[0].meta.bank}:${baseline}:${candidate}:votes`,
+          seededRandom(
+            `${games[0].meta.bank}:${baseline}:${candidate}:votes`,
+          ),
         ),
         voteDirtyTeamApproveRateDelta: pairedBootstrapRateDelta(
           pairs,

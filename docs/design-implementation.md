@@ -377,8 +377,11 @@ against their runtime traces; paid factories require an explicit paid declaratio
 artifacts carry target-seat decision latency samples. The `phase4-good-v1` runner freezes 180
 good-side deals and reports Wilson rate intervals, deterministic paired-bootstrap deltas, clean
 proposal and vote quality, posterior regret, controlled variation, latency, and structural privacy
-and trace-attribution counters. Those privacy counters are canaries; the exhaustive knowledge and
-leak tests remain authoritative. Telemetry failures remain best-effort and cannot stall the game.
+and trace-attribution counters. The Wilson interval, the nearest-rank percentile, and the paired
+bootstrap have one owner, and both paired reports import it, so a correction to the estimator cannot
+land in one published figure and miss its counterpart. The bootstrap takes its uniform stream as an
+argument, so a report's intervals stay a function of its seed alone. Those privacy counters are
+canaries; the exhaustive knowledge and leak tests remain authoritative. Telemetry failures remain best-effort and cannot stall the game.
 
 Belief snapshots support constraints-only, weighted, and degraded quality. A single projection
 kernel normalizes feasible-world weights and derives player/role marginals, joint team
