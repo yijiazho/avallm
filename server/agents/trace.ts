@@ -18,17 +18,6 @@ import type { AgentExecutionMode } from './brain.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
-import type { PrivateRoleObjectiveSnapshot } from './analysis/role-objective-types.ts'
-import type { PrivateEvilRoleObjectiveSnapshot } from './analysis/evil-objective-types.ts'
-import type {
-  PrivateMorganaCounterfeitObjective,
-  PublicCounterfeitMerlinReadSnapshot,
-} from './analysis/morgana-counterfeit-types.ts'
-import type { PrivateRoleUtilityProjection } from './analysis/role-utility.ts'
-import type { PrivateEvilRoleUtilityProjection } from './analysis/evil-role-utility.ts'
-import type {
-  PrivateMorganaRoleUtilityProjection,
-} from './analysis/morgana-role-utility.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import {
@@ -173,33 +162,17 @@ export interface DecisionTrace {
   /** Bounded private identity output, absent unless explicitly enabled. */
   privateIdentity?: PrivateIdentitySnapshot
   /*
-   * Historical `decision-trace-v1` flat role projections. READ-ONLY LEGACY.
+   * The seven historical `decision-trace-v1` flat role projections were
+   * retired: privateRoleObjective, privateEvilRoleObjective,
+   * privateRoleUtility, privateEvilRoleUtility, publicMorganaCounterfeitRead,
+   * privateMorganaCounterfeitObjective, and privateMorganaRoleUtility.
    *
-   * No current write path emits any of these: the composed trace builder only
-   * writes publicObserver and privateIdentity, and every role objective,
-   * utility, and Morgana projection travels in the generic component run
-   * instead. They remain declared so stored v1 artifacts still parse.
-   *
-   * All v1 validation lives in admission/legacy-role-trace-v1.ts, which
-   * architecture fitness (ARCH012) pins to a single importer. The only other
-   * remaining readers are server/eval/architecture-bench.ts and
-   * server/eval/architecture-report.ts; retiring those is what clears the last
-   * v1 debt in the removal ledger. Do not add a new field here for a new role.
+   * Role objectives, utilities, and the Morgana projections travel in the
+   * generic component run. No trace of any version may carry the retired keys:
+   * canonical ingress refuses them, so a stored or external trace presenting
+   * one is refused rather than reconstructed. Do not add a field here for a
+   * new role; register a component instead.
    */
-  /** v1 only: mechanically inert Merlin/Percival objective output. */
-  privateRoleObjective?: PrivateRoleObjectiveSnapshot
-  /** v1 only: mechanically inert visible-evil/Oberon objective output. */
-  privateEvilRoleObjective?: PrivateEvilRoleObjectiveSnapshot
-  /** v1 only: decision-ready role utility. */
-  privateRoleUtility?: PrivateRoleUtilityProjection
-  /** v1 only: D2 evil/Oberon utility. */
-  privateEvilRoleUtility?: PrivateEvilRoleUtilityProjection
-  /** v1 only: public counterfeit-Merlin read, privately retained in trace. */
-  publicMorganaCounterfeitRead?: PublicCounterfeitMerlinReadSnapshot
-  /** v1 only: mechanically inert Morgana counterfeit objective. */
-  privateMorganaCounterfeitObjective?: PrivateMorganaCounterfeitObjective
-  /** v1 only: bounded E1B Morgana policy projection. */
-  privateMorganaRoleUtility?: PrivateMorganaRoleUtilityProjection
   /** Private finalized outcome for this decision, absent unless enabled. */
   privatePlanOutcome?: AppliedPlanHistoryEntry
   /** Pre-apply finite intent committed with an enabled plan trace. */

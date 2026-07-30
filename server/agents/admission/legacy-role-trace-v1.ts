@@ -2,6 +2,12 @@
  * Isolated legacy reader for historical `decision-trace-v1` role-specific flat
  * projections.
  *
+ * The seven flat role payloads are now refused at canonical ingress, so every
+ * payload argument below is statically absent. What survives is the version and
+ * degradation coherence a historical trace must still satisfy: a v1 trace may
+ * declare a role component it produced, but it can no longer evidence one, so
+ * the declaration must be accompanied by the matching degradation.
+ *
  * The current composed trace (`COMPONENT_DECISION_TRACE_VERSION`) omits every
  * flat role field. Role objectives, role utilities, the evil/Oberon pair, and
  * the Morgana counterfeit projections all travel in the generic component run
@@ -141,8 +147,8 @@ function validMorganaCounterfeitTrace(
   const configured = components?.configuredMorganaCounterfeitObjective
   const readVersion = components?.morganaCounterfeitPublicRead
   const objectiveVersion = components?.morganaCounterfeitObjective
-  const read = trace.publicMorganaCounterfeitRead
-  const objective = trace.privateMorganaCounterfeitObjective
+  const read = undefined
+  const objective = undefined
   const degradation = Array.isArray(trace.degradation)
     ? trace.degradation as unknown[]
     : []
@@ -259,7 +265,7 @@ function validMorganaRolePolicyTrace(
     | undefined
   const configured = components?.configuredMorganaRoleUtility
   const resolved = components?.morganaRoleUtility
-  const projection = trace.privateMorganaRoleUtility
+  const projection = undefined
   const degradation = Array.isArray(trace.degradation)
     ? trace.degradation as unknown[]
     : []
@@ -302,10 +308,10 @@ function validMorganaRolePolicyTrace(
     const forcedResult = trace.forcedPolicyResult
     if (
       !validatePrivateMorganaCounterfeitObjective(
-        trace.privateMorganaCounterfeitObjective,
+        undefined,
       )
       || !validatePrivateEvilRoleUtilityProjection(
-        trace.privateEvilRoleUtility,
+        undefined,
       )
       || forcedResult === undefined
       || !validForcedPolicyResult(forcedResult)
@@ -314,42 +320,10 @@ function validMorganaRolePolicyTrace(
       // absent or malformed prerequisite is an honest narrow degradation.
       return true
     }
-    const candidates = legalCandidates(req, hostView)
-    const selectionMode =
-      configuredScorer === MORGANA_ROLE_SEEDED_SCORER_VERSION
-        ? 'seeded-near-equal-vote-within-d2-band'
-        : 'top-counterfeit-within-d2-band'
-    // The stdio envelope does not receive the private game seed. Any stable
-    // seed is sufficient to prove that projection construction succeeds;
-    // persisted and generation-time host replay supplies the authoritative
-    // seed and validates the selected bucket separately.
-    const reconstructionSeed = deterministicSeed ?? [
-      'morgana-role-external-admission-v1',
-      req.seat,
-      req.kind,
-      req.round,
-      req.proposalNum,
-      trace.beliefThroughSeq,
-      configuredScorer,
-    ].join(':')
-    try {
-      const input = {
-        req,
-        view: hostView,
-        candidates,
-        forced: forcedResult,
-        counterfeitObjective: trace.privateMorganaCounterfeitObjective,
-        evilRoleUtility: trace.privateEvilRoleUtility,
-        selectionMode,
-        deterministicSeed: reconstructionSeed,
-      } as const
-      const rebuilt = buildMorganaRoleUtilityProjection(input)
-      // Exact E1A + D2 + forced inputs that can reconstruct E1B cannot claim
-      // projection failure merely by coherently substituting the D2 surface.
-      return !validatePrivateMorganaRoleUtilityHostJoin(rebuilt, input)
-    } catch {
-      return true
-    }
+    // With the retired E1A and D2 payloads absent, the prerequisite check
+    // above always yields to upstream exact-dependency admission, so no E1B
+    // projection can be reconstructed from a historical trace.
+    return true
   }
   return resolved === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
     && validatePrivateMorganaRoleUtilityProjection(projection)
@@ -537,7 +511,7 @@ function validRoleObjectiveRoute(
   const router = components?.roleObjectiveRouter
   if (router === undefined) {
     return components?.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-      && trace.privateEvilRoleObjective === undefined
+      && undefined === undefined
   }
   if (router !== ROLE_OBJECTIVE_ROUTER_VERSION || !hostView) return false
   const expected = routedRoleObjectiveModel(hostView.role)
@@ -593,14 +567,14 @@ function validPrivateRoleUtilityTrace(
     ) return false
     if (
       hostView
-      && trace.privateRoleObjective
+      && undefined
       && trace.publicObserver
     ) {
       try {
         buildRoleUtilityProjection({
           req,
           view: hostView,
-          objective: trace.privateRoleObjective as never,
+          objective: undefined as never,
           observer: trace.publicObserver as never,
           candidates: legalCandidates(req, hostView),
         })
@@ -611,26 +585,9 @@ function validPrivateRoleUtilityTrace(
     }
     return true
   }
-  if (
-    declared !== ROLE_UTILITY_PROJECTION_VERSION
-    || !hostView
-    || !trace.privateRoleObjective
-    || !trace.privateIdentity
-    || !trace.publicObserver
-    || !validatePrivateRoleUtilityProjection(value)
-  ) return false
-  try {
-    return validatePrivateRoleUtilityHostJoin(value, {
-      req,
-      view: hostView,
-      objective: trace.privateRoleObjective as never,
-      identity: trace.privateIdentity as never,
-      observer: trace.publicObserver as never,
-      candidates: legalCandidates(req, hostView),
-    })
-  } catch {
-    return false
-  }
+  // A declared C2 projection can no longer be evidenced: its payload and the
+  // C1 objective it joins against are both refused at ingress.
+  return false
 }
 
 function validPrivateEvilRoleUtilityTrace(
@@ -664,7 +621,7 @@ function validPrivateEvilRoleUtilityTrace(
     trace.quality === 'weighted'
     && value === undefined
     && trace.privateIdentity === undefined
-    && trace.privateEvilRoleObjective === undefined
+    && undefined === undefined
     && components?.evilRoleUtility === undefined
     && degradation.length === dependencyDegradation.length
     && dependencyDegradation.every((code) => degradation.includes(code))
@@ -681,69 +638,9 @@ function validPrivateEvilRoleUtilityTrace(
       && !degradation.includes(EVIL_ROLE_UTILITY_DEGRADATION)
   }
   if (!hostView || !trace.publicObserver) return false
-  if (
-    !trace.privateEvilRoleObjective
-    || !trace.privateIdentity
-  ) return atomicWeightedDependencyFailure
-  if (atomicWeightedDependencyFailure) return false
-  if (dependencyDegradation.some((code) => degradation.includes(code))) {
-    return false
-  }
-  const candidates = legalCandidates(req, hostView)
-  const alternativeObjective = req.kind === 'vote'
-    ? buildEvilRoleObjectiveSnapshot({
-        req: { ...req, kind: 'propose' },
-        view: hostView,
-        identity: trace.privateIdentity as never,
-        observer: trace.publicObserver as never,
-        candidates: hypotheticalProposalCandidates(hostView),
-      })
-    : undefined
-  if (value === undefined) {
-    if (
-      components?.evilRoleUtility !== undefined
-      || !degradation.includes(EVIL_ROLE_UTILITY_DEGRADATION)
-      || (
-        components?.scorer !== GOOD_PROPOSAL_VOTE_SCORER_VERSION
-        && components?.scorer !== GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-      )
-    ) return false
-    // A validated complete D1 chain is always enough to derive D2, including
-    // weighted external beliefs. Do not admit fake utility degradation.
-    try {
-      buildEvilRoleUtilityProjection({
-        req,
-        view: hostView,
-        objective: trace.privateEvilRoleObjective as never,
-        candidates,
-        ...(alternativeObjective ? { alternativeObjective } : {}),
-      })
-      return false
-    } catch {
-      return true
-    }
-  }
-  if (
-    components?.evilRoleUtility !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    || degradation.includes(EVIL_ROLE_UTILITY_DEGRADATION)
-    || !validatePrivateEvilRoleUtilityProjection(value)
-  ) return false
-  try {
-    return validatePrivateEvilRoleUtilityHostJoin(value, {
-      req,
-      view: hostView,
-      objective: trace.privateEvilRoleObjective as never,
-      identity: trace.privateIdentity as never,
-      observer: trace.publicObserver as never,
-      candidates,
-      ...(alternativeObjective ? { alternativeObjective } : {}),
-      ...(alternativeObjective
-        ? { alternativeCandidates: hypotheticalProposalCandidates(hostView) }
-        : {}),
-    })
-  } catch {
-    return false
-  }
+  // A declared D2 projection can no longer be evidenced either, so the only
+  // remaining verdict is whether the weighted dependency failure is coherent.
+  return atomicWeightedDependencyFailure
 }
 
 function validateExactRoleDependencyHostJoin(
@@ -816,8 +713,8 @@ function validateExactRoleDependencyHostJoin(
       && !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
       && isDeepStrictEqual(trace.privateIdentity, identity)
       && isDeepStrictEqual(trace.publicObserver, observer)
-      && isDeepStrictEqual(trace.privateRoleObjective, objective)
-      && isDeepStrictEqual(trace.privateRoleUtility, utility)
+      && isDeepStrictEqual(undefined, objective)
+      && isDeepStrictEqual(undefined, utility)
     )
   } catch {
     return false
@@ -850,12 +747,12 @@ function validateRoutedEvilDependencyHostJoin(
     const complete =
       trace.privateIdentity !== undefined
       && trace.privateIdentity.scope.hiddenTeam
-      && trace.privateEvilRoleObjective !== undefined
+      && undefined !== undefined
       && !identityFailed
       && !objectiveFailed
     const pairedFailure =
       trace.privateIdentity === undefined
-      && trace.privateEvilRoleObjective === undefined
+      && undefined === undefined
       && identityFailed
       && objectiveFailed
     return complete || pairedFailure
@@ -923,7 +820,7 @@ function validateRoutedEvilDependencyHostJoin(
       )
       && isDeepStrictEqual(trace.privateIdentity, identity)
       && isDeepStrictEqual(trace.publicObserver, observer)
-      && isDeepStrictEqual(trace.privateEvilRoleObjective, objective)
+      && isDeepStrictEqual(undefined, objective)
       && (
         d2Applied
           ? (
@@ -932,11 +829,11 @@ function validateRoutedEvilDependencyHostJoin(
               && !trace.degradation.includes(
                 EVIL_ROLE_UTILITY_DEGRADATION,
               )
-              && isDeepStrictEqual(trace.privateEvilRoleUtility, utility)
+              && isDeepStrictEqual(undefined, utility)
             )
           : (
               components.evilRoleUtility === undefined
-              && trace.privateEvilRoleUtility === undefined
+              && undefined === undefined
             )
       )
     )
@@ -963,25 +860,25 @@ export function validLegacyRoleTraceV1(input: {
   return (
     validRoleObjectiveRoute(trace, view)
     && validPrivateRoleObjectiveTrace(
-      record.privateRoleObjective,
+      undefined,
       trace,
       req,
       view,
     )
     && validPrivateEvilRoleObjectiveTrace(
-      record.privateEvilRoleObjective,
+      undefined,
       trace,
       req,
       view,
     )
     && validPrivateRoleUtilityTrace(
-      record.privateRoleUtility,
+      undefined,
       trace,
       req,
       view,
     )
     && validPrivateEvilRoleUtilityTrace(
-      record.privateEvilRoleUtility,
+      undefined,
       trace,
       req,
       view,
@@ -1005,12 +902,12 @@ export function validLegacyRoleTraceV1HostJoin(input: {
   const components = trace.componentVersions
   const hasRoleObjective =
     components?.roleObjective !== undefined
-    || trace.privateRoleObjective !== undefined
+    || undefined !== undefined
     || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
   return (
     validRoleObjectiveRoute(trace, view)
     && validPrivateEvilRoleObjectiveTrace(
-      trace.privateEvilRoleObjective,
+      undefined,
       trace,
       req,
       view,
@@ -1022,20 +919,20 @@ export function validLegacyRoleTraceV1HostJoin(input: {
     && (
       !hasRoleObjective
       || validPrivateRoleObjectiveTrace(
-        trace.privateRoleObjective,
+        undefined,
         trace,
         req,
         view,
       )
     )
     && validPrivateRoleUtilityTrace(
-      trace.privateRoleUtility,
+      undefined,
       trace,
       req,
       view,
     )
     && validPrivateEvilRoleUtilityTrace(
-      trace.privateEvilRoleUtility,
+      undefined,
       trace,
       req,
       view,

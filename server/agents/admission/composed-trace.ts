@@ -1622,10 +1622,11 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     (score) => score.roleObjectiveFeatures !== undefined,
   )
   if (roleFeatureScores.length > 0) {
+    // The retired flat C2 payload can never be present.
     const roleProjection = (
       componentRun
         ? componentPayload(componentRun, GOOD_ROLE_UTILITY_COMPONENT)
-        : trace.privateRoleUtility
+        : undefined
     ) as Record<string, unknown> | undefined
     const forced = trace.forcedPolicyResult as
       | Record<string, unknown>
@@ -1802,7 +1803,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
     const projection = (
       componentRun
         ? componentPayload(componentRun, EVIL_ROLE_UTILITY_COMPONENT)
-        : trace.privateEvilRoleUtility
+        : undefined
     ) as Record<string, unknown> | undefined
     const forced = trace.forcedPolicyResult as
       | Record<string, unknown>
@@ -1950,7 +1951,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
               ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
               : MORGANA_ROLE_UTILITY_COMPONENT,
           )
-        : trace.privateMorganaRoleUtility
+        : undefined
     ) as Record<string, unknown> | undefined
     const projectionRows = Array.isArray(projection?.candidates)
       ? projection.candidates as Record<string, unknown>[]
@@ -2967,18 +2968,20 @@ function validExactComposedTraceHostJoin(
 
     const configured = components.configuredScorer ?? components.scorer
     const nativeRun = trace.components
+    // The retired flat role payloads can never be present, so a trace without
+    // a generic component run carries no role projection at all.
     const roleUtility = nativeRun
       ? componentPayload(nativeRun, GOOD_ROLE_UTILITY_COMPONENT)
-      : trace.privateRoleUtility
+      : undefined
     const evilRoleUtility = nativeRun
       ? componentPayload(nativeRun, EVIL_ROLE_UTILITY_COMPONENT)
-      : trace.privateEvilRoleUtility
+      : undefined
     const morganaObjective = nativeRun
       ? componentPayload(
           nativeRun,
           MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
         )
-      : trace.privateMorganaCounterfeitObjective
+      : undefined
     const morganaUtility = nativeRun
       ? componentPayload(
           nativeRun,
@@ -2986,7 +2989,7 @@ function validExactComposedTraceHostJoin(
             ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
             : MORGANA_ROLE_UTILITY_COMPONENT,
         )
-      : trace.privateMorganaRoleUtility
+      : undefined
     const morganaConfigured =
       configured === MORGANA_ROLE_SCORER_VERSION
       || configured === MORGANA_ROLE_SEEDED_SCORER_VERSION
