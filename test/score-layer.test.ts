@@ -388,6 +388,34 @@ test('terminal resolution derives one immutable canonical single-root chain', ()
   )
 })
 
+test('registry indexing refuses split versions and exposes a stable order', () => {
+  // Both behaviors come from the indexing helper the two layer families share.
+  // Only its duplicate-identity refusal was pinned, so the version split and
+  // the stable exposure order could each be deleted with the suite green.
+  const root = rootDefinition(() => ({
+    status: 'generated',
+    surface: surface([true, false, false]),
+  }))
+  assert.throws(
+    () => createScoreLayerRegistry([
+      root,
+      { ...root, token: scoreLayerToken(root.token.id, 'v2') },
+    ]),
+    (error: unknown) =>
+      error instanceof ScoreLayerRegistryError
+      && error.code === 'conflicting-version',
+  )
+  const exposed = createScoreLayerRegistry([
+    transformDefinition(RESELECT, root.token, () => ({ status: 'degraded' })),
+    transformDefinition(RERANK, root.token, () => ({ status: 'degraded' })),
+    root,
+  ]).definitions()
+  assert.deepEqual(
+    exposed.map((definition) => definition.token.id),
+    [...exposed.map((definition) => definition.token.id)].sort(),
+  )
+})
+
 test('construction rejects duplicate, unknown, missing, and cyclic layers', () => {
   const root = rootDefinition(() => ({
     status: 'generated',

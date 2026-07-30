@@ -91,6 +91,53 @@ export function freezeRequiredComponents(
   return frozen
 }
 
+export interface IndexedLayerDefinitions<Definition> {
+  /** Every definition by `id@version`. */
+  readonly byKey: ReadonlyMap<string, Definition>
+  /** The same definitions in a stable key order, for public exposure. */
+  readonly exposed: readonly Definition[]
+}
+
+/**
+ * Index definitions by identity, refusing a repeated identity and refusing one
+ * id that carries two versions. The second refusal is what keeps a resolved
+ * order unambiguous: an id names one layer, not whichever version registered
+ * first.
+ *
+ * `raiseDuplicate` and `raiseConflict` throw each registry's own error class,
+ * which carries a distinct code per family, so the codes stay with the family
+ * rather than being flattened into a shared vocabulary here.
+ */
+export function indexLayerDefinitions<
+  Definition extends { readonly token: LayerRef },
+>(
+  definitions: readonly Definition[],
+  label: string,
+  raiseDuplicate: (message: string) => never,
+  raiseConflict: (message: string) => never,
+): IndexedLayerDefinitions<Definition> {
+  const byKey = new Map<string, Definition>()
+  const versionById = new Map<string, string>()
+  for (const definition of definitions) {
+    const key = `${definition.token.id}@${definition.token.version}`
+    if (byKey.has(key)) {
+      raiseDuplicate(`duplicate ${label} identity ${key}`)
+    }
+    const prior = versionById.get(definition.token.id)
+    if (prior !== undefined && prior !== definition.token.version) {
+      raiseConflict(`${label} ${definition.token.id} has conflicting versions`)
+    }
+    byKey.set(key, definition)
+    versionById.set(definition.token.id, definition.token.version)
+  }
+  const exposed = Object.freeze([...definitions].sort((left, right) =>
+    `${left.token.id}@${left.token.version}`.localeCompare(
+      `${right.token.id}@${right.token.version}`,
+      'en',
+    )))
+  return Object.freeze({ byKey, exposed })
+}
+
 // Detach a resolved layer run into its observability trace: drop the live
 // component run and deep-clone the rest, keeping component payload state
 // single-owned by the trace's component field.

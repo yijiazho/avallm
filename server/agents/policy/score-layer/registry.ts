@@ -7,6 +7,7 @@ import { scoreLayerToken } from './types.ts'
 import {
   LAYER_ID_PATTERN as ID_PATTERN,
   assertLayerRef,
+  indexLayerDefinitions,
   freezeRequiredComponents,
 } from '../layer-registry-common.ts'
 
@@ -167,26 +168,16 @@ export function createScoreLayerRegistry(
     )
   }
   const definitions = sourceDefinitions.map(freezeDefinition)
-  const byKey = new Map<string, ScoreLayerDefinition>()
-  const versionById = new Map<string, string>()
-  for (const definition of definitions) {
-    const key = scoreLayerIdentityKey(definition.token)
-    if (byKey.has(key)) {
-      throw new ScoreLayerRegistryError(
-        'duplicate-identity',
-        `duplicate score layer identity ${key}`,
-      )
-    }
-    const version = versionById.get(definition.token.id)
-    if (version !== undefined && version !== definition.token.version) {
-      throw new ScoreLayerRegistryError(
-        'conflicting-version',
-        `score layer ${definition.token.id} has conflicting versions`,
-      )
-    }
-    byKey.set(key, definition)
-    versionById.set(definition.token.id, definition.token.version)
-  }
+  const { byKey, exposed } = indexLayerDefinitions(
+    definitions,
+    'score layer',
+    (message) => {
+      throw new ScoreLayerRegistryError('duplicate-identity', message)
+    },
+    (message) => {
+      throw new ScoreLayerRegistryError('conflicting-version', message)
+    },
+  )
   for (const definition of definitions) {
     if (definition.kind !== 'transform') continue
     const key = scoreLayerIdentityKey(definition.predecessor)
@@ -211,12 +202,6 @@ export function createScoreLayerRegistry(
       `score layer dependency cycle: ${cycle.join(' -> ')}`,
     )
   }
-  const exposed = Object.freeze([...definitions].sort((left, right) =>
-    scoreLayerIdentityKey(left.token).localeCompare(
-      scoreLayerIdentityKey(right.token),
-      'en',
-    )))
-
   return Object.freeze({
     size: exposed.length,
     definitions: () => exposed,

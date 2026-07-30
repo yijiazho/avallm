@@ -7,6 +7,7 @@ import { decisionLayerToken } from './types.ts'
 import {
   LAYER_ID_PATTERN as ID_PATTERN,
   assertLayerRef,
+  indexLayerDefinitions,
   freezeRequiredComponents,
 } from '../layer-registry-common.ts'
 
@@ -96,31 +97,16 @@ export function createDecisionLayerRegistry(
     )
   }
   const definitions = sourceDefinitions.map(freezeDefinition)
-  const byKey = new Map<string, DecisionLayerDefinition>()
-  const versionById = new Map<string, string>()
-  for (const definition of definitions) {
-    const key = decisionLayerIdentityKey(definition.token)
-    if (byKey.has(key)) {
-      throw new DecisionLayerRegistryError(
-        'duplicate-identity',
-        `duplicate decision layer identity ${key}`,
-      )
-    }
-    const prior = versionById.get(definition.token.id)
-    if (prior !== undefined && prior !== definition.token.version) {
-      throw new DecisionLayerRegistryError(
-        'conflicting-version',
-        `decision layer ${definition.token.id} has conflicting versions`,
-      )
-    }
-    byKey.set(key, definition)
-    versionById.set(definition.token.id, definition.token.version)
-  }
-  const exposed = Object.freeze([...definitions].sort((left, right) =>
-    decisionLayerIdentityKey(left.token).localeCompare(
-      decisionLayerIdentityKey(right.token),
-      'en',
-    )))
+  const { byKey, exposed } = indexLayerDefinitions(
+    definitions,
+    'decision layer',
+    (message) => {
+      throw new DecisionLayerRegistryError('duplicate-identity', message)
+    },
+    (message) => {
+      throw new DecisionLayerRegistryError('conflicting-version', message)
+    },
+  )
   return Object.freeze({
     size: exposed.length,
     definitions: () => exposed,

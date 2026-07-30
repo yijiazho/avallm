@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "a68c321b9d5c0872888fb80ac442d7a10789695435dc46ba4a350bcf40d63cb0",
+      "sha256": "0c315ec27e41efb56ac55ac22f1884c44d8701821a82a1fafdc39ab1254112e4",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

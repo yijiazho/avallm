@@ -417,6 +417,28 @@ test('construction rejects registry substitution and invalid ordered identity', 
     /unknown decision layer/,
   )
 
+  // The strategic family pins the shared indexing helper independently, so a
+  // regression in it has to redden this suite too and not only the score one.
+  assert.throws(
+    () => createDecisionLayerRegistry([
+      NARROW_DEFINITION,
+      {
+        ...NARROW_DEFINITION,
+        token: decisionLayerToken(NARROW_DEFINITION.token.id, 'v2'),
+      },
+    ]),
+    /conflicting versions/,
+  )
+  assert.throws(
+    () => createDecisionLayerRegistry([NARROW_DEFINITION, NARROW_DEFINITION]),
+    /duplicate decision layer identity/,
+  )
+  const exposedIds = createDecisionLayerRegistry([
+    SELECT_DEFINITION,
+    NARROW_DEFINITION,
+  ]).definitions().map((definition) => definition.token.id)
+  assert.deepEqual(exposedIds, [...exposedIds].sort())
+
   const substitutedComponent = {
     ...FIXTURE_DEFINITION,
     token: {
