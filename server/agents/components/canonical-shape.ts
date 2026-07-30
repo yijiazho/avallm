@@ -21,6 +21,7 @@
  * say so explicitly rather than keep a private copy.
  */
 
+import { isDeepStrictEqual } from 'node:util'
 import { isProxy } from 'node:util/types'
 import {
   failsRequired,
@@ -29,8 +30,13 @@ import {
   MIN_PLAYERS,
   QUESTS_PER_GAME,
   TEAM_SIZES,
+  validateRoles,
 } from '../../engine/rules.ts'
-import type { Seat } from '../../engine/types.ts'
+import type { Role, Seat } from '../../engine/types.ts'
+import {
+  CANONICAL_ROLE_SET,
+  compareCanonicalRoles,
+} from '../belief/types.ts'
 
 export const plainRecord = (
   value: unknown,
@@ -197,6 +203,47 @@ export const canonicalSeats = (
         || (typeof previous === 'number' && previous < seat)
       )
   })
+
+/**
+ * A dense, canonically ordered, rules-legal role multiset for this table size.
+ *
+ * The direct analogue of canonicalSeats, and it had the same history of private
+ * copies: four analysis validators carried this predicate under two different
+ * names, and two of the four checked membership against an inlined copy of the
+ * eight role names instead of the constant. Adding a role to the Role union and
+ * to CANONICAL_ROLE_ORDER would have left those two rejecting the new role
+ * while the other two accepted it, and that split typechecks and passes the
+ * suite. Membership and order both come from CANONICAL_ROLE_ORDER here, so a
+ * new role reaches every call site at once.
+ *
+ * Legality is the engine's answer, not ours: validateRoles owns the evil count,
+ * the merlin/assassin pairing, the role prerequisites, and role uniqueness.
+ */
+export const canonicalRoles = (
+  value: unknown,
+  playerCount: number,
+): value is Role[] => {
+  if (
+    !denseArray(value)
+    || value.length !== playerCount
+    || !value.every((role) => CANONICAL_ROLE_SET.has(role as Role))
+  ) return false
+  const roles = value as Role[]
+  // Spelled with the comparator rather than belief/worlds.ts's
+  // canonicalRoleMultiset, which is how every other caller sorts roles. This
+  // module is a leaf that forty others import, and worlds.ts is the world
+  // enumerator; depending on it here would invite a cycle the first time
+  // worlds.ts wants a shape guard of its own.
+  if (
+    !isDeepStrictEqual(roles, [...roles].sort(compareCanonicalRoles))
+  ) return false
+  try {
+    validateRoles(playerCount, [...roles])
+    return true
+  } catch {
+    return false
+  }
+}
 
 /** Exactly these keys: same set, same count. Nothing optional. */
 export const exactKeys = (

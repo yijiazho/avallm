@@ -6,11 +6,14 @@ import {
 import type { Role, Seat } from '../../engine/types.ts'
 import {
   CANONICAL_ROLE_ORDER,
+  CANONICAL_ROLE_SET,
   PROBABILITY_TOLERANCE,
   type BeliefSnapshot,
   type PlayerMarginal,
 } from './types.ts'
+import { canonicalRoleMultiset } from './worlds.ts'
 import {
+  canonicalRoles,
   denseArray,
   onlyAllowedKeys,
   probability,
@@ -20,15 +23,11 @@ export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
 export const MAX_IDENTITY_ROLE_QUERIES = 16
 export const MAX_IDENTITY_HYPOTHESES_PER_POSTERIOR = 4_096
 
-const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
-const VALID_ROLE_NAMES: ReadonlySet<string> = VALID_ROLES
+const VALID_ROLE_NAMES: ReadonlySet<string> = CANONICAL_ROLE_SET
 
 function isRole(value: unknown): value is Role {
   return typeof value === 'string' && VALID_ROLE_NAMES.has(value)
 }
-const roleRank = new Map(
-  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
-)
 
 /**
  * Neumaier compensated summation for bounded probability support.
@@ -124,10 +123,6 @@ export interface PrivateIdentitySnapshot {
   hiddenTeamPosterior?: HiddenTeamPosterior
 }
 
-const compareRoles = (a: Role, b: Role): number =>
-  (roleRank.get(a) ?? Number.MAX_SAFE_INTEGER)
-  - (roleRank.get(b) ?? Number.MAX_SAFE_INTEGER)
-
 function roleMultisetCounts(roles: readonly Role[]): Map<Role, number> {
   const counts = new Map<Role, number>()
   for (const role of roles) counts.set(role, (counts.get(role) ?? 0) + 1)
@@ -148,10 +143,10 @@ function canonicalQuery(roles: readonly Role[]): {
   if (roles.length > 10) {
     throw new Error('identity role query exceeds the supported player limit')
   }
-  if (roles.some((role) => !VALID_ROLES.has(role))) {
+  if (roles.some((role) => !CANONICAL_ROLE_SET.has(role))) {
     throw new Error('identity role query contains an invalid role')
   }
-  const queriedRoles = [...roles].sort(compareRoles)
+  const queriedRoles = canonicalRoleMultiset(roles)
   const counts = roleMultisetCounts(queriedRoles)
   const queryKey = [...counts.entries()]
     .map(([role, count]) => `${role}:${count}`)
@@ -281,7 +276,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
   ) {
     throw new Error('constraints-only identity support must be uniform')
   }
-  const rolesInPlay = [...snapshot.worlds[0].world.roleBySeat].sort(compareRoles)
+  const rolesInPlay = canonicalRoleMultiset(snapshot.worlds[0].world.roleBySeat)
   validateRoles(playerCount!, [...rolesInPlay])
   return {
     playerCount: playerCount!,
@@ -498,28 +493,6 @@ function validCanonicalSeats(value: unknown, playerCount: number): value is Seat
     })
 }
 
-function validSourceCast(
-  value: unknown,
-  playerCount: number,
-): value is Role[] {
-  if (
-    !denseArray(value)
-    || value.length !== playerCount
-    || value.some((role) => !VALID_ROLES.has(role as Role))
-  ) return false
-  const roles = value as Role[]
-  if (
-    JSON.stringify(roles)
-    !== JSON.stringify([...roles].sort(compareRoles))
-  ) return false
-  try {
-    validateRoles(playerCount, [...roles])
-    return true
-  } catch {
-    return false
-  }
-}
-
 function validProbabilityLattice(
   hypotheses: readonly Record<string, unknown>[],
 ): boolean {
@@ -646,7 +619,7 @@ export function validatePrivateIdentitySnapshot(
     || !Number.isInteger(source.playerCount)
     || (source.playerCount as number) < 5
     || (source.playerCount as number) > 10
-    || !validSourceCast(source.rolesInPlay, source.playerCount as number)
+    || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
     || !scope
     || typeof scope !== 'object'
     || Array.isArray(scope)
@@ -784,10 +757,14 @@ export function validatePrivateIdentityHostJoin(
 ): value is PrivateIdentitySnapshot {
   if (!validatePrivateIdentitySnapshot(value)) return false
   const playerCount = value.sourceBelief.playerCount
+  // Deliberately not canonicalRoles, per that guard's own note about laxer
+  // checks: the host cast arrives in the host's seat order, not canonical order,
+  // and it is reconciled as a multiset below. Requiring canonical order here
+  // would reject a perfectly legal host join.
   if (
     !denseArray(hostRolesInPlay)
     || hostRolesInPlay.length !== playerCount
-    || hostRolesInPlay.some((role) => !VALID_ROLES.has(role as Role))
+    || hostRolesInPlay.some((role) => !CANONICAL_ROLE_SET.has(role as Role))
   ) return false
   const hostRoles = hostRolesInPlay as Role[]
   try {

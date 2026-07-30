@@ -9,7 +9,6 @@ import {
   canonicalTeam,
   ROLE_ALIGNMENT,
   TEAM_SIZES,
-  validateRoles,
 } from '../../engine/rules.ts'
 import { worldSatisfiesView } from '../belief/constraints.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
@@ -49,6 +48,7 @@ import {
 import {
   canonicalCombinations,
   canonicalRequestBlock,
+  canonicalRoles,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -462,35 +462,23 @@ export function buildPrivateMordredBlindnessObjective(input: {
   return result
 }
 
-function validRoles(
+/**
+ * The shared canonical-roles guard plus the cast this module presumes: without
+ * a mordred there is no blindness to reason about, and without a merlin there
+ * is nothing to be blind to.
+ *
+ * Deliberately not named canonicalRoles. This is the shared predicate with a
+ * role-specific postcondition welded on, and a call site cannot tell which of
+ * the two contracts it is getting if both answer to the same name. That is the
+ * confusion exactKeys/onlyAllowedKeys already cost us once.
+ */
+function canonicalRolesWithMordredAndMerlin(
   value: unknown,
   playerCount: number,
 ): value is Role[] {
-  if (!denseArray(value) || value.length !== playerCount) return false
-  const roles = value as Role[]
-  if (
-    !roles.every(
-      (role) =>
-        typeof role === 'string'
-        && [
-          'assassin',
-          'merlin',
-          'minion',
-          'mordred',
-          'morgana',
-          'oberon',
-          'percival',
-          'servant',
-        ].includes(role),
-    )
-    || !isDeepStrictEqual(roles, canonicalRoleMultiset(roles))
-  ) return false
-  try {
-    validateRoles(playerCount, roles)
-    return roles.includes('mordred') && roles.includes('merlin')
-  } catch {
-    return false
-  }
+  return canonicalRoles(value, playerCount)
+    && value.includes('mordred')
+    && value.includes('merlin')
 }
 
 function validDistribution(
@@ -558,7 +546,10 @@ function validatePrivateMordredBlindnessObjectiveShape(
       || !Number.isSafeInteger(source.playerCount)
       || (source.playerCount as number) < 5
       || (source.playerCount as number) > 10
-      || !validRoles(source.rolesInPlay, source.playerCount as number)
+      || !canonicalRolesWithMordredAndMerlin(
+        source.rolesInPlay,
+        source.playerCount as number,
+      )
       || source.treatmentReadVersion
         !== ACTOR_TARGET_TREATMENT_READ_VERSION
       || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION

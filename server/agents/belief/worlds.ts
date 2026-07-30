@@ -1,7 +1,7 @@
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import type { Role, Seat } from '../../engine/types.ts'
 import {
-  CANONICAL_ROLE_ORDER,
+  compareCanonicalRoles,
   type HiddenWorld,
 } from './types.ts'
 
@@ -13,12 +13,8 @@ export interface RoleMultisetEvidence {
 const CACHE_LIMIT = 4
 const assignmentCache = new Map<string, Map<Role, readonly (readonly Role[])[]>>()
 
-const roleRank = new Map(CANONICAL_ROLE_ORDER.map((role, index) => [role, index]))
-const compareRoles = (a: Role, b: Role): number =>
-  (roleRank.get(a) ?? Number.MAX_SAFE_INTEGER) - (roleRank.get(b) ?? Number.MAX_SAFE_INTEGER)
-
 export function canonicalRoleMultiset(roles: readonly Role[]): readonly Role[] {
-  return [...roles].sort(compareRoles)
+  return [...roles].sort(compareCanonicalRoles)
 }
 
 export function canonicalWorldKey(roleBySeat: readonly Role[]): string {
@@ -73,7 +69,7 @@ function canonicalPinnedAssignments(
   }
   counts.set(pinnedRole, pinnedCopies - 1)
 
-  const roles = [...counts.keys()].sort(compareRoles)
+  const roles = [...counts.keys()].sort(compareCanonicalRoles)
   const current: Role[] = [pinnedRole]
   const assignments: Role[][] = []
 
@@ -150,7 +146,7 @@ export function visitCanonicalWorlds(
   for (const role of evidence.rolesInPlay) {
     counts.set(role, (counts.get(role) ?? 0) + 1)
   }
-  const roles = [...counts.keys()].sort(compareRoles)
+  const roles = [...counts.keys()].sort(compareCanonicalRoles)
   const roleBySeat: Role[] = []
   let visited = 0
   const visit = (): void => {

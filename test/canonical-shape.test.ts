@@ -17,6 +17,7 @@ import { dirname, relative } from 'node:path'
 import {
   canonicalCombinations,
   canonicalRequestBlock,
+  canonicalRoles,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -27,6 +28,14 @@ import {
   probability,
   strictCanonicalArray,
 } from '../server/agents/components/canonical-shape.ts'
+import {
+  CANONICAL_ROLE_ORDER,
+  CANONICAL_ROLE_RANK,
+  CANONICAL_ROLE_SET,
+  compareCanonicalRoles,
+} from '../server/agents/belief/types.ts'
+import { EVIL_COUNT, validateRoles } from '../server/engine/rules.ts'
+import type { Role } from '../server/engine/types.ts'
 
 test('plainRecord admits only a plain-prototype own-data object', () => {
   assert.equal(plainRecord({ a: 1 }), true)
@@ -97,6 +106,110 @@ test('canonicalSeats requires ascending, bounded, in-range seats', () => {
   assert.equal(canonicalSeats([0, 1, 2], 2), false, 'longer than the table')
   assert.equal(canonicalSeats(new Proxy([0, 1], {}), 5), false)
   assert.equal(canonicalSeats(['0'], 5), false)
+})
+
+// canonicalRoles had a worse version of the drift the file above describes.
+// Four analysis validators carried it privately under two names, and two of
+// those checked membership against an inlined copy of the eight role names
+// rather than CANONICAL_ROLE_ORDER. Adding a role to the Role union and to the
+// constant would have left those two rejecting the new role while the other two
+// accepted it, and nothing here or in the typechecker would have said so.
+//
+// So these pin the guard to the CONSTANT, never to a list of role names. The
+// cast space is enumerated from CANONICAL_ROLE_ORDER and filtered by the
+// engine's own validateRoles, which means a role added to the constant joins
+// the enumeration on its own and a validator that has not learned about it
+// fails here rather than in a live game.
+
+/** Every table size the engine seats, taken from the engine's own table. */
+const PLAYER_COUNTS: readonly number[] = Object.keys(EVIL_COUNT)
+  .map(Number)
+  .sort((left, right) => left - right)
+
+/**
+ * Every rules-legal cast for `playerCount`, as multisets drawn from
+ * CANONICAL_ROLE_ORDER. Indices are chosen non-decreasingly, so each cast comes
+ * out already in canonical order and legality is the engine's answer alone.
+ */
+function legalCasts(playerCount: number): Role[][] {
+  const casts: Role[][] = []
+  const cast: Role[] = []
+  const visit = (from: number): void => {
+    if (cast.length === playerCount) {
+      try {
+        validateRoles(playerCount, [...cast])
+        casts.push([...cast])
+      } catch {
+        // Not a legal cast: wrong evil count, a broken role prerequisite, or a
+        // duplicated unique role. Nothing to assert about it here.
+      }
+      return
+    }
+    for (let index = from; index < CANONICAL_ROLE_ORDER.length; index++) {
+      cast.push(CANONICAL_ROLE_ORDER[index]!)
+      visit(index)
+      cast.pop()
+    }
+  }
+  visit(0)
+  return casts
+}
+
+test('the role set, rank, and comparator all derive from CANONICAL_ROLE_ORDER', () => {
+  assert.deepEqual([...CANONICAL_ROLE_SET], [...CANONICAL_ROLE_ORDER])
+  assert.deepEqual(
+    [...CANONICAL_ROLE_RANK.entries()],
+    CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
+  )
+  // The constant is the order, so sorting it by the comparator is a no-op, and
+  // shuffling it back is the comparator's actual job.
+  assert.deepEqual([...CANONICAL_ROLE_ORDER].sort(compareCanonicalRoles), [
+    ...CANONICAL_ROLE_ORDER,
+  ])
+  assert.deepEqual(
+    [...CANONICAL_ROLE_ORDER].reverse().sort(compareCanonicalRoles),
+    [...CANONICAL_ROLE_ORDER],
+  )
+})
+
+test('canonicalRoles accepts every engine-legal cast, for every role', () => {
+  const covered = new Set<Role>()
+  let accepted = 0
+  for (const playerCount of PLAYER_COUNTS) {
+    for (const cast of legalCasts(playerCount)) {
+      assert.equal(
+        canonicalRoles(cast, playerCount),
+        true,
+        `rejected the legal ${playerCount}-player cast ${cast.join(',')}`,
+      )
+      accepted++
+      for (const role of cast) covered.add(role)
+    }
+  }
+  assert.ok(accepted > 0, 'enumerated no legal casts at all')
+  // The half that catches a role added to the constant but not to the guard:
+  // its casts would all be rejected above, so it would never reach here.
+  assert.deepEqual(
+    [...covered].sort(compareCanonicalRoles),
+    [...CANONICAL_ROLE_ORDER],
+    'a role in CANONICAL_ROLE_ORDER never appeared in an accepted cast',
+  )
+})
+
+test('canonicalRoles rejects a role name outside CANONICAL_ROLE_ORDER', () => {
+  const playerCount = PLAYER_COUNTS[0]!
+  const cast = legalCasts(playerCount)[0]!
+  assert.equal(canonicalRoles(cast, playerCount), true)
+
+  // Named so as to be outside the constant by construction, not by assumption.
+  const outsider = `not-${CANONICAL_ROLE_ORDER.join('-')}` as Role
+  assert.equal(CANONICAL_ROLE_SET.has(outsider), false)
+  assert.equal(canonicalRoles([outsider, ...cast.slice(1)], playerCount), false)
+
+  assert.equal(canonicalRoles(cast, playerCount + 1), false, 'wrong table size')
+  assert.equal(canonicalRoles([...cast].reverse(), playerCount), false, 'unsorted')
+  assert.equal(canonicalRoles(new Proxy(cast, {}), playerCount), false)
+  assert.equal(canonicalRoles(cast.map(String).join(','), playerCount), false)
 })
 
 test('exactKeys is set equality, not containment', () => {
@@ -505,6 +618,7 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
 const GUARD_NAMES = [
   'canonicalCombinations',
   'canonicalRequestBlock',
+  'canonicalRoles',
   'canonicalSeats',
   'denseArray',
   'exactKeys',
@@ -549,6 +663,37 @@ test('no server module keeps a private copy of a shared guard', () => {
     }
   }
   assert.deepEqual(offenders, [])
+})
+
+// A name ban and a literal ban are different holes. The test above catches a
+// module that re-declares `canonicalRoles`; this one catches a module that keeps
+// the guard's DATA, which is how two of the four role validators stopped
+// deriving from CANONICAL_ROLE_ORDER: they inlined a byte-for-byte copy of its
+// eight names while still calling the predicate something else. A re-listed copy
+// is invisible to the behavioral pins above too, because it agrees with the
+// constant right up until somebody adds a role.
+//
+// Derived on both sides. The consumer set is discovered by scanning for the
+// import, and the names come from the constant, so a ninth role widens the check
+// rather than needing to be added to it.
+test('no canonicalRoles consumer carries its own copy of the role names', () => {
+  const quoted = CANONICAL_ROLE_ORDER.map((role) => `'${role}'`)
+  const consumers: string[] = []
+  const offenders: string[] = []
+  for (const file of serverSources('server')) {
+    if (file === GUARD_SOURCE) continue
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    if (!importedGuards(file, source).includes('canonicalRoles')) continue
+    consumers.push(file)
+    if (quoted.every((role) => source.includes(role))) offenders.push(file)
+  }
+  assert.deepEqual(offenders, [])
+  // Guard the guard, as above: the validators this consolidated are the floor,
+  // so a scan that quietly matches nothing reddens instead of passing.
+  assert.ok(
+    consumers.length >= 4,
+    `only found ${consumers.length} consumers: ${consumers.join(', ')}`,
+  )
 })
 
 // Shadowing, the quieter sibling of re-declaration, is pinned by the ARCH013

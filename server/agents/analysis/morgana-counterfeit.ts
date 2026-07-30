@@ -10,7 +10,6 @@ import {
   ROLE_ALIGNMENT,
   TEAM_SIZES,
   teamsEqual,
-  validateRoles,
 } from '../../engine/rules.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
@@ -49,6 +48,7 @@ import {
 import {
   canonicalCombinations,
   canonicalRequestBlock,
+  canonicalRoles,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -687,37 +687,6 @@ function validDistribution(value: unknown, teamSize: number): value is number[] 
       value.reduce((sum, entry) => sum + (entry as number), 0),
       1,
     )
-}
-
-function canonicalRoles(
-  value: unknown,
-  playerCount: number,
-): value is Role[] {
-  if (!denseArray(value) || value.length !== playerCount) return false
-  const roles = value as Role[]
-  if (
-    !roles.every(
-      (role) =>
-        typeof role === 'string'
-        && [
-          'assassin',
-          'merlin',
-          'minion',
-          'mordred',
-          'morgana',
-          'oberon',
-          'percival',
-          'servant',
-        ].includes(role),
-    )
-    || !isDeepStrictEqual(roles, canonicalRoleMultiset(roles))
-  ) return false
-  try {
-    validateRoles(playerCount, roles)
-    return true
-  } catch {
-    return false
-  }
 }
 
 function morganaCounterfeitObjectiveSchema(value: unknown): boolean {

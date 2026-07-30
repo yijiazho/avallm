@@ -1,8 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import {
-  ROLE_ALIGNMENT,
-  validateRoles,
-} from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import type {
   Decision,
   DecisionRequest,
@@ -18,10 +15,8 @@ import {
   type RoleIdentityPosterior,
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
-import {
-  CANONICAL_ROLE_ORDER,
-  PROBABILITY_TOLERANCE,
-} from '../belief/types.ts'
+import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
+import { canonicalRoleMultiset } from '../belief/worlds.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
@@ -47,6 +42,7 @@ import {
 } from './role-objective-types.ts'
 import {
   canonicalRequestBlock,
+  canonicalRoles,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -58,9 +54,6 @@ import {
   projectionCodec,
 } from './projection-codec.ts'
 
-const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
-const roleRank = new Map(CANONICAL_ROLE_ORDER.map((role, index) => [role, index]))
-
 const boundedIndex = (value: unknown): value is number =>
   typeof value === 'number'
   && Number.isFinite(value)
@@ -68,30 +61,6 @@ const boundedIndex = (value: unknown): value is number =>
   && value <= 1
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
-
-function canonicalRoles(value: unknown, playerCount: number): value is Role[] {
-  if (
-    !denseArray(value)
-    || value.length !== playerCount
-    || value.some((role) => !VALID_ROLES.has(role as Role))
-  ) return false
-  const roles = value as Role[]
-  if (
-    !isDeepStrictEqual(
-      roles,
-      [...roles].sort(
-        (left, right) =>
-          (roleRank.get(left) ?? 99) - (roleRank.get(right) ?? 99),
-      ),
-    )
-  ) return false
-  try {
-    validateRoles(playerCount, [...roles])
-    return true
-  } catch {
-    return false
-  }
-}
 
 function roleCount(roles: readonly Role[], role: Role): number {
   return roles.filter((candidate) => candidate === role).length
@@ -195,10 +164,7 @@ function identityRolePosterior(
   identity: PrivateIdentitySnapshot,
   roles: readonly Role[],
 ): RoleIdentityPosterior | undefined {
-  const expected = [...roles].sort(
-    (left, right) =>
-      (roleRank.get(left) ?? 99) - (roleRank.get(right) ?? 99),
-  )
+  const expected = canonicalRoleMultiset(roles)
   return identity.rolePosteriors.find(
     (posterior) => isDeepStrictEqual(posterior.queriedRoles, expected),
   )
@@ -404,9 +370,7 @@ export function mergeIdentityScopes(
   const queries = [...(left?.roleQueries ?? []), ...right.roleQueries]
   const unique = new Map<string, { roles: readonly Role[] }>()
   for (const query of queries) {
-    const roles = [...query.roles].sort(
-      (a, b) => (roleRank.get(a) ?? 99) - (roleRank.get(b) ?? 99),
-    )
+    const roles = canonicalRoleMultiset(query.roles)
     unique.set(roles.join('|'), { roles })
   }
   return {

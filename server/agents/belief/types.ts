@@ -32,6 +32,28 @@ export const CANONICAL_ROLE_ORDER: readonly Role[] = [
   'servant',
 ]
 
+/**
+ * The two derivations every role-shaped validator and every role-ordered
+ * collection needs: is this string one of the roles, and where does it sort.
+ *
+ * Six modules used to rebuild one or both of these from CANONICAL_ROLE_ORDER by
+ * hand, and elsewhere two validators had already drifted past that into
+ * hardcoding a byte-for-byte copy of the names. They exist here so that adding
+ * a role is one edit to the array above rather than a hunt for the copies.
+ */
+export const CANONICAL_ROLE_SET: ReadonlySet<Role> = new Set(
+  CANONICAL_ROLE_ORDER,
+)
+
+export const CANONICAL_ROLE_RANK: ReadonlyMap<Role, number> = new Map(
+  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
+)
+
+/** Ascending CANONICAL_ROLE_ORDER comparator. An unranked role sorts last. */
+export const compareCanonicalRoles = (left: Role, right: Role): number =>
+  (CANONICAL_ROLE_RANK.get(left) ?? Number.MAX_SAFE_INTEGER)
+  - (CANONICAL_ROLE_RANK.get(right) ?? Number.MAX_SAFE_INTEGER)
+
 export interface HiddenWorld {
   roleBySeat: readonly Role[]
   alignmentBySeat: readonly Alignment[]

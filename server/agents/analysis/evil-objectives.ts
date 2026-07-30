@@ -1,18 +1,12 @@
 import { isDeepStrictEqual } from 'node:util'
-import {
-  validateRoles,
-} from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
-  Role,
   Seat,
 } from '../../engine/types.ts'
 import { DECISION_KINDS } from '../../engine/types.ts'
-import {
-  CANONICAL_ROLE_ORDER,
-  PROBABILITY_TOLERANCE,
-} from '../belief/types.ts'
+import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
+import { canonicalRoleMultiset } from '../belief/worlds.ts'
 import {
   JOINT_IDENTITY_MODEL_VERSION,
   type HiddenTeamPosterior,
@@ -46,15 +40,13 @@ import {
 } from './evil-objective-types.ts'
 import {
   canonicalRequestBlock,
+  canonicalRoles,
   canonicalSeats,
   denseArray,
   exactKeys,
   probability,
 } from '../components/canonical-shape.ts'
 
-const roleRank = new Map(
-  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
-)
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
   assassin: 'assassin-shot-preservation',
@@ -62,30 +54,6 @@ const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
   mordred: 'mordred-deep-cover',
   minion: 'minion-failure-banking',
   oberon: 'oberon-uncoordinated-disruption',
-}
-
-function canonicalRoles(value: unknown, playerCount: number): value is Role[] {
-  if (
-    !denseArray(value)
-    || value.length !== playerCount
-    || value.some((role) => !roleRank.has(role as Role))
-  ) return false
-  const roles = value as Role[]
-  if (
-    !isDeepStrictEqual(
-      roles,
-      [...roles].sort(
-        (left, right) =>
-          (roleRank.get(left) ?? 99) - (roleRank.get(right) ?? 99),
-      ),
-    )
-  ) return false
-  try {
-    validateRoles(playerCount, [...roles])
-    return true
-  } catch {
-    return false
-  }
 }
 
 function fraction(numerator: number, denominator: number): ObservationFraction {
@@ -360,10 +328,7 @@ export function buildEvilRoleObjectiveSnapshot(input: {
     || identity.sourceBelief.playerCount !== view.playerCount
     || !isDeepStrictEqual(
       identity.sourceBelief.rolesInPlay,
-      [...view.rolesInPlay].sort(
-        (left, right) =>
-          (roleRank.get(left) ?? 99) - (roleRank.get(right) ?? 99),
-      ),
+      canonicalRoleMultiset(view.rolesInPlay),
     )
     || observer.version !== PUBLIC_OBSERVER_MODEL_VERSION
     || !isDeepStrictEqual(observer, observePublicRecord(projectPublicRecord(view)))
@@ -404,10 +369,7 @@ export function buildEvilRoleObjectiveSnapshot(input: {
       beliefThroughSeq: identity.sourceBelief.throughSeq,
       beliefQuality: identity.sourceBelief.quality,
       playerCount: view.playerCount,
-      rolesInPlay: [...view.rolesInPlay].sort(
-        (left, right) =>
-          (roleRank.get(left) ?? 99) - (roleRank.get(right) ?? 99),
-      ),
+      rolesInPlay: canonicalRoleMultiset(view.rolesInPlay),
       identityModelVersion: identity.version,
       observerModelVersion: observer.version,
       observerFeasibleWorldCount: observer.feasibleWorldCount,
