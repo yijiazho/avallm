@@ -17,11 +17,18 @@ import {
 } from '../server/agents/decision-layers/robust-evil-quest-card.ts'
 import {
   buildPrivateEvilQuestCardPolicy,
+  decodeCanonicalRobustEvilQuestCardPolicy,
+  type EvilQuestPublicContext,
+  MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
 } from '../server/agents/policy/evil-quest-card.ts'
+import {
+  canonicalizeJson,
+} from '../server/agents/components/canonical-json.ts'
 import {
   type AgentDecision,
 } from '../server/agents/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import { MAX_PROPOSALS } from '../server/engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -89,6 +96,16 @@ function robustPolicy(view: PlayerView) {
     view,
     analysis: boardSituation(view) as SituationAnalysis,
   })
+}
+
+function decodes(value: unknown): boolean {
+  const canonical = canonicalizeJson(
+    value,
+    MAX_EVIL_QUEST_CARD_POLICY_JSON_BYTES,
+  )
+  return canonical.ok
+    && decodeCanonicalRobustEvilQuestCardPolicy(canonical.payload)
+      !== undefined
 }
 
 function robustPayload(output: AgentDecision) {
@@ -248,6 +265,101 @@ test('nondecisive robust D3 is seat-local, deterministic, and assumption-free', 
   ]))
   assert.deepEqual(outputs[1].decision, outputs[0].decision)
   assert.deepEqual(robustPayload(outputs[1]), robustPayload(outputs[0]))
+})
+
+test('robust D3 ingress derives the fail threshold from the board', () => {
+  const view = nondecisive(evilView(4, [4, 5]))
+  const policy = robustPolicy(view)
+  // Seven players on quest four is the one board that needs two Fails, so the
+  // honest fixture exercises the derivation on both sides of its only step.
+  assert.equal(view.playerCount, 7)
+  assert.equal(policy.sourceContext.round, 4)
+  assert.equal(policy.failsRequired, 2)
+  assert.equal(decodes(policy), true)
+
+  // Each forgery is otherwise coherent: both copies of the threshold agree and
+  // the request block tracks the context, so only the board rule under test
+  // can reject it.
+  const forged = (
+    failsRequired: number,
+    override: Partial<EvilQuestPublicContext> = {},
+  ) => {
+    const sourceContext = {
+      ...policy.sourceContext,
+      failsRequired,
+      ...override,
+    }
+    return {
+      ...policy,
+      failsRequired,
+      request: {
+        ...policy.request,
+        round: sourceContext.round,
+        proposalNum: sourceContext.proposalNum,
+      },
+      sourceContext,
+    }
+  }
+  for (const [label, value] of [
+    ['a threshold above any quest', forged(7)],
+    ['a threshold below the two-Fail quest', forged(1)],
+    ['two Fails demanded on quest one', forged(2, { round: 1 })],
+    ['a quest number off the board', forged(1, { round: 99 })],
+    ['a quest number below the board', forged(1, { round: 0 })],
+  ] as const) {
+    assert.equal(decodes(value), false, label)
+  }
+
+  // Five players is the derivation's other side: quest four needs one Fail
+  // there, not two. Shrinking the table means shrinking every seat with it,
+  // or the seat bound rejects the payload before the threshold is consulted,
+  // and the case would pass with the derivation deleted.
+  const atFivePlayers = (failsRequired: number) =>
+    forged(failsRequired, {
+      playerCount: 5,
+      leaderSeat: 0,
+      currentTeam: [1, 2, 3],
+      teamSize: 3,
+    })
+  assert.equal(decodes(atFivePlayers(1)), true)
+  assert.equal(decodes(atFivePlayers(2)), false)
+})
+
+test('robust D3 ingress pins the request block to the bounded context', () => {
+  const view = nondecisive(evilView(4, [4, 5]))
+  const policy = robustPolicy(view)
+  const { round, proposalNum } = policy.sourceContext
+  assert.equal(policy.request.round, round)
+  assert.equal(policy.request.proposalNum, proposalNum)
+  assert.ok(proposalNum >= 1 && proposalNum <= MAX_PROPOSALS)
+
+  // The request block carries no bounds of its own, so these cases pass only
+  // if the tie to the context holds.
+  const desynced = (request: Partial<DecisionRequest>) => ({
+    ...policy,
+    request: { ...policy.request, ...request },
+  })
+  // Both copies move together here, which leaves the context's own bounds as
+  // the only thing standing between the payload and admission.
+  const atProposalNum = (value: number) => ({
+    ...policy,
+    request: { ...policy.request, proposalNum: value },
+    sourceContext: { ...policy.sourceContext, proposalNum: value },
+  })
+  for (const [label, value] of [
+    [
+      'a request naming another quest',
+      desynced({ round: round === 1 ? 2 : 1 }),
+    ],
+    [
+      'a request naming another proposal',
+      desynced({ proposalNum: proposalNum + 1 }),
+    ],
+    ['a proposal number below the board', atProposalNum(0)],
+    ['a proposal number past the hammer', atProposalNum(MAX_PROPOSALS + 1)],
+  ] as const) {
+    assert.equal(decodes(value), false, label)
+  }
 })
 
 test('robust D3 private payload stays out of prompt, voice, client, and public surfaces', async () => {

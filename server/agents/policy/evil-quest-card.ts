@@ -1,5 +1,12 @@
 import { isDeepStrictEqual } from 'node:util'
 import { fnv1a } from '../../engine/prng.ts'
+import {
+  failsRequired as boardFailsRequired,
+  MAX_PLAYERS,
+  MAX_PROPOSALS,
+  MIN_PLAYERS,
+  QUESTS_PER_GAME,
+} from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -141,25 +148,42 @@ export function decodeCanonicalRobustEvilQuestCardPolicy(
     || policy.promotionEvidenceEligible !== true
     || request.kind !== 'quest'
     || !seat(request.seat)
-    || !Number.isSafeInteger(request.round)
-    || !Number.isSafeInteger(request.proposalNum)
+    // The request block restates the two board coordinates the public context
+    // already carries, and both are built from one DecisionRequest, so the
+    // copies cannot legally disagree. Pin them to the context instead of range
+    // checking them a second time: the context's bounds below then cover both,
+    // and the two cannot drift the way independent range checks let them.
+    || request.round !== context.round
+    || request.proposalNum !== context.proposalNum
     || typeof policy.role !== 'string'
     || !roles.includes(policy.role as Role)
     || policy.applicable !== true
     || context.version !== EVIL_QUEST_PUBLIC_CONTEXT_VERSION
     || !Number.isSafeInteger(playerCount)
-    || Number(playerCount) < 5
-    || Number(playerCount) > 10
+    || Number(playerCount) < MIN_PLAYERS
+    || Number(playerCount) > MAX_PLAYERS
     || !Number.isSafeInteger(context.round)
+    || Number(context.round) < 1
+    || Number(context.round) > QUESTS_PER_GAME
     || !Number.isSafeInteger(context.proposalNum)
+    || Number(context.proposalNum) < 1
+    || Number(context.proposalNum) > MAX_PROPOSALS
     || !seat(context.leaderSeat)
     || !currentTeam
     || new Set(currentTeam).size !== currentTeam.length
     || !currentTeam.every(seat)
     || !Number.isSafeInteger(context.teamSize)
     || context.teamSize !== currentTeam.length
-    || !Number.isSafeInteger(context.failsRequired)
-    || Number(context.failsRequired) < 1
+    // The fail threshold is a board fact, not a free field: the engine derives
+    // it from the table size and the quest number when it deals the quests. A
+    // range check would still admit thresholds no deal can reach, so derive it
+    // from the two board coordinates already validated above. policy
+    // .failsRequired is pinned to this field below, so one derivation binds
+    // both copies.
+    || context.failsRequired !== boardFailsRequired(
+      Number(playerCount),
+      Number(context.round),
+    )
     || !priorQuests
     || !priorQuests.every((entry) => typeof entry === 'string')
     || !priorProposals
