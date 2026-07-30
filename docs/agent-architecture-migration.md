@@ -291,7 +291,7 @@ while the primary lane runs, then integrate them one at a time.
 | NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
 | NB-014 | NB-010 | Fix good proposal value at an information-poor seat | Structured proposal value alone lowers the Servant's clean initial-proposal rate by `-10.6%` (95% `-20.6%` to `-1.1%`) and its win rate by `-6.7%`, while Merlin and Percival lose nothing on that channel. Diagnose why the proposal scorer serves a seat with no private knowledge worst, and treat clean-proposal rate as a diagnostic rather than the objective: Merlin's cleanliness also falls while its win rate rises. | `ready` |
 | NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `phase4-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
-| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` remain hash-pinned strict-test exemptions. Their 257 diagnostics are two mechanical classes: unnormalized `AgentOutput` member access and implicitly typed score callbacks. Route them through `normalizeAgentOutput` and annotate the callbacks, then delete the exemptions rather than refreshing their hashes again. | `ready` |
+| NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | Complete at `51f9510`. `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` are out of the strict-test baseline, which falls from 42 pinned exemptions to 39, so changes to active role-policy coverage now get normal compiler feedback. Composed-agent and stdio results route through the canonical `AgentOutput` normalizer in test-only adapters, and hostile-payload mutations use detached mutable clones with narrow historical-field typing while keeping their forgery and admission assertions. | `landed` |
 
 NB-006 is directly discoverable with
 `node server/eval/seat-view-inspector.ts --help`. It reads the frozen architecture decision
@@ -3648,3 +3648,11 @@ here.
   quest cards, and a count-preserving wrong proposal set each fail the new laws, and the first two
   leave the pre-existing acceptance test green. Full suite 1139 correctness tests plus the three
   isolated performance tests, strict typecheck, and ratchet.
+- NB-009 strict role-policy suites, landed at `51f9510` alongside this series. The Phase 7C2, 7D2,
+  and 7E1B suites left the strict-test baseline, which falls from 42 pinned exemptions to 39, so
+  changes to active role-policy coverage now draw normal compiler feedback instead of a refreshed
+  hash. Composed-agent and stdio results route through the canonical `AgentOutput` normalizer in
+  test-only adapters, and the deliberate hostile-payload mutations use detached mutable clones with
+  narrow historical-field typing so their forgery and admission assertions are unchanged. The
+  register row is corrected here because that commit closed the follow-up without updating either
+  the register or this log, which §3.6 requires in the same commit.
