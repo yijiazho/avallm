@@ -478,6 +478,7 @@ export function buildRoleObjectiveSnapshot(input: {
   if (view.role === 'merlin') {
     return {
       version: ROLE_OBJECTIVE_MODEL_VERSION,
+      team: 'good',
       role: 'merlin',
       source,
       request,
@@ -530,6 +531,7 @@ export function buildRoleObjectiveSnapshot(input: {
   }
   return {
     version: ROLE_OBJECTIVE_MODEL_VERSION,
+    team: 'good',
     role: 'percival',
     source,
     request,
@@ -585,8 +587,16 @@ function roleObjectiveSchema(detached: unknown): boolean {
   const request = snapshot.request as Record<string, unknown>
   const objective = snapshot.objective as Record<string, unknown>
   if (
-    !exactKeys(snapshot, ['version', 'role', 'source', 'request', 'objective'])
+    !exactKeys(snapshot, [
+      'version',
+      'team',
+      'role',
+      'source',
+      'request',
+      'objective',
+    ])
     || snapshot.version !== ROLE_OBJECTIVE_MODEL_VERSION
+    || snapshot.team !== 'good'
     || !['merlin', 'percival'].includes(snapshot.role as string)
     || !plainRecord(source)
     || !exactKeys(source, [

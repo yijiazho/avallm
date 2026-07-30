@@ -1,9 +1,8 @@
+import type { Seat } from '../../engine/types.ts'
 import type {
-  DecisionKind,
-  Role,
-  Seat,
-} from '../../engine/types.ts'
-import type { BeliefSnapshot } from '../belief/types.ts'
+  ObjectiveRequest,
+  ObjectiveSource,
+} from './role-objective-types.ts'
 
 export const EVIL_ROLE_OBJECTIVE_MODEL_VERSION =
   'evil-oberon-objectives-v1'
@@ -35,24 +34,10 @@ export type EvilRolePosture =
   | 'minion-failure-banking'
   | 'oberon-uncoordinated-disruption'
 
-export interface EvilObjectiveSource {
-  beliefModelVersion: string
-  beliefThroughSeq: number
-  beliefQuality: BeliefSnapshot['quality']
-  playerCount: number
-  rolesInPlay: readonly Role[]
-  identityModelVersion: string
-  observerModelVersion: string
-  observerFeasibleWorldCount: number
-}
-
-export interface EvilObjectiveRequest {
-  seat: Seat
-  kind: DecisionKind
-  round: number
-  proposalNum: number
-  failsRequired: number
-}
+// The evil source/request envelope is the shared objective envelope. The names
+// are retained for callers that imported them before the good/evil unification.
+export type EvilObjectiveSource = ObjectiveSource
+export type EvilObjectiveRequest = ObjectiveRequest
 
 export interface ObservationFraction {
   numerator: number
@@ -118,6 +103,7 @@ export interface EvilCandidateObjective {
 
 export interface PrivateEvilRoleObjectiveSnapshot {
   version: typeof EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+  team: 'evil'
   role: EvilObjectiveRole
   source: EvilObjectiveSource
   request: EvilObjectiveRequest

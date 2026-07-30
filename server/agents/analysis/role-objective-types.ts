@@ -27,7 +27,19 @@ export function isPublicCommitmentDirection(
   return (PUBLIC_COMMITMENT_DIRECTIONS as readonly unknown[]).includes(value)
 }
 
-export interface RoleObjectiveSource {
+/**
+ * The team the objective belongs to. It is the discriminant of the private
+ * objective union stored on cognition state: a seat holds one objective or
+ * none, never both a good and an evil one.
+ */
+export type ObjectiveTeam = 'good' | 'evil'
+
+/**
+ * The shared objective envelope. Good and evil private objectives carry the
+ * identical belief/source provenance, so it is declared once here rather than
+ * duplicated per team.
+ */
+export interface ObjectiveSource {
   beliefModelVersion: string
   beliefThroughSeq: number
   beliefQuality: BeliefSnapshot['quality']
@@ -38,13 +50,18 @@ export interface RoleObjectiveSource {
   observerFeasibleWorldCount: number
 }
 
-export interface RoleObjectiveRequest {
+/** The decision the objective snapshot was built for. Shared, like the source. */
+export interface ObjectiveRequest {
   seat: Seat
   kind: DecisionKind
   round: number
   proposalNum: number
   failsRequired: number
 }
+
+// Retained names for callers that imported the pre-unification aliases.
+export type RoleObjectiveSource = ObjectiveSource
+export type RoleObjectiveRequest = ObjectiveRequest
 
 export interface CandidatePublicCommitment {
   candidateId: string
@@ -112,8 +129,9 @@ export interface PercivalRoleObjective {
 
 export interface PrivateRoleObjectiveSnapshot {
   version: typeof ROLE_OBJECTIVE_MODEL_VERSION
+  team: 'good'
   role: RoleObjectiveRole
-  source: RoleObjectiveSource
-  request: RoleObjectiveRequest
+  source: ObjectiveSource
+  request: ObjectiveRequest
   objective: MerlinRoleObjective | PercivalRoleObjective
 }

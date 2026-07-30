@@ -1968,7 +1968,7 @@ export function createComposedAgent(
         if (privateEvilRoleObjective) {
           cognition = {
             ...cognition,
-            evilRoleObjective: privateEvilRoleObjective,
+            roleObjective: privateEvilRoleObjective,
             versions: {
               ...cognition.versions,
               roleObjective: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,

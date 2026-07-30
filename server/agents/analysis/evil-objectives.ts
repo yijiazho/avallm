@@ -377,6 +377,7 @@ export function buildEvilRoleObjectiveSnapshot(input: {
     : undefined
   const snapshot: PrivateEvilRoleObjectiveSnapshot = {
     version: EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
+    team: 'evil',
     role,
     source: {
       beliefModelVersion: identity.sourceBelief.modelVersion,
@@ -489,6 +490,7 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
   if (
     !exactKeys(snapshot, [
       'version',
+      'team',
       'role',
       'source',
       'request',
@@ -502,6 +504,7 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
       'assessments',
     ])
     || snapshot.version !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
+    || snapshot.team !== 'evil'
     || !EVIL_ROLES.has(snapshot.role as EvilObjectiveRole)
   ) return false
   const role = snapshot.role as EvilObjectiveRole

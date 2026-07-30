@@ -78,31 +78,25 @@ function validateEarlier(
   ) {
     throw new Error('cannot advance malformed private plan memory')
   }
-  const hasRoleObjective =
-    earlier.roleObjective !== undefined
-    || earlier.evilRoleObjective !== undefined
+  // One union field, discriminated on team: "both a good and an evil objective"
+  // is unrepresentable, so the branches below narrow rather than guard it.
+  const objective = earlier.roleObjective
   if (
-    (
-      earlier.roleObjective !== undefined
-      && earlier.evilRoleObjective !== undefined
-    )
-    || hasRoleObjective !== (earlier.versions.roleObjective !== undefined)
+    (objective !== undefined) !== (earlier.versions.roleObjective !== undefined)
     || (
-      earlier.roleObjective !== undefined
+      objective?.team === 'good'
       && (
         earlier.versions.roleObjective !== ROLE_OBJECTIVE_MODEL_VERSION
-        || !validatePrivateRoleObjectiveSnapshot(earlier.roleObjective)
+        || !validatePrivateRoleObjectiveSnapshot(objective)
       )
     )
     || (
-      earlier.evilRoleObjective !== undefined
+      objective?.team === 'evil'
       && (
         earlier.versions.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
         || earlier.versions.roleObjectiveRouter
           !== ROLE_OBJECTIVE_ROUTER_VERSION
-        || !validatePrivateEvilRoleObjectiveSnapshot(
-          earlier.evilRoleObjective,
-        )
+        || !validatePrivateEvilRoleObjectiveSnapshot(objective)
       )
     )
     || (

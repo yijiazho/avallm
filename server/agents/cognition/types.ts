@@ -10,6 +10,17 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
 import type { PrivateRoleObjectiveSnapshot } from '../analysis/role-objective-types.ts'
 import type { PrivateEvilRoleObjectiveSnapshot } from '../analysis/evil-objective-types.ts'
+
+/**
+ * The private objective substrate a seat carries, discriminated on `team`. A
+ * seat gets the Merlin/Percival objective, the visible-evil/Oberon objective,
+ * or neither: a Servant gets none, and the good and evil roles are disjoint.
+ * Modelling it as one union rather than two optional fields makes "both at
+ * once" unrepresentable.
+ */
+export type PrivateObjectiveSnapshot =
+  | PrivateRoleObjectiveSnapshot
+  | PrivateEvilRoleObjectiveSnapshot
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -269,10 +280,13 @@ export interface CognitionState {
   identity?: PrivateIdentitySnapshot
   /** Private selected/applied history. Never included in publicCognition. */
   planMemory?: PrivatePlanMemory
-  /** Private, mechanically inert Merlin/Percival objective substrate. */
-  roleObjective?: PrivateRoleObjectiveSnapshot
-  /** Private, mechanically inert visible-evil/Oberon objective substrate. */
-  evilRoleObjective?: PrivateEvilRoleObjectiveSnapshot
+  /**
+   * Private, mechanically inert objective substrate: the good or evil private
+   * objective for this seat, or absent. One field, discriminated on `team`, so
+   * a good and an evil objective can never both be present. Never included in
+   * publicCognition.
+   */
+  roleObjective?: PrivateObjectiveSnapshot
   versions: CognitionVersions
 }
 
