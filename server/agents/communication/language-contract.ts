@@ -310,8 +310,7 @@ function validPublicContext(
         'currentTeam',
         'discussionRound',
         'discussionPostRevision',
-        'winner',
-        'winReason',
+        'outcome',
       ],
     )
     || !safeInteger(value.playerCount, 5, 10)
@@ -412,13 +411,13 @@ function validPublicContext(
       || typeof value.discussionPostRevision === 'boolean'
     )
     && (
-      value.winner === undefined
-      || value.winner === 'good'
-      || value.winner === 'evil'
-    )
-    && (
-      value.winReason === undefined
-      || typeof value.winReason === 'string'
+      value.outcome === undefined
+      || (
+        isRecord(value.outcome)
+        && exactKeys(value.outcome, ['winner', 'reason'])
+        && (value.outcome.winner === 'good' || value.outcome.winner === 'evil')
+        && typeof value.outcome.reason === 'string'
+      )
     )
 }
 

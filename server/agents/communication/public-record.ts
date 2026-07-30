@@ -43,8 +43,9 @@ export interface PublicRecord {
   currentTeam?: readonly Seat[]
   discussionRound?: number
   discussionPostRevision?: boolean
-  winner?: 'good' | 'evil'
-  winReason?: string
+  // Present iff the game is finished; mirrors PlayerView.outcome. Winner and
+  // reason travel together so the board can never show one without the other.
+  outcome?: { winner: 'good' | 'evil'; reason: string }
 }
 
 /**
@@ -101,8 +102,6 @@ export function projectPublicRecord(view: PlayerView): PublicRecord {
     ...(view.discussionPostRevision === undefined
       ? {}
       : { discussionPostRevision: view.discussionPostRevision }),
-    ...(view.outcome
-      ? { winner: view.outcome.winner, winReason: view.outcome.reason }
-      : {}),
+    ...(view.outcome ? { outcome: { ...view.outcome } } : {}),
   }
 }
