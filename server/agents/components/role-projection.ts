@@ -15,7 +15,10 @@
  */
 
 import { componentEnvelope } from './kernel.ts'
-import type { CanonicalJsonValue } from './canonical-json.ts'
+import {
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
+  type CanonicalJsonValue,
+} from './canonical-json.ts'
 import type {
   ComponentAdmissionResult,
   ComponentHostInputRef,
@@ -27,14 +30,6 @@ import type {
   PrivateDecisionComponentApplicabilityContext,
   PublicDecisionComponentApplicabilityContext,
 } from './types.ts'
-
-/**
- * The payload bound every role component shares.
- *
- * Roles whose payload is bounded by its own much smaller structure state
- * their own cap at the definition instead of inheriting this one.
- */
-export const DEFAULT_ROLE_PROJECTION_JSON_BYTES = 1_048_576
 
 type ExecutionContext = Parameters<DecisionComponentDefinition['execute']>[0]
 
@@ -60,7 +55,7 @@ interface ProjectionSpec<
   readonly brainContribution?:
     DecisionComponentDefinition<Payload>['brainContribution']
   readonly deterministicSeedDomain?: string
-  /** Defaults to {@link DEFAULT_ROLE_PROJECTION_JSON_BYTES}. */
+  /** Defaults to {@link DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES}. */
   readonly maxPayloadBytes?: number
   /**
    * Role applicability. The privacy check is already applied, so this states
@@ -150,7 +145,7 @@ function define<Payload, JoinInput>(
     requiredHostInputs: spec.requiredHostInputs ?? [],
     hostRequirements: spec.hostRequirements ?? [],
     maxPayloadBytes:
-      spec.maxPayloadBytes ?? DEFAULT_ROLE_PROJECTION_JSON_BYTES,
+      spec.maxPayloadBytes ?? DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     degradationCode: spec.degradationCode,
     ...(spec.deterministicSeedDomain === undefined
       ? {}

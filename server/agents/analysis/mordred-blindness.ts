@@ -35,15 +35,15 @@ import {
 } from './actor-target-treatment-types.ts'
 import {
   MAX_MORDRED_BLINDNESS_ASSESSMENTS,
-  MAX_MORDRED_BLINDNESS_JSON_BYTES,
   MORDRED_BLINDNESS_OBJECTIVE_VERSION,
   type MordredBlindnessAssessment,
   type MordredMerlinHypothesis,
   type MordredBlindnessTeam,
   type PrivateMordredBlindnessObjective,
 } from './mordred-blindness-types.ts'
-import type {
-  CanonicalJsonValue,
+import {
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
+  type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
 import {
   canonicalCombinations,
@@ -456,7 +456,7 @@ export function buildPrivateMordredBlindnessObjective(input: {
   }
   if (
     Buffer.byteLength(JSON.stringify(result), 'utf8')
-      > MAX_MORDRED_BLINDNESS_JSON_BYTES
+      > DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES
   ) {
     throw new Error('Mordred objective exceeds payload bound')
   }
@@ -530,7 +530,7 @@ function validatePrivateMordredBlindnessObjectiveShape(
       || (
         detached
         && Buffer.byteLength(JSON.stringify(value), 'utf8')
-          > MAX_MORDRED_BLINDNESS_JSON_BYTES
+          > DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES
       )
     ) return false
     const source = value.source

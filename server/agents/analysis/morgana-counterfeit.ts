@@ -32,10 +32,10 @@ import { candidateIdForDecision } from '../policy/candidates.ts'
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 import {
   MAX_MORGANA_COUNTERFEIT_ASSESSMENTS,
-  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
   type CounterfeitObservationFraction,
@@ -634,7 +634,7 @@ function validatePublicCounterfeitMerlinReadShape(
 ): value is PublicCounterfeitMerlinReadSnapshot {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_MORGANA_COUNTERFEIT_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     value = canonical.payload
@@ -752,7 +752,7 @@ function validatePrivateMorganaCounterfeitObjectiveShape(
 ): value is PrivateMorganaCounterfeitObjective {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_MORGANA_COUNTERFEIT_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     value = canonical.payload

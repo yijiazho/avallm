@@ -61,7 +61,6 @@ import {
 } from '../server/agents/analysis/actor-target-treatment-types.ts'
 import {
   MAX_MORDRED_BLINDNESS_ASSESSMENTS,
-  MAX_MORDRED_BLINDNESS_JSON_BYTES,
 } from '../server/agents/analysis/mordred-blindness-types.ts'
 import {
   beliefFromWeightedWorlds,
@@ -84,6 +83,7 @@ import {
 import {
   rotatePlayerView,
 } from './support/player-view-metamorphic.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const ROLES: Record<number, Role[]> = {
   5: ['merlin', 'servant', 'servant', 'assassin', 'mordred'],
@@ -905,10 +905,10 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
     throw new Error('expected admitted native objective')
   }
   ;(oversizedEntry.envelope as any).payload = {
-    value: 'x'.repeat(MAX_MORDRED_BLINDNESS_JSON_BYTES + 1),
+    value: 'x'.repeat(DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES + 1),
   }
   ;(oversizedEntry as any).payloadBytes =
-    MAX_MORDRED_BLINDNESS_JSON_BYTES
+    DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES
   const oversizedAdmission = admitDecisionTrace({
     ...admissionContext,
     trace: oversizedTrace,
@@ -1173,7 +1173,7 @@ test('5-10 player payload and latency bounds remain deterministic', async () => 
     )
     assert.ok(
       Buffer.byteLength(JSON.stringify(objective), 'utf8')
-        <= MAX_MORDRED_BLINDNESS_JSON_BYTES,
+        <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     )
     assert.ok(objective.assessments.length <= MAX_MORDRED_BLINDNESS_ASSESSMENTS)
     // This is a deadlock/runaway guard, not a contested-CI latency SLO.

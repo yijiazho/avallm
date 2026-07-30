@@ -27,7 +27,6 @@ import {
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS,
-  MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
   buildMorganaRoleUtilityProjection,
   validatePrivateMorganaRoleUtilityProjection,
 } from '../server/agents/analysis/morgana-role-utility.ts'
@@ -82,6 +81,7 @@ import {
   mutableClone,
   type Mutable,
 } from './support/score-family.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const evilUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
@@ -1072,7 +1072,7 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
     )
     assert.ok(
       Buffer.byteLength(JSON.stringify(projection), 'utf8')
-        <= MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
+        <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     )
     if (playerCount === 10) {
       assert.equal(projection.candidates.length, 252)

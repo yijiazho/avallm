@@ -12,7 +12,6 @@ export const MORDRED_BLINDNESS_OBJECTIVE_VERSION =
 export const MORDRED_BLINDNESS_DEGRADATION =
   'mordred-blindness-objective-failed'
 export const MAX_MORDRED_BLINDNESS_ASSESSMENTS = 252
-export const MAX_MORDRED_BLINDNESS_JSON_BYTES = 1_048_576
 
 export interface MordredMerlinHypothesis {
   seat: Seat

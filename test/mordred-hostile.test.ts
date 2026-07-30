@@ -32,7 +32,6 @@ import {
 } from '../server/agents/analysis/actor-target-treatment-types.ts'
 import {
   MAX_MORDRED_BLINDNESS_ASSESSMENTS,
-  MAX_MORDRED_BLINDNESS_JSON_BYTES,
 } from '../server/agents/analysis/mordred-blindness-types.ts'
 import {
   observePublicRecord,
@@ -93,6 +92,7 @@ import {
 import {
   architectureReport,
 } from '../server/eval/architecture-report.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const ROLES: Record<number, Role[]> = {
   5: ['merlin', 'servant', 'servant', 'assassin', 'mordred'],
@@ -1073,6 +1073,6 @@ test('10-player quest four exhausts but never exceeds the 252 assessment cap', a
   )
   assert.ok(
     Buffer.byteLength(JSON.stringify(objective), 'utf8')
-      <= MAX_MORDRED_BLINDNESS_JSON_BYTES,
+      <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   )
 })

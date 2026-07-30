@@ -13,7 +13,6 @@ import {
 } from '../server/agents/analysis/morgana-counterfeit.ts'
 import {
   MAX_MORGANA_COUNTERFEIT_ASSESSMENTS,
-  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
   MORGANA_COUNTERFEIT_DEGRADATION,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
@@ -66,6 +65,7 @@ import {
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const morganaCounterfeitObjective = (trace: DecisionTrace) => componentPayload(
   trace.components!,
@@ -1062,7 +1062,7 @@ test('Morgana dependency is legal-cast enforced and 5-10p payloads stay bounded'
     )
     assert.ok(
       Buffer.byteLength(JSON.stringify(objective), 'utf8')
-        <= MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+        <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     )
     if (playerCount === 10) {
       assert.equal(objective.assessments.length, 252)

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   canonicalizeJson,
   canonicalizeTransportJson,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../server/agents/components/canonical-json.ts'
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
@@ -48,9 +49,6 @@ import {
   MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
 } from '../server/agents/analysis/actor-target-treatment-types.ts'
 import {
-  MAX_MORDRED_BLINDNESS_JSON_BYTES,
-} from '../server/agents/analysis/mordred-blindness-types.ts'
-import {
   observePublicRecord,
 } from '../server/agents/analysis/observer.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
@@ -70,12 +68,8 @@ import {
   EVIL_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import {
-  MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
-} from '../server/agents/analysis/evil-objective-types.ts'
-import {
   buildEvilRoleUtilityProjection,
   decodeCanonicalPrivateEvilRoleUtilityProjection,
-  MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
   validateAdmittedPrivateEvilRoleUtilityHostJoin,
   validatePrivateEvilRoleUtilityProjection,
 } from '../server/agents/analysis/evil-role-utility.ts'
@@ -88,13 +82,9 @@ import {
 import {
   buildRoleUtilityProjection,
   decodeCanonicalPrivateRoleUtilityProjection,
-  MAX_ROLE_UTILITY_JSON_BYTES,
   validateAdmittedPrivateRoleUtilityHostJoin,
   validatePrivateRoleUtilityProjection,
 } from '../server/agents/analysis/role-utility.ts'
-import {
-  MAX_ROLE_OBJECTIVE_JSON_BYTES,
-} from '../server/agents/analysis/role-objective-types.ts'
 import {
   buildAdmittedMorganaCounterfeitObjective,
   buildMorganaCounterfeitObjective,
@@ -106,13 +96,9 @@ import {
   validatePublicCounterfeitMerlinRead,
 } from '../server/agents/analysis/morgana-counterfeit.ts'
 import {
-  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
-} from '../server/agents/analysis/morgana-counterfeit-types.ts'
-import {
   buildAdmittedMorganaRoleUtilityProjection,
   buildMorganaRoleUtilityProjection,
   decodeCanonicalPrivateMorganaRoleUtilityProjection,
-  MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
   validateAdmittedPrivateMorganaRoleUtilityHostJoin,
   validatePrivateMorganaRoleUtilityProjection,
 } from '../server/agents/analysis/morgana-role-utility.ts'
@@ -585,7 +571,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: MORDRED_BLINDNESS_COMPONENT.id,
     value: objective,
-    maxBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateMordredBlindnessObjective,
     decode: decodeCanonicalPrivateMordredBlindnessObjective,
     invalidValue: { ...objective, role: 'merlin' },
@@ -593,7 +579,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: GOOD_ROLE_OBJECTIVE_COMPONENT.id,
     value: good.objective,
-    maxBytes: MAX_ROLE_OBJECTIVE_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateRoleObjectiveSnapshot,
     decode: decodeCanonicalPrivateRoleObjectiveSnapshot,
     invalidValue: { ...good.objective, role: 'servant' },
@@ -601,7 +587,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: GOOD_ROLE_UTILITY_COMPONENT.id,
     value: good.utility,
-    maxBytes: MAX_ROLE_UTILITY_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateRoleUtilityProjection,
     decode: decodeCanonicalPrivateRoleUtilityProjection,
     invalidValue: { ...good.utility, role: 'servant' },
@@ -609,7 +595,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: EVIL_ROLE_OBJECTIVE_COMPONENT.id,
     value: evil.objective,
-    maxBytes: MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateEvilRoleObjectiveSnapshot,
     decode: decodeCanonicalPrivateEvilRoleObjectiveSnapshot,
     invalidValue: { ...evil.objective, role: 'servant' },
@@ -617,7 +603,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: EVIL_ROLE_UTILITY_COMPONENT.id,
     value: evil.utility,
-    maxBytes: MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateEvilRoleUtilityProjection,
     decode: decodeCanonicalPrivateEvilRoleUtilityProjection,
     invalidValue: { ...evil.utility, role: 'servant' },
@@ -625,7 +611,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT.id,
     value: morgana.publicRead,
-    maxBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePublicCounterfeitMerlinRead,
     decode: decodeCanonicalPublicCounterfeitMerlinRead,
     invalidValue: { ...morgana.publicRead, playerCount: 4 },
@@ -633,7 +619,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
   assertNativeCodecContract({
     label: MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id,
     value: morgana.objective,
-    maxBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
+    maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
     validate: validatePrivateMorganaCounterfeitObjective,
     decode: decodeCanonicalPrivateMorganaCounterfeitObjective,
     invalidValue: { ...morgana.objective, role: 'merlin' },
@@ -645,7 +631,7 @@ test('native decoders preserve raw-validator semantics after one boundary', () =
     assertNativeCodecContract({
       label: token.id,
       value: utility,
-      maxBytes: MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
+      maxBytes: DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
       validate: validatePrivateMorganaRoleUtilityProjection,
       decode: decodeCanonicalPrivateMorganaRoleUtilityProjection,
       invalidValue: { ...utility, role: 'merlin' },

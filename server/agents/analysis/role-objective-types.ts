@@ -10,7 +10,6 @@ export const ROLE_OBJECTIVE_MODEL_VERSION =
 export const ROLE_OBJECTIVE_DEGRADATION =
   'role-objective-assessment-failed'
 export const MAX_ROLE_OBJECTIVE_ASSESSMENTS = 256
-export const MAX_ROLE_OBJECTIVE_JSON_BYTES = 1_048_576
 
 export type RoleObjectiveRole = 'merlin' | 'percival'
 export type PublicCommitmentDirection = 'support' | 'oppose' | 'neutral'

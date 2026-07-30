@@ -12,7 +12,6 @@ export const MORGANA_COUNTERFEIT_OBJECTIVE_VERSION =
 export const MORGANA_COUNTERFEIT_DEGRADATION =
   'morgana-objective-assessment-failed'
 export const MAX_MORGANA_COUNTERFEIT_ASSESSMENTS = 252
-export const MAX_MORGANA_COUNTERFEIT_JSON_BYTES = 1_048_576
 
 export interface CounterfeitObservationFraction {
   numerator: number

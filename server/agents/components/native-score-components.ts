@@ -12,7 +12,6 @@ import {
   validateAdmittedPrivateEvilRoleObjectiveHostJoin,
 } from '../analysis/evil-objectives.ts'
 import {
-  MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   type PrivateEvilRoleObjectiveSnapshot,
@@ -23,7 +22,6 @@ import {
   validateAdmittedPrivateRoleObjectiveHostJoin,
 } from '../analysis/role-objectives.ts'
 import {
-  MAX_ROLE_OBJECTIVE_JSON_BYTES,
   ROLE_OBJECTIVE_DEGRADATION,
   ROLE_OBJECTIVE_MODEL_VERSION,
   type PrivateRoleObjectiveSnapshot,
@@ -33,14 +31,12 @@ import {
   decodeCanonicalPrivateEvilRoleUtilityProjection,
   EVIL_ROLE_UTILITY_DEGRADATION,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
-  MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
   type PrivateEvilRoleUtilityProjection,
   validateAdmittedPrivateEvilRoleUtilityHostJoin,
 } from '../analysis/evil-role-utility.ts'
 import {
   buildAdmittedRoleUtilityProjection,
   decodeCanonicalPrivateRoleUtilityProjection,
-  MAX_ROLE_UTILITY_JSON_BYTES,
   ROLE_UTILITY_DEGRADATION,
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
@@ -74,7 +70,6 @@ import {
   validateAdmittedPublicCounterfeitMerlinReadHostJoin,
 } from '../analysis/morgana-counterfeit.ts'
 import {
-  MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
   MORGANA_COUNTERFEIT_DEGRADATION,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
@@ -84,7 +79,6 @@ import {
 import {
   buildAdmittedMorganaRoleUtilityProjection,
   decodeCanonicalPrivateMorganaRoleUtilityProjection,
-  MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
   MORGANA_ROLE_UTILITY_DEGRADATION,
@@ -271,7 +265,6 @@ export function nativeScoreComponentDefinitions(
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    maxPayloadBytes: MAX_ROLE_OBJECTIVE_JSON_BYTES,
     applies(context) {
       return (context.view.role === 'merlin' || context.view.role === 'percival')
         && (
@@ -303,7 +296,6 @@ export function nativeScoreComponentDefinitions(
     requiredHostInputs: [
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    maxPayloadBytes: MAX_ROLE_UTILITY_JSON_BYTES,
     applies(context) {
       return (context.view.role === 'merlin' || context.view.role === 'percival')
         && (context.request.kind === 'propose' || context.request.kind === 'vote')
@@ -331,7 +323,6 @@ export function nativeScoreComponentDefinitions(
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    maxPayloadBytes: MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
     applies(context) {
       return context.view.alignment === 'evil'
     },
@@ -359,7 +350,6 @@ export function nativeScoreComponentDefinitions(
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    maxPayloadBytes: MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
     applies(context) {
       return context.view.alignment === 'evil'
         && (context.request.kind === 'propose' || context.request.kind === 'vote')
@@ -398,7 +388,6 @@ export function nativeScoreComponentDefinitions(
   const morganaPublicRead = publicRoleProjection({
     token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
     degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
-    maxPayloadBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
     applies(context) {
       return context.decision.kind === 'propose'
         || context.decision.kind === 'vote'
@@ -416,7 +405,6 @@ export function nativeScoreComponentDefinitions(
     requiredHostInputs: [
       PRIVATE_BELIEF_INPUT,
     ],
-    maxPayloadBytes: MAX_MORGANA_COUNTERFEIT_JSON_BYTES,
     applies(context) {
       return context.view.role === 'morgana'
         && (
@@ -459,7 +447,6 @@ export function nativeScoreComponentDefinitions(
         PRIVATE_FORCED_POLICY_INPUT,
         PRIVATE_DETERMINISTIC_SEED_INPUT,
       ],
-      maxPayloadBytes: MAX_MORGANA_ROLE_UTILITY_JSON_BYTES,
       ...(selectionMode === 'seeded-near-equal-vote-within-d2-band'
         ? { deterministicSeedDomain: MORGANA_ROLE_UTILITY_PROJECTION_VERSION }
         : {}),

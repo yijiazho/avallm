@@ -35,7 +35,6 @@ import {
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   MAX_ROLE_OBJECTIVE_ASSESSMENTS,
-  MAX_ROLE_OBJECTIVE_JSON_BYTES,
   ROLE_OBJECTIVE_MODEL_VERSION,
   type CandidatePublicCommitment,
   type MerlinCandidateObjective,
@@ -54,6 +53,7 @@ import {
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 
 const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
@@ -619,7 +619,7 @@ function validatePrivateRoleObjectiveSnapshotShape(
 ): value is PrivateRoleObjectiveSnapshot {
   try {
     const detached = hostileBoundary
-      ? canonicalizeJson(value, MAX_ROLE_OBJECTIVE_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!detached.ok) return false
     if (!plainRecord(detached.payload)) return false

@@ -26,6 +26,17 @@ export type CanonicalJsonResult =
 const MAX_CANONICAL_JSON_DEPTH = 256
 const MAX_COMPONENT_INPUT_NODES = 2_097_152
 
+/**
+ * The payload bound a component payload gets unless its own structure
+ * justifies a tighter one.
+ *
+ * This lives with the canonicalizer rather than with any one role because
+ * both sides of a component's boundary must agree on it: the module's own
+ * hostile-ingress canonicalizeJson call and the component definition's
+ * declared maxPayloadBytes. Seven roles previously repeated this literal.
+ */
+export const DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES = 1_048_576
+
 class CanonicalJsonError extends Error {
   readonly failureCode: 'payload-json-unsafe' | 'payload-too-large'
 

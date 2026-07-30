@@ -8,7 +8,6 @@ import {
 import {
   EVIL_ROLE_OBJECTIVE_DEGRADATION,
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
-  MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
   ROLE_OBJECTIVE_ROUTER_VERSION,
 } from '../server/agents/analysis/evil-objective-types.ts'
 import {
@@ -76,6 +75,7 @@ import {
 import {
   authoritativeDecisionSnapshots,
 } from '../server/eval/trace-replay.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
@@ -1140,7 +1140,7 @@ test('ten-player quest-four surface is bounded and name invariant', async () => 
   assert.equal(objective.assessments.length, 252)
   assert.ok(
     Buffer.byteLength(JSON.stringify(objective), 'utf8')
-      <= MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
+      <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   )
   assert.deepEqual(
     evilRoleObjective(second.trace!),

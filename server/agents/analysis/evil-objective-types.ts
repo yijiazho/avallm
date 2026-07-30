@@ -11,7 +11,6 @@ export const ROLE_OBJECTIVE_ROUTER_VERSION = 'role-objective-router-v1'
 export const EVIL_ROLE_OBJECTIVE_DEGRADATION =
   'evil-role-objective-assessment-failed'
 export const MAX_EVIL_ROLE_OBJECTIVE_ASSESSMENTS = 256
-export const MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES = 1_048_576
 
 export type EvilObjectiveRole =
   | 'assassin'

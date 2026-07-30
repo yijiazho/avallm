@@ -17,6 +17,7 @@ import {
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 import {
   decodeCanonicalPrivateEvilRoleUtilityProjection,
@@ -50,7 +51,6 @@ export const MORGANA_ROLE_SEEDED_SCORER_VERSION =
 export const MORGANA_ROLE_SCORE_FEATURE_VERSION =
   'morgana-counterfeit-role-score-features-v1'
 export const MAX_MORGANA_ROLE_UTILITY_ASSESSMENTS = 252
-export const MAX_MORGANA_ROLE_UTILITY_JSON_BYTES = 1_048_576
 export const MORGANA_ROLE_UTILITY_CONSTANTS = Object.freeze({
   d2ViableBand: 0.04,
   seededVoteCounterfeitBand: 0.04,
@@ -423,7 +423,7 @@ function validatePrivateMorganaRoleUtilityProjectionShape(
 ): value is PrivateMorganaRoleUtilityProjection {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_MORGANA_ROLE_UTILITY_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     value = canonical.payload

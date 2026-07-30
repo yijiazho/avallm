@@ -30,6 +30,7 @@ import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 
 export const ROLE_UTILITY_PROJECTION_VERSION =
@@ -38,7 +39,6 @@ export const ROLE_UTILITY_DEGRADATION =
   'role-utility-projection-failed'
 export const ROLE_UTILITY_VALUE_SEMANTICS =
   'bounded-deterministic-heuristic-utility-not-probability'
-export const MAX_ROLE_UTILITY_JSON_BYTES = 1_048_576
 
 export const ROLE_UTILITY_CONSTANTS = Object.freeze({
   primaryInfluenceWeight: 0.75,
@@ -352,7 +352,7 @@ function validatePrivateRoleUtilityProjectionShape(
 ): value is PrivateRoleUtilityProjection {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_ROLE_UTILITY_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     const detached = canonical.payload

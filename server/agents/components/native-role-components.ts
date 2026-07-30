@@ -15,7 +15,6 @@ import {
   type PrivateActorTargetTreatmentRead,
 } from '../analysis/actor-target-treatment-types.ts'
 import {
-  MAX_MORDRED_BLINDNESS_JSON_BYTES,
   MORDRED_BLINDNESS_DEGRADATION,
   MORDRED_BLINDNESS_OBJECTIVE_VERSION,
   type PrivateMordredBlindnessObjective,
@@ -109,7 +108,6 @@ readonly DecisionComponentDefinition<any>[] {
     degradationCode: MORDRED_BLINDNESS_DEGRADATION,
     dependencies: [ACTOR_TARGET_TREATMENT_COMPONENT],
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
-    maxPayloadBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
     applies(context) {
       return context.view.role === 'mordred'
         && context.view.rolesInPlay.includes('merlin')

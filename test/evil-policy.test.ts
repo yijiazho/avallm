@@ -35,7 +35,6 @@ import {
 } from '../server/agents/policy/score-compatibility.ts'
 import {
   EVIL_ROLE_UTILITY_CONSTANTS,
-  MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   validatePrivateEvilRoleUtilityProjection,
 } from '../server/agents/analysis/evil-role-utility.ts'
@@ -84,6 +83,7 @@ import {
   mutableClone,
   type Mutable,
 } from './support/score-family.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>
@@ -574,7 +574,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
 
   const oversized = structuredClone(utility)
   oversized.assessments[0].candidateId =
-    'x'.repeat(MAX_EVIL_ROLE_UTILITY_JSON_BYTES)
+    'x'.repeat(DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
   assert.equal(validatePrivateEvilRoleUtilityProjection(oversized), false)
 
   const badTeam = structuredClone(utility)
@@ -1033,7 +1033,7 @@ test('ten-player D2 surface is bounded, name-invariant, and private from voice/c
     Buffer.byteLength(
       JSON.stringify(evilUtility(first.trace!)),
       'utf8',
-    ) <= MAX_EVIL_ROLE_UTILITY_JSON_BYTES,
+    ) <= DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   )
   assert.doesNotMatch(
     renderedVoice,

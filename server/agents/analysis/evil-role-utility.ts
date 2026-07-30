@@ -13,6 +13,7 @@ import { validatePrivateEvilRoleObjectiveSnapshot } from './evil-objectives.ts'
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
@@ -31,7 +32,6 @@ export const EVIL_ROLE_UTILITY_DEGRADATION =
   'evil-role-utility-projection-failed'
 export const EVIL_ROLE_UTILITY_VALUE_SEMANTICS =
   'bounded-deterministic-heuristic-utility-not-probability'
-export const MAX_EVIL_ROLE_UTILITY_JSON_BYTES = 1_048_576
 
 /**
  * Failure capacity is intentionally dominant. The other terms can affect
@@ -492,7 +492,7 @@ function validatePrivateEvilRoleUtilityProjectionShape(
 ): value is PrivateEvilRoleUtilityProjection {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_EVIL_ROLE_UTILITY_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     const detached = canonical.payload

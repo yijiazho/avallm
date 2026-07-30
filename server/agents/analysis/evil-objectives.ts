@@ -23,6 +23,7 @@ import type { PolicyCandidate } from '../policy/types.ts'
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
+  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
 } from '../components/canonical-json.ts'
 import {
   assessPublicJointTeams,
@@ -35,7 +36,6 @@ import {
 import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   MAX_EVIL_ROLE_OBJECTIVE_ASSESSMENTS,
-  MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES,
   type EvilCandidateObjective,
   type EvilObjectiveRole,
   type EvilRolePosture,
@@ -472,7 +472,7 @@ function validatePrivateEvilRoleObjectiveSnapshotShape(
 ): value is PrivateEvilRoleObjectiveSnapshot {
   try {
     const canonical = hostileBoundary
-      ? canonicalizeJson(value, MAX_EVIL_ROLE_OBJECTIVE_JSON_BYTES)
+      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
       : { ok: true as const, payload: value }
     if (!canonical.ok) return false
     const detached = canonical.payload
