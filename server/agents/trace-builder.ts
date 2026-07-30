@@ -16,7 +16,7 @@ import type {
 } from './components/kernel.ts'
 import type { ResolvedComposedBrain } from './components/resolved-brain.ts'
 import type { DecisionLayerRun } from './policy/decision-layer/types.ts'
-import { projectDecisionLayerRun } from './policy/decision-layer/projection.ts'
+import { projectLayerRun } from './policy/layer-registry-common.ts'
 import type { CognitionState } from './cognition/types.ts'
 import type { CoherenceIntent } from './cognition/coherence.ts'
 import { isCoherenceIntent } from './cognition/coherence.ts'
@@ -176,7 +176,7 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
       : {}),
     componentPlan: structuredClone(componentPlan),
     components: structuredClone(decisionComponents),
-    decisionLayerRun: projectDecisionLayerRun(decisionLayerRun),
+    decisionLayerRun: projectLayerRun(decisionLayerRun),
     ...(scoreLayerRun ? { scoreLayerRun: structuredClone(scoreLayerRun) } : {}),
     decisionFrame: structuredClone(decisionFrame),
     candidateScores: scores,

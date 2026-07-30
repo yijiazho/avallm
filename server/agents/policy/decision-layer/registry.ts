@@ -4,11 +4,10 @@ import type {
   ResolvedDecisionLayerOrder,
 } from './types.ts'
 import { decisionLayerToken } from './types.ts'
-import { DECISION_COMPONENT_KINDS } from '../../components/types.ts'
 import {
   LAYER_ID_PATTERN as ID_PATTERN,
-  LAYER_VERSION_PATTERN as VERSION_PATTERN,
   assertLayerRef,
+  freezeRequiredComponents,
 } from '../layer-registry-common.ts'
 
 export type DecisionLayerRegistryErrorCode =
@@ -39,10 +38,12 @@ export function decisionLayerIdentityKey(ref: DecisionLayerRef): string {
   return `${ref.id}@${ref.version}`
 }
 
+function raiseInvalidDefinition(message: string): never {
+  throw new DecisionLayerRegistryError('invalid-definition', message)
+}
+
 function assertRef(ref: DecisionLayerRef, label: string): void {
-  assertLayerRef(ref, label, (message) => {
-    throw new DecisionLayerRegistryError('invalid-definition', message)
-  })
+  assertLayerRef(ref, label, raiseInvalidDefinition)
 }
 
 function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {
@@ -68,39 +69,11 @@ function freezeDefinition(
     )
   }
   assertRef(definition.token, 'decision layer token')
-  const requiredComponents = definition.requiredComponents.map(
-    (component, index) => {
-      if (
-        !component
-        || typeof component !== 'object'
-        || typeof component.id !== 'string'
-        || typeof component.version !== 'string'
-        || !ID_PATTERN.test(component.id)
-        || !VERSION_PATTERN.test(component.version)
-        || !DECISION_COMPONENT_KINDS
-          .includes(component.kind)
-        || !['public', 'private'].includes(component.privacy)
-      ) {
-        throw new DecisionLayerRegistryError(
-          'invalid-definition',
-          `${decisionLayerIdentityKey(definition.token)} component ${index} is invalid`,
-        )
-      }
-      return Object.freeze({
-        id: component.id,
-        version: component.version,
-        kind: component.kind,
-        privacy: component.privacy,
-      })
-    },
+  const requiredComponents = freezeRequiredComponents(
+    definition.token,
+    definition.requiredComponents,
+    raiseInvalidDefinition,
   )
-  const componentKeys = requiredComponents.map(decisionLayerIdentityKey)
-  if (new Set(componentKeys).size !== componentKeys.length) {
-    throw new DecisionLayerRegistryError(
-      'invalid-definition',
-      `${decisionLayerIdentityKey(definition.token)} repeats a component read`,
-    )
-  }
   return Object.freeze({
     token: decisionLayerToken(
       definition.token.id,

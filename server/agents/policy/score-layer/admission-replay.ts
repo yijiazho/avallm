@@ -12,7 +12,7 @@ import {
   prepareScoreLayerRunLease,
   scoreLayerDiagnosticOwnerVersion,
 } from './runner.ts'
-import { projectScoreLayerRun } from './projection.ts'
+import { projectLayerRun } from '../layer-registry-common.ts'
 import type {
   ResolvedScoreLayerChain,
   ScoreLayerJournalEntry,
@@ -103,6 +103,6 @@ export function replayNativeScoresForAdmission(
       run,
       input.chain,
     ),
-    trace: projectScoreLayerRun(run),
+    trace: projectLayerRun(run),
   })
 }

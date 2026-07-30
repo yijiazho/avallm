@@ -4,11 +4,10 @@ import type {
   ScoreLayerRef,
 } from './types.ts'
 import { scoreLayerToken } from './types.ts'
-import { DECISION_COMPONENT_KINDS } from '../../components/types.ts'
 import {
   LAYER_ID_PATTERN as ID_PATTERN,
-  LAYER_VERSION_PATTERN as VERSION_PATTERN,
   assertLayerRef,
+  freezeRequiredComponents,
 } from '../layer-registry-common.ts'
 
 export type ScoreLayerRegistryErrorCode =
@@ -51,10 +50,12 @@ export function scoreLayerIdentityKey(ref: ScoreLayerRef): string {
   return `${ref.id}@${ref.version}`
 }
 
+function raiseInvalidDefinition(message: string): never {
+  throw new ScoreLayerRegistryError('invalid-definition', message)
+}
+
 function assertRef(ref: ScoreLayerRef, label: string): void {
-  assertLayerRef(ref, label, (message) => {
-    throw new ScoreLayerRegistryError('invalid-definition', message)
-  })
+  assertLayerRef(ref, label, raiseInvalidDefinition)
 }
 
 function freezeRef(ref: ScoreLayerRef): ScoreLayerRef {
@@ -105,39 +106,11 @@ function freezeDefinition(
       `score layer ${scoreLayerIdentityKey(definition.token)} depends on itself`,
     )
   }
-  const requiredComponents = definition.requiredComponents.map(
-    (component, index) => {
-      if (
-        !component
-        || typeof component !== 'object'
-        || typeof component.id !== 'string'
-        || typeof component.version !== 'string'
-        || !ID_PATTERN.test(component.id)
-        || !VERSION_PATTERN.test(component.version)
-        || !DECISION_COMPONENT_KINDS
-          .includes(component.kind)
-        || !['public', 'private'].includes(component.privacy)
-      ) {
-        throw new ScoreLayerRegistryError(
-          'invalid-definition',
-          `${scoreLayerIdentityKey(definition.token)} component ${index} is invalid`,
-        )
-      }
-      return Object.freeze({
-        id: component.id,
-        version: component.version,
-        kind: component.kind,
-        privacy: component.privacy,
-      })
-    },
+  const requiredComponents = freezeRequiredComponents(
+    definition.token,
+    definition.requiredComponents,
+    raiseInvalidDefinition,
   )
-  const componentKeys = requiredComponents.map(scoreLayerIdentityKey)
-  if (new Set(componentKeys).size !== componentKeys.length) {
-    throw new ScoreLayerRegistryError(
-      'invalid-definition',
-      `${scoreLayerIdentityKey(definition.token)} repeats a component read`,
-    )
-  }
   return Object.freeze({
     token: scoreLayerToken(definition.token.id, definition.token.version),
     kind: definition.kind,

@@ -45,7 +45,7 @@ import type {
   ScoreLayerTrace,
   ScoreLayerRunLease,
 } from './score-layer/types.ts'
-import { projectScoreLayerRun } from './score-layer/projection.ts'
+import { projectLayerRun } from './layer-registry-common.ts'
 import {
   candidateIdForDecision,
   compareCandidateIds,
@@ -986,7 +986,7 @@ export function projectVoicedFrameForCompatibility(
     decisionLayerRun: frame.decisionLayerRun,
     ...(frame.scoreLayerRun
       ? {
-          scoreLayerRun: projectScoreLayerRun(
+          scoreLayerRun: projectLayerRun(
             legacy<ScoreLayerRun>(frame.scoreLayerRun),
           ),
         }

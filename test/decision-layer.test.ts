@@ -31,8 +31,8 @@ import {
   runDecisionLayers,
 } from '../server/agents/policy/decision-layer/runner.ts'
 import {
-  projectDecisionLayerRun,
-} from '../server/agents/policy/decision-layer/projection.ts'
+  projectLayerRun,
+} from '../server/agents/policy/layer-registry-common.ts'
 import {
   decisionLayerToken,
   type DecisionLayerDefinition,
@@ -473,7 +473,7 @@ test('construction rejects registry substitution and invalid ordered identity', 
 test('generic exact replay rejects order, journal, selection, and budget drift', async () => {
   const input = await nativeFixtureInput()
   const run = runDecisionLayers(input)
-  const claimed = projectDecisionLayerRun(run)
+  const claimed = projectLayerRun(run)
   const authority = createDecisionLayerAdmissionAuthority()
   const registry = createDecisionLayerRegistry([
     NARROW_DEFINITION,
@@ -726,7 +726,7 @@ test('factory provenance, dependency admission, and universal dominance fail clo
   const suppressionAuthority = createDecisionLayerAdmissionAuthority()
   const suppressionRegistry =
     createDecisionLayerRegistry([adversarialLayer])
-  const suppressionClaim = projectDecisionLayerRun(dominated)
+  const suppressionClaim = projectLayerRun(dominated)
   const admittedSuppression = canonicalizeJson(
     suppressionClaim,
     4_194_304,

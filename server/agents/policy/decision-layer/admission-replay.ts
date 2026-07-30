@@ -19,7 +19,7 @@ import {
   MAX_DECISION_LAYER_STRING_BYTES,
   runDecisionLayers,
 } from './runner.ts'
-import { projectDecisionLayerRun } from './projection.ts'
+import { projectLayerRun } from '../layer-registry-common.ts'
 import type {
   DecisionLayerJournalEntry,
   DecisionLayerOperationCounts,
@@ -424,7 +424,7 @@ DecisionLayerAdmissionAuthority {
           componentDefinitions: input.componentDefinitions,
           componentRun: baseComponentRun,
         })
-        if (!isDeepStrictEqual(projectDecisionLayerRun(replay), claimed)) {
+        if (!isDeepStrictEqual(projectLayerRun(replay), claimed)) {
           return undefined
         }
         const claimedStrategic = strategicAttributionKeys(
