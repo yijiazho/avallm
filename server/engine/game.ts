@@ -190,12 +190,25 @@ function goToVoteOrQuest(game: Game): void {
   if (game.proposalNum >= MAX_PROPOSALS) {
     emit(game, 'voteReveal', {
       round: game.round, proposalNum: game.proposalNum,
-      team: game.currentTeam, votes: [], approved: true, auto: true,
+      team: teamOnTable(game), votes: [], approved: true, auto: true,
     }, 'public')
     startQuest(game)
     return
   }
   game.phase = 'vote'
+}
+
+// The team currently on the table. Defined in finalize | vote | quest — the
+// phases between a proposed/locked team and its resolved quest. currentTeam is
+// set on propose, cleared at round start and after a quest resolves, so at every
+// caller below the phase guarantees it is present. Throwing rather than reading
+// through `!` gives that invariant one owned home: a phase-logic bug surfaces
+// here with the phase in hand, not as a silent `undefined.slice()` frames away.
+function teamOnTable(game: Game): Seat[] {
+  if (game.currentTeam === undefined) {
+    throw new EngineError(`no team on the table in phase ${game.phase}`)
+  }
+  return game.currentTeam
 }
 
 function validateTeam(game: Game, team: unknown): Seat[] {
@@ -215,7 +228,7 @@ function validateTeam(game: Game, team: unknown): Seat[] {
 }
 
 function startQuest(game: Game): void {
-  game.quests[game.round - 1].team = game.currentTeam!.slice()
+  game.quests[game.round - 1].team = teamOnTable(game).slice()
   game.pendingCards = {}
   game.phase = 'quest'
 }
@@ -279,7 +292,7 @@ export function expectedDecisions(game: Game): DecisionRequest[] {
         .filter((p) => game.pendingVotes[p.seat] === undefined)
         .map((p) => ({ kind: 'vote' as const, seat: p.seat, ...base }))
     case 'quest':
-      return game.currentTeam!
+      return teamOnTable(game)
         .filter((seat) => game.pendingCards[seat] === undefined)
         .map((seat) => ({ kind: 'quest' as const, seat, ...base }))
     case 'assassination':
@@ -315,7 +328,7 @@ function validateDecisionBeforePreamble(
       }
       {
         const revised = validateTeam(game, decision.team)
-        if (teamsEqual(revised, game.currentTeam!)) {
+        if (teamsEqual(revised, teamOnTable(game))) {
           throw new EngineError(
             'revised team is identical to the proposal — use stick: true',
           )
@@ -425,14 +438,14 @@ export function applyDecision(
       if (decision.stick === true) {
         emit(game, 'proposalLocked', {
           round: game.round, proposalNum: game.proposalNum,
-          leader: seat, team: game.currentTeam!.slice(),
+          leader: seat, team: teamOnTable(game).slice(),
         }, 'public')
         goToVoteOrQuest(game)
         return game
       }
       if (decision.stick !== false) throw new EngineError('stick must be true or false')
       const to = validateTeam(game, decision.team)
-      const from = game.currentTeam!
+      const from = teamOnTable(game)
       if (teamsEqual(to, from)) {
         throw new EngineError('revised team is identical to the proposal — use stick: true')
       }
@@ -461,7 +474,7 @@ export function applyDecision(
         const approved = approves * 2 > game.config.playerCount
         emit(game, 'voteReveal', {
           round: game.round, proposalNum: game.proposalNum,
-          team: game.currentTeam, votes, approved,
+          team: teamOnTable(game), votes, approved,
         }, 'public')
         game.pendingVotes = {}
         if (approved) {
@@ -486,7 +499,7 @@ export function applyDecision(
       const card = player.alignment === 'good' ? 'success' : decision.card
       game.pendingCards[seat] = card
       emit(game, 'questCard', { seat, card }, { only: [seat] })
-      if (Object.keys(game.pendingCards).length === game.currentTeam!.length) {
+      if (Object.keys(game.pendingCards).length === teamOnTable(game).length) {
         const quest = game.quests[game.round - 1]
         const failCount = Object.values(game.pendingCards).filter((c) => c === 'fail').length
         quest.failCount = failCount
