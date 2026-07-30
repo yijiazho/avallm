@@ -21,6 +21,11 @@ export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
  * mode had to be done by hand in four separate literal lists for exactly that
  * reason. Read this set through the predicates below instead of restating it.
  */
+export const BELIEF_VISIBILITIES = Object.freeze([
+  COMPAT_CERTAINTIES_VISIBILITY,
+  BELIEF_RENDERER_VERSION,
+] as const)
+
 export const NON_COMPOSED_POLICIES = Object.freeze([
   RAW_LLM_POLICY_VERSION,
   HEURISTIC_POLICY_VERSION,
@@ -38,14 +43,12 @@ export function isNonComposedPolicy(value: unknown): boolean {
 export type BeliefComponent =
   | 'none'
   | typeof EXACT_BELIEF_MODEL_VERSION
-export type BeliefVisibility =
-  | 'none'
-  | typeof COMPAT_CERTAINTIES_VISIBILITY
-  | typeof BELIEF_RENDERER_VERSION
+/** Absent visibility is its own state, so 'none' is not in the list. */
+export type BeliefVisibility = 'none' | ConfigurableBeliefVisibility
+export type ConfigurableBeliefVisibility =
+  (typeof BELIEF_VISIBILITIES)[number]
 export type PolicyComponent =
-  | typeof RAW_LLM_POLICY_VERSION
-  | typeof HEURISTIC_POLICY_VERSION
-  | typeof RANDOM_POLICY_VERSION
+  | (typeof NON_COMPOSED_POLICIES)[number]
   | typeof COMPOSED_POLICY_VERSION
 export type LanguageEvidenceComponent =
   | 'off'
@@ -70,17 +73,15 @@ export interface BrainSpec {
 /**
  * User/definition-facing overrides for the raw-LLM brain.
  *
- * Only the components with more than one legal value belong here. The other
- * five (belief, policy, communication, languageEvidence, observerModel) each
- * admitted exactly one value for a raw-LLM agent, which is the value they get
- * anyway, so accepting them let a definition restate a default and gain
- * nothing. Writing one now fails as an unknown component rather than being
- * validated into a no-op. Add a field back when a second value exists for it.
+ * Only the components with more than one legal value belong here. The others
+ * (belief, policy, languageEvidence, observerModel) each admit exactly one
+ * value for a raw-LLM agent, which is the value they get anyway, so accepting
+ * them let a definition restate a default and gain nothing. Writing one now
+ * fails as an unknown component rather than being validated into a no-op. Add
+ * a field back when a second value exists for it.
  */
 export interface LlmBrainConfig {
-  beliefVisibility?:
-    | typeof COMPAT_CERTAINTIES_VISIBILITY
-    | typeof BELIEF_RENDERER_VERSION
+  beliefVisibility?: ConfigurableBeliefVisibility
 }
 
 export interface LlmBrainSource {
@@ -97,11 +98,6 @@ export type BrainSource =
       languageEvidence?: typeof LANGUAGE_FACTOR_BUNDLE_VERSION
       observerModel?: typeof PUBLIC_OBSERVER_MODEL_VERSION
     }
-
-const BELIEF_VISIBILITIES = [
-  COMPAT_CERTAINTIES_VISIBILITY,
-  BELIEF_RENDERER_VERSION,
-] as const
 
 function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
   const supplied = source.brain
