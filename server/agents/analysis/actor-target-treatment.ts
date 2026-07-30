@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { Seat } from '../../engine/types.ts'
-import { canonicalTeam } from '../../engine/rules.ts'
+import { teamsEqual } from '../../engine/rules.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
 import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import {
@@ -60,13 +60,12 @@ function executedProposals(record: PublicRecord) {
     .filter((quest) => quest.result !== undefined && quest.team !== undefined)
     .sort((left, right) => left.num - right.num)
     .flatMap((quest) => {
-      const team = canonicalTeam(quest.team!)
       const proposal = record.proposals
         .filter(
           (candidate) =>
             candidate.round === quest.num
             && (candidate.approved === true || candidate.auto === true)
-            && isDeepStrictEqual(canonicalTeam(candidate.team), team),
+            && teamsEqual(candidate.team, quest.team!),
         )
         .sort(
           (left, right) =>
