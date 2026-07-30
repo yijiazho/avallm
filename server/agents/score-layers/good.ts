@@ -59,6 +59,7 @@ import {
   seededRoleObjectiveScorer,
   type CandidateScorer,
 } from '../policy/score.ts'
+import { sequenceEqual } from '../components/canonical-shape.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
 import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
@@ -146,12 +147,6 @@ function requirementFor(
   return Object.freeze([])
 }
 
-const sameNumbers = (
-  left: readonly number[],
-  right: readonly number[],
-): boolean => left.length === right.length
-  && left.every((value, index) => value === right[index])
-
 function admitsProposal(
   context: ScoreLayerAnalysisAdmissionContext,
 ): boolean {
@@ -175,7 +170,7 @@ function admitsProposal(
       if (candidate.decision.kind !== 'propose') return false
       const assessment = byId.get(candidate.id)
       return !!assessment
-        && sameNumbers(
+        && sequenceEqual(
           assessment.team,
           canonicalTeam(candidate.decision.team),
         )
@@ -245,7 +240,7 @@ function voteUtility(
     const assessment = assessments.get(candidateId)
     if (
       !assessment
-      || !sameNumbers(assessment.team, team)
+      || !sequenceEqual(assessment.team, team)
       || assessment.beliefModelVersion !== projection.beliefModelVersion
       || assessment.beliefThroughSeq !== projection.beliefThroughSeq
       || assessment.probabilitySemantics
@@ -254,7 +249,7 @@ function voteUtility(
   }
   const currentTeam = canonicalTeam(context.view.currentTeam)
   const currentMatches = [...expected].filter(([, team]) =>
-    sameNumbers(team, currentTeam))
+    sequenceEqual(team, currentTeam))
   const alternatives = [...assessments.values()]
     .filter((entry) => entry.candidateId !== projection.currentCandidateId)
     .sort((left, right) =>
@@ -264,14 +259,14 @@ function voteUtility(
   if (
     currentMatches.length !== 1
     || projection.currentCandidateId !== currentMatches[0][0]
-    || !sameNumbers(projection.currentTeam.team, currentTeam)
+    || !sequenceEqual(projection.currentTeam.team, currentTeam)
     || projection.currentTeam.cleanProbability
       !== context.analysis.currentTeam?.cleanProbability
   ) throw new Error('good vote situation join mismatch')
   if (
     !best
     || projection.bestAlternative.candidateId !== best.candidateId
-    || !sameNumbers(projection.bestAlternative.team, best.team)
+    || !sequenceEqual(projection.bestAlternative.team, best.team)
     || projection.bestAlternative.cleanProbability !== best.cleanProbability
   ) throw new Error('good vote best-alternative join mismatch')
 
@@ -492,7 +487,7 @@ export function calculateDeterministicGoodBase(
       const assessment = assessments.get(candidate.id)
       if (
         !assessment
-        || !sameNumbers(
+        || !sequenceEqual(
           canonicalTeam(candidate.decision.team),
           assessment.team,
         )

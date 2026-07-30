@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
-import { plainDetachedData } from '../components/canonical-shape.ts'
+import { plainDetachedData, sequenceEqual } from '../components/canonical-shape.ts'
 import { canonicalTeam } from '../../engine/rules.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
@@ -309,14 +309,6 @@ function validGoodProposalFeatures(
     ) <= 1e-12
 }
 
-function sameNumbers(
-  left: readonly number[],
-  right: readonly number[],
-): boolean {
-  return left.length === right.length
-    && left.every((value, index) => value === right[index])
-}
-
 function sameDistribution(
   left: readonly number[],
   right: readonly number[],
@@ -390,7 +382,7 @@ function goodVoteUtility(
     const assessment = assessments.get(candidateId)
     if (
       !assessment
-      || !sameNumbers(assessment.team, team)
+      || !sequenceEqual(assessment.team, team)
       || assessment.beliefModelVersion !== projection.beliefModelVersion
       || assessment.beliefThroughSeq !== projection.beliefThroughSeq
       || assessment.probabilitySemantics
@@ -402,12 +394,12 @@ function goodVoteUtility(
 
   const currentTeam = canonicalTeam(context.view.currentTeam)
   const currentMatches = [...expected.entries()].filter(
-    ([, team]) => sameNumbers(team, currentTeam),
+    ([, team]) => sequenceEqual(team, currentTeam),
   )
   if (
     currentMatches.length !== 1
     || projection.currentCandidateId !== currentMatches[0][0]
-    || !sameNumbers(projection.currentTeam.team, currentTeam)
+    || !sequenceEqual(projection.currentTeam.team, currentTeam)
   ) {
     throw new Error('good vote current-team join mismatch')
   }
@@ -422,7 +414,7 @@ function goodVoteUtility(
   if (
     !best
     || projection.bestAlternative.candidateId !== best.candidateId
-    || !sameNumbers(projection.bestAlternative.team, best.team)
+    || !sequenceEqual(projection.bestAlternative.team, best.team)
     || Math.abs(
       projection.bestAlternative.cleanProbability - best.cleanProbability,
     ) > 1e-12
@@ -506,7 +498,7 @@ function validGoodVoteFeatures(
     features.beliefModelVersion
       === context.analysis.goodVote!.beliefModelVersion
     && features.beliefThroughSeq === context.analysis.throughSeq
-    && sameNumbers(features.currentTeam, expected.currentTeam)
+    && sequenceEqual(features.currentTeam, expected.currentTeam)
     && Math.abs(
       features.currentCleanProbability - expected.currentCleanProbability,
     ) <= 1e-12
@@ -516,7 +508,7 @@ function validGoodVoteFeatures(
     )
     && features.bestAlternativeCandidateId
       === expected.bestAlternativeCandidateId
-    && sameNumbers(
+    && sequenceEqual(
       features.bestAlternativeTeam,
       expected.bestAlternativeTeam,
     )

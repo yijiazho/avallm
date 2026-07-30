@@ -148,6 +148,22 @@ export function plainDetachedData(
   return true
 }
 
+/**
+ * Ordered equality of two numeric vectors: same length, same value at every
+ * index. This is a sequence comparison, not a set comparison, so it is
+ * deliberately distinct from the engine's order-insensitive team equality
+ * (canonicalTeam / teamsEqual in engine/rules.ts). The values here are
+ * score-layer feature vectors and probability distributions, where position is
+ * significant, so a permutation is a genuine difference rather than a normalized
+ * duplicate.
+ */
+export const sequenceEqual = (
+  left: readonly number[],
+  right: readonly number[],
+): boolean =>
+  left.length === right.length
+  && left.every((value, index) => value === right[index])
+
 export const denseArray = (value: unknown): value is unknown[] =>
   Array.isArray(value)
   && !isProxy(value)
