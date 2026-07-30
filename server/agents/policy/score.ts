@@ -143,8 +143,11 @@ export const ASSASSIN_MERLIN_TARGET_SCORER_VERSION =
  * unbounded, and the native score-layer ceiling that would otherwise catch it
  * lives on a path custom scorers never take.
  *
- * Same value as MAX_SCORE_LAYER_SURFACE_JSON_BYTES, deliberately not imported:
- * score-layer imports this module, so the dependency cannot run the other way.
+ * Same value as MAX_SCORE_LAYER_SURFACE_JSON_BYTES, deliberately duplicated
+ * rather than imported: this module imports nothing from score-layer/ (see the
+ * scorer-identity note above), and pulling the ceiling in from there would add
+ * that edge. score-surface-bounds.test.ts pins the two constants equal so the
+ * copies cannot drift.
  */
 export const MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES = 1_048_576
 
