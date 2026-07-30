@@ -170,7 +170,7 @@ test('the audit reaches the text it is meant to audit', () => {
   let withFailure = 0, audited = 0, checked = 0
   for (const cast of legalCasts()) {
     const g = boardWithFailure(cast.playerCount, cast.roles, `coh-${cast.label}`)
-    if (!g.quests.some((q) => q.result === 'fail')) continue
+    if (!g.quests.some((q) => q.status === 'complete' && q.result === 'fail')) continue
     withFailure++
     for (const { text } of renderAll(g, cast.roles.includes('assassin'))) {
       checked++

@@ -21,8 +21,19 @@ function view(over: Partial<PlayerView>): PlayerView {
   } as PlayerView
 }
 
-const quest = (num: number, teamSize: number, over: Partial<Quest>): Quest =>
-  ({ num, teamSize, failsRequired: 1, ...over })
+const quest = (
+  num: number,
+  teamSize: number,
+  over: { failsRequired?: number; team?: readonly Seat[]; result?: 'success' | 'fail'; failCount?: number },
+): Quest => {
+  const failsRequired = over.failsRequired ?? 1
+  return over.result === undefined
+    ? { num, teamSize, failsRequired, status: 'pending' }
+    : {
+        num, teamSize, failsRequired, status: 'complete',
+        team: over.team ?? [], result: over.result, failCount: over.failCount ?? 0,
+      }
+}
 
 const proposal = (over: Partial<ProposalRecord>): ProposalRecord =>
   ({ round: 1, proposalNum: 1, leader: 0, team: [], approved: true, ...over }) as ProposalRecord

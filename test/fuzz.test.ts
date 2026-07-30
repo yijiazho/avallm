@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
+import { isCompletedQuest } from '../server/engine/rules.ts'
 import { createAgent } from '../server/agents/registry.ts'
 import { runGame } from '../server/sim/runner.ts'
 import type { AgentSpec, AvalonAgent } from '../server/agents/types.ts'
@@ -24,7 +25,7 @@ async function play(
 function checkInvariants(game: Game, ctx: string): void {
   assert.equal(game.phase, 'gameOver', ctx)
   assert.ok(game.outcome?.winner === 'good' || game.outcome?.winner === 'evil', ctx)
-  const resolved = game.quests.filter((q) => q.result !== undefined)
+  const resolved = game.quests.filter(isCompletedQuest)
   const successes = resolved.filter((q) => q.result === 'success').length
   const fails = resolved.filter((q) => q.result === 'fail').length
   assert.ok(successes <= 3 && fails <= 3, ctx)
@@ -34,9 +35,9 @@ function checkInvariants(game: Game, ctx: string): void {
     assert.equal(successes, 3, ctx)
   }
   for (const q of resolved) {
-    assert.ok(q.team && q.team.length === q.teamSize, ctx)
-    assert.ok(q.failCount! >= 0 && q.failCount! <= q.teamSize, ctx)
-    assert.equal(q.result, q.failCount! >= q.failsRequired ? 'fail' : 'success', ctx)
+    assert.ok(q.team.length === q.teamSize, ctx)
+    assert.ok(q.failCount >= 0 && q.failCount <= q.teamSize, ctx)
+    assert.equal(q.result, q.failCount >= q.failsRequired ? 'fail' : 'success', ctx)
   }
 }
 

@@ -3,6 +3,7 @@ import { fnv1a } from '../../engine/prng.ts'
 import {
   failsRequired as boardFailsRequired,
   hasDistinctSeats,
+  isCompletedQuest,
   MAX_PLAYERS,
   MAX_PROPOSALS,
   MIN_PLAYERS,
@@ -316,10 +317,11 @@ export function evilQuestPublicContext(
     teamSize: view.quests[view.round - 1]?.teamSize ?? currentTeam.length,
     failsRequired,
     priorQuests: view.quests
-      .filter((quest) => quest.num < view.round && quest.result !== undefined)
+      .filter(isCompletedQuest)
+      .filter((quest) => quest.num < view.round)
       .map((quest) =>
-        `${quest.num}:${quest.result}:${quest.failCount ?? 0}:`
-        + `${[...(quest.team ?? [])].sort((a, b) => a - b).join(',')}`),
+        `${quest.num}:${quest.result}:${quest.failCount}:`
+        + `${[...quest.team].sort((a, b) => a - b).join(',')}`),
     priorProposals: view.proposals
       .filter((proposal) =>
         proposal.round < view.round

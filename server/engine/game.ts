@@ -85,6 +85,7 @@ export function createGame(opts: CreateGameOpts): Game {
     num: i + 1,
     teamSize: TEAM_SIZES[playerCount][i],
     failsRequired: failsRequired(playerCount, i + 1),
+    status: 'pending',
   }))
 
   const game: Game = {
@@ -232,7 +233,10 @@ function validateTeam(game: Game, team: unknown): Seat[] {
 }
 
 function startQuest(game: Game): void {
-  game.quests[game.round - 1].team = teamOnTable(game).slice()
+  // The team that is about to run lives on the table (game.currentTeam, via
+  // teamOnTable); it is stamped onto the quest record only once the quest
+  // resolves (see the 'quest' case), so a pending quest never carries a team
+  // it might not keep.
   game.pendingCards = {}
   game.phase = 'quest'
 }
@@ -253,10 +257,10 @@ function assassinSeat(game: Game): Seat | undefined {
 }
 
 function successCount(game: Game): number {
-  return game.quests.filter((q) => q.result === 'success').length
+  return game.quests.filter((q) => q.status === 'complete' && q.result === 'success').length
 }
 function failQuestCount(game: Game): number {
-  return game.quests.filter((q) => q.result === 'fail').length
+  return game.quests.filter((q) => q.status === 'complete' && q.result === 'fail').length
 }
 
 // Display-name change, announced as a PUBLIC event so every player — human
@@ -505,10 +509,21 @@ export function applyDecision(
       if (Object.keys(game.pendingCards).length === teamOnTable(game).length) {
         const quest = game.quests[game.round - 1]
         const failCount = Object.values(game.pendingCards).filter((c) => c === 'fail').length
-        quest.failCount = failCount
-        quest.result = failCount >= quest.failsRequired ? 'fail' : 'success'
+        const result = failCount >= quest.failsRequired ? 'fail' : 'success'
+        // Flip the quest to `complete` in one assignment: team, result, and
+        // failCount all arrive together, so the record can never sit in a
+        // half-resolved shape. The team is the one that just ran (teamOnTable).
+        game.quests[game.round - 1] = {
+          num: quest.num,
+          teamSize: quest.teamSize,
+          failsRequired: quest.failsRequired,
+          status: 'complete',
+          team: teamOnTable(game).slice(),
+          result,
+          failCount,
+        }
         emit(game, 'questResult', {
-          round: game.round, failCount, result: quest.result,
+          round: game.round, failCount, result,
           failsRequired: quest.failsRequired,
         }, 'public')
         game.pendingCards = {}

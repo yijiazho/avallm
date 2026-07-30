@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
+import { asCompletedQuest, resolveQuest } from './support/quests.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { evilPartnersOf } from '../server/engine/rules.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
@@ -53,7 +54,7 @@ function playQuest(g: Game, outcome: 'success' | 'fail'): void {
     const fails = outcome === 'fail' && evil.includes(d.seat)
     applyDecision(g, d.seat, { kind: 'quest', card: fails ? 'fail' : 'success' })
   }
-  assert.equal(g.quests[round - 1].result, outcome)
+  assert.equal(asCompletedQuest(g.quests[round - 1]).result, outcome)
 }
 
 const playCleanQuests = (g: Game, n: number): void => {
@@ -223,8 +224,8 @@ test('evil match point (two failed quests) leaves the vote note off', () => {
   playCleanQuests(g, 1)
   const v = viewFor(g, seatsBy(g, 'evil')[0])
   // Hand-set the board to 0 successes / 2 fails on the seat's own view.
-  mutable(v).quests[0] = { ...mutable(v).quests[0], result: 'fail', failCount: 1 }
-  mutable(v).quests[1] = { ...mutable(v).quests[1], result: 'fail', failCount: 1 }
+  mutable(v).quests[0] = resolveQuest(v.quests[0], { result: 'fail', failCount: 1 })
+  mutable(v).quests[1] = resolveQuest(v.quests[1], { result: 'fail', failCount: 1 })
   const [, user] = buildMessages('vote', v, '')
   assert.ok(!user.content.includes('last lever your side has'))
 })

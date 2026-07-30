@@ -25,6 +25,7 @@ import {
   MAX_PROPOSALS,
   ROLE_ALIGNMENT,
   evilPartnersOf,
+  isCompletedQuest,
   mentionsName,
 } from '../engine/rules.ts'
 import { knownEvilAboard, matchPoint } from './board.ts'
@@ -247,7 +248,7 @@ function ownVoteMatchRecord(view: PlayerView): { matches: number; total: number 
   for (const prop of view.proposals) {
     if (!prop.approved || !prop.votes) continue
     const quest = view.quests[prop.round - 1]
-    if (quest?.result === undefined) continue
+    if (quest?.status !== 'complete') continue
     const mine = prop.votes.find((v) => v.seat === view.seat)
     if (!mine) continue
     total++
@@ -446,7 +447,7 @@ function dealKnowledgeText(
         ` Guard that hard. Naming them, or defending them more than anyone else would, paints the Assassin's target on the one player good cannot afford to lose.` +
         compositionLine(view, ['merlin'])
     }
-    const onQuestsFor = (s: Seat) => view.quests.filter((q) => q.result !== undefined && q.team?.includes(s))
+    const onQuestsFor = (s: Seat) => view.quests.filter(isCompletedQuest).filter((q) => q.team.includes(s))
     // Naming the pair also settles the seats OUTSIDE it: Merlin and Morgana are
     // unique and both are accounted for, so whatever the cast has left belongs to
     // the others. At the standard 5 that leaves the Assassin and one Servant,
@@ -507,9 +508,10 @@ export function publicStateText(view: PlayerView): string {
   lines.push(`Players at the table: ${view.players.map((p) => `${p.name}(seat ${p.seat})`).join(', ')}.`)
   lines.push(`Roles in play: ${view.rolesInPlay.join(', ')}.`)
   const board = view.quests.map((q) => {
-    const tag = q.result === 'success' ? 'SUCCEEDED' : q.result === 'fail' ? `FAILED (${q.failCount} fail${q.failCount === 1 ? '' : 's'})` : 'pending'
     const need = q.failsRequired === 2 ? ', needs 2 fails' : ''
-    const team = q.team ? ` team: ${q.team.map((s) => view.players[s].name).join('/')}` : ''
+    if (q.status !== 'complete') return `Q${q.num}(size ${q.teamSize}${need}): pending`
+    const tag = q.result === 'success' ? 'SUCCEEDED' : `FAILED (${q.failCount} fail${q.failCount === 1 ? '' : 's'})`
+    const team = ` team: ${q.team.map((s) => view.players[s].name).join('/')}`
     return `Q${q.num}(size ${q.teamSize}${need}): ${tag}${team}`
   })
   lines.push(`Quest board: ${board.join(' | ')}.`)

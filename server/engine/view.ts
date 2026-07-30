@@ -205,10 +205,10 @@ function createPlayerViewProjection(
         round: candidate.round,
         proposalNum: candidate.proposalNum,
         leaderSeat: candidate.leaderSeat,
-        quests: candidate.quests.map((quest) => ({
-          ...quest,
-          team: quest.team?.slice(),
-        })),
+        quests: candidate.quests.map((quest) =>
+          quest.status === 'complete'
+            ? { ...quest, team: quest.team.slice() }
+            : { ...quest }),
         proposals: proposals.map((proposal) => ({
           ...proposal,
           team: proposal.team.slice(),

@@ -525,6 +525,7 @@ test('composed Morgana analysis atomically rejects worlds outside the filtered v
     )
   questCase.view.quests[0] = {
     ...questCase.view.quests[0],
+    status: 'complete',
     team: uncertainSeats.slice(0, questCase.view.quests[0].teamSize),
     result: 'fail',
     failCount: 1,
@@ -537,6 +538,7 @@ test('composed Morgana analysis atomically rejects worlds outside the filtered v
         num: withoutOutcome.quests[0].num,
         teamSize: withoutOutcome.quests[0].teamSize,
         failsRequired: withoutOutcome.quests[0].failsRequired,
+        status: 'pending',
       }
       const snapshot = structuredClone(exactBelief(withoutOutcome))
       snapshot.throughSeq = visibleEventCursor(view)

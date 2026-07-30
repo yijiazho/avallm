@@ -5,8 +5,10 @@ import type { Evidence } from './types.ts'
 const eventId = (seq: number, kind: Evidence['kind']): string =>
   `event:${seq}:${kind}`
 
-const teamAt = (view: PlayerView, round: number): readonly Seat[] =>
-  view.quests[round - 1]?.team?.slice() ?? []
+const teamAt = (view: PlayerView, round: number): readonly Seat[] => {
+  const quest = view.quests[round - 1]
+  return quest?.status === 'complete' ? quest.team.slice() : []
+}
 
 function publicProposalContext(
   view: PlayerView,

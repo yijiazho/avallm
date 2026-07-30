@@ -244,6 +244,7 @@ test('treatment is exactly reconstructed from public executed quests only', () =
   if (team.kind !== 'propose') throw new Error('expected proposal')
   input.view.quests[0] = {
     ...input.view.quests[0],
+    status: 'complete',
     team: [...team.team],
     result: 'success',
     failCount: 0,

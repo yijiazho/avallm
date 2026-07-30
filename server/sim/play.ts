@@ -60,8 +60,7 @@ const game = createGame({
 
 function questBoard(view: PlayerView): string {
   const discs = view.quests.map((q) => {
-    if (q.result === 'success') return ` [${q.teamSize}✓]`
-    if (q.result === 'fail') return ` [${q.teamSize}✗]`
+    if (q.status === 'complete') return ` [${q.teamSize}${q.result === 'success' ? '✓' : '✗'}]`
     return ` [${q.teamSize}${q.failsRequired === 2 ? '*' : ' '}]`
   }).join('')
   return `Quests:${discs}   proposal ${view.proposalNum}/5`

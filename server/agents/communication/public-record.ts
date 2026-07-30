@@ -70,9 +70,9 @@ export function projectPublicRecord(view: PlayerView): PublicRecord {
       num: quest.num,
       teamSize: quest.teamSize,
       failsRequired: quest.failsRequired,
-      ...(quest.team ? { team: quest.team.slice() } : {}),
-      ...(quest.result ? { result: quest.result } : {}),
-      ...(quest.failCount === undefined ? {} : { failCount: quest.failCount }),
+      ...(quest.status === 'complete'
+        ? { team: quest.team.slice(), result: quest.result, failCount: quest.failCount }
+        : {}),
     })),
     proposals: view.proposals.map((proposal) => ({
       round: proposal.round,

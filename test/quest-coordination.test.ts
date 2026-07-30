@@ -4,6 +4,7 @@ import test from 'node:test'
 import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import { boardSituation } from '../server/agents/analysis/situation.ts'
 import type { SituationAnalysis } from '../server/agents/analysis/types.ts'
@@ -74,21 +75,9 @@ function questRequest(view: PlayerView): DecisionRequest {
 
 function nondecisive(view: PlayerView): PlayerView {
   const next = structuredClone(view)
-  mutable(next).quests[0] = {
-    ...mutable(next).quests[0],
-    result: 'success',
-    failCount: 0,
-  }
-  mutable(next).quests[1] = {
-    ...mutable(next).quests[1],
-    result: 'fail',
-    failCount: 1,
-  }
-  mutable(next).quests[2] = {
-    ...mutable(next).quests[2],
-    result: undefined,
-    failCount: undefined,
-  }
+  mutable(next).quests[0] = resolveQuest(next.quests[0], { result: 'success', failCount: 0 })
+  mutable(next).quests[1] = resolveQuest(next.quests[1], { result: 'fail', failCount: 1 })
+  mutable(next).quests[2] = pendingQuest(next.quests[2])
   return next
 }
 

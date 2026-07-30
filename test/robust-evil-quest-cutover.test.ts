@@ -4,6 +4,7 @@ import test from 'node:test'
 import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
@@ -51,21 +52,9 @@ function robustQuestFixture(decisive = false): {
   mutable(view).alignment = 'evil'
   mutable(view).privateInfo = { kind: 'evil', evilPartners: [5] }
   if (!decisive) {
-    mutable(view).quests[0] = {
-      ...mutable(view).quests[0],
-      result: 'success',
-      failCount: 0,
-    }
-    mutable(view).quests[1] = {
-      ...mutable(view).quests[1],
-      result: 'fail',
-      failCount: 1,
-    }
-    mutable(view).quests[2] = {
-      ...mutable(view).quests[2],
-      result: undefined,
-      failCount: undefined,
-    }
+    mutable(view).quests[0] = resolveQuest(view.quests[0], { result: 'success', failCount: 0 })
+    mutable(view).quests[1] = resolveQuest(view.quests[1], { result: 'fail', failCount: 1 })
+    mutable(view).quests[2] = pendingQuest(view.quests[2])
   }
   return {
     req: { ...source.req, seat: view.seat },

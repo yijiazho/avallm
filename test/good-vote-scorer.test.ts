@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import type {
   BeliefSnapshot,
@@ -135,16 +136,18 @@ function goodVoteView(
     events: [],
     transcript: [],
     proposals: [],
-    quests: source.quests.map((quest, index) => ({
-      ...quest,
-      result: decisive === 'both'
+    quests: source.quests.map((quest, index) => {
+      const result = decisive === 'both'
         ? (index < 2 ? (index === 0 ? 'success' : 'fail') : null)
         : decisive === 'good'
-          ? (index < 2 ? 'success' : null)
+          ? (index < 2 ? 'success' as const : null)
           : decisive === 'evil'
-            ? (index < 2 ? 'fail' : null)
-            : null,
-    })),
+            ? (index < 2 ? 'fail' as const : null)
+            : null
+      return result === null
+        ? pendingQuest(quest)
+        : resolveQuest(quest, { result, failCount: result === 'fail' ? 1 : 0 })
+    }),
   }
 }
 

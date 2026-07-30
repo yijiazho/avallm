@@ -55,7 +55,7 @@ test('percival knowledge co-locates its two candidates with their quest records 
   }
   // Before any quest resolves there is no fail evidence — name the pair and stop.
   const early = knowledgeText({ ...base, quests: [
-    { num: 1, teamSize: 2, failsRequired: 1 }, { num: 2, teamSize: 3, failsRequired: 1 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'pending' }, { num: 2, teamSize: 3, failsRequired: 1, status: 'pending' },
   ] } as PlayerView)
   assert.match(early, /One of these two is Merlin, the other is Morgana: P2\(seat 2\) and P4\(seat 4\)\./)
 
@@ -63,8 +63,8 @@ test('percival knowledge co-locates its two candidates with their quest records 
   // puts each candidate's record side by side — the discriminator Percival kept
   // failing to cross-reference. seat 4's fail is now adjacent to its own name.
   const withFail = knowledgeText({ ...base, quests: [
-    { num: 1, teamSize: 2, failsRequired: 1, team: [3, 4], result: 'fail', failCount: 1 },
-    { num: 2, teamSize: 3, failsRequired: 1, team: [0, 1, 2], result: 'success', failCount: 0 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'complete', team: [3, 4], result: 'fail', failCount: 1 },
+    { num: 2, teamSize: 3, failsRequired: 1, status: 'complete', team: [0, 1, 2], result: 'success', failCount: 0 },
   ] } as PlayerView)
   assert.match(withFail, /P2\(seat 2\): Q2\(ok\)/)
   assert.match(withFail, /P4\(seat 4\): Q1\(FAIL\)/)
@@ -72,8 +72,8 @@ test('percival knowledge co-locates its two candidates with their quest records 
   // Mixed: candidate seat 2 sat on the failed Q1, seat 4 has never quested — the
   // never-quested candidate reads "no quests yet" beside the other's record.
   const mixed = knowledgeText({ ...base, quests: [
-    { num: 1, teamSize: 2, failsRequired: 1, team: [2, 3], result: 'fail', failCount: 1 },
-    { num: 2, teamSize: 3, failsRequired: 1 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'complete', team: [2, 3], result: 'fail', failCount: 1 },
+    { num: 2, teamSize: 3, failsRequired: 1, status: 'pending' },
   ] } as PlayerView)
   assert.match(mixed, /P2\(seat 2\): Q1\(FAIL\)/)
   assert.match(mixed, /P4\(seat 4\): no quests yet/)
@@ -93,8 +93,8 @@ test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tel
   // seat 0 approved Q1 (succeeded) and rejected Q2 (which passed anyway and failed):
   // both votes matched the outcome -> 2/2 spotless -> the tell is flagged.
   const quests = [
-    { num: 1, teamSize: 2, failsRequired: 1, team: [0, 1], result: 'success', failCount: 0 },
-    { num: 2, teamSize: 3, failsRequired: 1, team: [1, 3, 4], result: 'fail', failCount: 1 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'complete', team: [0, 1], result: 'success', failCount: 0 },
+    { num: 2, teamSize: 3, failsRequired: 1, status: 'complete', team: [1, 3, 4], result: 'fail', failCount: 1 },
   ]
   const approvedVotes = (r: number, mine: 'approve' | 'reject') => ({
     round: r, proposalNum: 1, leader: 1, team: quests[r - 1].team, approved: true,
@@ -114,7 +114,7 @@ test('merlin knowledge flags a spotless vote-vs-outcome streak (the assassin tel
 
   // Only one quest resolved (1/1) is too early — everyone looks perfect — so no flag.
   const early = knowledgeText({ ...base, round: 2,
-    quests: [quests[0], { num: 2, teamSize: 3, failsRequired: 1 }],
+    quests: [quests[0], { num: 2, teamSize: 3, failsRequired: 1, status: 'pending' }],
     proposals: [approvedVotes(1, 'approve')] } as unknown as PlayerView)
   assert.doesNotMatch(early, /matched its outcome/)
 })

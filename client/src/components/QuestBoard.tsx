@@ -17,22 +17,23 @@ export function QuestBoard({ view }: { view: PlayerView }) {
     <div className="spread">
       <div className="qcards">
         {view.quests.map((q) => {
+          const done = q.status === 'complete'
           const tip = (
             <span className="tooltip tip-up" role="tooltip">
               <span className="t-title"><span className="t-num">Q·{q.num}</span>
-                {q.result === 'success' ? 'Succeeded' : q.result === 'fail' ? 'Sabotaged' : q.num === view.round ? 'Current quest' : 'Future quest'}
+                {done ? (q.result === 'success' ? 'Succeeded' : 'Sabotaged') : q.num === view.round ? 'Current quest' : 'Future quest'}
               </span>
               <span className="t-rows">
-                {q.team
+                {done
                   ? <span className="t-row"><span className="k">went</span><span className="v">{q.team.map(name).join(' · ')}</span></span>
                   : <span className="t-row"><span className="k">team</span><span className="v">{q.teamSize} players</span></span>}
-                {q.result
+                {done
                   ? <span className="t-row"><span className="k">fails</span><span className="v">{q.failCount} revealed · {q.failsRequired} needed</span></span>
                   : <span className="t-row"><span className="k">to fail</span><span className="v">needs {q.failsRequired} fail card{q.failsRequired === 1 ? '' : 's'}</span></span>}
               </span>
             </span>
           )
-          if (q.result === 'success') {
+          if (done && q.result === 'success') {
             return (
               <div key={q.num} className="qcard face won">
                 <span className="qn">Q·{q.num}</span>
@@ -42,7 +43,7 @@ export function QuestBoard({ view }: { view: PlayerView }) {
               </div>
             )
           }
-          if (q.result === 'fail') {
+          if (done && q.result === 'fail') {
             return (
               <div key={q.num} className="qcard face lost">
                 <span className="qn">Q·{q.num}</span>

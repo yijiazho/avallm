@@ -64,27 +64,32 @@
         {
           "num": 1,
           "teamSize": 2,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 2,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 3,
           "teamSize": 2,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 4,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [],
@@ -234,27 +239,32 @@
         {
           "num": 1,
           "teamSize": 2,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 2,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 3,
           "teamSize": 2,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 4,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -501,39 +511,44 @@
           "num": 1,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             1,
             2
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 2,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             2,
             4
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 3,
           "teamSize": 2,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 4,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -1331,45 +1346,50 @@
           "num": 1,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 2,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1,
             2
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 3,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             2
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 4,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -2322,52 +2342,51 @@
           "num": 1,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             4
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 2,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             4,
             5
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 3,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             4,
             5
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 4,
           "teamSize": 4,
           "failsRequired": 2,
-          "team": [
-            1,
-            4,
-            5,
-            6
-          ]
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 4,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -5042,44 +5061,48 @@
           "num": 1,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             1,
             2,
             3
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 2,
           "teamSize": 4,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1,
             2,
             3
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 3,
           "teamSize": 4,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1,
             2,
             3
           ],
-          "failCount": 2,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 2
         },
         {
           "num": 4,
           "teamSize": 5,
           "failsRequired": 2,
+          "status": "complete",
           "team": [
             1,
             4,
@@ -5087,13 +5110,14 @@
             6,
             7
           ],
-          "failCount": 2,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 2
         },
         {
           "num": 5,
           "teamSize": 5,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -7815,41 +7839,46 @@
           "num": 1,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1,
             5
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 2,
           "teamSize": 4,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             2,
             3,
             4,
             6
           ],
-          "failCount": 1,
-          "result": "fail"
+          "result": "fail",
+          "failCount": 1
         },
         {
           "num": 3,
           "teamSize": 4,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 4,
           "teamSize": 5,
-          "failsRequired": 2
+          "failsRequired": 2,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 5,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [
@@ -9957,45 +9986,50 @@
           "num": 1,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             4
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 2,
           "teamSize": 3,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1,
             4
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 3,
           "teamSize": 2,
           "failsRequired": 1,
+          "status": "complete",
           "team": [
             0,
             1
           ],
-          "failCount": 0,
-          "result": "success"
+          "result": "success",
+          "failCount": 0
         },
         {
           "num": 4,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         },
         {
           "num": 5,
           "teamSize": 3,
-          "failsRequired": 1
+          "failsRequired": 1,
+          "status": "pending"
         }
       ],
       "proposals": [

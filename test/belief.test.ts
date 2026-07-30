@@ -75,7 +75,7 @@ function withQuest(
   return {
     ...view,
     quests: view.quests.map((quest) => quest.num === questNum
-      ? { ...quest, team: [...team], failCount, result }
+      ? { ...quest, status: 'complete' as const, team: [...team], failCount, result }
       : { ...quest }),
   }
 }
@@ -360,10 +360,10 @@ function rotateView(view: PlayerView, shift: number): PlayerView {
         case 'none': return { kind: 'none' as const }
       }
     })(view.privateInfo),
-    quests: view.quests.map((quest) => ({
-      ...quest,
-      ...(quest.team ? { team: rotateSeats(quest.team) } : {}),
-    })),
+    quests: view.quests.map((quest) =>
+      quest.status === 'complete'
+        ? { ...quest, team: quest.team.map(rotate).sort((a, b) => a - b) }
+        : quest),
     events: [],
   }
 }

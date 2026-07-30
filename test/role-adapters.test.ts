@@ -27,6 +27,7 @@ import {
 } from '../server/agents/policy/score.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import { resolveQuest } from './support/quests.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   LANGUAGE_EVIDENCE_VERSION,
@@ -461,10 +462,8 @@ test('a forced committed choice retains scorer consumption but not action select
   const fixture = structuredClone(
     fixtures.find((candidate) => candidate.id === 'mordred-late-vote')!,
   )
-  fixture.view.quests[0].result = 'success'
-  fixture.view.quests[0].failCount = 0
-  fixture.view.quests[1].result = 'success'
-  fixture.view.quests[1].failCount = 0
+  fixture.view.quests[0] = resolveQuest(fixture.view.quests[0], { result: 'success', failCount: 0 })
+  fixture.view.quests[1] = resolveQuest(fixture.view.quests[1], { result: 'success', failCount: 0 })
   const output = await createComposedAgent({
     seed: 'phase7r2b3a-forced-selection',
     roleObjectiveRouter: true,

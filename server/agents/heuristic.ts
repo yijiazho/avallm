@@ -40,7 +40,7 @@ function suspicion(view: PlayerView): number[] {
   const evil = knownEvilSeats(view)
   for (const s of evil) score[s] += 10
   for (const q of view.quests) {
-    if (!q.team || q.result === undefined || q.failCount === undefined) continue
+    if (q.status !== 'complete') continue
     for (const s of q.team) {
       if (s === view.seat) continue
       // A failed quest is hard evidence: weight it so burned players actually
@@ -54,7 +54,7 @@ function suspicion(view: PlayerView): number[] {
   for (const prop of view.proposals) {
     if (!prop.approved) continue
     const quest = view.quests[prop.round - 1]
-    if (quest.result !== 'fail') continue
+    if (quest.status !== 'complete' || quest.result !== 'fail') continue
     if (prop.leader !== view.seat) score[prop.leader] += 1.5
     for (const v of prop.votes ?? []) {
       if (v.seat === view.seat || v.vote !== 'approve') continue
@@ -162,8 +162,7 @@ function decideQuest(
   seed: string,
   analysis: SituationAnalysis,
 ): Decision {
-  const quest = view.quests[view.round - 1]
-  const team = view.currentTeam ?? quest.team ?? []
+  const team = view.currentTeam ?? []
   const need = analysis.failsRequired
   const evilOnTeam = [...(analysis.currentTeam?.knownFailsAboard ?? [])]
 

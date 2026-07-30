@@ -492,18 +492,21 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
   }
   mutable(view).quests[0] = {
     ...view.quests[0],
+    status: 'complete',
     team: teamFor(0),
     result: 'success',
     failCount: 0,
   }
   mutable(view).quests[1] = {
     ...view.quests[1],
+    status: 'complete',
     team: teamFor(1),
     result: 'success',
     failCount: 0,
   }
   mutable(view).quests[2] = {
     ...view.quests[2],
+    status: 'complete',
     team: teamFor(2, view.seat),
     result: 'fail',
     failCount: 1,
@@ -1128,18 +1131,21 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
       }
       mutable(input).view.quests[0] = {
         ...input.view.quests[0],
+        status: 'complete',
         team: team(0),
         result: 'success',
         failCount: 0,
       }
       mutable(input).view.quests[1] = {
         ...input.view.quests[1],
+        status: 'complete',
         team: team(1),
         result: 'success',
         failCount: 0,
       }
       mutable(input).view.quests[2] = {
         ...input.view.quests[2],
+        status: 'complete',
         team: team(2, input.view.seat),
         result: 'fail',
         failCount: 1,

@@ -15,6 +15,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
+import { asCompletedQuest } from './support/quests.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { evilPartnersOf } from '../server/engine/rules.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
@@ -47,8 +48,8 @@ const goodSeats = (g: Game): Seat[] =>
 
 // Either side one quest from ending the quest phase.
 const matchPointReached = (g: Game): boolean =>
-  g.quests.filter((q) => q.result === 'success').length === 2 ||
-  g.quests.filter((q) => q.result === 'fail').length === 2
+  g.quests.filter((q) => q.status === 'complete' && q.result === 'success').length === 2 ||
+  g.quests.filter((q) => q.status === 'complete' && q.result === 'fail').length === 2
 
 // Run one quest to a chosen outcome, leaving the game at the next proposal.
 function playQuest(g: Game, outcome: 'success' | 'fail'): void {
@@ -65,7 +66,7 @@ function playQuest(g: Game, outcome: 'success' | 'fail'): void {
     const fails = outcome === 'fail' && evil.includes(d.seat)
     applyDecision(g, d.seat, { kind: 'quest', card: fails ? 'fail' : 'success' })
   }
-  assert.equal(g.quests[round - 1].result, outcome)
+  assert.equal(asCompletedQuest(g.quests[round - 1]).result, outcome)
 }
 
 // Board at good's match point with Q4 pending: two clean quests, then one
@@ -78,7 +79,7 @@ function boardAtQ4MatchPoint(prefix: string, pred: (g: Game) => boolean = () => 
   playQuest(g, 'fail')
   assert.equal(g.round, 4)
   assert.equal(g.quests[3].failsRequired, 2)
-  assert.equal(g.quests.filter((q) => q.result === 'success').length, 2)
+  assert.equal(g.quests.filter((q) => q.status === 'complete' && q.result === 'success').length, 2)
   return g
 }
 

@@ -3,6 +3,7 @@
 import { test } from 'node:test'
 import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import {
   canonicalizeJson,
   canonicalizeTransportJson,
@@ -310,21 +311,9 @@ function robustQuestNativeFixture() {
     kind: 'evil',
     evilPartners: [5],
   }
-  mutable(view).quests[0] = {
-    ...mutable(view).quests[0],
-    result: 'success',
-    failCount: 0,
-  }
-  mutable(view).quests[1] = {
-    ...mutable(view).quests[1],
-    result: 'fail',
-    failCount: 1,
-  }
-  mutable(view).quests[2] = {
-    ...mutable(view).quests[2],
-    result: undefined,
-    failCount: undefined,
-  }
+  mutable(view).quests[0] = resolveQuest(view.quests[0], { result: 'success', failCount: 0 })
+  mutable(view).quests[1] = resolveQuest(view.quests[1], { result: 'fail', failCount: 1 })
+  mutable(view).quests[2] = pendingQuest(view.quests[2])
   const req = {
     kind: 'quest' as const,
     seat: view.seat,

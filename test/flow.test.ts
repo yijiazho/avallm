@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyDecision, createGame, expectedDecisions } from '../server/engine/game.ts'
+import { asCompletedQuest } from './support/quests.ts'
 import type { Game, Seat } from '../server/engine/types.ts'
 
 function mk(playerCount = 7, seed = 'flow'): Game {
@@ -72,7 +73,7 @@ test('the 5th proposal is auto-approved with no vote, leader rotating after each
   const team = [g.leaderSeat, (g.leaderSeat + 1) % 7].sort((a, b) => a - b)
   propose(g, team)
   assert.equal(g.phase, 'quest')
-  assert.deepEqual(g.quests[0].team, team)
+  assert.deepEqual(g.currentTeam, team)
   assert.ok(expectedDecisions(g).every((r) => r.kind === 'quest'), 'only quest cards are owed')
 
   // The auto-approval is on the public record as a votes-free voteReveal.
@@ -89,7 +90,7 @@ test('good quest cards are coerced to success', () => {
   propose(g, good)
   voteAll(g, () => 'approve')
   playQuest(g, () => 'fail') // both good players try to play fail
-  const q1 = g.quests[0]
+  const q1 = asCompletedQuest(g.quests[0])
   assert.equal(q1.result, 'success')
   assert.equal(q1.failCount, 0)
   const cards = g.log.filter((ev) => ev.type === 'questCard')
@@ -109,7 +110,7 @@ test('quest 4 at 7 players survives one fail but not two; assassination decides 
 
   // One fail on quest 4 is not enough at 7 players.
   runRound(g, [evil[0], good[0], good[1], good[2]], [evil[0]])
-  const q4 = g.quests[3]
+  const q4 = asCompletedQuest(g.quests[3])
   assert.equal(q4.failCount, 1)
   assert.equal(q4.result, 'success')
 
@@ -135,7 +136,7 @@ test('two fails break quest 4 at 7 players', () => {
   runRound(g, [evil[0], good[0], good[1]], [evil[0]])                 // Q2 fail
   runRound(g, good.slice(0, 3), [])                                   // Q3 success
   runRound(g, [evil[0], evil[1], good[0], good[1]], [evil[0], evil[1]]) // Q4: 2 fails
-  assert.equal(g.quests[3].result, 'fail')
+  assert.equal(asCompletedQuest(g.quests[3]).result, 'fail')
   assert.equal(g.phase, 'proposal') // 2-2, game continues to quest 5
   assert.equal(g.round, 5)
 })
@@ -316,7 +317,7 @@ test('finalize revise: new team, one post-revision round, no second finalize', (
   const utt = g.log.filter((e) => e.type === 'utterance' && e.payload.postRevision === true)
   assert.equal(utt.length, 4, 'post-revision utterances are marked')
   assert.equal(g.phase, 'quest')
-  assert.deepEqual(g.quests[0].team, to)
+  assert.deepEqual(g.currentTeam, to)
 })
 
 test('maxRoundsAfterChange 0: a revision goes straight to the vote', () => {
@@ -352,7 +353,7 @@ test('the hammer gets discussion and finalize, then skips only the vote', () => 
   assert.equal(g.phase, 'quest')
   const auto = g.log.find((ev) => ev.type === 'voteReveal' && ev.payload.auto === true)!
   assert.deepEqual(auto.payload.team, to)
-  assert.deepEqual(g.quests[0].team, to)
+  assert.deepEqual(g.currentTeam, to)
 })
 
 test('a public leadChange marks the leader at the start of every proposal cycle', () => {

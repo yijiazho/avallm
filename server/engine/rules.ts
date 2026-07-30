@@ -29,6 +29,17 @@ export function failsRequired(playerCount: number, questNum: number): number {
   return playerCount >= 7 && questNum === 4 ? 2 : 1
 }
 
+// Narrow a quest to its resolved member. Usable as a filter predicate so a
+// filter-then-map over finished quests keeps team/result/failCount in scope.
+// Generic over the quest shape so it accepts both the mutable engine `Quest`
+// and the readonly `DeepReadonly<Quest>` a PlayerView projection carries,
+// narrowing each to its own completed variant.
+export function isCompletedQuest<Q extends { status: 'pending' | 'complete' }>(
+  quest: Q,
+): quest is Q & { status: 'complete' } {
+  return quest.status === 'complete'
+}
+
 export const ROLE_ALIGNMENT: Record<Role, Alignment> = {
   merlin: 'good', percival: 'good', servant: 'good',
   assassin: 'evil', morgana: 'evil', mordred: 'evil', oberon: 'evil', minion: 'evil',

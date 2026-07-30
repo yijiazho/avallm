@@ -77,14 +77,33 @@ export interface Player {
   alignment: Alignment
 }
 
-export interface Quest {
+// A quest is one of two real states, never a half-state. Before it resolves it
+// is `pending` and carries only its fixed parameters; the team currently on it
+// (if any) lives in `Game.currentTeam`, not here. Once every card is in it flips
+// to `complete` and the three outcome fields — the team that actually went, the
+// result, and the fail count — arrive together and are then guaranteed. Modeling
+// this as three independent optionals let the type express impossible shapes (a
+// result with no team, a failCount with no result); the union rejects them.
+interface QuestBase {
   num: number                    // 1..5
   teamSize: number
   failsRequired: number          // 1, or 2 for quest 4 at 7+ players
-  team?: Seat[]
-  result?: 'success' | 'fail'
-  failCount?: number
 }
+
+export type Quest =
+  | (QuestBase & { status: 'pending' })
+  | (QuestBase & {
+      status: 'complete'
+      team: Seat[]                 // the team that ran the quest
+      result: 'success' | 'fail'
+      failCount: number
+    })
+
+// The resolved member on its own, for the common filter-then-map over finished
+// quests: `view.quests.filter(isCompletedQuest)` yields these, so the outcome
+// fields are reachable in the map without re-narrowing. The guard lives in
+// rules.ts (isCompletedQuest), next to the other pure engine helpers.
+export type CompletedQuest = Extract<Quest, { status: 'complete' }>
 
 export type Visibility = 'public' | { only: Seat[] }
 

@@ -4,6 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -113,21 +114,9 @@ function coordinatedQuestView(
 
 function nondecisive(view: PlayerView): PlayerView {
   const copy = structuredClone(view)
-  copy.quests[0] = {
-    ...copy.quests[0],
-    result: 'success',
-    failCount: 0,
-  }
-  copy.quests[1] = {
-    ...copy.quests[1],
-    result: 'fail',
-    failCount: 1,
-  }
-  copy.quests[2] = {
-    ...copy.quests[2],
-    result: undefined,
-    failCount: undefined,
-  }
+  copy.quests[0] = resolveQuest(copy.quests[0], { result: 'success', failCount: 0 })
+  copy.quests[1] = resolveQuest(copy.quests[1], { result: 'fail', failCount: 1 })
+  copy.quests[2] = pendingQuest(copy.quests[2])
   return copy
 }
 
@@ -683,18 +672,21 @@ test('the 10-player 252-candidate E1 chain stays below the unchanged run cap', a
   }
   input.view.quests[0] = {
     ...input.view.quests[0],
+    status: 'complete',
     team: team(0),
     result: 'success',
     failCount: 0,
   }
   input.view.quests[1] = {
     ...input.view.quests[1],
+    status: 'complete',
     team: team(1),
     result: 'success',
     failCount: 0,
   }
   input.view.quests[2] = {
     ...input.view.quests[2],
+    status: 'complete',
     team: team(2, input.view.seat),
     result: 'fail',
     failCount: 1,

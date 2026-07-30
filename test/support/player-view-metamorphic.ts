@@ -29,10 +29,10 @@ export function rotatePlayerView(
         case 'none': return { kind: 'none' as const }
       }
     })(copy.privateInfo),
-    quests: copy.quests.map((quest) => ({
-      ...quest,
-      ...(quest.team ? { team: seats(quest.team) } : {}),
-    })),
+    quests: copy.quests.map((quest) =>
+      quest.status === 'complete'
+        ? { ...quest, team: quest.team.map(rotate).sort((left, right) => left - right) }
+        : quest),
     proposals: copy.proposals.map((proposal) => ({
       ...proposal,
       leader: rotate(proposal.leader),

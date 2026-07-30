@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import type { SituationAnalysis } from '../server/agents/analysis/types.ts'
 import {
@@ -511,21 +512,9 @@ function coordinatedQuestView(
 
 function nondecisive(view: PlayerView): PlayerView {
   const result = structuredClone(view)
-  result.quests[0] = {
-    ...result.quests[0],
-    result: 'success',
-    failCount: 0,
-  }
-  result.quests[1] = {
-    ...result.quests[1],
-    result: 'fail',
-    failCount: 1,
-  }
-  result.quests[2] = {
-    ...result.quests[2],
-    result: undefined,
-    failCount: undefined,
-  }
+  result.quests[0] = resolveQuest(result.quests[0], { result: 'success', failCount: 0 })
+  result.quests[1] = resolveQuest(result.quests[1], { result: 'fail', failCount: 1 })
+  result.quests[2] = pendingQuest(result.quests[2])
   return result
 }
 

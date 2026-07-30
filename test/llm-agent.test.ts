@@ -189,7 +189,7 @@ test('reflect fires after a proposal is REJECTED, before any quest resolves', as
   // rejection is public social evidence — the evidence cadence reflects on it.
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'reject' })
-  assert.ok(g.quests.every((q) => q.result === undefined), 'no quest should have resolved yet')
+  assert.ok(g.quests.every((q) => q.status === 'pending'), 'no quest should have resolved yet')
 
   await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 2 }, viewFor(g, 0))
   assert.ok(client.calls.map((c) => c.tag).includes('kimi/reflect'), 'a rejection should trigger a reflect')
@@ -209,7 +209,7 @@ test('an APPROVED vote reveal alone does not trigger a reflect', async () => {
   // signal on its own (its test is the quest result to come), so no reflect.
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
-  assert.ok(g.quests.every((q) => q.result === undefined), 'quest must not have resolved for this to isolate the approval')
+  assert.ok(g.quests.every((q) => q.status === 'pending'), 'quest must not have resolved for this to isolate the approval')
 
   await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, viewFor(g, 0))
   assert.ok(!client.calls.map((c) => c.tag).includes('kimi/reflect'), 'an approved reveal alone should not reflect')

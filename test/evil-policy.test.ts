@@ -127,18 +127,21 @@ function setLegalTwoOneBoard(view: PlayerView, evilSeat: number): void {
   }
   mutable(view).quests[0] = {
     ...view.quests[0],
+    status: 'complete',
     team: team(0),
     result: 'success',
     failCount: 0,
   }
   mutable(view).quests[1] = {
     ...view.quests[1],
+    status: 'complete',
     team: team(1),
     result: 'success',
     failCount: 0,
   }
   mutable(view).quests[2] = {
     ...view.quests[2],
+    status: 'complete',
     team: team(2, evilSeat),
     result: 'fail',
     failCount: 1,

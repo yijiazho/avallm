@@ -115,18 +115,19 @@ test('explicit compatibility projection preserves joint multi-quest deductions',
     ...base,
     quests: base.quests.map((quest) => {
       if (quest.num === 1) {
-        return { ...quest, team: [evilA, evilB], result: 'fail', failCount: 1 }
+        return { ...quest, status: 'complete' as const, team: [evilA, evilB], result: 'fail' as const, failCount: 1 }
       }
       if (quest.num === 2) {
         return {
           ...quest,
+          status: 'complete' as const,
           team: [evilA, goodC, viewer],
-          result: 'fail',
+          result: 'fail' as const,
           failCount: 1,
         }
       }
       if (quest.num === 3) {
-        return { ...quest, team: [evilB, goodC], result: 'fail', failCount: 1 }
+        return { ...quest, status: 'complete' as const, team: [evilB, goodC], result: 'fail' as const, failCount: 1 }
       }
       return quest
     }),

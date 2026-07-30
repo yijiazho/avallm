@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { resolveQuest } from './support/quests.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
@@ -132,7 +133,7 @@ test('decisive evil votes approve sinkable teams and reject unsinkable teams', (
   const base = fixture('mordred-late-vote')
   const goodMatchQuests = base.view.quests.map((quest, index) => {
     if (index >= 2) return quest
-    return { ...quest, result: 'success' as const, failCount: 0 }
+    return resolveQuest(quest, { result: 'success', failCount: 0 })
   })
   const unsinkableView: PlayerView = {
     ...withoutUtterances(base.view),
@@ -166,7 +167,7 @@ test('decisive vote rules fire on the board alone, with no stand-down', () => {
   const base = fixture('mordred-late-vote')
   const quests = base.view.quests.map((quest, index) =>
     index < 2
-      ? { ...quest, result: 'success' as const, failCount: 0 }
+      ? resolveQuest(quest, { result: 'success', failCount: 0 })
       : quest)
 
   const sinkable = {

@@ -145,6 +145,15 @@ function robustD3(): Fixture {
   // for in-place edits — the seat is recast to the assassin and quests 2 and 3
   // are rewritten (one failed, one reset to unplayed) to reach the target state.
   const base = structuredClone(source.view)
+  // Quest 2 (already resolved in the source fixture) becomes a FAIL keeping the
+  // team that ran it, so the burned seats stay the same and the authority digest
+  // is unchanged by the pending/complete refactor. Quest 3 resets to pending; an
+  // unresolved quest's team is never read, so dropping it (the union carries no
+  // in-progress team) does not move the digest either.
+  const resolvedTwo = base.quests[1]
+  if (resolvedTwo.status !== 'complete') {
+    throw new Error('robust D3 source fixture must have a resolved quest 2')
+  }
   const view = {
     ...base,
     seat: 4,
@@ -154,9 +163,14 @@ function robustD3(): Fixture {
     privateInfo: { kind: 'evil' as const, evilPartners: [5] },
     quests: base.quests.map((quest, index) =>
       index === 1
-        ? { ...quest, failCount: 1, result: 'fail' as const }
+        ? { ...resolvedTwo, result: 'fail' as const, failCount: 1 }
         : index === 2
-          ? { ...quest, failCount: undefined, result: undefined }
+          ? {
+              num: quest.num,
+              teamSize: quest.teamSize,
+              failsRequired: quest.failsRequired,
+              status: 'pending' as const,
+            }
           : quest),
   }
   return {

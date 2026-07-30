@@ -95,7 +95,6 @@ function assessmentTeam(
     : undefined
   return view.currentTeam
     ?? decisionTeam
-    ?? view.quests[view.round - 1]?.team
     ?? expected.team
 }
 

@@ -271,13 +271,13 @@ test('joint quest intersections can settle a seat no single quest names', () => 
     ...base,
     quests: base.quests.map((quest) => {
       if (quest.num === 1) {
-        return { ...quest, team: [evilA, evilB], result: 'fail' as const, failCount: 1 }
+        return { ...quest, status: 'complete' as const, team: [evilA, evilB], result: 'fail' as const, failCount: 1 }
       }
       if (quest.num === 2) {
-        return { ...quest, team: [evilA, goodC, viewer], result: 'fail' as const, failCount: 1 }
+        return { ...quest, status: 'complete' as const, team: [evilA, goodC, viewer], result: 'fail' as const, failCount: 1 }
       }
       if (quest.num === 3) {
-        return { ...quest, team: [evilB, goodC], result: 'fail' as const, failCount: 1 }
+        return { ...quest, status: 'complete' as const, team: [evilB, goodC], result: 'fail' as const, failCount: 1 }
       }
       return quest
     }),
@@ -304,7 +304,7 @@ test('a later redundant quest does not steal attribution for an earlier joint de
   const quest = (
     num: number,
     team: Seat[],
-  ) => ({ ...base.quests[num - 1], team, result: 'fail' as const, failCount: 1 })
+  ) => ({ ...base.quests[num - 1], status: 'complete' as const, team, result: 'fail' as const, failCount: 1 })
   const afterTwo = {
     ...base,
     quests: [

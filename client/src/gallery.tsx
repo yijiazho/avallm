@@ -33,11 +33,11 @@ const base: PlayerView = {
   privateInfo: { kind: 'none' }, playerCount: 7, rolesInPlay, players,
   phase: 'discussion', round: 1, proposalNum: 1, leaderSeat: 0,
   quests: [
-    { num: 1, teamSize: 2, failsRequired: 1 },
-    { num: 2, teamSize: 3, failsRequired: 1 },
-    { num: 3, teamSize: 3, failsRequired: 1 },
-    { num: 4, teamSize: 4, failsRequired: 2 },
-    { num: 5, teamSize: 4, failsRequired: 1 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'pending' },
+    { num: 2, teamSize: 3, failsRequired: 1, status: 'pending' },
+    { num: 3, teamSize: 3, failsRequired: 1, status: 'pending' },
+    { num: 4, teamSize: 4, failsRequired: 2, status: 'pending' },
+    { num: 5, teamSize: 4, failsRequired: 1, status: 'pending' },
   ],
   proposals: [], transcript: [], events: [],
 }
@@ -80,11 +80,11 @@ const tableView = v({
 const questView = v({
   round: 3, proposalNum: 2,
   quests: [
-    { num: 1, teamSize: 2, failsRequired: 1, team: [0, 2], result: 'success', failCount: 0 },
-    { num: 2, teamSize: 3, failsRequired: 1, team: [1, 3, 5], result: 'fail', failCount: 1 },
-    { num: 3, teamSize: 3, failsRequired: 1 },
-    { num: 4, teamSize: 4, failsRequired: 2 },
-    { num: 5, teamSize: 4, failsRequired: 1 },
+    { num: 1, teamSize: 2, failsRequired: 1, status: 'complete', team: [0, 2], result: 'success', failCount: 0 },
+    { num: 2, teamSize: 3, failsRequired: 1, status: 'complete', team: [1, 3, 5], result: 'fail', failCount: 1 },
+    { num: 3, teamSize: 3, failsRequired: 1, status: 'pending' },
+    { num: 4, teamSize: 4, failsRequired: 2, status: 'pending' },
+    { num: 5, teamSize: 4, failsRequired: 1, status: 'pending' },
   ],
 })
 

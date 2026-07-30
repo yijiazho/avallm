@@ -292,6 +292,7 @@ function questFourTwoFailMerlinFixture() {
   for (const questIndex of [0, 1]) {
     mutable(view).quests[questIndex] = {
       ...view.quests[questIndex]!,
+      status: 'complete',
       team: team(questIndex),
       result: 'success',
       failCount: 0,
@@ -299,6 +300,7 @@ function questFourTwoFailMerlinFixture() {
   }
   mutable(view).quests[2] = {
     ...view.quests[2]!,
+    status: 'complete',
     team: team(2, evilSeat),
     result: 'fail',
     failCount: 1,

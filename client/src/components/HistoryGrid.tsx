@@ -21,8 +21,10 @@ export function HistoryGrid({ view, onClose }: {
 
   const questHeader = (round: number) => {
     const q = view.quests[round - 1]
-    if (q.result === 'success') return { text: `Quest ${round} ✓`, cls: 'ok' }
-    if (q.result === 'fail') return { text: `Quest ${round} ✗ (${q.failCount} fail${q.failCount === 1 ? '' : 's'})`, cls: 'bad' }
+    if (q.status === 'complete') {
+      if (q.result === 'success') return { text: `Quest ${round} ✓`, cls: 'ok' }
+      return { text: `Quest ${round} ✗ (${q.failCount} fail${q.failCount === 1 ? '' : 's'})`, cls: 'bad' }
+    }
     return { text: `Quest ${round}: team of ${q.teamSize}${q.failsRequired === 2 ? ' (2 fails to sink)' : ''}`, cls: 'pending' }
   }
 

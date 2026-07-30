@@ -144,13 +144,7 @@ export function questCardEvidence(
   const score = { good: 0, evil: 0 }
   const evidence: QuestCardEvidence[] = []
   for (const quest of [...view.quests].sort((left, right) => left.num - right.num)) {
-    if (
-      quest.result === undefined
-      || quest.failCount === undefined
-      || quest.team === undefined
-    ) {
-      continue
-    }
+    if (quest.status !== 'complete') continue
     const sourceSeq = questResultSeq(view, quest.num)
     evidence.push({
       evidenceId: `event:${sourceSeq}:quest-card`,

@@ -23,7 +23,7 @@
     },
     {
       "path": "test/certainties.test.ts",
-      "sha256": "6487625523e512887ec45785dd8a26b2b9ae1c8e47da6c9b506d0fade32a5e67",
+      "sha256": "69a5c7040b9dfafff25bea320f8eaf27a7d38de1b7c9b5af04530c0913d92bf5",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
@@ -33,7 +33,7 @@
     },
     {
       "path": "test/compat-certainties.test.ts",
-      "sha256": "081091a0df58fe410b273ca421a7493b49fa4856fec9c0143085e13368b79ae9",
+      "sha256": "827a776944da34dcb2ab16634f899ebdeda2c4a90c088d3818c4ac7568b0964f",
       "rationale": "Legacy compatibility fixture exercises a retired decision-kind spelling."
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "bf31216349ef6d128d2973ee1690b2a41556c32bfe02a1295fff085577de8c4b",
+      "sha256": "e5132352c6e57fb121b53705b979c51e3d29e26c6707e45da4ad80da192b1591",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -78,7 +78,7 @@
     },
     {
       "path": "test/facts.test.ts",
-      "sha256": "dedb6b469e7ed92dc7a89aea034e4cb34389e350a9e675eadbc9b132c75fa63a",
+      "sha256": "e445fe1869f630c358f3da5c91d7932a13d6f175ae193d803d443bca8d670a1c",
       "rationale": "Legacy fact fixture widens role literals to strings."
     },
     {
@@ -88,7 +88,7 @@
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "93c75332d42f16720591f5f1d0b6fd76c22fd0f4adac3c5bec31129e1df28d7a",
+      "sha256": "f0cfdf92d4d8e65f441f4a0c371449e0280bb1e392f1f4ceae6534eccc0cc1ff",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
@@ -98,7 +98,7 @@
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "f4db957104f9bb5101029d78eab086c3130817155ee12e59eec120f535e0016f",
+      "sha256": "3331b3fe83cd9294bf54d98b43049623cede8c9514d4657f58f916ed14861ede",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -118,22 +118,22 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "c3f45e6b7b7ba73e073471438166b2d52dc6fab64a886f0256f66a0243081160",
+      "sha256": "b852999504d38fd2c42b13c4e80287d07764e437b1855cf0afc8bfdb3383989c",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "519f6bbd2360993b0af92bce7d0e0f44628f9aa0ab9c433f2c323c58a8ea5591",
+      "sha256": "916c22a57bb8da5b8adc9e6a997cfdfab050728b624d662d4fd861d77933929c",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "3745f08f67bb304533eb6811b6f7252b2d217da2479c3a725b64110a39d619e5",
+      "sha256": "7d03b8c5309bd5ccae916191b3de73a42658dec6eb510970061de09e4627de94",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/morgana-quest-adapters.test.ts",
-      "sha256": "3407f62714c1c2a0482e75f72ad5c6668b2ecc0c74542947db017c580d746be6",
+      "sha256": "ef079c8c67526211a1b7b98cc269108082a6165d2e8aa95182014ecd33f4b1e4",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
@@ -148,7 +148,7 @@
     },
     {
       "path": "test/prompts.test.ts",
-      "sha256": "477d24de0917ce580424e90bd159e9fc412c1c87cff618392045f3c726d9fc9b",
+      "sha256": "bc10aa643bdd78c6588c63c0e1318b8b27158a52d81e3db93e6bb9155cc9d623",
       "rationale": "Legacy prompt fixture exercises a retired phase spelling."
     },
     {
@@ -158,7 +158,7 @@
     },
     {
       "path": "test/public-record.test.ts",
-      "sha256": "d459855c11eda6e26a5f6437d013d02f04e21b75ce91c5bf7cffb8874b80bb4c",
+      "sha256": "455dd6f6160e7944d3e63ec96a70f17150262b7609f3abc9c4ab33efb8a91fd8",
       "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
     },
     {
@@ -173,7 +173,7 @@
     },
     {
       "path": "test/role-adapters.test.ts",
-      "sha256": "36f486ab1024830539bac73efebe959e9531425819ecf1b49077ed3e8c9f82a9",
+      "sha256": "66202c65ec9e24490b0fadb0742d8824853f96f7847475c06ace27b7f0c31aaa",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
     },
     {

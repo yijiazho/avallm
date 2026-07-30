@@ -298,6 +298,7 @@ test('two-Fail threshold and anomalous treatment use direct joint worlds', () =>
   )!.seat
   input.view.quests[0] = {
     ...input.view.quests[0],
+    status: 'complete',
     team: [input.view.seat, filler[0]].sort((a, b) => a - b),
     result: 'success',
     failCount: 0,
@@ -523,6 +524,7 @@ test('public treatment and weighted joint worlds change only their owned terms',
     )!
   history.quests[0] = {
     ...history.quests[0],
+    status: 'complete',
     team: [history.seat, safePartner].sort((a, b) => a - b),
     result: 'success',
     failCount: 0,

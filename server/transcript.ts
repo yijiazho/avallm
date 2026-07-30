@@ -116,8 +116,8 @@ export function renderTranscript(input: TranscriptInput): string {
   out.push('## Quests')
   out.push('')
   for (const q of input.quests) {
-    const teamStr = q.team ? q.team.map(who).join(', ') : '—'
-    const res = q.result
+    const teamStr = q.status === 'complete' ? q.team.map(who).join(', ') : '—'
+    const res = q.status === 'complete'
       ? `${q.result.toUpperCase()} (${q.failCount} fail${q.failCount === 1 ? '' : 's'}, needed ${q.failsRequired})`
       : 'pending'
     out.push(`- Q${q.num} (size ${q.teamSize}, needs ${q.failsRequired} fail${q.failsRequired === 1 ? '' : 's'}): ${res} — team: ${teamStr}`)

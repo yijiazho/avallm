@@ -144,7 +144,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   }
 
   async function maybeReflect(view: PlayerView): Promise<void> {
-    const resolved = view.quests.filter((q) => q.result !== undefined).length
+    const resolved = view.quests.filter((q) => q.status === 'complete').length
     // A rejected proposal has votes recorded and approved === false; the hammer
     // (auto-approved, no vote) and every approved team are excluded.
     const rejections = reflectOnRejections()

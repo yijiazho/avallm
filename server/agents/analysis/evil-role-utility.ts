@@ -313,10 +313,10 @@ function buildEvilRoleUtilityProjectionInternal(
       const publicCoverValue =
         0.5 * publicActionPlausibility + 0.5 * participant.value
       const completedGood = view.quests.filter(
-        (quest) => quest.result === 'success',
+        (quest) => quest.status === 'complete' && quest.result === 'success',
       ).length
       const completedEvil = view.quests.filter(
-        (quest) => quest.result === 'fail',
+        (quest) => quest.status === 'complete' && quest.result === 'fail',
       ).length
       const futureQuestsRemain = view.round < view.quests.length
       const decisiveBoard = completedGood >= 2 || completedEvil >= 2
@@ -458,10 +458,10 @@ function buildEvilRoleUtilityProjectionInternal(
       proposalNum: req.proposalNum,
       failsRequired: objective.request.failsRequired,
       completedGoodQuests: view.quests.filter(
-        (quest) => quest.result === 'success',
+        (quest) => quest.status === 'complete' && quest.result === 'success',
       ).length,
       completedEvilQuests: view.quests.filter(
-        (quest) => quest.result === 'fail',
+        (quest) => quest.status === 'complete' && quest.result === 'fail',
       ).length,
     },
     assessments,

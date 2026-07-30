@@ -191,7 +191,7 @@ test('language publicContext and dossier render from the shared record on every 
   )).digest('hex')
   assert.equal(
     languageDigest,
-    '07c8a7a91d48efeb87b74263ba1947e0beaba9a3020d6dd27672c8edf08691ef',
+    '287c5bb81209417aa420b98fe999a5ce1f0d9c5b26fb52a0c6daaa704037cea4',
     'public language input bytes changed across the frozen architecture bank',
   )
 })

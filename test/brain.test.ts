@@ -201,11 +201,11 @@ test('Phase 2 prompt bytes remain frozen across every decision fixture', () => {
   // private-knowledge shape in the architecture bank.
   assert.equal(
     digest(),
-    'd5fd5c904327ba3811f037200f8c7f4c6c88f9933b804737489d874ea6345a9d',
+    '9344cb6fd193569a1c507215cc0e14f56bfafe966f2effa0265abd7910f64f21',
   )
   assert.equal(
     digest(BELIEF_RENDERER_VERSION),
-    '8e14b3a9c9bbb1684467ab02869a0c5020740c432209fb59f61605185a900a60',
+    '6b6e66c4149ac83dd0274f75909e02ccdae43f745023cd159ddb565bd2e800f6',
   )
 })
 

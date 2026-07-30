@@ -769,9 +769,9 @@ function inspectQuest(quest: PlayerView['quests'][number]): InspectedQuest {
     num: quest.num,
     teamSize: quest.teamSize,
     failsRequired: quest.failsRequired,
-    ...(quest.team === undefined ? {} : { team: quest.team.slice() }),
-    ...(quest.result === undefined ? {} : { result: quest.result }),
-    ...(quest.failCount === undefined ? {} : { failCount: quest.failCount }),
+    ...(quest.status === 'complete'
+      ? { team: quest.team.slice(), result: quest.result, failCount: quest.failCount }
+      : {}),
   }
 }
 
