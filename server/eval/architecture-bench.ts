@@ -946,12 +946,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                       && !trace.degradation.includes(
                         'role-objective-scorer-failed',
                       )
-                    : (
-                        trace.privateRoleUtility !== undefined
-                        && !trace.degradation.includes(
-                          'role-objective-scorer-failed',
-                        )
-                      )
+                    // A retired flat C2 payload can never be present.
+                    : false
                 )
               const evilPolicyApplicable =
                 evilRoleUtilityConfigured
@@ -972,12 +968,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                       && !trace.degradation.includes(
                         'evil-role-objective-scorer-failed',
                       )
-                    : (
-                        trace.privateEvilRoleUtility !== undefined
-                        && !trace.degradation.includes(
-                          'evil-role-objective-scorer-failed',
-                        )
-                      )
+                    // A retired flat D2 payload can never be present.
+                    : false
                 )
               const morganaPolicyApplied =
                 morganaRoleUtilityConfigured
@@ -1002,12 +994,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                       && !trace.degradation.includes(
                         'morgana-role-objective-scorer-failed',
                       )
-                    : (
-                        trace.privateMorganaRoleUtility !== undefined
-                        && !trace.degradation.includes(
-                          MORGANA_ROLE_UTILITY_DEGRADATION,
-                        )
-                      )
+                    // A retired flat E1B payload can never be present.
+                    : false
                 )
               const configuredSeeded =
                 expectedComponents.scorer
@@ -1071,19 +1059,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 trace.request.kind === 'propose'
                 || trace.request.kind === 'vote'
               )
-                ? (
-                    trace.privateMorganaRoleUtility === undefined
-                    || traceVersions.morganaRoleUtility
-                      !== MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-                    || trace.privateMorganaCounterfeitObjective === undefined
-                    || trace.privateEvilRoleUtility === undefined
-                    || trace.degradation.includes(
-                      MORGANA_ROLE_UTILITY_DEGRADATION,
-                    )
-                  )
+                // The retired flat E1B payload can never be present, so a
+                // historical trace can no longer evidence Morgana policy.
+                ? true
                 : (
-                    trace.privateMorganaRoleUtility !== undefined
-                    || traceVersions.morganaRoleUtility !== undefined
+                    traceVersions.morganaRoleUtility !== undefined
                     || trace.degradation.includes(
                       MORGANA_ROLE_UTILITY_DEGRADATION,
                     )
@@ -1140,62 +1120,15 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 trace.request.kind === 'propose'
                 || trace.request.kind === 'vote'
               )
+                // The retired flat C1 and C2 payloads can never be present, so
+                // an applicable historical decision must declare the C2
+                // degradation and no C2 version.
                 ? (
-                    trace.privateRoleUtility === undefined
-                      ? (
-                          !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
-                          || traceVersions.roleUtility !== undefined
-                          || (
-                            trace.privateRoleObjective !== undefined
-                            && trace.publicObserver !== undefined
-                            && (
-                              !snapshot
-                              || (() => {
-                              try {
-                                buildRoleUtilityProjection({
-                                  req: trace.request,
-                                  view: snapshot!.view,
-                                  objective: trace.privateRoleObjective!,
-                                  observer: trace.publicObserver!,
-                                  candidates: legalCandidates(
-                                    trace.request,
-                                    snapshot!.view,
-                                  ),
-                                })
-                                return true
-                              } catch {
-                                return false
-                              }
-                              })()
-                            )
-                          )
-                        )
-                      : (
-                          !snapshot
-                          || traceVersions.roleUtility
-                            !== ROLE_UTILITY_PROJECTION_VERSION
-                          || !trace.privateRoleObjective
-                          || !trace.privateIdentity
-                          || !trace.publicObserver
-                          || !validatePrivateRoleUtilityHostJoin(
-                            trace.privateRoleUtility,
-                            {
-                              req: snapshot.req,
-                              view: snapshot.view,
-                              objective: trace.privateRoleObjective,
-                              identity: trace.privateIdentity,
-                              observer: trace.publicObserver,
-                              candidates: legalCandidates(
-                                snapshot.req,
-                                snapshot.view,
-                              ),
-                            },
-                          )
-                        )
+                    !trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
+                    || traceVersions.roleUtility !== undefined
                   )
                 : (
-                    trace.privateRoleUtility !== undefined
-                    || traceVersions.roleUtility !== undefined
+                    traceVersions.roleUtility !== undefined
                     || trace.degradation.includes(ROLE_UTILITY_DEGRADATION)
                   )
             )
@@ -1208,142 +1141,45 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                 trace.request.kind === 'propose'
                 || trace.request.kind === 'vote'
               )
-                ? (
-                    (() => {
-                      const dependencyDegradation = [
-                        'identity-projection-failed',
-                        EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                // The retired flat D1 and D2 payloads can never be present.
+                // A coherent atomic weighted dependency failure is the only
+                // remaining shape a historical trace can evidence.
+                ? (() => {
+                    const dependencyDegradation = [
+                      'identity-projection-failed',
+                      EVIL_ROLE_OBJECTIVE_DEGRADATION,
+                      EVIL_ROLE_UTILITY_DEGRADATION,
+                    ]
+                    const expectedBaseScorer =
+                      expectedComponents.scorer
+                        === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
+                        ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+                        : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+                    if (
+                      trace.quality === 'weighted'
+                      && trace.privateIdentity === undefined
+                      && traceVersions.evilRoleUtility === undefined
+                      && traceVersions.scorer === expectedBaseScorer
+                      && traceVersions.configuredScorer
+                        === expectedComponents.scorer
+                      && trace.degradation.length
+                        === dependencyDegradation.length
+                      && dependencyDegradation.every((code) =>
+                        trace.degradation.includes(code))
+                    ) return false
+                    if (
+                      dependencyDegradation.some((code) =>
+                        trace.degradation.includes(code))
+                    ) return true
+                    return (
+                      !trace.degradation.includes(
                         EVIL_ROLE_UTILITY_DEGRADATION,
-                      ]
-                      const expectedBaseScorer =
-                        expectedComponents.scorer
-                          === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
-                          ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-                          : GOOD_PROPOSAL_VOTE_SCORER_VERSION
-                      const atomicWeightedDependencyFailure =
-                        trace.quality === 'weighted'
-                        && trace.privateIdentity === undefined
-                        && trace.privateEvilRoleObjective === undefined
-                        && trace.privateEvilRoleUtility === undefined
-                        && traceVersions.evilRoleUtility === undefined
-                        && traceVersions.scorer === expectedBaseScorer
-                        && traceVersions.configuredScorer
-                          === expectedComponents.scorer
-                        && trace.degradation.length
-                          === dependencyDegradation.length
-                        && dependencyDegradation.every((code) =>
-                          trace.degradation.includes(code))
-                      if (atomicWeightedDependencyFailure) return false
-                      if (
-                        dependencyDegradation.some((code) =>
-                          trace.degradation.includes(code))
-                      ) return true
-                      return trace.privateEvilRoleUtility === undefined
-                      ? (
-                          !trace.degradation.includes(
-                            EVIL_ROLE_UTILITY_DEGRADATION,
-                          )
-                          || traceVersions.evilRoleUtility !== undefined
-                          || (
-                            trace.privateEvilRoleObjective !== undefined
-                            && trace.privateIdentity !== undefined
-                            && trace.publicObserver !== undefined
-                            && snapshot
-                            && (() => {
-                              try {
-                                const alternativeObjective =
-                                  trace.request.kind === 'vote'
-                                    ? buildEvilRoleObjectiveSnapshot({
-                                        req: {
-                                          ...trace.request,
-                                          kind: 'propose',
-                                        },
-                                        view: snapshot.view,
-                                        identity: trace.privateIdentity!,
-                                        observer: trace.publicObserver!,
-                                        candidates:
-                                          hypotheticalProposalCandidates(
-                                            snapshot.view,
-                                          ),
-                                      })
-                                    : undefined
-                                buildEvilRoleUtilityProjection({
-                                  req: trace.request,
-                                  view: snapshot.view,
-                                  objective:
-                                    trace.privateEvilRoleObjective!,
-                                  candidates: legalCandidates(
-                                    trace.request,
-                                    snapshot.view,
-                                  ),
-                                  ...(alternativeObjective
-                                    ? { alternativeObjective }
-                                    : {}),
-                                })
-                                return true
-                              } catch {
-                                return false
-                              }
-                            })()
-                          )
-                        )
-                      : (
-                          !snapshot
-                          || traceVersions.evilRoleUtility
-                            !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
-                          || !trace.privateEvilRoleObjective
-                          || !trace.privateIdentity
-                          || !trace.publicObserver
-                          || (() => {
-                            const alternativeObjective =
-                              trace.request.kind === 'vote'
-                                ? buildEvilRoleObjectiveSnapshot({
-                                    req: {
-                                      ...trace.request,
-                                      kind: 'propose',
-                                    },
-                                    view: snapshot.view,
-                                    identity: trace.privateIdentity!,
-                                    observer: trace.publicObserver!,
-                                    candidates:
-                                      hypotheticalProposalCandidates(
-                                        snapshot.view,
-                                      ),
-                                  })
-                                : undefined
-                            return !validatePrivateEvilRoleUtilityHostJoin(
-                              trace.privateEvilRoleUtility!,
-                              {
-                                req: snapshot.req,
-                                view: snapshot.view,
-                                objective:
-                                  trace.privateEvilRoleObjective!,
-                                identity: trace.privateIdentity!,
-                                observer: trace.publicObserver!,
-                                candidates: legalCandidates(
-                                  snapshot.req,
-                                  snapshot.view,
-                                ),
-                                ...(alternativeObjective
-                                  ? { alternativeObjective }
-                                  : {}),
-                                ...(alternativeObjective
-                                  ? {
-                                      alternativeCandidates:
-                                        hypotheticalProposalCandidates(
-                                          snapshot.view,
-                                        ),
-                                    }
-                                  : {}),
-                              },
-                            )
-                          })()
-                        )
-                    })()
-                  )
+                      )
+                      || traceVersions.evilRoleUtility !== undefined
+                    )
+                  })()
                 : (
-                    trace.privateEvilRoleUtility !== undefined
-                    || traceVersions.evilRoleUtility !== undefined
+                    traceVersions.evilRoleUtility !== undefined
                     || trace.degradation.includes(
                       EVIL_ROLE_UTILITY_DEGRADATION,
                     )
@@ -1397,82 +1233,21 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               !currentComponentTrace
               &&
               roleObjectiveApplicable
+                // The retired flat C1 payload can never be present, so only the
+                // absent-objective path survives.
                 ? (
-                    trace.privateRoleObjective === undefined
-                      ? (
-                          !trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
-                          || (
-                            trace.privateIdentity === undefined
-                              ? !trace.degradation.includes(
-                                  'identity-projection-failed',
-                                )
-                              : (
-                                  !snapshot
-                                  || !trace.publicObserver
-                                  || (() => {
-                                    try {
-                                      buildRoleObjectiveSnapshot({
-                                        req: snapshot.req,
-                                        view: snapshot.view,
-                                        identity: trace.privateIdentity!,
-                                        observer: trace.publicObserver,
-                                        candidates: legalCandidates(
-                                          snapshot.req,
-                                          snapshot.view,
-                                        ),
-                                      })
-                                      return true
-                                    } catch {
-                                      return false
-                                    }
-                                  })()
-                                )
+                    !trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+                    || (
+                      trace.privateIdentity === undefined
+                        ? !trace.degradation.includes(
+                            'identity-projection-failed',
                           )
-                        )
-                      : (
-                          !snapshot
-                          || !trace.privateIdentity
-                          || !trace.publicObserver
-                          || trace.degradation.includes(
-                            ROLE_OBJECTIVE_DEGRADATION,
-                          )
-                          || !validatePrivateRoleObjectiveHostJoin(
-                            trace.privateRoleObjective,
-                            {
-                              req: snapshot.req,
-                              view: snapshot.view,
-                              identity: trace.privateIdentity,
-                              observer: trace.publicObserver,
-                              candidates: legalCandidates(
-                                snapshot.req,
-                                snapshot.view,
-                              ),
-                            },
-                          )
-                        )
-                  )
-                : (
-                    trace.privateRoleObjective !== undefined
-                    || trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
-                  )
-            )
-            || (
-              !currentComponentTrace
-              &&
-              evilRoleObjectiveApplicable
-                ? (
-                    trace.privateEvilRoleObjective === undefined
-                      ? (
-                          !trace.degradation.includes(
-                            EVIL_ROLE_OBJECTIVE_DEGRADATION,
-                          )
-                          || (
-                            snapshot
-                            && trace.publicObserver
-                            && trace.privateIdentity
-                            && (() => {
+                        : (
+                            !snapshot
+                            || !trace.publicObserver
+                            || (() => {
                               try {
-                                buildEvilRoleObjectiveSnapshot({
+                                buildRoleObjectiveSnapshot({
                                   req: snapshot.req,
                                   view: snapshot.view,
                                   identity: trace.privateIdentity!,
@@ -1488,34 +1263,45 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                               }
                             })()
                           )
-                        )
-                      : (
-                          !snapshot
-                          || !trace.publicObserver
-                          || !trace.privateIdentity
-                          || trace.degradation.includes(
-                            EVIL_ROLE_OBJECTIVE_DEGRADATION,
-                          )
-                          || !validatePrivateEvilRoleObjectiveHostJoin(
-                            trace.privateEvilRoleObjective,
-                            {
-                              req: snapshot.req,
-                              view: snapshot.view,
-                              identity: trace.privateIdentity,
-                              observer: trace.publicObserver,
-                              candidates: legalCandidates(
-                                snapshot.req,
-                                snapshot.view,
-                              ),
-                            },
-                          )
-                        )
+                    )
                   )
-                : (
-                    trace.privateEvilRoleObjective !== undefined
-                    || trace.degradation.includes(
+                : trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
+            )
+            || (
+              !currentComponentTrace
+              &&
+              evilRoleObjectiveApplicable
+                // The retired flat D1 payload can never be present, so only the
+                // absent-objective path survives.
+                ? (
+                    !trace.degradation.includes(
                       EVIL_ROLE_OBJECTIVE_DEGRADATION,
                     )
+                    || (
+                      snapshot
+                      && trace.publicObserver
+                      && trace.privateIdentity
+                      && (() => {
+                        try {
+                          buildEvilRoleObjectiveSnapshot({
+                            req: snapshot.req,
+                            view: snapshot.view,
+                            identity: trace.privateIdentity!,
+                            observer: trace.publicObserver,
+                            candidates: legalCandidates(
+                              snapshot.req,
+                              snapshot.view,
+                            ),
+                          })
+                          return true
+                        } catch {
+                          return false
+                        }
+                      })()
+                    )
+                  )
+                : trace.degradation.includes(
+                    EVIL_ROLE_OBJECTIVE_DEGRADATION,
                   )
             )
             || tracedComponents.some(
