@@ -224,7 +224,7 @@ function merlinAssessments(
       distribution[evil] += hypothesis.probability
     }
     const distributionTotal = distribution.reduce(
-      (sum, probability) => sum + probability,
+      (sum, mass) => sum + mass,
       0,
     )
     for (let index = 0; index < distribution.length; index++) {

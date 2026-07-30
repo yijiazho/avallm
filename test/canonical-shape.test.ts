@@ -250,3 +250,30 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
   // would pass while checking exactly zero files.
   assert.ok(consumers.length >= 10, `only found ${consumers.length} consumers`)
 })
+
+// Re-declaration is the loud way to lose a shared guard. Shadowing is the
+// quiet one: `.reduce((sum, probability) => ...)` in a file that imports
+// `probability` rebinds the name for that whole callback, so a guard call
+// added inside it later silently invokes a number. Six such parameters
+// existed when the guards were consolidated, none of them yet a bug.
+//
+// This catches arrow parameter lists only, which is where the pattern
+// actually occurred. A shadowing parameter in a named function declaration
+// reads identically to an interface field once the signature wraps, and
+// distinguishing them needs a parser rather than a regex.
+test('no consumer shadows an imported guard in an arrow parameter list', () => {
+  const offenders: string[] = []
+  for (const file of serverSources('server')) {
+    if (file === GUARD_SOURCE) continue
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    if (!source.includes('canonical-shape.ts')) continue
+    const body = source.slice(source.lastIndexOf("canonical-shape.ts'"))
+    for (const guard of importedGuards(file, source)) {
+      const shadow = new RegExp(
+        `\\(\\s*[^()]*\\b${guard}\\b[^()]*\\)\\s*=>`,
+      )
+      if (shadow.test(body)) offenders.push(`${file}: ${guard}`)
+    }
+  }
+  assert.deepEqual(offenders, [])
+})

@@ -102,7 +102,10 @@ function exactProjection(record: PublicRecord) {
         evilProbability: player.evilProbability,
         roleMarginals: joint.roleMarginals
           .filter((marginal) => marginal.seat === seat)
-          .map(({ role, probability }) => ({ role, probability })),
+          .map((marginal) => ({
+            role: marginal.role,
+            probability: marginal.probability,
+          })),
       }
     }),
     evilMaskCounts: [...evilMaskCounts.entries()]

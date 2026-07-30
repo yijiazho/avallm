@@ -46,13 +46,13 @@ interface CompensatedProbability {
 
 function addProbability(
   accumulator: CompensatedProbability,
-  probability: number,
+  addend: number,
 ): void {
-  const next = accumulator.sum + probability
+  const next = accumulator.sum + addend
   accumulator.compensation +=
-    Math.abs(accumulator.sum) >= Math.abs(probability)
-      ? (accumulator.sum - next) + probability
-      : (probability - next) + accumulator.sum
+    Math.abs(accumulator.sum) >= Math.abs(addend)
+      ? (accumulator.sum - next) + addend
+      : (addend - next) + accumulator.sum
   accumulator.sum = next
 }
 
@@ -569,8 +569,8 @@ function reconcilesRoleAndTeamPosteriors(
       if (
         existing
         && existing.some(
-          (probability, seat) =>
-            Math.abs(probability - marginal[seat]) > PROBABILITY_TOLERANCE,
+          (recorded, seat) =>
+            Math.abs(recorded - marginal[seat]) > PROBABILITY_TOLERANCE,
         )
       ) return false
       marginalsByRole.set(role, marginal)

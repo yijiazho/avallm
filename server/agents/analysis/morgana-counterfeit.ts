@@ -260,7 +260,7 @@ function failureCapability(
   return clamp01(
     distribution
       .slice(failsRequired)
-      .reduce((sum, probability) => sum + probability, 0),
+      .reduce((sum, mass) => sum + mass, 0),
   )
 }
 

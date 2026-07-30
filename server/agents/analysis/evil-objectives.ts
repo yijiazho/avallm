@@ -194,7 +194,7 @@ function failureProbability(
 ): number {
   return Math.max(0, Math.min(1, distribution
     .slice(failsRequired)
-    .reduce((sum, probability) => sum + probability, 0)))
+    .reduce((sum, mass) => sum + mass, 0)))
 }
 
 function oberonUnseenPosterior(
@@ -236,7 +236,7 @@ function oberonUnseenPosterior(
     countDistribution[hypothesis.evilSeats.length] += hypothesis.probability
   }
   const countTotal = countDistribution.reduce(
-    (sum, probability) => sum + probability,
+    (sum, mass) => sum + mass,
     0,
   )
   for (let count = 0; count < countDistribution.length; count++) {
