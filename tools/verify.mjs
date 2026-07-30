@@ -4,6 +4,11 @@ import { pathToFileURL } from 'node:url'
 
 const TYPESCRIPT_BIN = 'node_modules/typescript/bin/tsc'
 
+// The client's React types live under client/, which is a separate install from
+// the root dev tooling. The gate names that dependency so a missing install
+// reports what to run instead of failing inside tsc with unresolved-module noise.
+const CLIENT_TYPES = 'client/node_modules/@types/react/package.json'
+
 const COMMON_GATES = Object.freeze([
   Object.freeze({
     label: 'strict server typecheck',
@@ -12,6 +17,19 @@ const COMMON_GATES = Object.freeze([
       '-p',
       'tsconfig.server.json',
     ]),
+  }),
+  // vite build does not typecheck, so without this gate the client is the one
+  // part of the tree that ships with no type coverage at all.
+  Object.freeze({
+    label: 'strict client typecheck',
+    args: Object.freeze([
+      TYPESCRIPT_BIN,
+      '-p',
+      'client/tsconfig.json',
+    ]),
+    requires: CLIENT_TYPES,
+    missing: 'Client type dependencies are missing; '
+      + 'run npm --prefix client install.',
   }),
   Object.freeze({
     label: 'strict test ratchet',
@@ -73,6 +91,18 @@ export function runVerification(
   if (!isAvailable(TYPESCRIPT_BIN)) {
     reportError('TypeScript dev tooling is missing; run npm ci.')
     return 1
+  }
+  // Every declared dependency is checked before anything spawns, so a missing
+  // install reports once up front rather than after some gates have already run.
+  for (const step of plan) {
+    if (step.requires && !isAvailable(step.requires)) {
+      // A gate that declares a dependency but forgets its message would
+      // otherwise exit reporting the literal string "undefined", in the one
+      // path whose whole job is naming the install command.
+      reportError(step.missing
+        ?? `${step.label} requires ${step.requires}, which is missing.`)
+      return 1
+    }
   }
   for (const step of plan) {
     console.log(`[verify:${requested}] ${step.label}`)

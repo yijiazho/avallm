@@ -10,8 +10,9 @@ AvaLLM — a web implementation of The Resistance: Avalon where the other player
 
 ```
 npm ci                                     # root dev tooling only; production server remains zero-dependency
+npm --prefix client install                # REQUIRED before npm test: the client typecheck gate needs these
 npm test                                   # strict checks and all API-free tests
-npm run typecheck                          # strict no-emit check of all server TypeScript
+npm run typecheck                          # strict no-emit check of all server AND client TypeScript
 npm run verify:quick                       # types, lane inventory, and fast tests
 npm run verify:contract                    # quick gates plus architecture contracts
 npm run verify:full                        # types, inventory, and complete API-free suite
@@ -30,7 +31,7 @@ npm run sim -- --tier mid --games 8 --concurrency 4 --talk 2,1 --transcripts run
                                            # benchmark a cost tier: random cast per game, readable after
 npm run play                               # terminal play vs heuristic bots
 
-npm --prefix client install                # client deps (one-time)
+npm --prefix client install                # client deps (one-time; also gates npm test, see above)
 npm --prefix client run build              # build client into client/dist
 npm --prefix client run dev                # vite build --watch (NOT a dev server — see below)
 

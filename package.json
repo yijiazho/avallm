@@ -15,7 +15,7 @@
     "test:exhaustive": "node tools/test-lanes.mjs exhaustive",
     "test:perf": "node tools/test-lanes.mjs perf",
     "test:lanes": "node tools/test-lanes.mjs --check",
-    "typecheck": "tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs",
+    "typecheck": "tsc -p tsconfig.server.json && tsc -p client/tsconfig.json && node tools/strict-test-ratchet.mjs",
     "verify:quick": "node tools/verify.mjs quick",
     "verify:contract": "node tools/verify.mjs contract",
     "verify:full": "node tools/verify.mjs full",

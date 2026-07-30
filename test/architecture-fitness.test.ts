@@ -188,7 +188,8 @@ test('the strict test ratchet is the only test typecheck inventory', () => {
   const packageJson = JSON.parse(readFileSync('package.json', 'utf8'))
   assert.equal(
     packageJson.scripts.typecheck,
-    'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs',
+    'tsc -p tsconfig.server.json && tsc -p client/tsconfig.json'
+      + ' && node tools/strict-test-ratchet.mjs',
   )
   assert.doesNotMatch(
     readFileSync('tools/architecture-fitness.mjs', 'utf8'),
@@ -205,7 +206,8 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
       JSON.stringify({
         scripts: {
           typecheck:
-            'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs',
+            'tsc -p tsconfig.server.json && tsc -p client/tsconfig.json'
+              + ' && node tools/strict-test-ratchet.mjs',
         },
       }),
     )

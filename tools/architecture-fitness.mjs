@@ -1109,9 +1109,15 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
 
   try {
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'))
+    // Pinned exactly, so any drift in the default gate is a fitness failure
+    // rather than a silent weakening. The client typecheck sits between the two
+    // because vite build does not typecheck: without it the client is the one
+    // part of the tree with no type coverage. The ratchet stays last and stays
+    // the single strict-test authority, which is what this rule guards.
     if (
       packageJson.scripts?.typecheck
-      !== 'tsc -p tsconfig.server.json && node tools/strict-test-ratchet.mjs'
+      !== 'tsc -p tsconfig.server.json && tsc -p client/tsconfig.json'
+        + ' && node tools/strict-test-ratchet.mjs'
     ) {
       violations.push(violation(
         'ARCH006',

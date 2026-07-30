@@ -30,6 +30,11 @@ const TYPECHECK = [
   '-p',
   'tsconfig.server.json',
 ]
+const CLIENT_TYPECHECK = [
+  'node_modules/typescript/bin/tsc',
+  '-p',
+  'client/tsconfig.json',
+]
 const TEST_RATCHET = ['tools/strict-test-ratchet.mjs']
 const ARCHITECTURE = ['tools/architecture-fitness.mjs']
 const INVENTORY = ['tools/test-lanes.mjs', '--check']
@@ -59,6 +64,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('quick').map((step) => step.args),
     [
       TYPECHECK,
+      CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
@@ -69,6 +75,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('contract').map((step) => step.args),
     [
       TYPECHECK,
+      CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
@@ -80,6 +87,7 @@ test('verification levels compose the intended cumulative checks', () => {
     verificationPlan('full').map((step) => step.args),
     [
       TYPECHECK,
+      CLIENT_TYPECHECK,
       TEST_RATCHET,
       ARCHITECTURE,
       INVENTORY,
@@ -92,23 +100,30 @@ test('verification fails closed before tests when lane inventory fails', () => {
   const calls: string[][] = []
   const status = runVerification('full', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 4 ? 17 : 0 }
+    return { status: calls.length === 5 ? 17 : 0 }
   }, () => true)
 
   assert.equal(status, 17)
-  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET, ARCHITECTURE, INVENTORY])
+  assert.deepEqual(calls, [
+    TYPECHECK,
+    CLIENT_TYPECHECK,
+    TEST_RATCHET,
+    ARCHITECTURE,
+    INVENTORY,
+  ])
 })
 
 test('verification stops at the first failing test lane', () => {
   const calls: string[][] = []
   const status = runVerification('contract', (_command, args) => {
     calls.push(args)
-    return { status: calls.length === 5 ? 23 : 0 }
+    return { status: calls.length === 6 ? 23 : 0 }
   }, () => true)
 
   assert.equal(status, 23)
   assert.deepEqual(calls, [
     TYPECHECK,
+    CLIENT_TYPECHECK,
     TEST_RATCHET,
     ARCHITECTURE,
     INVENTORY,
@@ -155,13 +170,18 @@ test('verification stops before test inventory when architecture fails', () => {
     'quick',
     (_command, args) => {
       calls.push(args)
-      return { status: calls.length === 3 ? 19 : 0 }
+      return { status: calls.length === 4 ? 19 : 0 }
     },
     () => true,
   )
 
   assert.equal(status, 19)
-  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET, ARCHITECTURE])
+  assert.deepEqual(calls, [
+    TYPECHECK,
+    CLIENT_TYPECHECK,
+    TEST_RATCHET,
+    ARCHITECTURE,
+  ])
 })
 
 test('verification stops before architecture when the strict test ratchet fails', () => {
@@ -170,11 +190,36 @@ test('verification stops before architecture when the strict test ratchet fails'
     'quick',
     (_command, args) => {
       calls.push(args)
-      return { status: calls.length === 2 ? 29 : 0 }
+      return { status: calls.length === 3 ? 29 : 0 }
     },
     () => true,
   )
 
   assert.equal(status, 29)
-  assert.deepEqual(calls, [TYPECHECK, TEST_RATCHET])
+  assert.deepEqual(calls, [TYPECHECK, CLIENT_TYPECHECK, TEST_RATCHET])
+})
+
+test('verification explains missing client type deps without spawning', () => {
+  const calls: string[][] = []
+  const errors: string[] = []
+  const status = runVerification(
+    'quick',
+    (_command, args) => {
+      calls.push(args)
+      return { status: 0 }
+    },
+    (path) => path !== 'client/node_modules/@types/react/package.json',
+    (message) => errors.push(message),
+  )
+
+  // The client typecheck is the one gate whose dependency lives outside the
+  // root install, so a checkout that ran npm ci but not the client install has
+  // to be told which command to run rather than dropped into tsc's
+  // unresolved-module output. Nothing spawns: the gate is refused up front,
+  // including the server typecheck that would otherwise have passed.
+  assert.equal(status, 1)
+  assert.deepEqual(calls, [])
+  assert.deepEqual(errors, [
+    'Client type dependencies are missing; run npm --prefix client install.',
+  ])
 })
