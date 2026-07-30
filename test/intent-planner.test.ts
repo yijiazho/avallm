@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   createComposedAgent,
   type PlannerInput,
+  type PlannerOutput,
 } from '../server/agents/composed.ts'
 import {
   createBoundedPlannerVoice,
@@ -220,6 +221,41 @@ test('absent, malformed, and failed adapters degrade to the structured committed
   assert.deepEqual(failure.decision.team, structured.decision.team)
   assert.ok(failure.trace!.degradation.includes('planner-failed'))
   assert.ok(failure.trace!.degradation.includes('voice-failed'))
+})
+
+test('a planner output that cannot be detached degrades instead of throwing', async () => {
+  // resolvePlannerChoice() detaches the planner's reply with structuredClone
+  // before validating it, so an unclonable reply throws from inside the phase
+  // rather than from choose(). The catch has to span the detach for the same
+  // reason it spans choose(): planning is optional strategy, and the frame can
+  // already commit the structured choice. Without that span the DataCloneError
+  // escapes decide() entirely, the runner falls back to its heuristic, and the
+  // trace loses both the committed structured action and the typed degradation.
+  const source = fixture('merlin-opening-proposal')
+  const structured = await createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+  }).decide(source.req, source.view)
+
+  const unclonable = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    planner: {
+      version: 'unclonable-planner-v1',
+      async choose(input) {
+        return {
+          candidateId: input.structuredCandidateId,
+          // A function value is unclonable, so the detach fails before any
+          // key or reason validation can reject the shape.
+          notCloneable: () => undefined,
+        } as unknown as PlannerOutput
+      },
+    },
+  })
+  const output = await unclonable.decide(source.req, source.view)
+  assert.deepEqual(output.decision, structured.decision)
+  assert.ok(output.trace!.degradation.includes('planner-failed'))
+  assert.equal(output.trace!.plannerCandidateId, undefined)
 })
 
 test('planner overrides require a viable candidate and a reason owned by that candidate', async () => {
