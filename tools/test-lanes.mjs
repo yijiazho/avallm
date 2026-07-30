@@ -111,6 +111,7 @@ const LANES = Object.freeze({
     'eval.test.ts',
     'good-policy-bench.test.ts',
     'good-policy-diagnosis.test.ts',
+    'proposal-value-diagnosis.test.ts',
     'quest-factor.test.ts',
     'replay-timeline.test.ts',
     'replay.test.ts',
