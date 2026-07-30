@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from 'node:util'
 import type {
   DecisionRequest,
   PlayerView,
@@ -11,10 +10,9 @@ import { JOINT_IDENTITY_MODEL_VERSION } from '../belief/identity.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './observer-types.ts'
 import { validatePrivateEvilRoleObjectiveSnapshot } from './evil-objectives.ts'
 import {
-  canonicalizeJson,
-  type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../components/canonical-json.ts'
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   type EvilCandidateObjective,
@@ -486,16 +484,8 @@ function exactKeys(value: object, keys: readonly string[]): boolean {
     && actual.every((key, index) => key === expected[index])
 }
 
-function validatePrivateEvilRoleUtilityProjectionShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateEvilRoleUtilityProjection {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    const detached = canonical.payload
+function evilRoleUtilitySchema(detached: unknown): boolean {
+  {
     if (
       !detached
       || typeof detached !== 'object'
@@ -895,42 +885,23 @@ function validatePrivateEvilRoleUtilityProjectionShape(
       }
     }
     return true
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateEvilRoleUtilityProjection(
-  value: unknown,
-): value is PrivateEvilRoleUtilityProjection {
-  return validatePrivateEvilRoleUtilityProjectionShape(value, true)
-}
+const evilRoleUtilityCodec =
+  projectionCodec<PrivateEvilRoleUtilityProjection>(evilRoleUtilitySchema)
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateEvilRoleUtilityProjection(
-  value: CanonicalJsonValue,
-): PrivateEvilRoleUtilityProjection | undefined {
-  return validatePrivateEvilRoleUtilityProjectionShape(value, false)
-    ? value as PrivateEvilRoleUtilityProjection
-    : undefined
-}
+export const validatePrivateEvilRoleUtilityProjection =
+  evilRoleUtilityCodec.validate
+export const decodeCanonicalPrivateEvilRoleUtilityProjection =
+  evilRoleUtilityCodec.decode
 
-export function validateAdmittedPrivateEvilRoleUtilityHostJoin(
-  value: PrivateEvilRoleUtilityProjection,
-  input: {
+export const validateAdmittedPrivateEvilRoleUtilityHostJoin = exactHostJoin(
+  (input: {
     req: DecisionRequest
     view: PlayerView
     objective: PrivateEvilRoleObjectiveSnapshot
     candidates: readonly PolicyCandidate[]
     alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
-  },
-): boolean {
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildEvilRoleUtilityProjectionInternal(input, true),
-    )
-  } catch {
-    return false
-  }
-}
+  }) => buildEvilRoleUtilityProjectionInternal(input, true),
+)

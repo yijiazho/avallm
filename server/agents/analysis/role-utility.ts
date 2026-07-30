@@ -28,10 +28,9 @@ import {
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
-  canonicalizeJson,
-  type CanonicalJsonValue,
-  DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../components/canonical-json.ts'
+  exactHostJoin,
+  projectionCodec,
+} from './projection-codec.ts'
 
 export const ROLE_UTILITY_PROJECTION_VERSION =
   'merlin-percival-role-utility-v1'
@@ -346,16 +345,8 @@ export function buildAdmittedRoleUtilityProjection(
   return buildRoleUtilityProjectionInternal(input, true)
 }
 
-function validatePrivateRoleUtilityProjectionShape(
-  value: unknown,
-  hostileBoundary: boolean,
-): value is PrivateRoleUtilityProjection {
-  try {
-    const canonical = hostileBoundary
-      ? canonicalizeJson(value, DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
-      : { ok: true as const, payload: value }
-    if (!canonical.ok) return false
-    const detached = canonical.payload
+function roleUtilitySchema(detached: unknown): boolean {
+  {
     if (
       !plainRecord(detached)
       || !exactKeys(detached, [
@@ -565,42 +556,15 @@ function validatePrivateRoleUtilityProjectionShape(
       }
     }
     return true
-  } catch {
-    return false
   }
 }
 
-export function validatePrivateRoleUtilityProjection(
-  value: unknown,
-): value is PrivateRoleUtilityProjection {
-  return validatePrivateRoleUtilityProjectionShape(value, true)
-}
+const roleUtilityCodec =
+  projectionCodec<PrivateRoleUtilityProjection>(roleUtilitySchema)
 
-/** Decode after the component kernel's one canonical JSON boundary. */
-export function decodeCanonicalPrivateRoleUtilityProjection(
-  value: CanonicalJsonValue,
-): PrivateRoleUtilityProjection | undefined {
-  return validatePrivateRoleUtilityProjectionShape(value, false)
-    ? value as PrivateRoleUtilityProjection
-    : undefined
-}
+export const validatePrivateRoleUtilityProjection = roleUtilityCodec.validate
+export const decodeCanonicalPrivateRoleUtilityProjection =
+  roleUtilityCodec.decode
 
-export function validateAdmittedPrivateRoleUtilityHostJoin(
-  value: PrivateRoleUtilityProjection,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    objective: PrivateRoleObjectiveSnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-  },
-): boolean {
-  try {
-    return isDeepStrictEqual(
-      value,
-      buildAdmittedRoleUtilityProjection(input),
-    )
-  } catch {
-    return false
-  }
-}
+export const validateAdmittedPrivateRoleUtilityHostJoin =
+  exactHostJoin(buildAdmittedRoleUtilityProjection)
