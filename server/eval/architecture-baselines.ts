@@ -76,15 +76,20 @@ export async function buildHeuristicBaseline() {
         }),
       }
     }),
-    comparisons: current.comparisons.map((comparison) => {
-      const {
-        targetWinRateDelta: _targetWinRateDelta,
-        cleanInitialProposalRateDelta: _cleanInitialProposalRateDelta,
-        voteTruthAccuracyDelta: _voteTruthAccuracyDelta,
-        ...historical
-      } = comparison
-      return historical
-    }),
+    // Named positively, not by omitting today's derived fields: the frozen
+    // record must not gain a field because a current report grew one. NB-013
+    // added two directional vote-error deltas and this projection absorbed
+    // them without touching the committed baseline.
+    comparisons: current.comparisons.map((comparison) => ({
+      baseline: comparison.baseline,
+      candidate: comparison.candidate,
+      matchedCases: comparison.matchedCases,
+      wins: comparison.wins,
+      forcedViolations: comparison.forcedViolations,
+      degraded: comparison.degraded,
+      cost: comparison.cost,
+      promotionEvidenceEligible: comparison.promotionEvidenceEligible,
+    })),
   }
 }
 

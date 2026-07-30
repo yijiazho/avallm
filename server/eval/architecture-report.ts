@@ -24,6 +24,17 @@ import {
 import {
   computeMetrics,
 } from './metrics.ts'
+import {
+  addVoteConfusion,
+  countVoteByDirection,
+  emptyVoteConfusion,
+  teamIsDirty,
+  voteRateCount,
+} from './vote-direction.ts'
+import type {
+  VoteConfusionCounts,
+  VoteConfusionRate,
+} from './vote-direction.ts'
 import type {
   ArchitectureRunMetadata,
   GameArtifact,
@@ -142,7 +153,7 @@ import {
   type DecisionComponentPlan,
 } from '../agents/components/kernel.ts'
 
-export const ARCHITECTURE_REPORT_SCHEMA = 2
+export const ARCHITECTURE_REPORT_SCHEMA = 3
 
 export interface RateEstimate {
   successes: number
@@ -166,7 +177,17 @@ export interface LatencySummary {
 export interface ArchitectureDecisionQuality {
   targetWinRate: RateEstimate
   cleanInitialProposalRate: RateEstimate
+  /**
+   * Symmetric agreement with the deal. NB-013: it weights a wrongly rejected
+   * clean team the same as a wrongly approved dirty team, and it rose while the
+   * win rate fell, so it is reported for continuity and cannot gate a
+   * promotion. Gate on `voteDirtyTeamApproveRate` falling instead.
+   */
   voteTruthAccuracy: RateEstimate
+  /** The costly vote error, over the dirty teams this seat was offered. */
+  voteDirtyTeamApproveRate: RateEstimate
+  /** The cheap vote error, over the clean teams this seat was offered. */
+  voteCleanTeamRejectRate: RateEstimate
   plannerOverrideRate: RateEstimate
   seededVoteVariationRate: RateEstimate
   voteApproveRate: RateEstimate
@@ -272,7 +293,11 @@ export interface ArchitectureComparison {
   promotionEvidenceEligible: boolean
   targetWinRateDelta: RateDeltaEstimate
   cleanInitialProposalRateDelta: RateDeltaEstimate
+  /** Symmetric, and therefore not a promotion gate. See NB-013. */
   voteTruthAccuracyDelta: RateDeltaEstimate
+  /** The gated direction: a promotion requires this to fall. */
+  voteDirtyTeamApproveRateDelta: RateDeltaEstimate
+  voteCleanTeamRejectRateDelta: RateDeltaEstimate
 }
 
 export interface ArchitectureBenchmarkReport {
@@ -307,13 +332,12 @@ interface GameObservation {
   callCount: number
   cleanInitialProposals: number
   initialProposals: number
-  correctVotes: number
-  votes: number
+  /** Owns every vote count; see vote-direction.ts for the single definition. */
+  voteConfusion: VoteConfusionCounts
   plannerOverrides: number
   plannerSelections: number
   seededVoteVariations: number
   scoredVotes: number
-  approveVotes: number
   proposalCleanProbabilities: number[]
   proposalPosteriorRegrets: number[]
   voteUtilityRegrets: number[]
@@ -1742,9 +1766,7 @@ function observe(a: GameArtifact): GameObservation {
   const decisions = new Map<string, number>()
   let cleanInitialProposals = 0
   let initialProposals = 0
-  let correctVotes = 0
-  let votes = 0
-  let approveVotes = 0
+  const voteConfusion = emptyVoteConfusion()
   for (const ev of a.log) {
     const p = ev.payload
     const seat = ev.type === 'proposal' || ev.type === 'proposalLocked' || ev.type === 'proposalRevised'
@@ -1769,14 +1791,11 @@ function observe(a: GameArtifact): GameObservation {
         p.votes as Array<{ seat: number; vote: string }>
       ).find((vote) => vote.seat === meta.targetSeat)
       if (targetVote) {
-        const teamHasEvil = (p.team as number[]).some(
-          (teamSeat) => a.players[teamSeat].alignment === 'evil',
+        countVoteByDirection(
+          voteConfusion,
+          targetVote.vote,
+          teamIsDirty(a.players, p.team as number[], a.id),
         )
-        votes++
-        if (targetVote.vote === 'approve') approveVotes++
-        if ((targetVote.vote === 'reject') === teamHasEvil) {
-          correctVotes++
-        }
       }
     }
   }
@@ -1893,13 +1912,11 @@ function observe(a: GameArtifact): GameObservation {
     callCount,
     cleanInitialProposals,
     initialProposals,
-    correctVotes,
-    votes,
+    voteConfusion,
     plannerOverrides,
     plannerSelections,
     seededVoteVariations,
     scoredVotes,
-    approveVotes,
     proposalCleanProbabilities,
     proposalPosteriorRegrets,
     voteUtilityRegrets,
@@ -2048,6 +2065,14 @@ function decisionQuality(
 ): ArchitectureDecisionQuality {
   const sum = (select: (game: GameObservation) => number) =>
     games.reduce((total, game) => total + select(game), 0)
+  const votes = games.reduce(
+    (counts, game) => addVoteConfusion(counts, game.voteConfusion),
+    emptyVoteConfusion(),
+  )
+  const voteRate = (of: VoteConfusionRate): RateEstimate => {
+    const { successes, trials } = voteRateCount(votes, of)
+    return rate(successes, trials)
+  }
   return {
     targetWinRate: rate(
       games.filter((game) => game.won).length,
@@ -2057,10 +2082,9 @@ function decisionQuality(
       sum((game) => game.cleanInitialProposals),
       sum((game) => game.initialProposals),
     ),
-    voteTruthAccuracy: rate(
-      sum((game) => game.correctVotes),
-      sum((game) => game.votes),
-    ),
+    voteTruthAccuracy: voteRate('truth'),
+    voteDirtyTeamApproveRate: voteRate('dirty-team-approve'),
+    voteCleanTeamRejectRate: voteRate('clean-team-reject'),
     plannerOverrideRate: rate(
       sum((game) => game.plannerOverrides),
       sum((game) => game.plannerSelections),
@@ -2069,10 +2093,7 @@ function decisionQuality(
       sum((game) => game.seededVoteVariations),
       sum((game) => game.scoredVotes),
     ),
-    voteApproveRate: rate(
-      sum((game) => game.approveVotes),
-      sum((game) => game.votes),
-    ),
+    voteApproveRate: voteRate('approve'),
     meanProposalCleanProbability: mean(
       games.flatMap((game) => game.proposalCleanProbabilities),
     ),
@@ -2450,11 +2471,18 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
         ),
         voteTruthAccuracyDelta: pairedBootstrapRateDelta(
           pairs,
-          (game) => ({
-            successes: game.correctVotes,
-            trials: game.votes,
-          }),
+          (game) => voteRateCount(game.voteConfusion, 'truth'),
           `${games[0].meta.bank}:${baseline}:${candidate}:votes`,
+        ),
+        voteDirtyTeamApproveRateDelta: pairedBootstrapRateDelta(
+          pairs,
+          (game) => voteRateCount(game.voteConfusion, 'dirty-team-approve'),
+          `${games[0].meta.bank}:${baseline}:${candidate}:dirty-team-approve`,
+        ),
+        voteCleanTeamRejectRateDelta: pairedBootstrapRateDelta(
+          pairs,
+          (game) => voteRateCount(game.voteConfusion, 'clean-team-reject'),
+          `${games[0].meta.bank}:${baseline}:${candidate}:clean-team-reject`,
         ),
       })
     }
@@ -2530,6 +2558,15 @@ export function renderArchitectureReport(report: ArchitectureBenchmarkReport): s
       )}`,
     )
     lines.push(
+      // NB-013: the symmetric accuracy above averages these two, and their game
+      // value is not equal. A promotion gate reads dirty-approve, not vote-truth.
+      `  vote-errors dirty-approve ${renderRate(
+        variant.decisionQuality.voteDirtyTeamApproveRate,
+      )}; clean-reject ${renderRate(
+        variant.decisionQuality.voteCleanTeamRejectRate,
+      )}`,
+    )
+    lines.push(
       `  variation planner-override ${renderRate(
         variant.decisionQuality.plannerOverrideRate,
       )}; seeded-vote ${renderRate(
@@ -2595,6 +2632,13 @@ export function renderArchitectureReport(report: ArchitectureBenchmarkReport): s
         comparison.cleanInitialProposalRateDelta,
       )}; vote-truth ${renderDelta(
         comparison.voteTruthAccuracyDelta,
+      )}`,
+    )
+    lines.push(
+      `  vote-error deltas dirty-approve ${renderDelta(
+        comparison.voteDirtyTeamApproveRateDelta,
+      )}; clean-reject ${renderDelta(
+        comparison.voteCleanTeamRejectRateDelta,
       )}`,
     )
   }

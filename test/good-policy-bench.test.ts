@@ -79,7 +79,7 @@ test('Phase 4 policy comparison reports confidence, latency, safety, and variati
 
   const report = architectureReport(artifacts)
   assert.deepEqual(architectureReport(artifacts), report)
-  assert.equal(report.schema, 2)
+  assert.equal(report.schema, 3)
   assert.deepEqual(
     report.variants.map((variant) => variant.id),
     ['compatibility', 'structured-only', 'hybrid'],

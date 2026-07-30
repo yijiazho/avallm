@@ -1,13 +1,14 @@
 // NB-010 diagnosis: why the structured good policy loses to the heuristic
 // population while its vote-truth accuracy rises.
 //
-// `voteTruthAccuracy` in architecture-report.ts scores a vote correct when
-// `(vote === 'reject') === teamHasEvil`, so a wrongly rejected clean team and a
-// wrongly approved dirty team count the same. Their game value is not the same:
-// rejecting a clean team costs one proposal, while approving a dirty team can
-// cost a quest and the game. This reader separates the two directions and pairs
-// them with the outcome channel that actually ended each game, which is what
-// makes the adverse win rate legible.
+// A wrongly rejected clean team and a wrongly approved dirty team are not worth
+// the same: rejecting a clean team costs one proposal, while approving a dirty
+// team can cost a quest and the game. This reader was the first to separate the
+// two directions, and it pairs them with the outcome channel that actually
+// ended each game, which is what makes the adverse win rate legible. NB-013 has
+// since promoted the split into the architecture report's own decision-quality
+// block, so the classification now lives in vote-direction.ts and both readers
+// share it. What stays here is the outcome-channel join.
 //
 // It reads artifacts already written by a bench run. It plays no games, makes no
 // call, and joins the true role deal, so it is offline evaluation only.
@@ -16,6 +17,13 @@ import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { MAX_PROPOSALS } from '../engine/rules.ts'
+import {
+  countVoteByDirection,
+  emptyVoteConfusion,
+  teamIsDirty,
+  voteRateCount,
+} from './vote-direction.ts'
+import type { VoteConfusionCounts } from './vote-direction.ts'
 import type { GameArtifact } from './artifact.ts'
 
 export const GOOD_POLICY_DIAGNOSIS_VERSION = 'good-policy-diagnosis-v1'
@@ -54,10 +62,7 @@ interface MutableCell {
   outcomes: Map<string, number>
   proposals: number
   hammerProposals: number
-  targetVotes: number
-  targetApprovals: number
-  rejectedCleanTeams: number
-  approvedDirtyTeams: number
+  votes: VoteConfusionCounts
   questsRun: number
   questsFailed: number
 }
@@ -103,20 +108,12 @@ export function diagnoseGoodPolicy(
         outcomes: new Map(),
         proposals: 0,
         hammerProposals: 0,
-        targetVotes: 0,
-        targetApprovals: 0,
-        rejectedCleanTeams: 0,
-        approvedDirtyTeams: 0,
+        votes: emptyVoteConfusion(),
         questsRun: 0,
         questsFailed: 0,
       }
       cells.set(key, cell)
     }
-    const evilSeats = new Set(
-      artifact.players
-        .filter((player) => player.alignment === 'evil')
-        .map((player) => player.seat),
-    )
     const targetPlayer = artifact.players
       .find((player) => player.seat === architecture.targetSeat)
     if (!targetPlayer) {
@@ -149,14 +146,11 @@ export function diagnoseGoodPolicy(
           (vote) => vote.seat === architecture.targetSeat,
         )
         if (!targetVote) continue
-        const dirty = team.some((seat) => evilSeats.has(seat))
-        cell.targetVotes++
-        if (targetVote.vote === 'approve') {
-          cell.targetApprovals++
-          if (dirty) cell.approvedDirtyTeams++
-        } else if (!dirty) {
-          cell.rejectedCleanTeams++
-        }
+        countVoteByDirection(
+          cell.votes,
+          targetVote.vote,
+          teamIsDirty(artifact.players, team, artifact.id),
+        )
         continue
       }
       if (event.type === 'questResult') {
@@ -167,12 +161,26 @@ export function diagnoseGoodPolicy(
   }
   return {
     version: GOOD_POLICY_DIAGNOSIS_VERSION,
+    // Named field by field rather than spread, so a future counting field
+    // cannot leak into this record without a decision about reporting it.
     cells: [...cells.values()].map((cell) => Object.freeze({
-      ...cell,
+      bank: cell.bank,
+      targetRole: cell.targetRole,
+      variant: cell.variant,
+      games: cell.games,
+      targetWins: cell.targetWins,
       outcomes: Object.freeze(Object.fromEntries(
         [...cell.outcomes].sort(([left], [right]) =>
           left < right ? -1 : left > right ? 1 : 0),
       )),
+      proposals: cell.proposals,
+      hammerProposals: cell.hammerProposals,
+      targetVotes: voteRateCount(cell.votes, 'truth').trials,
+      targetApprovals: voteRateCount(cell.votes, 'approve').successes,
+      rejectedCleanTeams: cell.votes.cleanRejects,
+      approvedDirtyTeams: cell.votes.dirtyApprovals,
+      questsRun: cell.questsRun,
+      questsFailed: cell.questsFailed,
     })),
   }
 }
@@ -200,8 +208,12 @@ export function renderGoodPolicyDiagnosis(
   const lines: string[] = [
     'columns: win = target-side win rate; prop/g = proposals per game '
     + '(rejection pressure);',
-    '  rejClean = cheap vote error; apprDirty = expensive vote error; '
-    + 'qFail = quests failed',
+    '  rejClean = cheap vote error; apprDirty = expensive vote error, '
+    + 'both as a share of all votes;',
+    '  qFail = quests failed. The architecture report states the same two '
+    + 'errors conditioned',
+    '  on the teams offered, so its rates are the same or higher and are the '
+    + 'ones a promotion gate reads.',
   ]
   const banks = [...new Set(diagnosis.cells.map((cell) => cell.bank))].sort()
   for (const bank of banks) {

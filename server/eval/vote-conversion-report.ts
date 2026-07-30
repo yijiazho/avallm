@@ -13,6 +13,17 @@ import type {
   RateDeltaEstimate,
   RateEstimate,
 } from './architecture-report.ts'
+import {
+  addVoteConfusion,
+  countVoteByDirection,
+  emptyVoteConfusion,
+  teamIsDirty,
+  voteRateCount,
+} from './vote-direction.ts'
+import type {
+  VoteConfusionCounts,
+  VoteConfusionRate,
+} from './vote-direction.ts'
 import type { Role } from '../engine/types.ts'
 
 export const PHASE5_VOTE_CONVERSION_REPORT_SCHEMA = 1
@@ -22,11 +33,7 @@ interface RateCount {
   trials: number
 }
 
-export interface VoteConfusion {
-  cleanApprovals: number
-  cleanRejects: number
-  dirtyApprovals: number
-  dirtyRejects: number
+export interface VoteConfusion extends VoteConfusionCounts {
   cleanRejectRate: RateEstimate
   dirtyApproveRate: RateEstimate
   truthAccuracy: RateEstimate
@@ -104,10 +111,7 @@ interface ConversionObservation {
   reachedAssassination: number
   survivedAssassination: number
   won: number
-  cleanApprovals: number
-  cleanRejects: number
-  dirtyApprovals: number
-  dirtyRejects: number
+  votes: VoteConfusionCounts
 }
 
 function rate(successes: number, trials: number): RateEstimate {
@@ -132,6 +136,14 @@ function rate(successes: number, trials: number): RateEstimate {
       high: Math.min(1, center + radius),
     },
   }
+}
+
+const rateOf = (
+  counts: VoteConfusionCounts,
+  of: VoteConfusionRate,
+): RateEstimate => {
+  const { successes, trials } = voteRateCount(counts, of)
+  return rate(successes, trials)
 }
 
 function nearestRank(
@@ -239,10 +251,7 @@ function observe(artifact: GameArtifact): ConversionObservation {
   let successfulQuests = 0
   let reachedAssassination = 0
   let survivedAssassination = 0
-  let cleanApprovals = 0
-  let cleanRejects = 0
-  let dirtyApprovals = 0
-  let dirtyRejects = 0
+  const votes = emptyVoteConfusion()
   for (const event of artifact.log) {
     if (event.visibility !== 'public') continue
     const payload = event.payload
@@ -257,20 +266,15 @@ function observe(artifact: GameArtifact): ConversionObservation {
         payload.votes as Array<{ seat: number; vote: string }>
       ).find((vote) => vote.seat === meta.targetSeat)
       if (!targetVote) continue
-      const team = payload.team as number[]
-      if (team.some((seat) => artifact.players[seat] === undefined)) {
-        throw new Error(`${artifact.id}: vote team contains an unknown seat`)
-      }
-      const dirty = team.some(
-        (seat) => artifact.players[seat].alignment === 'evil',
+      countVoteByDirection(
+        votes,
+        targetVote.vote,
+        teamIsDirty(
+          artifact.players,
+          payload.team as number[],
+          artifact.id,
+        ),
       )
-      if (dirty) {
-        if (targetVote.vote === 'approve') dirtyApprovals++
-        else if (targetVote.vote === 'reject') dirtyRejects++
-      } else {
-        if (targetVote.vote === 'approve') cleanApprovals++
-        else if (targetVote.vote === 'reject') cleanRejects++
-      }
     }
   }
   if (reachedAssassination > 1 || survivedAssassination > reachedAssassination) {
@@ -286,10 +290,7 @@ function observe(artifact: GameArtifact): ConversionObservation {
     reachedAssassination,
     survivedAssassination,
     won: Number(target.alignment === artifact.winner),
-    cleanApprovals,
-    cleanRejects,
-    dirtyApprovals,
-    dirtyRejects,
+    votes,
   }
 }
 
@@ -314,10 +315,10 @@ function summarize(
     (game) => game.survivedAssassination,
   )
   const wins = sum(games, (game) => game.won)
-  const cleanApprovals = sum(games, (game) => game.cleanApprovals)
-  const cleanRejects = sum(games, (game) => game.cleanRejects)
-  const dirtyApprovals = sum(games, (game) => game.dirtyApprovals)
-  const dirtyRejects = sum(games, (game) => game.dirtyRejects)
+  const votes = games.reduce(
+    (counts, game) => addVoteConfusion(counts, game.votes),
+    emptyVoteConfusion(),
+  )
   const winReasons: Record<string, number> = {}
   for (const game of games) {
     const reason = game.artifact.winReason
@@ -341,22 +342,10 @@ function summarize(
       winRate: rate(wins, games.length),
     },
     votes: {
-      cleanApprovals,
-      cleanRejects,
-      dirtyApprovals,
-      dirtyRejects,
-      cleanRejectRate: rate(
-        cleanRejects,
-        cleanApprovals + cleanRejects,
-      ),
-      dirtyApproveRate: rate(
-        dirtyApprovals,
-        dirtyApprovals + dirtyRejects,
-      ),
-      truthAccuracy: rate(
-        cleanApprovals + dirtyRejects,
-        cleanApprovals + cleanRejects + dirtyApprovals + dirtyRejects,
-      ),
+      ...votes,
+      cleanRejectRate: rateOf(votes, 'clean-team-reject'),
+      dirtyApproveRate: rateOf(votes, 'dirty-team-approve'),
+      truthAccuracy: rateOf(votes, 'truth'),
     },
     winReasons: Object.fromEntries(
       Object.entries(winReasons).sort(([left], [right]) =>
@@ -466,14 +455,14 @@ function comparison(
       successes: game.won,
       trials: 1,
     })),
-    cleanRejectRateDelta: delta('clean-reject', (game) => ({
-      successes: game.cleanRejects,
-      trials: game.cleanApprovals + game.cleanRejects,
-    })),
-    dirtyApproveRateDelta: delta('dirty-approve', (game) => ({
-      successes: game.dirtyApprovals,
-      trials: game.dirtyApprovals + game.dirtyRejects,
-    })),
+    cleanRejectRateDelta: delta(
+      'clean-reject',
+      (game) => voteRateCount(game.votes, 'clean-team-reject'),
+    ),
+    dirtyApproveRateDelta: delta(
+      'dirty-approve',
+      (game) => voteRateCount(game.votes, 'dirty-team-approve'),
+    ),
   }
 }
 
