@@ -58,7 +58,7 @@ const bots: Record<number, AgentInfo> = {
   6: bot('glm', 'GLM', 'z-ai/glm-4.6', '#d97b6e', 'Earnest. Takes accusations personally.'),
 }
 
-// A mid-game table state so the seat tooltip has status/lean/last-vote/leads to show.
+// A mid-game table state so the seat tooltip has status/last-vote/leads to show.
 const tableView = v({
   phase: 'discussion', round: 2, proposalNum: 1, leaderSeat: 2, currentTeam: [2, 3],
   proposals: [{
@@ -70,8 +70,8 @@ const tableView = v({
   }],
   events: [
     { seq: 1, type: 'proposal', payload: { leader: 2, round: 2, proposalNum: 1 }, visibility: 'public' },
-    { seq: 2, type: 'utterance', payload: { seat: 3, lean: 'approve' }, visibility: 'public' },
-    { seq: 3, type: 'utterance', payload: { seat: 5, lean: 'reject' }, visibility: 'public' },
+    { seq: 2, type: 'utterance', payload: { seat: 3, text: 'Fine by me.' }, visibility: 'public' },
+    { seq: 3, type: 'utterance', payload: { seat: 5, text: 'I want a better reason than that.' }, visibility: 'public' },
   ],
 })
 
@@ -141,9 +141,9 @@ const FeedZone = ({ children }: { children: React.ReactNode }) => <main>{childre
 // The vote is a disc in both states; the quest, two rows down, is still a card.
 const voteLeadIn: GameEvent[] = [
   { seq: 1, type: 'proposal', payload: { leader: 2, team: [0, 3], round: 1, proposalNum: 1, pitch: 'Two quiet seats. No reason to overthink the first one.' }, visibility: 'public' },
-  { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet.", lean: 'approve' }, visibility: 'public' },
-  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.', lean: 'reject' }, visibility: 'public' },
-  { seq: 4, type: 'utterance', payload: { seat: 6, lean: 'approve' }, visibility: 'public' },
+  { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet." }, visibility: 'public' },
+  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.' }, visibility: 'public' },
+  { seq: 4, type: 'utterance', payload: { seat: 6, text: '' }, visibility: 'public' },
   { seq: 5, type: 'proposalLocked', payload: { leader: 2 }, visibility: 'public' },
 ]
 // Mixed 4-3 so both faces of the token are on screen at once, and approved so the

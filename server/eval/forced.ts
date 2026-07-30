@@ -93,11 +93,6 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
   let leader: Seat | undefined
   let leaderSeq = 0
   const cards = new Map<Seat, 'success' | 'fail'>()
-  // Leans declared about the team CURRENTLY on the table, latest per seat. A
-  // lean is about one specific roster, so this resets whenever the roster
-  // changes, which keeps a pre-revision lean from being read as a statement
-  // about the team that replaced it.
-  const leans = new Map<Seat, string>()
 
   for (const ev of a.log) {
     const p = ev.payload as Record<string, any>
@@ -106,15 +101,10 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
         team = (p.team as Seat[]).slice()
         leader = p.leader as Seat
         leaderSeq = ev.seq
-        leans.clear()
         break
       case 'proposalRevised':
         team = (p.to as Seat[]).slice()
         leaderSeq = ev.seq
-        leans.clear()
-        break
-      case 'utterance':
-        if (typeof p.lean === 'string') leans.set(p.seat as Seat, p.lean as string)
         break
       case 'proposalLocked':
         team = ((p.team as Seat[]) ?? team).slice()
@@ -127,34 +117,36 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
         const decisive = goodMatchPoint || fails === QUESTS_TO_WIN - 1
         // Engine rule (game.ts): strict majority approves, a tie rejects.
         const passes = (yes: number) => yes * 2 > a.playerCount
-        const declared = (want: string, except: Seat) =>
-          [...leans].filter(([s, l]) => s !== except && l === want).length
+        const approvesBesides = (except: Seat) =>
+          ((p.votes as { seat: Seat; vote: string }[]) ?? [])
+            .filter((v) => v.seat !== except && v.vote === 'approve').length
 
         // Both rules below rest on one rationale: approval preserves the option
-        // to sink the quest, and rejecting destroys it. That needs the vote to be
-        // ABLE to preserve or destroy something. Judged against what the seat
-        // could see at the time (the declared leans), never against the tally,
-        // which is hindsight: a reject that happened not to matter was still
-        // wrong when it was cast, because the seat could not know that yet.
+        // to sink the quest, and rejecting destroys it. That needs the vote to
+        // be ABLE to preserve or destroy something, so each rule fires only when
+        // this seat's ballot was actually pivotal.
         //
-        // When enough OTHER seats have already declared reject that no
-        // combination of the rest reaches a majority, an evil approve sinks
-        // nothing and only pairs the seat with the proposer in a permanent public
-        // record. Choosing to eat that anyway is a judgement about whether the
-        // declared rejects will hold, and by this module's admission test (no
-        // read of the table, no cover judgement, no probability) a decision that
-        // needs a read is not forced at all.
+        // PIVOTALITY IS JUDGED AGAINST THE REVEALED TALLY, which is hindsight
+        // relative to the voter. That is a deliberate change of standard. The
+        // guards used to run off the leans seats declared during discussion, on
+        // the theory that a blunder should be judged from what the seat could
+        // see at the time. Leans are gone, and they were the wrong input anyway:
+        // nothing bound a seat to the lean it declared, so evil could suppress a
+        // true blunder call simply by declaring a reject it never intended to
+        // cast. A deceivable input makes a detector that misses on purpose. The
+        // revealed tally cannot be gamed after the fact, and the cost of the new
+        // standard is narrow and stated: a reject that was reasonable when cast
+        // and happened to be pivotal still reads as a blunder here.
         //
-        // Observed: a Morgana rejected a team her side could sink at 2-2, with
-        // three rejects already declared on a five-player table, so approving
-        // would have made it 2-3 and the team still dies. Her reject was correct
-        // and the detector called it a blunder.
-        const approveCouldMatter = (seat: Seat) =>
-          passes(a.playerCount - declared('reject', seat))
+        // The false positive this replaces: a Morgana rejected a team her side
+        // could sink at 2-2, with three rejects already declared on a
+        // five-player table. Under pivotality she is cleared for the same
+        // reason, because those rejects landed and her approve would not have
+        // carried the team either.
+        const approveCouldMatter = (seat: Seat) => passes(approvesBesides(seat) + 1)
         // Mirror for the approve rule, where the alternative was rejecting: if
-        // the declared approves already carry it without this seat, a reject
-        // saves nothing.
-        const rejectCouldMatter = (seat: Seat) => !passes(declared('approve', seat))
+        // the team carries without this seat, a reject saves nothing.
+        const rejectCouldMatter = (seat: Seat) => !passes(approvesBesides(seat))
 
         for (const v of (p.votes as { seat: Seat; vote: string }[]) ?? []) {
           if (!isEvil(v.seat)) continue
@@ -174,7 +166,6 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
               `approved Q${round}, good's third quest (${math})`)
           }
         }
-        leans.clear()
         break
       }
       case 'questCard':

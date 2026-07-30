@@ -15,8 +15,6 @@
 //     finalize                  -> 'for' the NEW team (via 'proposal'); positions
 //                                  taken on the old team stay recorded but can
 //                                  never be contradicted (like a rejected team)
-//   - a lean signal on the
-//     pending team              -> 'for'/'against'  (via 'lean'; 'unsure' is none)
 //   - a revealed vote           -> 'for'/'against'  (via 'vote'; hammer auto-
 //                                  approvals have no votes, so no commitments)
 //
@@ -37,7 +35,7 @@ export interface Commitment {
   proposalNum: number
   team: Seat[]
   seq: number // event that created the commitment
-  via: 'proposal' | 'lean' | 'vote'
+  via: 'proposal' | 'vote'
 }
 
 export interface Contradiction {
@@ -125,14 +123,6 @@ export function buildLedger(log: GameEvent[]): Ledger {
       case 'utterance': {
         const seat = p.seat as Seat
         const text = (p.text as string) ?? ''
-        const lean = p.lean as 'approve' | 'reject' | 'unsure' | undefined
-        if (pending && (lean === 'approve' || lean === 'reject')) {
-          add({
-            seat, stance: lean === 'approve' ? 'for' : 'against',
-            round: pending.round, proposalNum: pending.proposalNum,
-            team: pending.team, seq: ev.seq, via: 'lean',
-          }, pending)
-        }
         if (text.trim() === '') {
           const owed = contradictions.filter((c) =>
             c.kind === 'endorsedTeamFailed'

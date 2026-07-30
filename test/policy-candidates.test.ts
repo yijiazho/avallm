@@ -22,7 +22,6 @@ import type {
   DecisionKind,
   DecisionRequest,
   Game,
-  Lean,
   PlayerView,
   Seat,
 } from '../server/engine/types.ts'
@@ -157,9 +156,9 @@ function expectedCandidateCount(req: DecisionRequest, view: PlayerView): number 
   const teamSize = TEAM_SIZES[players][view.round - 1]
   switch (req.kind) {
     case 'discuss':
-      // The engine drops a leader's lean instead of recording it, so the
-      // leader has one observable act and everyone else has four.
-      return view.leaderSeat === view.seat ? 1 : 4
+      // Table talk has no enumerable mechanical content, so every seat has
+      // exactly one observable act: speaking. The words are voice's domain.
+      return 1
     case 'propose':
       return binomial(players, teamSize)
     case 'finalize':
@@ -229,14 +228,8 @@ function syntacticDomain(req: DecisionRequest, view: PlayerView): readonly Decis
   switch (req.kind) {
     case 'discuss':
       // Speech text belongs to voice, not policy, so the say is held fixed and
-      // the lean is the whole policy-owned domain.
-      return ([undefined, 'approve', 'reject', 'unsure'] as const).map(
-        (lean: Lean | undefined): Decision => ({
-          kind: 'discuss',
-          say: '',
-          ...(lean ? { lean } : {}),
-        }),
-      )
+      // the policy-owned domain is the single act of speaking.
+      return [{ kind: 'discuss', say: '' } as Decision]
     case 'propose':
       return everyTeam().map((team): Decision => ({ kind: 'propose', team }))
     case 'finalize':

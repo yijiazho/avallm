@@ -1,7 +1,7 @@
 import type { Alignment, Seat } from '../../engine/types.ts'
 import type { TeamAssessment } from '../belief/types.ts'
 
-export const SITUATION_ANALYSIS_VERSION = 'situation-analysis-v1'
+export const SITUATION_ANALYSIS_VERSION = 'situation-analysis-v2'
 export const GOOD_VOTE_SITUATION_VERSION = 'good-vote-situation-v1'
 export type JointProbabilitySemantics =
   | 'uniform-feasible-joint'
@@ -60,11 +60,6 @@ export interface GoodVoteSituation {
   currentTeam: SituationTeamAssessment
   currentCandidateId: string
   bestAlternative: PolicyCandidateTeamAssessment
-}
-
-export interface DeclaredLeanTally {
-  seat: Seat
-  lean: 'approve' | 'reject' | 'unsure'
 }
 
 export type DeductionProvenance =
@@ -141,13 +136,6 @@ export interface SituationAnalysis extends BoardSituation {
   policyCandidateAssessments: readonly PolicyCandidateTeamAssessment[]
   /** Opt-in current-team versus best-different-team vote projection. */
   goodVote?: GoodVoteSituation
-  /** Latest public lean per seat on the current proposal segment. */
-  declaredLeans: readonly DeclaredLeanTally[]
-  /** Whether this seat's approve/reject could still change passage by public leans. */
-  voteLeverage: {
-    approveCouldMatter: boolean
-    rejectCouldMatter: boolean
-  }
   provenGood: readonly Seat[]
   provenEvil: readonly Seat[]
   unresolved: readonly Seat[]

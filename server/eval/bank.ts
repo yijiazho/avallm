@@ -85,10 +85,9 @@ export function mineBank(artifactFiles: string[], existing: BankItem[]): MineRes
 function describeDecision(d: Decision, view: PlayerView): string {
   switch (d.kind) {
     case 'discuss': {
-      const lean = d.lean ? ` [leans ${d.lean}]` : ''
       // sanitize-at-boundary: this text is fed to the checker LLM (checkReplay).
       const say = sanitizeSpeech(d.say)
-      return say ? `"${say}"${lean}` : `(passes)${lean}`
+      return say ? `"${say}"` : '(passes)'
     }
     case 'propose': {
       const team = d.team.map((s) => view.players[s]?.name ?? `seat ${s}`).join('/')

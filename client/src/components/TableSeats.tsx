@@ -1,5 +1,4 @@
 import type { AgentInfo, PlayerView, Seat } from '../types.ts'
-import { latestLeans } from '../leans.ts'
 import { celestialFor } from './Arcana.tsx'
 
 // Everyone but the viewer, seated as small arcana cards along the far side of
@@ -21,7 +20,6 @@ export function TableSeats({ view, bots, acting }: {
 }) {
   const lastVoted = [...view.proposals].reverse().find((p) => p.votes)
   const votesVisible = view.phase !== 'vote' && lastVoted
-  const leans = latestLeans(view)
   // Spectators (seat < 0) watch every chair; players see themselves at the
   // near edge (the footer chip), not on the arc.
   const others = view.players.filter((p) => p.seat !== view.seat)
@@ -32,7 +30,6 @@ export function TableSeats({ view, bots, acting }: {
         const isLeader = p.seat === view.leaderSeat
         const onTeam = view.currentTeam?.includes(p.seat)
         const isActing = acting.includes(p.seat)
-        const lean = leans.get(p.seat)
         const vote = votesVisible ? lastVoted!.votes!.find((v) => v.seat === p.seat)?.vote : undefined
         const bot = bots[p.seat]
         const pos = arcPosition(i, others.length)
@@ -52,11 +49,6 @@ export function TableSeats({ view, bots, acting }: {
               {isLeader && <span className="crown" title="Leader">♛</span>}
               <span className="sigil">{body.glyph}</span>
               <span className="seat-nm">{p.name}</span>
-              {lean && (
-                <span className={`seat-lean ${lean === 'approve' ? 'a' : lean === 'reject' ? 'r' : 'u'}`}>
-                  {lean === 'approve' ? 'AYE' : lean === 'reject' ? 'NAY' : '?'}
-                </span>
-              )}
               {vote && (
                 <span className={`votechip ${vote}`}>
                   {vote === 'approve' ? '✓' : '✕'}
@@ -70,12 +62,6 @@ export function TableSeats({ view, bots, acting }: {
                     {[isLeader ? 'leader' : '', onTeam ? 'on quest' : '', isActing ? 'deciding…' : '']
                       .filter(Boolean).join(' · ') || 'at the table'}
                   </span></span>
-                  {lean && (
-                    <span className="t-row"><span className="k">lean</span>
-                      <span className={`v ${lean === 'approve' ? 'aye' : lean === 'reject' ? 'nay' : ''}`}>
-                        {lean === 'approve' ? 'aye' : lean === 'reject' ? 'nay' : 'unsure'}
-                      </span></span>
-                  )}
                   {vote && (
                     <span className="t-row"><span className="k">last vote</span>
                       <span className={`v ${vote === 'approve' ? 'aye' : 'nay'}`}>{vote === 'approve' ? 'approved' : 'rejected'}</span></span>

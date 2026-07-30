@@ -68,7 +68,6 @@ function proposalAfterPublicConversation(): {
     applyDecision(game, request.seat, {
       kind: 'discuss',
       say: `Seat ${request.seat + 1} states a public read.`,
-      lean: request.seat % 2 === 0 ? 'approve' : 'reject',
     })
     if (++guard > 20) throw new Error('discussion did not terminate')
   }

@@ -44,7 +44,6 @@ function proposalWithRevision(): {
     applyDecision(game, request.seat, {
       kind: 'discuss',
       say: `seat ${request.seat} literal statement`,
-      ...(request.seat === leader ? {} : { lean: 'approve' as const }),
     })
   }
   applyDecision(game, leader, {
@@ -58,7 +57,6 @@ function proposalWithRevision(): {
     applyDecision(game, request.seat, {
       kind: 'discuss',
       say: `seat ${request.seat} revised-team statement`,
-      ...(request.seat === leader ? {} : { lean: 'reject' as const }),
     })
   }
   for (const request of expectedDecisions(game)) {
@@ -82,7 +80,6 @@ test('typed evidence uses stable ids, seat-visible scope, and deterministic orde
   assert.ok(state.evidence.some((record) => record.kind === 'proposal'))
   assert.ok(state.evidence.some((record) => record.kind === 'proposal-revised'))
   assert.ok(state.evidence.some((record) => record.kind === 'vote-reveal'))
-  assert.ok(state.evidence.some((record) => record.kind === 'declared-lean'))
   assert.ok(state.evidence.some((record) =>
     record.kind === 'utterance' && record.payload.text.includes('literal statement')))
   assert.ok(!state.evidence.some((record) =>
@@ -114,7 +111,7 @@ test('public cognition is identical across seats and excludes private cognition'
   assert.ok(!serialized.includes('playerMarginals'))
 })
 
-test('commitment ledger records proposals, revisions, votes, leans, and literal speech', () => {
+test('commitment ledger records proposals, revisions, votes, and literal speech', () => {
   const { after } = proposalWithRevision()
   const commitments = reconstructCognition(after).commitments
   const teams = commitments.filter((commitment) => commitment.kind === 'team')
@@ -126,8 +123,6 @@ test('commitment ledger records proposals, revisions, votes, leans, and literal 
     commitment.kind === 'vote'
     && commitment.payload.type === 'vote'
     && commitment.payload.vote === 'approve'))
-  assert.ok(commitments.some((commitment) =>
-    commitment.kind === 'lean' && commitment.status === 'superseded'))
   assert.ok(commitments.some((commitment) =>
     commitment.kind === 'utterance'
     && commitment.payload.type === 'utterance'

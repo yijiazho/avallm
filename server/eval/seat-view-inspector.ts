@@ -11,7 +11,6 @@ import { eventVisibleTo } from '../engine/view.ts'
 import type {
   DecisionRequest,
   GameEvent,
-  Lean,
   Phase,
   PlayerView,
   Role,
@@ -67,7 +66,6 @@ export type InspectedEventDetail =
       seat: Seat
       text: string
       round: number
-      lean?: Lean
       postRevision?: boolean
     }
   | {
@@ -182,7 +180,6 @@ export interface SeatViewInspection {
       seat: Seat
       name: string
       text: string
-      lean?: Lean
       prop?: {
         round: number
         proposalNum: number
@@ -212,7 +209,6 @@ const EVENT_TYPES = new Set([
   'voteCast', 'voteReveal', 'questCard', 'questResult', 'assassination', 'gameOver',
   'thinking', 'rename', 'scratchpad',
 ])
-const LEANS = new Set(['approve', 'reject', 'unsure'])
 const PHASES = new Set([
   'discussion', 'proposal', 'finalize', 'vote', 'quest', 'assassination', 'gameOver',
 ])
@@ -312,9 +308,6 @@ function validateTranscriptEntry(value: unknown, playerCount: number, index: num
   assertSeat(entry.seat, playerCount, `${label}.seat`)
   assertString(entry.name, `${label}.name`)
   assertString(entry.text, `${label}.text`)
-  if (entry.lean !== undefined && !LEANS.has(entry.lean as string)) {
-    fail(`${label}.lean must be approve, reject, or unsure`)
-  }
   if (entry.prop !== undefined) {
     const prop = asRecord(entry.prop, `${label}.prop`)
     assertSafeInteger(prop.round, `${label}.prop.round`, 1)
@@ -462,9 +455,6 @@ function inspectEventDetail(
       assertSeat(payload.seat, playerCount, 'event utterance payload.seat')
       assertString(payload.text, 'event utterance payload.text')
       assertSafeInteger(payload.round, 'event utterance payload.round', 1)
-      if (payload.lean !== undefined && !LEANS.has(payload.lean as string)) {
-        fail('event utterance payload.lean must be approve, reject, or unsure')
-      }
       if (payload.postRevision !== undefined) {
         assertBoolean(payload.postRevision, 'event utterance payload.postRevision')
       }
@@ -473,7 +463,6 @@ function inspectEventDetail(
         seat: payload.seat,
         text: payload.text,
         round: payload.round,
-        ...(payload.lean === undefined ? {} : { lean: payload.lean as Lean }),
         ...(payload.postRevision === undefined
           ? {}
           : { postRevision: payload.postRevision }),
@@ -818,7 +807,6 @@ function inspectTranscriptEntry(
     seat: entry.seat,
     name: entry.name,
     text: entry.text,
-    ...(entry.lean === undefined ? {} : { lean: entry.lean }),
     ...(entry.prop === undefined
       ? {}
       : {

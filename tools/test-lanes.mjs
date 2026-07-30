@@ -58,7 +58,6 @@ const LANES = Object.freeze({
     'transcript.test.ts',
     'user-copy.test.ts',
     'verify-funnel.test.ts',
-    'vote-lean.test.ts',
   ]),
   contract: Object.freeze([
     'admission-boundary.test.ts',
@@ -72,7 +71,6 @@ const LANES = Object.freeze({
     'component-kernel.test.ts',
     'component-registry.test.ts',
     'configured-score-layers.test.ts',
-    'decision-frame-oracle.test.ts',
     'decision-frame.test.ts',
     'decision-layer.test.ts',
     'decision-scenario.test.ts',

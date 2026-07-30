@@ -1,14 +1,15 @@
-// The discuss ASK carries evil's board stakes, because a LEAN is a public
-// commitment about the same team the vote ASK already reasons about.
+// The discuss ASK carries evil's board stakes, because what a seat says about
+// the team is public and concerns the same team the vote ASK already reasons
+// about.
 //
-// Seed web-086364ddc4, Q5.3: the assassin leaned reject TWICE on a team carrying
-// its own partner at 2-2, a team that wins the game outright, then voted approve
+// Seed web-086364ddc4, Q5.3: the assassin argued against a team carrying its own
+// partner at 2-2 TWICE, a team that wins the game outright, then voted approve
 // once the vote ASK stated the stakes. Two costs. The table read the wrong
-// signal, and the lean-versus-vote flip is the exact inconsistency the vote ASK's
-// leanNote asks a seat to explain away.
+// position, and arguing one way then voting the other is the exact
+// inconsistency the vote ASK asks a seat to expect the table to notice.
 //
 // Both ASKs read the same board.ts triggers (knownEvilAboard, matchPoint), so the
-// trigger cannot drift between them. Only the phrasing differs, because leaning
+// trigger cannot drift between them. Only the phrasing differs, because talking
 // and voting are different acts.
 
 import { test } from 'node:test'
@@ -50,7 +51,7 @@ test('evil is told when the team on the table is already sinkable', () => {
   for (const d of expectedDecisions(g)) if (d.kind === 'pitch') applyDecision(g, g.leaderSeat, { kind: 'pitch', pitch: 'go' })
   const text = discussFor(g, assassin)
   assert.match(text, /Your side can already sink this quest/)
-  assert.match(text, /do not talk this team down or lean against it/)
+  assert.match(text, /do not talk this team down/)
 })
 
 test('good players never get the evil stakes note', () => {

@@ -23,6 +23,7 @@ import {
   createIncrementalPlayerViewProjection,
   viewFor,
 } from '../engine/view.ts'
+import { MIN_REPLAYABLE_SCHEMA } from './artifact.ts'
 import type { GameArtifact } from './artifact.ts'
 import type {
   Decision, DecisionRequest, Game, GameEvent, PlayerView, Seat,
@@ -138,7 +139,6 @@ function extractSteps(
           firstSeq: pre.firstSeq, actionSeq: ev.seq, seat,
           action: {
             kind: 'discuss', say: p.text as string,
-            ...(p.lean !== undefined ? { lean: p.lean as 'approve' | 'reject' | 'unsure' } : {}),
             ...(pre.thinking !== undefined ? { thinking: pre.thinking } : {}),
             ...(pre.notes !== undefined ? { notes: pre.notes } : {}),
           },
@@ -247,9 +247,9 @@ function extractSteps(
 }
 
 function createReplayGame(a: GameArtifact): Game {
-  if (a.schema < 3) {
+  if (a.schema < MIN_REPLAYABLE_SCHEMA) {
     throw new Error(
-      `artifact ${a.id} is schema ${a.schema} (pre proposal-flow redesign): `
+      `artifact ${a.id} is schema ${a.schema}, below the replayable floor of ${MIN_REPLAYABLE_SCHEMA}: `
       + `readable as data, but the engine that produced its log no longer exists, so it cannot be replayed`,
     )
   }
@@ -334,9 +334,9 @@ function verifyPrefix(a: GameArtifact, game: Game): void {
 // omit untilSeq to replay the whole game. The returned Game's log is verified
 // to be an exact prefix of the artifact's.
 export function replayGame(a: GameArtifact, untilSeq?: number): Game {
-  if (a.schema < 3) {
+  if (a.schema < MIN_REPLAYABLE_SCHEMA) {
     throw new Error(
-      `artifact ${a.id} is schema ${a.schema} (pre proposal-flow redesign): `
+      `artifact ${a.id} is schema ${a.schema}, below the replayable floor of ${MIN_REPLAYABLE_SCHEMA}: `
       + `readable as data, but the engine that produced its log no longer exists, so it cannot be replayed`,
     )
   }

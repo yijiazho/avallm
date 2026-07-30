@@ -624,7 +624,22 @@ export function assertScoreFamilyConformance(
         const target = rows.find(
           (row) => row.candidateId !== forgedTrace.structuredCandidateId,
         ) ?? rows[0]
-        target.value += 0.01
+        // A fixed epsilon is not a forgery when the target holds the
+        // non-viable sentinel: -Number.MAX_SAFE_INTEGER + 0.01 IS
+        // -Number.MAX_SAFE_INTEGER in float64, so the trace would replay
+        // byte-identical and admission would (correctly) admit it, passing this
+        // case for the wrong reason. Any case whose decision is forced scores
+        // its alternatives with that sentinel, so this is reachable for every
+        // family, not just the one that surfaced it. Pick the first value that
+        // is genuinely different and prove the score moved before replaying.
+        const original = target.value
+        target.value = [original + 1, original / 2 - 1, 0, 1]
+          .find((value) => value !== original)!
+        assert.notEqual(
+          target.value,
+          original,
+          `${family} ${label} forgery left the score unchanged`,
+        )
         const rejected = admitFamilyDecision({
           seed: descriptor.seed,
           decision,

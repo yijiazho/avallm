@@ -72,13 +72,6 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
   switch (req.kind) {
     case 'discuss': {
       const say = await ask('Your table talk (enter to pass): ')
-      if (view.currentTeam && view.leaderSeat !== HUMAN) {
-        const raw = (await ask('Your lean on the team (a=approve, r=reject, u=unsure, enter to skip): ')).trim().toLowerCase()
-        const lean = raw.startsWith('a') ? 'approve' as const
-          : raw.startsWith('r') ? 'reject' as const
-          : raw.startsWith('u') ? 'unsure' as const : undefined
-        return { kind: 'discuss', say, lean }
-      }
       return { kind: 'discuss', say }
     }
     case 'propose': {

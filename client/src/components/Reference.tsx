@@ -170,7 +170,7 @@ function SetupTab({ view }: { view: PlayerView }) {
       <div className="ref-row"><span className="role-toggle-name">Table talk</span>
         <span className="role-toggle-desc">
           {created?.talk
-            ? `after each proposal, up to ${created.talk.maxRounds} round(s) of discussion (${created.talk.maxRoundsAfterChange} after a revised team); talk ends early once every lean holds steady for a full round`
+            ? `after each proposal, ${created.talk.maxRounds} round(s) of discussion (${created.talk.maxRoundsAfterChange} after a revised team), everyone speaking in turn`
             : '—'}
         </span></div>
       <div className="ref-row"><span className="role-toggle-name">Revision</span>

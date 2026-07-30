@@ -165,7 +165,7 @@ function captureClient(captures: string[][]): OpenRouterClient {
   return {
     async call(_model, messages) {
       captures.push(messages.map((message) => message.content))
-      return JSON.stringify({ say: 'I am considering the opening.', lean: 'uncertain' })
+      return JSON.stringify({ say: 'I am considering the opening.' })
     },
     getTotalCost: () => 0,
     getSpend: () => ({}),
@@ -229,11 +229,11 @@ test('Phase 2 prompt bytes remain frozen across every decision fixture', () => {
   // private-knowledge shape in the architecture bank.
   assert.equal(
     digest(),
-    'f931cc39468717af07c0188065669d26822441b17bad18153827ff5f364e1fdb',
+    'd5fd5c904327ba3811f037200f8c7f4c6c88f9933b804737489d874ea6345a9d',
   )
   assert.equal(
     digest(BELIEF_RENDERER_VERSION),
-    'fc97263aa064c080b7004e853d7b0c0cdafe56b620d3cb877780b6257d62f102',
+    '8e14b3a9c9bbb1684467ab02869a0c5020740c432209fb59f61605185a900a60',
   )
 })
 

@@ -657,7 +657,6 @@ function validPlannerCommunication(
     ReadonlySet<string>
   > = {
     discussion: new Set([
-      'STATE_COMMITTED_LEAN',
       'ADVOCATE_SELECTED_ACTION',
       'ACKNOWLEDGE_UNCERTAINTY',
     ]),
@@ -679,19 +678,12 @@ function validPlannerCommunication(
     && onlyAllowedKeys(value, [
       'version',
       'channel',
-      'desiredLean',
       'targetSeats',
       'claimCodes',
       'tone',
     ])
     && value.version === COMMUNICATION_INTENT_VERSION
     && value.channel === expectedChannel
-    && (
-      decision.kind !== 'discuss'
-      || value.desiredLean === undefined
-      || value.desiredLean === decision.lean
-    )
-    && (decision.kind === 'discuss' || value.desiredLean === undefined)
     && Array.isArray(value.targetSeats)
     && new Set(value.targetSeats).size === value.targetSeats.length
     && value.targetSeats.every(

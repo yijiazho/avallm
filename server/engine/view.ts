@@ -153,17 +153,11 @@ function createPlayerViewProjection(
       })
     } else if (
       ev.type === 'utterance'
-      && (
-        (ev.payload.text as string).length > 0
-        || ev.payload.lean !== undefined
-      )
+      && (ev.payload.text as string).length > 0
     ) {
       transcript.push({
         seat: ev.payload.seat as Seat,
         text: ev.payload.text as string,
-        ...(ev.payload.lean !== undefined
-          ? { lean: ev.payload.lean as any }
-          : {}),
         ...(curProp ? { prop: curProp } : {}),
       })
     }
@@ -232,7 +226,6 @@ function createPlayerViewProjection(
           seat: entry.seat,
           name: candidate.players[entry.seat].name,
           text: entry.text,
-          ...(entry.lean !== undefined ? { lean: entry.lean } : {}),
           ...(entry.prop
             ? {
                 prop: {

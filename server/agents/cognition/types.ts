@@ -1,6 +1,5 @@
 import type {
   Alignment,
-  Lean,
   Role,
   Seat,
 } from '../../engine/types.ts'
@@ -15,8 +14,8 @@ import type {
 } from '../communication/language-types.ts'
 
 export const COGNITION_SCHEMA_VERSION = 1
-export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v1'
-export const COMMITMENT_MODEL_VERSION = 'public-commitments-v1'
+export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v2'
+export const COMMITMENT_MODEL_VERSION = 'public-commitments-v2'
 
 export type EvidenceScope = 'public' | 'private'
 export type EvidenceStrength = 'hard' | 'observed'
@@ -97,20 +96,6 @@ export type Evidence =
         text: string
         discussionRound: number
         postRevision: boolean
-        lean?: Lean
-        round: number
-        proposalNum: number
-        team?: readonly Seat[]
-      }
-    })
-  | (EvidenceBase & {
-      kind: 'declared-lean'
-      scope: 'public'
-      actor: Seat
-      payload: {
-        lean: Lean
-        discussionRound: number
-        postRevision: boolean
         round: number
         proposalNum: number
         team?: readonly Seat[]
@@ -157,7 +142,7 @@ export type Evidence =
       payload: { winner: Alignment; reason: string }
     })
 
-export type CommitmentKind = 'team' | 'vote' | 'lean' | 'utterance'
+export type CommitmentKind = 'team' | 'vote' | 'utterance'
 export type CommitmentStatus = 'current' | 'superseded'
 
 export interface CommitmentContext {
@@ -178,7 +163,6 @@ export interface PublicCommitment {
   payload:
     | { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
     | { type: 'vote'; vote: 'approve' | 'reject' }
-    | { type: 'lean'; lean: Lean }
     | { type: 'utterance'; text: string; channel: 'discussion' | 'pitch' | 'revision-reason' }
   status: CommitmentStatus
   supersededBy?: string

@@ -167,7 +167,7 @@ function renderHistory(data) {
   for (const entry of data.visibleHistory.transcript) {
     const utterance = element('div', 'utterance')
     utterance.append(
-      element('b', '', `${entry.seat} · ${entry.name}${entry.lean ? ` · ${entry.lean}` : ''}`),
+      element('b', '', `${entry.seat} · ${entry.name}`),
       element('p', '', entry.text),
     )
     transcript.append(utterance)

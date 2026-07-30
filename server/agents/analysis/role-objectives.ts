@@ -114,13 +114,10 @@ function directionForDecision(
   if (decision.kind === 'vote') {
     return decision.vote === 'approve' ? 'support' : 'oppose'
   }
-  if (decision.kind === 'discuss') {
-    return decision.lean === 'approve'
-      ? 'support'
-      : decision.lean === 'reject'
-        ? 'oppose'
-        : 'neutral'
-  }
+  // Table talk carries no machine-readable direction: what a seat said about
+  // the team is prose, and reading support or opposition out of it would be a
+  // judgement this projection does not make.
+  if (decision.kind === 'discuss') return 'neutral'
   return decision.kind === 'propose' || decision.kind === 'finalize'
     ? 'support'
     : 'neutral'

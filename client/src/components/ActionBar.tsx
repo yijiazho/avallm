@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { DecisionRequest, PlayerView, Seat } from '../types.ts'
-import { latestLeans } from '../leans.ts'
 import { Emblem } from './Arcana.tsx'
 
 // `data-kind` (the decision kind, or "waiting") and `data-t` (per-button role) are
@@ -40,21 +39,21 @@ const TurnTag = ({ children }: { children: string }) => (
 
 function Discuss({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
   const [say, setSay] = useState('')
-  // Seed the picker from the lean you last signalled on this proposal so it
-  // stays sticky across speaking turns (and survives a refresh) — re-choose
-  // only to change it. A fresh proposal has no prior utterances, so this is null.
-  const [lean, setLean] = useState<string | null>(() => latestLeans(view).get(view.seat) ?? null)
   const isLeader = view.leaderSeat === view.seat
   const teamPending = !!view.currentTeam
-  // The leader never leans — their signals are the pitch and the finalize turn.
-  const showLean = teamPending && !isLeader
   const round = view.discussionRound ?? 1
   const submit = (text: string) => {
-    onDecide({ kind: 'discuss', say: text, lean: showLean && lean ? lean : undefined })
+    onDecide({ kind: 'discuss', say: text })
     setSay('')
   }
   return (
-    <div className="action-bar your-turn column discuss2" data-kind="discuss">
+    <div
+      className="action-bar your-turn column discuss2"
+      data-kind="discuss"
+      // Stable hook for tools/screenshots.mjs: it needs to tell the opening
+      // turn from the react-to-a-team turn without reading button copy.
+      data-team={teamPending ? 'pending' : 'none'}
+    >
       <div className="discuss-top">
         <TurnTag>Your turn to speak</TurnTag>
         <span className="action-label">
@@ -62,20 +61,6 @@ function Discuss({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<st
         </span>
       </div>
       <div className="discuss-bottom">
-        {showLean && (
-          <span className="lean-seg" title="Signal how you're leaning on this team (not binding)">
-            <span className="lean-lbl">lean</span>
-            {(['approve', 'reject', 'unsure'] as const).map((l) => (
-              <button
-                key={l}
-                data-t={`lean-${l}`}
-                className={`lean-seg-btn ${l}${lean === l ? ' active' : ''}`}
-                title={`lean ${l === 'approve' ? 'aye' : l === 'reject' ? 'nay' : 'unsure'}`}
-                onClick={() => setLean(lean === l ? null : l)}
-              >{l === 'approve' ? 'AYE' : l === 'reject' ? 'NAY' : '?'}</button>
-            ))}
-          </span>
-        )}
         <input
           autoFocus value={say} maxLength={300}
           placeholder={isLeader ? 'Defend your proposal…' : teamPending ? 'React to the proposed team…' : 'Say something to the table…'}
@@ -83,7 +68,7 @@ function Discuss({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<st
           onKeyDown={(e) => { if (e.key === 'Enter') submit(say) }}
         />
         <button className="say-btn" data-t="say" onClick={() => submit(say)}>Say</button>
-        <button className="ghost pass-btn" data-t="pass" onClick={() => submit('')}>{showLean && lean ? 'Signal only' : 'Pass'}</button>
+        <button className="ghost pass-btn" data-t="pass" onClick={() => submit('')}>Pass</button>
       </div>
     </div>
   )

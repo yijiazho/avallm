@@ -33,10 +33,9 @@ function runDiscussion(g: Game): number {
   while (g.phase === 'discussion') {
     seen = Math.max(seen, g.discussion!.roundNum)
     const [d] = expectedDecisions(g)
-    // Say something substantive: an empty pass still counts as a turn, but the
-    // lean-settlement rule can end talk early when nothing moves, which would
-    // make this measure settlement rather than the cap.
-    applyDecision(g, d.seat, { kind: 'discuss', say: `seat ${d.seat} has a view`, lean: d.seat % 2 ? 'approve' : 'reject' })
+    // Say something substantive so the transcript shows the round actually
+    // happened; an empty pass counts as a turn either way.
+    applyDecision(g, d.seat, { kind: 'discuss', say: `seat ${d.seat} has a view` })
   }
   return seen
 }

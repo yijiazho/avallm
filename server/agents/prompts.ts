@@ -33,7 +33,7 @@ import {
 } from './experimental.ts'
 import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
 import type { BeliefVisibility } from './brain.ts'
-import type { Alignment, Lean, PlayerView, Role, Seat } from '../engine/types.ts'
+import type { Alignment, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
 import type { BeliefSnapshot } from './belief/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
@@ -88,7 +88,7 @@ function digestFor(roles: readonly Role[]): string {
   return `You are playing The Resistance: Avalon.
 Good (${listOf(goodSide)}) wins by succeeding 3 of 5 quests.
 Evil (${listOf(evilSide)}) wins by failing 3 quests${shot ? `, or, if good succeeds 3 quests, by the Assassin correctly identifying Merlin at the end` : ``}.
-Each round: the leader proposes a team of the required size with a pitch; the table discusses it (players signal non-binding approve/reject/unsure leans); after discussion the leader may revise the team ONCE; then everyone votes approve/reject (strict majority approves; a tie rejects). Only 4 proposals per round can be rejected: the 5th ("hammer") proposal is approved automatically with NO vote, so whoever leads the 5th proposal single-handedly picks that quest team. Approved teams play quest cards in secret: good players MUST play Success; evil players may play Success or Fail. The number of Fail cards is revealed. Who played them stays secret.
+Each round: the leader proposes a team of the required size with a pitch; the table discusses it; after discussion the leader may revise the team ONCE; then everyone votes approve/reject (strict majority approves; a tie rejects). Only 4 proposals per round can be rejected: the 5th ("hammer") proposal is approved automatically with NO vote, so whoever leads the 5th proposal single-handedly picks that quest team. Approved teams play quest cards in secret: good players MUST play Success; evil players may play Success or Fail. The number of Fail cards is revealed. Who played them stays secret.
 ${knowledge.join(' ')}
 Votes are public once revealed. Watch the vote history: it is the main evidence in this game.`
 }
@@ -126,7 +126,7 @@ const normsFor = (assassinAside: string) => `Table talk is live conversation. Be
 - Write the way people SPEAK. Contractions and sentence fragments belong in speech. Dashes and semicolons do not: end the sentence and start another one. Vary your length. A few words can be a whole turn, most turns run a sentence or two, and a real case (walking the vote record, making an accusation stick) is worth three or four short ones. What gives a bot away is uniformity: essay polish, parallel clauses, every turn the same size.
 - Make a point ONCE. If you or anyone else already said it, don't re-argue it. Agree in passing and add something new, or pass. An accusation the table has already heard reads as scripted filler the second time.
 - Vary your temperature. Most turns are casual: agree, needle someone, think out loud, ask a small question. Save real heat for the rare moment that earns it. When every turn is a closing argument, none of them land.
-- Drop the debater's tics. Don't announce your lean in words (no "I'm leaning reject" or "lean approve"): the signal already carries it, so spend your words on what it cannot. Don't coin balanced slogans of the shape "that's not X, that's Y". Say your read plainly, in your own words.
+- Drop the debater's tics. Don't coin balanced slogans of the shape "that's not X, that's Y", and don't state your position in the flat register of a ballot ("I am against this team"). Say where you stand the way a person would, wrapped in the reason you got there.
 - Refer to players by NAME when you speak, never by seat number. The table shows names rather than seats, so a spoken "seat 3" means nothing to anyone. Seat numbers exist only for your private team/vote/target fields.
 - Passing is fine when you genuinely have nothing to add, but never when you have been put on the spot.`
 
@@ -211,7 +211,7 @@ export const ROLE_GUIDANCE: Record<string, string> = {
 }
 
 export const OUTPUT_CONTRACTS: Record<LlmCallKind, string> = {
-  discuss: `Reply with ONLY a JSON object: {"thinking": "<your private reasoning, <=60 words>", "say": "<what you say aloud, <=50 words, or empty string to pass>", "lean": "approve"|"reject"|"unsure"}. "say" is heard by everyone, so never reveal private knowledge in it. "lean" is your public signal about the proposed team: include it every turn ("unsure" is fine, and it is not binding). If YOU are the leader, omit "lean": your pitch and your stick-or-revise turn are your signal. Passing (empty say) is normal when nothing is aimed at you, but never pass when someone has just addressed or accused you.`,
+  discuss: `Reply with ONLY a JSON object: {"thinking": "<your private reasoning, <=60 words>", "say": "<what you say aloud, <=50 words, or empty string to pass>"}. "say" is heard by everyone, so never reveal private knowledge in it. Where you stand on the proposed team is something you SAY, in your own words, and nothing you say binds your vote. Passing (empty say) is normal when nothing is aimed at you, but never pass when someone has just addressed or accused you.`,
   propose: `Reply with ONLY a JSON object: {"thinking": "<your private reasoning, <=25 words>", "team": [<seat numbers, exactly the required team size>]}. Keep "thinking" short so the whole object fits: the "team" field comes last and MUST be present. Choose the team only, since you will address the table about it in a separate step.`,
   pitch: `Reply with ONLY a JSON object: {"thinking": "<private reasoning>", "pitch": "<one or two spoken sentences to the table about your team>"}. You cannot change the team in this reply, so pitch the team you chose. After the table discusses it you will get ONE chance to revise. If the team differs from anything you said during table talk, acknowledge the change and give a reason, because a silent flip-flop reads as evasive.`,
   finalize: `Reply with ONLY a JSON object: {"thinking": "<your private reasoning, <=30 words>", "stick": true or false, "team": [<seat numbers, ONLY when stick is false>], "reason": "<one spoken sentence saying WHY you changed it, ONLY when stick is false>"}. "stick": true sends your proposed team forward unchanged, which is the normal move. "stick": false revises the team ONCE in response to the discussion. The table is shown exactly who you dropped and who you added, so your "reason" must give the reasoning, not restate the swap: naming the wrong player there is a self-inflicted contradiction everyone can see. Keep "thinking" short: the "stick" field MUST be present.`,
@@ -550,18 +550,18 @@ export function sanitizeSpeech(text: string): string {
 export function transcriptText(view: PlayerView, maxUtterances = 14): string {
   const recent = view.transcript.slice(-maxUtterances)
   if (!recent.length) return '(no table talk yet)'
-  // Fence each proposal's discussion with a header so a lean reads as a lean on
-  // THAT team, not whatever team is on the table now — the rolling window
-  // crosses proposal boundaries, and an unfenced "(passes) [leans approve]"
-  // from a prior proposal is exactly how a bot confabulates a silent approval.
-  // The team in the header includes any finalize-time revision.
+  // Fence each proposal's discussion with a header so what a seat said reads as
+  // a position on THAT team, not whatever team is on the table now — the
+  // rolling window crosses proposal boundaries, and an unfenced "this team
+  // works for me" from a prior proposal is exactly how a bot confabulates an
+  // approval nobody gave. The team in the header includes any revision.
   //
   // The header names the LEADER for the same reason. Whoever held the chair is
   // the difference between "I'll propose the clean trio" as a leader's stated
   // intent and the same words as an outsider's empty claim; without it, a bot
   // reading back across the fence attacks the wrong thing. It also explains the
-  // leader's missing lean, since the discuss ask tells the leader to omit one:
-  // unattributed, that renders as a player who passed without signaling.
+  // leader's stake in the team under discussion: unattributed, a leader
+  // defending its own proposal reads as an ordinary seat pushing hard for it.
   const lines: string[] = []
   let prevKey: string | undefined
   for (const u of recent) {
@@ -573,9 +573,9 @@ export function transcriptText(view: PlayerView, maxUtterances = 14): string {
       }
       prevKey = key
     }
-    const lean = u.lean ? ` [leans ${u.lean}]` : ''
-    const speech = u.text ? `"${sanitizeSpeech(u.text)}"` : '(passes)'
-    lines.push(`${u.name}(seat ${u.seat}): ${speech}${lean}`)
+    // viewFor only projects utterances that carry text, so a seat that passed
+    // is absent from this window rather than rendered as "(passes)".
+    lines.push(`${u.name}(seat ${u.seat}): "${sanitizeSpeech(u.text)}"`)
   }
   return lines.join('\n')
 }
@@ -595,32 +595,6 @@ export function directAddresses(view: PlayerView): string[] {
   return [...mentioners]
 }
 
-// The deciding seat's OWN most-recent public lean, from the transcript. Leans
-// attach only while a team is on the table, so during a vote this is the bot's
-// signal on the CURRENT proposal — surfaced so the vote can't silently
-// contradict a lean the table already saw. undefined if the seat never leaned.
-export function ownRecentLean(view: PlayerView): Lean | undefined {
-  for (let i = view.transcript.length - 1; i >= 0; i--) {
-    const u = view.transcript[i]
-    if (u.seat === view.seat && u.lean) return u.lean
-  }
-  return undefined
-}
-
-// Latest declared lean per seat on the CURRENT team: utterance leans since
-// the most recent proposal or proposalRevised event. Public events only, so
-// this is the same tally every player (and the finalize-turn leader) can see.
-export function declaredLeans(view: PlayerView): { name: string; lean: Lean }[] {
-  const latest = new Map<Seat, Lean>()
-  for (const ev of view.events) {
-    if (ev.type === 'proposal' || ev.type === 'proposalRevised') latest.clear()
-    else if (ev.type === 'utterance' && ev.payload.lean !== undefined) {
-      latest.set(ev.payload.seat as Seat, ev.payload.lean as Lean)
-    }
-  }
-  return [...latest.entries()].map(([seat, lean]) => ({ name: view.players[seat].name, lean }))
-}
-
 export interface AskExtra {
   chosenTeam?: Seat[]
 }
@@ -636,20 +610,19 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
         ? ` The team on the table is YOUR proposal, so defend it, answer questions about it, and do not argue against your own team.${v.discussionPostRevision
           ? ` You have already used your one revision, so this team is the team that goes to the vote.`
           : ` After this discussion you will decide whether to keep or revise it.`}`
-        : ` A team is on the table. React to it and include your lean.`) + revisedNote
+        : ` A team is on the table. React to it and say where you stand on it.`) + revisedNote
       : ''
     const addressed = directAddresses(v)
     const addressNote = addressed.length
       ? ` NOTE: ${addressed.join(' and ')} mentioned or addressed you since your last turn. If you were asked something, respond to it now.`
       : ''
-    // Evil's board stakes belong on the LEAN, not only on the vote. A lean is a
-    // public commitment about the same team, computed from the same board.ts
-    // triggers the vote ASK already reads, and splitting them let one seat lean
-    // reject TWICE on a team carrying its own partner at 2-2 (a team that wins
-    // the game outright) and then vote approve once the vote ASK finally stated
-    // the stakes. Two costs, not one: the table read the wrong signal, and the
-    // lean-versus-vote flip is itself the kind of tell the vote ASK's own
-    // leanNote asks the seat to explain away (seed web-086364ddc4, Q5.3).
+    // Evil's board stakes belong in TABLE TALK, not only on the vote. It is the
+    // same team and the same board.ts triggers the vote ASK already reads, and
+    // splitting them let one seat argue TWICE against a team carrying its own
+    // partner at 2-2 (a team that wins the game outright) and then vote approve
+    // once the vote ASK finally stated the stakes. Two costs, not one: the table
+    // read the wrong position, and arguing one way then voting the other is
+    // itself a tell the seat has to explain away (seed web-086364ddc4, Q5.3).
     //
     // The leader branch differs on purpose. Telling a leader to argue against its
     // own team would contradict teamNote directly above, and the leader has a
@@ -660,7 +633,7 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
     const stakesNote = v.alignment !== 'evil' || !v.currentTeam?.length
       ? ''
       : aboard >= failsNeeded
-        ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down or lean against it. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
+        ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
         : matchPoint(v).good
           ? isLeader
             ? ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it. Do not argue against your own team in front of the table.${v.discussionPostRevision
@@ -739,36 +712,26 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
   },
   finalize: (v) => {
     const team = (v.currentTeam ?? []).map((s) => nameOf(v, s)).join(', ')
-    const leans = declaredLeans(v)
-    const tally = leans.length
-      ? ` Declared leans: ${leans.map((l) => `${l.name}: ${l.lean}`).join(', ')}.`
-      : ` Nobody declared a lean.`
     const hammer = v.proposalNum === MAX_PROPOSALS
       ? ` THIS IS THE HAMMER: there is no vote, and the team you lock in goes straight on the quest.`
       : ''
-    // Evil leaders fold at this step: facing a reject-leaning table they revise
-    // their own team until nobody left on it can play a Fail, which hands the
-    // quest a guaranteed success. The finalize sibling of the vote ASK's
-    // ownTeamNote — consensus-following looks like the safe play here, but for
-    // evil the revision itself has a price the leans never mention.
+    // Evil leaders fold at this step: facing a hostile table they revise their
+    // own team until nobody left on it can play a Fail, which hands the quest a
+    // guaranteed success. The finalize sibling of the vote ASK's ownTeamNote —
+    // consensus-following looks like the safe play here, but for evil the
+    // revision itself has a price no objection at the table will mention.
     // The count comes from knownEvilAboard, so it is Oberon-safe by construction.
     const aboard = knownEvilAboard(v, v.currentTeam)
     const foldNote = v.alignment !== 'evil'
       ? ''
       : aboard.length
-        ? ` This team seats evil you know of: ${aboard.map((s) => nameOf(v, s)).join(', ')}. Revising them off would buy the table's approval at the price of a quest your side can no longer fail, so the leans are not the only cost in front of you.${v.proposalNum === MAX_PROPOSALS
+        ? ` This team seats evil you know of: ${aboard.map((s) => nameOf(v, s)).join(', ')}. Revising them off would buy the table's approval at the price of a quest your side can no longer fail, so the objections are not the only cost in front of you.${v.proposalNum === MAX_PROPOSALS
           ? ` And there is no vote left to lose: nothing the table declared can stop this team, so revising your side off it gives the quest away for free.`
-          : ` Leans are not binding, and a contested team often still passes the vote, while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
+          : ` Nothing said in discussion binds a vote, and a contested team often still passes, while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
         : ` No evil you know of is on this team, so unless a teammate you cannot see is aboard it is a quest your side cannot fail. That makes revising cheap for you: if the discussion handed you a reason you can say out loud for seating yourself instead, this is the moment to use it.`
-    return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}.${tally}${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
+    return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}. Weigh what the table actually said about it above.${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
   },
   vote: (v) => {
-    const lean = ownRecentLean(v)
-    // Neutral fact: the public lean this seat already signalled on this team.
-    // A light consistency note mirrors the pitch contract's flip acknowledgement.
-    const leanNote = lean
-      ? ` Your most recent public lean on this team was: ${lean}. If your vote differs, briefly acknowledge why.`
-      : ''
     // Good hammer discipline (research §1.2/§3.1): with rejections nearly gone, a
     // reject just hands the next leader an unvoted hammer team. Bites at proposal 4
     // (the vote is never called on the 5th — the hammer auto-approves).
@@ -814,7 +777,7 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
         : matchPoint(v).good
           ? ` A success here is good's third quest: it ends the quest phase, and your side never gets another team. This quest needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} to fail and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who can play one, so approving it hands the game to the Assassin's single guess at Merlin. A reject is the last lever your side has, and it is worth the tell if the alternative is losing outright. Reject unless a teammate you cannot see is aboard, and have a reason you can say out loud for it.`
           : ''
-    return `Vote on the proposed team: approve or reject.${leanNote}${hammerNote}${ownTeamNote}${evilNote}`
+    return `Vote on the proposed team: approve or reject. If you argued one way in the discussion and vote the other, expect the table to notice.${hammerNote}${ownTeamNote}${evilNote}`
   },
   quest: (v) => {
     if (v.alignment !== 'evil') {

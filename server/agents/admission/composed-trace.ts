@@ -435,7 +435,6 @@ type _MorganaRoleObjectiveFeatureKeysSound =
 const COMMUNICATION_INTENT_KEYS = [
   'version',
   'channel',
-  'desiredLean',
   'targetSeats',
   'claimCodes',
   'safeFactCodes',
@@ -1657,14 +1656,6 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
         (reason) => !availableStrategicReasons.includes(reason),
       )
       || intent.tone !== 'natural'
-      || (
-        action.kind === 'discuss'
-          ? (
-              intent.desiredLean !== undefined
-              && intent.desiredLean !== action.lean
-            )
-          : intent.desiredLean !== undefined
-      )
     ) {
       return false
     }

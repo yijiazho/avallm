@@ -53,7 +53,7 @@ export function buildCommitments(
         const sourceId = commitmentId(evidence.id, 'team')
         supersede(
           commitments,
-          (commitment) => commitment.kind === 'team' || commitment.kind === 'lean',
+          (commitment) => commitment.kind === 'team',
           sourceId,
         )
         commitments.push({
@@ -91,7 +91,7 @@ export function buildCommitments(
         supersede(
           commitments,
           (commitment) =>
-            (commitment.kind === 'team' || commitment.kind === 'lean')
+            commitment.kind === 'team'
             && contextKey(commitment.context.round, commitment.context.proposalNum) === key,
           sourceId,
         )
@@ -124,35 +124,6 @@ export function buildCommitments(
         }
         break
       }
-      case 'declared-lean': {
-        const sourceId = commitmentId(evidence.id, 'lean')
-        const key = contextKey(evidence.payload.round, evidence.payload.proposalNum)
-        supersede(
-          commitments,
-          (commitment) =>
-            commitment.kind === 'lean'
-            && commitment.actor === evidence.actor
-            && contextKey(commitment.context.round, commitment.context.proposalNum) === key,
-          sourceId,
-        )
-        commitments.push({
-          id: sourceId,
-          sourceId: evidence.id,
-          sourceSeq: evidence.sourceSeq,
-          actor: evidence.actor,
-          kind: 'lean',
-          visibility: 'public',
-          context: {
-            round: evidence.payload.round,
-            proposalNum: evidence.payload.proposalNum,
-            questNum: evidence.payload.round,
-            ...(evidence.payload.team ? { team: evidence.payload.team.slice() } : {}),
-          },
-          payload: { type: 'lean', lean: evidence.payload.lean },
-          status: 'current',
-        })
-        break
-      }
       case 'utterance': {
         const spoken = utterance(
           evidence,
@@ -166,17 +137,8 @@ export function buildCommitments(
         break
       }
       case 'vote-reveal': {
-        const key = contextKey(evidence.payload.round, evidence.payload.proposalNum)
         for (const vote of evidence.payload.votes) {
           const sourceId = commitmentId(evidence.id, `vote-${vote.seat}`)
-          supersede(
-            commitments,
-            (commitment) =>
-              commitment.kind === 'lean'
-              && commitment.actor === vote.seat
-              && contextKey(commitment.context.round, commitment.context.proposalNum) === key,
-            sourceId,
-          )
           commitments.push({
             id: sourceId,
             sourceId: evidence.id,

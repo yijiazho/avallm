@@ -125,8 +125,8 @@ export function createGame(opts: CreateGameOpts): Game {
 
 // Discussion rotation: non-leaders in seat order from the leader's left. The
 // leader's proposal pitch was their opening statement, so they don't re-open
-// the round — under 'last' they close each round instead (lean-free), having
-// heard the whole table before their turn and before finalize.
+// the round — under 'last' they close each round instead, having heard the
+// whole table before their turn and before finalize.
 function speakerOrder(game: Game): Seat[] {
   const n = game.config.playerCount
   const order = Array.from({ length: n - 1 }, (_, i) => (game.leaderSeat + 1 + i) % n)
@@ -142,7 +142,7 @@ function startDiscussion(game: Game, postRevision: boolean): boolean {
   game.phase = 'discussion'
   game.discussion = {
     remaining: speakerOrder(game), roundNum: 1, maxRounds: cap,
-    postRevision, leans: {}, leanChangedThisRound: false,
+    postRevision,
   }
   return true
 }
@@ -304,14 +304,6 @@ function validateDecisionBeforePreamble(
       if (typeof decision.say !== 'string') {
         throw new EngineError('say must be a string')
       }
-      if (
-        decision.lean !== undefined
-        && decision.lean !== 'approve'
-        && decision.lean !== 'reject'
-        && decision.lean !== 'unsure'
-      ) {
-        throw new EngineError(`invalid lean: ${String(decision.lean)}`)
-      }
       return
     case 'propose':
       validateTeam(game, decision.team)
@@ -393,38 +385,23 @@ export function applyDecision(
   switch (decision.kind) {
     case 'discuss': {
       if (typeof decision.say !== 'string') throw new EngineError('say must be a string')
-      const lean = decision.lean
-      if (lean !== undefined && lean !== 'approve' && lean !== 'reject' && lean !== 'unsure') {
-        throw new EngineError(`invalid lean: ${String(lean)}`)
-      }
       const say = capSpeech(stripSeatRefs(decision.say, game.players), 600)
       const d = game.discussion!
-      const isLeader = seat === game.leaderSeat
-      // The leader's lean is dropped, not rejected: their signal channels are
-      // the pitch and the finalize turn, and throwing here would just burn an
-      // LLM retry on a harmless extra field.
-      if (!isLeader && lean !== undefined) {
-        if (d.leans[seat] !== lean) d.leanChangedThisRound = true
-        d.leans[seat] = lean
-      }
       emit(game, 'utterance', {
         seat, text: say, round: d.roundNum,
-        ...(!isLeader && lean !== undefined ? { lean } : {}),
         ...(d.postRevision ? { postRevision: true } : {}),
       }, 'public')
       d.remaining.shift()
       if (d.remaining.length === 0) {
-        // Lean settlement: a full round in which no lean was newly declared
-        // or changed means positions are stable — call the question. A first
-        // declaration counts as a change, so a round where leans appear can
-        // never settle; a lean-less quiet round settles immediately
-        // (tabletop: nobody objects, vote). The cap bounds the worst case.
-        const settled = !d.leanChangedThisRound
-        if (settled || d.roundNum >= d.maxRounds) {
+        // Every segment runs its configured number of rounds. There was once a
+        // "lean settlement" early exit here, keyed on a declared-lean signal
+        // that no longer exists; at the shipped 2,1 pacing it could only fire
+        // in the degenerate round where nobody signalled at all, so nothing
+        // replaced it.
+        if (d.roundNum >= d.maxRounds) {
           endDiscussion(game)
         } else {
           d.roundNum += 1
-          d.leanChangedThisRound = false
           d.remaining = speakerOrder(game)
         }
       }
@@ -599,9 +576,6 @@ export function applyDecisionWithOutcome(
       appliedDecision = {
         kind: 'discuss',
         say: payload.text as string,
-        ...(payload.lean !== undefined
-          ? { lean: payload.lean as 'approve' | 'reject' | 'unsure' }
-          : {}),
         ...privateFields,
       }
       break

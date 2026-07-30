@@ -42,12 +42,12 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
    roster additions.
 6. **Balance measurement with LLM tables.** Heuristic self-play is evil-favored (~66/34 at 7p,
    ~80/20 at 5p/10p) because heuristic good has no discussion channel. Measure LLM-table win
-   rates now that bots talk, signal leans, and answer questions; only then tune.
+   rates now that bots talk and answer questions; only then tune.
 7. **Semantic leak measurement.** Structural leaks are impossible by design; bots can still *say*
    too much ("us evil folks"). Measure incidence from reveal logs before deciding whether a cheap
    post-hoc leak-judge call on evil/Merlin utterances is worth the cost/latency.
 8. **Prompt iteration from real games.** The reveal logs (private thinking + actions) are a
-   goldmine: recurring confusions (early-game state muddles, lean-vs-vote contradictions) become
+   goldmine: recurring confusions (early-game state muddles, talk-vs-vote contradictions) become
    prompt or nudge fixes, like the direct-address and leader-defends-own-team nudges already did.
    - **Scratchpad reflect cadence** (`server/agents/llm.ts` `maybeReflect`). The private
      scratchpad refreshes via an ~800-token `reflect` call; the cadence is `AVALON_REFLECT_CADENCE`

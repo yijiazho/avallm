@@ -55,12 +55,10 @@ function communicationDirection(
   const channel = raw.channel
   const targetSeats = raw.targetSeats
   const claimCodes = stringArray(raw.claimCodes)
-  const desiredLean = raw.desiredLean
   if (
     !onlyAllowedKeys(raw, [
       'version',
       'channel',
-      'desiredLean',
       'targetSeats',
       'claimCodes',
       'tone',
@@ -78,12 +76,6 @@ function communicationDirection(
     || new Set(claimCodes).size !== claimCodes.length
     || !claimCodes.every((code) =>
       COMMUNICATION_CLAIM_CODES.includes(code as CommunicationClaimCode))
-    || (
-      desiredLean !== undefined
-      && desiredLean !== 'approve'
-      && desiredLean !== 'reject'
-      && desiredLean !== 'unsure'
-    )
     || raw.tone !== 'natural'
   ) {
     return undefined
@@ -91,7 +83,6 @@ function communicationDirection(
   return {
     version: COMMUNICATION_INTENT_VERSION,
     channel,
-    ...(desiredLean === undefined ? {} : { desiredLean }),
     targetSeats: targetSeats as number[],
     claimCodes: claimCodes as CommunicationClaimCode[],
     tone: 'natural',

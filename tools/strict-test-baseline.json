@@ -28,7 +28,7 @@
     },
     {
       "path": "test/cognition.test.ts",
-      "sha256": "bf18175649813efe8f47630c921cf55e4560016d3391ffcee8fdc54671d1441d",
+      "sha256": "d6c831da6a69d8e8b1814ba876b428277314d95c4e8d33ef7dccdb26d59d2c95",
       "rationale": "Legacy fixture exercises a retired phase spelling."
     },
     {
@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "fc5db7172702deadc1d074da228a89e455df62fb3431c2f5a42bc98d2f8f6d5a",
+      "sha256": "77e1c1e986c5dc38b96a7ea07d116bc00e89b546712dca9f59cad99aa21e88f6",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
@@ -58,7 +58,7 @@
     },
     {
       "path": "test/discuss-stakes.test.ts",
-      "sha256": "ef724ded20b5b49735b75838b162e901dbf552eecbf1c31f23a909ca6024214f",
+      "sha256": "f8bdf5975b4c03b6108c878064e956f8234d9e6018704b4a33ef8db404a1479c",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "test/eval.test.ts",
-      "sha256": "7cfea96a29ad0342db25883fb01e486d62f406522361cc42847bc606baae6c6e",
+      "sha256": "f1262d8d7e2a61f646fcb252439c2f3cd59d4d65e7cfcef5669557293337b861",
       "rationale": "Legacy evaluation fixtures omit a newer talk configuration field."
     },
     {
@@ -83,12 +83,12 @@
     },
     {
       "path": "test/forced-play.test.ts",
-      "sha256": "b7a17c04c6c2ae3636153e6e6254ce223420b2e5d992723a7018cde936cc5c37",
+      "sha256": "7e85d093e662ff84d5afe3ef10c9a440e7bdf4ac558dc92fe708ab9f5d3344a3",
       "rationale": "Legacy forced-play fixture omits a newer talk configuration field."
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "296b10580726178d5a74e99f317536745915037131f180d7461fdb39bd1f1430",
+      "sha256": "d0fd9a72463ead7bacebc58bd1bf4bb83972958460b80b52390dfee1191ee4e1",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
@@ -143,12 +143,12 @@
     },
     {
       "path": "test/plan-coherence.test.ts",
-      "sha256": "d3b400b4536fe1cd7cd7bc231d28e857ba0d66b2f7afeaf9c87b74f1fa08dc8e",
+      "sha256": "371e90f46f30ffa29b81d1d7f6c1a38c4df03467421b75dfc83bb16e378c6c60",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/prompts.test.ts",
-      "sha256": "3bf2f43955a2588c83b8fda5ad2a2b60ec63d50d485d19cfbdd3a09cd8a80c3c",
+      "sha256": "4a62771b1122d484cc1dd6b7f138d2a6be4e0d664e53a705f36cd2ab8f4f81a7",
       "rationale": "Legacy prompt fixture exercises a retired phase spelling."
     },
     {
@@ -158,7 +158,7 @@
     },
     {
       "path": "test/public-record.test.ts",
-      "sha256": "1e037085b2c534fc102db521029a3bd127184a0e7132edeba5bd0d38d883d646",
+      "sha256": "42cc7bd894f11b8b474e63542aad6e07a443df83d189832df5b78cdf88008184",
       "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
     },
     {
@@ -168,7 +168,7 @@
     },
     {
       "path": "test/replay-timeline.test.ts",
-      "sha256": "6d05ffe6dae5c159ba3d7657441c1fb2881d19f776446c7c58bfd10a4af0e99d",
+      "sha256": "e7b4c5bc6f4a409348c353956700a3e8b94d0c5c0f47d5e4958231178c78976d",
       "rationale": "Legacy replay fixture needs visibility union narrowing."
     },
     {

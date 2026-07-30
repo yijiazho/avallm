@@ -160,26 +160,9 @@ export function evidenceFromEvent(
           round,
           proposalNum,
           ...(team ? { team } : {}),
-          ...(p.lean !== undefined ? { lean: p.lean as 'approve' | 'reject' | 'unsure' } : {}),
         },
       }
-      if (p.lean === undefined) return [utterance]
-      return [
-        utterance,
-        {
-          ...base,
-          id: eventId(event.seq, 'declared-lean'),
-          kind: 'declared-lean',
-          payload: {
-            lean: p.lean as 'approve' | 'reject' | 'unsure',
-            discussionRound: p.round as number,
-            postRevision: p.postRevision === true,
-            round,
-            proposalNum,
-            ...(team ? { team } : {}),
-          },
-        },
-      ]
+      return [utterance]
     }
     case 'voteReveal':
       return [{

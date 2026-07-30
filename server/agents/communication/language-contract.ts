@@ -127,12 +127,7 @@ function attributedUtterances(
     if (
       event.type === 'utterance'
       && typeof payload.text === 'string'
-      && (
-        payload.text.length > 0
-        || payload.lean === 'approve'
-        || payload.lean === 'reject'
-        || payload.lean === 'unsure'
-      )
+      && payload.text.length > 0
     ) {
       const context = proposal
         ? {
@@ -147,9 +142,6 @@ function attributedUtterances(
         channel: 'discussion',
         speaker: speaker(payload.seat as Seat),
         text: payload.text,
-        ...(payload.lean === undefined
-          ? {}
-          : { lean: payload.lean as 'approve' | 'reject' | 'unsure' }),
         ...(context ? { context } : {}),
       })
     }
@@ -254,7 +246,6 @@ function copyAttributedUtterance(
       name: utterance.speaker.name,
     },
     text: utterance.text,
-    ...(utterance.lean === undefined ? {} : { lean: utterance.lean }),
     ...(utterance.context
       ? { context: copyUtteranceContext(utterance.context) }
       : {}),
@@ -271,7 +262,7 @@ function validUtterance(
     || !exactOptionalKeys(
       value,
       ['sourceSeq', 'channel', 'speaker', 'text'],
-      ['lean', 'context'],
+      ['context'],
     )
     || !safeInteger(value.sourceSeq, 0, throughSeq)
     || ![
@@ -284,10 +275,6 @@ function validUtterance(
     || !finiteSeat(value.speaker.seat, playerCount)
     || typeof value.speaker.name !== 'string'
     || typeof value.text !== 'string'
-    || (
-      value.lean !== undefined
-      && !['approve', 'reject', 'unsure'].includes(value.lean as string)
-    )
   ) {
     return false
   }

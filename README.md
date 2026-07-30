@@ -4,7 +4,7 @@ AvaLLM is a web implementation of The Resistance: Avalon, for 5 to 10 seats, in 
 
 ## What a game consists of
 
-The leader opens a round by posting a team with a pitch. Non-leaders then speak once per discussion round in seat order, each utterance carrying an optional public lean of approve, reject, or unsure. Discussion ends on lean settlement, meaning a full round in which no lean was newly declared or changed, or at a configured round cap. The leader then takes a single finalize turn: stick, or revise the team with a stated reason. Vote, then quest. The engine's phases are `proposal`, `discussion`, `finalize`, `vote`, `quest`, `assassination`, `gameOver`.
+The leader opens a round by posting a team with a pitch. Non-leaders then speak once per discussion round in seat order, saying where they stand in their own words; nothing said binds a vote. Discussion runs a fixed number of rounds, configured per game. The leader then takes a single finalize turn: stick, or revise the team with a stated reason. Vote, then quest. The engine's phases are `proposal`, `discussion`, `finalize`, `vote`, `quest`, `assassination`, `gameOver`.
 
 Every bot decision also carries private `thinking`, logged as a seat-visible event. The post-game reveal replays that against the public log and marks any decision that degraded to the heuristic fallback. Model calls run through one OpenRouter chokepoint with a hard spend ceiling, tagged per agent and call kind, readable at `/api/usage`.
 

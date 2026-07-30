@@ -6,13 +6,10 @@ import type {
 } from '../../engine/types.ts'
 import type { PublicCommitment } from './types.ts'
 
-export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v1'
+export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v2'
 
 export const COHERENCE_CONFLICT_CODES = [
-  'VOTE_OPPOSES_DECLARED_LEAN',
   'VOTE_OPPOSES_OWN_TEAM',
-  'LEAN_OPPOSES_DECLARED_LEAN',
-  'LEAN_OPPOSES_OWN_TEAM',
   'TEAM_REVERSES_CURRENT_TEAM',
   'REVISION_MISSING_EXPLANATION',
 ] as const
@@ -29,12 +26,10 @@ export interface LiteralCommitmentBasis {
   id: string
   sourceSeq: number
   actor: Seat
-  kind: 'team' | 'lean'
+  kind: 'team'
   round: number
   proposalNum: number
-  payload:
-    | { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
-    | { type: 'lean'; lean: 'approve' | 'reject' | 'unsure' }
+  payload: { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
 }
 
 export interface CoherenceAssessment {
@@ -56,16 +51,6 @@ function sameTeam(
   return a.every((seat, index) => seat === b[index])
 }
 
-function opposes(
-  left: 'approve' | 'reject' | 'unsure' | undefined,
-  right: 'approve' | 'reject' | 'unsure' | undefined,
-): boolean {
-  return (
-    (left === 'approve' && right === 'reject')
-    || (left === 'reject' && right === 'approve')
-  )
-}
-
 export function literalCommitmentBasis(
   commitments: readonly PublicCommitment[],
   req: DecisionRequest,
@@ -77,35 +62,24 @@ export function literalCommitmentBasis(
         && commitment.actor === req.seat
         && commitment.context.round === req.round
         && commitment.context.proposalNum === req.proposalNum
-        && (commitment.kind === 'team' || commitment.kind === 'lean'),
+        && commitment.kind === 'team',
     )
     .map((commitment): LiteralCommitmentBasis => {
-      if (commitment.payload.type === 'team') {
-        return {
-          id: commitment.id,
-          sourceSeq: commitment.sourceSeq,
-          actor: commitment.actor,
-          kind: 'team',
-          round: req.round,
-          proposalNum: req.proposalNum,
-          payload: {
-            type: 'team',
-            action: commitment.payload.action,
-            team: commitment.payload.team.slice(),
-          },
-        }
-      }
-      if (commitment.payload.type !== 'lean') {
+      if (commitment.payload.type !== 'team') {
         throw new Error('literal coherence received a non-literal commitment')
       }
       return {
         id: commitment.id,
         sourceSeq: commitment.sourceSeq,
         actor: commitment.actor,
-        kind: 'lean',
+        kind: 'team',
         round: req.round,
         proposalNum: req.proposalNum,
-        payload: { type: 'lean', lean: commitment.payload.lean },
+        payload: {
+          type: 'team',
+          action: commitment.payload.action,
+          team: commitment.payload.team.slice(),
+        },
       }
     })
     .sort((left, right) =>
@@ -120,9 +94,6 @@ export function assessLiteralCoherence(
   currentTeam?: readonly Seat[],
 ): CoherenceAssessment {
   const codes = new Set<CoherenceConflictCode>()
-  const lean = commitmentBasis.find(
-    (commitment) => commitment.payload.type === 'lean',
-  )
   const ownTeam = commitmentBasis.find(
     (commitment) =>
       commitment.payload.type === 'team'
@@ -130,25 +101,8 @@ export function assessLiteralCoherence(
   )
 
   if (appliedDecision.kind === 'vote') {
-    if (
-      lean?.payload.type === 'lean'
-      && opposes(lean.payload.lean, appliedDecision.vote)
-    ) {
-      codes.add('VOTE_OPPOSES_DECLARED_LEAN')
-    }
     if (ownTeam && appliedDecision.vote === 'reject') {
       codes.add('VOTE_OPPOSES_OWN_TEAM')
-    }
-  }
-  if (appliedDecision.kind === 'discuss') {
-    if (
-      lean?.payload.type === 'lean'
-      && opposes(lean.payload.lean, appliedDecision.lean)
-    ) {
-      codes.add('LEAN_OPPOSES_DECLARED_LEAN')
-    }
-    if (ownTeam && appliedDecision.lean === 'reject') {
-      codes.add('LEAN_OPPOSES_OWN_TEAM')
     }
   }
   if (appliedDecision.kind === 'finalize' && !appliedDecision.stick) {

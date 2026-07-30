@@ -153,7 +153,7 @@ async function soloRun(browser, viewportName, viewport) {
         // propose | finalize | vote | quest | assassinate. null = the bar isn't up yet.
         kind: bar?.dataset.kind ?? null,
         hasInput: !!bar?.querySelector('input'),
-        teamPending: !!bar?.querySelector('[data-t="lean-approve"]'),
+        teamPending: bar?.dataset.team === 'pending',
         reveal: !!document.querySelector('.reveal'),
       }
     })
@@ -229,16 +229,14 @@ async function soloRun(browser, viewportName, viewport) {
       if (!seen.has('assassinate')) { seen.add('assassinate'); await shot('assassinate') }
       await clickT(page, 'assassinate')
     } else if (st.kind === 'discuss') {
-      // discuss.jpg prefers the react-to-team frame (lean picker ✓/✕/? engaged,
-      // which the plain opening turn — identical to game-start — lacks), but must
+      // discuss.jpg prefers the react-to-team frame (a team on the table, which
+      // the plain opening turn — identical to game-start — lacks), but must
       // ALWAYS exist so the required-shot check can't spuriously fail: capture the
       // plain turn as a fallback on first sight, then upgrade in place once a team
       // is on the table. In the common case the upgrade lands; only a run that never
       // reaches a post-proposal turn keeps the plain (game-start-like) fallback.
       if (!discussIsReact) {
         if (st.teamPending) {
-          await clickT(page, 'lean-approve')
-          await sleep(120)
           await shot('discuss')
           discussIsReact = true
         } else if (!seen.has('discuss')) {
@@ -252,8 +250,8 @@ async function soloRun(browser, viewportName, viewport) {
         await sleep(100)
         await clickT(page, 'say')
       } else {
-        // "pass" submits an empty utterance (its label is "Pass", or "Signal only"
-        // once a lean is engaged) — click by data-t so neither label nor class matters.
+        // "pass" submits an empty utterance — click by data-t so neither label
+        // nor class matters.
         await clickT(page, 'pass')
       }
     }

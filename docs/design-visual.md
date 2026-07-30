@@ -81,7 +81,7 @@ names (Merlin, Percival…) — the arcana titles are the cards' display dress, 
   km `#45c4d8`, gl `#a97fe6`, gp `#67b377`.
 - **Color roles**: gold = structure/attention/leader; lapis & oxblood = allegiance ONLY
   (fixes audit X2); lit/unlit = the vote, everywhere it appears (bar token, seat chip,
-  flipped ballot, lean pill, tally, record grid); model colors = identity chips/ticks.
+  flipped ballot, tally, record grid); model colors = identity chips/ticks.
   The vote pair exists because `--ok`/`--bad` used to alias lapis/oxblood, so "approve"
   and "quest success" rendered as the same blue card from the same CSS rule — the vote
   and the quest were literally one picture. Lit-vs-unlit is a *value* contrast, so it
@@ -105,7 +105,7 @@ names (Merlin, Percival…) — the arcana titles are the cards' display dress, 
   labels, model slugs `Consolas / Cascadia Mono` (machine voice). Small-caps + tracked
   uppercase for plates and labels.
 - **Components**: tarot card (3 tiers: full role card / seat card / mini quest card),
-  gem (rotated square; vote lean + role toggles), cartouche, moment divider, record line
+  gem (rotated square; role toggles), cartouche, moment divider, record line
   (mono, gold left rule), speech block with model-color tick, table arc surface, play-card
   buttons, gold CTA rail.
 
@@ -259,6 +259,21 @@ remain future options (Zodiac's seat-linking lines double as a turn-order diagra
   upside-down for you alone (tarot reversal = inverted meaning).
 - [ ] Card-back variants per game / per agent library entry.
 - [ ] Light "Illuminated Chronicle" theme (mock D) as an alternate skin.
+
+### Retired 2026-07-29: the lean UI
+
+The aye/nay/unsure signal was removed from the game (rationale in
+[design-implementation.md](design-implementation.md) §7 "Turn structure"), taking its whole
+visual vocabulary with it: the AYE/NAY/? segmented control in the speaking bar, the seat-card
+lean badge and its `leandrop` animation, the feed's `leanmark` pill, and the `lean` row in the
+seat tooltip. The completed-work entries above are left as written — they record what was built
+and when — but the four that describe those pieces (transcript "bordered lean chips", the
+gem-drop motion verdict, the seat tooltip's `lean` row, and the framed lean input group) no
+longer describe the shipped UI. The seat tooltip now reads status / last vote / leads-in-N /
+blurb. Where a seat stands is carried by what it says, in the feed, like any other speech.
+
+Mobile layout followed: the speaking bar's 2x2 grid existed to pair the lean segment with Pass,
+and is now a full-width say field over a Pass/Say row.
 
 ## Tooling
 

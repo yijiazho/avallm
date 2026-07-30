@@ -458,6 +458,6 @@ test('compatibility snapshot boundaries stay local while timelines fail closed',
   historical.schema = 2
   assert.throws(
     () => decisionReplayTimeline(historical),
-    /pre proposal-flow redesign/,
+    /below the replayable floor/,
   )
 })

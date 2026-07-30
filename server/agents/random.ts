@@ -10,13 +10,8 @@ export function randomDecide(req: DecisionRequest, view: PlayerView, seed: strin
   const rng = makeRng(fnv1a(`rnd:${seed}:${req.seat}:${view.events.length}:${req.kind}`))
   const seats = view.players.map((p) => p.seat)
   switch (req.kind) {
-    case 'discuss': {
-      // Random leans exercise the settlement/lean-change tracking in fuzz.
-      const lean = rng.chance(0.6)
-        ? rng.pick(['approve', 'reject', 'unsure'] as const)
-        : undefined
-      return { kind: 'discuss', say: rng.chance(0.5) ? '' : 'Hmm.', lean }
-    }
+    case 'discuss':
+      return { kind: 'discuss', say: rng.chance(0.5) ? '' : 'Hmm.' }
     case 'propose': {
       const size = view.quests[view.round - 1].teamSize
       return { kind: 'propose', team: rng.shuffle(seats).slice(0, size) }

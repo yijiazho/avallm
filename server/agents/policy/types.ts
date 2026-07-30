@@ -4,7 +4,7 @@ import type {
 } from '../../engine/types.ts'
 import type { ForcedPlayReasonCode } from '../analysis/types.ts'
 
-export const LEGAL_CANDIDATE_VERSION = 'legal-candidates-v1'
+export const LEGAL_CANDIDATE_VERSION = 'legal-candidates-v2'
 export const FORCED_POLICY_VERSION = 'forced-policy-v1'
 
 export interface PolicyCandidate {
@@ -15,8 +15,9 @@ export interface PolicyCandidate {
 }
 
 /**
- * A finite discussion seam. The policy owns whether to pass and which public
- * lean to attach; arbitrary prose remains the communication layer's job.
+ * A finite discussion seam. Table talk has no enumerable mechanical content, so
+ * this is a single candidate: the policy commits to speaking and arbitrary
+ * prose remains the communication layer's job.
  */
 export interface DiscussionCandidate extends PolicyCandidate {
   kind: 'discuss'

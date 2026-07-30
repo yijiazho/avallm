@@ -19,7 +19,7 @@ import {
 import { extractEvidence } from './evidence.ts'
 import type { PublicCommitment } from './types.ts'
 
-export const PLAN_MEMORY_VERSION = 'private-plan-memory-v1'
+export const PLAN_MEMORY_VERSION = 'private-plan-memory-v2'
 /** Finite private memory; older superseded entries are discarded FIFO. */
 export const PLAN_MEMORY_HISTORY_LIMIT = 128
 export const PLAN_MEMORY_SERIALIZED_LIMIT = 4_000_000
@@ -209,13 +209,9 @@ function validDecision(value: unknown): value is Decision {
     ))) return false
   switch (decision.kind) {
     case 'discuss':
-      return exact(['kind', 'say', 'lean', 'thinking', 'notes'])
+      return exact(['kind', 'say', 'thinking', 'notes'])
         && typeof decision.say === 'string'
         && decision.say.length <= 600
-        && (
-          decision.lean === undefined
-          || ['approve', 'reject', 'unsure'].includes(String(decision.lean))
-        )
     case 'propose':
       return exact(['kind', 'team', 'pitch', 'thinking', 'notes'])
         && strictCanonicalArray(decision.team)
@@ -290,7 +286,7 @@ function validSelectedDecision(value: unknown): value is Decision {
     return false
   }
   const allowed = decision.kind === 'discuss'
-    ? ['kind', 'say', 'lean', 'thinking', 'notes']
+    ? ['kind', 'say', 'thinking', 'notes']
     : decision.kind === 'propose'
       ? ['kind', 'team', 'pitch', 'thinking', 'notes']
       : decision.kind === 'finalize'
@@ -379,11 +375,6 @@ function validCommitmentBasis(
     }
     ids.add(basis.id)
     previousSeq = Number(basis.sourceSeq)
-    if (basis.kind === 'lean') {
-      return Object.keys(payload).length === 2
-        && payload.type === 'lean'
-        && ['approve', 'reject', 'unsure'].includes(String(payload.lean))
-    }
     return basis.kind === 'team'
       && Object.keys(payload).length === 3
       && payload.type === 'team'

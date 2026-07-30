@@ -71,7 +71,7 @@ export interface ForcedVoteChoice {
   reasonCodes: readonly ForcedPlayReasonCode[]
 }
 
-/** Shared by the vote policy and discussion's non-binding lean projection. */
+/** Shared by the vote policy and the discussion projection. */
 export function forcedVoteChoice(
   view: PlayerView,
   analysis: SituationAnalysis,
@@ -80,10 +80,12 @@ export function forcedVoteChoice(
   const canSink = analysis.factCodes.includes(
     'CURRENT_TEAM_CAN_MEET_FAIL_REQUIREMENT',
   )
+  // Neither arm stands down any more. Both used to require that the declared
+  // leans left this ballot able to change the outcome; leans are gone, and a
+  // seat voting live cannot know the tally in advance anyway.
   if (
     canSink
     && (analysis.matchPoint.good || analysis.matchPoint.evil)
-    && analysis.voteLeverage.approveCouldMatter
   ) {
     return {
       decision: { kind: 'vote', vote: 'approve' },
@@ -93,7 +95,6 @@ export function forcedVoteChoice(
   if (
     analysis.matchPoint.good
     && !canSink
-    && analysis.voteLeverage.rejectCouldMatter
   ) {
     return {
       decision: { kind: 'vote', vote: 'reject' },

@@ -517,7 +517,7 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
   assert.deepEqual(result.decision, { kind: 'vote', vote: 'approve' })
   assert.equal(
     result.trace!.forcedPolicyResult!.selectedCandidateId,
-    'legal-candidates-v1:vote:approve',
+    'legal-candidates-v2:vote:approve',
   )
   assert.equal(
     morganaUtility(result.trace!)!.selectedCandidateId,

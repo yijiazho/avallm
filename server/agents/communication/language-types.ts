@@ -1,5 +1,4 @@
 import type {
-  Lean,
   Seat,
 } from '../../engine/types.ts'
 import type { PublicRecord } from './public-record.ts'
@@ -76,7 +75,6 @@ export interface PublicAttributedUtterance {
   channel: LanguageUtteranceChannel
   speaker: { seat: Seat; name: string }
   text: string
-  lean?: Lean
   context?: LanguageUtteranceContext
 }
 

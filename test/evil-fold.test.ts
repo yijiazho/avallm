@@ -1,6 +1,6 @@
 // Evil folding under table pressure, at the one step where the leader can
 // rewrite their own team: the finalize ASK tells an evil leader what revising
-// evil off the team costs, so a reject-leaning table can't talk them into a
+// evil off the team costs, so a hostile table can't talk them into a
 // quest their side cannot fail. The count of evil aboard is only what the
 // deciding seat can SEE, so the note never assumes Oberon visibility.
 import { test } from 'node:test'
@@ -31,8 +31,8 @@ function findGame(playerCount: number, prefix: string, pred: (g: Game) => boolea
 function runDiscussion(g: Game): void {
   while (g.phase === 'discussion') {
     const [d] = expectedDecisions(g)
-    // A reject-leaning table is the pressure that made evil leaders fold.
-    applyDecision(g, d.seat, { kind: 'discuss', say: 'I do not like this team.', lean: 'reject' })
+    // A hostile table is the pressure that made evil leaders fold.
+    applyDecision(g, d.seat, { kind: 'discuss', say: 'I do not like this team.' })
   }
 }
 
@@ -71,7 +71,7 @@ test('evil leader with evil aboard is told what revising away costs', () => {
   assert.match(ask, /quest your side can no longer fail/)
   assert.ok(knownEvilClause(ask).includes(g.players[leader].name), 'the leader is named as evil aboard')
   // Non-hammer: sticking still faces a vote, and a rejection is the cheap loss.
-  assert.match(ask, /Leans are not binding/)
+  assert.match(ask, /Nothing said in discussion binds a vote/)
   assert.match(ask, /even a rejection is cheap/)
   assert.ok(!ask.includes('no vote left to lose'), 'hammer clause is hammer-only')
 })
@@ -136,5 +136,5 @@ test('at the hammer the note drops the rejection framing: there is no vote to lo
   const ask = finalizeAsk(g)
   assert.match(ask, /THIS IS THE HAMMER/)
   assert.match(ask, /no vote left to lose/)
-  assert.ok(!ask.includes('Leans are not binding'), 'the vote-still-winnable framing is off at the hammer')
+  assert.ok(!ask.includes('Nothing said in discussion binds a vote'), 'the vote-still-winnable framing is off at the hammer')
 })

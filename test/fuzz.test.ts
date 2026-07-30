@@ -56,7 +56,7 @@ test('random-legal games terminate cleanly', async () => {
   for (let playerCount = 5; playerCount <= 10; playerCount++) {
     for (let s = 0; s < 8; s++) {
       const ctx = `random ${playerCount}p seed=${s}`
-      // maxRounds 3,2 so random leans exercise settlement tracking and the
+      // maxRounds 3,2 so the fuzz exercises multi-round segments and the
       // random agent's 20% revise exercises the post-revision segment.
       const { game, degradedCount } = await play(
         playerCount, `fzr-${playerCount}-${s}`, { type: 'random' }, { maxRounds: 3, maxRoundsAfterChange: 2 },

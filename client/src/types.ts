@@ -51,7 +51,7 @@ export interface PlayerView {
   currentTeam?: Seat[]
   discussionRound?: number
   discussionPostRevision?: boolean
-  transcript: { seat: Seat; name: string; text: string; lean?: string }[]
+  transcript: { seat: Seat; name: string; text: string }[]
   events: GameEvent[]
   winner?: Alignment
   winReason?: string

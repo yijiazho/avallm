@@ -23,8 +23,8 @@ type Ev = Omit<GameEvent, 'seq' | 'visibility'> & { visibility?: GameEvent['visi
 const mkLog = (events: Ev[]): GameEvent[] =>
   events.map((e, seq) => ({ seq, visibility: 'public', ...e }))
 
-const say = (seat: Seat, text: string, lean?: string): Ev =>
-  ({ type: 'utterance', payload: { seat, text, round: 1, ...(lean ? { lean } : {}) } })
+const say = (seat: Seat, text: string): Ev =>
+  ({ type: 'utterance', payload: { seat, text, round: 1 } })
 
 const proposal = (leader: Seat, team: Seat[], round = 1, proposalNum = 1): Ev =>
   ({ type: 'proposal', payload: { round, proposalNum, leader, team } })
@@ -41,11 +41,11 @@ const questResult = (round: number, result: 'success' | 'fail'): Ev =>
 // ---- ledger ----
 
 test('ledger flags a pass after the passer\'s endorsed team failed', () => {
-  // The motivating incident: seat 2 leaned approve AND voted approve on a
-  // team that then failed — and said nothing. Seat 3 voted reject: owes nothing.
+  // The motivating incident: seat 2 spoke for a team and voted approve on it,
+  // the team failed, and it said nothing. Seat 3 voted reject: owes nothing.
   const log = mkLog([
     proposal(0, [0, 1]),
-    say(2, 'this team is fine, let\'s run it', 'approve'),
+    say(2, 'this team is fine, let\'s run it'),
     voteReveal([0, 1], { 0: 'approve', 1: 'approve', 2: 'approve', 3: 'reject', 4: 'reject' }, true),
     questResult(1, 'fail'),
     say(2, ''),   // silent after contradiction -> flagged
@@ -55,8 +55,8 @@ test('ledger flags a pass after the passer\'s endorsed team failed', () => {
   assert.equal(ledger.silentAfterContradiction.length, 1)
   const flag = ledger.silentAfterContradiction[0]
   assert.equal(flag.seat, 2)
-  // Both the lean and the vote were contradicted.
-  assert.deepEqual(flag.contradictions.map((c) => c.commitment.via).sort(), ['lean', 'vote'])
+  // The vote is the deterministic commitment that got contradicted.
+  assert.deepEqual(flag.contradictions.map((c) => c.commitment.via).sort(), ['vote'])
   assert.ok(flag.contradictions.every((c) => c.kind === 'endorsedTeamFailed'))
 })
 
@@ -147,17 +147,18 @@ test('conspicuousness: a Merlin tied at the top is NOT scored uniquely most-cons
   assert.equal(m.merlin!.conspicuousnessRank, 1.5)
 })
 
-test('metrics: leans count only while a team is on the table', () => {
+test('metrics: utterances and passes are counted separately', () => {
   const log = mkLog([
-    say(2, 'pre-proposal chatter', 'approve'), // no pendingTeam -> not counted
+    say(2, 'pre-proposal chatter'),
     proposal(0, [3, 4]),
-    say(2, 'hmm', 'reject'),                   // correct: team has evil
+    say(2, 'hmm'),
+    say(2, ''),
     voteReveal([3, 4], { 0: 'reject', 1: 'reject', 2: 'reject', 3: 'approve', 4: 'approve' }, false),
   ])
   const m = computeMetrics(syntheticArtifact(log))
   const s2 = m.seats.find((s) => s.seat === 2)!
-  assert.equal(s2.leans, 1)
-  assert.equal(s2.leanScore, 1)
+  assert.equal(s2.utterances, 2)
+  assert.equal(s2.passes, 1)
 })
 
 // ---- artifact roundtrip on a real game ----

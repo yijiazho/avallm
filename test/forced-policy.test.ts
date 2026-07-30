@@ -65,21 +65,6 @@ const withoutUtterances = (view: PlayerView): PlayerView => ({
   events: view.events.filter((event) => event.type !== 'utterance'),
 })
 
-function withDeclaredLeans(
-  view: PlayerView,
-  leans: readonly { seat: Seat; lean: 'approve' | 'reject' }[],
-): PlayerView {
-  const base = withoutUtterances(view)
-  const start = Math.max(0, ...base.events.map((event) => event.seq)) + 1
-  const events: GameEvent[] = leans.map(({ seat, lean }, index) => ({
-    seq: start + index,
-    type: 'utterance',
-    payload: { seat, text: '', round: view.round, lean },
-    visibility: 'public',
-  }))
-  return { ...base, events: [...base.events, ...events] }
-}
-
 test('good quest cards are forced to Success', () => {
   const base = fixture('oberon-two-fail-quest')
   const view: PlayerView = {
@@ -174,15 +159,17 @@ test('decisive evil votes approve sinkable teams and reject unsinkable teams', (
   )
 })
 
-test('decisive vote rules stand down when declared leans make the vote immaterial', () => {
+// Both decisive-vote arms used to stand down when the leans declared during
+// discussion left this ballot unable to change the outcome. Leans are gone, and
+// they were never binding on the seats that declared them, so nothing gates the
+// arms any more: a seat voting live cannot see the tally in advance. Pinned so
+// the stand-down is not quietly reintroduced from a different signal.
+test('decisive vote rules fire on the board alone, with no stand-down', () => {
   const base = fixture('mordred-late-vote')
   const quests = base.view.quests.map((quest, index) =>
     index < 2
       ? { ...quest, result: 'success' as const, failCount: 0 }
       : quest)
-  const otherSeats = base.view.players
-    .map((player) => player.seat)
-    .filter((seat) => seat !== base.view.seat)
 
   const sinkable = {
     ...base.view,
@@ -192,33 +179,14 @@ test('decisive vote rules stand down when declared leans make the vote immateria
       ...base.view.currentTeam!.filter((seat) => seat !== base.view.seat),
     ].slice(0, base.view.currentTeam!.length),
   }
-  const doomed = policyResult(
-    base.req,
-    withDeclaredLeans(
-      sinkable,
-      otherSeats.slice(0, Math.floor(base.view.playerCount / 2) + 1)
-        .map((seat) => ({ seat, lean: 'reject' as const })),
-    ),
-  )
-  assert.equal(doomed.forced.applied, false)
-  assert.ok(!doomed.analysis.forcedPlayReasonCodes.includes(
+  const decisive = policyResult(base.req, withoutUtterances(sinkable))
+  assert.ok(decisive.analysis.forcedPlayReasonCodes.includes(
     'EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED',
   ))
 
-  const unsinkable = {
-    ...base.view,
-    quests,
-  }
-  const carried = policyResult(
-    base.req,
-    withDeclaredLeans(
-      unsinkable,
-      otherSeats.slice(0, Math.floor(base.view.playerCount / 2) + 1)
-        .map((seat) => ({ seat, lean: 'approve' as const })),
-    ),
-  )
-  assert.equal(carried.forced.applied, false)
-  assert.ok(!carried.analysis.forcedPlayReasonCodes.includes(
+  const unsinkable = withoutUtterances({ ...base.view, quests })
+  const cannotSink = policyResult(base.req, unsinkable)
+  assert.ok(cannotSink.analysis.forcedPlayReasonCodes.includes(
     'EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT',
   ))
 })

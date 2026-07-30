@@ -3,7 +3,6 @@ import type {
   Decision,
   DecisionKind,
   DecisionRequest,
-  Lean,
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
@@ -121,25 +120,17 @@ export function legalCandidates(
   const seats = view.players.map((player) => player.seat).sort((a, b) => a - b)
   switch (req.kind) {
     case 'discuss': {
-      const leans: readonly (Lean | undefined)[] =
-        view.leaderSeat === view.seat
-          ? [undefined]
-          : [undefined, 'approve', 'reject', 'unsure']
-      return leans.map((lean): DiscussionCandidate => {
-        const decision: Extract<Decision, { kind: 'discuss' }> = {
-          kind: 'discuss',
-          say: '',
-          ...(lean ? { lean } : {}),
-        }
-        return {
-          ...candidate(
-            'discuss',
-            `pass:${lean ?? 'none'}`,
-            decision,
-          ),
-          template: 'pass',
-        }
-      })
+      // Table talk is prose, so the mechanically legal surface here is a single
+      // candidate: the content of what a seat says is not enumerable.
+      const decision: Extract<Decision, { kind: 'discuss' }> = {
+        kind: 'discuss',
+        say: '',
+      }
+      const only: DiscussionCandidate = {
+        ...candidate('discuss', 'pass', decision),
+        template: 'pass',
+      }
+      return [only]
     }
     case 'propose': {
       return hypotheticalProposalCandidates(view)
@@ -185,7 +176,7 @@ export function legalCandidates(
 export function candidateIdForDecision(decision: Decision): string {
   switch (decision.kind) {
     case 'discuss':
-      return `${LEGAL_CANDIDATE_VERSION}:discuss:pass:${decision.lean ?? 'none'}`
+      return `${LEGAL_CANDIDATE_VERSION}:discuss:pass`
     case 'propose':
       return `${LEGAL_CANDIDATE_VERSION}:propose:${teamKey(decision.team)}`
     case 'finalize':

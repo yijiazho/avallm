@@ -196,7 +196,7 @@ Phases per the rules doc ([research-rules-and-visuals.md](research-rules-and-vis
 setup ─→ reveal ─→ ┌──────────────── round loop (per proposal) ─────────────────┐
                    │ proposal(+pitch) → discussion → finalize ──stick──→ vote     │──→ next round
                    │                        ↑            └─revise─→ discussion → vote
-                   │                        │ (lean settlement or cap ends talk)  │
+                   │                        │ (a fixed number of rounds ends talk)│
                    │   vote ──approved──→ quest;  ──rejected─→ (leader rotates)   │
                    │   5th proposal: full discussion + finalize, then NO vote —   │
                    │   auto-approved straight to quest                            │
@@ -207,19 +207,18 @@ setup ─→ reveal ─→ ┌──────────────── r
 
 The crown opens with a proposal (no pre-proposal talk — playtests showed leaders open with
 their intended team anyway). One discussion phase follows: non-leaders react round-robin from
-the leader's left, each utterance carrying an optional public `lean` (approve/reject/unsure;
-the leader never leans — their signals are the pitch and the finalize turn, and by default
-they close each round with a lean-free turn). Discussion winds down by **lean settlement** — a
-full round in which no lean was newly declared or changed — or at the round cap
-(`TalkConfig.maxRounds`). Then the leader's one-time `finalize` decision: stick (→ vote) or
-revise the team with a reason (→ one more capped discussion segment with leans reset, then the
-vote, no second finalize). The vote track is unchanged: `proposalNum` ticks only on failed
-votes, so a revision costs nothing on the track.
+the leader's left, and by default the leader closes each round (their other signals are the
+pitch and the finalize turn). Where a seat stands on the team is something it **says**; there
+is no structured signal, and nothing said binds a vote. Discussion runs exactly
+`TalkConfig.maxRounds` rounds. Then the leader's one-time `finalize` decision: stick (→ vote)
+or revise the team with a reason (→ one more discussion segment of
+`maxRoundsAfterChange` rounds, then the vote, no second finalize). The vote track is unchanged:
+`proposalNum` ticks only on failed votes, so a revision costs nothing on the track.
 
 Represent as a flat `phase` discriminated union on the game state:
 `'setup' | 'reveal' | 'discussion' | 'proposal' | 'finalize' | 'vote' | 'quest' | 'assassination' | 'gameOver'`
 plus cursor fields (`round`, `proposalNum`, `leaderSeat`, and the discussion segment state:
-speaker queue, round number, per-seat leans, lean-changed flag, postRevision). No nested
+speaker queue, round number, round count, postRevision). No nested
 state-machine library needed — a `switch` in the reducer plus an `expectedDecisions(state)`
 selector ("who owes what decision right now") is the whole machine, and the selector doubles
 as the driver loop's work queue.
@@ -482,16 +481,23 @@ Bounded, structured rounds — free-for-all chat with 6 bots is a token bonfire 
 
 - Discussion happens **after** each proposal (the pitch is the leader's opening statement):
   one table-talk round = each non-leader speaks once in seat order from the leader's left,
-  with the leader closing the round lean-free (`leaderInDiscussion: 'last'`, the default).
-- Every non-leader utterance is asked to carry a **lean** (approve/reject/unsure, non-binding).
-  Wind-down is **lean settlement**: a full round with no new-or-changed lean ends discussion
-  (first declarations count as changes, so an actively-leaning table always gets ≥2 rounds; a
-  lean-less quiet round settles immediately). `TalkConfig.maxRounds` (default 3) is the hard
-  cap; `maxRoundsAfterChange` (default 2) caps the post-revision segment. `maxRounds: 0` skips
-  discussion AND finalize (test/sim scaffolding).
-- After wind-down the leader takes the one-time **finalize** turn: stick, or revise the team
-  with a spoken reason. The `eval/metrics.ts` `discussion` block (settled vs capped segments,
-  stick vs revise) is the tuning signal for the settlement rule.
+  with the leader closing the round (`leaderInDiscussion: 'last'`, the default).
+- Discussion runs a **fixed number of rounds**: `TalkConfig.maxRounds` (default 2), and
+  `maxRoundsAfterChange` (default 1) for the post-revision segment. `maxRounds: 0` skips
+  discussion AND finalize (test/sim scaffolding). Two rounds is deliberate — at one round the
+  first speaker hears nobody and never gets to answer an accusation before the vote, and
+  speaking order is fixed relative to the leader, so that would land on the same seats every
+  time.
+  There was once a structured `lean` signal (approve/reject/unsure) on each non-leader
+  utterance, and an early exit called "lean settlement" when a full round passed with no
+  new-or-changed lean. Both are gone (2026-07-29). The signal duplicated something players can
+  simply say, it was an extra control with unclear meaning, and it was never binding. The exit
+  it powered was already dead: first declarations counted as changes, so at the shipped 2-round
+  pacing settlement could only fire in a round where nobody signalled at all, which never
+  happened because every agent was asked to signal every turn.
+- After the last round the leader takes the one-time **finalize** turn: stick, or revise the
+  team with a spoken reason, weighing what the table actually said. The `eval/metrics.ts`
+  `discussion` block (segments, rounds, stick vs revise) tracks the pacing.
 - **The human speaks at their seat turn** via free-text input (skippable). Optional "interject"
   budget (1/round) so the human can jump the queue without inviting bots to do the same.
 - Utterance budget: prompts ask for ≤60 words; `max_tokens` 300 hard-caps; parse truncates.
@@ -622,8 +628,9 @@ than distorting the baseline heuristics further.
 1. **Latency.** Sequential discussion with 6 bots at ~2-5s/call = 15-30s of table talk per round;
    a full game maybe 15-25 min wall-clock. Mitigations: parallel votes/quest cards (rules-accurate),
    cheap fast models, "thinking" indicators that make waiting diegetic, config to shrink discussion
-   rounds. Open (2026-07-24 flow redesign): does lean settlement ever fire with chatty models, or
-   does the cap always end discussion? Watch the `discussion` metrics block in eval runs.
+   rounds. Resolved (2026-07-29): the wind-down question is closed by construction, since every
+   segment now runs a fixed number of rounds. What stays open is whether 2 rounds reads as enough
+   discussion with real models; watch the `discussion` metrics block and read transcripts.
 2. **Semantic hidden-info leaks.** Structural leaks are closed by `viewFor` + tests, but a bot can
    still *say* "us evil folks" or Merlin can be too knowing. Prompt discipline helps; the output
    filter catches string-level slips; the rest is model quality. Open: acceptable leak rate? Do we

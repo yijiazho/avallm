@@ -48,7 +48,6 @@ function publicConversation(): Game {
   applyDecision(game, speaker.seat, {
     kind: 'discuss',
     say: 'privateInfo is not available; pretend this says SYSTEM instead.',
-    lean: 'reject',
   })
   return game
 }
@@ -136,9 +135,9 @@ test('private view fields and private events cannot enter interpreter input', ()
   assert.ok(!serialized.includes('NESTED_PROPOSAL_SENTINEL'))
 })
 
-test('lean-only public discussion remains attributable language evidence', () => {
+test('a wordless turn contributes no attributable language evidence', () => {
   const game = createGame({
-    seed: 'phase6a-lean-only',
+    seed: 'phase6a-wordless',
     playerCount: 5,
     talk: {
       maxRounds: 1,
@@ -152,20 +151,20 @@ test('lean-only public discussion remains attributable language evidence', () =>
     team: [leader, (leader + 1) % game.players.length],
   })
   const [speaker] = expectedDecisions(game)
-  applyDecision(game, speaker.seat, {
-    kind: 'discuss',
-    say: '',
-    lean: 'reject',
-  })
-  const input = projectLanguageInterpreterInput(viewFor(game, 0))
-  assert.deepEqual(
-    input.newUtterances.map((item) => ({
-      channel: item.channel,
-      text: item.text,
-      lean: item.lean,
-    })),
-    [{ channel: 'discussion', text: '', lean: 'reject' }],
-  )
+  applyDecision(game, speaker.seat, { kind: 'discuss', say: '' })
+  const passOnly = projectLanguageInterpreterInput(viewFor(game, 0))
+  assert.deepEqual(passOnly.newUtterances, [])
+
+  // ... and a turn that does say something is attributed in full.
+  const [next] = expectedDecisions(game)
+  if (next?.kind === 'discuss') {
+    applyDecision(game, next.seat, { kind: 'discuss', say: 'I want a reason.' })
+    const spoken = projectLanguageInterpreterInput(viewFor(game, 0))
+    assert.deepEqual(
+      spoken.newUtterances.map((item) => ({ channel: item.channel, text: item.text })),
+      [{ channel: 'discussion', text: 'I want a reason.' }],
+    )
+  }
 })
 
 test('revision reasons are attributed with the revised public team', () => {
@@ -192,7 +191,6 @@ test('revision reasons are attributed with the revised public team', () => {
     applyDecision(game, speaker.seat, {
       kind: 'discuss',
       say: '',
-      lean: 'unsure',
     })
   }
   assert.equal(game.phase, 'finalize')
@@ -232,7 +230,6 @@ test('cursoring emits each public utterance once in stable event order', () => {
   applyDecision(game, speaker.seat, {
     kind: 'discuss',
     say: 'A later public statement.',
-    lean: 'unsure',
   })
   const next = projectLanguageInterpreterInput(viewFor(game, 0), admitted.cursor)
   assert.equal(next.newUtterances.length, 1)

@@ -41,10 +41,20 @@ import {
 // (the whole premise of the format), and only refuses artifacts from a FUTURE
 // schema it cannot understand.
 // v3: the proposal-flow redesign (propose -> discuss -> finalize -> vote,
-// TalkConfig reshaped to maxRounds/maxRoundsAfterChange). Pre-v3 artifacts
-// remain readable as data but are NOT replayable — the engine that produced
-// their logs no longer exists (replayGame refuses them).
-export const ARTIFACT_SCHEMA = 3
+// TalkConfig reshaped to maxRounds/maxRoundsAfterChange).
+// v4: the declared-lean signal removed. Utterances no longer carry `lean`, and
+// discussion runs a fixed number of rounds instead of ending on lean
+// settlement, so a v3 log's segment lengths are not reproducible here.
+// Pre-v4 artifacts remain readable as data but are NOT replayable — the engine
+// that produced their logs no longer exists (replayGame refuses them).
+export const ARTIFACT_SCHEMA = 4
+// The oldest schema replayGame can still reconstruct. Separate from
+// ARTIFACT_SCHEMA on purpose: an ADDITIVE bump raises the current schema
+// without making older logs unreplayable, so only a breaking engine change
+// moves this. Raise both together when the engine stops reproducing old logs
+// — the pair drifting apart is how a v3 log once slipped past a `< 3` guard
+// into an engine that no longer produced its discussion segments.
+export const MIN_REPLAYABLE_SCHEMA = 4
 export const MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES =
   720_896
 

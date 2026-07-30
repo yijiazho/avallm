@@ -41,12 +41,13 @@ export function createActiveLanguageEvaluationInterpreter(
           schemaVersion: LANGUAGE_EVIDENCE_VERSION,
           sourceSeq: utterance.sourceSeq,
           subject: utterance.speaker.seat,
-          direction:
-            utterance.lean === 'reject'
-              ? 'moreEvil'
-              : utterance.lean === 'approve'
-                ? 'moreGood'
-                : 'unchanged',
+          // Deterministic stand-in for real interpretation, so the bank
+          // exercises belief reads without an API call. It used to key off the
+          // declared lean; with talk carrying the position instead, it keys off
+          // the speech itself. Attributed utterances are never empty (the
+          // language contract drops wordless turns), so this always yields a
+          // read rather than 'unchanged'.
+          direction: utterance.text.length % 2 === 0 ? 'moreEvil' : 'moreGood',
           class: 'other',
           confidence: 'low',
           publicRationale:

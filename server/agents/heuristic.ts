@@ -123,8 +123,9 @@ function decideVote(
     // is a later, secret decision. Off a decisive board this is also the old
     // "any evil aboard => approve" default, since failsRequired is 1 there.
     if (aboard >= failsNeeded) return { kind: 'vote', vote: 'approve' }
-    // When declared leans make the vote immaterial, forced-policy-v1 correctly
-    // stands down. Preserve the compatibility policy's historical choice.
+    // forced-policy-v1 used to stand down here when declared leans made the
+    // vote immaterial. Leans are gone, so it no longer does; this branch keeps
+    // the compatibility policy's historical choice.
     if (analysis.matchPoint.good) return { kind: 'vote', vote: 'reject' }
     // Undecided board: an unsinkable team still costs nothing to wave through
     // if a teammate is on it, and there are later rounds to recover in.
@@ -223,9 +224,11 @@ function decideDiscuss(
   rng: Rng,
   analysis: SituationAnalysis,
 ): Decision {
-  // Lean: when a team is on the table, signal how we'd vote right now. The
-  // leader never leans — their signals are the pitch and the finalize turn.
-  const lean = view.currentTeam && view.leaderSeat !== view.seat
+  // Speech is the only channel for a position on the team, so when one is on
+  // the table the fallback says where it stands out loud rather than leaving
+  // the table nothing to read. The leader is excluded: their pitch already
+  // argued for this team and the finalize turn closes it.
+  const stance = view.currentTeam && view.leaderSeat !== view.seat
     ? (
         forcedVoteChoice(view, analysis)?.decision
         ?? decideVote(view, rng, analysis)
@@ -234,9 +237,19 @@ function decideDiscuss(
   // Passing is natural, and later rounds are mostly for whoever still has
   // something to say.
   const passChance = (view.discussionRound ?? 1) >= 2 ? 0.75 : 0.3
-  if (rng.chance(passChance)) return { kind: 'discuss', say: '', lean }
+  if (rng.chance(passChance)) return { kind: 'discuss', say: '' }
   const sus = suspicion(view)
   const nameOf = (s: Seat) => view.players[s].name
+  const stanceLines = stance === 'approve'
+    ? [`This team works for me.`, `I'm good with this one.`]
+    : stance === 'reject'
+      ? [`I don't like this team.`, `I'd rather see a different three.`]
+      : []
+  // Half the time the stance carries the turn on its own; otherwise it gives
+  // way to a read, which is the more interesting thing to say.
+  if (stanceLines.length && rng.chance(0.5)) {
+    return { kind: 'discuss', say: rng.pick(stanceLines) }
+  }
 
   if (view.alignment === 'evil') {
     // Blend in: cast vague doubt on a non-partner, or play it cool.
@@ -247,7 +260,7 @@ function decideDiscuss(
       `I'm comfortable with how this is shaping up.`,
       `No strong reads from me yet.`,
     ]
-    return { kind: 'discuss', say: rng.pick(lines), lean }
+    return { kind: 'discuss', say: rng.pick(lines) }
   }
 
   const ranked = view.players.map((p) => p.seat).filter((s) => s !== view.seat)
@@ -255,14 +268,14 @@ function decideDiscuss(
   const worst = ranked[0]
   const trusted = ranked[ranked.length - 1]
   if (sus[worst] > 1) {
-    return { kind: 'discuss', say: `I don't trust ${nameOf(worst)}.`, lean }
+    return { kind: 'discuss', say: `I don't trust ${nameOf(worst)}.` }
   }
   const lines = [
     `I'd feel better with ${nameOf(trusted)} on this one.`,
     `Watch the votes closely this round.`,
     `No strong reads from me yet.`,
   ]
-  return { kind: 'discuss', say: rng.pick(lines), lean }
+  return { kind: 'discuss', say: rng.pick(lines) }
 }
 
 // ---- entry points ----

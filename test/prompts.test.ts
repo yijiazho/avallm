@@ -317,23 +317,23 @@ test('sanitizeSpeech strips directive markup but keeps words', () => {
   assert.equal(sanitizeSpeech('  plain speech stays  '), 'plain speech stays')
 })
 
-test('transcriptText fences leans by proposal so a stale lean is not read as current', () => {
+test('transcriptText fences talk by proposal so a stale position is not read as current', () => {
   const view = {
     seat: 0,
     players: [0, 1, 2].map((s) => ({ seat: s, name: ['A', 'B', 'C'][s] })),
     transcript: [
-      { seat: 1, name: 'B', text: '', lean: 'approve', prop: { round: 3, proposalNum: 1, leader: 2, team: [1, 2] } },
-      { seat: 0, name: 'A', text: 'no', lean: 'reject', prop: { round: 4, proposalNum: 1, leader: 0, team: [0, 1] } },
+      { seat: 1, name: 'B', text: 'this team works for me', prop: { round: 3, proposalNum: 1, leader: 2, team: [1, 2] } },
+      { seat: 0, name: 'A', text: 'no', prop: { round: 4, proposalNum: 1, leader: 0, team: [0, 1] } },
     ],
   } as unknown as PlayerView
   const out = transcriptText(view)
   const h3 = out.indexOf('on Q3 proposal 1')
-  const passes = out.indexOf('(passes) [leans approve]')
+  const stale = out.indexOf('this team works for me')
   const h4 = out.indexOf('on Q4 proposal 1')
   assert.ok(h3 >= 0 && h4 >= 0, 'both proposal headers render')
-  // The stale approve-pass sits under its own Q3 header, ahead of the Q4 header —
-  // so it cannot be read as a lean on the team currently on the table.
-  assert.ok(h3 < passes && passes < h4, 'stale lean grouped under its own proposal')
+  // The stale endorsement sits under its own Q3 header, ahead of the Q4 header —
+  // so it cannot be read as a position on the team currently on the table.
+  assert.ok(h3 < stale && stale < h4, 'stale endorsement grouped under its own proposal')
 })
 
 test('transcriptText names the leader of each fenced proposal, not the current one', () => {
@@ -344,7 +344,7 @@ test('transcriptText names the leader of each fenced proposal, not the current o
       // C held the chair on Q5.2 and said what it would put up next; A holds it
       // on Q5.3. Unattributed, C's line reads as an outsider claiming credit.
       { seat: 2, name: 'C', text: "I'll propose A/B/C", prop: { round: 5, proposalNum: 2, leader: 2, team: [0, 1, 2] } },
-      { seat: 1, name: 'B', text: 'you did not propose this', lean: 'approve', prop: { round: 5, proposalNum: 3, leader: 0, team: [0, 1, 2] } },
+      { seat: 1, name: 'B', text: 'you did not propose this', prop: { round: 5, proposalNum: 3, leader: 0, team: [0, 1, 2] } },
     ],
   } as unknown as PlayerView
   const out = transcriptText(view)

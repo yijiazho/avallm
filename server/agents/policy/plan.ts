@@ -1,7 +1,6 @@
 import type {
   Decision,
   DecisionRequest,
-  Lean,
   Seat,
 } from '../../engine/types.ts'
 import type { ForcedPlayReasonCode } from '../analysis/types.ts'
@@ -17,7 +16,6 @@ export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v2'
 export const POSTERIOR_UNCERTAINTY_VERSION = 'posterior-uncertainty-v1'
 
 export const COMMUNICATION_CLAIM_CODES = [
-  'STATE_COMMITTED_LEAN',
   'EXPLAIN_COMMITTED_TEAM',
   'EXPLAIN_COMMITTED_REVISION',
   'ADVOCATE_SELECTED_ACTION',
@@ -59,7 +57,6 @@ export type PosteriorUncertainty =
 export interface PlannerCommunicationDirection {
   version: typeof COMMUNICATION_INTENT_VERSION
   channel: 'discussion' | 'proposal-pitch' | 'revision-reason'
-  desiredLean?: Lean
   targetSeats: readonly Seat[]
   claimCodes: readonly CommunicationClaimCode[]
   tone: 'natural'
@@ -384,9 +381,8 @@ export function defaultCommunicationIntent(
     return enrich({
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'discussion',
-      ...(decision.lean ? { desiredLean: decision.lean } : {}),
       targetSeats: [],
-      claimCodes: decision.lean ? ['STATE_COMMITTED_LEAN'] : [],
+      claimCodes: [],
       tone: 'natural',
     })
   }

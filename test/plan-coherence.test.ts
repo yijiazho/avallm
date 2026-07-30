@@ -225,15 +225,6 @@ test('history is finite, monotonic, and retains one current entry', () => {
   assert.ok(validatePrivatePlanMemory(memory))
 })
 
-const leanBasis: LiteralCommitmentBasis = {
-  id: 'commitment:lean',
-  sourceSeq: 4,
-  actor: 0,
-  kind: 'lean',
-  round: 1,
-  proposalNum: 1,
-  payload: { type: 'lean', lean: 'approve' },
-}
 const teamBasis: LiteralCommitmentBasis = {
   id: 'commitment:team',
   sourceSeq: 3,
@@ -250,7 +241,7 @@ const coherenceReq: DecisionRequest = {
   proposalNum: 1,
 }
 
-test('all six literal conflict codes have narrow deterministic triggers', () => {
+test('every literal conflict code has a narrow deterministic trigger', () => {
   const cases: Array<{
     decision: Decision
     basis: LiteralCommitmentBasis[]
@@ -260,27 +251,9 @@ test('all six literal conflict codes have narrow deterministic triggers', () => 
   }> = [
     {
       decision: { kind: 'vote', vote: 'reject' },
-      basis: [leanBasis],
-      code: 'VOTE_OPPOSES_DECLARED_LEAN',
-    },
-    {
-      decision: { kind: 'vote', vote: 'reject' },
       basis: [teamBasis],
       currentTeam: [0, 1],
       code: 'VOTE_OPPOSES_OWN_TEAM',
-    },
-    {
-      decision: { kind: 'discuss', say: '', lean: 'reject' },
-      basis: [leanBasis],
-      code: 'LEAN_OPPOSES_DECLARED_LEAN',
-      kind: 'discuss',
-    },
-    {
-      decision: { kind: 'discuss', say: '', lean: 'reject' },
-      basis: [teamBasis],
-      currentTeam: [0, 1],
-      code: 'LEAN_OPPOSES_OWN_TEAM',
-      kind: 'discuss',
     },
     {
       decision: { kind: 'finalize', stick: false, team: [2, 3], reason: 'New evidence.' },
@@ -329,7 +302,7 @@ test('maintain, conceal, and deceive classify only detected literal conflicts', 
         coherenceReq,
         { kind: 'vote', vote: 'reject' },
         intent,
-        [leanBasis],
+        [teamBasis],
         [0, 1],
       ).classification,
       classification,
@@ -339,7 +312,7 @@ test('maintain, conceal, and deceive classify only detected literal conflicts', 
         coherenceReq,
         { kind: 'vote', vote: 'approve' },
         intent,
-        [leanBasis],
+        [teamBasis],
         [0, 1],
       ).classification,
       'consistent',
@@ -520,7 +493,7 @@ test('public cognition and live server source retain the private post-apply boun
   }
 })
 
-test('engine outcome reports canonical good cards, leader leans, teams, and speech', () => {
+test('engine outcome reports canonical good cards, teams, and speech', () => {
   const game = createGame({
     seed: 'phase7b2-engine-outcome',
     playerCount: 5,
@@ -535,10 +508,8 @@ test('engine outcome reports canonical good cards, leader leans, teams, and spee
       const result = applyDecisionWithOutcome(game, req.seat, {
         kind: 'discuss',
         say: `seat 0 ${'x'.repeat(800)}`,
-        lean: 'approve',
       })
       assert.equal(result.appliedDecision.kind, 'discuss')
-      assert.equal(result.appliedDecision.lean, undefined)
       assert.ok(result.appliedDecision.say.length <= 600)
       assert.doesNotMatch(result.appliedDecision.say, /seat 0/i)
       leaderChecked = true

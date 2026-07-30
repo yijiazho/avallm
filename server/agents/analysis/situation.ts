@@ -29,7 +29,6 @@ import {
   type AnalysisFactCode,
   type BoardSituation,
   type CandidateTeamFacts,
-  type DeclaredLeanTally,
   type DeductionProvenance,
   type ForcedPlayReasonCode,
   type GoodVoteSituation,
@@ -264,7 +263,6 @@ function forcedCodesFor(
   board: BoardSituation,
   current: SituationTeamAssessment | undefined,
   policyCandidateTeams: readonly CandidateTeamFacts[],
-  voteLeverage: SituationAnalysis['voteLeverage'],
   failsRequired: number,
 ): readonly ForcedPlayReasonCode[] {
   const codes = new Set<ForcedPlayReasonCode>()
@@ -291,10 +289,11 @@ function forcedCodesFor(
     }
     if (board.matchPoint.good) {
       if (canSink) codes.add('GOOD_MATCH_POINT_FAIL_REQUIRED')
-      else if (
-        view.phase === 'vote'
-        && voteLeverage.rejectCouldMatter
-      ) {
+      // No stand-down clause here any more. This used to fire only when the
+      // declared leans left this seat's ballot able to change the outcome; a
+      // live seat cannot see the tally in advance, and the leans it used to
+      // read were never binding on anyone.
+      else if (view.phase === 'vote') {
         codes.add('EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT')
       }
     }
@@ -302,7 +301,6 @@ function forcedCodesFor(
       view.phase === 'vote'
       && canSink
       && (board.matchPoint.good || board.matchPoint.evil)
-      && voteLeverage.approveCouldMatter
     ) {
       codes.add('EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED')
     }
@@ -318,26 +316,6 @@ function forcedCodesFor(
     codes.add('EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED')
   }
   return [...codes]
-}
-
-function declaredLeansFor(view: PlayerView): readonly DeclaredLeanTally[] {
-  const latest = new Map<Seat, DeclaredLeanTally['lean']>()
-  for (const event of view.events) {
-    if (event.type === 'proposal' || event.type === 'proposalRevised') {
-      latest.clear()
-    } else if (
-      event.type === 'utterance'
-      && event.payload.lean !== undefined
-    ) {
-      latest.set(
-        event.payload.seat as Seat,
-        event.payload.lean as DeclaredLeanTally['lean'],
-      )
-    }
-  }
-  return [...latest.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([seat, lean]) => ({ seat, lean }))
 }
 
 export interface AnalyzeSituationOptions {
@@ -490,17 +468,6 @@ export function analyzeSituation(
       bestAlternative: alternatives[0],
     }
   }
-  const declaredLeans = declaredLeansFor(view)
-  const declared = (lean: DeclaredLeanTally['lean']): number =>
-    declaredLeans.filter(
-      (entry) => entry.seat !== view.seat && entry.lean === lean,
-    ).length
-  const passes = (approves: number): boolean =>
-    approves * 2 > view.playerCount
-  const voteLeverage = {
-    approveCouldMatter: passes(view.playerCount - declared('reject')),
-    rejectCouldMatter: !passes(declared('approve')),
-  }
   return {
     throughSeq: belief.throughSeq,
     modelVersion: SITUATION_ANALYSIS_VERSION,
@@ -510,8 +477,6 @@ export function analyzeSituation(
     policyCandidateTeams,
     policyCandidateAssessments,
     ...(goodVote ? { goodVote } : {}),
-    declaredLeans,
-    voteLeverage,
     provenGood,
     provenEvil,
     unresolved,
@@ -527,7 +492,6 @@ export function analyzeSituation(
       board,
       currentTeam,
       policyCandidateTeams,
-      voteLeverage,
       board.failsRequired,
     ),
   }

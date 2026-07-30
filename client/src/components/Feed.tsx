@@ -109,12 +109,6 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
             title="This decision fell back to the rule-based autopilot; the model's reply was unusable"
           >autopilot</span>
         )
-        const pill = row.lean && (
-          <span className={`leanmark ${row.lean === 'approve' ? 'a' : row.lean === 'reject' ? 'r' : 'u'}`}>
-            {row.lean === 'approve' ? 'Aye' : row.lean === 'reject' ? 'Nay' : 'Unsure'}
-          </span>
-        )
-
         if (row.kind === 'votereveal') {
           // Each ballot flips from face-down to the voter's aye/nay. The flip is
           // a CSS mount animation, so it plays its full duration even when the
@@ -191,20 +185,18 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
             <div key={row.key} className={cls} style={style}>
               <b className="cl-nm">{name(row.seat!)}</b>
               <span className="cl-say">: {row.text}</span>
-              {pill}
               {autopilot}
             </div>
           )
         }
 
         if (row.kind === 'quiet') {
-          // The quiet register (passes, wordless signals, renames) is dimmed &
+          // The quiet register (passes, renames) is dimmed &
           // italic as a whole, so the body is bare text — no bright .cl-say.
           return (
             <div key={row.key} className={cls} style={style}>
               {row.seat !== undefined && <b className="cl-nm">{name(row.seat)}</b>}
               {row.text}
-              {pill}
               {autopilot}
             </div>
           )
@@ -401,7 +393,6 @@ interface FeedRow {
   verb?: string
   text?: string
   pitch?: string
-  lean?: string
   sub?: string
   cls?: string
   votes?: { seat: number; vote: string }[]
@@ -423,8 +414,7 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the crown' : 'takes the crown', text: `· quest ${p.round}` }
     }
     case 'utterance': {
-      if (p.text) return { key: ev.seq, kind: 'talk', seat: p.seat, text: p.text as string, lean: p.lean }
-      if (p.lean) return { key: ev.seq, kind: 'quiet', seat: p.seat, text: you(p.seat) ? ' signal' : ' signals', lean: p.lean }
+      if (p.text) return { key: ev.seq, kind: 'talk', seat: p.seat, text: p.text as string }
       // Silence is information too.
       return { key: ev.seq, kind: 'quiet', seat: p.seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(p.seat))}.` }
     }

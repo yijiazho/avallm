@@ -25,7 +25,7 @@ export interface CallParams {
 //
 // discuss is the SAME class at the highest-frequency call, but its contract
 // keeps a deliberately generous 60-word "thinking" (clipping thinking makes the
-// bot dumber) plus "say" and "lean" AFTER it — so at 300 a verbose model (a
+// bot dumber) plus "say" AFTER it — so at 300 a verbose model (a
 // DeepSeek discuss degraded this way) truncated before "say". discuss buys the
 // headroom with a bigger budget rather than a smaller contract.
 export const CALL_PARAMS: Record<LlmCallKind, CallParams> = {

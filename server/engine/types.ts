@@ -12,17 +12,16 @@ export type Phase =
   | 'discussion' | 'proposal' | 'finalize' | 'vote' | 'quest' | 'assassination' | 'gameOver'
 
 export interface TalkConfig {
-  // MAX discussion rounds after the initial proposal. Rounds end early on
-  // "lean settlement": a full round in which no non-leader lean was newly
-  // declared or changed. 0 = no discussion AND no finalize — the proposal
-  // goes straight to vote (test/sim scaffolding).
+  // Discussion rounds after the initial proposal — a fixed count, not a cap:
+  // every segment runs exactly this many rounds. 0 = no discussion AND no
+  // finalize — the proposal goes straight to vote (test/sim scaffolding).
   maxRounds: number
-  // MAX discussion rounds after a revised proposal. 0 = a revision goes
-  // straight to vote; revising is still allowed, there is just no talk after.
+  // Discussion rounds after a revised proposal. 0 = a revision goes straight
+  // to vote; revising is still allowed, there is just no talk after.
   maxRoundsAfterChange: number
-  // Whether the leader takes a lean-free speaking turn at the END of each
-  // discussion round ('last'), or is excluded from the rotation ('none') —
-  // the leader already speaks via the proposal pitch and the finalize turn.
+  // Whether the leader takes a speaking turn at the END of each discussion
+  // round ('last'), or is excluded from the rotation ('none') — the leader
+  // already speaks via the proposal pitch and the finalize turn.
   leaderInDiscussion: 'none' | 'last'
 }
 
@@ -78,12 +77,8 @@ export interface Game {
   discussion?: {
     remaining: Seat[]     // speakers left in the current round
     roundNum: number      // 1-based; restarts at 1 after a revision
-    maxRounds: number     // snapshot of the applicable cap
+    maxRounds: number     // snapshot of the applicable round count
     postRevision: boolean // false = initial segment, true = after proposalRevised
-    // Current declared lean per NON-LEADER seat. Lives on the discussion
-    // segment (not Game) so a revision resets leans for free.
-    leans: Partial<Record<Seat, Lean>>
-    leanChangedThisRound: boolean // any declaration this round that was new or different
   }
   currentTeam?: Seat[]
   pendingVotes: Record<Seat, 'approve' | 'reject'>
@@ -107,12 +102,10 @@ export interface DecisionRequest {
 // `thinking` is the deciding agent's private in-character reasoning — the
 // engine records it as an event visible only to that seat (post-game reveal
 // material). `pitch` on propose is public speech attached to the proposal.
-export type Lean = 'approve' | 'reject' | 'unsure'
-
 // `notes` is the agent's refreshed private scratchpad, attached to the first
 // decision after a reflect; the engine records it seat-private like thinking.
 export type Decision =
-  | { kind: 'discuss'; say: string; lean?: Lean; thinking?: string; notes?: string }
+  | { kind: 'discuss'; say: string; thinking?: string; notes?: string }
   | { kind: 'propose'; team: Seat[]; pitch?: string; thinking?: string; notes?: string }
   | { kind: 'finalize'; stick: true; thinking?: string; notes?: string }
   | { kind: 'finalize'; stick: false; team: Seat[]; reason?: string; thinking?: string; notes?: string }
@@ -166,19 +159,20 @@ export interface PlayerView {
   discussionPostRevision?: boolean
   // `prop` tags the utterance with the proposal segment it was spoken under
   // (post-revision team if the leader revised), so a renderer can group table
-  // talk by proposal and a stale lean can never be read as a lean on the team
-  // currently on the table. Absent only for utterances before the first
-  // proposal (e.g. a lobby rename). team/leader are public (proposals are).
+  // talk by proposal and a stale "I don't like this team" can never be read as
+  // a position on the team currently on the table. Absent only for utterances
+  // before the first proposal (e.g. a lobby rename). team/leader are public
+  // (proposals are).
   //
   // `leader` is here for the same reason `team` is: the speaker's AUTHORITY is
-  // as perishable across a proposal boundary as their lean. A leader saying
+  // as perishable across a proposal boundary as their stated position. A leader saying
   // "I'll propose the clean trio" is stating an intent they can act on; read one
   // proposal later, when someone else holds the chair, the same words look like
   // an idle claim. That exact misread happened at a table: a bot opened the next
   // proposal attacking the previous leader for taking credit for a team, before
   // that player had said anything at all in the new segment.
   transcript: {
-    seat: Seat; name: string; text: string; lean?: Lean
+    seat: Seat; name: string; text: string
     prop?: { round: number; proposalNum: number; leader: Seat; team: Seat[] }
   }[]
   events: GameEvent[]           // only events visible to this seat

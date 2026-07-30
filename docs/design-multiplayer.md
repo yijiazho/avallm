@@ -102,7 +102,7 @@ a testable module — preferred).
 ## Table talk with several humans
 
 v1 keeps the turn-based discussion the engine already has — humans get their turns in seat order
-like everyone else, with the same pass/lean UI. That's stilted for humans (real tables talk over
+like everyone else, with the same say/pass UI. That's stilted for humans (real tables talk over
 each other), so the fast-follow is a **free-form interjection channel**: a `chat` event humans can
 emit any time during a discussion phase (engine change: a non-turn public event type), rendered in
 the feed and included in bot transcripts as table talk. Bots stay turn-based — which conveniently

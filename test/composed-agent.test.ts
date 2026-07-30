@@ -76,8 +76,8 @@ test('composed engine runs in ownership order and attributes every component', a
     factors: 'off',
     languageEvidence: 'off',
     observerModel: 'off',
-    analysis: 'situation-analysis-v1',
-    candidates: 'legal-candidates-v1',
+    analysis: 'situation-analysis-v2',
+    candidates: 'legal-candidates-v2',
     forcedPolicy: 'forced-policy-v1',
     policy: 'composed-policy-v1',
     scorer: 'compatibility-scorer-v1',
@@ -261,7 +261,7 @@ test('planner may select only a supplied viable candidate ID', async () => {
   assert.deepEqual(degraded.decision.team, source.baselineDecision.team)
 })
 
-test('planner communication must match the committed action channel and lean', async () => {
+test('planner communication must match the committed action channel', async () => {
   const source = fixture('merlin-opening-proposal')
   const agent = createComposedAgent({
     seed: source.source.seed,
@@ -273,7 +273,6 @@ test('planner communication must match the committed action channel and lean', a
           communication: {
             version: 'communication-intent-v2',
             channel: 'discussion',
-            desiredLean: 'reject',
             targetSeats: [],
             claimCodes: [],
             tone: 'natural',
@@ -424,8 +423,8 @@ test('revision reason and discussion speech are plan-driven without changing mec
   assert.equal(spoken.decision.kind, 'discuss')
   assert.equal(spoken.decision.say, 'I will keep this grounded.')
   assert.equal(
-    spoken.decision.lean,
-    (discuss.baselineDecision as Extract<Decision, { kind: 'discuss' }>).lean,
+    spoken.decision.say !== undefined,
+    (discuss.baselineDecision as Extract<Decision, { kind: 'discuss' }>).say !== undefined,
   )
 })
 

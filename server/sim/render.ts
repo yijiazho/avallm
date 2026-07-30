@@ -13,8 +13,7 @@ export function renderEvent(ev: GameEvent, game: Game): string | null {
       return `=== Avalon: ${p.playerCount} players, roles: ${(p.rolesInPlay as string[]).join(', ')} ===\n` +
         `First leader: ${name(game, p.firstLeader)}`
     case 'utterance': {
-      const lean = p.lean ? ` [leans ${p.lean}]` : ''
-      return p.text || lean ? `  ${name(game, p.seat)}: ${p.text ? `"${p.text}"` : '(signals)'}${lean}` : null
+      return p.text ? `  ${name(game, p.seat)}: "${p.text}"` : null
     }
     case 'proposal':
       return `\n[Q${p.round}.${p.proposalNum}] ${name(game, p.leader)} proposes: ${(p.team as Seat[]).map((s) => name(game, s)).join(', ')}`

@@ -38,7 +38,7 @@ export async function virtualAssassin(a: GameArtifact, opts: ProbeOpts): Promise
     `Your one job: identify Merlin — the good player who secretly knows who is evil.`,
     `As an evil player you KNOW the evil team was: ${evil.map((p) => nameOf(a, p.seat)).join(', ')}.`,
     `Merlin is therefore one of: ${candidates.map((p) => nameOf(a, p.seat)).join(', ')}.`,
-    `Merlin must hide that knowledge. Look for the good player whose votes, leans, and accusations`,
+    `Merlin must hide that knowledge. Look for the good player whose votes and accusations`,
     `track the evil players too well to be guesswork.`,
     // The probe runs on EVERY game with a Merlin, including evil wins — so the
     // prompt must NOT assert an outcome (e.g. "good won 3 quests") that the

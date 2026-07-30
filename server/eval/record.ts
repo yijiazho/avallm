@@ -28,8 +28,7 @@ function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null
       // LLM prompt here (probe/judge), so strip injection markup exactly like
       // the live prompt path does (server/agents/prompts.ts).
       const text = sanitizeSpeech((p.text as string) ?? '')
-      const lean = p.lean ? ` [leans ${p.lean as string}]` : ''
-      return `${tag} ${nameOf(a, p.seat as Seat)}: ${text ? `"${text}"` : '(passes)'}${lean}`
+      return `${tag} ${nameOf(a, p.seat as Seat)}: ${text ? `"${text}"` : '(passes)'}`
     }
     case 'proposal': {
       const pitch = typeof p.pitch === 'string' ? ` — pitch: "${sanitizeSpeech(p.pitch)}"` : ''

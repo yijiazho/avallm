@@ -123,7 +123,7 @@ LLM cost:
 
 **Programmatic (pure functions over the game artifact):**
 - **Conspicuousness** — per player, correlation of public stance (votes against evil-containing
-  teams, accusations by name, leans) with ground-truth evil. Merlin should not be the top-ranked
+  teams, accusations by name) with ground-truth evil. Merlin should not be the top-ranked
   good player. Catches "no trust Allen" instantly.
 - **Reactivity / silence-after-contradiction** (§4) — passed while holding a freshly-contradicted
   public commitment.
@@ -210,8 +210,10 @@ otherwise) and contributes situations to the bank:
    or failing to fight proposals 3–4 knowing the hammer looms.
 4. **Fail coordination** (expected) — double-fails exposing two evil at once; or both evil
    playing success out of mutual deference.
-5. **Vote-speech incoherence** (expected) — lean says approve, vote says reject with no
-   explanation; the existing lean-vs-vote confusion from roadmap #8.
+5. **Vote-speech incoherence** (expected) — argued for the team in discussion, then voted
+   reject with no explanation; the talk-vs-vote confusion from roadmap #8. Until 2026-07-29 this
+   was measurable off a structured lean field; with that gone it needs a judge read of the seat's
+   own speech, which is why it sits on the LLM-judged side rather than the programmatic one.
 
 ## 8. The closed loop
 
@@ -327,8 +329,9 @@ each targeting a specific judge-incident family, all committed with unit tests:
      is unwinnable), which the heuristic run showed decides quest 4 outright. The good `propose`
      branch is a **regression guard**: with the board visible, bots began arguing "we have a
      cushion, so test an unknown here" over their own Merlin's objection.
-2. **Vote-lean coherence** — the `vote` ask surfaces the seat's own most-recent public lean.
-   Targets vote-speech-incoherence.
+2. **Talk-vote coherence** — the `vote` ask warns that arguing one way and voting the other is
+   something the table will notice. Targets vote-speech-incoherence. Was a lean-vs-vote check
+   against the structured signal until leans were removed (2026-07-29).
 3. **Second-order self-check** — a `TABLE_TALK_NORMS` bullet ("what does this reveal about my
    role?"). Targets knowledge-leak (the ReCon fix).
 4. **Loosen the passivity nudge** — the `discuss` ask's "most players pass by round 2" replaced by

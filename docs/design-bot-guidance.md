@@ -258,7 +258,7 @@ Phase heuristics (S5 ASK, role-independent or alignment-branched).
 | Propose yourself + best objective records; late-game prefer fail-count-validated players over talk-validated (§5.1) | **S5 `propose`** | Property of the proposal decision, shared by any leader. |
 | Reflect: chain observations into standing deductions, revise disproven ones (§4.3, §5.0) | S5 `reflect` + S6 | Already well-developed in the `reflect` ASK/contract. Keep. |
 | Assassin shot: compute per-good vote-accuracy; flat-high-from-round-1 = Merlin, noisy-then-accurate = Percival; weight teammates' input; break ties toward the quieter candidate (§2.3, §5.5) | **S5 `assassinate`** | The assassinate ASK is currently bare ("name Merlin"). This is the single highest-leverage phase (>50% of evil wins). |
-| Vote can't silently contradict your public lean (consistency) | S5 `vote` | Already present as `leanNote`. Keep. |
+| Vote can't silently contradict what you argued in discussion (consistency) | S5 `vote` | Present in the `vote` ASK. Was a `leanNote` against the structured signal until leans were removed (2026-07-29); it now points at the seat's own table talk. |
 | Pitch can't silently contradict table talk; acknowledge flips | S5 `pitch` / S6 | Already present. Keep. |
 
 Role heuristics (S3 — genuinely private-knowledge or win-condition specific).
@@ -391,9 +391,16 @@ omniscience to evaluate, it is not T1** — it is a read, and reads belong to th
 | Fail the quest that would be good's third | on the team, `successes === 2`, known Fails aboard ≥ `failsRequired` | A success ends the quest phase; cover is worthless in a game you have lost | central forced policy; raw `quest` ASK |
 | Fail the quest that would be evil's third | on the team, `fails === 2`, known Fails aboard ≥ `failsRequired` | It wins the game outright | central forced policy; raw `quest` ASK |
 | Do **not** Fail below the requirement | on the team, known Fails aboard < `failsRequired` | The card cannot sink the quest and only advertises an evil. **Exception: Oberon**, whose extra card is how unseen teammates locate it | central forced policy; raw `quest` ASK |
-| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board, and an approval could still affect passage under declared public leans | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | central forced policy; raw `vote` ASK |
-| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired`, and a rejection could still affect passage under declared public leans | Approving hands good the quest phase and leaves only the Assassin's guess | central forced policy; raw `vote` ASK |
+| Approve a team your side can sink | evil voter, known Fails aboard ≥ `failsRequired`, decisive board | Approval preserves the option; the card is a later, secret decision. Rejecting destroys it | central forced policy; raw `vote` ASK |
+| Reject a team your side cannot fail | evil voter, `successes === 2`, known Fails aboard < `failsRequired` | Approving hands good the quest phase and leaves only the Assassin's guess | central forced policy; raw `vote` ASK |
 | Be on a sinkable team you lead at good's match point | evil leader, `successes === 2` | It is the last team that will ever be picked | central forced policy; raw `propose` ASK |
+
+Both vote rows used to carry a further condition: that the ballot could still affect passage
+given the leans declared during discussion. That stand-down is gone with leans (2026-07-29). It
+was reading a signal nothing bound a seat to, so evil could switch the rule off by declaring a
+reject it never intended to cast, and a seat voting live cannot see the tally in advance anyway.
+The eval-side blunder detector keeps an equivalent guard, but reads it off the revealed tally
+instead (`server/eval/forced.ts`); the two deliberately no longer mirror each other.
 
 "Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `server/agents/board.ts` counts
 the seat plus partners the deal lets it see. Oberon is invisible to the rest of evil, so a count
@@ -459,7 +466,7 @@ typed scores, and committed `DecisionPlan`; it never reconstructs a trigger from
 Raw-LLM ASKS retain the historical trigger sentences byte-for-byte because raw prompt-guided play
 is the comparison experiment. Those sentences have explanatory authority in that mode, but no
 executable authority in the composed path. Proposal pitches, revision reasons, and discussion
-speech are generated only after the mechanical action and any public lean are committed. Analysis
+speech are generated only after the mechanical action is committed. Analysis
 facts are private planning inputs by default; only an explicit public-safe projection may be cited
 by voice, and private deductions are carried in the communication intent's concealment set.
 
@@ -564,7 +571,9 @@ Facts are not free, and the benchmark is also the evidence for that:
 - **Instruction budget is finite and compliance is model-dependent.** Under one identical prompt,
   two of four models followed the table-talk rules exactly while the other two ignored specific ones
   (~20 spoken lean announcements in a single Seed game against zero in every Gemini Flash Lite and
-  GPT Nano game). Every added fact competes for the same attention as the rules that currently work.
+  GPT Nano game — measured while a structured lean signal still existed and the norms banned
+  saying it aloud; the norm has since been rewritten, but the compliance spread is the point).
+  Every added fact competes for the same attention as the rules that currently work.
 - **So measure the delta, not the intention.** Add the fact, then A/B it on fixed seeds with only
   that section changed — `AVALON_NO_DOSSIER=1` toggles the whole dossier and is therefore the wrong
   instrument for a single section; use a same-seed run against the previous commit instead.

@@ -404,13 +404,6 @@ export function createDecisionTrace(
   ) {
     recordedAction.team.sort((a, b) => a - b)
   }
-  if (
-    recordedAction.kind === 'discuss'
-    && recordedAction.lean !== undefined
-    && view.seat === view.leaderSeat
-  ) {
-    delete recordedAction.lean
-  }
   if (recordedAction.kind === 'quest' && view.alignment === 'good') {
     recordedAction.card = 'success'
   }

@@ -181,8 +181,7 @@ function renderLine(ev: GameEvent, who: (s: Seat) => string): string | null {
       return tag(`— leader → ${who(p.seat)} (Q${p.round}.${p.proposalNum}) —`)
     case 'utterance': {
       if (!p.text) return null
-      const lean = p.lean ? ` [lean: ${p.lean}]` : ''
-      return tag(`${who(p.seat)}: "${p.text}"${lean}`)
+      return tag(`${who(p.seat)}: "${p.text}"`)
     }
     case 'proposal': {
       const pitch = p.pitch ? ` — "${p.pitch}"` : ''

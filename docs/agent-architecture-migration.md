@@ -2,6 +2,18 @@
 
 **Status:** active tracking document.
 
+**Reading note (2026-07-29): the declared-lean signal is gone.** Utterances once carried an
+optional public `lean` of approve/reject/unsure, and much of the phase record below describes
+machinery built around it: `declared-lean` evidence, the `lean` commitment kind and its
+supersession rules, the discussion pass-and-public-lean candidate template, `desiredLean` on the
+communication intent, `SituationAnalysis.declaredLeans` / `voteLeverage`, and the three
+`*_DECLARED_LEAN` coherence codes. All of that is deleted; the rationale is in
+[design-implementation.md](design-implementation.md) §7 "Turn structure". The phase entries are
+left exactly as written because they record what each phase built and when, which is the point of
+this document. Read any lean mention below as history, not as a description of the current tree.
+See the C4B oracle retirement note in Phase 7R2C4B for the one place this forced a deletion rather
+than a rewrite.
+
 **Current target phase:** human evaluation checkpoint after Phase 7F2B completed the API-free
 architecture exit audit. Assassin target authority landed at `02242c4`, F1 assembled the complete
 deterministic role policy behind one immutable, role-independent scorer identity, F2A added the
@@ -2429,6 +2441,18 @@ reviewed slices are now landed:
   entry after the behavior-preserving 7R3 adapter retirements pass the 7R3 exit audit. Never
   regenerate this pre-C4 oracle to approve an intentional policy change; later policy behavior
   gets a new, separately owned evaluation baseline.
+
+  **RETIRED (2026-07-29), earlier than the 7R3 exit audit that was meant to release it.** Removing
+  the declared-lean signal deleted `SituationAnalysis.voteLeverage`, which had gated the two
+  decisive-vote forced-play codes, and bumped `situation-analysis` and `legal-candidates` to v2.
+  Every oracle trace hash diverges as a result. The divergence is an intentional policy change, so
+  the clause above forbids the only repair available, and the oracle cannot distinguish this change
+  from a regression. `tools/capture-c4b-baseline.mjs`, `test/fixtures/phase7r2c4b-baseline.json`,
+  `test/phase7r2c4b-baseline.test.ts`, and the contract-lane entry are deleted. What it was
+  guarding stays covered: the score-family conformance harness (`test/support/score-family.ts`)
+  admits and forges every family terminal, and `test/phase7r2c3-architecture-descriptor.test.ts`
+  still pins deterministic trace bytes. A pre-change oracle for behavior after this point has to be
+  captured fresh; do not resurrect this fixture to serve as one.
 
 The cross-review findings establish these development guardrails for the rest of the migration:
 

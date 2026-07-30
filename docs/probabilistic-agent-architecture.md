@@ -398,7 +398,7 @@ interface DecisionPlan {
 ```
 
 The policy commits this plan before the voice layer runs. `CommunicationIntent` can specify the
-claim to advance, facts safe to cite, facts to conceal, desired lean, target players, and tone. The
+claim to advance, facts safe to cite, facts to conceal, target players, and tone. The
 LLM turns that intent into natural table talk.
 
 ### 5.7 Decision components and resolved brains
