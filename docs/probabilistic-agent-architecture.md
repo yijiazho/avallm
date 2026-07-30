@@ -1011,8 +1011,11 @@ can see what was chosen and why.
 - **Observer modeling runs online, at every decision of a configured seat, and is not gated to
   Merlin and evil decision points.** `composed.ts` builds the snapshot once per decision on first
   use, whenever the observer is configured or a role objective or Morgana counterfeit read needs it.
-  It stays policy-inert: nothing prices what a seat's own record reveals, which is exactly the gap
-  NB-012 owns. Settled in Phase 7A.
+  Phase 7A remains a mechanically inert observation boundary. An experimental NB-012 Merlin role
+  utility v2 consumed that existing boundary through a bounded prospective vote-record cost after
+  one prior public ballot, without creating another belief source. Its cross-population evaluation
+  was mixed, so the executable candidate was withheld and production `full-role` remains on v1.
+  Observer boundary settled in Phase 7A; policy use remains under review.
 - **Cognition traces live in the main game artifact, not a sidecar.** They are the optional
   `decisionTraces` field on the full-reveal artifact, which keeps atomic association with the
   replayable event log and avoids a second retention lifecycle. Traces are never stored in `Game`,
