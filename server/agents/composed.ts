@@ -899,6 +899,93 @@ function composedTrace(
 }
 
 /**
+ * Offer the scored candidate set to the planner and admit at most one bounded
+ * choice from it.
+ *
+ * Every failure is a typed rejection rather than a throw, including a planner
+ * that throws, because planning is optional strategy layered over a decision the
+ * frame can already make: selection falls back to the structured choice and the
+ * decision still happens. The admission rules are narrow by design. A planner may
+ * name only a candidate that scored viable, may cite only reasons its own score
+ * supports, and loses invalid communication on its own without losing the
+ * candidate, so a planner cannot widen the candidate set or reopen the mechanical
+ * action it was handed.
+ */
+async function resolvePlannerChoice(input: {
+  planner: CandidatePlanner
+  context: ComposedPolicyContext
+  scores: readonly CandidateScore[]
+  structuredCandidateId: string
+  view: PlayerView
+}): Promise<LegacyPlannerResolution> {
+  const { context, scores, structuredCandidateId, view } = input
+  // The catch deliberately spans the clone and the validators, not just
+  // choose(). A planner that returns something structuredClone rejects, or a
+  // malformed output that trips a validator, is the same optional-strategy
+  // failure as one that throws outright, and must degrade rather than end the
+  // decision.
+  try {
+    const supplied = await input.planner.choose({
+      context: structuredClone(context),
+      renderedContext: renderComposedPolicyContext(context),
+      structuredCandidateId,
+    })
+    const planned = supplied === undefined
+      ? undefined
+      : structuredClone(supplied)
+    if (!planned) {
+      return { kind: 'rejected', degradationCode: 'planner-no-choice' }
+    }
+    const plannedScore = scores.find(
+      (score) => score.candidateId === planned.candidateId,
+    )
+    const plannedCandidate = context.viableCandidates.find(
+      (candidate) => candidate.id === planned.candidateId,
+    )
+    if (!plannedCandidate || !plannedScore) {
+      return {
+        kind: 'rejected',
+        degradationCode: 'planner-invalid-candidate',
+        attemptedCandidateId: planned.candidateId,
+      }
+    }
+    if (!validPlannerReasons(
+      planned.reasonCodes,
+      plannedScore,
+      scores,
+      structuredCandidateId,
+    )) {
+      return {
+        kind: 'rejected',
+        degradationCode: 'planner-invalid-reason',
+        attemptedCandidateId: planned.candidateId,
+      }
+    }
+    const communication = planned.communication !== undefined
+      && validPlannerCommunication(
+        planned.communication,
+        plannedCandidate.decision,
+        view,
+      )
+      ? structuredClone(planned.communication)
+      : undefined
+    return {
+      kind: 'accepted',
+      candidateId: planned.candidateId,
+      ...(planned.reasonCodes === undefined
+        ? {}
+        : { reasonCodes: [...planned.reasonCodes] }),
+      ...(communication ? { communication } : {}),
+      ...(planned.communication !== undefined && !communication
+        ? { degradationCode: 'planner-invalid-communication' }
+        : {}),
+    }
+  } catch {
+    return { kind: 'rejected', degradationCode: 'planner-failed' }
+  }
+}
+
+/**
  * Advance typed cognition for one decision, through bounded language evidence
  * when an interpreter is configured and mechanically otherwise.
  *
@@ -1950,86 +2037,13 @@ export function createComposedAgent(
           && !scoredFrame.candidateBoundary.selectedCandidateId
         ) {
           stage('planner')
-          try {
-            const suppliedPlan = await activePlanner.choose({
-              context: structuredClone(context),
-              renderedContext: renderComposedPolicyContext(context),
-              structuredCandidateId:
-                compatibilityScored.structuredCandidateId,
-            })
-            const planned = suppliedPlan === undefined
-              ? undefined
-              : structuredClone(suppliedPlan)
-            if (!planned) {
-              plannerResolution = {
-                kind: 'rejected',
-                degradationCode: 'planner-no-choice',
-              }
-            } else {
-              const plannedScore = compatibilityScored.scores.find(
-                (score) => score.candidateId === planned.candidateId,
-              )
-              const plannedCandidate = context.viableCandidates.find(
-                (candidate) => candidate.id === planned.candidateId,
-              )
-              if (!plannedCandidate || !plannedScore) {
-                plannerResolution = {
-                  kind: 'rejected',
-                  degradationCode: 'planner-invalid-candidate',
-                  attemptedCandidateId: planned.candidateId,
-                }
-              } else if (!validPlannerReasons(
-                planned.reasonCodes,
-                plannedScore,
-                compatibilityScored.scores,
-                compatibilityScored.structuredCandidateId,
-              )) {
-                plannerResolution = {
-                  kind: 'rejected',
-                  degradationCode: 'planner-invalid-reason',
-                  attemptedCandidateId: planned.candidateId,
-                }
-              } else {
-                const plannerReasonCodes = planned.reasonCodes === undefined
-                  ? undefined
-                  : [...planned.reasonCodes]
-                let plannerCommunication:
-                  PlannerCommunicationDirection | undefined
-                let plannerDegradation: string | undefined
-                if (planned.communication !== undefined) {
-                  if (validPlannerCommunication(
-                    planned.communication,
-                    plannedCandidate.decision,
-                    view,
-                  )) {
-                    plannerCommunication = structuredClone(
-                      planned.communication,
-                    )
-                  } else {
-                    plannerDegradation = 'planner-invalid-communication'
-                  }
-                }
-                plannerResolution = {
-                  kind: 'accepted',
-                  candidateId: planned.candidateId,
-                  ...(plannerReasonCodes
-                    ? { reasonCodes: plannerReasonCodes }
-                    : {}),
-                  ...(plannerCommunication
-                    ? { communication: plannerCommunication }
-                    : {}),
-                  ...(plannerDegradation
-                    ? { degradationCode: plannerDegradation }
-                    : {}),
-                }
-              }
-            }
-          } catch {
-            plannerResolution = {
-              kind: 'rejected',
-              degradationCode: 'planner-failed',
-            }
-          }
+          plannerResolution = await resolvePlannerChoice({
+            planner: activePlanner,
+            context,
+            scores: compatibilityScored.scores,
+            structuredCandidateId: compatibilityScored.structuredCandidateId,
+            view,
+          })
         }
 
         const selectedFrame = selectDecisionCandidate(
