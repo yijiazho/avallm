@@ -4007,7 +4007,11 @@ here.
   that all three consume, verified by the existing arms' numbers not moving. `calculateDeterministicGoodBase`
   takes the utility version as a required argument rather than a defaulted one, because the one call
   site that inherited the default silently (diagnostic feature projection in `score-compatibility.ts`)
-  would have published board-swing decisions with symmetric feature numbers.
+  would have published board-swing decisions with symmetric feature numbers. The recorded vote features
+  gained no field. Trace admission replays a decision and compares the whole run for deep equality, so
+  any field added to the archived shape refuses every artifact recorded before it while
+  `GOOD_VOTE_FEATURE_VERSION` still claims compatibility; `utilityVersion` carries which value function
+  ran and the priced cost term stays derivable from fields already recorded, pinned by a key-set test.
   Recorded honestly: the first formulation priced only the approve branch, which left the two branches
   on different scales, and the measured effect on the 5-player slice was a policy that rejected nearly
   every clean team (clean-team rejections `+84.2%` at Servant, dirty approvals `-50.0%`, win rate
@@ -4015,5 +4019,13 @@ here.
   above. Also carried forward: the conditional denominators are not a fixed vote set, since an arm
   that votes differently is offered different teams (heuristic Servant sees 347 dirty-team votes
   under the baseline and 364 under the candidate), so these rates measure the policy in play rather
-  than a treatment effect on identical decisions. Full suite 1162 correctness tests plus the three
+  than a treatment effect on identical decisions.
+  One defect the gate did not catch, found in review and left for NB-012 or NB-014 because fixing it
+  changes the value function and would invalidate this measurement. `rejectUtility` multiplies the
+  signed swing by `alternativeRealization`, a factor below `1`, which discounts a gain correctly but
+  shrinks a loss toward zero. With `currentCleanProbability` `0.025` and every alternative dirty, the
+  seat approves a `97.5%`-dirty team at full runway (approve `-0.9207` against reject `-1.0000`) and
+  rejects the same team with the hammer imminent (`-0.9000`). That is inverted twice: rejection should
+  be cheaper with runway to spare, and the hammer is the one place rejecting buys nothing because the
+  team is auto-approved. A signed value needs a discount toward the status quo, not toward zero. Full suite 1166 correctness tests plus the three
   isolated performance tests.

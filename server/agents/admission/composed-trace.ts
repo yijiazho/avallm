@@ -1122,11 +1122,6 @@ function validCandidateScores(value: unknown): boolean {
       && Math.abs(
         features.informationBonus - expectedValue.informationBonus,
       ) <= 1e-12
-      && typeof features.dirtyApprovalCost === 'number'
-      && Number.isFinite(features.dirtyApprovalCost)
-      && Math.abs(
-        features.dirtyApprovalCost - expectedValue.dirtyApprovalCost,
-      ) <= 1e-12
       && typeof features.approveUtility === 'number'
       && Number.isFinite(features.approveUtility)
       && Math.abs(

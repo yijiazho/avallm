@@ -581,9 +581,6 @@ function validGoodVoteFeatures(
     ) <= 1e-12
     && Math.abs(features.hammerPenalty - expected.hammerPenalty) <= 1e-12
     && Math.abs(features.informationBonus - expected.informationBonus) <= 1e-12
-    && Math.abs(
-      features.dirtyApprovalCost - expected.dirtyApprovalCost,
-    ) <= 1e-12
     && Math.abs(features.approveUtility - expected.approveUtility) <= 1e-12
     && Math.abs(features.rejectUtility - expected.rejectUtility) <= 1e-12
     && Math.abs(features.baseUtility - baseUtility) <= 1e-12

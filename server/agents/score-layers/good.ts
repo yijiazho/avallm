@@ -636,7 +636,6 @@ export function calculateDeterministicGoodBase(
         alternativeRealization: utility.alternativeRealization,
         hammerPenalty: utility.hammerPenalty,
         informationBonus: utility.informationBonus,
-        dirtyApprovalCost: utility.dirtyApprovalCost,
         approveUtility: utility.approveUtility,
         rejectUtility: utility.rejectUtility,
         baseUtility: baseValue,

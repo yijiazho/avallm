@@ -89,6 +89,37 @@ export const STANDARD_ROLES: readonly Role[] = [
   'merlin', 'percival', 'servant', 'assassin', 'morgana', 'mordred', 'oberon', 'minion',
 ]
 
+export interface ArchitectureBankCaseGroup {
+  readonly targetRole: Role
+  readonly cases: readonly ArchitectureBankCase[]
+}
+
+/**
+ * Target-role groups in bank order, for benches that report per target role.
+ * Insertion order rather than alphabetical, so a group's position matches where
+ * its cases first appear in the bank and two benches over the same bank cannot
+ * disagree about which report is which.
+ */
+export function groupBankCasesByTargetRole(
+  cases: readonly ArchitectureBankCase[],
+): readonly ArchitectureBankCaseGroup[] {
+  const order: Role[] = []
+  const grouped = new Map<Role, ArchitectureBankCase[]>()
+  for (const bankCase of cases) {
+    const existing = grouped.get(bankCase.targetRole)
+    if (existing) {
+      existing.push(bankCase)
+      continue
+    }
+    order.push(bankCase.targetRole)
+    grouped.set(bankCase.targetRole, [bankCase])
+  }
+  return order.map((targetRole) => Object.freeze({
+    targetRole,
+    cases: Object.freeze(grouped.get(targetRole)!),
+  }))
+}
+
 export function validateArchitectureBank(
   cases: readonly ArchitectureBankCase[] = ARCHITECTURE_BANK,
   opts: {

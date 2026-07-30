@@ -36,7 +36,9 @@ import {
   PHASE4_POLICY_BANK_ID,
 } from './good-policy-bank.ts'
 import type { AgentSpec } from '../agents/types.ts'
-import type { Role } from '../engine/types.ts'
+import {
+  groupBankCasesByTargetRole,
+} from './architecture-bank.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
 
 export const NB013_VOTE_OBJECTIVE_EVAL_VERSION = 'nb013-vote-objective-eval-v1'
@@ -141,30 +143,6 @@ export interface Nb013VoteObjectiveReport {
   >>
 }
 
-/** Stable target-role groups in bank order. */
-function caseGroups(
-  cases: readonly ArchitectureBankCase[],
-): readonly Readonly<{
-  targetRole: Role
-  cases: readonly ArchitectureBankCase[]
-}>[] {
-  const order: Role[] = []
-  const grouped = new Map<Role, ArchitectureBankCase[]>()
-  for (const bankCase of cases) {
-    const existing = grouped.get(bankCase.targetRole)
-    if (existing) {
-      existing.push(bankCase)
-      continue
-    }
-    order.push(bankCase.targetRole)
-    grouped.set(bankCase.targetRole, [bankCase])
-  }
-  return order.map((targetRole) => Object.freeze({
-    targetRole,
-    cases: Object.freeze(grouped.get(targetRole)!),
-  }))
-}
-
 export async function runNb013VoteObjectiveBench(
   options: {
     cases?: readonly ArchitectureBankCase[]
@@ -181,7 +159,7 @@ export async function runNb013VoteObjectiveBench(
   ) {
     throw new Error('the NB-013 bench requires unique opponent populations')
   }
-  const groups = caseGroups(cases)
+  const groups = groupBankCasesByTargetRole(cases)
   // The bank is player-count major, so a --cases slice can drop whole target
   // roles and table sizes. Say so rather than letting the case count imply the
   // comparison covered the bank it is named after.

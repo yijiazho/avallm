@@ -56,8 +56,6 @@ export interface GoodVoteFeatures {
   alternativeRealization: number
   hammerPenalty: number
   informationBonus: number
-  /** What approving gives up for the chance the team is dirty. NB-013. */
-  dirtyApprovalCost: number
   approveUtility: number
   rejectUtility: number
   baseUtility: number
@@ -129,6 +127,13 @@ export interface GoodVoteValue {
   /**
    * What the approve branch gives up for the chance the team is dirty. Zero
    * under the symmetric utility, which is the defect NB-013 names.
+   *
+   * Deliberately not a recorded feature. Trace admission replays a decision and
+   * compares the whole run for deep equality, so every archived field is part of
+   * a format that pre-existing artifacts have to match. This one is derivable
+   * from `stake`, `currentCleanProbability`, and the declared utility version,
+   * all of which are already recorded, so archiving it would have broken every
+   * stored trace to publish a number a reader can compute.
    */
   readonly dirtyApprovalCost: number
   readonly approveUtility: number

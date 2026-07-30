@@ -9,6 +9,7 @@ import {
   GOOD_VOTE_UTILITY_VERSION,
   goodVoteValue,
   isGoodVoteUtilityVersion,
+  type GoodVoteUtilityVersion,
   type GoodVoteValueInputs,
 } from '../server/agents/policy/good-score-contract.ts'
 import {
@@ -27,6 +28,16 @@ import {
   nb013VoteObjectiveVariants,
   NB013_VOTE_OBJECTIVE_VARIANTS,
 } from '../server/eval/vote-objective-bench.ts'
+import {
+  admitDecisionTrace,
+} from '../server/agents/admission/composed-trace.ts'
+import { createComposedAgent } from '../server/agents/composed.ts'
+import {
+  projectResolvedArchitectureIdentity,
+} from '../server/agents/components/resolved-brain.ts'
+import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import type { GoodVoteFeatures } from '../server/agents/policy/good-score-contract.ts'
+import type { DecisionTrace } from '../server/agents/trace.ts'
 
 const inputs = (
   overrides: Partial<GoodVoteValueInputs> = {},
@@ -78,8 +89,7 @@ test('a certain posterior votes the same way unless every team is dirty', () => 
   // rather than luck of the bank.
   const prefersApprove = (
     shared: GoodVoteValueInputs,
-    utilityVersion: typeof GOOD_VOTE_UTILITY_VERSION
-      | typeof GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
+    utilityVersion: GoodVoteUtilityVersion,
   ): boolean => {
     const value = goodVoteValue(shared, utilityVersion)
     return value.approveUtility > value.rejectUtility
@@ -193,6 +203,176 @@ test('the board-swing value function is a separate recorded identity', () => {
   assert.ok(isGoodVoteUtilityVersion(GOOD_VOTE_UTILITY_VERSION))
   assert.equal(isGoodVoteUtilityVersion('good-vote-utility-v9'), false)
   assert.equal(isGoodVoteUtilityVersion(undefined), false)
+})
+
+const boardSwingDecision = async () => {
+  const fixture = readDecisionFixtures().find(
+    (candidate) => candidate.id === 'servant-vote-after-evidence',
+  )!
+  const agent = createComposedAgent({
+    seed: fixture.source.seed,
+    scorer: boardSwingGoodProposalVoteScorer,
+  })
+  const output = await agent.decide(fixture.req, fixture.view)
+  return { fixture, agent, output }
+}
+
+test('a board-swing decision is produced and admitted as its own identity', async () => {
+  const { fixture, agent, output } = await boardSwingDecision()
+  // Not degraded to compatibility: the layer, the live scorer validator, and the
+  // diagnostic feature projection all accept the new value function.
+  assert.equal(output.trace!.degradation.length, 0)
+  assert.equal(
+    output.trace!.componentVersions!.scorer,
+    GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
+  )
+  const scored = output.trace!.candidateScores!.find(
+    (score) => score.features?.version === 'good-vote-features-v1',
+  )!
+  const features = scored.features as GoodVoteFeatures
+  assert.equal(features.utilityVersion, GOOD_VOTE_BOARD_SWING_UTILITY_VERSION)
+  // The recorded utilities are the board-swing ones, restated here from the
+  // recorded inputs the way a reader recomputes the unarchived cost term.
+  const restated = goodVoteValue({
+    currentCleanProbability: features.currentCleanProbability,
+    bestAlternativeCleanProbability: features.bestAlternativeCleanProbability,
+    matchPointGood: features.boardScore.good === 2,
+    matchPointEvil: features.boardScore.evil === 2,
+    futureQuestsRemain: features.futureQuestsRemain,
+    rejectionsBeforeHammer: features.rejectionsBeforeHammer,
+  }, GOOD_VOTE_BOARD_SWING_UTILITY_VERSION)
+  assert.equal(features.approveUtility, restated.approveUtility)
+  assert.equal(features.rejectUtility, restated.rejectUtility)
+  // A Servant seat mid-game is uncertain, so the newly priced branch is live
+  // rather than incidentally zero.
+  assert.ok(restated.dirtyApprovalCost > 0)
+
+  const admission = admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace: output.trace!,
+    req: fixture.req,
+    view: fixture.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: fixture.source.seed,
+    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      agent.resolvedBrain().description,
+    ),
+  })
+  assert.equal(admission.kind, 'trusted-exact')
+})
+
+test('admission refuses a trace whose scorer and value function disagree', async () => {
+  const { fixture, agent, output } = await boardSwingDecision()
+  const identity = projectResolvedArchitectureIdentity(
+    agent.resolvedBrain().description,
+  )
+  const admit = (trace: DecisionTrace) => admitDecisionTrace({
+    kind: 'finalized-artifact',
+    trace,
+    req: fixture.req,
+    view: fixture.view,
+    authoritativeAction: output.decision,
+    selectedDecision: output.decision,
+    deterministicSeed: fixture.source.seed,
+    expectedArchitectureIdentity: identity,
+  }).kind
+
+  // Relabel the scorer as the symmetric arm while the features still carry
+  // board-swing numbers. Without the pairing law this is the forgery that would
+  // let a different value function report itself as the measured one.
+  const relabelled = structuredClone(output.trace!) as DecisionTrace
+  ;(relabelled.componentVersions as Record<string, string>).scorer =
+    goodProposalVoteScorer.version
+  assert.notEqual(admit(relabelled), 'trusted-exact')
+
+  // The other direction: keep the board-swing scorer and claim the symmetric
+  // utility. Its recorded utilities no longer match the formula it names.
+  const misdeclared = structuredClone(output.trace!) as DecisionTrace
+  for (const score of misdeclared.candidateScores ?? []) {
+    if (score.features?.version !== 'good-vote-features-v1') continue
+    ;(score.features as { utilityVersion: string }).utilityVersion =
+      GOOD_VOTE_UTILITY_VERSION
+  }
+  assert.notEqual(admit(misdeclared), 'trusted-exact')
+
+  // An unrecognized value function cannot pass as either.
+  const unknown = structuredClone(output.trace!) as DecisionTrace
+  for (const score of unknown.candidateScores ?? []) {
+    if (score.features?.version !== 'good-vote-features-v1') continue
+    ;(score.features as { utilityVersion: string }).utilityVersion =
+      'good-vote-utility-v9'
+  }
+  assert.notEqual(admit(unknown), 'trusted-exact')
+})
+
+test('NB-013 records no new vote-feature field, so stored traces still replay', () => {
+  // Trace admission replays a decision and compares the whole run for deep
+  // equality, so any field added to the recorded features would refuse every
+  // artifact produced before it while `GOOD_VOTE_FEATURE_VERSION` still claimed
+  // compatibility. The board-swing utility is therefore carried by
+  // `utilityVersion` alone, and the priced cost stays derivable rather than
+  // archived. This pins the recorded key set against that regression.
+  const recorded: ReadonlyArray<keyof GoodVoteFeatures> = [
+    'version', 'utilityVersion', 'situationVersion', 'semantics',
+    'beliefModelVersion', 'beliefThroughSeq', 'currentTeam',
+    'currentCleanProbability', 'currentEvilCountDistribution',
+    'bestAlternativeCandidateId', 'bestAlternativeTeam',
+    'bestAlternativeCleanProbability',
+    'bestAlternativeEvilCountDistribution', 'boardScore', 'proposalNumber',
+    'rejectionsBeforeHammer', 'futureQuestsRemain', 'stake',
+    'alternativeRealization', 'hammerPenalty', 'informationBonus',
+    'approveUtility', 'rejectUtility', 'baseUtility', 'selectionAdjustment',
+    'selectionMode', 'viableBand', 'inViableBand', 'seedBucket',
+  ]
+  // Every key of the recorded type is listed, and none of the listed keys is
+  // NB-013's derived cost.
+  const declared: Record<keyof GoodVoteFeatures, true> = Object.fromEntries(
+    recorded.map((key) => [key, true]),
+  ) as Record<keyof GoodVoteFeatures, true>
+  assert.equal(Object.keys(declared).length, recorded.length)
+  assert.equal(recorded.includes('dirtyApprovalCost' as never), false)
+  // It remains available to any caller that wants it, computed not stored.
+  assert.equal(
+    goodVoteValue(
+      inputs({ currentCleanProbability: 0.25 }),
+      GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
+    ).dirtyApprovalCost,
+    0.75,
+  )
+})
+
+test('a symmetric decision still replays exactly after the NB-013 change', async () => {
+  const fixture = readDecisionFixtures().find(
+    (candidate) => candidate.id === 'servant-vote-after-evidence',
+  )!
+  const agent = createComposedAgent({
+    seed: fixture.source.seed,
+    scorer: goodProposalVoteScorer,
+  })
+  const output = await agent.decide(fixture.req, fixture.view)
+  const scored = output.trace!.candidateScores!.find(
+    (score) => score.features?.version === 'good-vote-features-v1',
+  )!
+  assert.equal(
+    (scored.features as GoodVoteFeatures).utilityVersion,
+    GOOD_VOTE_UTILITY_VERSION,
+  )
+  assert.equal(
+    admitDecisionTrace({
+      kind: 'finalized-artifact',
+      trace: output.trace!,
+      req: fixture.req,
+      view: fixture.view,
+      authoritativeAction: output.decision,
+      selectedDecision: output.decision,
+      deterministicSeed: fixture.source.seed,
+      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+        agent.resolvedBrain().description,
+      ),
+    }).kind,
+    'trusted-exact',
+  )
 })
 
 test('the NB-013 gate bench differs from its baseline in the vote value only', () => {
