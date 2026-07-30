@@ -66,6 +66,9 @@ export const COMPOSED_BRAIN_PRESETS = Object.freeze(
 /** Derived from the list, so the two can never name different sets. */
 export type ComposedBrainPreset = (typeof COMPOSED_BRAIN_PRESETS)[number]
 
+// The internal/sim construction axis (registry.createAgent): includes the
+// random kind the library never exposes. AgentEngine (def-types.ts) is the
+// narrower library-config axis (llm/composed/heuristic) that a def can declare.
 export type AgentSpec =
   | { type: 'heuristic' }
   | { type: 'random' }

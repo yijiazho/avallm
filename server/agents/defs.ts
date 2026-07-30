@@ -35,6 +35,7 @@ import type {
   ComposedEngine,
   LlmEngine,
   LibraryProblem,
+  PromptOverrides,
   TableSeat,
 } from './def-types.ts'
 
@@ -49,6 +50,7 @@ export type {
   ComposedEngine,
   LlmEngine,
   LibraryProblem,
+  PromptOverrides,
   TableSeat,
 } from './def-types.ts'
 
@@ -73,13 +75,7 @@ export function resolveModel(def: AgentDef, override?: string): string {
 // to LlmEngine silently reaches some paths and not others (bank replay would
 // then exercise a different prompt than the live game, invalidating its
 // verdicts). Adding a layer here updates all callers at once.
-export function promptOverridesOf(engine: LlmEngine): {
-  personality?: string
-  strategy?: string
-  roleGuidance?: Partial<Record<Role, string>>
-  roleGuidanceMode?: 'replace' | 'append'
-  kindGuidance?: Partial<Record<LlmCallKind, string>>
-} {
+export function promptOverridesOf(engine: LlmEngine): PromptOverrides {
   return {
     personality: engine.personality,
     strategy: engine.strategy,
@@ -240,6 +236,9 @@ export interface ValidateOpts {
   allowUnknownModel?: boolean
 }
 
+// Normalizes IN PLACE: the returned AgentDef is the same object as `raw`, with
+// its name trimmed, version coerced, and every custom text field run through
+// normText. Callers that must not mutate the input should clone before calling.
 export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
   const d = raw as Partial<AgentDef> & { version?: number | string }
   if (!d || typeof d !== 'object') throw new Error('agent def must be an object')
@@ -445,6 +444,8 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',
     unavailable: def.unavailable,
+    // resolveBrain is engine-agnostic (it accepts the heuristic source too), so
+    // calling it unconditionally here cannot throw for a non-llm engine.
     brain: resolveBrain(e),
   }
 }

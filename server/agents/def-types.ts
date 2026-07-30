@@ -13,9 +13,15 @@ import type { Role } from '../engine/types.ts'
 import type { BrainSpec, LlmBrainConfig } from './brain.ts'
 import type { ComposedBrainPreset } from './types.ts'
 
-export interface LlmEngine {
-  type: 'llm'
-  model?: string // roster id — a SUGGESTION; seat-time override wins, DEFAULT_MODEL backstops
+// The prompt-layer overrides an llm agent may carry: persona and strategy prose
+// plus per-role and per-decision-kind guidance. Extracted so the three places
+// that model the same field set — LlmEngine (stored config), AgentPublicInfo
+// (what the client sees), and promptOverridesOf's return (the subset
+// buildMessages consumes) — share one definition and cannot drift.
+//
+// Distinct from prompts.ts's PromptOverrides (a Record<string, string> of
+// already-rendered slot text): a different concept, deliberately not merged.
+export interface PromptOverrides {
   personality?: string
   strategy?: string
   roleGuidance?: Partial<Record<Role, string>>
@@ -24,6 +30,11 @@ export interface LlmEngine {
   // baseline strategy improvements.
   roleGuidanceMode?: 'replace' | 'append'
   kindGuidance?: Partial<Record<LlmCallKind, string>>
+}
+
+export interface LlmEngine extends PromptOverrides {
+  type: 'llm'
+  model?: string // roster id — a SUGGESTION; seat-time override wins, DEFAULT_MODEL backstops
   temperature?: number // global sampling override, must be in [0, 1]
   /** Strategic components, independent of model and prompt/persona layers. */
   brain?: LlmBrainConfig
@@ -42,6 +53,9 @@ export type ComposedEngine =
       model?: string
     }
 
+// The library-config axis: what a def may declare (llm, composed, or
+// heuristic). The broader internal/sim construction axis is AgentSpec
+// (types.ts), which also carries the random kind the library never exposes.
 export type AgentEngine =
   | LlmEngine
   | ComposedEngine
@@ -71,7 +85,7 @@ export interface LibraryProblem {
 // What the client sees. Custom prompt configs are deliberately public —
 // transparency is part of the premise, and secrecy is unenforceable under a
 // shared invite code (design doc §4).
-export interface AgentPublicInfo {
+export interface AgentPublicInfo extends PromptOverrides {
   id: string
   name: string
   version?: number
@@ -80,11 +94,6 @@ export interface AgentPublicInfo {
   model: string          // resolved model slug, 'rule-based', or 'probabilistic'
   usesModel: boolean     // whether the seat accepts a roster-model override
   color: string
-  personality?: string
-  strategy?: string
-  roleGuidance?: Partial<Record<Role, string>>
-  roleGuidanceMode?: 'replace' | 'append'
-  kindGuidance?: Partial<Record<LlmCallKind, string>>
   temperature?: number
   suggestedModel?: string // the def's RAW model suggestion (roster id), if any —
                           // `model` above is always the resolved display slug
