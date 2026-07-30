@@ -22,6 +22,14 @@
  */
 
 import { isProxy } from 'node:util/types'
+import {
+  failsRequired,
+  MAX_PLAYERS,
+  MAX_PROPOSALS,
+  MIN_PLAYERS,
+  QUESTS_PER_GAME,
+  TEAM_SIZES,
+} from '../../engine/rules.ts'
 import type { Seat } from '../../engine/types.ts'
 
 export const plainRecord = (
@@ -205,6 +213,79 @@ export const probability = (value: unknown): value is number =>
   && Number.isFinite(value)
   && value >= 0
   && value <= 1
+
+/**
+ * What a payload's decision-request block is allowed to say.
+ *
+ * `kinds` and the optional fields are per-payload, so each call site states
+ * its own contract instead of keeping a private copy of the chain: a
+ * projection that only exists for propose and vote says so here, and one that
+ * carries the quest tally says that here too.
+ */
+export interface RequestBlockContract {
+  /** Table size the block must agree with, from the payload's own source. */
+  readonly playerCount: number
+  /** The decision kinds this payload admits. Nothing else. */
+  readonly kinds: readonly string[]
+  /** Keys this block carries beyond the common five, always required. */
+  readonly extraKeys?: readonly string[]
+  /**
+   * Admit `currentTeam` on a vote block: required for a vote, forbidden
+   * otherwise, and checked against the round's team size.
+   */
+  readonly voteCurrentTeam?: boolean
+}
+
+/**
+ * The `{seat, kind, round, proposalNum, failsRequired}` block every role
+ * projection and objective carries, checked against the board it claims.
+ *
+ * Six modules validated this block by hand, and the copies drifted: only one
+ * of them derived `failsRequired` from the rules, so the other five admitted
+ * two fails required on round 1 of a five-handed game, a board the engine
+ * cannot deal. The derivation is free wherever the block is checked at all,
+ * since `playerCount` and `round` are both already in hand, so it lives here
+ * and every site gets it.
+ */
+export function canonicalRequestBlock(
+  value: unknown,
+  contract: RequestBlockContract,
+): boolean {
+  if (!plainDataRecord(value)) return false
+  const { playerCount, kinds } = contract
+  const vote = value.kind === 'vote'
+  const currentTeam = contract.voteCurrentTeam === true && vote
+  if (
+    !exactKeys(value, [
+      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
+      ...contract.extraKeys ?? [],
+      ...currentTeam ? ['currentTeam'] : [],
+    ])
+    || !Number.isSafeInteger(playerCount)
+    || playerCount < MIN_PLAYERS
+    || playerCount > MAX_PLAYERS
+    || typeof value.kind !== 'string'
+    || !kinds.includes(value.kind)
+    || !Number.isSafeInteger(value.seat)
+    || (value.seat as number) < 0
+    || (value.seat as number) >= playerCount
+    || !Number.isSafeInteger(value.round)
+    || (value.round as number) < 1
+    || (value.round as number) > QUESTS_PER_GAME
+    || !Number.isSafeInteger(value.proposalNum)
+    || (value.proposalNum as number) < 1
+    || (value.proposalNum as number) > MAX_PROPOSALS
+    || value.failsRequired
+      !== failsRequired(playerCount, value.round as number)
+  ) return false
+  // A block that is not a vote cannot carry the field at all: the key list
+  // above omits it, so its absence is already settled here.
+  if (!currentTeam) return true
+  const teamSize = TEAM_SIZES[playerCount]?.[(value.round as number) - 1]
+  return Number.isSafeInteger(teamSize)
+    && canonicalSeats(value.currentTeam, playerCount)
+    && (value.currentTeam as Seat[]).length === teamSize
+}
 
 /** Every ascending seat combination of the given size, in canonical order. */
 export function canonicalCombinations(

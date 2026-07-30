@@ -48,6 +48,7 @@ import {
 } from './morgana-counterfeit-types.ts'
 import {
   canonicalCombinations,
+  canonicalRequestBlock,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -768,25 +769,11 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
     || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
     || !Number.isSafeInteger(source.observerFeasibleWorldCount)
     || (source.observerFeasibleWorldCount as number) <= 0
-    || !exactKeys(request, [
-      'seat',
-      'kind',
-      'round',
-      'proposalNum',
-      'failsRequired',
-      ...(request.kind === 'vote' ? ['currentTeam'] : []),
-    ])
-    || !Number.isSafeInteger(request.seat)
-    || (request.seat as number) < 0
-    || (request.seat as number) >= (source.playerCount as number)
-    || !['propose', 'vote'].includes(String(request.kind))
-    || !Number.isSafeInteger(request.round)
-    || (request.round as number) < 1
-    || (request.round as number) > 5
-    || !Number.isSafeInteger(request.proposalNum)
-    || (request.proposalNum as number) < 1
-    || (request.proposalNum as number) > 5
-    || ![1, 2].includes(request.failsRequired as number)
+    || !canonicalRequestBlock(request, {
+      playerCount: source.playerCount as number,
+      kinds: ['propose', 'vote'],
+      voteCurrentTeam: true,
+    })
     || !validReadRow(
       value.actingSeatRead,
       request.seat as number,
@@ -794,20 +781,11 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
       source.observerFeasibleWorldCount as number,
     )
   ) return false
+  // The request's own team is checked by the shared block guard; the team size
+  // is still needed below, where the propose candidate set is enumerated.
   const requestTeamSize = TEAM_SIZES[source.playerCount as number]?.[
     (request.round as number) - 1
   ]
-  if (
-    request.kind === 'vote'
-      ? (
-          !canonicalSeats(
-            request.currentTeam,
-            source.playerCount as number,
-          )
-          || (request.currentTeam as Seat[]).length !== requestTeamSize
-        )
-      : request.currentTeam !== undefined
-  ) return false
   if (
     value.counterfeitApplicability !== 'percival-in-cast'
     || value.assessmentApplicability !== 'team-candidates'

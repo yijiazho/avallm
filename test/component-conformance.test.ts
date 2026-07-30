@@ -119,6 +119,8 @@ import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import { createGame } from '../server/engine/game.ts'
+import { DEFAULT_ROLES } from '../server/engine/rules.ts'
+import type { Role } from '../server/engine/types.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { testConfiguredPipeline } from './support/configured-pipeline.ts'
@@ -431,6 +433,169 @@ function morganaNativeFixture() {
     seededUtility,
   }
 }
+
+/**
+ * A five-handed round-1 board, dealt so the named role leads.
+ *
+ * Five players and quest 1 is the board where the shared request-block guard
+ * has something to say that a membership test does not: two fails required is
+ * legal only on quest 4 at seven or more players, so every payload built here
+ * must carry exactly one.
+ */
+function fiveHandedLeaderFixture(role: Role, roles: readonly Role[]) {
+  let game: ReturnType<typeof createGame> | undefined
+  for (let attempt = 0; attempt < 1_000; attempt++) {
+    const candidate = createGame({
+      seed: `five-handed-fails-required-${role}-${attempt}`,
+      playerCount: 5,
+      roles: [...roles],
+    })
+    if (candidate.players[candidate.leaderSeat].role === role) {
+      game = candidate
+      break
+    }
+  }
+  assert.ok(game, `no five-handed deal put ${role} in the leader seat`)
+  const view = viewFor(game, game.leaderSeat)
+  assert.equal(view.role, role)
+  assert.equal(view.round, 1)
+  const req = {
+    kind: 'propose' as const,
+    seat: view.seat,
+    round: view.round,
+    proposalNum: view.proposalNum,
+  }
+  const record = projectPublicRecord(view)
+  return {
+    view,
+    req,
+    record,
+    observer: observePublicRecord(record),
+    belief: exactBelief(view),
+    candidates: legalCandidates(req, view),
+  }
+}
+
+/** Every payload that carries a decision-request block, on that board. */
+function fiveHandedRequestBlockPayloads() {
+  const good = fiveHandedLeaderFixture('merlin', DEFAULT_ROLES[5]!)
+  const goodIdentity = projectJointIdentity(
+    good.belief,
+    roleObjectiveIdentityScope('merlin', good.view.rolesInPlay),
+  )
+  const goodObjective = buildRoleObjectiveSnapshot({
+    req: good.req,
+    view: good.view,
+    identity: goodIdentity,
+    observer: good.observer,
+    candidates: good.candidates,
+  })
+
+  const evil = fiveHandedLeaderFixture('assassin', DEFAULT_ROLES[5]!)
+  const evilIdentity = projectJointIdentity(evil.belief, {
+    roleQueries: [],
+    hiddenTeam: true,
+  })
+  const evilObjective = buildEvilRoleObjectiveSnapshot({
+    req: evil.req,
+    view: evil.view,
+    identity: evilIdentity,
+    observer: evil.observer,
+    candidates: evil.candidates,
+  })
+
+  const morgana = fiveHandedLeaderFixture('morgana', DEFAULT_ROLES[5]!)
+  const mordred = fiveHandedLeaderFixture(
+    'mordred',
+    ['merlin', 'servant', 'servant', 'assassin', 'mordred'],
+  )
+
+  return [
+    {
+      label: 'good role objective',
+      payload: goodObjective as unknown as Record<string, unknown>,
+      validate: validatePrivateRoleObjectiveSnapshot,
+    },
+    {
+      label: 'good role utility',
+      payload: buildRoleUtilityProjection({
+        req: good.req,
+        view: good.view,
+        objective: goodObjective,
+        observer: good.observer,
+        candidates: good.candidates,
+      }) as unknown as Record<string, unknown>,
+      validate: validatePrivateRoleUtilityProjection,
+    },
+    {
+      label: 'evil role objective',
+      payload: evilObjective as unknown as Record<string, unknown>,
+      validate: validatePrivateEvilRoleObjectiveSnapshot,
+    },
+    {
+      label: 'evil role utility',
+      payload: buildEvilRoleUtilityProjection({
+        req: evil.req,
+        view: evil.view,
+        objective: evilObjective,
+        candidates: evil.candidates,
+      }) as unknown as Record<string, unknown>,
+      validate: validatePrivateEvilRoleUtilityProjection,
+    },
+    {
+      label: 'Morgana counterfeit objective',
+      payload: buildMorganaCounterfeitObjective({
+        req: morgana.req,
+        view: morgana.view,
+        belief: morgana.belief,
+        publicRead: buildPublicCounterfeitMerlinRead(morgana.record),
+        candidates: morgana.candidates,
+      }) as unknown as Record<string, unknown>,
+      validate: validatePrivateMorganaCounterfeitObjective,
+    },
+    {
+      label: 'Mordred blindness objective',
+      payload: buildPrivateMordredBlindnessObjective({
+        req: mordred.req,
+        view: mordred.view,
+        belief: mordred.belief,
+        treatment: buildPrivateActorTargetTreatmentRead(
+          mordred.record,
+          mordred.observer,
+        ),
+        candidates: mordred.candidates,
+      }) as unknown as Record<string, unknown>,
+      validate: validatePrivateMordredBlindnessObjective,
+    },
+  ] as const
+}
+
+test('every request-block validator pins failsRequired to the board', () => {
+  // Six modules validated this block by hand and the copies drifted: only the
+  // evil role utility derived failsRequired from the rules, so the other five
+  // admitted two fails required on quest 1 of a five-handed game, a board the
+  // engine cannot deal. The control assertion is what makes the rejection
+  // meaningful: the forged payload differs in that one field and nothing else.
+  const payloads = fiveHandedRequestBlockPayloads()
+  assert.equal(payloads.length, 6)
+  // Every site is exercised before anything is asserted, so a single validator
+  // that stops pinning the field names itself instead of hiding behind the
+  // first failure.
+  const admitted: string[] = []
+  for (const { label, payload, validate } of payloads) {
+    assert.equal(validate(payload), true, `${label} must admit its own build`)
+    const request = payload.request as { failsRequired: number }
+    assert.equal(request.failsRequired, 1, `${label} board takes one fail`)
+    const forged = structuredClone(payload)
+    ;(forged.request as { failsRequired: number }).failsRequired = 2
+    if (validate(forged)) admitted.push(label)
+  }
+  assert.deepEqual(
+    admitted,
+    [],
+    'two fails required is unreachable on a five-handed quest 1',
+  )
+})
 
 test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
   const source = { z: [{ b: 2, a: 1 }], a: true }

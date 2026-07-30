@@ -20,6 +20,7 @@ import {
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
 import {
+  canonicalRequestBlock,
   denseArray,
   exactKeys,
   plainDataRecord as plainRecord,
@@ -373,21 +374,10 @@ function roleUtilitySchema(detached: unknown): boolean {
     || (detached.source.playerCount as number) < 5
     || (detached.source.playerCount as number) > 10
     || !plainRecord(detached.request)
-    || !exactKeys(detached.request, [
-      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-    ])
-    || !Number.isSafeInteger(detached.request.seat)
-    || (detached.request.seat as number) < 0
-    || (detached.request.seat as number)
-      >= (detached.source.playerCount as number)
-    || !['propose', 'vote'].includes(detached.request.kind as string)
-    || !Number.isSafeInteger(detached.request.round)
-    || (detached.request.round as number) < 1
-    || (detached.request.round as number) > 5
-    || !Number.isSafeInteger(detached.request.proposalNum)
-    || (detached.request.proposalNum as number) < 1
-    || (detached.request.proposalNum as number) > 5
-    || ![1, 2].includes(detached.request.failsRequired as number)
+    || !canonicalRequestBlock(detached.request, {
+      playerCount: detached.source.playerCount as number,
+      kinds: ['propose', 'vote'],
+    })
     || !denseArray(detached.assessments)
     || detached.assessments.length === 0
     || detached.assessments.length > 252

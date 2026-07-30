@@ -21,6 +21,7 @@ import {
   type PrivateEvilRoleObjectiveSnapshot,
 } from './evil-objective-types.ts'
 import {
+  canonicalRequestBlock,
   canonicalSeats,
   exactKeys,
 } from '../components/canonical-shape.ts'
@@ -497,10 +498,6 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       'beliefThroughSeq',
       'playerCount',
     ])
-    || !exactKeys(projection.request, [
-      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-      'completedGoodQuests', 'completedEvilQuests',
-    ])
     || projection.version !== EVIL_ROLE_UTILITY_PROJECTION_VERSION
     || !['assassin', 'morgana', 'mordred', 'minion', 'oberon']
       .includes(projection.role)
@@ -518,24 +515,11 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
     || !Number.isSafeInteger(projection.source.playerCount)
     || projection.source.playerCount < 5
     || projection.source.playerCount > 10
-    || !['propose', 'vote'].includes(projection.request.kind)
-    || !Number.isSafeInteger(projection.request.seat)
-    || projection.request.seat < 0
-    || projection.request.seat >= projection.source.playerCount
-    || !Number.isSafeInteger(projection.request.round)
-    || projection.request.round < 1
-    || projection.request.round > 5
-    || !Number.isSafeInteger(projection.request.proposalNum)
-    || projection.request.proposalNum < 1
-    || projection.request.proposalNum > 5
-    || ![1, 2].includes(projection.request.failsRequired)
-    || projection.request.failsRequired
-      !== (
-        projection.source.playerCount >= 7
-        && projection.request.round === 4
-          ? 2
-          : 1
-      )
+    || !canonicalRequestBlock(projection.request, {
+      playerCount: projection.source.playerCount,
+      kinds: ['propose', 'vote'],
+      extraKeys: ['completedGoodQuests', 'completedEvilQuests'],
+    })
     || !Number.isSafeInteger(projection.request.completedGoodQuests)
     || projection.request.completedGoodQuests < 0
     || projection.request.completedGoodQuests > 2

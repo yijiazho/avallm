@@ -16,6 +16,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative } from 'node:path'
 import {
   canonicalCombinations,
+  canonicalRequestBlock,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -273,6 +274,156 @@ test('canonicalCombinations enumerates ascending seat sets in order', () => {
   }
 })
 
+const ALL_KINDS = [
+  'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
+]
+
+const requestBlock = (
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> => ({
+  seat: 0,
+  kind: 'propose',
+  round: 1,
+  proposalNum: 1,
+  failsRequired: 1,
+  ...overrides,
+})
+
+test('canonicalRequestBlock derives failsRequired from the board', () => {
+  // The drift this guard exists to end: five of the six copies stopped at a
+  // 1-or-2 membership test, which admits two fails required on boards where
+  // the engine deals one. Only quest 4 at seven or more players takes two.
+  for (let playerCount = 5; playerCount <= 10; playerCount++) {
+    for (let round = 1; round <= 5; round++) {
+      const legal = playerCount >= 7 && round === 4 ? 2 : 1
+      for (const failsRequired of [1, 2]) {
+        assert.equal(
+          canonicalRequestBlock(
+            requestBlock({ round, failsRequired }),
+            { playerCount, kinds: ALL_KINDS },
+          ),
+          failsRequired === legal,
+          `${playerCount}p round ${round} failsRequired ${failsRequired}`,
+        )
+      }
+    }
+  }
+  // Nothing outside the pair is admitted at any board either.
+  for (const failsRequired of [0, 3, 1.5, '1', null, undefined, Number.NaN]) {
+    assert.equal(
+      canonicalRequestBlock(
+        requestBlock({ round: 4, failsRequired }),
+        { playerCount: 7, kinds: ALL_KINDS },
+      ),
+      false,
+      `failsRequired ${String(failsRequired)}`,
+    )
+  }
+})
+
+test('canonicalRequestBlock bounds the block against its table', () => {
+  const contract = { playerCount: 5, kinds: ALL_KINDS }
+  const admits = (overrides: Record<string, unknown>) =>
+    canonicalRequestBlock(requestBlock(overrides), contract)
+  assert.equal(canonicalRequestBlock(requestBlock(), contract), true)
+  assert.equal(admits({ seat: 4 }), true)
+
+  assert.equal(admits({ seat: 5 }), false, 'seat >= playerCount')
+  assert.equal(admits({ seat: -1 }), false)
+  assert.equal(admits({ round: 0 }), false)
+  assert.equal(admits({ round: 6 }), false)
+  assert.equal(admits({ proposalNum: 0 }), false)
+  assert.equal(admits({ proposalNum: 6 }), false)
+  assert.equal(
+    canonicalRequestBlock(requestBlock(), { ...contract, playerCount: 4 }),
+    false,
+    'a table the engine cannot deal',
+  )
+  assert.equal(
+    canonicalRequestBlock(requestBlock(), { ...contract, playerCount: 11 }),
+    false,
+  )
+
+  // Kinds are per-payload, so a projection that only exists for propose and
+  // vote refuses the rest rather than sharing one permissive list.
+  assert.equal(
+    canonicalRequestBlock(
+      requestBlock({ kind: 'discuss' }),
+      { playerCount: 5, kinds: ['propose', 'vote'] },
+    ),
+    false,
+  )
+  assert.equal(
+    canonicalRequestBlock(requestBlock({ kind: 'shout' }), contract),
+    false,
+  )
+
+  // Shape: exactly the stated keys, on a record that is not exotic.
+  assert.equal(
+    canonicalRequestBlock(requestBlock({ extra: true }), contract),
+    false,
+    'extra key',
+  )
+  assert.equal(
+    canonicalRequestBlock({ seat: 0, kind: 'propose', round: 1 }, contract),
+    false,
+    'missing keys',
+  )
+  assert.equal(
+    canonicalRequestBlock(new Proxy(requestBlock(), {}), contract),
+    false,
+  )
+  assert.equal(canonicalRequestBlock(null, contract), false)
+  assert.equal(canonicalRequestBlock([], contract), false)
+})
+
+test('canonicalRequestBlock states extra and vote-only fields per call', () => {
+  const proposeOrVote = { playerCount: 5, kinds: ['propose', 'vote'] }
+  const tally = { completedGoodQuests: 0, completedEvilQuests: 0 }
+  const withTally = {
+    ...proposeOrVote,
+    extraKeys: ['completedGoodQuests', 'completedEvilQuests'],
+  }
+  assert.equal(canonicalRequestBlock(requestBlock(tally), withTally), true)
+  assert.equal(
+    canonicalRequestBlock(requestBlock(), withTally),
+    false,
+    'an extra key is required, not optional',
+  )
+  assert.equal(
+    canonicalRequestBlock(requestBlock(tally), proposeOrVote),
+    false,
+    'a site that does not declare the tally refuses it',
+  )
+
+  const votes = { ...proposeOrVote, voteCurrentTeam: true }
+  const admits = (overrides: Record<string, unknown>) =>
+    canonicalRequestBlock(requestBlock(overrides), votes)
+  const vote = { kind: 'vote', currentTeam: [0, 1] }
+  assert.equal(admits(vote), true)
+  assert.equal(
+    admits({ ...vote, currentTeam: [0] }),
+    false,
+    'the team must be the round-1 team size',
+  )
+  assert.equal(
+    admits({ ...vote, currentTeam: [1, 0] }),
+    false,
+    'descending seats are not canonical',
+  )
+  assert.equal(admits({ kind: 'vote' }), false, 'a vote must carry its team')
+  assert.equal(
+    admits({ currentTeam: [0, 1] }),
+    false,
+    'a propose must not carry a team',
+  )
+  // A site that never admits the field refuses it even on a vote.
+  assert.equal(
+    canonicalRequestBlock(requestBlock(vote), proposeOrVote),
+    false,
+  )
+})
+
 // The consolidation is a chokepoint only while the consumers keep using it.
 // A module that imports a guard and then re-declares that same name locally has
 // re-created the private copy this file exists to prevent, so name the failure
@@ -353,6 +504,7 @@ test('no consumer re-declares a guard it imports from canonical-shape', () => {
 // module that wants this predicate should import it.
 const GUARD_NAMES = [
   'canonicalCombinations',
+  'canonicalRequestBlock',
   'canonicalSeats',
   'denseArray',
   'exactKeys',

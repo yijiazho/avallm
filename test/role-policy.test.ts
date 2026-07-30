@@ -130,7 +130,7 @@ const close = (actual: number, expected: number, tolerance = 1e-12) =>
   )
 
 async function decide(
-  fixture: typeof merlin,
+  fixture: { req: DecisionRequest; view: PlayerView },
   seeded = false,
   extra: Parameters<typeof createComposedAgent>[0] = { seed: 'unused' },
 ) {
@@ -254,15 +254,72 @@ test('Merlin proposal role utility is exact, centered, and causally authoritativ
   )
 })
 
+/**
+ * A quest-four two-Fail board Merlin can actually be sitting at.
+ *
+ * Two Fails are required only on quest 4 at seven or more players, so this
+ * cannot be the five-handed opening fixture with the field overwritten: the
+ * request-block guard derives failsRequired from the table and the round, and
+ * refuses a board the engine cannot deal. Quests 1 to 3 are resolved by hand so
+ * the round is reachable, with an evil seat on the one that failed.
+ */
+function questFourTwoFailMerlinFixture() {
+  const bankCase = ARCHITECTURE_BANK.find(
+    (candidate) =>
+      candidate.playerCount >= 7 && candidate.roles.includes('merlin'),
+  )!
+  const game = createGame({
+    seed: bankCase.seed,
+    playerCount: bankCase.playerCount,
+    roles: [...bankCase.roles],
+    talk: bankCase.talk,
+  })
+  const target = game.players.find((player) => player.role === 'merlin')!
+  const view = viewFor(game, target.seat)
+  view.phase = 'proposal'
+  view.round = 4
+  view.proposalNum = 1
+  view.leaderSeat = target.seat
+  assert.equal(view.quests[3]!.failsRequired, 2)
+  const seats = view.players.map((player) => player.seat)
+  const evilSeat = view.privateInfo.knownEvil![0]!
+  const team = (questIndex: number, requiredSeat?: number) => {
+    const size = view.quests[questIndex]!.teamSize
+    return requiredSeat === undefined
+      ? seats.slice(0, size)
+      : [requiredSeat, ...seats.filter((seat) => seat !== requiredSeat)]
+          .slice(0, size)
+          .sort((left, right) => left - right)
+  }
+  for (const questIndex of [0, 1]) {
+    view.quests[questIndex] = {
+      ...view.quests[questIndex]!,
+      team: team(questIndex),
+      result: 'success',
+      failCount: 0,
+    }
+  }
+  view.quests[2] = {
+    ...view.quests[2]!,
+    team: team(2, evilSeat),
+    result: 'fail',
+    failCount: 1,
+  }
+  return {
+    req: {
+      kind: 'propose' as const,
+      seat: target.seat,
+      round: 4,
+      proposalNum: 1,
+    },
+    view,
+  }
+}
+
 test('quest-four public one-evil mass is neutral rather than fail-capable', async () => {
-  const fixture = structuredClone(merlin)
-  fixture.view.round = 4
-  fixture.req.round = 4
-  fixture.view.quests = fixture.view.quests.map((quest, index) => ({
-    ...quest,
-    failsRequired: index === 3 ? 2 : quest.failsRequired,
-  }))
+  const fixture = questFourTwoFailMerlinFixture()
   const output = await decide(fixture)
+  assert.equal(roleUtility(output.trace!)!.request.failsRequired, 2)
   const utility = roleUtility(output.trace!)!.assessments.find(
     (assessment) =>
       assessment.role === 'merlin'

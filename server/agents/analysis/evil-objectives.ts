@@ -43,6 +43,7 @@ import {
   type PublicEvilStanding,
 } from './evil-objective-types.ts'
 import {
+  canonicalRequestBlock,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -521,27 +522,12 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
     || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
     || !Number.isSafeInteger(source.observerFeasibleWorldCount)
     || (source.observerFeasibleWorldCount as number) <= 0
-    || !request
-    || typeof request !== 'object'
-    || !exactKeys(request, [
-      'seat',
-      'kind',
-      'round',
-      'proposalNum',
-      'failsRequired',
-    ])
-    || !Number.isSafeInteger(request.seat)
-    || (request.seat as number) < 0
-    || (request.seat as number) >= (source.playerCount as number)
-    || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
-      .includes(String(request.kind))
-    || !Number.isSafeInteger(request.round)
-    || (request.round as number) < 1
-    || (request.round as number) > 5
-    || !Number.isSafeInteger(request.proposalNum)
-    || (request.proposalNum as number) < 1
-    || (request.proposalNum as number) > 5
-    || ![1, 2].includes(request.failsRequired as number)
+    || !canonicalRequestBlock(request, {
+      playerCount: source.playerCount as number,
+      kinds: [
+        'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
+      ],
+    })
     || !posture
     || typeof posture !== 'object'
     || !exactKeys(posture, ['kind', 'semantics'])

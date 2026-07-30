@@ -44,6 +44,7 @@ import {
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
 import {
+  canonicalRequestBlock,
   canonicalSeats,
   denseArray,
   exactKeys,
@@ -647,23 +648,12 @@ function roleObjectiveSchema(detached: unknown): boolean {
     || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
     || !Number.isSafeInteger(source.observerFeasibleWorldCount)
     || (source.observerFeasibleWorldCount as number) <= 0
-    || !plainRecord(request)
-    || !exactKeys(request, [
-      'seat', 'kind', 'round', 'proposalNum', 'failsRequired',
-    ])
-    || !Number.isSafeInteger(request.seat)
-    || (request.seat as number) < 0
-    || (request.seat as number) >= (source.playerCount as number)
-    || !['discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate']
-      .includes(request.kind as string)
-    || !Number.isSafeInteger(request.round)
-    || (request.round as number) < 1
-    || (request.round as number) > 5
-    || !Number.isSafeInteger(request.proposalNum)
-    || (request.proposalNum as number) < 1
-    || (request.proposalNum as number) > 5
-    || !Number.isSafeInteger(request.failsRequired)
-    || ![1, 2].includes(request.failsRequired as number)
+    || !canonicalRequestBlock(request, {
+      playerCount: source.playerCount as number,
+      kinds: [
+        'discuss', 'propose', 'finalize', 'vote', 'quest', 'assassinate',
+      ],
+    })
     || !plainRecord(objective)
     || objective.role !== snapshot.role
     || !denseArray(objective.assessments)
