@@ -115,7 +115,8 @@ export interface TableSeat {
 }
 
 export function resolveModel(def: AgentDef, override?: string): string {
-  if (def.engine.type !== 'llm') throw new Error(`agent ${def.id} has no model (${def.engine.type} engine)`)
+  // `heuristic` is the only non-llm engine, so name it rather than interpolate.
+  if (def.engine.type !== 'llm') throw new Error(`agent ${def.id} has no model (heuristic engine)`)
   return override ?? def.engine.model ?? DEFAULT_MODEL
 }
 
@@ -155,7 +156,7 @@ export function parseTableSeat(raw: unknown, agentById: (id: string) => AgentDef
     if (typeof t.model !== 'string') throw new Error('seat model must be a roster id')
     rosterById(t.model) // throws on unknown model
     if (def.engine.type !== 'llm') {
-      throw new Error(`agent ${def.id} is ${def.engine.type} — it does not take a model`)
+      throw new Error(`agent ${def.id} is heuristic — it does not take a model`)
     }
   } else if (def.unavailable) {
     // A stale model suggestion is curable by a seat override; without one the
@@ -425,8 +426,11 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
   // which model is actually answering; a stale suggestion renders as
   // "<id> (unavailable)" instead of throwing so the library can list it.
   const e = def.engine
+  // One narrowing: every llm-only field below is `llm?.x`, so a heuristic
+  // engine yields undefined for all of them without repeating the test.
+  const llm = e.type === 'llm' ? e : undefined
   let model = 'rule-based'
-  if (e.type === 'llm') {
+  if (llm) {
     // resolveModel owns the precedence; it can't throw inside the llm branch.
     const resolved = resolveModel(def, modelOverride)
     model = ROSTER.find((r) => r.id === resolved)?.slug ?? `${resolved} (unavailable)`
@@ -439,18 +443,18 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
     about: def.about,
     model,
     color: def.badge?.color ?? hashColor(def.id),
-    personality: e.type === 'llm' ? e.personality : undefined,
-    strategy: e.type === 'llm' ? e.strategy : undefined,
-    roleGuidance: e.type === 'llm' ? e.roleGuidance : undefined,
-    roleGuidanceMode: e.type === 'llm' ? e.roleGuidanceMode : undefined,
-    kindGuidance: e.type === 'llm' ? e.kindGuidance : undefined,
-    temperature: e.type === 'llm' ? e.temperature : undefined,
-    suggestedModel: e.type === 'llm' ? e.model : undefined,
+    personality: llm?.personality,
+    strategy: llm?.strategy,
+    roleGuidance: llm?.roleGuidance,
+    roleGuidanceMode: llm?.roleGuidanceMode,
+    kindGuidance: llm?.kindGuidance,
+    temperature: llm?.temperature,
+    suggestedModel: llm?.model,
     tunedChars: customChars(e),
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',
     unavailable: def.unavailable,
-    beliefMode: e.type === 'llm' ? e.beliefMode : undefined,
+    beliefMode: llm?.beliefMode,
     brain: resolveBrain(e),
   }
 }
