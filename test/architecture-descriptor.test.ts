@@ -4,13 +4,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
+  createComposedAgent,
+  type ComposedAgentOptions,
+} from '../server/agents/composed.ts'
+import {
   CANDIDATE_PLANNER_PROTOCOL_VERSION,
   NO_PLANNER_VERSION,
   NO_VOICE_VERSION,
   PLAN_VOICE_PROTOCOL_VERSION,
-  createComposedAgent,
-  type ComposedAgentOptions,
-} from '../server/agents/composed.ts'
+} from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
   RESOLVED_COMPOSED_BRAIN_VERSION,

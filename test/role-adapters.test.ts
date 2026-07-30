@@ -5,8 +5,10 @@ import assert from 'node:assert/strict'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import {
   createComposedAgent,
-  type CandidatePlanner,
 } from '../server/agents/composed.ts'
+import type {
+  CandidatePlanner,
+} from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   componentPayload,
   runDecisionComponents,

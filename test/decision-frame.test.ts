@@ -4,8 +4,10 @@ import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import type { SituationAnalysis } from '../server/agents/analysis/types.ts'
 import {
   createComposedAgent,
-  NO_VOICE_VERSION,
 } from '../server/agents/composed.ts'
+import {
+  NO_VOICE_VERSION,
+} from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   PRIVATE_FORCED_POLICY_INPUT,
   PRIVATE_SITUATION_INPUT,

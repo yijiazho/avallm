@@ -19,9 +19,11 @@ import type {
 } from '../server/agents/components/types.ts'
 import {
   createComposedAgent,
-  type CandidatePlanner,
   type ComposedAgentOptions,
 } from '../server/agents/composed.ts'
+import type {
+  CandidatePlanner,
+} from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   compatibilityCandidateScores,
   type CandidateScorer,

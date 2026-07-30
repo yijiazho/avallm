@@ -43,7 +43,7 @@
     },
     {
       "path": "test/component-registry.test.ts",
-      "sha256": "397fc4edb3f811c5e3caff1ace4ccfb860813a28e38ce70be72336e2b56f8c52",
+      "sha256": "1290b6b7990b3d75f3b485ab8ccf03e0cc3316a7f10ff32b3108b34d6e0ed165",
       "rationale": "Legacy registry fixtures intentionally mutate readonly contracts."
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "25c3d6fc4e0acc9c70fe095c76f47d70a0cce0270b7f132dc36be6ad2c0713e9",
+      "sha256": "b22393d268589370cc82b78489f16367c516e3c8b4092886bb5e7e51fdcd4146",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -108,7 +108,7 @@
     },
     {
       "path": "test/intent-planner.test.ts",
-      "sha256": "09a2593bc0d2ff8b48007125170762572446564ac9f4db1db0e0759515b3cc92",
+      "sha256": "cae063bbe12140933fffe1d53ccfcbed3eb55019d3237d98633bdf59c321da26",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
@@ -173,7 +173,7 @@
     },
     {
       "path": "test/role-adapters.test.ts",
-      "sha256": "82ab7429285acbcf72f7fb4b29d87e310731411c4e152a3da33e4efda9454a0d",
+      "sha256": "36f486ab1024830539bac73efebe959e9531425819ecf1b49077ed3e8c9f82a9",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
     },
     {

@@ -254,45 +254,18 @@ import type {
   AppliedDecisionOutcome,
   AvalonAgent,
 } from './types.ts'
-
-export const NO_PLANNER_VERSION = 'planner-off'
-export const NO_VOICE_VERSION = 'voice-off'
-export const CANDIDATE_PLANNER_PROTOCOL_VERSION =
-  'candidate-planner-protocol-v1'
-export const PLAN_VOICE_PROTOCOL_VERSION = 'plan-voice-protocol-v1'
-
-export interface PlannerInput {
-  context: ComposedPolicyContext
-  renderedContext: string
-  structuredCandidateId: string
-}
-
-export interface PlannerOutput {
-  candidateId: string
-  reasonCodes?: readonly string[]
-  communication?: PlannerCommunicationDirection
-}
-
-/** A real LLM adapter implements this bounded contract; tests inject fakes. */
-export interface CandidatePlanner {
-  version: string
-  choose(input: PlannerInput): Promise<PlannerOutput | undefined>
-}
-
-export interface VoiceInput {
-  plan: CommittedVoicePlan
-  renderedPlan: string
-}
-
-export interface VoiceOutput {
-  text?: string
-  thinking?: string
-}
-
-export interface PlanVoice {
-  version: string
-  speak(input: VoiceInput): Promise<VoiceOutput | undefined>
-}
+import {
+  CANDIDATE_PLANNER_PROTOCOL_VERSION,
+  NO_PLANNER_VERSION,
+  NO_VOICE_VERSION,
+  PLAN_VOICE_PROTOCOL_VERSION,
+  type CandidatePlanner,
+  type PlanVoice,
+  type PlannerInput,
+  type PlannerOutput,
+  type VoiceInput,
+  type VoiceOutput,
+} from './communication/planner-voice-adapter.ts'
 
 export type ComposedStage =
   | 'language'

@@ -2,16 +2,51 @@ import type { OpenRouterClient } from '../../llm/openrouter.ts'
 import {
   COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
+  type CommittedVoicePlan,
   type CommunicationClaimCode,
   type PlannerCommunicationDirection,
 } from '../policy/plan.ts'
-import type {
-  CandidatePlanner,
-  PlanVoice,
-  PlannerOutput,
-  VoiceOutput,
-} from '../composed.ts'
+import type { ComposedPolicyContext } from './composed-renderer.ts'
 import { onlyAllowedKeys } from '../components/canonical-shape.ts'
+
+export const NO_PLANNER_VERSION = 'planner-off'
+export const NO_VOICE_VERSION = 'voice-off'
+export const CANDIDATE_PLANNER_PROTOCOL_VERSION =
+  'candidate-planner-protocol-v1'
+export const PLAN_VOICE_PROTOCOL_VERSION = 'plan-voice-protocol-v1'
+
+export interface PlannerInput {
+  context: ComposedPolicyContext
+  renderedContext: string
+  structuredCandidateId: string
+}
+
+export interface PlannerOutput {
+  candidateId: string
+  reasonCodes?: readonly string[]
+  communication?: PlannerCommunicationDirection
+}
+
+/** A real LLM adapter implements this bounded contract; tests inject fakes. */
+export interface CandidatePlanner {
+  version: string
+  choose(input: PlannerInput): Promise<PlannerOutput | undefined>
+}
+
+export interface VoiceInput {
+  plan: CommittedVoicePlan
+  renderedPlan: string
+}
+
+export interface VoiceOutput {
+  text?: string
+  thinking?: string
+}
+
+export interface PlanVoice {
+  version: string
+  speak(input: VoiceInput): Promise<VoiceOutput | undefined>
+}
 
 export const BOUNDED_PLANNER_VERSION = 'bounded-llm-planner-v1'
 export const BOUNDED_VOICE_VERSION = 'bounded-llm-voice-v1'

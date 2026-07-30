@@ -4,11 +4,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createComposedAgent,
-  type PlannerInput,
-  type PlannerOutput,
 } from '../server/agents/composed.ts'
 import {
   createBoundedPlannerVoice,
+  type PlannerInput,
+  type PlannerOutput,
 } from '../server/agents/communication/planner-voice-adapter.ts'
 import {
   goodProposalScorer,
