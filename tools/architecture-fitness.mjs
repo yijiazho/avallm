@@ -154,7 +154,6 @@ const SHARED_PROBABILITY_ARITHMETIC =
  * added here would be a helper nobody scans for.
  */
 export const SHARED_ARITHMETIC_HELPER_NAMES = Object.freeze([
-  'accumulatedTolerance',
   'addProbability',
   'clampProbability',
   'clampProbabilityOrZero',
@@ -1712,6 +1711,205 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
   return violations
 }
 
+/**
+ * ARCH018. A production export whose only consumer is a test.
+ *
+ * The repository already fails the build on dead declarations, but that check
+ * reports unused locals inside test roots, so an exported production helper
+ * that a test imports reads as live no matter what production does. That is
+ * the hole `assertProbability` sat in: exported from belief/invariants.ts,
+ * covered by its own test, never called by any production code, and structurally
+ * unnecessary because every probability that layer emits belongs to a
+ * distribution already checked as one. It was found by reading, not by a tool.
+ *
+ * Only `function` and `const` exports count. Types and interfaces are consumed
+ * in type position, where a name-based scan cannot tell use from re-declaration,
+ * and a class can be thrown in production while its name appears only in the
+ * test that asserts on it, which is exactly the shape of BeliefInvariantError.
+ *
+ * Same-file use counts as production use. A version constant referenced once as
+ * `version: QUEST_CARD_FACTOR_VERSION` inside its own module is live even
+ * though nothing else names it, and an earlier census that missed this reported
+ * 126 violations instead of 22.
+ */
+const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
+  // The one deliberate member. Its own doc comment states that it has no
+  // production caller and that the arm exists because it is the only path
+  // reaching validDecisionTrace, so deleting it would drop those structural
+  // checks rather than relocate them. Kept, and kept explained there.
+  ['server/agents/external-reply.ts', new Set(['parseExternalDecisionReply'])],
+  ['server/agents/cognition/state.ts', new Set(['publicCognition'])],
+  ['server/agents/analysis/actor-target-treatment.ts', new Set([
+    'validatePrivateActorTargetTreatmentHostJoin',
+  ])],
+  ['server/agents/analysis/evil-role-utility.ts', new Set([
+    'buildEvilRoleUtilityProjection',
+  ])],
+  ['server/agents/analysis/mordred-blindness.ts', new Set([
+    'validatePrivateMordredBlindnessHostJoin',
+  ])],
+  ['server/agents/analysis/observer.ts', new Set([
+    'publicAlignmentMaskHistogram',
+  ])],
+  ['server/agents/analysis/role-utility.ts', new Set([
+    'buildRoleUtilityProjection',
+    'validatePrivateRoleUtilityProjection',
+  ])],
+  ['server/agents/board.ts', new Set(['roleCertainties'])],
+  ['server/agents/components/kernel.ts', new Set([
+    'publicDecisionComponentRun',
+  ])],
+  ['server/agents/components/resolved-brain.ts', new Set([
+    'projectPrivateArchitectureDebug',
+  ])],
+  ['server/agents/policy/score.ts', new Set([
+    'createEvilRoleObjectiveScorer',
+    'createMordredBlindnessRoleScorer',
+    'createMorganaRoleScorer',
+    'createRoleObjectiveScorer',
+  ])],
+  ['server/agents/score-layers/configured.ts', new Set([
+    'configuredScoreFamilyWiring',
+  ])],
+  ['server/agents/score-layers/good.ts', new Set([
+    'calculateGoodProposalCandidateScores',
+    'calculateGoodProposalVoteCandidateScores',
+    'createGoodScoreLayerRegistry',
+  ])],
+  ['server/eval/active-language-bank.ts', new Set([
+    'activeLanguageEvaluationVariant',
+  ])],
+  ['server/eval/evil-policy-bank.ts', new Set([
+    'PHASE7_EVIL_DEALS_PER_TARGET_ROLE',
+  ])],
+  ['server/eval/mechanical-data.ts', new Set(['mechanicalDataset'])],
+  ['server/eval/seat-view-inspector-ui.ts', new Set([
+    'createSeatViewInspectorUiServer',
+  ])],
+  ['server/eval/trace-replay.ts', new Set([
+    'authoritativeDecisionSnapshots',
+  ])],
+])
+
+/** Module-level `export function` and `export const` names, with their lines. */
+function exportedValueNames(ast) {
+  const out = []
+  const lineOf = (node) =>
+    ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1
+  for (const statement of ast.statements) {
+    const exported = statement.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    )
+    if (!exported) continue
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      out.push({ name: statement.name.text, line: lineOf(statement.name) })
+      continue
+    }
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name)) {
+        out.push({
+          name: declaration.name.text,
+          line: lineOf(declaration.name),
+        })
+      }
+    }
+  }
+  return out
+}
+
+function identifierCounts(ast) {
+  const counts = new Map()
+  const visit = (node) => {
+    if (ts.isIdentifier(node)) {
+      counts.set(node.text, (counts.get(node.text) ?? 0) + 1)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  return counts
+}
+
+function collectDirectorySources(root, directory) {
+  const entries = []
+  const pending = [path.join(root, directory)]
+  while (pending.length) {
+    const current = pending.pop()
+    let children
+    try {
+      children = readdirSync(current, { withFileTypes: true })
+    } catch {
+      return entries
+    }
+    for (const child of children) {
+      const absolute = path.join(current, child.name)
+      if (child.isSymbolicLink()) continue
+      if (child.isDirectory()) {
+        pending.push(absolute)
+        continue
+      }
+      if (!child.isFile() || !SOURCE_EXTENSION.test(child.name)) continue
+      entries.push([
+        normalizeRepoPath(path.relative(root, absolute)),
+        readFileSync(absolute, 'utf8'),
+      ])
+    }
+  }
+  return entries.sort(([left], [right]) => left.localeCompare(right))
+}
+
+export function checkTestOnlyProductionExports(root = process.cwd()) {
+  return auditTestOnlyProductionExports(
+    collectDirectorySources(root, 'server'),
+    collectDirectorySources(root, 'test'),
+  )
+}
+
+/**
+ * The disk-free half, so the rule is exercised over synthetic sources by the
+ * same harness every other rule here uses rather than only against the tree it
+ * is scanning.
+ */
+export function auditTestOnlyProductionExports(server, tests) {
+  if (!server.length || !tests.length) return Object.freeze([])
+
+  const parse = ([sourcePath, source]) => {
+    const ast = ts.createSourceFile(
+      sourcePath,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      scriptKind(sourcePath),
+    )
+    return { sourcePath, counts: identifierCounts(ast), ast }
+  }
+  const serverModules = server.map(parse)
+  const testCounts = tests.map(parse).map((entry) => entry.counts)
+
+  const violations = []
+  for (const module of serverModules) {
+    const exempt = TEST_ONLY_EXPORT_EXEMPTIONS.get(module.sourcePath)
+    for (const declared of exportedValueNames(module.ast)) {
+      if (exempt?.has(declared.name)) continue
+      // The declaration itself contributes one identifier, so anything above
+      // one is a real use inside the declaring module.
+      if ((module.counts.get(declared.name) ?? 0) > 1) continue
+      if (serverModules.some((other) =>
+        other !== module && other.counts.has(declared.name))) continue
+      if (!testCounts.some((counts) => counts.has(declared.name))) continue
+      violations.push(violation(
+        'ARCH018',
+        module.sourcePath,
+        undefined,
+        `export ${declared.name} (line ${declared.line}) has no production `
+          + 'consumer and is reached only from the suite, so the tests are '
+          + 'pinning a surface nothing uses',
+      ))
+    }
+  }
+  return Object.freeze(violations)
+}
+
 export function checkRepositoryArchitecture(root = process.cwd()) {
   let entries
   try {
@@ -1727,6 +1925,7 @@ export function checkRepositoryArchitecture(root = process.cwd()) {
   return Object.freeze([
     ...auditArchitectureSources(entries),
     ...checkStrictTestRatchetOwnership(root),
+    ...checkTestOnlyProductionExports(root),
   ])
 }
 

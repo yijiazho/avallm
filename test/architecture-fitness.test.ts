@@ -1557,3 +1557,76 @@ test('audit fails closed on unreadable, duplicate, and malformed sources', () =>
   assert.match(violations[4].message, /outside the governed server tree/)
   assert.match(violations[5].message, /module target escapes the repository/)
 })
+
+// ARCH018. The repository already fails the build on dead declarations, but
+// that check reports unused locals inside test roots, so an exported
+// production helper a test imports reads as live whatever production does.
+// assertProbability sat in that hole until it was found by reading.
+test('a production export reached only from the suite is reported', () => {
+  const audit = (
+    server: [string, string][],
+    tests: [string, string][],
+  ): string[] =>
+    (architectureModule as unknown as {
+      auditTestOnlyProductionExports: (
+        s: [string, string][],
+        t: [string, string][],
+      ) => readonly { rule: string }[]
+    }).auditTestOnlyProductionExports(server, tests).map((item) => item.rule)
+
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', 'export const onlyTested = 1']],
+      [['test/probe.test.ts', 'const seen = onlyTested']],
+    ),
+    ['ARCH018'],
+    'a value export whose sole consumer is a test',
+  )
+  assert.deepEqual(
+    audit(
+      [
+        ['server/agents/probe.ts', 'export const shared = 1'],
+        ['server/agents/other.ts', 'const seen = shared'],
+      ],
+      [['test/probe.test.ts', 'const alsoSeen = shared']],
+    ),
+    [],
+    'a production consumer anywhere clears it',
+  )
+  // Same-file use is production use. A version constant referenced once inside
+  // its own module is live, and missing this is what made an earlier census
+  // report 126 instead of 22.
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', [
+        'export const VERSION = "v1"',
+        'export const build = (): string => VERSION',
+      ].join('\n')]],
+      [['test/probe.test.ts', 'const seen = VERSION']],
+    ),
+    [],
+    'a constant used inside its own module is not test-only',
+  )
+  // Nothing references it at all, which is the dead-declaration check's job.
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', 'export const orphan = 1']],
+      [['test/probe.test.ts', 'const unrelated = 1']],
+    ),
+    [],
+    'an export with no consumer at all is a different rule',
+  )
+  // Types and classes are out of scope: a type is consumed in type position,
+  // and a class can be thrown in production while only the test names it.
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', [
+        'export interface Shape { a: number }',
+        'export class Failure extends Error {}',
+      ].join('\n')]],
+      [['test/probe.test.ts', 'const s: Shape = { a: 1 }; throw new Failure()']],
+    ),
+    [],
+    'type and class exports are deliberately not collected',
+  )
+})
