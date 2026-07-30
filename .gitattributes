@@ -21,7 +21,3 @@
 *.pdf binary
 *.woff binary
 *.woff2 binary
-
-# This tracked blob predates the LF policy. Normalize it only in a reviewed
-# follow-up so adding the policy does not silently rewrite unrelated code.
-server/eval/report.ts -text

@@ -2348,12 +2348,16 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
         voteDirtyTeamApproveRateDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'dirty-team-approve'),
-          `${games[0].meta.bank}:${baseline}:${candidate}:dirty-team-approve`,
+          seededRandom(
+            `${games[0].meta.bank}:${baseline}:${candidate}:dirty-team-approve`,
+          ),
         ),
         voteCleanTeamRejectRateDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'clean-team-reject'),
-          `${games[0].meta.bank}:${baseline}:${candidate}:clean-team-reject`,
+          seededRandom(
+            `${games[0].meta.bank}:${baseline}:${candidate}:clean-team-reject`,
+          ),
         ),
       })
     }
