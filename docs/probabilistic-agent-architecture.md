@@ -913,7 +913,7 @@ other in the wrong direction, which is the import half of the evaluation-isolati
 
 The rest are behavioral, and their coverage is uneven in a way worth knowing before trusting the
 list. "Voice does not change committed actions" is pinned by `test/prompt-coherence.test.ts` and
-`test/phase7b2-plan-coherence.test.ts`. The hidden-information boundary these rules exist to protect
+`test/plan-coherence.test.ts`. The hidden-information boundary these rules exist to protect
 is pinned by `test/leaks.test.ts` and `test/knowledge.test.ts`. "Evidence does not choose actions"
 and "belief does not render prompts" have no mechanical check today and rest on the directory
 layering above, so a green suite is not evidence that either still holds.
