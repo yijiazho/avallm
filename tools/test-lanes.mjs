@@ -67,6 +67,7 @@ const LANES = Object.freeze({
     'artifact-manifest.test.ts',
     'assassin-policy.test.ts',
     'assassin-posterior.test.ts',
+    'canonical-shape.test.ts',
     'component-conformance.test.ts',
     'component-kernel.test.ts',
     'component-registry.test.ts',

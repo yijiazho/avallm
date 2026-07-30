@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import { isProxy } from 'node:util/types'
 import type { Seat } from '../../engine/types.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
 import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
@@ -20,78 +19,13 @@ import {
 import type {
   CanonicalJsonValue,
 } from '../components/canonical-json.ts'
-
-const plainRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value
-  && typeof value === 'object'
-  && !Array.isArray(value)
-  && !isProxy(value)
-  && Object.getPrototypeOf(value) === Object.prototype
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (
-    typeof value !== 'object'
-    || isProxy(value)
-    || seen.has(value)
-  ) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
-}
-
-const denseArray = (value: unknown): value is unknown[] =>
-  Array.isArray(value)
-  && !isProxy(value)
-  && Object.keys(value).length === value.length
-  && Array.from(
-    { length: value.length },
-    (_, index) => Object.hasOwn(value, index),
-  ).every(Boolean)
-
-const exactKeys = (
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean =>
-  Object.keys(value).length === keys.length
-  && Object.keys(value).every((key) => keys.includes(key))
-
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
+import {
+  denseArray,
+  exactKeys,
+  plainDetachedData,
+  plainRecord,
+  probability,
+} from '../components/canonical-shape.ts'
 
 const close = (left: number, right: number): boolean =>
   Math.abs(left - right) <= PROBABILITY_TOLERANCE

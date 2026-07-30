@@ -1,6 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
 import type {
-  DecisionKind,
   DecisionRequest,
   PlayerView,
   Seat,
@@ -20,6 +19,12 @@ import {
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
+import {
+  denseArray,
+  exactKeys,
+  plainDataRecord as plainRecord,
+  probability,
+} from '../components/canonical-shape.ts'
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
@@ -111,42 +116,11 @@ export interface PrivateRoleUtilityProjection {
 const clamp01 = (value: number): number =>
   Math.max(0, Math.min(1, value))
 
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
-
 const boundedInfluence = (value: unknown): value is number =>
   typeof value === 'number'
   && Number.isFinite(value)
   && value >= -1
   && value <= 1
-
-function denseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-    && Object.keys(value).length === value.length
-    && Array.from(
-      { length: value.length },
-      (_, index) => Object.hasOwn(value, index),
-    ).every(Boolean)
-}
-
-function plainRecord(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean {
-  const actual = Object.keys(value).sort()
-  const expected = [...keys].sort()
-  return actual.length === expected.length
-    && actual.every((key, index) => key === expected[index])
-}
 
 function candidateDirectionSign(
   candidate: CandidatePublicCommitment,

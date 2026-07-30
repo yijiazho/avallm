@@ -45,69 +45,14 @@ import {
   type PublicCounterfeitMerlinRead,
   type PublicCounterfeitMerlinReadSnapshot,
 } from './morgana-counterfeit-types.ts'
-
-const plainRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value)
-
-const denseArray = (value: unknown): value is unknown[] =>
-  Array.isArray(value)
-  && Object.keys(value).length === value.length
-  && Array.from(
-    { length: value.length },
-    (_, index) => Object.hasOwn(value, index),
-  ).every(Boolean)
-
-const exactKeys = (
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean =>
-  Object.keys(value).length === keys.length
-  && Object.keys(value).every((key) => keys.includes(key))
-
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
-
-const canonicalSeats = (
-  value: unknown,
-  playerCount: number,
-): value is Seat[] =>
-  denseArray(value)
-  && value.length > 0
-  && value.every(
-    (seat, index) =>
-      Number.isSafeInteger(seat)
-      && (seat as number) >= 0
-      && (seat as number) < playerCount
-      && (index === 0 || (value[index - 1] as number) < (seat as number)),
-  )
-
-function canonicalCombinations(
-  playerCount: number,
-  size: number,
-): readonly Seat[][] {
-  const out: Seat[][] = []
-  const selected: Seat[] = []
-  const visit = (start: number): void => {
-    if (selected.length === size) {
-      out.push(selected.slice())
-      return
-    }
-    for (
-      let seat = start;
-      seat <= playerCount - (size - selected.length);
-      seat++
-    ) {
-      selected.push(seat)
-      visit(seat + 1)
-      selected.pop()
-    }
-  }
-  visit(0)
-  return out
-}
+import {
+  canonicalCombinations,
+  canonicalSeats,
+  denseArray,
+  exactKeys,
+  plainDataRecord as plainRecord,
+  probability,
+} from '../components/canonical-shape.ts'
 
 const clamp01 = (value: number): number =>
   Math.max(0, Math.min(1, value))

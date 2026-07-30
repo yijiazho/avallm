@@ -22,6 +22,7 @@ import {
   type PublicAlignmentMaskCount,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
+import { probability } from '../components/canonical-shape.ts'
 
 const PUBLIC_OBSERVER_CACHE_LIMIT = 16
 const exactProjectionCache = new Map<string, {
@@ -234,12 +235,6 @@ export function observePublicRecord(
     })),
   }
 }
-
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
 
 const exactKeys = (
   value: Record<string, unknown>,

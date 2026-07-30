@@ -32,6 +32,10 @@ import {
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
   type PrivateMorganaCounterfeitObjective,
 } from './morgana-counterfeit-types.ts'
+import {
+  exactKeys,
+  plainDataRecord as plainRecord,
+} from '../components/canonical-shape.ts'
 
 export const MORGANA_ROLE_UTILITY_PROJECTION_VERSION =
   'morgana-counterfeit-role-utility-v1'
@@ -100,16 +104,6 @@ export interface PrivateMorganaRoleUtilityProjection {
   evilRoleUtility: PrivateEvilRoleUtilityProjection
   candidates: readonly MorganaRoleCandidateUtility[]
 }
-
-const plainRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value)
-
-const exactKeys = (
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean =>
-  Object.keys(value).length === keys.length
-  && Object.keys(value).every((key) => keys.includes(key))
 
 function stablePolicyBucket(input: string): 0 | 1 {
   let hash = 2166136261

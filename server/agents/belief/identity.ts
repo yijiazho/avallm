@@ -10,6 +10,7 @@ import {
   type BeliefSnapshot,
   type PlayerMarginal,
 } from './types.ts'
+import { denseArray } from '../components/canonical-shape.ts'
 
 export const JOINT_IDENTITY_MODEL_VERSION = 'joint-identity-projection-v1'
 export const MAX_IDENTITY_ROLE_QUERIES = 16
@@ -127,14 +128,6 @@ function roleMultisetCounts(roles: readonly Role[]): Map<Role, number> {
   const counts = new Map<Role, number>()
   for (const role of roles) counts.set(role, (counts.get(role) ?? 0) + 1)
   return counts
-}
-
-function denseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-    && Array.from(
-      { length: value.length },
-      (_, index) => Object.hasOwn(value, index),
-    ).every(Boolean)
 }
 
 function canonicalQuery(roles: readonly Role[]): {

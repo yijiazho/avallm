@@ -45,42 +45,19 @@ import {
   type RoleObjectiveRole,
 } from './role-objective-types.ts'
 import {
+  canonicalSeats,
+  denseArray,
+  exactKeys,
+  plainDataRecord as plainRecord,
+  probability,
+} from '../components/canonical-shape.ts'
+import {
   canonicalizeJson,
   type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
 
 const VALID_ROLES = new Set<Role>(CANONICAL_ROLE_ORDER)
 const roleRank = new Map(CANONICAL_ROLE_ORDER.map((role, index) => [role, index]))
-
-const exactKeys = (
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-): boolean => {
-  const keys = Object.keys(value)
-  return keys.length === allowed.length
-    && allowed.every((key) => Object.hasOwn(value, key))
-}
-
-const plainRecord = (value: unknown): value is Record<string, unknown> => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
-
-function denseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value)
-    && Object.keys(value).length === value.length
-    && Array.from(
-      { length: value.length },
-      (_, index) => Object.hasOwn(value, index),
-    ).every(Boolean)
-}
-
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
 
 const boundedIndex = (value: unknown): value is number =>
   typeof value === 'number'
@@ -89,27 +66,6 @@ const boundedIndex = (value: unknown): value is number =>
   && value <= 1
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
-
-function canonicalSeats(
-  value: unknown,
-  playerCount: number,
-  allowEmpty = false,
-): value is Seat[] {
-  return denseArray(value)
-    && (allowEmpty || value.length > 0)
-    && value.length <= playerCount
-    && value.every((seat, index, all) => {
-      const previous = all[index - 1]
-      return typeof seat === 'number'
-        && Number.isSafeInteger(seat)
-        && seat >= 0
-        && seat < playerCount
-        && (
-          index === 0
-          || (typeof previous === 'number' && previous < seat)
-        )
-    })
-}
 
 function canonicalRoles(value: unknown, playerCount: number): value is Role[] {
   if (

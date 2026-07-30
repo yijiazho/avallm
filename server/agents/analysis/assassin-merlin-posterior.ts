@@ -24,10 +24,9 @@ import {
   type AssassinMerlinTargetPosterior,
   type PrivateAssassinMerlinPosterior,
 } from './assassin-merlin-posterior-types.ts'
+import { probability } from '../components/canonical-shape.ts'
 
 const close = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-12
-const probability = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
 
 function resolvedActions(view: PlayerView) {
   return [...view.proposals]

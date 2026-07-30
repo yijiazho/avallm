@@ -21,6 +21,9 @@ import {
   type EvilRolePosture,
   type PrivateEvilRoleObjectiveSnapshot,
 } from './evil-objective-types.ts'
+import {
+  canonicalSeats,
+} from '../components/canonical-shape.ts'
 
 export const EVIL_ROLE_UTILITY_PROJECTION_VERSION =
   'evil-oberon-role-utility-v1'
@@ -144,24 +147,6 @@ const POSTURE_BY_ROLE: Readonly<Record<EvilObjectiveRole, EvilRolePosture>> =
     minion: 'minion-failure-banking',
     oberon: 'oberon-uncoordinated-disruption',
   })
-
-function canonicalSeats(
-  value: unknown,
-  playerCount: number,
-  allowEmpty = false,
-): value is readonly Seat[] {
-  return Array.isArray(value)
-    && Object.keys(value).length === value.length
-    && (allowEmpty || value.length > 0)
-    && value.length <= playerCount
-    && value.every(
-      (seat, index) =>
-        Number.isSafeInteger(seat)
-        && seat >= 0
-        && seat < playerCount
-        && (index === 0 || value[index - 1] < seat),
-    )
-}
 
 function teamProxyValue(
   objective: PrivateEvilRoleObjectiveSnapshot,

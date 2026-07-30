@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import { isProxy } from 'node:util/types'
 import type {
   DecisionRequest,
   PlayerView,
@@ -46,78 +45,15 @@ import {
 import type {
   CanonicalJsonValue,
 } from '../components/canonical-json.ts'
-
-const plainRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value
-  && typeof value === 'object'
-  && !Array.isArray(value)
-  && !isProxy(value)
-  && Object.getPrototypeOf(value) === Object.prototype
-
-function plainDetachedData(
-  value: unknown,
-  seen = new Set<object>(),
-): boolean {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (
-    typeof value !== 'object'
-    || isProxy(value)
-    || seen.has(value)
-  ) return false
-  seen.add(value)
-  const array = Array.isArray(value)
-  if (
-    array
-      ? (
-          Object.keys(value).length !== value.length
-          || Array.from(
-            { length: value.length },
-            (_, index) => Object.hasOwn(value, index),
-          ).some((present) => !present)
-        )
-      : Object.getPrototypeOf(value) !== Object.prototype
-  ) return false
-  const descriptors = Object.getOwnPropertyDescriptors(value)
-  for (const key of Reflect.ownKeys(value)) {
-    if (array && key === 'length') continue
-    if (typeof key !== 'string') return false
-    const descriptor = descriptors[key]
-    if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
-      || !plainDetachedData(descriptor.value, seen)
-    ) return false
-  }
-  return true
-}
-
-const denseArray = (value: unknown): value is unknown[] =>
-  Array.isArray(value)
-  && !isProxy(value)
-  && Object.keys(value).length === value.length
-  && Array.from(
-    { length: value.length },
-    (_, index) => Object.hasOwn(value, index),
-  ).every(Boolean)
-
-const exactKeys = (
-  value: Record<string, unknown>,
-  keys: readonly string[],
-): boolean =>
-  Object.keys(value).length === keys.length
-  && Object.keys(value).every((key) => keys.includes(key))
-
-const probability = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= 0
-  && value <= 1
+import {
+  canonicalCombinations,
+  canonicalSeats,
+  denseArray,
+  exactKeys,
+  plainDetachedData,
+  plainRecord,
+  probability,
+} from '../components/canonical-shape.ts'
 
 const close = (left: number, right: number): boolean =>
   Math.abs(left - right) <= PROBABILITY_TOLERANCE
@@ -127,45 +63,6 @@ const clampProbability = (value: number): number =>
 
 const canonicalTeam = (team: readonly Seat[]): readonly Seat[] =>
   [...team].sort((left, right) => left - right)
-
-const canonicalSeats = (
-  value: unknown,
-  playerCount: number,
-): value is Seat[] =>
-  denseArray(value)
-  && value.length > 0
-  && value.every(
-    (seat, index) =>
-      Number.isSafeInteger(seat)
-      && (seat as number) >= 0
-      && (seat as number) < playerCount
-      && (index === 0 || (value[index - 1] as number) < (seat as number)),
-  )
-
-function canonicalCombinations(
-  playerCount: number,
-  size: number,
-): readonly Seat[][] {
-  const out: Seat[][] = []
-  const selected: Seat[] = []
-  const visit = (start: number): void => {
-    if (selected.length === size) {
-      out.push(selected.slice())
-      return
-    }
-    for (
-      let seat = start;
-      seat <= playerCount - (size - selected.length);
-      seat++
-    ) {
-      selected.push(seat)
-      visit(seat + 1)
-      selected.pop()
-    }
-  }
-  visit(0)
-  return out
-}
 
 function matrixIndex(
   playerCount: number,
