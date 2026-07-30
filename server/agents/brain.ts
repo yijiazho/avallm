@@ -12,20 +12,16 @@ export const COMPOSED_POLICY_VERSION = 'composed-policy-v1'
 export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
 export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v2'
 /**
- * Every execution mode, as one runtime list the union derives from.
+ * The non-composed policies, as one runtime list rather than a type union.
  *
- * The list is the source of truth rather than a convenience copy of it: a
- * mode set spelled out as a string array or an `||` chain somewhere else is
- * invisible to the compiler, so it survives a change to the union without
- * reddening anything. Retiring the `external` mode had to be done by hand in
- * four separate literal lists for exactly that reason, and typechecking
- * caught only the two that were typed against this union. Read the sets
- * through the predicates below instead of restating them.
- */
-/**
- * The policy names the agent kind. Every manifest and trace already declares it
- * and every reader already cross-checks it, so a second mode label derived from
- * it would be a restatement rather than an independent fact.
+ * The policy names the agent kind: every manifest and trace already declares it
+ * and readers already cross-check it, so a second label derived from it would
+ * be a restatement rather than an independent fact. The list is the source of
+ * truth rather than a convenience copy, because a set spelled out as a string
+ * array or an `||` chain elsewhere is invisible to the compiler and survives a
+ * change to the members without reddening anything. Retiring the `external`
+ * mode had to be done by hand in four separate literal lists for exactly that
+ * reason. Read this set through the predicates below instead of restating it.
  */
 export const NON_COMPOSED_POLICIES = Object.freeze([
   RAW_LLM_POLICY_VERSION,
@@ -78,16 +74,20 @@ export interface BrainSpec {
   observerModel: ObserverModelComponent
 }
 
-/** User/definition-facing overrides for the current raw-LLM brain. */
+/**
+ * User/definition-facing overrides for the raw-LLM brain.
+ *
+ * Only the components with more than one legal value belong here. The other
+ * five (belief, policy, communication, languageEvidence, observerModel) each
+ * admitted exactly one value for a raw-LLM agent, which is the value they get
+ * anyway, so accepting them let a definition restate a default and gain
+ * nothing. Writing one now fails as an unknown component rather than being
+ * validated into a no-op. Add a field back when a second value exists for it.
+ */
 export interface LlmBrainConfig {
-  belief?: typeof EXACT_BELIEF_MODEL_VERSION
   beliefVisibility?:
     | typeof COMPAT_CERTAINTIES_VISIBILITY
     | typeof BELIEF_RENDERER_VERSION
-  policy?: typeof RAW_LLM_POLICY_VERSION
-  communication?: typeof PROMPT_COMMUNICATION_VERSION
-  languageEvidence?: 'off'
-  observerModel?: 'off'
 }
 
 export interface LlmBrainSource {
@@ -105,26 +105,10 @@ export type BrainSource =
       observerModel?: typeof PUBLIC_OBSERVER_MODEL_VERSION
     }
 
-const DEFAULT_LLM_BRAIN: BrainSpec = Object.freeze({
-  version: BRAIN_SPEC_VERSION,
-  belief: EXACT_BELIEF_MODEL_VERSION,
-  beliefVisibility: COMPAT_CERTAINTIES_VISIBILITY,
-  policy: RAW_LLM_POLICY_VERSION,
-  communication: PROMPT_COMMUNICATION_VERSION,
-  languageEvidence: 'off',
-  observerModel: 'off',
-})
-
-const assertOneOf = (
-  field: string,
-  value: unknown,
-  choices: readonly string[],
-): string => {
-  if (typeof value !== 'string' || !choices.includes(value)) {
-    throw new Error(`brain.${field} must be one of: ${choices.join(', ')}`)
-  }
-  return value
-}
+const BELIEF_VISIBILITIES = [
+  COMPAT_CERTAINTIES_VISIBILITY,
+  BELIEF_RENDERER_VERSION,
+] as const
 
 function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
   const supplied = source.brain
@@ -135,52 +119,29 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
     throw new Error('brain must be an object')
   }
   const raw = (supplied ?? {}) as Record<string, unknown>
-  const allowed = new Set([
-    'belief',
-    'beliefVisibility',
-    'policy',
-    'communication',
-    'languageEvidence',
-    'observerModel',
-  ])
   for (const key of Object.keys(raw)) {
-    if (!allowed.has(key)) throw new Error(`brain: unknown component "${key}"`)
+    if (key !== 'beliefVisibility') {
+      throw new Error(`brain: unknown component "${key}"`)
+    }
   }
-
-  const brain: BrainSpec = {
+  const beliefVisibility =
+    raw.beliefVisibility ?? COMPAT_CERTAINTIES_VISIBILITY
+  if (
+    !(BELIEF_VISIBILITIES as readonly unknown[]).includes(beliefVisibility)
+  ) {
+    throw new Error(
+      `brain.beliefVisibility must be one of: ${BELIEF_VISIBILITIES.join(', ')}`,
+    )
+  }
+  return {
     version: BRAIN_SPEC_VERSION,
-      belief: assertOneOf(
-      'belief',
-      raw.belief ?? DEFAULT_LLM_BRAIN.belief,
-      [EXACT_BELIEF_MODEL_VERSION],
-    ) as BrainSpec['belief'],
-    beliefVisibility: assertOneOf(
-      'beliefVisibility',
-      raw.beliefVisibility ?? DEFAULT_LLM_BRAIN.beliefVisibility,
-      [COMPAT_CERTAINTIES_VISIBILITY, BELIEF_RENDERER_VERSION],
-    ) as BrainSpec['beliefVisibility'],
-    policy: assertOneOf(
-      'policy',
-      raw.policy ?? DEFAULT_LLM_BRAIN.policy,
-      [RAW_LLM_POLICY_VERSION],
-    ) as BrainSpec['policy'],
-    communication: assertOneOf(
-      'communication',
-      raw.communication ?? DEFAULT_LLM_BRAIN.communication,
-      [PROMPT_COMMUNICATION_VERSION],
-    ) as BrainSpec['communication'],
-    languageEvidence: assertOneOf(
-      'languageEvidence',
-      raw.languageEvidence ?? DEFAULT_LLM_BRAIN.languageEvidence,
-      ['off'],
-    ) as BrainSpec['languageEvidence'],
-    observerModel: assertOneOf(
-      'observerModel',
-      raw.observerModel ?? DEFAULT_LLM_BRAIN.observerModel,
-      ['off'],
-    ) as BrainSpec['observerModel'],
+    belief: EXACT_BELIEF_MODEL_VERSION,
+    beliefVisibility: beliefVisibility as BrainSpec['beliefVisibility'],
+    policy: RAW_LLM_POLICY_VERSION,
+    communication: PROMPT_COMMUNICATION_VERSION,
+    languageEvidence: 'off',
+    observerModel: 'off',
   }
-  return brain
 }
 
 export function resolveBrain(source: BrainSource): BrainSpec {

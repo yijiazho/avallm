@@ -112,18 +112,28 @@ test('heuristic, random, and composed component identities remain truthful', () 
 })
 
 test('invalid or contradictory brain configurations fail clearly', () => {
+  // beliefVisibility is the only component with a second legal value, so it is
+  // the only one whose VALUE is validated. The rest are not configurable at
+  // all, and naming one is rejected the same way as inventing a component:
+  // restating a default was never worth a bespoke error message.
   assert.throws(
-    () => llmDef({ brain: { belief: 'none' } }),
-    /brain\.belief must be one of: exact-constraints-v1/,
+    () => llmDef({ brain: { beliefVisibility: 'invented-v1' } }),
+    /brain\.beliefVisibility must be one of: /,
   )
-  assert.throws(
-    () => llmDef({ brain: { policy: 'hybrid-v1' } }),
-    /brain\.policy must be one of: prompt-guided-v1/,
-  )
-  assert.throws(
-    () => llmDef({ brain: { mystery: 'x' } }),
-    /unknown component "mystery"/,
-  )
+  for (const component of [
+    'belief',
+    'policy',
+    'communication',
+    'languageEvidence',
+    'observerModel',
+    'mystery',
+  ]) {
+    assert.throws(
+      () => llmDef({ brain: { [component]: 'x' } }),
+      new RegExp(`unknown component "${component}"`),
+      component,
+    )
+  }
 })
 
 test('public metadata exposes resolved brain identity apart from model and persona', () => {
