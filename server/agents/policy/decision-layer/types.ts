@@ -9,29 +9,25 @@ import type {
   DecisionComponentDefinition,
 } from '../../components/types.ts'
 import type { DecisionComponentRun } from '../../components/run-types.ts'
+import type { LayerRef, LayerToken } from '../layer-registry-common.ts'
+import { layerToken } from '../layer-registry-common.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
   ForcedPolicyResult,
   PolicyCandidate,
 } from '../types.ts'
 
-declare const DECISION_LAYER_TOKEN_BRAND: unique symbol
 declare const DECISION_LAYER_SURFACE_BRAND: unique symbol
 
-export interface DecisionLayerRef {
-  readonly id: string
-  readonly version: string
-}
+export interface DecisionLayerRef extends LayerRef {}
 
-export interface DecisionLayerToken extends DecisionLayerRef {
-  readonly [DECISION_LAYER_TOKEN_BRAND]: true
-}
+export type DecisionLayerToken = LayerToken<'decision-layer'>
 
 export function decisionLayerToken(
   id: string,
   version: string,
 ): DecisionLayerToken {
-  return Object.freeze({ id, version }) as DecisionLayerToken
+  return layerToken<'decision-layer'>(id, version)
 }
 
 /**

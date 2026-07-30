@@ -4,6 +4,38 @@ import { DECISION_COMPONENT_KINDS } from '../components/types.ts'
 // Canonical id/version grammar shared by every layer and component registry.
 export const LAYER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 export const LAYER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
+
+/**
+ * One branded identity for the layer families.
+ *
+ * The brand is what makes a token unforgeable: LAYER_TOKEN_BRAND is never
+ * exported, so no caller can write the property and only the minting function
+ * below can produce a value satisfying the type.
+ *
+ * The Family parameter preserves the other half of the guarantee. The families
+ * used to hold separate brand symbols, which is what kept one family's token
+ * from standing in for another's; minting from one implementation would lose
+ * that unless the family is part of the branded type.
+ */
+declare const LAYER_TOKEN_BRAND: unique symbol
+
+/** Unbranded layer coordinates. Journals and resolved orders carry these. */
+export interface LayerRef {
+  readonly id: string
+  readonly version: string
+}
+
+export interface LayerToken<Family extends string> extends LayerRef {
+  readonly [LAYER_TOKEN_BRAND]: Family
+}
+
+/** Mint the only branded token for a family; the brand is erased at runtime. */
+export function layerToken<Family extends string>(
+  id: string,
+  version: string,
+): LayerToken<Family> {
+  return Object.freeze({ id, version }) as LayerToken<Family>
+}
 // `raiseInvalid` throws each registry's own error class, keeping this neutral.
 export function assertLayerRef(
   ref: unknown,

@@ -3,8 +3,12 @@ import type {
   ScoreLayerRunLease,
   ScoreLayerSurface,
   ScoreLayerSurfaceDraft,
+  ScoreLayerToken,
   ScoreLayerTransformResult,
 } from '../../server/agents/policy/score-layer/types.ts'
+import type {
+  DecisionLayerToken,
+} from '../../server/agents/policy/decision-layer/types.ts'
 import type {
   PreparedNativeScoreLayers,
 } from '../../server/agents/policy/decision-frame.ts'
@@ -33,6 +37,24 @@ const forgedRunLease: ScoreLayerRunLease = {
   version: 'score-layer-run-lease-v1',
   requirements: [],
 }
+
+// Score and strategic layers mint their tokens from one branded implementation.
+// Both halves of that brand are contracts: the brand symbol is module-private,
+// so a token cannot be assembled from plain coordinates, and the family
+// parameter keeps one family's token from satisfying the other's.
+// @ts-expect-error A score-layer token cannot be structurally forged.
+const forgedScoreLayerToken: ScoreLayerToken = {
+  id: 'layer',
+  version: 'v1',
+}
+
+declare const strategicToken: DecisionLayerToken
+// @ts-expect-error A strategic token is not a score-layer token.
+const crossFamilyToken: ScoreLayerToken = strategicToken
+
+declare const scoringToken: ScoreLayerToken
+// @ts-expect-error A score-layer token is not a strategic token.
+const crossFamilyReverse: DecisionLayerToken = scoringToken
 
 // The native preparation record is deliberately plain data, so the brand that
 // still matters is the run capability it carries: a preparation cannot be
@@ -71,6 +93,9 @@ lease.run(draft)
 
 void degraded
 void forgedRunLease
+void forgedScoreLayerToken
+void crossFamilyToken
+void crossFamilyReverse
 void forgedNativePreparation
 void rowWithProducerVersion
 void secondApplicabilityGate

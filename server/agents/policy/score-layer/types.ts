@@ -13,6 +13,8 @@ import type {
   ComponentRef,
   ComponentToken,
 } from '../../components/types.ts'
+import type { LayerRef, LayerToken } from '../layer-registry-common.ts'
+import { layerToken } from '../layer-registry-common.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
   ForcedPolicyResult,
@@ -22,25 +24,19 @@ import type {
   DecisionCandidateBoundary,
 } from '../decision-layer/types.ts'
 
-declare const SCORE_LAYER_TOKEN_BRAND: unique symbol
 declare const SCORE_LAYER_SURFACE_BRAND: unique symbol
 declare const SCORE_LAYER_RUN_LEASE_BRAND: unique symbol
 
-export interface ScoreLayerRef {
-  readonly id: string
-  readonly version: string
-}
+export interface ScoreLayerRef extends LayerRef {}
 
-export interface ScoreLayerToken extends ScoreLayerRef {
-  readonly [SCORE_LAYER_TOKEN_BRAND]: true
-}
+export type ScoreLayerToken = LayerToken<'score-layer'>
 
 /** Create the only branded score-layer token; the brand is erased at runtime. */
 export function scoreLayerToken(
   id: string,
   version: string,
 ): ScoreLayerToken {
-  return Object.freeze({ id, version }) as ScoreLayerToken
+  return layerToken<'score-layer'>(id, version)
 }
 
 export interface ScoreLayerSurface {
