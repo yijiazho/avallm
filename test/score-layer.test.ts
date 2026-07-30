@@ -63,11 +63,11 @@ import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
   canonicalDecisionFrame,
   prepareNativeScoreLayers,
-  type NativeScoreLayerLease,
+  type PreparedNativeScoreLayers,
   withDecisionAnalysis,
   withLegalCandidates,
-  withNativeResolvedComponents,
   withNativeScoreLayers,
+  withResolvedComponents,
   withResolvedDecisionLayers,
   withUniversalForcedPolicy,
 } from '../server/agents/policy/decision-frame.ts'
@@ -1908,29 +1908,29 @@ test('native frame seam installs one honestly admitted root score authority', as
     'candidate-teams',
   )
   const forcedFrame = withUniversalForcedPolicy(analyzed)
-  const components = await withNativeResolvedComponents(
-    forcedFrame,
-    brain,
-    lease,
-  )
-  const decisionLayers = withResolvedDecisionLayers(
-    components,
-    brain,
-    lease,
-  )
+  const components = await withResolvedComponents(forcedFrame, brain)
+  const decisionLayers = withResolvedDecisionLayers(components, brain)
   const compatibilityCandidateId = legal.legalCandidates[0].id
-  assert.deepEqual(Object.keys(lease), ['version', 'requirements'])
-  assert.equal('chain' in lease, false)
-  assert.equal('run' in lease, false)
+  // The preparation is deliberately plain frozen data. Its execution authority
+  // is the branded run capability it carries, not the record itself.
+  assert.deepEqual(Object.keys(lease), [
+    'version',
+    'requirements',
+    'brain',
+    'request',
+    'view',
+    'legalCandidates',
+    'run',
+  ])
   assert.throws(
     () => withNativeScoreLayers(decisionLayers, {
-      version: 'native-score-layer-lease-v1',
+      version: 'native-score-layer-preparation-v1',
       requirements: lease.requirements,
-    } as unknown as NativeScoreLayerLease, {
+    } as unknown as PreparedNativeScoreLayers, {
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
-    /local prepared lease/,
+    /does not belong to this decision frame/,
   )
   assert.throws(
     () => withNativeScoreLayers({
@@ -1942,7 +1942,7 @@ test('native frame seam installs one honestly admitted root score authority', as
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
-    /different component frame/,
+    /does not belong to this decision frame/,
   )
   assert.throws(
     () => withNativeScoreLayers({
@@ -1952,7 +1952,7 @@ test('native frame seam installs one honestly admitted root score authority', as
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
-    /different component frame/,
+    /does not belong to this decision frame/,
   )
   const foreignCanonical = canonicalDecisionFrame(fixture.req, fixture.view)
   const foreignLegal = withLegalCandidates(foreignCanonical)
@@ -1962,7 +1962,7 @@ test('native frame seam installs one honestly admitted root score authority', as
       deterministicSeed: fixture.source.seed,
       compatibilityCandidateId,
     }),
-    /no bound component frame/,
+    /does not belong to this decision frame/,
   )
   assert.throws(
     () => withNativeScoreLayers(decisionLayers, lease, {
@@ -1993,22 +1993,10 @@ test('native frame seam installs one honestly admitted root score authority', as
     /legal compatibility candidate/,
   )
   const parallelLease = prepareNativeScoreLayers(legal, brain)
-  const parallelComponents = await withNativeResolvedComponents(
-    forcedFrame,
-    brain,
-    parallelLease,
-  )
+  const parallelComponents = await withResolvedComponents(forcedFrame, brain)
   const parallelDecisionLayers = withResolvedDecisionLayers(
     parallelComponents,
     brain,
-    parallelLease,
-  )
-  assert.throws(
-    () => withNativeScoreLayers(parallelDecisionLayers, lease, {
-      deterministicSeed: fixture.source.seed,
-      compatibilityCandidateId,
-    }),
-    /different component frame/,
   )
   const [native, parallelNative] = await Promise.all([
     Promise.resolve().then(() => withNativeScoreLayers(
@@ -2032,6 +2020,17 @@ test('native frame seam installs one honestly admitted root score authority', as
     parallelNative.structuredCandidateId,
     native.structuredCandidateId,
   )
+  // A preparation is bound to its candidate coordinates, not to one component
+  // frame instance. Scoring a different component run of the same coordinates
+  // is therefore permitted, and it agrees exactly, which is why the former
+  // frame-instance binding was removed rather than reproduced statelessly.
+  const crossRun = withNativeScoreLayers(
+    parallelDecisionLayers,
+    prepareNativeScoreLayers(legal, brain),
+    { deterministicSeed: fixture.source.seed, compatibilityCandidateId },
+  )
+  assert.equal(crossRun.structuredCandidateId, native.structuredCandidateId)
+  assert.deepEqual(crossRun.scores, native.scores)
   assert.throws(
     () => withNativeScoreLayers(decisionLayers, lease, {
       deterministicSeed: fixture.source.seed,
@@ -2101,49 +2100,23 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
   const compatibilityCandidateId = legal.legalCandidates[0].id
   const lease = prepareNativeScoreLayers(legal, brainA)
 
-  await assert.rejects(
-    () => withNativeResolvedComponents(forcedFrame, brainB, lease),
-    /different brain/,
-  )
-  const components = await withNativeResolvedComponents(
-    forcedFrame,
-    brainA,
-    lease,
-  )
-  const decisionLayers = withResolvedDecisionLayers(
-    components,
-    brainA,
-    lease,
-  )
-  await assert.rejects(
-    () => withNativeResolvedComponents(forcedFrame, brainA, lease),
-    /already bound/,
-  )
+  const components = await withResolvedComponents(forcedFrame, brainA)
+  const decisionLayers = withResolvedDecisionLayers(components, brainA)
 
-  const unboundLease = prepareNativeScoreLayers(legal, brainA)
+  // Brain agreement is now proven from the run itself rather than from binding
+  // state: a preparation from one brain cannot score another brain's run.
+  const foreignComponents = await withResolvedComponents(forcedFrame, brainB)
+  const foreignDecisionLayers = withResolvedDecisionLayers(
+    foreignComponents,
+    brainB,
+  )
   assert.throws(
-    () => withNativeScoreLayers(decisionLayers, unboundLease, {
-      deterministicSeed: fixture.source.seed,
-      compatibilityCandidateId,
-    }),
-    /no bound component frame/,
-  )
-
-  const concurrentLease = prepareNativeScoreLayers(legal, brainA)
-  const concurrentBindings = await Promise.allSettled([
-    withNativeResolvedComponents(forcedFrame, brainA, concurrentLease),
-    withNativeResolvedComponents(forcedFrame, brainA, concurrentLease),
-  ])
-  assert.equal(
-    concurrentBindings.filter((result) => result.status === 'fulfilled').length,
-    1,
-  )
-  assert.equal(
-    concurrentBindings.filter((result) =>
-      result.status === 'rejected'
-      && result.reason instanceof Error
-      && /already bound/.test(result.reason.message)).length,
-    1,
+    () => withNativeScoreLayers(
+      foreignDecisionLayers,
+      prepareNativeScoreLayers(legal, brainA),
+      { deterministicSeed: fixture.source.seed, compatibilityCandidateId },
+    ),
+    /belongs to a different brain/,
   )
 
   const scored = withNativeScoreLayers(decisionLayers, lease, {
@@ -2190,19 +2163,26 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
     componentBrainA.description.components.configured.map((entry) => entry.id),
     [BASE_COMPONENT.id],
   )
-  const componentLease = prepareNativeScoreLayers(legal, componentBrainA)
-  await assert.rejects(
-    () => withNativeResolvedComponents(
-      forcedFrame,
-      componentBrainB,
-      componentLease,
-    ),
-    /different brain/,
-  )
-  const componentFrame = await withNativeResolvedComponents(
+  const componentFrame = await withResolvedComponents(
     forcedFrame,
     componentBrainA,
-    componentLease,
   )
   assert.equal(componentFrame.stage, 'components-resolved')
+  // Two brains whose configured component graphs differ are distinguishable
+  // from the run alone, so scoring rejects the crossed pairing.
+  const componentDecisionLayers = withResolvedDecisionLayers(
+    componentFrame,
+    componentBrainA,
+  )
+  assert.throws(
+    () => withNativeScoreLayers(
+      componentDecisionLayers,
+      prepareNativeScoreLayers(legal, componentBrainB),
+      {
+        deterministicSeed: fixture.source.seed,
+        compatibilityCandidateId: legal.legalCandidates[0].id,
+      },
+    ),
+    /belongs to a different brain/,
+  )
 })

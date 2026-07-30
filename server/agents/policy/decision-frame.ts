@@ -21,7 +21,10 @@ import {
   type DecisionComponentRun,
   type DecisionComponentTrustedHostInputProviders,
 } from '../components/kernel.ts'
-import type { ResolvedComposedBrain } from '../components/resolved-brain.ts'
+import type {
+  ResolvedArchitectureDescriptor,
+  ResolvedComposedBrain,
+} from '../components/resolved-brain.ts'
 import {
   executePreparedScoreLayerRun,
   prepareScoreLayerRunLease,
@@ -110,6 +113,13 @@ interface ForcedSurface {
 interface ComponentSurface {
   readonly componentRun: Immutable<DecisionComponentRun>
   readonly effectiveForced: Immutable<ForcedPolicyResult>
+  /**
+   * The frozen data-only descriptor of the brain that resolved this run. It
+   * lets a later transition prove brain agreement by comparing one reference,
+   * which is what the retired native score-layer lease used mutable binding
+   * state to establish.
+   */
+  readonly resolvedArchitecture: ResolvedArchitectureDescriptor
 }
 
 interface DecisionLayerSurface {
@@ -533,6 +543,7 @@ export async function withResolvedComponents(
     stage: 'components-resolved',
     componentRun: run as Immutable<DecisionComponentRun>,
     effectiveForced: frame.universalForced,
+    resolvedArchitecture: brain.description,
   }) as ComponentsResolvedDecisionFrame
 }
 
@@ -543,7 +554,6 @@ export async function withResolvedComponents(
 export function withResolvedDecisionLayers(
   frame: ComponentsResolvedDecisionFrame,
   brain: ResolvedComposedBrain,
-  scoreLayerLease?: NativeScoreLayerLease,
 ): DecisionLayersResolvedDecisionFrame {
   const run = runDecisionLayers({
     order: brain.decisionLayerOrder,
@@ -555,20 +565,12 @@ export function withResolvedDecisionLayers(
     componentDefinitions: brain.eligibleDefinitions,
     componentRun: frame.componentRun,
   })
-  const next = Object.freeze({
+  return Object.freeze({
     ...frame,
     stage: 'decision-layers-resolved',
     componentRun: run.componentRun,
     decisionLayerRun: run as Immutable<DecisionLayerRun>,
   }) as DecisionLayersResolvedDecisionFrame
-  if (scoreLayerLease) {
-    LocalNativeScoreLayerLease.advanceDecisionLayers(
-      scoreLayerLease,
-      frame,
-      next,
-    )
-  }
-  return next
 }
 
 /**
@@ -629,190 +631,91 @@ export interface NativeScoreLayerHostContext {
   readonly compatibilityCandidateId: string
 }
 
-declare const NATIVE_SCORE_LAYER_LEASE_BRAND: unique symbol
-
-export interface NativeScoreLayerLease {
-  readonly version: 'native-score-layer-lease-v1'
+/**
+ * The frame and brain one native scoring preparation belongs to, alongside the
+ * single branded run capability that `score-layer/runner.ts` issues.
+ *
+ * This is plain frozen data rather than a second branded capability. The run
+ * lease it carries is already unforgeable, and the coordinates below are what
+ * the later transition checks the frame against, so wrapping them in another
+ * one-shot class only duplicated that guarantee.
+ */
+export interface PreparedNativeScoreLayers {
+  readonly version: 'native-score-layer-preparation-v1'
   readonly requirements: readonly ScoreLayerAnalysisRef[]
-  readonly [NATIVE_SCORE_LAYER_LEASE_BRAND]: true
+  readonly brain: ResolvedComposedBrain
+  readonly request: CandidateDecisionFrame['request']
+  readonly view: CandidateDecisionFrame['view']
+  readonly legalCandidates: CandidateDecisionFrame['legalCandidates']
+  readonly run: ScoreLayerRunLease
 }
 
-class LocalNativeScoreLayerLease {
-  readonly version = 'native-score-layer-lease-v1'
-  readonly requirements: readonly ScoreLayerAnalysisRef[]
-  readonly #brain: ResolvedComposedBrain
-  readonly #request: CandidateDecisionFrame['request']
-  readonly #view: CandidateDecisionFrame['view']
-  readonly #candidates: CandidateDecisionFrame['legalCandidates']
-  readonly #lease: ScoreLayerRunLease
-  #bindingStarted = false
-  #boundFrame:
-    | ComponentsResolvedDecisionFrame
-    | PostComponentDecisionFrame
-    | undefined
-
-  constructor(
-    frame: CandidateDecisionFrame,
-    brain: ResolvedComposedBrain,
+/**
+ * Reject a preparation that was not built from this frame's exact coordinates
+ * or from the brain that resolved this frame's components.
+ *
+ * The coordinate check replaces the former stateful frame-instance binding: a
+ * preparation carries only the score-layer chain and the analysis requirements
+ * derived from (request, view), so any component run over the same coordinates
+ * scores identically. The configured-component comparison keeps the guarantee
+ * that actually mattered, which is that the run and the chain came from one
+ * brain, without needing mutable binding state to prove it.
+ */
+function ownsFrame(
+  prepared: PreparedNativeScoreLayers,
+  frame: PostComponentDecisionFrame,
+): void {
+  if (
+    frame.request !== prepared.request
+    || frame.view !== prepared.view
+    || frame.legalCandidates !== prepared.legalCandidates
   ) {
-    if (!brain.scoreLayerChain) {
-      throw new Error('native score layers require a resolved score-layer chain')
-    }
-    this.#brain = brain
-    this.#request = frame.request
-    this.#view = frame.view
-    this.#candidates = frame.legalCandidates
-    this.#lease = prepareScoreLayerRunLease({
-      chain: brain.scoreLayerChain,
-      componentDefinitions: brain.configuredDefinitions,
-      request: frame.request,
-      view: frame.view,
-    })
-    this.requirements = this.#lease.requirements
-    Object.freeze(this)
-  }
-
-  static async bindComponents(
-    lease: NativeScoreLayerLease,
-    frame: UniversalForcedDecisionFrame,
-    brain: ResolvedComposedBrain,
-    invocation?: DecisionComponentInvocation,
-    trusted?: (
-      frame: UniversalForcedDecisionFrame,
-    ) => DecisionComponentTrustedHostInputProviders,
-  ): Promise<ComponentsResolvedDecisionFrame> {
-    if (!(lease instanceof LocalNativeScoreLayerLease)) {
-      throw new Error('native score layers require their local prepared lease')
-    }
-    if (brain !== lease.#brain) {
-      throw new Error('native score layer lease belongs to a different brain')
-    }
-    if (
-      frame.request !== lease.#request
-      || frame.view !== lease.#view
-      || frame.legalCandidates !== lease.#candidates
-    ) {
-      throw new Error(
-        'native score layer lease does not belong to this decision frame',
-      )
-    }
-    if (lease.#bindingStarted) {
-      throw new Error('native score layer lease was already bound')
-    }
-    lease.#bindingStarted = true
-    const resolved = await withResolvedComponents(
-      frame,
-      brain,
-      invocation,
-      trusted,
+    throw new Error(
+      'native score layer preparation does not belong to this decision frame',
     )
-    lease.#boundFrame = resolved
-    return resolved
   }
-
-  static execute(
-    lease: NativeScoreLayerLease,
-    frame: PostComponentDecisionFrame,
-    host: NativeScoreLayerHostContext,
-  ): ScoreLayerRun {
-    if (!(lease instanceof LocalNativeScoreLayerLease)) {
-      throw new Error('native score layers require their local prepared lease')
-    }
-    if (!lease.#boundFrame) {
-      throw new Error('native score layer lease has no bound component frame')
-    }
-    if (frame !== lease.#boundFrame) {
-      throw new Error(
-        'native score layer lease belongs to a different component frame',
-      )
-    }
-    return executePreparedScoreLayerRun(lease.#lease, {
-      analysis: frame.analysis,
-      candidates: frame.legalCandidates,
-      forced: frame.effectiveForced,
-      candidateBoundary: candidateBoundaryFor(frame),
-      componentRun: frame.componentRun,
-      deterministicSeed: host.deterministicSeed,
-      compatibilityCandidateId: host.compatibilityCandidateId,
-      hypotheticalTeamCandidates: frame.hypotheticalTeamCandidates,
-    })
-  }
-
-  static advanceDecisionLayers(
-    lease: NativeScoreLayerLease,
-    before: ComponentsResolvedDecisionFrame,
-    after: DecisionLayersResolvedDecisionFrame,
-  ): void {
-    if (!(lease instanceof LocalNativeScoreLayerLease)) {
-      throw new Error('native score layers require their local prepared lease')
-    }
-    if (lease.#boundFrame !== before) {
-      throw new Error(
-        'native score layer lease is not bound to the decision-layer input',
-      )
-    }
-    if (
-      after.stage !== 'decision-layers-resolved'
-      || after.request !== before.request
-      || after.view !== before.view
-      || after.legalCandidates !== before.legalCandidates
-      || after.analysis !== before.analysis
-      || after.belief !== before.belief
-      || after.universalForced !== before.universalForced
-      || after.forcedSurvivors !== before.forcedSurvivors
-      || after.effectiveForced !== before.effectiveForced
-      || after.hypotheticalTeamCandidates
-        !== before.hypotheticalTeamCandidates
-    ) {
-      throw new Error(
-        'native score layer lease received a foreign decision-layer frame',
-      )
-    }
-    lease.#boundFrame = after
+  if (frame.resolvedArchitecture !== prepared.brain.description) {
+    throw new Error(
+      'native score layer preparation belongs to a different brain',
+    )
   }
 }
 
 /**
- * Prepare one local native scoring capability after legal candidates exist
- * and before analysis planning consumes its bounded requirements.
+ * Prepare one native scoring run after legal candidates exist and before
+ * analysis planning consumes its bounded requirements.
  */
 export function prepareNativeScoreLayers(
   frame: CandidateDecisionFrame,
   brain: ResolvedComposedBrain,
-): NativeScoreLayerLease {
-  return new LocalNativeScoreLayerLease(
-    frame,
+): PreparedNativeScoreLayers {
+  if (!brain.scoreLayerChain) {
+    throw new Error('native score layers require a resolved score-layer chain')
+  }
+  const run = prepareScoreLayerRunLease({
+    chain: brain.scoreLayerChain,
+    componentDefinitions: brain.configuredDefinitions,
+    request: frame.request,
+    view: frame.view,
+  })
+  return Object.freeze({
+    version: 'native-score-layer-preparation-v1',
+    requirements: run.requirements,
     brain,
-  ) as unknown as NativeScoreLayerLease
-}
-
-/**
- * Bind the native lease to the sole component transition and its exact result.
- */
-export async function withNativeResolvedComponents(
-  frame: UniversalForcedDecisionFrame,
-  brain: ResolvedComposedBrain,
-  lease: NativeScoreLayerLease,
-  invocation?: DecisionComponentInvocation,
-  trusted?: (
-    frame: UniversalForcedDecisionFrame,
-  ) => DecisionComponentTrustedHostInputProviders,
-): Promise<ComponentsResolvedDecisionFrame> {
-  return LocalNativeScoreLayerLease.bindComponents(
-    lease,
-    frame,
-    brain,
-    invocation,
-    trusted,
-  )
+    request: frame.request,
+    view: frame.view,
+    legalCandidates: frame.legalCandidates,
+    run,
+  })
 }
 
 /** Resolve the sole built-in scoring authority through its ordered layers. */
 export function withNativeScoreLayers(
   frame: PostComponentDecisionFrame,
-  lease: NativeScoreLayerLease,
+  prepared: PreparedNativeScoreLayers,
   host: NativeScoreLayerHostContext,
 ): NativeScoreLayersResolvedDecisionFrame {
+  ownsFrame(prepared, frame)
   if (
     typeof host.deterministicSeed !== 'string'
     || !host.deterministicSeed.trim()
@@ -826,7 +729,16 @@ export function withNativeScoreLayers(
       'native score layers require a legal compatibility candidate',
     )
   }
-  const run = LocalNativeScoreLayerLease.execute(lease, frame, host)
+  const run = executePreparedScoreLayerRun(prepared.run, {
+    analysis: frame.analysis,
+    candidates: frame.legalCandidates,
+    forced: frame.effectiveForced,
+    candidateBoundary: candidateBoundaryFor(frame),
+    componentRun: frame.componentRun,
+    deterministicSeed: host.deterministicSeed,
+    compatibilityCandidateId: host.compatibilityCandidateId,
+    hypotheticalTeamCandidates: frame.hypotheticalTeamCandidates,
+  })
   const scores = nonEmpty(
     run.surface.scores,
     'native score layers must produce a nonempty score surface',

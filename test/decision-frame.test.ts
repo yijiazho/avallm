@@ -33,13 +33,11 @@ import type {
 import {
   canonicalDecisionFrame,
   commitDecision,
-  prepareNativeScoreLayers,
   selectDecisionCandidate,
   withDecisionAnalysis,
   withDecisionVoice,
   withCustomScoring,
   withLegalCandidates,
-  withNativeResolvedComponents,
   withResolvedDecisionLayers,
   withResolvedComponents,
   withUniversalForcedPolicy,

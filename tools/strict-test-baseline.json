@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "43c9d70fe691e80d276241e3cc9d04ce95d76a0b2a568e12ee509a41af5f79aa",
+      "sha256": "25105bd2ef82d3ae4734a792beb48d75e24ee17d3cd8bb66f5863282d2c765fc",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "2779ed3bda5e31dbfeaf399f59df3ccebe8416c49a1cdacdf8b5680ba28607b2",
+      "sha256": "a68c321b9d5c0872888fb80ac442d7a10789695435dc46ba4a350bcf40d63cb0",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

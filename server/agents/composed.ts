@@ -201,7 +201,6 @@ import {
   withDecisionVoice,
   withCustomScoring,
   withLegalCandidates,
-  withNativeResolvedComponents,
   withNativeScoreLayers,
   withNativeScoringAuthority,
   prepareNativeScoreLayers,
@@ -1529,7 +1528,7 @@ export function createComposedAgent(
           && view.alignment === 'good'
         const canonicalFrame = canonicalDecisionFrame(req, view)
         const candidateFrame = withLegalCandidates(canonicalFrame)
-        const nativeScoreLayerLease =
+        const nativeScoreLayers =
           resolvedBrain.scoreLayerChain
           && configuredScoreLayersApplyToDecision(req.kind)
           ? prepareNativeScoreLayers(candidateFrame, resolvedBrain)
@@ -1542,9 +1541,9 @@ export function createComposedAgent(
             ? 'good-vote'
             : wantsJointProposalAssessments
               ? 'good-proposal'
-              : nativeScoreLayerLease
+              : nativeScoreLayers
                 ? combineSituationAnalysisRequirements(
-                    nativeScoreLayerLease.requirements,
+                    nativeScoreLayers.requirements,
                   )
                 : 'candidate-teams',
         )
@@ -1580,24 +1579,15 @@ export function createComposedAgent(
                 : undefined,
             ].filter((provider) => provider !== undefined),
           })
-        const componentFrame = nativeScoreLayerLease
-          ? await withNativeResolvedComponents(
-              universalFrame,
-              resolvedBrain,
-              nativeScoreLayerLease,
-              undefined,
-              componentHost,
-            )
-          : await withResolvedComponents(
-              universalFrame,
-              resolvedBrain,
-              undefined,
-              componentHost,
-            )
+        const componentFrame = await withResolvedComponents(
+          universalFrame,
+          resolvedBrain,
+          undefined,
+          componentHost,
+        )
         const resolvedFrame = withResolvedDecisionLayers(
           componentFrame,
           resolvedBrain,
-          nativeScoreLayerLease,
         )
         const postComponentFrame: PostComponentDecisionFrame = resolvedFrame
         const componentRun = resolvedFrame.componentRun
@@ -1764,10 +1754,10 @@ export function createComposedAgent(
               ? 'evil-role-objective-scorer-failed'
               : 'role-objective-scorer-failed'
         const nativeScoredFrame =
-          nativeScoreLayerLease
+          nativeScoreLayers
           ? withNativeScoreLayers(
               postComponentFrame,
-              nativeScoreLayerLease,
+              nativeScoreLayers,
               {
                 deterministicSeed: seed,
                 compatibilityCandidateId,

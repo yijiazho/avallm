@@ -6,7 +6,7 @@ import type {
   ScoreLayerTransformResult,
 } from '../../server/agents/policy/score-layer/types.ts'
 import type {
-  NativeScoreLayerLease,
+  PreparedNativeScoreLayers,
 } from '../../server/agents/policy/decision-frame.ts'
 
 const row: ScoreLayerRowDraft = {
@@ -34,10 +34,22 @@ const forgedRunLease: ScoreLayerRunLease = {
   requirements: [],
 }
 
-// @ts-expect-error A native lease cannot be structurally forged.
-const forgedNativeLease: NativeScoreLayerLease = {
-  version: 'native-score-layer-lease-v1',
+// The native preparation record is deliberately plain data, so the brand that
+// still matters is the run capability it carries: a preparation cannot be
+// assembled around a structurally forged run lease.
+declare const brain: PreparedNativeScoreLayers['brain']
+declare const request: PreparedNativeScoreLayers['request']
+declare const view: PreparedNativeScoreLayers['view']
+declare const legalCandidates: PreparedNativeScoreLayers['legalCandidates']
+const forgedNativePreparation: PreparedNativeScoreLayers = {
+  version: 'native-score-layer-preparation-v1',
   requirements: [],
+  brain,
+  request,
+  view,
+  legalCandidates,
+  // @ts-expect-error The carried run capability cannot be forged.
+  run: { version: 'score-layer-run-lease-v1', requirements: [] },
 }
 
 const rowWithProducerVersion: ScoreLayerRowDraft = {
@@ -59,6 +71,6 @@ lease.run(draft)
 
 void degraded
 void forgedRunLease
-void forgedNativeLease
+void forgedNativePreparation
 void rowWithProducerVersion
 void secondApplicabilityGate
