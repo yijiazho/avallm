@@ -1,6 +1,6 @@
 // Small shared shapes and predicates used by both the generic composed-trace
-// admission owner and the isolated legacy v1 role reader. Extracted so the
-// legacy reader needs no import back into the generic owner.
+// admission owner and the isolated role-trace-v1 reader. Extracted so the v1
+// role reader needs no import back into the generic owner.
 
 import type { DecisionTrace } from '../trace.ts'
 import type { ForcedPolicyResult } from '../policy/types.ts'

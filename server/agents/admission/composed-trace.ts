@@ -177,10 +177,10 @@ import type {
   RoleObjectiveScoreFeatures,
 } from '../policy/score.ts'
 import {
-  validLegacyRoleDependencyHostJoinV1,
-  validLegacyRoleTraceV1,
-  validLegacyRoleTraceV1HostJoin,
-} from './legacy-role-trace-v1.ts'
+  validRoleDependencyHostJoinV1,
+  validRoleTraceV1,
+  validRoleTraceV1HostJoin,
+} from './role-trace-v1.ts'
 import {
   candidateIdForDecision,
   compareCandidateIds,
@@ -2926,7 +2926,7 @@ function validDecisionTrace(
     )
     && (
       trace.version === COMPONENT_DECISION_TRACE_VERSION
-      || validLegacyRoleTraceV1({ trace, req, view: fullHostView })
+      || validRoleTraceV1({ trace, req, view: fullHostView })
     )
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
@@ -3140,7 +3140,7 @@ function validExactComposedTraceHostJoin(
       )
       || (
         trace.version === DECISION_TRACE_VERSION
-        && !validLegacyRoleTraceV1HostJoin({
+        && !validRoleTraceV1HostJoin({
           trace,
           req,
           view,
@@ -4206,7 +4206,7 @@ export function admitCanonicalDecisionTrace(
         (
           trace.version !== COMPONENT_DECISION_TRACE_VERSION
           && (
-            !validLegacyRoleDependencyHostJoinV1({
+            !validRoleDependencyHostJoinV1({
               trace,
               req: input.req,
               view: input.hostView,

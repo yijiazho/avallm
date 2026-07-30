@@ -867,7 +867,7 @@ server/agents/                        # about 41.9k lines in ten owners
     robust-evil-quest-card.ts
     canonical-json.ts architecture-metadata.ts types.ts
   admission/                          #  5.1k  trace canonicalization and host admission
-    composed-trace.ts legacy-role-trace-v1.ts
+    composed-trace.ts role-trace-v1.ts
     component-host-inputs.ts trace-primitives.ts
   communication/                      #  1.8k  language in and voice out
     language-contract.ts language-orchestration.ts language-types.ts

@@ -41,12 +41,12 @@ const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
 ])
 const TRACE_ADMISSION_OWNER =
   'server/agents/admission/composed-trace'
-// Historical decision-trace-v1 role-specific projections live behind one
+// The belief-only decision-trace-v1 role-component validators live behind one
 // isolated reader. Only the generic admission owner may consult it, so a new
 // role never grows a flat v1 validator and no other consumer can revive the
 // retired flat shapes.
-const LEGACY_ROLE_TRACE_READER =
-  'server/agents/admission/legacy-role-trace-v1'
+const ROLE_TRACE_V1_READER =
+  'server/agents/admission/role-trace-v1'
 const CANONICAL_JSON_OWNER =
   'server/agents/components/canonical-json'
 // The shared payload shape guards. A module that imports one and then binds
@@ -630,7 +630,7 @@ export function auditArchitectureSources(sourceEntries) {
         continue
       }
       if (
-        target === LEGACY_ROLE_TRACE_READER
+        target === ROLE_TRACE_V1_READER
         && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
       ) {
         violations.push(violation(

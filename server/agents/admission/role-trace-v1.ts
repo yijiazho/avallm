@@ -1,24 +1,31 @@
 /**
- * Isolated legacy reader for historical `decision-trace-v1` role-specific flat
- * projections.
+ * Role-component admission for the belief-only trace version, `decision-trace-v1`.
  *
- * The seven flat role payloads are now refused at canonical ingress, so every
- * payload argument below is statically absent. What survives is the version and
- * degradation coherence a historical trace must still satisfy: a v1 trace may
- * declare a role component it produced, but it can no longer evidence one, so
- * the declaration must be accompanied by the matching degradation.
+ * `decision-trace-v1` is not historical: it is the base trace shape a decision
+ * carries before a component run is attached. `createDecisionTrace` stamps it,
+ * `composed.ts` overrides the version to `COMPONENT_DECISION_TRACE_VERSION` (v2)
+ * once it attaches components, and the raw-LLM agent (`llm.ts`) does not, so
+ * every raw-LLM decision and every belief-only external reply arrives here as a
+ * live v1 trace. A clean v1 trace is admitted (external-diagnostic), not refused;
+ * see `test/admission-results.test.ts`.
  *
- * The current composed trace (`COMPONENT_DECISION_TRACE_VERSION`) omits every
- * flat role field. Role objectives, role utilities, the evil/Oberon pair, and
- * the Morgana counterfeit projections all travel in the generic component run
- * instead, and no current write path emits them. Every validator below is
- * therefore reachable only for a stored v1 artifact.
+ * What this module owns is the coherence a v1 trace must satisfy for its role
+ * components. A v1 trace may name a role component in `componentVersions` (a
+ * raw-LLM or external producer can claim one), but with no component run it can
+ * never evidence one, so any such declaration must be accompanied by the
+ * matching degradation. Every validator below enforces exactly that pairing.
+ *
+ * Genuinely retired, and not read here: the seven flat role payloads v1 traces
+ * once carried. Those are refused at canonical ingress for every version by the
+ * shared guard in `composed-trace.ts`, so every payload argument below is
+ * statically absent; their field names survive only as leak-scan tombstones.
+ * Role objectives, role utilities, the evil/Oberon pair, and the Morgana
+ * counterfeit projections travel in the generic v2 component run instead.
  *
  * Isolation is the point. This module owns all role-named v1 trace knowledge
- * behind two version-gated entry points, so the generic admission owner no
- * longer carries ten role-specific validators and registering a new role never
- * edits this file. Architecture fitness pins the generic owner as the only
- * permitted importer.
+ * behind version-gated entry points, so the generic admission owner no longer
+ * carries ten role-specific validators and registering a new role never edits
+ * this file. `ARCH012` pins the generic owner as the only permitted importer.
  */
 
 import type {
@@ -314,7 +321,7 @@ function validMorganaRolePolicyTrace(
     }
     // With the retired E1A and D2 payloads absent, the prerequisite check
     // above always yields to upstream exact-dependency admission, so no E1B
-    // projection can be reconstructed from a historical trace.
+    // projection can be reconstructed from a v1 trace.
     return true
   }
   return resolved === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
@@ -672,7 +679,7 @@ function validateRoutedEvilDependencyHostJoin(
     )
     // A "complete" routed-evil dependency required the flat D1 objective
     // alongside the identity. That payload is refused at ingress, so only the
-    // paired-failure shape remains provable for a historical trace.
+    // paired-failure shape remains provable for a v1 trace.
     return (
       trace.privateIdentity === undefined
       && identityFailed
@@ -692,10 +699,10 @@ function isRoleObjectiveRole(role: string): role is RoleObjectiveRole {
 }
 
 /**
- * Structural v1 role admission. Callers gate this on the trace being a v1
- * `decision-trace-v1` record; it never inspects a current component trace.
+ * Structural v1 role admission. Callers gate this on the trace being a
+ * `decision-trace-v1` record; it never inspects a v2 component trace.
  */
-export function validLegacyRoleTraceV1(input: {
+export function validRoleTraceV1(input: {
   readonly trace: TraceValidationInput
   readonly req: DecisionRequest
   readonly view: PlayerView | undefined
@@ -737,7 +744,7 @@ export function validLegacyRoleTraceV1(input: {
  * Exact v1 role admission against a full host view, including the two role
  * dependency host joins. Callers gate this on the trace being a v1 record.
  */
-export function validLegacyRoleTraceV1HostJoin(input: {
+export function validRoleTraceV1HostJoin(input: {
   readonly trace: DecisionTrace
   readonly req: DecisionRequest
   readonly view: PlayerView
@@ -788,7 +795,7 @@ export function validLegacyRoleTraceV1HostJoin(input: {
  * The two v1 role dependency host joins, for the external diagnostic path that
  * has a full host view but no deterministic seed.
  */
-export function validLegacyRoleDependencyHostJoinV1(input: {
+export function validRoleDependencyHostJoinV1(input: {
   readonly trace: DecisionTrace
   readonly req: DecisionRequest
   readonly view: PlayerView
