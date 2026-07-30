@@ -14,6 +14,7 @@ import {
 } from '../../engine/rules.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
+import { assertDistribution } from '../belief/invariants.ts'
 import {
   visibleEventCursor,
 } from '../belief/exact.ts'
@@ -227,7 +228,13 @@ function normalizedDistribution(
   if (!Number.isFinite(total) || total <= 0) {
     throw new Error('counterfeit objective requires positive world mass')
   }
-  return distribution.map((value) => clamp01(value / total))
+  // The per-element clamp is a no-op for the non-negative masses this receives
+  // (each value/total is already in [0, 1]), so it must not perturb the sum. A
+  // negative input, the shape that would make clamp bite and the total lie,
+  // trips this guard instead of skewing the counterfeit assessment downstream.
+  const normalized = distribution.map((value) => clamp01(value / total))
+  assertDistribution(normalized, 'counterfeit objective distribution')
+  return normalized
 }
 
 function merlinVisibleDistribution(

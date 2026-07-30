@@ -7,6 +7,7 @@ import type {
 import { ROLE_ALIGNMENT, evilPartnersOf } from '../../engine/rules.ts'
 import { visibleEventCursor } from '../belief/exact.ts'
 import { stableProbabilitySum } from '../belief/identity.ts'
+import { assertDistribution } from '../belief/invariants.ts'
 import type {
   BeliefSnapshot,
   WeightedWorld,
@@ -208,6 +209,14 @@ export function buildPrivateEvilSeatMerlinPosterior(input: {
     voteAgreement: row.voteAgreement,
     posteriorProbability: row.mass / normalization,
   }))
+  // The posterior over Merlin candidates is the input to the assassination
+  // shot, so a normalization slip here silently redirects the kill. Every row
+  // is carried through, so the masses divided by their own stable total form a
+  // distribution; guard it before it leaves this function.
+  assertDistribution(
+    targets.map((target) => target.posteriorProbability),
+    'assassin Merlin posterior',
+  )
   return {
     version: ASSASSIN_MERLIN_POSTERIOR_VERSION,
     source: {
