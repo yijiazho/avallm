@@ -643,7 +643,34 @@ const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> 
               : ` Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`}`
             : ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it, so this team passing is your side losing outright. If you are going to argue a team down all game, this is the turn that actually matters.`
           : ''
-    return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote} Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
+    // The closing instruction is keyed on the round because the failure mode
+    // differs. Round 1 needs the general standard. A later round is where
+    // restatement happens: in a mid-tier playtest (seed sim-1, Q1) three seats
+    // each repeated their round-1 sentence almost verbatim once the table
+    // already agreed, which the general "pass when you have nothing to add"
+    // did not prevent, because a bot reads its own standing position as
+    // something worth saying again. So the later round names that specific
+    // failure and makes passing the default.
+    //
+    // The list of reasons to speak is EXHAUSTIVE ("only if"), so it has to carry
+    // every case the round-1 wording carries, and the implicating quest result
+    // or vote is the one that must not be dropped. That is the exact failure
+    // a84664a removed the previous nudge for: a seat whose endorsed team just
+    // failed owes the table a reaction, and addressNote does not cover it,
+    // because directAddresses only fires on a name mention in speech and a
+    // quest result mentions nobody. Dropping it would tell that seat to pass
+    // and then have the ledger flag it as silentAfterContradiction.
+    //
+    // Note this never reaches a post-revision segment at the shipped default:
+    // startDiscussion resets roundNum to 1, and maxRoundsAfterChange is 1, so
+    // revision talk is all round 1. That is correct rather than a gap, because
+    // a revised team is a different team and the table has NOT already heard
+    // where anyone stands on it. Raising maxRoundsAfterChange would start
+    // applying this clause there, which is also correct for the same reason.
+    const closing = round > 1
+      ? ` The table has already heard where you stand on this team. Speak only if you have a NEW reason, a response you owe someone, a quest result or vote that implicates you, or a read that changed. Otherwise pass, because repeating a point you already made is the clearest bot tell at this table.`
+      : ` Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
+    return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote}${closing}`
   },
   propose: (v) => {
     const teamSize = v.quests[v.round - 1].teamSize

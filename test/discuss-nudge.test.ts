@@ -1,27 +1,58 @@
-// Experiment 4: the discuss ask no longer teaches passivity ("most players
-// pass by round 2"); it rebalances toward speaking when the bot has something
-// real, while still allowing a genuine pass.
+// Experiment 4 (a84664a): the discuss ask must not teach passivity as a
+// statistic. "most players pass by round 2" was removed because it encouraged
+// bots to stay quiet when their own public record demanded a reaction, and it
+// cost 12 commitment-failure incidents. That prohibition is permanent.
+//
+// A later round now carries a NARROWER rule: do not restate a point you have
+// already made. The distinction is the whole reason this is safe to reintroduce
+// where the statistic was not. The statistic suppressed speech by default; this
+// suppresses only duplication, and names the two things a later round exists
+// for (a response you owe, a read that changed) as still being speech. Both
+// halves are pinned below, because dropping either one turns this back into the
+// clause that caused the incidents.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { buildMessages } from '../server/agents/prompts.ts'
 
-test('discuss nudge drops the round-2 passivity clause and rebalances toward speaking', () => {
-  const g = createGame({ seed: 'nudge', playerCount: 5, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
+// maxRounds 3 so every round asserted on below is one the engine can really
+// reach; discussionRound is still set directly, since driving a live game to
+// round 3 would say nothing extra about a prompt that reads only that field.
+const askAtRound = (round: number): string => {
+  const g = createGame({ seed: 'nudge', playerCount: 5, talk: { maxRounds: 3, maxRoundsAfterChange: 1 } })
   const view = viewFor(g, 0)
-  // Exercise the round>1 branch that previously appended the passivity clause.
-  view.discussionRound = 2
+  view.discussionRound = round
   const [, user] = buildMessages('discuss', view, '', {})
+  return user.content
+}
 
-  // The old passivity teaching is gone.
-  assert.ok(
-    !user.content.includes('most players pass by round 2'),
-    'the "most players pass by round 2" clause must be removed',
-  )
+test('the discuss ask never teaches passivity as a statistic', () => {
+  for (const round of [1, 2, 3]) {
+    assert.ok(
+      !askAtRound(round).includes('most players pass by round 2'),
+      `round ${round}: the "most players pass by round 2" clause must stay removed`,
+    )
+  }
+})
 
-  // The rebalanced guidance is present: speak on a real signal, pass genuinely.
-  assert.match(user.content, /Speak when you have something real to add/)
-  assert.match(user.content, /a fresh read, a contradiction to point out, or a result or vote that implicates you/)
-  assert.match(user.content, /Pass when you genuinely have nothing to add and nothing is aimed at you\./)
+test('round 1 asks for speech on a real signal and allows a genuine pass', () => {
+  const ask = askAtRound(1)
+  assert.match(ask, /Speak when you have something real to add/)
+  assert.match(ask, /a fresh read, a contradiction to point out, or a result or vote that implicates you/)
+  assert.match(ask, /Pass when you genuinely have nothing to add and nothing is aimed at you\./)
+})
+
+test('a later round bars restatement while protecting the turns it exists for', () => {
+  const ask = askAtRound(2)
+  // The narrow target: duplication, named as a tell rather than as a norm.
+  assert.match(ask, /repeating a point you already made/)
+  // The guardrail. A later round is where an accused seat answers, so every
+  // reason to speak has to survive alongside the bar on restating. The
+  // implicating result or vote is the essential one: it is the case
+  // addressNote cannot cover, because directAddresses needs a name mention and
+  // a quest result names nobody, and it is the case a84664a's incidents were.
+  assert.match(ask, /a response you owe someone/)
+  assert.match(ask, /a quest result or vote that implicates you/)
+  assert.match(ask, /a read that changed/)
 })
