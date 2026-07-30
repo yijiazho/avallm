@@ -54,7 +54,6 @@ function components(
 ): Record<string, string> {
   return {
     brain: 'brain-spec-v1',
-    mode: 'structured-only',
     belief,
     factors,
     policy: 'composed-policy-v1',

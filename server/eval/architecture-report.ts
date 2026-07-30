@@ -44,9 +44,9 @@ import type {
   Role,
 } from '../engine/types.ts'
 import {
-  isComposedExecutionMode,
-  isNonComposedExecutionMode,
-  type NonComposedExecutionMode,
+  COMPOSED_POLICY_VERSION,
+  isAgentExecutionMode,
+  type AgentExecutionMode,
 } from '../agents/brain.ts'
 import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -311,6 +311,21 @@ export interface ArchitectureBenchmarkReport {
   cases: string[]
   variants: ArchitectureVariantSummary[]
   comparisons: ArchitectureComparison[]
+}
+
+/**
+ * A composed architecture is named by its policy, the one field that is 1:1 with
+ * the agent kind. Manifests and traces each declare it, so both sides stay
+ * independently checkable without a second, redundant mode label.
+ */
+function isComposedComponents(
+  components: Record<string, string>,
+): boolean {
+  return components.policy === COMPOSED_POLICY_VERSION
+}
+
+function isComposedTrace(trace: Readonly<DecisionTrace>): boolean {
+  return trace.componentVersions?.policy === COMPOSED_POLICY_VERSION
 }
 
 interface GameObservation {
@@ -601,7 +616,7 @@ type ArtifactArchitectureAdmission =
     }>
   | Readonly<{
       provenance: 'non-composed-host-metadata-admitted'
-      mode: NonComposedExecutionMode
+      mode: AgentExecutionMode
     }>
 
 function artifactArchitectureAdmission(
@@ -650,7 +665,7 @@ function artifactArchitectureAdmission(
     const declaredMode = artifact.architecture?.components.mode
     if (
       legacy.provenance === 'historical-absent'
-      && isNonComposedExecutionMode(declaredMode)
+      && isAgentExecutionMode(declaredMode)
     ) {
       return {
         provenance: 'non-composed-host-metadata-admitted',
@@ -947,8 +962,8 @@ function legacyArchitectureSafety(
   const componentManifestClaim = hasComponentManifestClaim(
     architectureAdmission,
   )
-  const hostRequiresComponentEvidence = isComposedExecutionMode(
-    meta.components.mode,
+  const hostRequiresComponentEvidence = isComposedComponents(
+    meta.components,
   )
   const validComponentManifest =
     architectureAdmission.provenance
@@ -1023,7 +1038,7 @@ function legacyArchitectureSafety(
       || meta.components.belief !== EXACT_BELIEF_MODEL_VERSION
       || meta.components.factors !== 'off'
       || meta.components.languageEvidence !== 'off'
-      || !isComposedExecutionMode(meta.components.mode)
+      || !isComposedComponents(meta.components)
     )
   const declaresMorganaRoleUtility =
     meta.components.morganaRoleUtility
@@ -1151,7 +1166,7 @@ function legacyArchitectureSafety(
     || componentManifestClaim
     || genericComponentClaim
     || traces.some((trace) =>
-      isComposedExecutionMode(trace.agentMode))
+      isComposedTrace(trace))
   )
   const canonicalArtifact = artifactWithCanonicalDecisionTraces(
     artifact,
@@ -1310,11 +1325,7 @@ function legacyArchitectureSafety(
       traceAttributionViolations++
       continue
     }
-    const pendingStrictComposedTrace = (
-      pendingTrace.agentMode === 'compatibility'
-      || pendingTrace.agentMode === 'structured-only'
-      || pendingTrace.agentMode === 'hybrid'
-    )
+    const pendingStrictComposedTrace = isComposedTrace(pendingTrace)
     const traceAdmission = admitCanonicalDecisionTrace({
       kind: 'finalized-artifact',
       trace: candidate,
@@ -1341,11 +1352,7 @@ function legacyArchitectureSafety(
     }
     const trace = traceAdmission.trace
     admittedTraces.push(trace)
-    const strictComposedTrace = (
-      trace.agentMode === 'compatibility'
-      || trace.agentMode === 'structured-only'
-      || trace.agentMode === 'hybrid'
-    )
+    const strictComposedTrace = isComposedTrace(trace)
     const versions = trace.componentVersions
     const languageEnabled = declaresBoundedLanguage
     const stableKeys = [
@@ -2144,13 +2151,13 @@ function componentEvidence(
   const legacy = admissions.every((admission) =>
     admission.provenance === 'legacy-host-manifest-admitted')
   const hasComposedClaim = games.some((game) =>
-    isComposedExecutionMode(game.meta.components.mode)
+    isComposedComponents(game.meta.components)
     || hasComponentManifestClaim(game.architectureAdmission)
     || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined
-      || isComposedExecutionMode(trace.agentMode)))
+      || isComposedTrace(trace)))
   const traces = games.flatMap((game) =>
     game.decisionTraces.filter(
       (trace) => trace.viewerSeat === game.meta.targetSeat,
@@ -2208,10 +2215,10 @@ function observationPromotionEvidenceEligible(
   ) {
     return false
   }
-  if (isComposedExecutionMode(game.meta.components.mode)) {
+  if (isComposedComponents(game.meta.components)) {
     return game.safety.promotionEvidenceEligible === true
   }
-  if (isNonComposedExecutionMode(game.meta.components.mode)) {
+  if (isAgentExecutionMode(game.meta.components.mode)) {
     return game.safety.promotionEvidenceEligible !== false
   }
   return false
@@ -2257,13 +2264,13 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
       ? firstAdmission.plan
       : undefined
   const hasComponentEvidence = games.some((game) =>
-    isComposedExecutionMode(game.meta.components.mode)
+    isComposedComponents(game.meta.components)
     || hasComponentManifestClaim(game.architectureAdmission)
     || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined
-      || isComposedExecutionMode(trace.agentMode)))
+      || isComposedTrace(trace)))
   const roles = [...new Set(games.map((g) => g.meta.targetRole))].sort()
   const kinds = [...new Set(games.flatMap((g) => [
     ...g.decisions.keys(),

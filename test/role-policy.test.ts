@@ -970,7 +970,6 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     id: 'phase7c2-role-policy',
     paid: false,
     components: {
-      mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',

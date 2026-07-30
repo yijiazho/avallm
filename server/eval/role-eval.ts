@@ -120,11 +120,9 @@ export function resolvePhase7RoleOutputPaths(
 }
 
 const commonComponents = (
-  mode: 'compatibility' | 'structured-only',
   scorer: string,
 ): Record<string, string> => ({
   evaluation: PHASE7_ROLE_EVAL_VERSION,
-  mode,
   brain: 'brain-spec-v1',
   policy: 'composed-policy-v1',
   scorer,
@@ -135,7 +133,7 @@ const commonComponents = (
 const routedComponents = (
   scorer: CandidateScorer,
 ): Record<string, string> => ({
-  ...commonComponents('structured-only', scorer.version),
+  ...commonComponents(scorer.version),
   observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
   identityModel: JOINT_IDENTITY_MODEL_VERSION,
   roleObjectiveRouter: ROLE_OBJECTIVE_ROUTER_VERSION,
@@ -202,14 +200,8 @@ export function phase7RoleVariantsFor(
   role: Role,
 ): readonly ArchitectureVariant[] {
   const isolated = isolatedScorer(role)
-  const compatibility = commonComponents(
-    'compatibility',
-    CANDIDATE_SCORER_VERSION,
-  )
-  const base = commonComponents(
-    'structured-only',
-    goodProposalVoteScorer.version,
-  )
+  const compatibility = commonComponents(CANDIDATE_SCORER_VERSION)
+  const base = commonComponents(goodProposalVoteScorer.version)
   return Object.freeze([
     composedVariant({
       id: 'compatibility',
@@ -247,10 +239,7 @@ export function phase7RoleVariantsFor(
       // components that can actually be causal for the target role.
       components: role === 'servant'
         ? {
-            ...commonComponents(
-              'structured-only',
-              fullRolePolicyScorer.version,
-            ),
+            ...commonComponents(fullRolePolicyScorer.version),
             observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
           }
         : routedComponents(fullRolePolicyScorer),

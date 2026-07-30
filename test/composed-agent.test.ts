@@ -700,9 +700,6 @@ test('external ingress boundary accepts the complete composed trace extension', 
     forgedIntent.trace!.communicationIntent.uncertainty.beliefThroughSeq += 1
   }
   stripsTrace(forgedIntent)
-  const missingMode = structuredClone(output)
-  delete missingMode.trace!.agentMode
-  stripsTrace(missingMode)
   const missingIntent = structuredClone(output)
   delete missingIntent.trace!.communicationIntent
   stripsTrace(missingIntent)
@@ -718,7 +715,7 @@ test('external ingress boundary accepts the complete composed trace extension', 
     targets[0],
   ]
   stripsTrace(duplicateTarget)
-  const wrongMode = structuredClone(output)
-  wrongMode.trace!.agentMode = 'hybrid'
-  stripsTrace(wrongMode)
+  const declaredMode = structuredClone(output)
+  declaredMode.trace!.agentMode = 'raw-llm'
+  stripsTrace(declaredMode)
 })

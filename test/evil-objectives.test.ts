@@ -709,7 +709,6 @@ function routerVariant(): ArchitectureVariant {
     id: 'phase7d1-router',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',
@@ -1155,7 +1154,6 @@ test('router composes with C2 while evil and Servant use the seeded base', async
     id: 'phase7d1-router-c2',
     components: {
       ...routerVariant().components,
-      mode: 'structured-only',
       scorer: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
     },
     createTargetAgent: (context) => createComposedAgent({

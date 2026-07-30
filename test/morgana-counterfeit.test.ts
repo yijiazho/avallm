@@ -1090,7 +1090,6 @@ test('free architecture bank admits exact host-reconstructable Morgana traces an
     id: 'phase7e1a-baseline',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',
@@ -1119,7 +1118,6 @@ test('free architecture bank admits exact host-reconstructable Morgana traces an
     id: 'phase7e1a-morgana-counterfeit',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',

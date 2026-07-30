@@ -73,7 +73,6 @@ export function activeLanguageEvaluationVariant(
     descriptor: 'experiment:bounded-language-active',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       mechanicalBelief: EXACT_BELIEF_MODEL_VERSION,
       beliefPipeline: ACTIVE_LANGUAGE_EVALUATION_PIPELINE,

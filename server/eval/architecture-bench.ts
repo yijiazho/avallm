@@ -72,8 +72,8 @@ import {
 } from '../agents/trace.ts'
 import {
   brainComponents,
+  COMPOSED_POLICY_VERSION,
   isAgentExecutionMode,
-  isComposedExecutionMode,
   resolveBrain,
 } from '../agents/brain.ts'
 import {
@@ -333,7 +333,6 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
       )
     }
     for (const key of [
-      'mode',
       'brain',
       'policy',
       'scorer',
@@ -346,7 +345,12 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         )
       }
     }
-    if (!isAgentExecutionMode(variant.components.mode)) {
+    // A composed variant is named by its policy and declares no mode; a
+    // non-composed one (the external contract variant) still names its kind.
+    if (
+      variant.components.mode !== undefined
+      && !isAgentExecutionMode(variant.components.mode)
+    ) {
       throw new Error(
         `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
       )
@@ -539,7 +543,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         || variant.components.belief !== EXACT_BELIEF_MODEL_VERSION
         || variant.components.languageEvidence !== 'off'
         || variant.components.factors !== 'off'
-        || !isComposedExecutionMode(variant.components.mode)
+        || variant.components.policy !== COMPOSED_POLICY_VERSION
       )
     ) {
       throw new Error(
@@ -847,11 +851,8 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             return true
           }
           const trace = traceAdmission.trace
-          const strictComposedTrace = (
-            trace.agentMode === 'compatibility'
-            || trace.agentMode === 'structured-only'
-            || trace.agentMode === 'hybrid'
-          )
+          const strictComposedTrace =
+            trace.componentVersions?.policy === COMPOSED_POLICY_VERSION
           const traceVersions = trace.componentVersions
           const currentComponentTrace =
             trace.version === COMPONENT_DECISION_TRACE_VERSION

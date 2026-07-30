@@ -1366,14 +1366,6 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       && trace.plannerReasonCodes === undefined
       && trace.communicationIntent === undefined
       && components?.policy !== 'composed-policy-v1'
-      && (
-        trace.agentMode === undefined
-        || (
-          trace.agentMode !== 'compatibility'
-          && trace.agentMode !== 'structured-only'
-          && trace.agentMode !== 'hybrid'
-        )
-      )
   }
   const scores = trace.candidateScores as Array<Record<string, unknown>>
   const ids = scores.map((score) => String(score.candidateId))
@@ -1386,29 +1378,13 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   ) {
     return false
   }
-  if (
-    trace.agentMode !== undefined
-    && (
-      !components
-      || (
-        trace.agentMode === 'compatibility'
-          ? (
-              components.scorer !== CANDIDATE_SCORER_VERSION
-              || components.planner !== 'planner-off'
-            )
-          : trace.agentMode === 'structured-only'
-            ? (
-                components.scorer === CANDIDATE_SCORER_VERSION
-                || components.planner !== 'planner-off'
-              )
-            : trace.agentMode === 'hybrid'
-              ? components.planner === 'planner-off'
-              : true
-      )
-    )
-  ) {
-    return false
-  }
+  // A composed trace states its strategic identity through componentVersions
+  // alone. agentMode names a non-composed agent kind, so its presence here is a
+  // contradiction rather than a cell label to reconcile against the versions.
+  if (trace.agentMode !== undefined) return false
+  // Wire-format literals, matching this file's convention for persisted values.
+  const hasPlanner =
+    components !== undefined && components.planner !== 'planner-off'
   if (
     scores.some((score) => {
       const features = score.features as Record<string, unknown> | undefined
@@ -1515,9 +1491,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
   if (
     phase4c
     && (
-      trace.agentMode !== 'compatibility'
-      && trace.agentMode !== 'structured-only'
-      && trace.agentMode !== 'hybrid'
+      components?.policy !== 'composed-policy-v1'
     )
   ) {
     return false
@@ -1539,7 +1513,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
               && score.viable === true,
           )
           || (
-            trace.agentMode !== 'hybrid'
+            !hasPlanner
             && structured !== chosen
           )
           || (
@@ -1551,7 +1525,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
               || !chosenScore
               || plannerReasons.some(
                 (reason) => !(
-                  trace.agentMode === 'hybrid'
+                  hasPlanner
                   && chosen !== structured
                     ? plannerOverrideReasonCodes(
                         chosenScore as unknown as CandidateScore,
@@ -1566,7 +1540,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
             )
           )
           || (
-            trace.agentMode === 'hybrid'
+            hasPlanner
             && chosen !== structured
             && (
               trace.plannerCandidateId !== chosen

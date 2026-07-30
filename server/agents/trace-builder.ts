@@ -67,7 +67,6 @@ export interface ComposedTraceInput {
   readonly decisionFrame: LegacyVoicedOutputProjection['decisionFrame']
   readonly descriptor: ResolvedComposedBrain['description']
   readonly architectureIdentityDigest: string
-  readonly agentMode: AgentExecutionMode
   readonly communication: DecisionPlan['communication']
   readonly plannerCandidateId: string | undefined
   readonly plannerReasonCodes: readonly string[] | undefined
@@ -102,7 +101,6 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
     decisionFrame,
     descriptor,
     architectureIdentityDigest,
-    agentMode,
     communication,
     plannerCandidateId,
     plannerReasonCodes,
@@ -164,7 +162,6 @@ export function composedTrace(input: ComposedTraceInput): DecisionTrace {
         ...forced.reasonCodes,
       ]),
     ],
-    agentMode,
     architectureIdentityDigest,
     componentVersions: {
       ...baseVersions.prefix,

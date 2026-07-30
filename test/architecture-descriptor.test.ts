@@ -436,7 +436,6 @@ test('private debug and exact legacy shapes are pure descriptor projections', ()
   assert.equal(privateProjection, descriptor)
   assert.deepEqual(Object.keys(debug), [
     'version',
-    'executionMode',
     'base',
     'components',
     'componentContributions',
@@ -766,7 +765,7 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    '6b448accbf12eb6be638f3eec585f883fb4368cbd6847146635d59a56b9a19ac',
+    '408187f196f3accd1f56b899b8989883f001e6dee6eeaebf83137bf50a0ce8fb',
   )
   assert.equal(output.trace!.scoreLayerRun, undefined)
   assert.deepEqual(output.trace!.decisionFrame, {

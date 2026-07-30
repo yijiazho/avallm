@@ -605,7 +605,6 @@ test('free architecture bank runs the attributed language pipeline', async () =>
     variants: [{
       id: 'language-structured',
       components: {
-        mode: 'compatibility',
         brain: 'brain-spec-v1',
         mechanicalBelief: 'exact-constraints-v1',
         beliefPipeline:

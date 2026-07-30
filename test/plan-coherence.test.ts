@@ -1107,7 +1107,6 @@ function planMemoryVariant(): ArchitectureVariant {
     id: 'phase7b2-plan-memory',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       factors: 'off',

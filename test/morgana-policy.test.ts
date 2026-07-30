@@ -1178,7 +1178,6 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
     id: 'phase7e1b-morgana-policy',
     paid: false,
     components: {
-      mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',

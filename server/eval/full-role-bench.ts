@@ -112,13 +112,11 @@ export type Phase7FullRolePopulation =
   Extract<AgentSpec['type'], 'heuristic' | 'random'>
 
 const common = (
-  mode: 'compatibility' | 'structured-only',
   scorer: string,
   evaluationRole: 'baseline' | 'candidate' | 'ablation',
 ): Record<string, string> => ({
   evaluation: PHASE7_FULL_ROLE_EVAL_VERSION,
   evaluationRole,
-  mode,
   brain: 'brain-spec-v1',
   policy: 'composed-policy-v1',
   scorer,
@@ -133,7 +131,7 @@ const common = (
  * way; only the labels that can be causal for this target differ.
  */
 const fullRoleComponents = (targetRole: Role): Record<string, string> => ({
-  ...common('structured-only', fullRolePolicyScorer.version, 'candidate'),
+  ...common(fullRolePolicyScorer.version, 'candidate'),
   observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
   ...(routedRoleObjectiveModel(targetRole) === 'off'
     ? {}
@@ -158,7 +156,6 @@ export function phase7FullRoleVariantsFor(
       descriptor: `${PHASE7_FULL_ROLE_EVAL_VERSION}:compatibility`,
       paid: false,
       components: common(
-        'compatibility',
         CANDIDATE_SCORER_VERSION,
         'baseline',
       ),
@@ -175,7 +172,6 @@ export function phase7FullRoleVariantsFor(
       descriptor: `${PHASE7_FULL_ROLE_EVAL_VERSION}:good-proposal-only`,
       paid: false,
       components: common(
-        'structured-only',
         goodProposalScorer.version,
         'ablation',
       ),
@@ -190,7 +186,6 @@ export function phase7FullRoleVariantsFor(
       descriptor: `${PHASE7_FULL_ROLE_EVAL_VERSION}:base-composed`,
       paid: false,
       components: common(
-        'structured-only',
         goodProposalVoteScorer.version,
         'ablation',
       ),

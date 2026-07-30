@@ -1347,11 +1347,6 @@ export function createComposedAgent(
       evilQuestCardPolicyMode === 'robust-heterogeneous'
         ? [ROBUST_EVIL_QUEST_CARD_DECISION_LAYER]
         : [],
-    executionMode: planner
-      ? 'hybrid'
-      : scorer.version === CANDIDATE_SCORER_VERSION
-        ? 'compatibility'
-        : 'structured-only',
     configuredPipeline: {
       belief: {
         model: beliefModel.version,
@@ -2125,11 +2120,6 @@ export function createComposedAgent(
           decisionFrame: legacyOutput.decisionFrame,
           descriptor: resolvedBrain.description,
           architectureIdentityDigest,
-          agentMode: activePlanner
-            ? 'hybrid'
-            : legacyOutput.scorerVersion === CANDIDATE_SCORER_VERSION
-              ? 'compatibility'
-              : 'structured-only',
           communication: legacyOutput.plan.communication,
           plannerCandidateId,
           plannerReasonCodes,

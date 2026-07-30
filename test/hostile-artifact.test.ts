@@ -56,7 +56,6 @@ function rolePolicyVariant(
     id,
     paid: false,
     components: {
-      mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',
@@ -114,7 +113,6 @@ function roleFreeVariant(id: string): ArchitectureVariant {
     ...base,
     components: {
       ...components,
-      mode: 'compatibility',
       scorer: 'compatibility-scorer-v1',
     },
     createTargetAgent: (context) => createComposedAgent({

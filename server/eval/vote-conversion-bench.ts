@@ -59,7 +59,6 @@ const seededBandScorer = createGoodProposalVoteScorer({
 })
 
 function components(
-  mode: 'compatibility' | 'structured-only',
   belief: string,
   factors: string,
   scorer: string,
@@ -67,7 +66,6 @@ function components(
 ): Record<string, string> {
   return {
     brain: 'brain-spec-v1',
-    mode,
     belief,
     factors,
     policy: 'composed-policy-v1',
@@ -85,7 +83,6 @@ export function phase5VoteConversionVariants():
     {
       id: PHASE5_VOTE_CONVERSION_VARIANTS.compatibility,
       components: components(
-        'compatibility',
         'exact-constraints-v1',
         'off',
         CANDIDATE_SCORER_VERSION,
@@ -100,7 +97,6 @@ export function phase5VoteConversionVariants():
     {
       id: PHASE5_VOTE_CONVERSION_VARIANTS.proposalOnly,
       components: components(
-        'structured-only',
         QUEST_WEIGHTED_BELIEF_VERSION,
         QUEST_FACTOR_BUNDLE_VERSION,
         GOOD_PROPOSAL_SCORER_VERSION,
@@ -117,7 +113,6 @@ export function phase5VoteConversionVariants():
     {
       id: PHASE5_VOTE_CONVERSION_VARIANTS.topUtility,
       components: components(
-        'structured-only',
         QUEST_WEIGHTED_BELIEF_VERSION,
         QUEST_FACTOR_BUNDLE_VERSION,
         GOOD_PROPOSAL_VOTE_SCORER_VERSION,
@@ -134,7 +129,6 @@ export function phase5VoteConversionVariants():
     {
       id: PHASE5_VOTE_CONVERSION_VARIANTS.seededBand,
       components: components(
-        'structured-only',
         QUEST_WEIGHTED_BELIEF_VERSION,
         QUEST_FACTOR_BUNDLE_VERSION,
         GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,

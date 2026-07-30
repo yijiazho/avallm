@@ -95,7 +95,6 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       id: 'compatibility',
       components: {
         ...baseComponents,
-        mode: 'compatibility',
         scorer: 'compatibility-scorer-v1',
         planner: 'planner-off',
       },
@@ -109,7 +108,6 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       id: 'structured-only',
       components: {
         ...baseComponents,
-        mode: 'structured-only',
         scorer: GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
         planner: 'planner-off',
       },
@@ -124,7 +122,6 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       id: 'hybrid',
       components: {
         ...baseComponents,
-        mode: 'hybrid',
         scorer: GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
         planner: PHASE4_FAKE_PLANNER_VERSION,
         voice: PHASE4_FAKE_VOICE_VERSION,

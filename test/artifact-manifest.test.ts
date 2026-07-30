@@ -39,7 +39,6 @@ const variant: ArchitectureVariant = {
   id: 'phase7r2b4-manifest',
   paid: false,
   components: {
-    mode: 'compatibility',
     brain: 'brain-spec-v1',
     belief: 'exact-constraints-v1',
     factors: 'off',
@@ -163,10 +162,9 @@ test('current identity digest binds every configured projection group', () => {
     mutate: (identity: any) => void
   }>[] = [
     {
-      name: 'execution and base mode',
+      name: 'base mode',
       mutate(identity) {
-        identity.executionMode = 'hybrid'
-        identity.base.mode = 'hybrid'
+        identity.base.mode = 'raw-llm'
       },
     },
     {
@@ -381,7 +379,7 @@ test('current artifact writer rejects architecture identity relabeling', () => {
   )
   assert.throws(
     write((trace) => {
-      trace.agentMode = 'hybrid'
+      trace.agentMode = 'raw-llm'
     }),
     /trusted architecture does not match traces/,
   )

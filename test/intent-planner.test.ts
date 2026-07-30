@@ -109,7 +109,8 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   })
 
   const output = await agent.decide(source.req, source.view)
-  assert.equal(output.trace!.agentMode, 'hybrid')
+  assert.equal(output.trace!.agentMode, undefined)
+  assert.notEqual(output.trace!.componentVersions!.planner, 'planner-off')
   assert.equal(output.trace!.chosenCandidateId, expectedCandidateId)
   assert.equal(output.decision.kind, 'propose')
   assert.deepEqual(
@@ -574,7 +575,6 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         id: 'compatibility',
         components: {
           ...baseComponents,
-          mode: 'compatibility',
           scorer: 'compatibility-scorer-v1',
           planner: 'planner-off',
         },
@@ -588,7 +588,6 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         id: 'structured-only',
         components: {
           ...baseComponents,
-          mode: 'structured-only',
           scorer: 'good-proposal-vote-scorer-v1',
           planner: 'planner-off',
         },
@@ -603,7 +602,6 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         id: 'hybrid',
         components: {
           ...baseComponents,
-          mode: 'hybrid',
           scorer: 'good-proposal-vote-scorer-v1',
           planner: 'bounded-llm-planner-v1',
           voice: 'bounded-llm-voice-v1',
@@ -620,13 +618,16 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
   })
   const report = architectureReport(artifacts)
   assert.deepEqual(
-    report.variants.map((variant) => variant.components.mode),
+    report.variants.map((variant) => variant.id),
     ['compatibility', 'structured-only', 'hybrid'],
   )
   assert.equal(report.comparisons.length, 2)
+  assert.ok(report.variants.every(
+    (variant) => variant.components.mode === undefined,
+  ))
   assert.ok(artifacts.every((artifact) =>
     artifact.decisionTraces?.every((trace) =>
-      trace.agentMode === artifact.architecture?.components.mode)))
+      trace.agentMode === undefined)))
   await assert.rejects(
     runArchitectureBench({
       bankId: 'phase4c-mislabeled',
@@ -635,7 +636,6 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         id: 'mislabeled',
         components: {
           ...baseComponents,
-          mode: 'structured-only',
           scorer: 'dishonest-scorer-label',
           planner: 'planner-off',
         },

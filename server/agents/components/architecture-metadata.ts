@@ -93,7 +93,7 @@ export function resolvedArchitectureIdentityTraceJoin(
   )
   return (
     trace.version === COMPONENT_DECISION_TRACE_VERSION
-    && trace.agentMode === identity.executionMode
+    && trace.agentMode === undefined
     && trace.architectureIdentityDigest
       === resolvedArchitectureIdentityDigest(identity)
     && versions?.decisionComponents === DECISION_COMPONENT_RUN_VERSION

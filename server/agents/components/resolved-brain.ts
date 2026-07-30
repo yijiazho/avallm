@@ -4,9 +4,7 @@ import {
   COMPOSED_POLICY_VERSION,
   PLAN_COMMUNICATION_VERSION,
   brainComponents,
-  isComposedExecutionMode,
   resolveBrain,
-  type ComposedExecutionMode,
   type BrainSource,
   type BrainSpec,
 } from '../brain.ts'
@@ -122,7 +120,6 @@ export interface ComposedBrainConfig {
   readonly scoreLayerOrder?: readonly ScoreLayerRef[]
   readonly decisionLayerOrder?: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
-  readonly executionMode?: ComposedExecutionMode
   /**
    * Temporary, read-only projection of the role-specific configuration that
    * B3 adapters will migrate. It must contain data only, never callbacks.
@@ -145,7 +142,6 @@ export interface ComposedBrainConfig {
  */
 export interface ResolvedArchitectureIdentity {
   readonly version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
-  readonly executionMode: ComposedExecutionMode
   readonly base: BrainSpec
   readonly components: ResolvedComponentGraph
   /** Stable contributions declared by the resolved component graph. */
@@ -178,7 +174,6 @@ export function resolvedArchitectureIdentityVersions(
   const languageEnabled =
     pipeline.belief.languageInterpreter !== 'off'
   return {
-    mode: identity.executionMode,
     brain: identity.base.version,
     ...(languageEnabled
       ? {
@@ -224,7 +219,7 @@ function resolvedArchitectureIdentityInvariants(
 ): boolean {
   const pipeline = identity.configuredPipeline
   return (
-    identity.executionMode === identity.base.mode
+    identity.base.mode === undefined
     && (
       identity.componentContributions.observerModel === 'off'
       || identity.componentContributions.observerModel
@@ -545,7 +540,6 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
     'beliefVisibility',
     'communication',
     'languageEvidence',
-    'mode',
     'observerModel',
     'policy',
     'version',
@@ -553,7 +547,6 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
   if (
     !record
     || record.version !== BRAIN_SPEC_VERSION
-    || !isComposedExecutionMode(record.mode)
     || record.belief !== EXACT_BELIEF_MODEL_VERSION
     || record.beliefVisibility !== 'none'
     || record.policy !== COMPOSED_POLICY_VERSION
@@ -701,7 +694,6 @@ export function admitResolvedArchitectureIdentity(
       'components',
       'configuredPipeline',
       'decisionLayerOrder',
-      'executionMode',
       'requiredHostInputs',
       'scoreLayerOrder',
       'version',
@@ -713,7 +705,6 @@ export function admitResolvedArchitectureIdentity(
     if (
       !root
       || root.version !== RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
-      || !isComposedExecutionMode(root.executionMode)
       || !contributions
       || (
         contributions.observerModel !== 'off'
@@ -733,8 +724,6 @@ export function admitResolvedArchitectureIdentity(
     )
     const identity: ResolvedArchitectureIdentity = Object.freeze({
       version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
-      executionMode: root.executionMode as
-        ResolvedArchitectureIdentity['executionMode'],
       base: decodeIdentityBrain(root.base),
       components,
       componentContributions: Object.freeze({
@@ -772,7 +761,6 @@ export function projectResolvedArchitectureIdentity(
 ): ResolvedArchitectureIdentity {
   const admitted = admitResolvedArchitectureIdentity({
     version: descriptor.version,
-    executionMode: descriptor.executionMode,
     base: descriptor.base,
     components: descriptor.components,
     componentContributions: descriptor.componentContributions,
@@ -797,7 +785,6 @@ export function projectPrivateArchitectureDebug(
 ): PrivateArchitectureDebugProjection {
   return Object.freeze({
     version: descriptor.version,
-    executionMode: descriptor.executionMode,
     base: descriptor.base,
     components: descriptor.components,
     componentContributions: descriptor.componentContributions,
@@ -1097,11 +1084,7 @@ export function resolveComposedBrain(
   ) {
     throw new Error('resolved component declares an unsupported observer model')
   }
-  const executionMode = config.executionMode ?? 'compatibility'
-  const base = Object.freeze({
-    ...resolveBrain(source),
-    mode: executionMode,
-  })
+  const base = Object.freeze(resolveBrain(source))
   const compatibility = freezeCompatibilityValue(
     config.compatibility ?? {},
     'compatibility',
@@ -1138,7 +1121,6 @@ export function resolveComposedBrain(
   }
   const identity = admitResolvedArchitectureIdentity({
     version: RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
-    executionMode,
     base,
     components,
     componentContributions: Object.freeze({

@@ -79,7 +79,11 @@ export interface DecisionTrace {
   factCodes: SituationAnalysis['factCodes']
   reasonCodes: SituationAnalysis['forcedPlayReasonCodes']
   action: Decision
-  /** Explicit experiment cell; do not infer it from component versions. */
+  /**
+   * The non-composed agent kind. Absent on composed traces, whose strategic
+   * identity is componentVersions: the scorer and planner entries carry the
+   * facts a reader needs, and each is declared and cross-checked on its own.
+   */
   agentMode?: AgentExecutionMode
   /**
    * Exact configured architecture identity for current composed traces.

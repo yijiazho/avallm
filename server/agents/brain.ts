@@ -28,47 +28,13 @@ export const AGENT_EXECUTION_MODES = Object.freeze([
   'raw-llm',
   'heuristic',
   'random',
-  'compatibility',
-  'structured-only',
-  'hybrid',
 ] as const)
 export type AgentExecutionMode = (typeof AGENT_EXECUTION_MODES)[number]
-
-/** The modes that run the composed component pipeline. */
-export const COMPOSED_EXECUTION_MODES = Object.freeze([
-  'compatibility',
-  'structured-only',
-  'hybrid',
-] as const) satisfies readonly AgentExecutionMode[]
-export type ComposedExecutionMode = (typeof COMPOSED_EXECUTION_MODES)[number]
-
-export type NonComposedExecutionMode =
-  Exclude<AgentExecutionMode, ComposedExecutionMode>
-
-/** Derived, so the two sets cannot drift into overlapping or leaving a gap. */
-export const NON_COMPOSED_EXECUTION_MODES = Object.freeze(
-  AGENT_EXECUTION_MODES.filter(
-    (mode): mode is NonComposedExecutionMode =>
-      !(COMPOSED_EXECUTION_MODES as readonly string[]).includes(mode),
-  ),
-)
 
 export function isAgentExecutionMode(
   value: unknown,
 ): value is AgentExecutionMode {
   return (AGENT_EXECUTION_MODES as readonly unknown[]).includes(value)
-}
-
-export function isComposedExecutionMode(
-  value: unknown,
-): value is ComposedExecutionMode {
-  return (COMPOSED_EXECUTION_MODES as readonly unknown[]).includes(value)
-}
-
-export function isNonComposedExecutionMode(
-  value: unknown,
-): value is NonComposedExecutionMode {
-  return (NON_COMPOSED_EXECUTION_MODES as readonly unknown[]).includes(value)
 }
 
 export type BeliefComponent =
@@ -100,7 +66,8 @@ export type ObserverModelComponent =
  */
 export interface BrainSpec {
   version: typeof BRAIN_SPEC_VERSION
-  mode: AgentExecutionMode
+  /** Absent exactly when the policy is composed. */
+  mode?: AgentExecutionMode
   belief: BeliefComponent
   beliefVisibility: BeliefVisibility
   policy: PolicyComponent
@@ -262,7 +229,6 @@ export function resolveBrain(source: BrainSource): BrainSpec {
     case 'composed':
       return {
         version: BRAIN_SPEC_VERSION,
-        mode: 'compatibility',
         belief: EXACT_BELIEF_MODEL_VERSION,
         beliefVisibility: 'none',
         policy: COMPOSED_POLICY_VERSION,
@@ -277,7 +243,7 @@ export function resolveBrain(source: BrainSource): BrainSpec {
 export function brainComponents(brain: BrainSpec): Record<string, string> {
   return {
     brain: brain.version,
-    mode: brain.mode,
+    ...(brain.mode === undefined ? {} : { mode: brain.mode }),
     belief: brain.belief,
     beliefVisibility: brain.beliefVisibility,
     policy: brain.policy,

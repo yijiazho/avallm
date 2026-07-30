@@ -67,7 +67,6 @@ const components = (
 ): Record<string, string> => ({
   evaluation: NB013_VOTE_OBJECTIVE_EVAL_VERSION,
   evaluationRole,
-  mode: 'structured-only',
   brain: 'brain-spec-v1',
   belief: 'exact-constraints-v1',
   factors: 'off',
@@ -122,7 +121,6 @@ export function nb013VoteObjectiveVariants(): readonly ArchitectureVariant[] {
       paid: false,
       components: {
         ...components(CANDIDATE_SCORER_VERSION, 'reference'),
-        mode: 'compatibility',
       },
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,

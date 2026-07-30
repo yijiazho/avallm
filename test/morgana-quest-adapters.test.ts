@@ -609,7 +609,6 @@ test('architecture generation captures the producer plan before wrapping', async
     id: `phase7r2b3b-trusted-${mutation}`,
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       factors: 'off',

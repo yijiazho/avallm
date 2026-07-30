@@ -991,7 +991,6 @@ test('resolved base, trace, and artifact agree on E2A observer metadata', async 
     id: 'phase7e2a-hostile-observer',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       factors: 'off',

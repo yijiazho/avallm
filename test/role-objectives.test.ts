@@ -798,7 +798,6 @@ function roleObjectiveVariant(): ArchitectureVariant {
     id: 'phase7c1-role-objective',
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       factors: 'off',

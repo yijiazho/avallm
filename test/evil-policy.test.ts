@@ -1075,7 +1075,6 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
     id: 'phase7d2-evil-policy',
     paid: false,
     components: {
-      mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       beliefVisibility: 'none',
@@ -1355,7 +1354,6 @@ test('weighted D2 dependency failure is atomic at generation and report boundari
     id: 'phase7d2-weighted-atomic-degradation',
     paid: false,
     components: {
-      mode: 'structured-only',
       brain: 'brain-spec-v1',
       belief: 'phase7d2-external-weighted-v1',
       beliefVisibility: 'none',

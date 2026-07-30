@@ -69,7 +69,6 @@ function staticTraceVariant(
           voice: 'external',
         }
       : {
-          mode: 'compatibility',
           brain: 'brain-spec-v1',
           belief: EXACT_BELIEF_MODEL_VERSION,
           factors: 'off',

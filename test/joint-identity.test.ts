@@ -785,7 +785,6 @@ function identityVariant(
     id: forgery === 'none' ? 'identity' : `identity-forged-${forgery}`,
     paid: false,
     components: {
-      mode: 'compatibility',
       brain: 'brain-spec-v1',
       belief: 'exact-constraints-v1',
       factors: 'off',
