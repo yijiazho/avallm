@@ -185,6 +185,13 @@ export function stripSeatRefs(text: string, players: Player[]): string {
   })
 }
 
+// Seats in ascending order — the canonical form of a team, which is an
+// unordered set of seats. The one place that sort lives; agent code used to
+// re-implement this six ways.
+export function canonicalTeam(team: readonly Seat[]): readonly Seat[] {
+  return [...team].sort((m, n) => m - n)
+}
+
 // Order-insensitive team equality. Teams are canonically stored sorted, but
 // callers compare against LLM/human-supplied teams that may not be — sort both
 // defensively so "same members" is the only thing that matters. Absent teams
@@ -198,8 +205,8 @@ export function teamsEqual(
 ): boolean {
   if (a === undefined || b === undefined) return a === b
   if (a.length !== b.length) return false
-  const x = [...a].sort((m, n) => m - n)
-  const y = [...b].sort((m, n) => m - n)
+  const x = canonicalTeam(a)
+  const y = canonicalTeam(b)
   return x.every((s, i) => s === y[i])
 }
 

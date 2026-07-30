@@ -62,6 +62,7 @@ import {
 import { compareCandidateIds } from '../policy/candidates.ts'
 import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
+import { canonicalTeam } from '../../engine/rules.ts'
 
 export const COMPATIBILITY_SCORE_LAYER = scoreLayerToken(
   'compatibility-score',
@@ -150,9 +151,6 @@ const sameNumbers = (
   right: readonly number[],
 ): boolean => left.length === right.length
   && left.every((value, index) => value === right[index])
-
-const canonicalTeam = (team: readonly number[]): readonly number[] =>
-  [...team].sort((left, right) => left - right)
 
 function admitsProposal(
   context: ScoreLayerAnalysisAdmissionContext,

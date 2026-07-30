@@ -6,6 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import {
+  canonicalTeam,
   ROLE_ALIGNMENT,
   TEAM_SIZES,
   teamsEqual,
@@ -59,10 +60,6 @@ const clamp01 = (value: number): number =>
 
 const close = (left: number, right: number): boolean =>
   Math.abs(left - right) <= PROBABILITY_TOLERANCE
-
-function canonicalTeam(team: readonly Seat[]): readonly Seat[] {
-  return [...team].sort((left, right) => left - right)
-}
 
 function fraction(
   numerator: number,

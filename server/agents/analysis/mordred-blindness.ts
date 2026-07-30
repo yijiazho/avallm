@@ -6,6 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import {
+  canonicalTeam,
   ROLE_ALIGNMENT,
   TEAM_SIZES,
   validateRoles,
@@ -60,9 +61,6 @@ const close = (left: number, right: number): boolean =>
 
 const clampProbability = (value: number): number =>
   Math.max(0, Math.min(1, value))
-
-const canonicalTeam = (team: readonly Seat[]): readonly Seat[] =>
-  [...team].sort((left, right) => left - right)
 
 function matrixIndex(
   playerCount: number,

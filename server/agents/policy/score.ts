@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
 import { plainDetachedData } from '../components/canonical-shape.ts'
+import { canonicalTeam } from '../../engine/rules.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
   type JointProbabilitySemantics,
@@ -307,9 +308,6 @@ function validGoodProposalFeatures(
       features.cleanProbability - assessment.cleanProbability,
     ) <= 1e-12
 }
-
-const canonicalTeam = (team: readonly number[]): readonly number[] =>
-  [...team].sort((left, right) => left - right)
 
 function sameNumbers(
   left: readonly number[],

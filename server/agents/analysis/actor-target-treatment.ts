@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { Seat } from '../../engine/types.ts'
+import { canonicalTeam } from '../../engine/rules.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
 import { PROBABILITY_TOLERANCE } from '../belief/types.ts'
 import {
@@ -29,9 +30,6 @@ import {
 
 const close = (left: number, right: number): boolean =>
   Math.abs(left - right) <= PROBABILITY_TOLERANCE
-
-const canonicalTeam = (team: readonly Seat[]): readonly Seat[] =>
-  [...team].sort((left, right) => left - right)
 
 function fraction(
   numerator: number,

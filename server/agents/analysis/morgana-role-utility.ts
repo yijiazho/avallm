@@ -5,7 +5,7 @@ import type {
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
-import { teamsEqual } from '../../engine/rules.ts'
+import { canonicalTeam, teamsEqual } from '../../engine/rules.ts'
 import {
   LEGAL_CANDIDATE_VERSION,
   type PolicyCandidate,
@@ -115,12 +115,6 @@ function stablePolicyBucket(input: string): 0 | 1 {
     hash = Math.imul(hash, 16777619)
   }
   return (hash >>> 0) % 2 as 0 | 1
-}
-
-function canonicalTeam(team: readonly Seat[] | undefined): readonly Seat[] | undefined {
-  return team === undefined
-    ? undefined
-    : [...team].sort((left, right) => left - right)
 }
 
 function rankByCounterfeit(
@@ -370,7 +364,7 @@ function buildMorganaRoleUtilityProjectionInternal(
       round: req.round,
       proposalNum: req.proposalNum,
       ...(req.kind === 'vote'
-        ? { currentTeam: canonicalTeam(view.currentTeam)! }
+        ? { currentTeam: canonicalTeam(view.currentTeam!) }
         : {}),
     },
     selectionMode,
