@@ -119,6 +119,14 @@ type AgentSpec =
 `parseExternalDecisionReply` (`server/agents/external-reply.ts`): it rejects a reply whose decision
 kind does not match the request, and admits an optional `trace` only through the shared trace
 admission boundary, so a forged or malformed trace is stripped without disturbing a legal action.
+Since the `stdio` engine was deleted there are no such producers, so the boundary is currently
+dormant in production and reached only by tests. It is kept for two reasons: it is the door a
+future cross-language producer would come through (ROADMAP.md, "Deliberately not doing"), and its
+`pre-apply-external` lifecycle is the only caller of `validDecisionTrace`, which holds the sole
+structural validation of language evidence, private plan outcome, and belief marginals. The
+`finalized-artifact` lifecycle is not a substitute: it validates an already-applied artifact and so
+requires a full `PlayerView`, a deterministic seed, and an authoritative outcome that a pre-apply
+reply has not got yet.
 Persisted artifacts cross the same admission owner on the `finalized-artifact` lifecycle. Whatever
 survives goes through exactly the same legality validation + fallback ladder as LLM output (§3) —
 a buggy producer degrades to the heuristic, never stalls the game.

@@ -4103,6 +4103,18 @@ export type DecisionTraceAdmissionResult =
       reason: DecisionTraceAdmissionRejection
     }>
 
+/**
+ * Pre-apply admission for an untrusted reply, reached only through
+ * `parseExternalDecisionReply`. That entry point has no production caller
+ * today, so this arm is exercised solely by the suite. It is not redundant with
+ * `finalized-artifact`: this lifecycle validates a trace whose action has not
+ * been applied yet, so it takes an optional partial host view instead of the
+ * full `PlayerView`, deterministic seed, and authoritative outcome the
+ * finalized arm requires. It is also the only path that reaches
+ * `validDecisionTrace`, and through it the sole structural checks on language
+ * evidence, private plan outcome, and belief marginals. Deleting it would
+ * quietly drop those checks rather than relocate them.
+ */
 export interface ExternalDecisionTraceAdmissionInput {
   readonly kind: 'pre-apply-external'
   readonly trace: unknown
