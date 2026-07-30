@@ -41,11 +41,15 @@ import {
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  goodVoteValue,
+  isGoodVoteUtilityVersion,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -1011,39 +1015,35 @@ function validCandidateScores(value: unknown): boolean {
     const boardScore = features?.boardScore as
       | Record<string, unknown>
       | undefined
-    const expectedStake = boardScore
-      ? (
-          1
-          + (boardScore.good === 2
-            ? GOOD_VOTE_UTILITY_CONSTANTS.matchPointStakeBonus
-            : 0)
-          + (boardScore.evil === 2
-            ? GOOD_VOTE_UTILITY_CONSTANTS.matchPointStakeBonus
-            : 0)
-        )
-      : Number.NaN
-    const expectedRealization =
-      GOOD_VOTE_UTILITY_CONSTANTS.alternativeRealizationBase
-      + GOOD_VOTE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
-        * Number(features?.rejectionsBeforeHammer)
-    const expectedHammerPenalty =
-      GOOD_VOTE_UTILITY_CONSTANTS.hammerPenaltyScale
-      * (1 - Number(features?.rejectionsBeforeHammer) / 4)
-      + (
-        features?.rejectionsBeforeHammer === 1
-          ? GOOD_VOTE_UTILITY_CONSTANTS.nextHammerPenalty
-          : 0
-      )
-    const expectedInformationBonus = features?.futureQuestsRemain === true
-      ? GOOD_VOTE_UTILITY_CONSTANTS.informationBonusScale
-        * (1 - Number(features?.currentCleanProbability))
-      : 0
+    const declaredUtilityVersion =
+      isGoodVoteUtilityVersion(features?.utilityVersion)
+        ? features.utilityVersion
+        : GOOD_VOTE_UTILITY_VERSION
+    // Restated through the one shared value function rather than a fourth copy
+    // of the arithmetic, and through the version the features declare, so a
+    // trace cannot name one value function while carrying the other's numbers.
+    // Absent or non-numeric inputs make these expectations NaN, and every
+    // comparison below is a tolerance check, so an unusable trace fails closed.
+    // The board score is additionally required outright further down.
+    const expectedValue = goodVoteValue(
+      {
+        currentCleanProbability: Number(features?.currentCleanProbability),
+        bestAlternativeCleanProbability: Number(
+          features?.bestAlternativeCleanProbability,
+        ),
+        matchPointGood: boardScore?.good === 2,
+        matchPointEvil: boardScore?.evil === 2,
+        futureQuestsRemain: features?.futureQuestsRemain === true,
+        rejectionsBeforeHammer: Number(features?.rejectionsBeforeHammer),
+      },
+      declaredUtilityVersion,
+    )
     const validVoteFeatures = (
       !!features
       && typeof features === 'object'
       && !Array.isArray(features)
       && features.version === GOOD_VOTE_FEATURE_VERSION
-      && features.utilityVersion === GOOD_VOTE_UTILITY_VERSION
+      && isGoodVoteUtilityVersion(features.utilityVersion)
       && features.situationVersion === GOOD_VOTE_SITUATION_VERSION
       && ['uniform-feasible-joint', 'weighted-joint'].includes(
         features.semantics as string,
@@ -1106,38 +1106,36 @@ function validCandidateScores(value: unknown): boolean {
       && typeof features.futureQuestsRemain === 'boolean'
       && typeof features.stake === 'number'
       && Number.isFinite(features.stake)
-      && Math.abs(features.stake - expectedStake) <= 1e-12
+      && Math.abs(features.stake - expectedValue.stake) <= 1e-12
       && typeof features.alternativeRealization === 'number'
       && Number.isFinite(features.alternativeRealization)
       && Math.abs(
-        features.alternativeRealization - expectedRealization,
+        features.alternativeRealization - expectedValue.alternativeRealization,
       ) <= 1e-12
       && typeof features.hammerPenalty === 'number'
       && Number.isFinite(features.hammerPenalty)
-      && Math.abs(features.hammerPenalty - expectedHammerPenalty) <= 1e-12
+      && Math.abs(
+        features.hammerPenalty - expectedValue.hammerPenalty,
+      ) <= 1e-12
       && typeof features.informationBonus === 'number'
       && Number.isFinite(features.informationBonus)
       && Math.abs(
-        features.informationBonus - expectedInformationBonus,
+        features.informationBonus - expectedValue.informationBonus,
+      ) <= 1e-12
+      && typeof features.dirtyApprovalCost === 'number'
+      && Number.isFinite(features.dirtyApprovalCost)
+      && Math.abs(
+        features.dirtyApprovalCost - expectedValue.dirtyApprovalCost,
       ) <= 1e-12
       && typeof features.approveUtility === 'number'
       && Number.isFinite(features.approveUtility)
       && Math.abs(
-        features.approveUtility - (
-          Number(features.stake)
-          * Number(features.currentCleanProbability)
-          + Number(features.informationBonus)
-        ),
+        features.approveUtility - expectedValue.approveUtility,
       ) <= 1e-12
       && typeof features.rejectUtility === 'number'
       && Number.isFinite(features.rejectUtility)
       && Math.abs(
-        features.rejectUtility - (
-          Number(features.stake)
-          * Number(features.bestAlternativeCleanProbability)
-          * Number(features.alternativeRealization)
-          - Number(features.hammerPenalty)
-        ),
+        features.rejectUtility - expectedValue.rejectUtility,
       ) <= 1e-12
       && typeof features.baseUtility === 'number'
       && Number.isFinite(features.baseUtility)
@@ -1435,6 +1433,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
             GOOD_PROPOSAL_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+            GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
             ROLE_OBJECTIVE_SCORER_VERSION,
             ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
           ].some((owner) =>
@@ -1469,6 +1468,7 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
           ![
             GOOD_PROPOSAL_VOTE_SCORER_VERSION,
             GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+            GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
             ROLE_OBJECTIVE_SCORER_VERSION,
             ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
           ].some((owner) =>
@@ -2250,9 +2250,15 @@ function validComposedTraceRelations(trace: TraceValidationInput): boolean {
       // Phase-4 vote features remain attributable but do not own selection.
     } else {
     const mode = first.selectionMode
+    // NB-013 pairing law: the value function is part of the policy identity, so
+    // selection mode alone no longer names the scorer. A trace that prices the
+    // dirty branch has to say so, and one that does not cannot borrow the
+    // weighted identity.
     const expectedScorer = mode === 'seeded-band'
       ? GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-      : GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      : first.utilityVersion === GOOD_VOTE_BOARD_SWING_UTILITY_VERSION
+        ? GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
+        : GOOD_PROPOSAL_VOTE_SCORER_VERSION
     const available = voteFeatureScores.filter(
       (score) => score.value !== -Number.MAX_SAFE_INTEGER,
     )

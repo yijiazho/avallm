@@ -32,11 +32,14 @@ import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  goodVoteValue,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -45,8 +48,10 @@ import {
   stablePolicyBucket,
   type GoodProposalFeatures,
   type GoodVoteFeatures,
+  type GoodVoteUtilityVersion,
 } from '../policy/good-score-contract.ts'
 import {
+  boardSwingGoodProposalVoteScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
   roleObjectiveScorer,
@@ -74,6 +79,15 @@ export const SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER = scoreLayerToken(
   'seeded-good-proposal-vote-score',
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
 )
+/**
+ * NB-013. Same deterministic selection as the top-utility layer; the one
+ * difference is that its vote value prices the board slot each branch risks, so
+ * approving a possibly dirty team finally costs something.
+ */
+export const GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER = scoreLayerToken(
+  'good-proposal-vote-board-swing-score',
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
+)
 export const GOOD_ROLE_SCORE_LAYER = scoreLayerToken(
   'good-role-score',
   ROLE_OBJECTIVE_SCORER_VERSION,
@@ -94,6 +108,9 @@ export function goodScoreLayerTerminalFor(
   }
   if (scorer === seededGoodProposalVoteScorer) {
     return SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER
+  }
+  if (scorer === boardSwingGoodProposalVoteScorer) {
+    return GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER
   }
   if (scorer === roleObjectiveScorer) return GOOD_ROLE_SCORE_LAYER
   if (scorer === seededRoleObjectiveScorer) {
@@ -188,12 +205,14 @@ interface GoodVoteUtilityInputs {
   readonly alternativeRealization: number
   readonly hammerPenalty: number
   readonly informationBonus: number
+  readonly dirtyApprovalCost: number
   readonly approveUtility: number
   readonly rejectUtility: number
 }
 
 function voteUtility(
   context: VoteContext | DeterministicGoodBaseContext,
+  utilityVersion: GoodVoteUtilityVersion,
 ): GoodVoteUtilityInputs {
   const projection = context.analysis.goodVote
   const surface = context.hypotheticalTeamCandidates
@@ -258,30 +277,18 @@ function voteUtility(
     || projection.bestAlternative.cleanProbability !== best.cleanProbability
   ) throw new Error('good vote best-alternative join mismatch')
 
-  const constants = GOOD_VOTE_UTILITY_CONSTANTS
   const futureQuestsRemain =
     context.view.round < context.view.quests.length
     && !context.analysis.matchPoint.good
     && !context.analysis.matchPoint.evil
-  const stake = 1
-    + (context.analysis.matchPoint.good ? constants.matchPointStakeBonus : 0)
-    + (context.analysis.matchPoint.evil ? constants.matchPointStakeBonus : 0)
-  const alternativeRealization =
-    constants.alternativeRealizationBase
-    + constants.alternativeRealizationPerRejection
-      * context.analysis.rejectionsBeforeHammer
-  const hammerPenalty =
-    constants.hammerPenaltyScale
-      * (1 - context.analysis.rejectionsBeforeHammer / 4)
-    + (
-      context.analysis.rejectionsBeforeHammer === 1
-        ? constants.nextHammerPenalty
-        : 0
-    )
-  const informationBonus = futureQuestsRemain
-    ? constants.informationBonusScale
-      * (1 - projection.currentTeam.cleanProbability)
-    : 0
+  const value = goodVoteValue({
+    currentCleanProbability: projection.currentTeam.cleanProbability,
+    bestAlternativeCleanProbability: best.cleanProbability,
+    matchPointGood: context.analysis.matchPoint.good,
+    matchPointEvil: context.analysis.matchPoint.evil,
+    futureQuestsRemain,
+    rejectionsBeforeHammer: context.analysis.rejectionsBeforeHammer,
+  }, utilityVersion)
   return Object.freeze({
     currentTeam,
     currentCleanProbability: projection.currentTeam.cleanProbability,
@@ -294,14 +301,13 @@ function voteUtility(
     bestAlternativeEvilCountDistribution:
       projection.bestAlternative.evilCountDistribution,
     futureQuestsRemain,
-    stake,
-    alternativeRealization,
-    hammerPenalty,
-    informationBonus,
-    approveUtility:
-      stake * projection.currentTeam.cleanProbability + informationBonus,
-    rejectUtility:
-      stake * best.cleanProbability * alternativeRealization - hammerPenalty,
+    stake: value.stake,
+    alternativeRealization: value.alternativeRealization,
+    hammerPenalty: value.hammerPenalty,
+    informationBonus: value.informationBonus,
+    dirtyApprovalCost: value.dirtyApprovalCost,
+    approveUtility: value.approveUtility,
+    rejectUtility: value.rejectUtility,
   })
 }
 
@@ -314,7 +320,9 @@ function admitsVote(
     || context.requirements[0].version !== GOOD_VOTE_ANALYSIS.version
   ) return false
   try {
-    voteUtility(context)
+    // Both utility versions read the same joined inputs, so either one proves
+    // the projection joins. This checks the joins, not the value function.
+    voteUtility(context, GOOD_VOTE_UTILITY_VERSION)
     return true
   } catch {
     return false
@@ -364,6 +372,7 @@ type GoodMode = 'proposal-only' | 'top-utility' | 'seeded-band'
 function goodDefinition(
   token: ScoreLayerToken,
   mode: GoodMode,
+  utilityVersion: GoodVoteUtilityVersion = GOOD_VOTE_UTILITY_VERSION,
 ): ScoreLayerTransformDefinition {
   const supportsVote = mode !== 'proposal-only'
   const definition: ScoreLayerTransformDefinition = {
@@ -400,8 +409,9 @@ function goodDefinition(
           }),
         }
       }
-      const deterministicRows = calculateGoodPolicyRows(context, mode)
-        .map((row) => row.score)
+      const deterministicRows =
+        calculateGoodPolicyRows(context, mode, utilityVersion)
+          .map((row) => row.score)
       if (context.request.kind === 'propose') {
         return {
           status: 'applied',
@@ -458,6 +468,10 @@ export type DeterministicGoodBaseContext = Pick<
  */
 export function calculateDeterministicGoodBase(
   context: DeterministicGoodBaseContext,
+  // Required rather than defaulted: NB-013 made the value function part of the
+  // policy identity, and a caller that silently inherited the symmetric one
+  // would publish its numbers under whichever identity it was restating.
+  utilityVersion: GoodVoteUtilityVersion,
 ): DeterministicGoodBase {
   const allowed = new Set(
     context.candidateBoundary.survivorCandidateIds,
@@ -541,7 +555,7 @@ export function calculateDeterministicGoodBase(
   if (context.request.kind !== 'vote') {
     throw new Error('good role base requires proposal or vote')
   }
-  const utility = voteUtility(context)
+  const utility = voteUtility(context, utilityVersion)
   const values = {
     approve: utility.approveUtility,
     reject: utility.rejectUtility,
@@ -596,7 +610,7 @@ export function calculateDeterministicGoodBase(
       baseValue,
       features: Object.freeze({
         version: GOOD_VOTE_FEATURE_VERSION,
-        utilityVersion: GOOD_VOTE_UTILITY_VERSION,
+        utilityVersion,
         situationVersion: GOOD_VOTE_SITUATION_VERSION,
         semantics: context.analysis.goodVote!.probabilitySemantics,
         beliefModelVersion:
@@ -622,6 +636,7 @@ export function calculateDeterministicGoodBase(
         alternativeRealization: utility.alternativeRealization,
         hammerPenalty: utility.hammerPenalty,
         informationBonus: utility.informationBonus,
+        dirtyApprovalCost: utility.dirtyApprovalCost,
         approveUtility: utility.approveUtility,
         rejectUtility: utility.rejectUtility,
         baseUtility: baseValue,
@@ -639,7 +654,12 @@ export function calculateDeterministicGoodBase(
 export function calculateGoodProposalCandidateScores(
   context: DeterministicGoodBaseContext,
 ) {
-  return calculateDeterministicGoodBase(context).rows.map((row) => ({
+  // Proposal-only: this projection never reaches a vote, so the vote value
+  // function cannot be causal and the symmetric one is the truthful label.
+  return calculateDeterministicGoodBase(
+    context,
+    GOOD_VOTE_UTILITY_VERSION,
+  ).rows.map((row) => ({
     version: GOOD_PROPOSAL_SCORER_VERSION,
     ...row.score,
     features: structuredClone(row.features),
@@ -653,8 +673,9 @@ type GoodPolicyCalculationContext = DeterministicGoodBaseContext & {
 function calculateGoodPolicyRows(
   context: GoodPolicyCalculationContext,
   mode: GoodMode,
+  utilityVersion: GoodVoteUtilityVersion,
 ): readonly DeterministicGoodBaseRow[] {
-  const base = calculateDeterministicGoodBase(context)
+  const base = calculateDeterministicGoodBase(context, utilityVersion)
   if (
     context.request.kind !== 'vote'
     || mode !== 'seeded-band'
@@ -731,14 +752,21 @@ export function calculateGoodProposalVoteCandidateScores(
   const mode: GoodMode =
     scorer.version === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
       ? 'seeded-band'
-      : scorer.version === GOOD_PROPOSAL_VOTE_SCORER_VERSION
+      : (
+          scorer.version === GOOD_PROPOSAL_VOTE_SCORER_VERSION
+          || scorer.version === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
+        )
         ? 'top-utility'
         : scorer.version === GOOD_PROPOSAL_SCORER_VERSION
           ? 'proposal-only'
           : (() => {
               throw new Error(`unsupported good scorer ${scorer.version}`)
             })()
-  return calculateGoodPolicyRows(context, mode).map((row) => ({
+  const utilityVersion: GoodVoteUtilityVersion =
+    scorer.version === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
+      ? GOOD_VOTE_BOARD_SWING_UTILITY_VERSION
+      : GOOD_VOTE_UTILITY_VERSION
+  return calculateGoodPolicyRows(context, mode, utilityVersion).map((row) => ({
     version: scorer.version,
     ...row.score,
     features: structuredClone(row.features),
@@ -748,7 +776,12 @@ export function calculateGoodProposalVoteCandidateScores(
 function deterministicGoodBaseRows(
   context: ScoreLayerTransformContext,
 ): readonly ScoreLayerRowDraft[] {
-  return calculateDeterministicGoodBase(context).rows.map((row) => row.score)
+  // The compatibility root's diagnostic base. Its rows carry no vote-value
+  // identity downstream, so the symmetric utility is the truthful label.
+  return calculateDeterministicGoodBase(
+    context,
+    GOOD_VOTE_UTILITY_VERSION,
+  ).rows.map((row) => row.score)
 }
 
 function roleDefinition(
@@ -901,6 +934,11 @@ const definitions: readonly ScoreLayerDefinition[] = Object.freeze([
   goodDefinition(
     SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
     'seeded-band',
+  ),
+  goodDefinition(
+    GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
+    'top-utility',
+    GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   ),
   roleDefinition(
     GOOD_ROLE_SCORE_LAYER,

@@ -122,6 +122,7 @@ const LANES = Object.freeze({
     'seat-view-inspector.test.ts',
     'vote-conversion.test.ts',
     'vote-direction.test.ts',
+    'vote-objective.test.ts',
   ]),
   exhaustive: Object.freeze([
     'certainties.test.ts',

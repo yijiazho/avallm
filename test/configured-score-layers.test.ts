@@ -16,6 +16,7 @@ import { scoreLayerToken } from '../server/agents/policy/score-layer/types.ts'
 import {
   COMPATIBILITY_SCORE_LAYER,
   GOOD_PROPOSAL_SCORE_LAYER,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
   GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   GOOD_ROLE_SCORE_LAYER,
   SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
@@ -56,6 +57,7 @@ import {
   createMorganaRoleScorer,
   createMordredBlindnessRoleScorer,
   createRoleObjectiveScorer,
+  boardSwingGoodProposalVoteScorer,
   evilRoleObjectiveScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
@@ -80,6 +82,10 @@ test('configured score seam owns family selection and registry construction', ()
       seededGoodProposalVoteScorer,
       SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
     ],
+    [
+      boardSwingGoodProposalVoteScorer,
+      GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
+    ],
     [roleObjectiveScorer, GOOD_ROLE_SCORE_LAYER],
     [seededRoleObjectiveScorer, SEEDED_GOOD_ROLE_SCORE_LAYER],
     [evilRoleObjectiveScorer, EVIL_ROLE_SCORE_LAYER],
@@ -95,7 +101,7 @@ test('configured score seam owns family selection and registry construction', ()
     [fullRolePolicyScorer, FULL_ROLE_POLICY_SCORE_LAYER],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 14)
+  assert.equal(registry.size, 15)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })

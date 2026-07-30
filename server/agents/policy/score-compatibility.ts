@@ -19,16 +19,20 @@ import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_UTILITY_CONSTANTS,
+  GOOD_VOTE_UTILITY_VERSION,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   ROLE_OBJECTIVE_UTILITY_VERSION,
   stablePolicyBucket,
+  type GoodVoteUtilityVersion,
 } from './good-score-contract.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
@@ -50,9 +54,21 @@ const GOOD_NATIVE_VERSIONS = new Set([
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 ])
+
+/**
+ * The value function a scorer version owns. Diagnostics restate the native base
+ * to attach features, so reading this wrong would publish one arm's numbers
+ * under the other arm's identity.
+ */
+function utilityVersionFor(scorerVersion: string): GoodVoteUtilityVersion {
+  return scorerVersion === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
+    ? GOOD_VOTE_BOARD_SWING_UTILITY_VERSION
+    : GOOD_VOTE_UTILITY_VERSION
+}
 
 const mechanical = (
   rows: readonly ScoreLayerRow[],
@@ -83,7 +99,10 @@ function projectGood(
       )
     )
   if (!inScope) return plain
-  const base = calculateConfiguredDeterministicGoodBase(context)
+  const base = calculateConfiguredDeterministicGoodBase(
+    context,
+    utilityVersionFor(scorerVersion),
+  )
   const baseById = new Map(
     base.rows.map((entry) => [entry.score.candidateId, entry]),
   )
@@ -94,6 +113,7 @@ function projectGood(
     scorerVersion === GOOD_PROPOSAL_SCORER_VERSION
     || scorerVersion === GOOD_PROPOSAL_VOTE_SCORER_VERSION
     || scorerVersion === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
+    || scorerVersion === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
   ) {
     const seeded =
       scorerVersion === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION

@@ -37,12 +37,16 @@ import {
   GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_REASON_CODES,
   GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_REASON_CODES,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  goodVoteValue,
+  isGoodVoteUtilityVersion,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -53,6 +57,7 @@ import {
   type GoodProposalReasonCode,
   type GoodVoteFeatures,
   type GoodVoteSelectionMode,
+  type GoodVoteUtilityVersion,
 } from './good-score-contract.ts'
 import { compareCandidateIds } from './candidates.ts'
 import { calculateCompatibilityBase } from './compatibility-score.ts'
@@ -70,12 +75,16 @@ export {
   GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_REASON_CODES,
   GOOD_PROPOSAL_SCORER_VERSION,
+  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
+  GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
   GOOD_VOTE_FEATURE_VERSION,
   GOOD_VOTE_REASON_CODES,
   GOOD_VOTE_UTILITY_CONSTANTS,
   GOOD_VOTE_UTILITY_VERSION,
+  goodVoteValue,
+  isGoodVoteUtilityVersion,
   ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
@@ -372,11 +381,15 @@ interface GoodVoteUtility {
   alternativeRealization: number
   hammerPenalty: number
   informationBonus: number
+  dirtyApprovalCost: number
   approveUtility: number
   rejectUtility: number
 }
 
-function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
+function goodVoteUtility(
+  context: CandidateScoringContext,
+  utilityVersion: GoodVoteUtilityVersion,
+): GoodVoteUtility {
   const projection = context.analysis.goodVote
   const surface = context.hypotheticalTeamCandidates
   if (
@@ -470,34 +483,18 @@ function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
     throw new Error('good vote best-alternative join mismatch')
   }
 
-  const constants = GOOD_VOTE_UTILITY_CONSTANTS
   const futureQuestsRemain =
     context.view.round < context.view.quests.length
     && !context.analysis.matchPoint.good
     && !context.analysis.matchPoint.evil
-  const stake = 1
-    + (context.analysis.matchPoint.good ? constants.matchPointStakeBonus : 0)
-    + (context.analysis.matchPoint.evil ? constants.matchPointStakeBonus : 0)
-  const alternativeRealization =
-    constants.alternativeRealizationBase
-    + (
-      constants.alternativeRealizationPerRejection
-      * context.analysis.rejectionsBeforeHammer
-    )
-  const hammerPenalty =
-    constants.hammerPenaltyScale
-    * (1 - context.analysis.rejectionsBeforeHammer / 4)
-    + (
-      context.analysis.rejectionsBeforeHammer === 1
-        ? constants.nextHammerPenalty
-        : 0
-    )
-  const informationBonus = futureQuestsRemain
-    ? (
-        constants.informationBonusScale
-        * (1 - projection.currentTeam.cleanProbability)
-      )
-    : 0
+  const value = goodVoteValue({
+    currentCleanProbability: projection.currentTeam.cleanProbability,
+    bestAlternativeCleanProbability: best.cleanProbability,
+    matchPointGood: context.analysis.matchPoint.good,
+    matchPointEvil: context.analysis.matchPoint.evil,
+    futureQuestsRemain,
+    rejectionsBeforeHammer: context.analysis.rejectionsBeforeHammer,
+  }, utilityVersion)
   return {
     currentTeam,
     currentCleanProbability: projection.currentTeam.cleanProbability,
@@ -510,14 +507,13 @@ function goodVoteUtility(context: CandidateScoringContext): GoodVoteUtility {
     bestAlternativeEvilCountDistribution:
       projection.bestAlternative.evilCountDistribution,
     futureQuestsRemain,
-    stake,
-    alternativeRealization,
-    hammerPenalty,
-    informationBonus,
-    approveUtility:
-      stake * projection.currentTeam.cleanProbability + informationBonus,
-    rejectUtility:
-      stake * best.cleanProbability * alternativeRealization - hammerPenalty,
+    stake: value.stake,
+    alternativeRealization: value.alternativeRealization,
+    hammerPenalty: value.hammerPenalty,
+    informationBonus: value.informationBonus,
+    dirtyApprovalCost: value.dirtyApprovalCost,
+    approveUtility: value.approveUtility,
+    rejectUtility: value.rejectUtility,
   }
 }
 
@@ -529,7 +525,7 @@ function validGoodVoteFeatures(
   if (
     candidate.decision.kind !== 'vote'
     || features.version !== GOOD_VOTE_FEATURE_VERSION
-    || features.utilityVersion !== GOOD_VOTE_UTILITY_VERSION
+    || !isGoodVoteUtilityVersion(features.utilityVersion)
     || features.situationVersion !== GOOD_VOTE_SITUATION_VERSION
     || features.semantics
       !== context.analysis.goodVote?.probabilitySemantics
@@ -538,7 +534,9 @@ function validGoodVoteFeatures(
   }
   let expected: GoodVoteUtility
   try {
-    expected = goodVoteUtility(context)
+    // The declared version selects the formula, so a feature set cannot claim
+    // one value function and carry the other one's numbers.
+    expected = goodVoteUtility(context, features.utilityVersion)
   } catch {
     return false
   }
@@ -583,6 +581,9 @@ function validGoodVoteFeatures(
     ) <= 1e-12
     && Math.abs(features.hammerPenalty - expected.hammerPenalty) <= 1e-12
     && Math.abs(features.informationBonus - expected.informationBonus) <= 1e-12
+    && Math.abs(
+      features.dirtyApprovalCost - expected.dirtyApprovalCost,
+    ) <= 1e-12
     && Math.abs(features.approveUtility - expected.approveUtility) <= 1e-12
     && Math.abs(features.rejectUtility - expected.rejectUtility) <= 1e-12
     && Math.abs(features.baseUtility - baseUtility) <= 1e-12
@@ -923,6 +924,14 @@ export const calibrationCompatibilityScorer: CandidateScorer = Object.freeze({
 
 export interface GoodProposalVoteScorerOptions {
   selectionMode: GoodVoteSelectionMode
+  /**
+   * NB-013. `symmetric` leaves approving a dirty team worth zero rather than
+   * negative, which is the measured Phase 4B behavior. `board-swing` values each
+   * branch by the board slot it risks. Only the deterministic top-utility mode
+   * has a board-swing twin so far, because that is the arm the gate compares
+   * against; a seeded twin waits on the result.
+   */
+  voteValue?: 'symmetric' | 'board-swing'
 }
 
 const GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR: CandidateScorer = Object.freeze({
@@ -936,13 +945,30 @@ const SEEDED_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR: CandidateScorer =
     analysisRequirement: 'joint-proposal-vote-team-assessments',
   })
 
+const BOARD_SWING_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR: CandidateScorer =
+  Object.freeze({
+    version: GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION,
+    analysisRequirement: 'joint-proposal-vote-team-assessments',
+  })
+
 /**
  * Opt-in Phase 4B policy factory. Top-utility mode is the deterministic vote
  * ablation; seeded-band mode varies only near-equivalent forced survivors.
+ * NB-013's weighted vote value is a separate recorded identity, because a
+ * different value function is a different policy and must not be able to report
+ * itself as the arm that was measured without it.
  */
 export function createGoodProposalVoteScorer(
   options: GoodProposalVoteScorerOptions,
 ): CandidateScorer {
+  if (options.voteValue === 'board-swing') {
+    if (options.selectionMode !== 'top-utility') {
+      throw new Error(
+        'the board-swing vote value has no seeded-band twin yet',
+      )
+    }
+    return BOARD_SWING_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
+  }
   return options.selectionMode === 'seeded-band'
     ? SEEDED_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
     : GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
@@ -955,6 +981,10 @@ export const goodProposalVoteScorer =
 /** Seeded Phase 4B base used by matching opt-in fallback paths. */
 export const seededGoodProposalVoteScorer =
   SEEDED_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
+
+/** NB-013 candidate: the Phase 4B ablation with the dirty branch priced. */
+export const boardSwingGoodProposalVoteScorer =
+  BOARD_SWING_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
 
 export interface RoleObjectiveScorerOptions {
   selectionMode: RoleObjectiveSelectionMode

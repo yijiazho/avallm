@@ -283,6 +283,18 @@ loop is only as good as the reward signal under it.
 > `1.1`-point win gain was not significant. This covers one large free population shift, not human
 > or per-model calibration.
 
+> **NB-013 vote objective gate, 2026-07-30:** `npm run vote-objective-bench` runs the frozen
+> 180-deal good-side bank on both free populations with three arms that differ only in the good-side
+> vote value function: the measured Phase 4B symmetric utility, the board-swing utility that prices
+> the board slot each branch risks, and compatibility as a reference. Its gate line reads the
+> directional vote-error deltas the architecture report gained in NB-013's first half, because the
+> symmetric vote-truth accuracy rose both when the policy regressed (NB-010) and when it improved,
+> so it cannot gate a promotion. Over 1,080 games at zero cost the dirty-team approval rate falls in
+> all six population/role cells, significantly at Percival and Servant in both populations, and the
+> target win rate falls in none. The reference arm reproduces NB-010's population sign flip on the
+> same games, and compatibility remains ahead against the heuristic opponents, so the run admits the
+> objective as an opt-in identity without promoting anything.
+
 1. **Game artifacts** — persist full event log + agent configs + seed as JSONL per sim game
    (plumbing; the data already exists in `game.log`).
 2. **`--forceRole` + paired-seed mode** in `server/sim/sim.ts`.
