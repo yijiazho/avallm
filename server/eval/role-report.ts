@@ -17,6 +17,13 @@ import {
   type VirtualAssassinEvidence,
 } from './virtual-assassin.ts'
 import { ROLE_ALIGNMENT } from '../engine/rules.ts'
+import type {
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+  NoDuplicateKeys,
+  NoMissingKeys,
+} from '../agents/key-lists.ts'
 
 export const PHASE7_ROLE_REPORT_VERSION = 'phase7-role-report-v1'
 export const PHASE7_ROLE_EVIDENCE_BASELINE = 'docs/baselines/phase7-role-evidence-standard-v1.jsonl'
@@ -147,7 +154,10 @@ const ROW_KEYS = [
   'configuredScorer', 'targetRole', 'targetSeat', 'winner', 'targetWon',
   'logDigest', 'decisionDigest', 'calls', 'cost', 'degradation',
   'forcedViolations', 'exactAdmission', 'safety', 'terminal',
-] as const
+] as const satisfies ExactKeyList<Phase7RoleEvidenceRow>
+type _RowKeysSound =
+  | NoMissingKeys<MissingKeys<Phase7RoleEvidenceRow, typeof ROW_KEYS>>
+  | NoDuplicateKeys<DuplicateKeys<typeof ROW_KEYS>>
 
 export function parsePhase7RoleEvidence(text: string):
 readonly Phase7RoleEvidenceRow[] {
@@ -241,7 +251,10 @@ const VIRTUAL_KEYS = [
   'version', 'historyId', 'playerCount', 'predictorSeat', 'predictorRole',
   'beliefThroughSeq', 'guessSeat', 'targets', 'predictionDigest',
   'merlinSeat', 'hit',
-] as const
+] as const satisfies ExactKeyList<VirtualAssassinEvidence>
+type _VirtualKeysSound =
+  | NoMissingKeys<MissingKeys<VirtualAssassinEvidence, typeof VIRTUAL_KEYS>>
+  | NoDuplicateKeys<DuplicateKeys<typeof VIRTUAL_KEYS>>
 
 export function parseVirtualAssassinEvidence(text: string):
 readonly VirtualAssassinEvidence[] {

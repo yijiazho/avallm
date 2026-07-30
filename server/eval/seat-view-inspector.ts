@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url'
 import { eventVisibleTo } from '../engine/view.ts'
 import type {
   DecisionRequest,
+  Game,
   GameEvent,
   Phase,
   PlayerView,
@@ -17,6 +18,7 @@ import type {
   Seat,
 } from '../engine/types.ts'
 import { DECISION_KINDS } from '../engine/types.ts'
+import type { ExactKeyList } from '../agents/key-lists.ts'
 
 export const SEAT_VIEW_INSPECTION_SCHEMA = 1
 export const DEFAULT_SEAT_VIEW_FIXTURE_FILE =
@@ -193,13 +195,17 @@ export interface SeatViewInspection {
   omissions: string[]
 }
 
+// Raw `Game` fields that must never surface on a seat view. Bound to `Game` so
+// a rename there cannot leave a dead string here that silently stops checking.
+// Deliberately a subset, not exhaustive: fields a `PlayerView` legitimately
+// carries (round, phase, players) would fail every view if listed.
 const RAW_GAME_FIELDS = [
   'config',
   'log',
   'pendingCards',
   'pendingVotes',
   'seed',
-] as const
+] as const satisfies ExactKeyList<Game>
 
 const DECISION_KIND_SET = new Set<string>(DECISION_KINDS)
 const EVENT_TYPES = new Set([

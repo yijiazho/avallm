@@ -151,14 +151,16 @@ import {
   projectPublicRecord,
 } from '../communication/public-record.ts'
 import type {
+  TraceValidationInput,
+} from './trace-primitives.ts'
+import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
   MissingRequiredKeys,
   NoDuplicateKeys,
   NoMissingKeys,
-  TraceValidationInput,
-} from './trace-primitives.ts'
+} from '../key-lists.ts'
 import {
   enumStringArray,
   stringArray,
