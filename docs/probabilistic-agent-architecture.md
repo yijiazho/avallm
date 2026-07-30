@@ -334,8 +334,32 @@ interface SituationAnalysis {
 }
 ```
 
-This layer is the only source for decision-ready summaries. It replaces repeated arithmetic in
-prompts and prevents each policy from inventing a different definition of "safe team."
+This layer owns the board and team arithmetic. It replaces repeated arithmetic in prompts and
+prevents each policy from inventing a different definition of "safe team."
+
+**As implemented, it is not the single entry point this sketch implies.** Three things drifted, and
+the accurate claim is narrower: `analysis/` owns every decision-ready summary, but a scorer reaches
+them through a surface rather than by calling `analyzeSituation` itself.
+
+First, the analysis is now parameterized. `policyCandidateAssessments` is empty unless a policy
+explicitly requests the exhaustive team surface, and `goodVote` is present only under the good-vote
+plan. `analysis/situation-plan.ts` is the sole compiler from policy requirements to one of three
+executable plans (`candidate-teams`, `good-proposal`, `good-vote`), so composition never switches on
+requirement IDs.
+
+Second, `analysis/scorer-situation-surface.ts` sits in front of it. It builds the analysis together
+with the hypothetical proposal candidates a good vote needs, so runtime and admission replay cannot
+assemble that input differently and falsely reject each other. `ARCH008` forbids its two consumers,
+`policy/decision-frame.ts` and `admission/composed-trace.ts`, from importing `analysis/situation.ts`
+directly.
+
+Third, the fields above are the target sketch, not the landed type. `SituationAnalysis` in
+`analysis/types.ts` extends a `BoardSituation` with hammer proximity and rejection runway, names
+proven alignments `provenGood`/`provenEvil` with typed `deductions` recording their provenance, and
+carries declared leans, vote leverage, fact codes, and forced-play reason codes. `publicObserver`
+and `assassinTargets` never became fields: the public observer and the Assassin Merlin posterior are
+separate `analysis/` modules producing their own private snapshots, which is what §5.7 requires of
+any role component.
 
 ### 5.5 Persistent cognition
 
@@ -763,55 +787,126 @@ degradation classes.
 
 ---
 
-## 11. Recommended module ownership
+## 11. Module ownership
+
+Unlike the rest of this document, this section describes the tree that exists rather than one to
+aim at. Check it against `git ls-files 'server/agents/**'`; the line counts below are tracked
+TypeScript lines at the time of writing and will drift, but the owners and their boundaries should
+not drift silently.
 
 ```text
-server/agents/
-  cognition/
-    observation.ts
-    evidence.ts
-    state.ts
-    commitments.ts
-  belief/
-    worlds.ts
-    constraints.ts
-    exact.ts
-    projections.ts
-    factors/
-      quest.ts
-      proposal.ts
-      vote.ts
-      language.ts
-  analysis/
-    board.ts
-    teams.ts
+server/agents/                        # about 42.0k lines in ten owners
+  *.ts                                #  6.4k  agent boundary and the raw-LLM baseline
+    types.ts registry.ts defs.ts packs.ts board.ts experimental.ts
+    heuristic.ts random.ts llm.ts stdio.ts composed.ts brain.ts
+    prompts.ts facts.ts parse.ts trace.ts
+  cognition/                          #  1.9k  observation to typed private memory
+    evidence.ts state.ts commitments.ts coherence.ts plan-memory.ts types.ts
+  belief/                             #  2.6k  hidden worlds and the posterior
+    worlds.ts constraints.ts quest-constraints.ts exact.ts
+    projection.ts weighting.ts identity.ts
+    quest-card-factor.ts language-factor.ts types.ts
+  analysis/                           #  9.1k  decision-ready reads, including role semantics
+    situation.ts situation-plan.ts scorer-situation-surface.ts types.ts
     observer.ts
-    assassination.ts
-  policy/
-    candidates.ts
-    forced.ts
-    structured.ts
-    hybrid.ts
-    objectives/
-  communication/
-    interpreter.ts
-    intent.ts
-    prompts.ts
-    voice.ts
-  agents/
-    hybrid.ts
-    raw-llm.ts
-    heuristic.ts
+    role-objectives.ts role-objective-router.ts role-utility.ts
+    evil-objectives.ts evil-role-utility.ts
+    morgana-counterfeit.ts morgana-role-utility.ts
+    mordred-blindness.ts assassin-merlin-posterior.ts
+    actor-target-treatment.ts
+    (most of the above carry a sibling *-types.ts)
+  policy/                             #  7.6k  action authority and the generic layer kernels
+    candidates.ts forced.ts plan.ts types.ts
+    decision-frame.ts                 #   the staged spine every decision walks
+    score.ts score-compatibility.ts compatibility-score.ts custom-scoring.ts
+    component-runtime.ts trusted-data.ts deterministic-policy.ts
+    evil-quest-card.ts *-score-contract.ts
+    score-layer/                      #  1.8k  generic score-layer kernel
+    decision-layer/                   #  1.3k  generic strategic decision-layer kernel
+  score-layers/                       #  1.9k  concrete score families
+    good.ts evil.ts mordred.ts morgana.ts assassin.ts full-role.ts configured.ts
+  decision-layers/                    #  0.1k  concrete strategic layers
+    robust-evil-quest-card.ts configured.ts
+  components/                         #  5.6k  the generic decision-component substrate
+    kernel.ts resolved-brain.ts registry.ts production-registry.ts
+    native-score-components.ts native-role-components.ts
+    canonical-json.ts architecture-metadata.ts types.ts
+  admission/                          #  5.1k  trace canonicalization and host admission
+    composed-trace.ts legacy-role-trace-v1.ts
+    component-host-inputs.ts trace-primitives.ts
+  communication/                      #  1.8k  language in and voice out
+    language-contract.ts language-orchestration.ts language-types.ts
+    planner-voice-adapter.ts composed-renderer.ts belief-summary.ts
+    public-record.ts compat-certainties.ts
 ```
 
-This is an ownership map, not a requirement to create every file immediately. The important
-boundaries are:
+Four owners postdate the original map and had no place in it. `components/` holds the generic
+decision-component substrate from §5.7: the kernel, the resolved brain, the registries, and the
+canonical JSON and architecture-identity surfaces. `admission/` owns hostile-trace canonicalization
+and host admission, which the earlier map treated as part of the trace envelope. `score-layers/`
+and `decision-layers/` hold the concrete families that the generic `policy/score-layer/` and
+`policy/decision-layer/` kernels execute; splitting concrete from generic is what lets the kernels
+stay role-free.
+
+Three entries in the earlier map never landed as written. `belief/factors/` stayed flat, because
+only two soft factors exist: `quest-card-factor.ts` and `language-factor.ts`. Proposal and vote
+likelihoods were never parameterized, so there is nothing for a subdirectory to hold (§13).
+`policy/structured.ts` and `policy/hybrid.ts` never became files; that work is split across
+`decision-frame.ts`, `score.ts`, and the two layer kernels. The `agents/` subdirectory never
+existed either, and the agents themselves sit flat at the top level as `llm.ts`, `heuristic.ts`,
+`random.ts`, `stdio.ts`, and `composed.ts`.
+
+### 11.1 `analysis/` owns role semantics
+
+The earlier map put role objectives under `policy/objectives/`. That is withdrawn. `analysis/`
+legitimately owns role semantics, and it is the largest subsystem because of it.
+
+The split between the two owners is **authority, not subject matter**. `analysis/` produces
+read-only typed projections; `policy/` and its two concrete layer directories hold the only code
+allowed to pick an action. No module under `analysis/` returns a `Decision` or commits a candidate.
+The role modules read
+`PolicyCandidate` shapes and rank or annotate them into private tagged payloads, and a score or
+decision layer then consumes, ignores, or is configured without each one. `role-objective-router.ts`
+says so in one line: pure routing that never enables policy. A role objective that could commit an
+action would violate the first boundary rule below wherever it lived, so moving the directory would
+not buy that guarantee.
+
+The placement is also already depended on by the fitness checks. `tools/architecture-fitness.mjs`
+`ARCH005` forbids generic score-layer code from importing anything under `server/agents/analysis/`
+except `analysis/types.ts`, and separately rejects role-named identifiers in that code; `ARCH011`
+applies the same rule to the generic decision layer. Those rules key on the `analysis/` prefix.
+Moving objectives into `policy/objectives/` would place role semantics inside the prefix the rules
+protect and cost the repo its cheapest structural guard against a role-shaped generic kernel.
+
+Role specialization already has a policy home, so nothing is homeless: `score-layers/` and
+`decision-layers/` hold the concrete families that carry authority, and `analysis/` holds the reads
+they consume.
+
+The cost of this call is that `analysis/` keeps growing with each new role. The rule that keeps it
+honest: a module belongs in `analysis/` only while every layer remains free to decline it. As soon
+as a role read decides the action, that deciding code belongs in `score-layers/` or
+`decision-layers/`, whatever it reads.
+
+### 11.2 Boundaries
+
+These are the durable rules:
 
 - evidence does not choose actions;
 - belief does not render prompts;
 - policy does not read raw `Game`;
 - voice does not change committed actions;
 - evaluation observes traces but runtime cognition never reads evaluation truth.
+
+`tools/architecture-fitness.mjs` is a static import and identifier graph, so it enforces the rules
+that reduce to a forbidden dependency. `ARCH002` covers "policy does not read raw `Game`" directly,
+refusing any agent import of `server/engine/game`, `server/engine/view`, or the raw `Game` type.
+`ARCH001` and `ARCH002` together keep engine, agent, and evaluation code from depending on each
+other in the wrong direction, which is the import half of the evaluation-isolation rule.
+
+The remaining rules are behavioral and are pinned by tests instead: `test/leaks.test.ts` and
+`test/knowledge.test.ts` for what may cross into rendered text, `test/prompt-coherence.test.ts` and
+`test/phase7b2-plan-coherence.test.ts` for the committed action matching its pitch, reason, and
+lean. Both mechanisms matter; neither alone covers the five.
 
 ---
 
@@ -845,14 +940,43 @@ Win rate decides whether an agent is useful, but calibration and behavioral metr
 
 ---
 
-## 13. Decisions deliberately deferred
+## 13. Deferred decisions and their outcomes
 
-- Whether full role worlds or alignment worlds are the default stored representation.
-- The first parameterization of proposal and vote likelihoods.
-- Whether the hybrid planner chooses one candidate or ranks several for a structured tie-break.
-- How much observer modeling runs online versus only at Merlin and evil decision points.
-- Whether cognition traces are stored in the game artifact or a sidecar artifact.
-- When exact enumeration becomes expensive enough to justify variable elimination, sampling, or a
-  factor graph.
+These choices do not change the component boundaries above. Landed work has since settled four of
+the original six; they are recorded here with their outcome rather than deleted, so a later reader
+can see what was chosen and why.
 
-These choices do not change the component boundaries above.
+### 13.1 Still open
+
+- **The first parameterization of proposal and vote likelihoods.** `belief/` still has exactly two
+  soft factors, `quest-card-factor.ts` and `language-factor.ts`. Nothing scores a proposal or a vote
+  as evidence about the proposer or voter. Phase 5C's vote work diagnosed the vote *policy* channel
+  and does not close this.
+- **When exact enumeration becomes expensive enough to justify variable elimination, sampling, or a
+  factor graph.** Still open, and the pressure points are known: the legal maximum-special 10-player
+  cast has 151,200 complete worlds for the public observer, and the 10-player `phase4-good-v1` vote
+  reaches 58,080 uniform worlds in identity projection. Both are currently handled by exact
+  streaming plus compensated summation rather than by approximation, so the question is deferred on
+  evidence rather than by neglect.
+
+### 13.2 Decided by landed work
+
+- **Full role worlds are the stored representation; alignment is a projection.** `HiddenWorld`
+  stores `roleBySeat` with the seat-ordered role string as its identity, keeps `alignmentBySeat`
+  alongside it, and duplicate Servant and Minion cards are multiset counts without identity.
+  Alignment and role marginals come out of the shared projection kernel in `belief/projection.ts`.
+  Settled in Phase 1.
+- **The hybrid planner chooses one candidate, from a bounded non-dominated set.** Planner output
+  names one supplied candidate ID; overriding the top numerical candidate requires a named permitted
+  strategic reason; deterministic structured choice remains both an ablation and the fallback, and
+  planner or voice failure retains the committed structured action. Settled in Phase 4C.
+- **Observer modeling runs online, at every decision of a configured seat, and is not gated to
+  Merlin and evil decision points.** `composed.ts` builds the snapshot once per decision on first
+  use, whenever the observer is configured or a role objective or Morgana counterfeit read needs it.
+  It stays policy-inert: nothing prices what a seat's own record reveals, which is exactly the gap
+  NB-012 owns. Settled in Phase 7A.
+- **Cognition traces live in the main game artifact, not a sidecar.** They are the optional
+  `decisionTraces` field on the full-reveal artifact, which keeps atomic association with the
+  replayable event log and avoids a second retention lifecycle. Traces are never stored in `Game`,
+  emitted as events, added to `PlayerView`, sent to a client, or read while producing cognition.
+  Settled in Phase 2.
