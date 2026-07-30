@@ -3,6 +3,7 @@ import type {
   PlayerView,
   Role,
   Seat,
+  SeatSet,
 } from '../../engine/types.ts'
 import { rolePossibilities } from '../belief/exact.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
@@ -17,10 +18,10 @@ export interface SeatCertainty {
 
 export interface RoleCertainties {
   seats: SeatCertainty[]           // one per seat, indexed by seat number
-  knownGood: Seat[]                // provably good, excluding the viewer
-  knownEvil: Seat[]                // provably evil, excluding the viewer
-  unresolved: Seat[]               // side still genuinely open
-  merlinCandidates: Seat[]         // seats that could still hold Merlin (empty if no Merlin dealt)
+  knownGood: SeatSet               // provably good, excluding the viewer
+  knownEvil: SeatSet               // provably evil, excluding the viewer
+  unresolved: SeatSet              // side still genuinely open
+  merlinCandidates: SeatSet        // seats that could still hold Merlin (empty if no Merlin dealt)
   alignmentComplete: boolean       // true when no seat's side is open
   // Seats the DEAL alone leaves open and the resolved quests close. Separated so
   // a caller can state the new deduction and the evidence for it, instead of

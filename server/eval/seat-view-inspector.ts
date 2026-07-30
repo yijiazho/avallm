@@ -738,7 +738,7 @@ function refFor(seat: Seat, refs: Map<Seat, SeatRef>): SeatRef {
   return { ...ref }
 }
 
-function refsFor(seats: Seat[], refs: Map<Seat, SeatRef>): SeatRef[] {
+function refsFor(seats: readonly Seat[], refs: Map<Seat, SeatRef>): SeatRef[] {
   return seats
     .slice()
     .sort((a, b) => a - b)

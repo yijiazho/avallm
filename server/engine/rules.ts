@@ -3,7 +3,7 @@
 // the official "5th rejection = evil wins"): the 5th proposal in a round is
 // approved automatically without a vote, so only 4 proposals can be rejected.
 
-import type { Alignment, Player, PrivateInfo, Role, Seat } from './types.ts'
+import type { Alignment, Player, PrivateInfo, Role, Seat, SeatSet } from './types.ts'
 
 export const MIN_PLAYERS = 5
 export const MAX_PLAYERS = 10
@@ -185,23 +185,25 @@ export function stripSeatRefs(text: string, players: Player[]): string {
   })
 }
 
-// Seats in ascending order — the canonical form of a team, which is an
-// unordered set of seats. The one place that sort lives; agent code used to
-// re-implement this six ways.
-export function canonicalTeam(team: readonly Seat[]): readonly Seat[] {
+// A SeatSet in ascending order — the canonical form of a team, which is one
+// such set. The one place that sort lives; agent code used to re-implement this
+// six ways.
+export function canonicalTeam(team: SeatSet): SeatSet {
   return [...team].sort((m, n) => m - n)
 }
 
-// Order-insensitive team equality. Teams are canonically stored sorted, but
-// callers compare against LLM/human-supplied teams that may not be — sort both
-// defensively so "same members" is the only thing that matters. Absent teams
-// (no proposal on the table yet) are tolerated and compare reflexively: two
-// absent teams are equal, and an absent team never equals a present one. This
-// is the one canonical answer — agent code used to re-implement this five ways
-// with inconsistent absent/absent handling.
+// Order-insensitive equality over a SeatSet: "same members" is the only thing
+// that matters. Named for its most common argument (a proposed/quest team), but
+// the contract is set-equality, so it also compares the non-team seat sets in
+// PrivateInfo (knownEvil, evilPartners, merlinCandidates). Teams are canonically
+// stored sorted, but callers compare against LLM/human-supplied teams that may
+// not be — sort both defensively. Absent sets (no proposal on the table yet) are
+// tolerated and compare reflexively: two absent sets are equal, and an absent set
+// never equals a present one. This is the one canonical answer — agent code used
+// to re-implement this five ways with inconsistent absent/absent handling.
 export function teamsEqual(
-  a: readonly Seat[] | undefined,
-  b: readonly Seat[] | undefined,
+  a: SeatSet | undefined,
+  b: SeatSet | undefined,
 ): boolean {
   if (a === undefined || b === undefined) return a === b
   if (a.length !== b.length) return false

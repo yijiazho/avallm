@@ -15,6 +15,16 @@ export type Alignment = 'good' | 'evil'
 
 export type Seat = number
 
+// An unordered set of seats whose membership is the only thing that matters.
+// Represented on the wire as an array, never a JS Set: a Set serializes to {},
+// and these values cross game.log / PlayerView / the client boundary as arrays.
+// The alias names set-ness at the type level for values that are NOT teams (a
+// proposed/quest team keeps the Seat[] "team" spelling); it is structurally
+// identical to readonly Seat[], so it documents intent and forbids in-place
+// mutation but adds no nominal safety. canonicalTeam sorts one; teamsEqual
+// compares two.
+export type SeatSet = readonly Seat[]
+
 export type Phase =
   | 'discussion' | 'proposal' | 'finalize' | 'vote' | 'quest' | 'assassination' | 'gameOver'
 
@@ -143,9 +153,9 @@ export type Decision =
 // ---- Views (the hidden-information chokepoint) ----
 
 export interface PrivateInfo {
-  evilPartners?: Seat[]     // evil (except Oberon): fellow evil, minus Oberon, minus self
-  knownEvil?: Seat[]        // Merlin: all evil except Mordred
-  merlinCandidates?: Seat[] // Percival: {Merlin, Morgana}, unordered
+  evilPartners?: SeatSet     // evil (except Oberon): fellow evil, minus Oberon, minus self
+  knownEvil?: SeatSet        // Merlin: all evil except Mordred
+  merlinCandidates?: SeatSet // Percival: {Merlin, Morgana}, unordered
 }
 
 export interface ProposalRecord {
