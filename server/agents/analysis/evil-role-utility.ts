@@ -25,6 +25,7 @@ import {
   canonicalRequestBlock,
   canonicalSeats,
   exactKeys,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
@@ -513,9 +514,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
     || projection.source.beliefModelVersion.length > 256
     || !Number.isSafeInteger(projection.source.beliefThroughSeq)
     || projection.source.beliefThroughSeq < -1
-    || !Number.isSafeInteger(projection.source.playerCount)
-    || projection.source.playerCount < 5
-    || projection.source.playerCount > 10
+    || !tableSize(projection.source.playerCount)
     || !canonicalRequestBlock(projection.request, {
       playerCount: projection.source.playerCount,
       kinds: ['propose', 'vote'],

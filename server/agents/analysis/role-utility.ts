@@ -26,6 +26,7 @@ import {
   exactKeys,
   plainDataRecord as plainRecord,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
@@ -373,9 +374,7 @@ function roleUtilitySchema(detached: unknown): boolean {
     || !Number.isSafeInteger(detached.source.beliefThroughSeq)
     || (detached.source.beliefThroughSeq as number) < -1
     || typeof detached.source.playerCount !== 'number'
-    || !Number.isSafeInteger(detached.source.playerCount)
-    || (detached.source.playerCount as number) < 5
-    || (detached.source.playerCount as number) > 10
+    || !tableSize(detached.source.playerCount)
     || !plainRecord(detached.request)
     || !canonicalRequestBlock(detached.request, {
       playerCount: detached.source.playerCount as number,

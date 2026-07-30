@@ -276,6 +276,27 @@ export const probability = (value: unknown): value is number =>
   && value <= 1
 
 /**
+ * A legal table size: a safe integer inside the range the engine deals.
+ *
+ * Twelve validators spelled this by hand as `< 5 || > 10` against the bare
+ * literals, in a module that has imported MIN_PLAYERS and MAX_PLAYERS for
+ * canonicalRequestBlock the whole time. The range belongs to the engine, and
+ * restating it here made this file a second membership authority of exactly
+ * the kind canonicalRoles' note describes: an eleventh seat added to the
+ * engine would reach canonicalRequestBlock and none of the twelve.
+ *
+ * It matters more than a tidiness fix, because a table size is the denominator
+ * of every seat bound in this tree. A validator that admits an out-of-range
+ * one has already made its own seat checks vacuous, since
+ * canonicalSeats(value, 9999) happily accepts seat 9998. Bounding the size is
+ * what makes bounding the seats mean anything.
+ */
+export const tableSize = (value: unknown): value is number =>
+  Number.isSafeInteger(value)
+  && (value as number) >= MIN_PLAYERS
+  && (value as number) <= MAX_PLAYERS
+
+/**
  * What a payload's decision-request block is allowed to say.
  *
  * `kinds` and the optional fields are per-payload, so each call site states

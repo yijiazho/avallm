@@ -26,6 +26,7 @@ import {
 import {
   onlyAllowedKeys,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   latticeCount,
@@ -279,9 +280,7 @@ export function validatePublicObserverSnapshot(
     || snapshot.probabilitySemantics !== 'uniform-public-feasible-joint'
     || snapshot.behavioralSemantics
       !== 'bounded-deterministic-indices-not-probabilities'
-    || !Number.isInteger(snapshot.playerCount)
-    || (snapshot.playerCount as number) < 5
-    || (snapshot.playerCount as number) > 10
+    || !tableSize(snapshot.playerCount)
     || !Number.isSafeInteger(snapshot.feasibleWorldCount)
     || (snapshot.feasibleWorldCount as number) <= 0
     || typeof snapshot.entropy !== 'number'

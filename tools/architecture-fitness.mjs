@@ -91,6 +91,7 @@ export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
   'probability',
   'sequenceEqual',
   'strictCanonicalArray',
+  'tableSize',
 ])
 /**
  * Whole names this repository has already decided are spellings of a guard.

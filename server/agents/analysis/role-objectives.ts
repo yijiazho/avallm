@@ -51,6 +51,7 @@ import {
   exactKeys,
   plainDataRecord as plainRecord,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
@@ -606,9 +607,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
     || !['constraints-only', 'weighted', 'degraded'].includes(
       source.beliefQuality as string,
     )
-    || !Number.isSafeInteger(source.playerCount)
-    || (source.playerCount as number) < 5
-    || (source.playerCount as number) > 10
+    || !tableSize(source.playerCount)
     || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
     || roleCount(source.rolesInPlay as Role[], snapshot.role as Role) !== 1
     || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION

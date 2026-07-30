@@ -5,7 +5,11 @@
 // reads player-authored text or asks a provider to interpret it.
 
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
-import { exactKeys, plainRecord } from '../components/canonical-shape.ts'
+import {
+  exactKeys,
+  plainRecord,
+  tableSize,
+} from '../components/canonical-shape.ts'
 import {
   ACCUMULATED_PROBABILITY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'
@@ -182,9 +186,7 @@ export function validateLanguageInferenceContext(
       'sources',
     ])
     || value.schemaVersion !== LANGUAGE_INFERENCE_CONTEXT_VERSION
-    || !Number.isSafeInteger(value.playerCount)
-    || (value.playerCount as number) < 5
-    || (value.playerCount as number) > 10
+    || !tableSize(value.playerCount)
     || !finiteSeat(value.viewerSeat, value.playerCount as number)
     || !Number.isSafeInteger(value.throughSeq)
     || (value.throughSeq as number) < -1

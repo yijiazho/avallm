@@ -25,6 +25,7 @@ import {
   plainDetachedData,
   plainRecord,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   closeProbability as close,
@@ -198,9 +199,7 @@ function validatePrivateActorTargetTreatmentShape(
       || value.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
       || !Number.isSafeInteger(value.observerFeasibleWorldCount)
       || (value.observerFeasibleWorldCount as number) <= 0
-      || !Number.isSafeInteger(value.playerCount)
-      || (value.playerCount as number) < 5
-      || (value.playerCount as number) > 10
+      || !tableSize(value.playerCount)
       || value.matrixSemantics !== 'dense-canonical-actor-target'
       || !denseArray(value.rows)
       || value.rows.length !== (value.playerCount as number) ** 2

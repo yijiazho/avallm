@@ -46,6 +46,7 @@ import {
   denseArray,
   exactKeys,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import type {
   AssertNever,
@@ -526,9 +527,7 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
     || !['constraints-only', 'weighted', 'degraded'].includes(
       String(source.beliefQuality),
     )
-    || !Number.isSafeInteger(source.playerCount)
-    || (source.playerCount as number) < 5
-    || (source.playerCount as number) > 10
+    || !tableSize(source.playerCount)
     || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
     || source.identityModelVersion !== JOINT_IDENTITY_MODEL_VERSION
     || source.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION

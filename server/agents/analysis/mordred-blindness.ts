@@ -55,6 +55,7 @@ import {
   plainDetachedData,
   plainRecord,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   clampProbability,
@@ -546,9 +547,7 @@ function validatePrivateMordredBlindnessObjectiveShape(
       || !['constraints-only', 'weighted', 'degraded'].includes(
         String(source.beliefQuality),
       )
-      || !Number.isSafeInteger(source.playerCount)
-      || (source.playerCount as number) < 5
-      || (source.playerCount as number) > 10
+      || !tableSize(source.playerCount)
       || !canonicalRolesWithMordredAndMerlin(
         source.rolesInPlay,
         source.playerCount as number,

@@ -55,6 +55,7 @@ import {
   exactKeys,
   plainDataRecord as plainRecord,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   clampProbability as clamp01,
@@ -639,9 +640,7 @@ function publicCounterfeitReadSchema(value: unknown): boolean {
     ])
     || value.version !== MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
     || value.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
-    || !Number.isSafeInteger(value.playerCount)
-    || (value.playerCount as number) < 5
-    || (value.playerCount as number) > 10
+    || !tableSize(value.playerCount)
     || !Number.isSafeInteger(value.feasibleWorldCount)
     || (value.feasibleWorldCount as number) <= 0
     || (value.feasibleWorldCount as number) > 3_628_800
@@ -737,9 +736,7 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
     || !['constraints-only', 'weighted', 'degraded'].includes(
       String(source.beliefQuality),
     )
-    || !Number.isSafeInteger(source.playerCount)
-    || (source.playerCount as number) < 5
-    || (source.playerCount as number) > 10
+    || !tableSize(source.playerCount)
     || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
     || !(source.rolesInPlay as Role[]).includes('morgana')
     || source.publicReadVersion

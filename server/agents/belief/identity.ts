@@ -1,5 +1,6 @@
 import {
   EVIL_COUNT,
+  MAX_PLAYERS,
   ROLE_ALIGNMENT,
   validateRoles,
 } from '../../engine/rules.ts'
@@ -17,6 +18,7 @@ import {
   denseArray,
   onlyAllowedKeys,
   probability,
+  tableSize,
 } from '../components/canonical-shape.ts'
 import {
   addProbability,
@@ -147,7 +149,7 @@ function canonicalQuery(roles: readonly Role[]): {
   ) {
     throw new Error('identity role query requires at least one role')
   }
-  if (roles.length > 10) {
+  if (roles.length > MAX_PLAYERS) {
     throw new Error('identity role query exceeds the supported player limit')
   }
   if (!roles.every(isRole)) {
@@ -223,8 +225,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
       || !denseArray(weighted.world.roleBySeat)
       || !denseArray(weighted.world.alignmentBySeat)
       || weighted.world.roleBySeat.length !== weighted.world.alignmentBySeat.length
-      || weighted.world.roleBySeat.length < 5
-      || weighted.world.roleBySeat.length > 10
+      || !tableSize(weighted.world.roleBySeat.length)
       || weighted.world.roleBySeat.some((role: unknown) => !isRole(role))
       || weighted.world.alignmentBySeat.some(
         (alignment: unknown, seat: number) => {
@@ -598,9 +599,7 @@ export function validatePrivateIdentitySnapshot(
     || !Number.isSafeInteger(source.throughSeq)
     || (source.throughSeq as number) < -1
     || !['constraints-only', 'weighted', 'degraded'].includes(source.quality as string)
-    || !Number.isInteger(source.playerCount)
-    || (source.playerCount as number) < 5
-    || (source.playerCount as number) > 10
+    || !tableSize(source.playerCount)
     || !canonicalRoles(source.rolesInPlay, source.playerCount as number)
     || !scope
     || typeof scope !== 'object'
