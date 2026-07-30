@@ -492,6 +492,30 @@ test('construction rejects registry substitution and invalid ordered identity', 
   )
 })
 
+test('layer trace projection drops componentRun and detaches the rest', async () => {
+  const input = await nativeFixtureInput()
+  const run = runDecisionLayers(input)
+  const trace = projectLayerRun(run)
+
+  // Component payloads stay single-owned by the trace's component field.
+  assert.ok(!Object.hasOwn(trace, 'componentRun'))
+  // Everything else survives, so a run field cannot be dropped silently by a
+  // projection that lists what it carries.
+  for (const key of Object.keys(run)) {
+    if (key === 'componentRun') continue
+    assert.ok(Object.hasOwn(trace, key), `trace lost ${key}`)
+    assert.deepEqual(
+      trace[key as keyof typeof trace],
+      run[key as keyof typeof run],
+      `trace changed ${key}`,
+    )
+  }
+  // Detached, not aliased: the trace shares no mutable structure with the run.
+  assert.notEqual(trace.journal, run.journal)
+  assert.notEqual(trace.surface, run.surface)
+  assert.notEqual(trace.configured, run.configured)
+})
+
 test('generic exact replay rejects order, journal, selection, and budget drift', async () => {
   const input = await nativeFixtureInput()
   const run = runDecisionLayers(input)

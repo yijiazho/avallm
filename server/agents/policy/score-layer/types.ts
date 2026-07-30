@@ -13,7 +13,11 @@ import type {
   ComponentRef,
   ComponentToken,
 } from '../../components/types.ts'
-import type { LayerRef, LayerToken } from '../layer-registry-common.ts'
+import type {
+  LayerRef,
+  LayerRunTrace,
+  LayerToken,
+} from '../layer-registry-common.ts'
 import { layerToken } from '../layer-registry-common.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
@@ -268,9 +272,7 @@ export interface ScoreLayerRun {
 }
 
 /** Detached observability projection; component payloads stay in trace.components. */
-export type ScoreLayerTrace = Readonly<
-  Omit<ScoreLayerRun, 'componentRun'>
->
+export type ScoreLayerTrace = LayerRunTrace<ScoreLayerRun>
 
 export interface ScoreLayerRunCompletion {
   readonly analysis: Immutable<SituationAnalysis>

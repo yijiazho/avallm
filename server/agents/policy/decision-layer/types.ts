@@ -9,7 +9,11 @@ import type {
   DecisionComponentDefinition,
 } from '../../components/types.ts'
 import type { DecisionComponentRun } from '../../components/run-types.ts'
-import type { LayerRef, LayerToken } from '../layer-registry-common.ts'
+import type {
+  LayerRef,
+  LayerRunTrace,
+  LayerToken,
+} from '../layer-registry-common.ts'
 import { layerToken } from '../layer-registry-common.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
@@ -184,9 +188,7 @@ export interface DecisionLayerRun {
 }
 
 /** Detached observability projection; component payloads remain in one trace field. */
-export type DecisionLayerTrace = Readonly<
-  Omit<DecisionLayerRun, 'componentRun'>
->
+export type DecisionLayerTrace = LayerRunTrace<DecisionLayerRun>
 
 export interface DecisionLayerRunInput {
   readonly order: ResolvedDecisionLayerOrder

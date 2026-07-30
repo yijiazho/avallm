@@ -138,24 +138,30 @@ export function indexLayerDefinitions<
   return Object.freeze({ byKey, exposed })
 }
 
-// Detach a resolved layer run into its observability trace: drop the live
-// component run and deep-clone the rest, keeping component payload state
-// single-owned by the trace's component field.
-export function projectLayerRun<
-  Run extends {
-    readonly version: string
-    readonly configured: unknown
-    readonly journal: unknown
-    readonly surface: unknown
-    readonly componentRun: unknown
-    readonly operations: unknown
-  },
->(run: Run): Omit<Run, 'componentRun'> {
-  return structuredClone({
-    version: run.version,
-    configured: run.configured,
-    journal: run.journal,
-    surface: run.surface,
-    operations: run.operations,
-  }) as Omit<Run, 'componentRun'>
+export interface LayerRunShape {
+  readonly componentRun: unknown
+}
+
+/** The detached trace of a layer run: everything about it except componentRun. */
+export type LayerRunTrace<Run extends LayerRunShape> =
+  Readonly<Omit<Run, 'componentRun'>>
+
+/**
+ * Detach a resolved layer run into its observability trace: drop the live
+ * component run and deep-clone the rest, keeping component payload state
+ * single-owned by the trace's component field.
+ *
+ * componentRun is dropped by omission rather than by listing the fields kept.
+ * Listing them let the type and the value disagree: the result is typed as the
+ * run minus componentRun, so a run type that gained a sixth field would have a
+ * trace whose type promised it and whose value silently lacked it. The
+ * asymmetry matters, because a stale allow-list loses observability quietly in
+ * a trace nothing compares field by field, whereas a stale omission would leak
+ * componentRun, which admission and the tests notice loudly.
+ */
+export function projectLayerRun<Run extends LayerRunShape>(
+  run: Run,
+): LayerRunTrace<Run> {
+  const { componentRun: _componentRun, ...carried } = run
+  return structuredClone(carried) as LayerRunTrace<Run>
 }
