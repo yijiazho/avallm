@@ -32,7 +32,6 @@ import {
   type PrivateAssassinMerlinPosterior,
 } from '../analysis/assassin-merlin-posterior-types.ts'
 import { legalCandidates } from '../policy/candidates.ts'
-import { componentEnvelope } from './kernel.ts'
 import {
   PRIVATE_BELIEF_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
@@ -41,10 +40,9 @@ import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../analysis/observer-types.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
+import { roleProjection } from './role-projection.ts'
 import type {
-  ComponentAdmissionResult,
   ComponentToken,
-  DecisionComponentContext,
   DecisionComponentDefinition,
 } from './types.ts'
 
@@ -72,197 +70,97 @@ ComponentToken<PrivateAssassinMerlinPosterior> = Object.freeze({
   privacy: 'private',
 })
 
-function admitted<Payload>(
-  payload: Payload,
-  exact: boolean,
-): ComponentAdmissionResult<Payload> {
-  return {
-    admitted: true,
-    payload,
-    verification: exact ? 'exact' : 'structural',
-    promotionEligible: exact,
-  }
-}
-
-function rejected<Payload>(
-  degradationCode: string,
-): ComponentAdmissionResult<Payload> {
-  return { admitted: false, degradationCode }
-}
-
-function privateNativeContext(context: DecisionComponentContext) {
-  if (context.privacy !== 'private') {
-    throw new Error('private native component received public context')
-  }
-  return context
+/** Belief-derived payloads are exact only from a constraints-only belief. */
+function exactBelief(
+  source: Readonly<{ beliefQuality: string }>,
+): boolean {
+  return source.beliefQuality === 'constraints-only'
 }
 
 export function nativeRoleComponentDefinitions():
 readonly DecisionComponentDefinition<any>[] {
-  const treatment: DecisionComponentDefinition<
-    PrivateActorTargetTreatmentRead
-  > = {
+  const treatment = roleProjection({
     token: ACTOR_TARGET_TREATMENT_COMPONENT,
-    source: 'native',
+    degradationCode: ACTOR_TARGET_TREATMENT_DEGRADATION,
     brainContribution: {
       observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
     },
-    dependencies: [],
     requiredHostInputs: [PRIVATE_PUBLIC_OBSERVER_INPUT],
-    hostRequirements: [],
     maxPayloadBytes: MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
-    degradationCode: ACTOR_TARGET_TREATMENT_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && (
-          context.request.kind === 'propose'
-          || context.request.kind === 'vote'
-        )
+      return context.request.kind === 'propose'
+        || context.request.kind === 'vote'
     },
-    execute(context) {
-      const host = privateNativeContext(context)
-      const payload = buildPrivateActorTargetTreatmentRead(
-        projectPublicRecord(host.view),
-        host.hostInputs.require(PRIVATE_PUBLIC_OBSERVER_INPUT),
-      )
+    join(context) {
       return {
-        status: 'produced',
-        envelope: componentEnvelope(ACTOR_TARGET_TREATMENT_COMPONENT, payload),
+        record: projectPublicRecord(context.view),
+        observer: context.hostInputs.require(PRIVATE_PUBLIC_OBSERVER_INPUT),
       }
     },
-    validateDetached(payload) {
-      const decoded =
-        decodeCanonicalPrivateActorTargetTreatmentRead(payload)
-      return decoded
-        ? admitted(decoded, true)
-        : rejected(ACTOR_TARGET_TREATMENT_DEGRADATION)
+    build({ record, observer }) {
+      return buildPrivateActorTargetTreatmentRead(record, observer)
     },
-    admitHost({ payload, host }) {
-      const context = privateNativeContext(host)
-      return validateAdmittedPrivateActorTargetTreatmentHostJoin(payload, {
-        record: projectPublicRecord(context.view),
-        observer: context.hostInputs.require(
-          PRIVATE_PUBLIC_OBSERVER_INPUT,
-        ),
-      })
-        ? admitted(payload, true)
-        : rejected(ACTOR_TARGET_TREATMENT_DEGRADATION)
-    },
-  }
+    decode: decodeCanonicalPrivateActorTargetTreatmentRead,
+    hostJoin: validateAdmittedPrivateActorTargetTreatmentHostJoin,
+  })
 
-  const objective: DecisionComponentDefinition<
-    PrivateMordredBlindnessObjective
-  > = {
+  const objective = roleProjection({
     token: MORDRED_BLINDNESS_COMPONENT,
-    source: 'native',
+    degradationCode: MORDRED_BLINDNESS_DEGRADATION,
     dependencies: [ACTOR_TARGET_TREATMENT_COMPONENT],
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
-    hostRequirements: [],
     maxPayloadBytes: MAX_MORDRED_BLINDNESS_JSON_BYTES,
-    degradationCode: MORDRED_BLINDNESS_DEGRADATION,
     applies(context) {
-      return context.privacy === 'private'
-        && context.view.role === 'mordred'
+      return context.view.role === 'mordred'
         && context.view.rolesInPlay.includes('merlin')
         && (
           context.request.kind === 'propose'
           || context.request.kind === 'vote'
         )
     },
-    execute(context) {
-      const host = privateNativeContext(context)
-      const payload = buildPrivateMordredBlindnessObjective({
-        req: host.request,
-        view: host.view,
-        belief: host.hostInputs.require(PRIVATE_BELIEF_INPUT),
-        treatment: host.dependencies.require(ACTOR_TARGET_TREATMENT_COMPONENT),
-        candidates: legalCandidates(host.request, host.view),
-      })
+    join(context) {
       return {
-        status: 'produced',
-        envelope: componentEnvelope(MORDRED_BLINDNESS_COMPONENT, payload),
-      }
-    },
-    validateDetached(payload) {
-      const decoded =
-        decodeCanonicalPrivateMordredBlindnessObjective(payload)
-      return decoded
-        ? admitted(
-            decoded,
-            decoded.source.beliefQuality === 'constraints-only',
-          )
-        : rejected(MORDRED_BLINDNESS_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const context = privateNativeContext(host)
-      const belief = context.hostInputs.require(PRIVATE_BELIEF_INPUT)
-      return validateAdmittedPrivateMordredBlindnessHostJoin(payload, {
         req: context.request,
         view: context.view,
-        belief,
+        belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
         treatment: context.dependencies.require(
           ACTOR_TARGET_TREATMENT_COMPONENT,
         ),
         candidates: legalCandidates(context.request, context.view),
-      })
-        ? admitted(payload, belief.quality === 'constraints-only')
-        : rejected(MORDRED_BLINDNESS_DEGRADATION)
+      }
     },
-  }
+    build: buildPrivateMordredBlindnessObjective,
+    decode: decodeCanonicalPrivateMordredBlindnessObjective,
+    hostJoin: validateAdmittedPrivateMordredBlindnessHostJoin,
+    detachedExact: (payload) => exactBelief(payload.source),
+    hostExact: (_payload, input) =>
+      input.belief.quality === 'constraints-only',
+  })
 
-  const assassinPosterior: DecisionComponentDefinition<
-    PrivateAssassinMerlinPosterior
-  > = {
+  const assassinPosterior = roleProjection({
     token: ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
-    source: 'native',
-    dependencies: [],
-    requiredHostInputs: [PRIVATE_BELIEF_INPUT],
-    hostRequirements: [],
-    maxPayloadBytes: MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
     degradationCode: ASSASSIN_MERLIN_POSTERIOR_DEGRADATION,
+    requiredHostInputs: [PRIVATE_BELIEF_INPUT],
+    maxPayloadBytes: MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
     applies(context) {
-      return context.privacy === 'private'
-        && context.view.role === 'assassin'
+      return context.view.role === 'assassin'
         && context.view.rolesInPlay.includes('merlin')
         && context.request.kind === 'assassinate'
     },
-    execute(context) {
-      const host = privateNativeContext(context)
-      const payload = buildPrivateAssassinMerlinPosterior({
-        req: host.request,
-        view: host.view,
-        belief: host.hostInputs.require(PRIVATE_BELIEF_INPUT),
-      })
+    join(context) {
       return {
-        status: 'produced',
-        envelope: componentEnvelope(
-          ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
-          payload,
-        ),
+        req: context.request,
+        view: context.view,
+        belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
       }
     },
-    validateDetached(payload) {
-      const decoded =
-        decodeCanonicalPrivateAssassinMerlinPosterior(payload)
-      return decoded
-        ? admitted(decoded, decoded.source.beliefQuality === 'constraints-only')
-        : rejected(ASSASSIN_MERLIN_POSTERIOR_DEGRADATION)
-    },
-    admitHost({ payload, host }) {
-      const context = privateNativeContext(host)
-      const belief = context.hostInputs.require(PRIVATE_BELIEF_INPUT)
-      return validateAdmittedPrivateAssassinMerlinPosteriorHostJoin(
-        payload,
-        {
-          req: context.request,
-          view: context.view,
-          belief,
-        },
-      )
-        ? admitted(payload, belief.quality === 'constraints-only')
-        : rejected(ASSASSIN_MERLIN_POSTERIOR_DEGRADATION)
-    },
-  }
+    build: buildPrivateAssassinMerlinPosterior,
+    decode: decodeCanonicalPrivateAssassinMerlinPosterior,
+    hostJoin: validateAdmittedPrivateAssassinMerlinPosteriorHostJoin,
+    detachedExact: (payload) => exactBelief(payload.source),
+    hostExact: (_payload, input) =>
+      input.belief.quality === 'constraints-only',
+  })
 
   return Object.freeze([treatment, objective, assassinPosterior])
 }
