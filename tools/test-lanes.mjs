@@ -107,6 +107,7 @@ const LANES = Object.freeze({
     'composed-agent-spec.test.ts',
     'decision-fixtures.test.ts',
     'eval.test.ts',
+    'good-policy-diagnosis.test.ts',
     'phase0-baselines.test.ts',
     'phase4d-evaluation.test.ts',
     'phase5b-quest-factor.test.ts',

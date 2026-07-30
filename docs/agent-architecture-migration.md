@@ -286,7 +286,9 @@ while the primary lane runs, then integrate them one at a time.
 | NB-006 | Phase 7 parallel tooling | Add an API-free seat-view inspector at the stable agent boundary | Accept only `DecisionRequest + PlayerView`, explicitly select every diagnostic field, reject raw-Game-shaped input, hidden role fields on public players, mismatched cursors, and invisible events, and open the frozen architecture decision fixtures without depending on role-specific policy or trace schemas. Rich posterior, candidate, and component diagnostics remain deferred until the Phase 7R interfaces stabilize. | `landed` |
 | NB-007 | Phase 7 correctness | Stabilize exact identity projection on large joint support | One compensated accumulator covers source normalization, grouped role and hidden-team mass, and detached lattice admission. The actual 10-player `phase4-good-v1` vote with 58,080 uniform worlds now reaches trusted-exact admission without rounding, tolerance widening, special casing, or invalid-mass renormalization. | `landed` |
 | NB-008 | Post-Phase-7 test consolidation | Extract a shared score-family conformance harness | Consolidate repeated family fixtures for predecessor delegation, bounded specialization, deterministic seed domains, forced-boundary dominance, and native replay. Preserve focused family-specific causal laws; do not replace the generic registry, admission, privacy, and replay suites with another parallel matrix. | `landed` |
-| NB-010 | Phase 7 strength gate | Diagnose the base good policy's adverse win rate against the heuristic population | The full-role stack matches base-composed on win rate in all six measured cells while raising vote-truth accuracy up to `+26.4%`, so the defect is in the Phase 4 base good policy, not the role layers. Work the base proposal and vote value functions against the heuristic population without touching role specialization, and keep both populations in every comparison so the 5C sign flip stays visible. | `ready` |
+| NB-010 | Phase 7 strength gate | Diagnose the base good policy's adverse win rate against the heuristic population | Complete. A `good-proposal-only` arm localized the loss to the vote channel, whose marginal cost is `8.3` points in each of the three good roles, and `good-policy-diagnosis.ts` names two causes: Merlin legibility (near-oracle votes raise assassinations `16.7%` to `26.7%`) and permissiveness at an information-poor seat behind a symmetric vote-truth metric. NB-012 and NB-013 own the fixes. | `landed` |
+| NB-012 | NB-010 | Price concealment in the good value function | Merlin's own vote record is unpriced, so improving vote accuracy identifies the seat to any opponent that reads vote history. Phase 7A's exact public observer already exists and is mechanically inert; give it a bounded, versioned cost term rather than a new belief source, and gate it on the assassination channel falling without three-fail losses rising. Keep both populations in the comparison. | `ready` |
+| NB-013 | NB-010 | Make the vote objective and its metric asymmetric | Rejecting a clean team costs one proposal; approving a dirty team can cost a quest. `voteTruthAccuracy` weights both equally and rose while wins fell, so it cannot gate a promotion. Separate the two directions in the report, then weight them in the vote value function, and require the dirty-team approval rate to fall rather than the symmetric accuracy to rise. | `ready` |
 | NB-011 | Phase 7 strength gate | Freeze an evil-side policy bank | `phase4-good-v1` targets only Merlin, Percival, and Servant, so D2, Morgana, Mordred, and Assassin authority is never causal in a strength measurement. Mirror `phase4-policy-bank.ts` with pinned expected seats for evil target roles at every player count, then rerun the full-role bench so the evil half has a win-rate number rather than only F2B's causal audit. | `ready` |
 | NB-009 | NB-008 follow-on | Make the three legacy role-policy suites strict | `phase7c2-role-policy`, `phase7d2-evil-policy`, and `phase7e1b-morgana-policy` remain hash-pinned strict-test exemptions. Their 257 diagnostics are two mechanical classes: unnormalized `AgentOutput` member access and implicitly typed score callbacks. Route them through `normalizeAgentOutput` and annotate the callbacks, then delete the exemptions rather than refreshing their hashes again. | `ready` |
 
@@ -3520,6 +3522,39 @@ here.
   validates it. Separately, the historical v1 role trace projections moved behind
   `admission/legacy-role-trace-v1.ts` with `ARCH012` pinning its single importer, taking the generic
   admission owner from 5,059 to 4,199 lines. Full suite passes 1113 tests.
+- NB-010 base good-policy diagnosis: the adverse win rate is in the vote channel, and it has two
+  separate named causes. Adding a `good-proposal-only` arm (structured proposal value, compatibility
+  votes) to the same bank and populations isolates the channel. Matched-pair win-rate deltas against
+  compatibility on the heuristic population, 60 games per cell: proposal-only is `+5.0%` for Merlin
+  (95% `0.0%` to `+11.7%`), `+0.0%` for Percival (`-6.7%` to `+6.7%`), and `-6.7%` for Servant
+  (`-15.0%` to `0.0%`), while adding the vote channel gives `-3.3%`, `-8.3%`, and `-15.0%`
+  respectively. The marginal cost of the vote channel is `8.3` points in every one of the three good
+  roles. Per-cell intervals are wide and only the Servant total excludes zero, so the evidence is
+  that identical marginal cost across roles, and it reproduces Phase 5C's finding on the finished
+  architecture. Proposal value is not the problem for Merlin or Percival; it is mildly harmful only
+  at the Servant seat. `good-policy-diagnosis.ts` reads bench artifacts and reports the mechanism.
+  The first cause is Merlin legibility, and the two populations prove it by contrast rather than by
+  argument. The composed vote is near-oracle in both, cutting the target's approvals of dirty teams
+  from about `18%` to about `3%`. Against the heuristic population that pattern identifies the seat:
+  Merlin assassinations rise from `16.7%` to `26.7%` while three-fail losses fall only `65.0%` to
+  `63.3%`, so the endgame is reached more often and lost to the shot. Against the seeded random
+  population the identical vote pattern *lowers* assassinations, `16.7%` to `11.7%`, and the seat wins
+  `58.3%` to `71.7%`. The behavior is therefore not intrinsically bad; it is exploited. An assassin
+  that reads the vote record converts accuracy into a target, and one that cannot read it does not.
+  The good value function has no term for what its own vote record reveals, and Phase 7A's exact
+  public observer is present but mechanically inert, so nothing prices concealment. This is the §2
+  gap row that still reads "no explicit model of public suspicion".
+  The second cause is permissiveness at an information-poor seat, together with a metric that hides
+  it. `voteTruthAccuracy` scores a vote correct when `(vote === 'reject') === teamHasEvil`, which
+  weights both error directions equally, but their game value is not equal: rejecting a clean team
+  costs one proposal while approving a dirty team can cost a quest. The composed Servant converts
+  compatibility's indiscriminate rejections into approvals, dropping clean-team rejections from
+  `12.5%` to `4.8%` while leaving dirty-team approvals at `39.8%` against `37.7%`, so its approval
+  rate rises from `55.2%` to `61.9%`, quest failures from `49.2%` to `53.6%`, and three-fail losses
+  from `60.0%` to `73.3%`. Vote-truth accuracy rises throughout. The Servant seat also loses on the
+  proposal channel alone (`26.7%` to `20.0%`), so it carries a proposal defect the other two roles do
+  not. NB-012 owns concealment cost and NB-013 owns the asymmetric vote objective; both are policy
+  changes and neither is attempted here.
 - Phase 7 full-role playing-strength gate, and the first seatable composed brain. F2B proved causal
   correctness, not strength, so `phase7-full-role-bench.ts` reuses the frozen 180-deal
   `phase4-good-v1` bank and the existing matched-case paired-bootstrap comparison to measure

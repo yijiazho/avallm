@@ -1,0 +1,251 @@
+// NB-010 diagnosis: why the structured good policy loses to the heuristic
+// population while its vote-truth accuracy rises.
+//
+// `voteTruthAccuracy` in architecture-report.ts scores a vote correct when
+// `(vote === 'reject') === teamHasEvil`, so a wrongly rejected clean team and a
+// wrongly approved dirty team count the same. Their game value is not the same:
+// rejecting a clean team costs one proposal, while approving a dirty team can
+// cost a quest and the game. This reader separates the two directions and pairs
+// them with the outcome channel that actually ended each game, which is what
+// makes the adverse win rate legible.
+//
+// It reads artifacts already written by a bench run. It plays no games, makes no
+// call, and joins the true role deal, so it is offline evaluation only.
+
+import { readFileSync } from 'node:fs'
+import { parseArgs } from 'node:util'
+import { pathToFileURL } from 'node:url'
+import type { GameArtifact } from './artifact.ts'
+
+export const GOOD_POLICY_DIAGNOSIS_VERSION = 'good-policy-diagnosis-v1'
+
+export interface GoodPolicyDiagnosisCell {
+  readonly bank: string
+  readonly targetRole: string
+  readonly variant: string
+  readonly games: number
+  readonly targetWins: number
+  /** Games that ended on each terminal channel, keyed `winner:winReason`. */
+  readonly outcomes: Readonly<Record<string, number>>
+  readonly proposals: number
+  readonly hammerProposals: number
+  readonly targetVotes: number
+  readonly targetApprovals: number
+  /** The cheap vote error: one wasted proposal. */
+  readonly rejectedCleanTeams: number
+  /** The expensive vote error: a quest evil can fail. */
+  readonly approvedDirtyTeams: number
+  readonly questsRun: number
+  readonly questsFailed: number
+}
+
+export interface GoodPolicyDiagnosis {
+  readonly version: typeof GOOD_POLICY_DIAGNOSIS_VERSION
+  readonly cells: readonly GoodPolicyDiagnosisCell[]
+}
+
+interface MutableCell {
+  bank: string
+  targetRole: string
+  variant: string
+  games: number
+  targetWins: number
+  outcomes: Map<string, number>
+  proposals: number
+  hammerProposals: number
+  targetVotes: number
+  targetApprovals: number
+  rejectedCleanTeams: number
+  approvedDirtyTeams: number
+  questsRun: number
+  questsFailed: number
+}
+
+function architectureOf(artifact: GameArtifact): Readonly<{
+  bank: string
+  variant: string
+  targetRole: string
+  targetSeat: number
+}> {
+  const architecture = artifact.architecture
+  if (
+    !architecture
+    || typeof architecture.bank !== 'string'
+    || typeof architecture.variant !== 'string'
+    || typeof architecture.targetRole !== 'string'
+    || !Number.isInteger(architecture.targetSeat)
+  ) {
+    throw new Error('artifact is not an architecture bench result')
+  }
+  return architecture as ReturnType<typeof architectureOf>
+}
+
+export function diagnoseGoodPolicy(
+  artifacts: readonly GameArtifact[],
+): GoodPolicyDiagnosis {
+  const cells = new Map<string, MutableCell>()
+  for (const artifact of artifacts) {
+    const architecture = architectureOf(artifact)
+    const key = [
+      architecture.bank,
+      architecture.targetRole,
+      architecture.variant,
+    ].join('\0')
+    let cell = cells.get(key)
+    if (!cell) {
+      cell = {
+        bank: architecture.bank,
+        targetRole: architecture.targetRole,
+        variant: architecture.variant,
+        games: 0,
+        targetWins: 0,
+        outcomes: new Map(),
+        proposals: 0,
+        hammerProposals: 0,
+        targetVotes: 0,
+        targetApprovals: 0,
+        rejectedCleanTeams: 0,
+        approvedDirtyTeams: 0,
+        questsRun: 0,
+        questsFailed: 0,
+      }
+      cells.set(key, cell)
+    }
+    const evilSeats = new Set(
+      artifact.players
+        .filter((player) => player.alignment === 'evil')
+        .map((player) => player.seat),
+    )
+    const targetSide = artifact.players
+      .find((player) => player.seat === architecture.targetSeat)?.alignment
+    cell.games++
+    if (artifact.winner === targetSide) cell.targetWins++
+    const outcome = `${artifact.winner}:${artifact.winReason}`
+    cell.outcomes.set(outcome, (cell.outcomes.get(outcome) ?? 0) + 1)
+
+    for (const event of artifact.log) {
+      const payload = event.payload as Record<string, unknown>
+      if (event.type === 'proposal') {
+        cell.proposals++
+        if (payload.proposalNum === 5) cell.hammerProposals++
+        continue
+      }
+      if (event.type === 'voteReveal') {
+        const votes = payload.votes as
+          readonly { seat: number; vote: string }[] | undefined
+        const team = payload.team as readonly number[] | undefined
+        if (!votes || !team) continue
+        const targetVote = votes.find(
+          (vote) => vote.seat === architecture.targetSeat,
+        )
+        if (!targetVote) continue
+        const dirty = team.some((seat) => evilSeats.has(seat))
+        cell.targetVotes++
+        if (targetVote.vote === 'approve') {
+          cell.targetApprovals++
+          if (dirty) cell.approvedDirtyTeams++
+        } else if (!dirty) {
+          cell.rejectedCleanTeams++
+        }
+        continue
+      }
+      if (event.type === 'questResult') {
+        cell.questsRun++
+        if (payload.result === 'fail') cell.questsFailed++
+      }
+    }
+  }
+  return {
+    version: GOOD_POLICY_DIAGNOSIS_VERSION,
+    cells: [...cells.values()].map((cell) => Object.freeze({
+      ...cell,
+      outcomes: Object.freeze(Object.fromEntries(
+        [...cell.outcomes].sort(([left], [right]) =>
+          left < right ? -1 : left > right ? 1 : 0),
+      )),
+    })),
+  }
+}
+
+export function readArtifacts(path: string): readonly GameArtifact[] {
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as GameArtifact)
+}
+
+const pct = (numerator: number, denominator: number): string =>
+  denominator === 0
+    ? '    n/a'
+    : `${(100 * numerator / denominator).toFixed(1)}%`.padStart(7)
+
+const per = (numerator: number, denominator: number): string =>
+  denominator === 0
+    ? '  n/a'
+    : (numerator / denominator).toFixed(2).padStart(5)
+
+export function renderGoodPolicyDiagnosis(
+  diagnosis: GoodPolicyDiagnosis,
+): string {
+  const lines: string[] = [
+    'columns: win = target-side win rate; prop/g = proposals per game '
+    + '(rejection pressure);',
+    '  rejClean = cheap vote error; apprDirty = expensive vote error; '
+    + 'qFail = quests failed',
+  ]
+  const banks = [...new Set(diagnosis.cells.map((cell) => cell.bank))].sort()
+  for (const bank of banks) {
+    lines.push('', `bank ${bank}`)
+    lines.push(
+      '  role      variant             win  prop/g hammer  apprv rejClean '
+      + 'apprDirty   qFail  outcomes',
+    )
+    for (const cell of diagnosis.cells.filter((row) => row.bank === bank)) {
+      const outcomes = Object.entries(cell.outcomes)
+        .map(([key, count]) => `${key} ${pct(count, cell.games).trim()}`)
+        .join(', ')
+      lines.push(
+        `  ${cell.targetRole.padEnd(9)} ${cell.variant.padEnd(18)}`
+        + `${pct(cell.targetWins, cell.games)}`
+        + ` ${per(cell.proposals, cell.games)}`
+        + ` ${per(cell.hammerProposals, cell.games)}`
+        + ` ${pct(cell.targetApprovals, cell.targetVotes)}`
+        + ` ${pct(cell.rejectedCleanTeams, cell.targetVotes)}`
+        + ` ${pct(cell.approvedDirtyTeams, cell.targetVotes)}`
+        + ` ${pct(cell.questsFailed, cell.questsRun)}`
+        + `  ${outcomes}`,
+      )
+    }
+  }
+  return lines.join('\n')
+}
+
+function main(): void {
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: { json: { type: 'boolean', default: false } },
+  })
+  if (positionals.length !== 1) {
+    throw new Error(
+      'usage: node server/eval/good-policy-diagnosis.ts <artifacts.jsonl> [--json]',
+    )
+  }
+  const diagnosis = diagnoseGoodPolicy(readArtifacts(positionals[0]))
+  process.stdout.write(
+    values.json
+      ? `${JSON.stringify(diagnosis, null, 2)}\n`
+      : `${renderGoodPolicyDiagnosis(diagnosis)}\n`,
+  )
+}
+
+if (
+  process.argv[1]
+  && import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  try {
+    main()
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  }
+}

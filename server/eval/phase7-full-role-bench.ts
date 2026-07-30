@@ -30,6 +30,7 @@ import {
 import {
   CANDIDATE_SCORER_VERSION,
   fullRolePolicyScorer,
+  goodProposalScorer,
   goodProposalVoteScorer,
 } from '../agents/policy/score.ts'
 import {
@@ -60,6 +61,7 @@ export const PHASE7_FULL_ROLE_BANK_ID =
 
 export const PHASE7_FULL_ROLE_VARIANTS = {
   compatibility: 'compatibility',
+  proposalOnly: 'good-proposal-only',
   baseComposed: 'base-composed',
   fullRole: 'full-role',
 } as const
@@ -121,6 +123,24 @@ export function phase7FullRoleVariantsFor(
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         onDecisionTrace: context.onDecisionTrace,
+      }),
+    },
+    {
+      // Isolates the channel: structured proposal value with compatibility
+      // votes. If the win-rate loss disappears here, the defect is in the vote
+      // value function, not the proposal one.
+      id: PHASE7_FULL_ROLE_VARIANTS.proposalOnly,
+      descriptor: `${PHASE7_FULL_ROLE_EVAL_VERSION}:good-proposal-only`,
+      paid: false,
+      components: common(
+        'structured-only',
+        goodProposalScorer.version,
+        'ablation',
+      ),
+      createTargetAgent: (context) => createComposedAgent({
+        seed: context.seed,
+        onDecisionTrace: context.onDecisionTrace,
+        scorer: goodProposalScorer,
       }),
     },
     {
