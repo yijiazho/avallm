@@ -53,13 +53,11 @@ import {
 } from '../engine/rules.ts'
 import type { PlayerView, Seat } from '../engine/types.ts'
 import { boardSituation } from './analysis/situation.ts'
+import { seatName } from './prompt-format.ts'
 import {
   projectPublicRecord,
   type PublicRecord,
 } from './communication/public-record.ts'
-
-const nameOf = (record: PublicRecord, s: Seat) =>
-  `${record.players[s].name}(seat ${s})`
 
 // The canonical rendering of a quest result token — `Q3(FAIL)` / `Q1(ok)`. Lives
 // here (the facts layer that owns the dossier vocabulary) and is reused by the
@@ -260,7 +258,7 @@ function questEvidenceSection(record: PublicRecord): string {
   const rows: string[] = []
   for (const q of record.quests) {
     if (q.result === undefined || !q.team) continue
-    const team = q.team.map((s) => nameOf(record, s)).join(', ')
+    const team = q.team.map((s) => seatName(record, s)).join(', ')
     const cells = [questResultTag(q.num, q.result === 'fail'), `team: ${team}`]
     if (q.result === 'fail') {
       // failCount is optional on Quest, and a failed quest always had at least
@@ -338,7 +336,7 @@ export function factsDossierFromPublicRecord(
     //   <player> | <key>: <value> | <key>: <value> ...
     // The player id is the row key (first cell); every other cell is `key: value`,
     // cells pipe-separated. Empty fields are omitted, never rendered blank.
-    const fields: string[] = [nameOf(record, p.seat)]
+    const fields: string[] = [seatName(record, p.seat)]
     fields.push(
       r.onQuests.length
         ? `on-team: ${r.onQuests.map((q) => questResultTag(q.num, q.failed)).join(', ')}`

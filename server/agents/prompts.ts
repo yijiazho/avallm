@@ -21,22 +21,13 @@
 // Code comments are exempt: they never reach the model. This block, for
 // instance, is free to use dashes.
 
-import {
-  MAX_PROPOSALS,
-  ROLE_ALIGNMENT,
-  isCompletedQuest,
-  proposalResolved,
-} from '../engine/rules.ts'
+import { MAX_PROPOSALS, ROLE_ALIGNMENT, proposalResolved } from '../engine/rules.ts'
 import { mentionsName } from '../engine/names.ts'
 import { evilPartnersOf } from '../engine/knowledge.ts'
 import { knownEvilAboard, matchPoint } from './board.ts'
-import { analyzeSituation } from './analysis/situation.ts'
-import { exactBelief } from './belief/exact.ts'
-import {
-  compatibilityCertainties,
-  type RoleCertainties,
-} from './communication/compat-certainties.ts'
-import { factsDossier, questResultTag } from './facts.ts'
+import { factsDossier } from './facts.ts'
+import { knowledgeText } from './knowledge-text.ts'
+import { listOf, seatName } from './prompt-format.ts'
 import {
   experimentalBeliefContext,
 } from './experimental.ts'
@@ -46,6 +37,10 @@ import type { Alignment, PlayerView, Role, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
 import type { BeliefSnapshot } from './belief/types.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
+
+// knowledgeText moved to ./knowledge-text.ts; re-exported so existing importers
+// (tests, eval) keep reading it from here.
+export { knowledgeText } from './knowledge-text.ts'
 
 // ---- constants (cache-friendly) ----
 
@@ -59,9 +54,6 @@ import type { LlmCallKind } from '../llm/call-params.ts'
 //
 // Kept byte-identical across seats and turns within a game (it varies only by
 // cast), so the shared prompt prefix still caches.
-const listOf = (items: string[]): string =>
-  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
-
 function digestFor(roles: readonly Role[]): string {
   const has = (r: Role) => roles.includes(r)
   const label = (r: Role, plural = false) => ({
@@ -232,261 +224,6 @@ export const OUTPUT_CONTRACTS: Record<LlmCallKind, string> = {
 
 // ---- view rendering (engine facts, never model memory) ----
 
-const nameOf = (view: PlayerView, s: Seat) => `${view.players[s].name}(seat ${s})`
-
-// The deciding seat's own public vote-vs-outcome record over resolved quests: a
-// vote "matches" when approve rode a success or reject rode a fail. Merlin, who
-// votes on truth it alone can see, tends toward a SPOTLESS record — the Assassin's
-// single clearest tell — yet is blind to how perfect it looks and keeps
-// broadcasting it (playtest: assassinated after reading every evil correctly).
-// Surfacing the count as a private fact lets the "throw a deliberate wrong vote"
-// guidance in ROLE_GUIDANCE.merlin actually fire. The raw votes are already public
-// (dossier), but the "this is YOUR tell" framing is Merlin-only, never handed to
-// the table.
-function ownVoteMatchRecord(view: PlayerView): { matches: number; total: number } {
-  let matches = 0
-  let total = 0
-  for (const prop of view.proposals) {
-    if (prop.outcome !== 'voted' || !prop.approved) continue
-    const quest = view.quests[prop.round - 1]
-    if (quest?.status !== 'complete') continue
-    const mine = prop.votes.find((v) => v.seat === view.seat)
-    if (!mine) continue
-    total++
-    if ((mine.vote === 'approve') === (quest.result === 'success')) matches++
-  }
-  return { matches, total }
-}
-
-// Role names as the table says them, so prompt prose reads like the rulebook.
-const ROLE_LABEL: Record<Role, string> = {
-  merlin: 'Merlin', percival: 'Percival', servant: 'a Loyal Servant',
-  assassin: 'the Assassin', morgana: 'Morgana', mordred: 'Mordred',
-  oberon: 'Oberon', minion: 'a Minion',
-}
-
-// Remove one copy of each named role, so a cast with two Servants keeps the
-// second after the seat's own is taken out.
-function without(roles: readonly Role[], ...remove: Role[]): Role[] {
-  const out = [...roles]
-  for (const r of remove) {
-    const i = out.indexOf(r)
-    if (i >= 0) out.splice(i, 1)
-  }
-  return out
-}
-
-// A role MULTISET as prose. Counts are kept rather than deduped: "a Loyal
-// Servant, the Assassin and Oberon" for four seats silently loses a Servant, and
-// a line that presents itself as a settled deduction cannot afford to be short
-// one role.
-function roleMultisetPhrase(roles: readonly Role[]): string {
-  const counted = new Map<Role, number>()
-  for (const r of roles) counted.set(r, (counted.get(r) ?? 0) + 1)
-  return listOf([...counted].map(([r, n]) =>
-    n > 1 ? `${n} ${ROLE_LABEL[r].replace(/^(an? |the )/, '')}s` : ROLE_LABEL[r]))
-}
-
-// What the OTHER seats hold. Pure restatement of two things the seat already has
-// (the public role multiset and its own role), but stated as the deduction
-// rather than left for the model to perform. A Servant that never works this out
-// does not know a Merlin exists to protect, which is exactly how a loyal seat
-// ends up publicly certifying the one player it should be blurring.
-// `alsoPlaced` drops roles the seat has ALREADY located, so the line never
-// re-offers a role as unknown one sentence after naming who holds it (a Percival
-// with no Morgana is told which seat is Merlin, then must not be told Merlin is
-// somewhere among the rest).
-function compositionLine(view: PlayerView, alsoPlaced: Role[] = []): string {
-  const rest = without(view.rolesInPlay, view.role, ...alsoPlaced)
-  if (!rest.length) return ''
-  return ` The other ${rest.length} seats hold ${roleMultisetPhrase(rest)}, in some order.`
-}
-
-// What the RESOLVED QUESTS added on top of the deal, and only that. The dossier
-// has printed the arithmetic ("2 Fails, so at least 2 of these 4 are evil") since
-// the start, and across every observed game no bot ever spent it as an
-// elimination: one closing model had all three players on a quest it had watched
-// fail reading good. So the elimination is computed in board.ts and stated here
-// as a conclusion, since stating the premise plainly has already been tried.
-//
-// Kept separate from the deal lines above rather than merged into them. They are
-// different KINDS of fact, and the difference decides whether the seat can say it
-// out loud, which is the next sentence's whole job.
-function recordLine(view: PlayerView, certain: RoleCertainties): string {
-  const added = certain.fromRecord
-  if (!added.length) return ''
-  const side = (a: Alignment) => (a === 'evil' ? 'EVIL' : 'GOOD')
-  // Two grammatical positions, so two renderers. `names X as EVIL` reads as a
-  // verb taking an object; `X is EVIL` is a standalone claim. Using one string
-  // for both produced "Quest 1 names P4 is EVIL".
-  const named = (f: typeof added[number]) => nameOf(view, f.seat)
-  const asSide = (group: typeof added) => {
-    const one = group[0].alignment
-    return group.every((f) => f.alignment === one)
-      ? `${listOf(group.map(named))} as ${side(one)}`
-      : listOf(group.map((f) => `${named(f)} as ${side(f.alignment)}`))
-  }
-  const isSide = (group: typeof added) => {
-    const one = group[0].alignment
-    return group.every((f) => f.alignment === one)
-      ? `${listOf(group.map(named))} ${group.length === 1 ? 'is' : 'are'} ${side(one)}`
-      : listOf(group.map((f) => `${named(f)} is ${side(f.alignment)}`))
-  }
-
-  // One quest can force SEVERAL seats at once, whenever it took more Fails than
-  // the rest of its team can account for. Rendering those seats one at a time
-  // said "he is the only one left" about each of two players in the same
-  // sentence, which is a flat contradiction and hit 929 of 2713 renders. So
-  // group by the quest that forced them and let the count pick the wording.
-  const byQuest = new Map<number, typeof added>()
-  const derived: typeof added = []
-  for (const f of added) {
-    if (f.questNum === undefined) derived.push(f)
-    else byQuest.set(f.questNum, [...(byQuest.get(f.questNum) ?? []), f])
-  }
-
-  // The REASON is stated once and then applied, rather than repeated per seat.
-  // Repeating it put the same clause in the sentence as many times as the record
-  // had closed seats (an Oberon, who has no partner list to work from, reached
-  // six), which is both bloat in a budget that is already contested and two
-  // absolute-sounding claims a model has to notice are separately scoped.
-  const groups = [...byQuest].sort((a, b) => a[0] - b[0])
-  const singles = groups.filter(([, g]) => g.length === 1)
-  const multis = groups.filter(([, g]) => g.length > 1)
-
-  const parts: string[] = []
-  if (singles.length) {
-    parts.push(`A quest that failed while every other player on it is one you can already place names the player you cannot:`
-      + ` ${singles.map(([num, g]) => `Quest ${num} names ${asSide(g)}`).join('; ')}.`)
-  }
-  for (const [num, g] of multis) {
-    parts.push(`Quest ${num} took more Fails than the rest of its team can account for, which names ${asSide(g)}.`)
-  }
-  // Budget deductions are consequences of the quest ones, so they follow them.
-  // The old wording pointed at "the seats above" while fromRecord is in seat
-  // order, which could put it first with nothing above it to follow from.
-  if (derived.length) {
-    parts.push(parts.length
-      ? `${isSide(derived)}, which follows once those seats are placed.`
-      : `${isSide(derived)}, which the resolved quests now force.`)
-  }
-
-  return ` The quest record has since settled ${added.length === 1 ? 'one more seat' : `${added.length} more seats`}`
-    + ` that the deal alone left open. ${parts.join(' ')}`
-    + ` Whether you can say that out loud depends on the premise it rests on: if it rests on a quest you sat on yourself,`
-    + ` the table can follow the same steps, and if it rests on who you were shown at the deal, showing the working shows what you are.`
-}
-
-export function knowledgeText(
-  view: PlayerView,
-  suppliedBelief?: BeliefSnapshot,
-): string {
-  const belief = suppliedBelief ?? exactBelief(view)
-  const analysis = analyzeSituation(view, { belief })
-  const certainty = compatibilityCertainties(view, belief, analysis)
-  return dealKnowledgeText(view, certainty) + recordLine(view, certainty)
-}
-
-// Both private lists below are COMPLETE unless one specific role is dealt, and
-// that role is named in the rules. So when it is absent, the list closes and the
-// complement is certain; when it is present, the gap is exactly one known role
-// rather than general doubt. Stating the counterfactual unconditionally, which
-// is what these lines used to do, put a role at the table in every game: a
-// Morgana in a no-Oberon deal twice wrote a seat off as "likely evil or Oberon"
-// at 75% and 80%, a proposition its own partner list refutes.
-//
-// Certainty is more dangerous to say out loud than doubt was, so every branch
-// that closes a deduction also carries the gag. Merlin's may name the Assassin
-// because knownEvil is Merlin-only and the lattice makes Assassin implied.
-function dealKnowledgeText(
-  view: PlayerView,
-  certain: RoleCertainties,
-): string {
-  const info = view.privateInfo
-  const named = (seats: readonly Seat[]) => seats.map((s) => nameOf(view, s)).join(', ')
-
-  if (info.kind === 'merlin') {
-    const gap = view.rolesInPlay.includes('mordred')
-      ? ` Mordred is dealt, and they are the one evil hidden from you, so exactly one more evil sits among the others.`
-      : ` That list is the whole of evil, so every other seat is good: ${named(certain.knownGood)}. It is settled, not a read you are still forming.`
-    const base = `You see these players as EVIL: ${named(info.knownEvil)}.${gap}` +
-      ` Never say it, and never argue from a confidence only your sight could explain, because that is what the Assassin is hunting for.`
-    // Flag a spotless streak (>=2 resolved, every vote matched) — the point where
-    // the record becomes a live tell. A single off vote gives cover, so don't nag.
-    const { matches, total } = ownVoteMatchRecord(view)
-    return total >= 2 && matches === total
-      ? `${base} So far every public vote you have cast on a resolved quest has matched its outcome (${total} of ${total}): a spotless record the whole table can see.`
-      : base
-  }
-  if (view.alignment === 'evil') {
-    const evilPartners = evilPartnersOf(info)
-    if (!evilPartners.length) {
-      return `You are evil, but your fellow evil are unknown to you (and they do not know you).${compositionLine(view)}`
-    }
-    const gap = view.rolesInPlay.includes('oberon')
-      ? ` An Oberon is dealt, and they are hidden from their own side, so one more evil may be riding along unseen.`
-      : ` Evil is exactly you and them, so every other seat is good: ${named(certain.knownGood)}.`
-    // Evil shares one win condition after three successes, so the Merlin pool is
-    // the Assassin's shortlist from the deal rather than a puzzle to open at the
-    // end. Gated on the seat being able to PROVE the pool: with an Oberon dealt
-    // the partner list is incomplete, so "candidates" would be a guess dressed as
-    // a deduction, and naming the unseen teammate among them is a read this seat
-    // has not earned (prompts.ts contract: evil do not see Oberon).
-    const hunt = certain.alignmentComplete && certain.merlinCandidates.length
-      ? ` Merlin is one of ${named(certain.merlinCandidates)}, and nothing narrows that but their play.`
-      : ''
-    return `Your fellow EVIL players: ${named(evilPartners)}.${gap}${hunt}`
-  }
-  if (info.kind === 'percival') {
-    const pair = info.merlinCandidates
-    // Percival's "pair" is only a pair when a Morgana was dealt to fill it. The
-    // picker allows Percival without Morgana (his own candidate list is then just
-    // Merlin), and the paired prose read "one of these two is Merlin" while
-    // naming a single player. He simply sees Merlin, so say that.
-    if (pair.length === 1) {
-      return `${nameOf(view, pair[0])} is Merlin, and you know it outright: there is no second candidate to confuse you.` +
-        ` Guard that hard. Naming them, or defending them more than anyone else would, paints the Assassin's target on the one player good cannot afford to lose.` +
-        compositionLine(view, ['merlin'])
-    }
-    const onQuestsFor = (s: Seat) => view.quests.filter(isCompletedQuest).filter((q) => q.team.includes(s))
-    // Naming the pair also settles the seats OUTSIDE it: Merlin and Morgana are
-    // unique and both are accounted for, so whatever the cast has left belongs to
-    // the others. At the standard 5 that leaves the Assassin and one Servant,
-    // which reduces Percival's whole game to two binary questions. Nothing told
-    // him this before, and no observed Percival worked it out.
-    const outside = certain.seats.filter((s) => s.seat !== view.seat && !pair.includes(s.seat))
-    // The residual comes off the CAST, not off a union of the outside seats'
-    // possible roles: a union collapses duplicates, so at 7 players the four
-    // remaining seats would be credited with "a Loyal Servant, the Assassin and
-    // Oberon" and one Servant would vanish. The pair holds Merlin and Morgana
-    // between them (this branch only runs when both are dealt), so removing them
-    // and this seat's own role leaves exactly what the others hold.
-    const residual = without(view.rolesInPlay, view.role, 'merlin', 'morgana')
-    const restLine = outside.length && residual.length === outside.length
-      ? ` That also settles the rest: ${listOf(outside.map((s) => nameOf(view, s.seat)))} hold ${roleMultisetPhrase(residual)} between them.`
-      : ''
-    // Nothing has resolved yet, so there is no quest record to compare — just name
-    // the pair. (The guard fires only when NEITHER candidate has been on a resolved
-    // quest; once either has, we show records — successes included, as weak evidence.)
-    if (!pair.some((s) => onQuestsFor(s).length > 0)) {
-      return `One of these two is Merlin, the other is Morgana: ${pair.map((s) => nameOf(view, s)).join(' and ')}.${restLine}`
-    }
-    // Co-locate each candidate's PUBLIC quest record with the private fact that
-    // these two ARE the Merlin/Morgana pair, so telling them apart is a single
-    // side-by-side read rather than a cross-reference into the dossier — which
-    // Percival keeps getting inverted even with all the data present but scattered
-    // (playtest: trusted the Morgana who sat on every failed quest). The heuristic
-    // itself (a FAIL a candidate sat on marks Morgana; weight it over talk) stays
-    // in ROLE_GUIDANCE.percival; this line is just the paired evidence it needs.
-    const recordFor = (s: Seat) => {
-      const on = onQuestsFor(s)
-      return on.length ? on.map((q) => questResultTag(q.num, q.result === 'fail')).join(', ') : 'no quests yet'
-    }
-    return `One of these two is Merlin, the other is Morgana. Their quest records so far, side by side: ${pair.map((s) => `${nameOf(view, s)}: ${recordFor(s)}`).join('; ')}.${restLine}`
-  }
-  return `You have no special knowledge. Only your own loyalty is certain to you.${compositionLine(view)}`
-}
-
 // A finalize revision as the CHANGE it made, not two rosters to diff. Bots are
 // bad at diffing lists and it shows: a Morgana that had revised ITSELF off the
 // team announced "swapping Kimi for Nemotron" — naming a player who was never on
@@ -506,7 +243,7 @@ export function revisionDelta(
 
 export function publicStateText(view: PlayerView): string {
   const lines: string[] = []
-  lines.push(`Players at the table: ${view.players.map((p) => `${p.name}(seat ${p.seat})`).join(', ')}.`)
+  lines.push(`Players at the table: ${view.players.map((p) => seatName(view, p.seat)).join(', ')}.`)
   lines.push(`Roles in play: ${view.rolesInPlay.join(', ')}.`)
   const board = view.quests.map((q) => {
     const need = q.failsRequired === 2 ? ', needs 2 fails' : ''
@@ -516,7 +253,7 @@ export function publicStateText(view: PlayerView): string {
     return `Q${q.num}(size ${q.teamSize}${need}): ${tag}${team}`
   })
   lines.push(`Quest board: ${board.join(' | ')}.`)
-  lines.push(`Now: quest ${view.round}, proposal ${view.proposalNum} of ${MAX_PROPOSALS}${view.proposalNum === MAX_PROPOSALS ? ' (THE HAMMER: the leader\'s team is locked in automatically, no vote)' : ''}. Leader: ${nameOf(view, view.leaderSeat)}.`)
+  lines.push(`Now: quest ${view.round}, proposal ${view.proposalNum} of ${MAX_PROPOSALS}${view.proposalNum === MAX_PROPOSALS ? ' (THE HAMMER: the leader\'s team is locked in automatically, no vote)' : ''}. Leader: ${seatName(view, view.leaderSeat)}.`)
   if (view.currentTeam?.length) {
     const pending = view.proposals.at(-1)
     const pitch = pending?.pitch ? ` Leader's pitch: "${sanitizeSpeech(pending.pitch)}"` : ''
@@ -526,9 +263,9 @@ export function publicStateText(view: PlayerView): string {
     // the transcript (proposalRevised emits no utterance), so this is its only
     // channel to non-leaders.
     const revision = pending?.revision
-      ? ` The leader REVISED this team at finalize: ${revisionDelta(pending.revision.from, view.currentTeam, (s) => nameOf(view, s))}${pending.revision.reason ? `, reason: "${sanitizeSpeech(pending.revision.reason)}"` : ''}.`
+      ? ` The leader REVISED this team at finalize: ${revisionDelta(pending.revision.from, view.currentTeam, (s) => seatName(view, s))}${pending.revision.reason ? `, reason: "${sanitizeSpeech(pending.revision.reason)}"` : ''}.`
       : ''
-    lines.push(`Proposed team on the table: ${view.currentTeam.map((s) => nameOf(view, s)).join(', ')}.${revision}${pitch}`)
+    lines.push(`Proposed team on the table: ${view.currentTeam.map((s) => seatName(view, s)).join(', ')}.${revision}${pitch}`)
   }
   const votedProposals = view.proposals.filter(proposalResolved)
   if (votedProposals.length) {
@@ -579,8 +316,8 @@ export function transcriptText(view: PlayerView, maxUtterances = 14): string {
     const key = u.prop ? `Q${u.prop.round}.${u.prop.proposalNum}|${u.prop.team.join(',')}` : ''
     if (key !== prevKey) {
       if (u.prop) {
-        const team = u.prop.team.map((s) => nameOf(view, s)).join(', ')
-        lines.push(`--- on Q${u.prop.round} proposal ${u.prop.proposalNum} (leader: ${nameOf(view, u.prop.leader)}, team: ${team}) ---`)
+        const team = u.prop.team.map((s) => seatName(view, s)).join(', ')
+        lines.push(`--- on Q${u.prop.round} proposal ${u.prop.proposalNum} (leader: ${seatName(view, u.prop.leader)}, team: ${team}) ---`)
       }
       prevKey = key
     }
@@ -610,271 +347,304 @@ export interface AskExtra {
   chosenTeam?: Seat[]
 }
 
-const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> = {
-  discuss: (v) => {
-    const round = v.discussionRound ?? 1
-    const revisedNote = v.discussionPostRevision
-      ? ` The leader has REVISED the team. React to the new team, not the old one.`
-      : ''
-    const teamNote = v.currentTeam
-      ? (v.leaderSeat === v.seat
-        ? ` The team on the table is YOUR proposal, so defend it, answer questions about it, and do not argue against your own team.${v.discussionPostRevision
-          ? ` You have already used your one revision, so this team is the team that goes to the vote.`
-          : ` After this discussion you will decide whether to keep or revise it.`}`
-        : ` A team is on the table. React to it and say where you stand on it.`) + revisedNote
-      : ''
-    const addressed = directAddresses(v)
-    const addressNote = addressed.length
-      ? ` NOTE: ${addressed.join(' and ')} mentioned or addressed you since your last turn. If you were asked something, respond to it now.`
-      : ''
-    // Evil's board stakes belong in TABLE TALK, not only on the vote. It is the
-    // same team and the same board.ts triggers the vote ASK already reads, and
-    // splitting them let one seat argue TWICE against a team carrying its own
-    // partner at 2-2 (a team that wins the game outright) and then vote approve
-    // once the vote ASK finally stated the stakes. Two costs, not one: the table
-    // read the wrong position, and arguing one way then voting the other is
-    // itself a tell the seat has to explain away (seed web-086364ddc4, Q5.3).
-    //
-    // The leader branch differs on purpose. Telling a leader to argue against its
-    // own team would contradict teamNote directly above, and the leader has a
-    // better lever anyway: the finalize ASK's foldNote already handles revising.
-    const failsNeeded = v.quests[v.round - 1]?.failsRequired ?? 1
-    const aboard = knownEvilAboard(v, v.currentTeam).length
-    const isLeader = v.leaderSeat === v.seat
-    const stakesNote = v.alignment !== 'evil' || !v.currentTeam?.length
-      ? ''
-      : aboard >= failsNeeded
-        ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
-        : matchPoint(v).good
-          ? isLeader
-            ? ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it. Do not argue against your own team in front of the table.${v.discussionPostRevision
-              ? ` Your revision is spent and this team goes to the vote as it stands, so your remaining lever is the ballot, which is secret.`
-              : ` Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`}`
-            : ` A success here is good's third quest and ends the game, and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who could fail it, so this team passing is your side losing outright. If you are going to argue a team down all game, this is the turn that actually matters.`
-          : ''
-    // The closing instruction is keyed on the round because the failure mode
-    // differs. Round 1 needs the general standard. A later round is where
-    // restatement happens: in a mid-tier playtest (seed sim-1, Q1) three seats
-    // each repeated their round-1 sentence almost verbatim once the table
-    // already agreed, which the general "pass when you have nothing to add"
-    // did not prevent, because a bot reads its own standing position as
-    // something worth saying again. So the later round names that specific
-    // failure and makes passing the default.
-    //
-    // The list of reasons to speak is EXHAUSTIVE ("only if"), so it has to carry
-    // every case the round-1 wording carries, and the implicating quest result
-    // or vote is the one that must not be dropped. That is the exact failure
-    // a84664a removed the previous nudge for: a seat whose endorsed team just
-    // failed owes the table a reaction, and addressNote does not cover it,
-    // because directAddresses only fires on a name mention in speech and a
-    // quest result mentions nobody. Dropping it would tell that seat to pass
-    // and then have the ledger flag it as silentAfterContradiction.
-    //
-    // Note this never reaches a post-revision segment at the shipped default:
-    // startDiscussion resets roundNum to 1, and maxRoundsAfterChange is 1, so
-    // revision talk is all round 1. That is correct rather than a gap, because
-    // a revised team is a different team and the table has NOT already heard
-    // where anyone stands on it. Raising maxRoundsAfterChange would start
-    // applying this clause there, which is also correct for the same reason.
-    const closing = round > 1
-      ? ` The table has already heard where you stand on this team. Speak only if you have a NEW reason, a response you owe someone, a quest result or vote that implicates you, or a read that changed. Otherwise pass, because repeating a point you already made is the clearest bot tell at this table.`
-      : ` Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
-    return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote}${closing}`
-  },
-  propose: (v) => {
-    const teamSize = v.quests[v.round - 1].teamSize
-    const mp = matchPoint(v)
-    // The dossier's board-stakes rows already say what this quest decides. This
-    // is the leader's half of acting on it: a Morgana at good's match point
-    // proposed a team with no evil on it and then argued the table into
-    // approving it (seed norms2), because "usually one evil" reads as advice for
-    // a normal round and nothing said this round is the last one that exists.
-    // The quest that needs TWO Fails is the other half of the same miss, and the
-    // one the heuristic proved decides the round: with only one of you aboard
-    // there is no card you can play that sinks it, so the team is lost at
-    // proposal time and nothing later in the round can recover it. This REPLACES
-    // the one-evil default rather than qualifying it — as a trailing clause on
-    // that sentence ("put a second evil on only when...") it was advice about
-    // some other round. The evidence is the fallback agent, which had no
-    // two-Fail rule at any decision: it sank 1 of 32 of these quests until the
-    // propose branch was added, and 14 of 32 with it. That agent never reads
-    // this text — it is a measurement of the rule, not of the wording.
-    // Gated on actually having a partner to seat: an Oberon leader cannot see
-    // one, so for it this is the normal round it plays like.
-    const partners = evilPartnersOf(v.privateInfo)
-    const needsTwo = v.quests[v.round - 1].failsRequired === 2 && partners.length > 0
-    // At 7+ players quest 4 is the only two-Fail quest, and reaching it always
-    // means one side sits on two — so today this always resolves to a real match
-    // point. Each arm still tests its own flag rather than assuming the other:
-    // stating a match point the board is not on would be exactly the kind of
-    // board-misstatement these branches exist to remove, and the invariant that
-    // makes the two exhaustive lives in the quest table, not here.
-    const twoStakes = mp.evil
-      ? ` And failing it wins the game outright, which is exactly why it takes two of you.`
+// The evil "can we sink this quest?" read, derived once and shared by the evil
+// ASK branches that key their prose off it (discuss, propose, finalize, vote,
+// quest). failsNeeded is the pending quest's Fail requirement, aboard is the
+// known-evil seats on the current team (Oberon-safe, never the whole team),
+// canSink is whether they suffice, and mp holds the match-point flags. The
+// per-branch prose stays local; only this derivation is shared.
+function evilSinkRead(v: PlayerView): {
+  failsNeeded: number
+  aboard: Seat[]
+  canSink: boolean
+  mp: { good: boolean; evil: boolean }
+} {
+  const failsNeeded = v.quests[v.round - 1]?.failsRequired ?? 1
+  const aboard = knownEvilAboard(v, v.currentTeam)
+  return { failsNeeded, aboard, canSink: aboard.length >= failsNeeded, mp: matchPoint(v) }
+}
+
+function discussAsk(v: PlayerView): string {
+  const round = v.discussionRound ?? 1
+  const revisedNote = v.discussionPostRevision
+    ? ` The leader has REVISED the team. React to the new team, not the old one.`
+    : ''
+  const teamNote = v.currentTeam
+    ? (v.leaderSeat === v.seat
+      ? ` The team on the table is YOUR proposal, so defend it, answer questions about it, and do not argue against your own team.${v.discussionPostRevision
+        ? ` You have already used your one revision, so this team is the team that goes to the vote.`
+        : ` After this discussion you will decide whether to keep or revise it.`}`
+      : ` A team is on the table. React to it and say where you stand on it.`) + revisedNote
+    : ''
+  const addressed = directAddresses(v)
+  const addressNote = addressed.length
+    ? ` NOTE: ${addressed.join(' and ')} mentioned or addressed you since your last turn. If you were asked something, respond to it now.`
+    : ''
+  // Evil's board stakes belong in TABLE TALK, not only on the vote. It is the
+  // same team and the same board.ts triggers the vote ASK already reads, and
+  // splitting them let one seat argue TWICE against a team carrying its own
+  // partner at 2-2 (a team that wins the game outright) and then vote approve
+  // once the vote ASK finally stated the stakes. Two costs, not one: the table
+  // read the wrong position, and arguing one way then voting the other is
+  // itself a tell the seat has to explain away (seed web-086364ddc4, Q5.3).
+  //
+  // The leader branch differs on purpose. Telling a leader to argue against its
+  // own team would contradict teamNote directly above, and the leader has a
+  // better lever anyway: the finalize ASK's foldNote already handles revising.
+  const { failsNeeded, aboard, canSink, mp } = evilSinkRead(v)
+  const isLeader = v.leaderSeat === v.seat
+  const stakesNote = v.alignment !== 'evil' || !v.currentTeam?.length
+    ? ''
+    : canSink
+      ? ` Your side can already sink this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard.length} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. So do not talk this team down. Whether the Fail is actually played is a later decision you make in secret, and arguing against a team that carries your own is what the table remembers once the record catches up.`
       : mp.good
-        ? ` And a success here ends the quest phase, so this is the last team you will ever pick.`
+        ? isLeader
+          ? ` A success here is good's third quest and ends the game, and you know of ${aboard.length === 0 ? 'nobody' : `only ${aboard.length}`} aboard who could fail it. Do not argue against your own team in front of the table.${v.discussionPostRevision
+            ? ` Your revision is spent and this team goes to the vote as it stands, so your remaining lever is the ballot, which is secret.`
+            : ` Your lever is the revision you still get after this discussion, so use these turns to build a reason for it.`}`
+          : ` A success here is good's third quest and ends the game, and you know of ${aboard.length === 0 ? 'nobody' : `only ${aboard.length}`} aboard who could fail it, so this team passing is your side losing outright. If you are going to argue a team down all game, this is the turn that actually matters.`
         : ''
-    // The "maybe a teammate I cannot see is aboard" hope only exists where an
-    // Oberon does — everywhere else a seat's partner list is complete, and
-    // raising the possibility would just invent doubt. Gated like the
-    // assassinate ASK's Percival note.
-    const unseenNote = v.rolesInPlay.includes('oberon')
-      ? ` Do not count on an unseen teammate riding along, because an Oberon is invisible to you, so a Fail you cannot back up is a coin flip, not a plan.`
+  // The closing instruction is keyed on the round because the failure mode
+  // differs. Round 1 needs the general standard. A later round is where
+  // restatement happens: in a mid-tier playtest (seed sim-1, Q1) three seats
+  // each repeated their round-1 sentence almost verbatim once the table
+  // already agreed, which the general "pass when you have nothing to add"
+  // did not prevent, because a bot reads its own standing position as
+  // something worth saying again. So the later round names that specific
+  // failure and makes passing the default.
+  //
+  // The list of reasons to speak is EXHAUSTIVE ("only if"), so it has to carry
+  // every case the round-1 wording carries, and the implicating quest result
+  // or vote is the one that must not be dropped. That is the exact failure
+  // a84664a removed the previous nudge for: a seat whose endorsed team just
+  // failed owes the table a reaction, and addressNote does not cover it,
+  // because directAddresses only fires on a name mention in speech and a
+  // quest result mentions nobody. Dropping it would tell that seat to pass
+  // and then have the ledger flag it as silentAfterContradiction.
+  //
+  // Note this never reaches a post-revision segment at the shipped default:
+  // startDiscussion resets roundNum to 1, and maxRoundsAfterChange is 1, so
+  // revision talk is all round 1. That is correct rather than a gap, because
+  // a revised team is a different team and the table has NOT already heard
+  // where anyone stands on it. Raising maxRoundsAfterChange would start
+  // applying this clause there, which is also correct for the same reason.
+  const closing = round > 1
+    ? ` The table has already heard where you stand on this team. Speak only if you have a NEW reason, a response you owe someone, a quest result or vote that implicates you, or a read that changed. Otherwise pass, because repeating a point you already made is the clearest bot tell at this table.`
+    : ` Speak when you have something real to add: a fresh read, a contradiction to point out, or a result or vote that implicates you and calls for a response. Pass when you genuinely have nothing to add and nothing is aimed at you.`
+  return `It is your turn in table-talk round ${round}.${teamNote}${stakesNote}${addressNote}${closing}`
+}
+
+function proposeAsk(v: PlayerView): string {
+  const teamSize = v.quests[v.round - 1].teamSize
+  const { failsNeeded, mp } = evilSinkRead(v)
+  // The dossier's board-stakes rows already say what this quest decides. This
+  // is the leader's half of acting on it: a Morgana at good's match point
+  // proposed a team with no evil on it and then argued the table into
+  // approving it (seed norms2), because "usually one evil" reads as advice for
+  // a normal round and nothing said this round is the last one that exists.
+  // The quest that needs TWO Fails is the other half of the same miss, and the
+  // one the heuristic proved decides the round: with only one of you aboard
+  // there is no card you can play that sinks it, so the team is lost at
+  // proposal time and nothing later in the round can recover it. This REPLACES
+  // the one-evil default rather than qualifying it — as a trailing clause on
+  // that sentence ("put a second evil on only when...") it was advice about
+  // some other round. The evidence is the fallback agent, which had no
+  // two-Fail rule at any decision: it sank 1 of 32 of these quests until the
+  // propose branch was added, and 14 of 32 with it. That agent never reads
+  // this text — it is a measurement of the rule, not of the wording.
+  // Gated on actually having a partner to seat: an Oberon leader cannot see
+  // one, so for it this is the normal round it plays like.
+  const partners = evilPartnersOf(v.privateInfo)
+  const needsTwo = failsNeeded === 2 && partners.length > 0
+  // At 7+ players quest 4 is the only two-Fail quest, and reaching it always
+  // means one side sits on two — so today this always resolves to a real match
+  // point. Each arm still tests its own flag rather than assuming the other:
+  // stating a match point the board is not on would be exactly the kind of
+  // board-misstatement these branches exist to remove, and the invariant that
+  // makes the two exhaustive lives in the quest table, not here.
+  const twoStakes = mp.evil
+    ? ` And failing it wins the game outright, which is exactly why it takes two of you.`
+    : mp.good
+      ? ` And a success here ends the quest phase, so this is the last team you will ever pick.`
       : ''
-    const evilStrat = needsTwo
-      ? ` This quest needs TWO Fails to fail, so one of you on it sinks nothing: put yourself AND a partner you can see on this team. A team carrying only one of you is a quest your side cannot fail no matter how clean it looks.${unseenNote} A visible pair on one team is a real risk if it fails: take it, because the alternative is a round you cannot win.${twoStakes}`
+  // The "maybe a teammate I cannot see is aboard" hope only exists where an
+  // Oberon does — everywhere else a seat's partner list is complete, and
+  // raising the possibility would just invent doubt. Gated like the
+  // assassinate ASK's Percival note.
+  const unseenNote = v.rolesInPlay.includes('oberon')
+    ? ` Do not count on an unseen teammate riding along, because an Oberon is invisible to you, so a Fail you cannot back up is a coin flip, not a plan.`
+    : ''
+  const evilStrat = needsTwo
+    ? ` This quest needs TWO Fails to fail, so one of you on it sinks nothing: put yourself AND a partner you can see on this team. A team carrying only one of you is a quest your side cannot fail no matter how clean it looks.${unseenNote} A visible pair on one team is a real risk if it fails: take it, because the alternative is a round you cannot win.${twoStakes}`
+    : mp.good
+      ? ` A success here ends the quest phase, so this is the last team you will ever pick: a quest without you or a partner on it cannot be failed, and no later round exists to recover in. Put yourself on it. Cover you keep by staying off is cover for a game you have already lost, and a second evil is worth it here if that is what it takes to hold a Fail on this team.`
+      // The mirror board, and the arm the one-Fail quests were missing: with two
+      // failed quests banked, a Fail here ends the game for evil at once. The
+      // default below does say "ONE evil — you", but it says it as routine
+      // team-building, and a leader under table pressure needs the stakes named
+      // — that gap is exactly what the good-match-point arm exists to close.
+      // Not reachable when needsTwo already handled the board (checked first).
+      : mp.evil
+        ? ` A Fail here is your third failed quest and wins the game outright, so the only thing that matters about this team is that it can carry a Fail: put yourself on it. A clean-looking team you are not on cannot end the game, and it hands the next leader a chance you had this round.`
+        : ` You usually want exactly ONE evil on the team (you), surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair.`
+  // Good's mirror, and a regression guard: once bots can see the board they
+  // start reasoning "we have a cushion, so let us test an unknown here" —
+  // three of them argued exactly that at match point, over their Merlin's
+  // objection. Information only pays off on quests that still get played.
+  const goodStrat = mp.good
+    ? ` A success here ends the quest phase, so pick the team most likely to succeed, not the most informative one: an unknown player has no future quest left to be vetted on, and gambling a slot to "test" someone now can hand the game away. Build from the players a quest has already cleared, and include yourself.`
+    : ` Propose yourself plus the players with the best objective records: clean quests, votes that have aged well. Later in the game, trust players validated by the fail-count math over players validated only by talk.`
+  const strat = v.alignment === 'evil' ? evilStrat : goodStrat
+  return `You are the leader. Choose exactly ${teamSize} players (seat numbers, you may include yourself) for quest ${v.round}.${strat} The table will discuss your team next, and you will get ONE chance to revise it before the vote. If you committed to an intended team in earlier table talk, propose THAT team unless you have a real reason to change, and you will get to explain your choice to the table next.`
+}
+
+function pitchAsk(v: PlayerView, extra?: AskExtra): string {
+  const team = (extra?.chosenTeam ?? []).map((s) => seatName(v, s)).join(', ')
+  return `You are the leader and your proposed team for quest ${v.round} is: ${team}. Address the table: pitch this team in one or two sentences.`
+}
+
+function finalizeAsk(v: PlayerView): string {
+  const team = (v.currentTeam ?? []).map((s) => seatName(v, s)).join(', ')
+  const hammer = v.proposalNum === MAX_PROPOSALS
+    ? ` THIS IS THE HAMMER: there is no vote, and the team you lock in goes straight on the quest.`
+    : ''
+  // Evil leaders fold at this step: facing a hostile table they revise their
+  // own team until nobody left on it can play a Fail, which hands the quest a
+  // guaranteed success. The finalize sibling of the vote ASK's ownTeamNote —
+  // consensus-following looks like the safe play here, but for evil the
+  // revision itself has a price no objection at the table will mention.
+  // The count comes from knownEvilAboard, so it is Oberon-safe by construction.
+  const { aboard } = evilSinkRead(v)
+  const foldNote = v.alignment !== 'evil'
+    ? ''
+    : aboard.length
+      ? ` This team seats evil you know of: ${aboard.map((s) => seatName(v, s)).join(', ')}. Revising them off would buy the table's approval at the price of a quest your side can no longer fail, so the objections are not the only cost in front of you.${v.proposalNum === MAX_PROPOSALS
+        ? ` And there is no vote left to lose: nothing the table declared can stop this team, so revising your side off it gives the quest away for free.`
+        : ` Nothing said in discussion binds a vote, and a contested team often still passes, while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
+      : ` No evil you know of is on this team, so unless a teammate you cannot see is aboard it is a quest your side cannot fail. That makes revising cheap for you: if the discussion handed you a reason you can say out loud for seating yourself instead, this is the moment to use it.`
+  return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}. Weigh what the table actually said about it above.${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
+}
+
+function voteAsk(v: PlayerView): string {
+  // Good hammer discipline (research §1.2/§3.1): with rejections nearly gone, a
+  // reject just hands the next leader an unvoted hammer team. Bites at proposal 4
+  // (the vote is never called on the 5th — the hammer auto-approves).
+  const nearHammer = v.alignment === 'good' && v.proposalNum >= MAX_PROPOSALS - 1 && v.proposalNum < MAX_PROPOSALS
+  const hammerNote = nearHammer
+    ? ` Rejections are almost gone: if this team is rejected, the next leader's team becomes the hammer and goes to the quest with NO vote at all. Unless you are genuinely confident this team is dirty, approving a merely-adequate team now beats gambling on who leads the hammer.`
+    : ''
+  // You are voting on the team you just proposed and locked in. Votes are
+  // public and attributed (voteReveal), so rejecting your own team is a loud
+  // tell, not camouflage — yet bots reach for it to "blend" with how the table
+  // is leaning, which is exactly backwards for the one seat that can't hide.
+  // Fires only for the proposing leader; the hammer has no vote, so it never
+  // collides with hammerNote.
+  const ownTeamNote = v.seat === v.leaderSeat
+    ? ` This is YOUR team: you proposed it, defended it, and locked it in, and your vote is public and attributed. Rejecting your own proposal is one of the loudest tells at the table. Do it only when you genuinely want this team off the quest and can defend the reversal out loud, never to blend with the way the table is leaning.`
+    : ''
+  // The evil side of the vote, keyed to the only question that decides it: can
+  // the seats this voter KNOWS about actually sink this quest? "Someone of ours
+  // is aboard" is not the same as "we can sink it" — the big quest needs two
+  // Fails, so one teammate on it sinks nothing. Both branches read the
+  // Oberon-safe count, so neither ever claims to know the whole team.
+  //
+  // Live evidence for each (seed norms2). Reject side: three evil players
+  // approved the clean team that ended the game, board stakes sitting in their
+  // prompts unread. Approve side: on the two-Fail quest with BOTH known evil
+  // aboard — evil's winning team — both of them voted reject on cover grounds
+  // ("GLM is an unknown, too risky"), and GLM rejecting its own seat was odd
+  // enough that the table called it out twice.
+  //
+  // Not gated on the hammer: proposal 5 is auto-approved with no vote at all,
+  // so this ASK never runs there. The approve branch can co-occur with
+  // ownTeamNote (an evil leader voting on its own team) and agrees with it; the
+  // reject branch can too, and composes rather than contradicts, since
+  // ownTeamNote's stated exception is exactly "you genuinely want this team off
+  // the quest" and this branch supplies that reason.
+  const { failsNeeded, aboard, canSink, mp } = evilSinkRead(v)
+  const evilNote = v.alignment !== 'evil' || !v.currentTeam?.length
+    ? ''
+    : canSink
+      ? ` Your side already holds this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard.length} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. That makes this team an opportunity, not a threat, so approve it. Whether the Fail actually gets played is a decision you make later, in secret, and rejecting now throws the option away and hands the next leader a team your side may not be on at all. Talking down a team that carries your own Fail is also the kind of move the table remembers once the record catches up with you.`
       : mp.good
-        ? ` A success here ends the quest phase, so this is the last team you will ever pick: a quest without you or a partner on it cannot be failed, and no later round exists to recover in. Put yourself on it. Cover you keep by staying off is cover for a game you have already lost, and a second evil is worth it here if that is what it takes to hold a Fail on this team.`
-        // The mirror board, and the arm the one-Fail quests were missing: with two
-        // failed quests banked, a Fail here ends the game for evil at once. The
-        // default below does say "ONE evil — you", but it says it as routine
-        // team-building, and a leader under table pressure needs the stakes named
-        // — that gap is exactly what the good-match-point arm exists to close.
-        // Not reachable when needsTwo already handled the board (checked first).
-        : mp.evil
-          ? ` A Fail here is your third failed quest and wins the game outright, so the only thing that matters about this team is that it can carry a Fail: put yourself on it. A clean-looking team you are not on cannot end the game, and it hands the next leader a chance you had this round.`
-          : ` You usually want exactly ONE evil on the team (you), surrounded by good players with strong public records, so the team is easy to approve and a fail can never be pinned on a visible pair.`
-    // Good's mirror, and a regression guard: once bots can see the board they
-    // start reasoning "we have a cushion, so let us test an unknown here" —
-    // three of them argued exactly that at match point, over their Merlin's
-    // objection. Information only pays off on quests that still get played.
-    const goodStrat = mp.good
-      ? ` A success here ends the quest phase, so pick the team most likely to succeed, not the most informative one: an unknown player has no future quest left to be vetted on, and gambling a slot to "test" someone now can hand the game away. Build from the players a quest has already cleared, and include yourself.`
-      : ` Propose yourself plus the players with the best objective records: clean quests, votes that have aged well. Later in the game, trust players validated by the fail-count math over players validated only by talk.`
-    const strat = v.alignment === 'evil' ? evilStrat : goodStrat
-    return `You are the leader. Choose exactly ${teamSize} players (seat numbers, you may include yourself) for quest ${v.round}.${strat} The table will discuss your team next, and you will get ONE chance to revise it before the vote. If you committed to an intended team in earlier table talk, propose THAT team unless you have a real reason to change, and you will get to explain your choice to the table next.`
-  },
-  pitch: (v, extra) => {
-    const team = (extra?.chosenTeam ?? []).map((s) => nameOf(v, s)).join(', ')
-    return `You are the leader and your proposed team for quest ${v.round} is: ${team}. Address the table: pitch this team in one or two sentences.`
-  },
-  finalize: (v) => {
-    const team = (v.currentTeam ?? []).map((s) => nameOf(v, s)).join(', ')
-    const hammer = v.proposalNum === MAX_PROPOSALS
-      ? ` THIS IS THE HAMMER: there is no vote, and the team you lock in goes straight on the quest.`
-      : ''
-    // Evil leaders fold at this step: facing a hostile table they revise their
-    // own team until nobody left on it can play a Fail, which hands the quest a
-    // guaranteed success. The finalize sibling of the vote ASK's ownTeamNote —
-    // consensus-following looks like the safe play here, but for evil the
-    // revision itself has a price no objection at the table will mention.
-    // The count comes from knownEvilAboard, so it is Oberon-safe by construction.
-    const aboard = knownEvilAboard(v, v.currentTeam)
-    const foldNote = v.alignment !== 'evil'
-      ? ''
-      : aboard.length
-        ? ` This team seats evil you know of: ${aboard.map((s) => nameOf(v, s)).join(', ')}. Revising them off would buy the table's approval at the price of a quest your side can no longer fail, so the objections are not the only cost in front of you.${v.proposalNum === MAX_PROPOSALS
-          ? ` And there is no vote left to lose: nothing the table declared can stop this team, so revising your side off it gives the quest away for free.`
-          : ` Nothing said in discussion binds a vote, and a contested team often still passes, while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
-        : ` No evil you know of is on this team, so unless a teammate you cannot see is aboard it is a quest your side cannot fail. That makes revising cheap for you: if the discussion handed you a reason you can say out loud for seating yourself instead, this is the moment to use it.`
-    return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}. Weigh what the table actually said about it above.${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
-  },
-  vote: (v) => {
-    // Good hammer discipline (research §1.2/§3.1): with rejections nearly gone, a
-    // reject just hands the next leader an unvoted hammer team. Bites at proposal 4
-    // (the vote is never called on the 5th — the hammer auto-approves).
-    const nearHammer = v.alignment === 'good' && v.proposalNum >= MAX_PROPOSALS - 1 && v.proposalNum < MAX_PROPOSALS
-    const hammerNote = nearHammer
-      ? ` Rejections are almost gone: if this team is rejected, the next leader's team becomes the hammer and goes to the quest with NO vote at all. Unless you are genuinely confident this team is dirty, approving a merely-adequate team now beats gambling on who leads the hammer.`
-      : ''
-    // You are voting on the team you just proposed and locked in. Votes are
-    // public and attributed (voteReveal), so rejecting your own team is a loud
-    // tell, not camouflage — yet bots reach for it to "blend" with how the table
-    // is leaning, which is exactly backwards for the one seat that can't hide.
-    // Fires only for the proposing leader; the hammer has no vote, so it never
-    // collides with hammerNote.
-    const ownTeamNote = v.seat === v.leaderSeat
-      ? ` This is YOUR team: you proposed it, defended it, and locked it in, and your vote is public and attributed. Rejecting your own proposal is one of the loudest tells at the table. Do it only when you genuinely want this team off the quest and can defend the reversal out loud, never to blend with the way the table is leaning.`
-      : ''
-    // The evil side of the vote, keyed to the only question that decides it: can
-    // the seats this voter KNOWS about actually sink this quest? "Someone of ours
-    // is aboard" is not the same as "we can sink it" — the big quest needs two
-    // Fails, so one teammate on it sinks nothing. Both branches read the
-    // Oberon-safe count, so neither ever claims to know the whole team.
-    //
-    // Live evidence for each (seed norms2). Reject side: three evil players
-    // approved the clean team that ended the game, board stakes sitting in their
-    // prompts unread. Approve side: on the two-Fail quest with BOTH known evil
-    // aboard — evil's winning team — both of them voted reject on cover grounds
-    // ("GLM is an unknown, too risky"), and GLM rejecting its own seat was odd
-    // enough that the table called it out twice.
-    //
-    // Not gated on the hammer: proposal 5 is auto-approved with no vote at all,
-    // so this ASK never runs there. The approve branch can co-occur with
-    // ownTeamNote (an evil leader voting on its own team) and agrees with it; the
-    // reject branch can too, and composes rather than contradicts, since
-    // ownTeamNote's stated exception is exactly "you genuinely want this team off
-    // the quest" and this branch supplies that reason.
-    const failsNeeded = v.quests[v.round - 1]?.failsRequired ?? 1
-    const aboard = knownEvilAboard(v, v.currentTeam).length
-    const canSink = aboard >= failsNeeded
-    const evilNote = v.alignment !== 'evil' || !v.currentTeam?.length
-      ? ''
-      : canSink
-        ? ` Your side already holds this quest: it needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} and you know of ${aboard} aboard who can play ${failsNeeded === 1 ? 'it' : 'them'}. That makes this team an opportunity, not a threat, so approve it. Whether the Fail actually gets played is a decision you make later, in secret, and rejecting now throws the option away and hands the next leader a team your side may not be on at all. Talking down a team that carries your own Fail is also the kind of move the table remembers once the record catches up with you.`
-        : matchPoint(v).good
-          ? ` A success here is good's third quest: it ends the quest phase, and your side never gets another team. This quest needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} to fail and you know of ${aboard === 0 ? 'nobody' : `only ${aboard}`} aboard who can play one, so approving it hands the game to the Assassin's single guess at Merlin. A reject is the last lever your side has, and it is worth the tell if the alternative is losing outright. Reject unless a teammate you cannot see is aboard, and have a reason you can say out loud for it.`
-          : ''
-    return `Vote on the proposed team: approve or reject. If you argued one way in the discussion and vote the other, expect the table to notice.${hammerNote}${ownTeamNote}${evilNote}`
-  },
-  quest: (v) => {
-    if (v.alignment !== 'evil') {
-      return `You are on the quest team. You are good, so you MUST play "success".`
-    }
-    // Fail-timing table (research-strategy.md §1.4/§5.4), keyed to the live board
-    // so the bot gets the specific call. The win/lose match-point checks come
-    // FIRST: they are do-or-die and must override the cover instinct that once
-    // made an evil bot play Success into good's THIRD quest and hand away the game.
-    // Multi-evil splitting stays as soft partner-reading (no injected convention
-    // — that would be an out-of-band private channel evil is not supposed to have).
-    const q = v.quests[v.round - 1]
-    const mp = matchPoint(v)
-    const needsTwo = q.failsRequired === 2
-    const twoNote = needsTwo
-      ? ' This quest needs TWO Fails to fail, so a lone Fail will not do it: you need a teammate on this team to fail as well.'
-      : ''
-    let call: string
-    if (mp.good) {
-      call = `If this quest SUCCEEDS, good completes its THIRD quest and wins the game outright. There is no later round left to fight in, and cover is worthless once you have lost. Play "fail".${twoNote}`
-    } else if (mp.evil) {
-      call = needsTwo
-        ? `Failing this quest is evil's winning THIRD failed quest, but it needs TWO Fails, so you and a teammate on this team must BOTH play "fail" to take the game now.`
-        : `A Fail here is evil's THIRD failed quest and wins the game outright. Play "fail".`
-    } else if (needsTwo) {
-      call = `This quest needs TWO Fails to fail. A lone Fail card sinks nothing and just proves an evil rode along for free, so play "fail" only if you are confident a teammate on this team fails too. Otherwise play "success".`
-    } else if (v.role === 'oberon') {
-      call = `This is quest ${v.round}. You are the lone-wolf Oberon: you cannot see a teammate or split a Fail with anyone, so do not agonise over whether a Fail is "needed". Take it. A double Fail is priced into your role, and the extra fail card helps your unknown teammates locate you.`
-    } else if (v.round === 1) {
-      call = q.teamSize <= 2
-        ? `This is quest 1 on a ${q.teamSize}-person team. Default to "success": failing a small first team instantly hands a good player a confirmed-evil read on someone here, a bad trade this early. Fail only with a strong reason.`
-        : `This is quest 1 on a ${q.teamSize}-person team. Failing now banks a point while suspicion is still spread across the whole table and hard to trace back. Lean "fail" unless your cover is worth more than the point.`
-    } else {
-      call = `This is quest ${v.round}. If you are the only evil here, "fail" by default, since slow-playing (passing to look loyal) rarely buys back the point it costs. If a teammate is also on this team, read their play to judge whether the Fail should fall to you or to them. Pass only when your cover is genuinely worth more than the point.`
-    }
-    return `You are on the quest team and you are evil, so you may play "success" or "fail". A Fail is only worth playing when it buys more than it costs. ${call}`
-  },
-  assassinate: (v) => {
-    const partners = evilPartnersOf(v.privateInfo)
-    const known = new Set<Seat>([v.seat, ...partners])
-    const candidates = v.players.filter((p) => !known.has(p.seat)).map((p) => nameOf(v, p.seat))
-    // The highest-leverage single call in the game (>50% of evil wins run
-    // through it — research-strategy.md §2.3/§5.5). Merlin-vs-Percival from the
-    // vote record, which the bot already has in GAME STATE and DERIVED FACTS.
-    // The candidate pool rules out self + known evil partners: without it an
-    // assassin wastes reasoning on a known partner ("could be evil") instead of
-    // narrowing to the seats Merlin can actually occupy. The Percival guidance is
-    // gated on Percival actually being in play (validateRoles does not require
-    // Percival): a decoy warning is noise in a game with no Percival to decoy.
-    const percivalNote = v.rolesInPlay.includes('percival')
-      ? `
+        ? ` A success here is good's third quest: it ends the quest phase, and your side never gets another team. This quest needs ${failsNeeded} Fail${failsNeeded === 1 ? '' : 's'} to fail and you know of ${aboard.length === 0 ? 'nobody' : `only ${aboard.length}`} aboard who can play one, so approving it hands the game to the Assassin's single guess at Merlin. A reject is the last lever your side has, and it is worth the tell if the alternative is losing outright. Reject unless a teammate you cannot see is aboard, and have a reason you can say out loud for it.`
+        : ''
+  return `Vote on the proposed team: approve or reject. If you argued one way in the discussion and vote the other, expect the table to notice.${hammerNote}${ownTeamNote}${evilNote}`
+}
+
+function questAsk(v: PlayerView): string {
+  if (v.alignment !== 'evil') {
+    return `You are on the quest team. You are good, so you MUST play "success".`
+  }
+  // Fail-timing table (research-strategy.md §1.4/§5.4), keyed to the live board
+  // so the bot gets the specific call. The win/lose match-point checks come
+  // FIRST: they are do-or-die and must override the cover instinct that once
+  // made an evil bot play Success into good's THIRD quest and hand away the game.
+  // Multi-evil splitting stays as soft partner-reading (no injected convention
+  // — that would be an out-of-band private channel evil is not supposed to have).
+  const q = v.quests[v.round - 1]
+  const { failsNeeded, mp } = evilSinkRead(v)
+  const needsTwo = failsNeeded === 2
+  const twoNote = needsTwo
+    ? ' This quest needs TWO Fails to fail, so a lone Fail will not do it: you need a teammate on this team to fail as well.'
+    : ''
+  let call: string
+  if (mp.good) {
+    call = `If this quest SUCCEEDS, good completes its THIRD quest and wins the game outright. There is no later round left to fight in, and cover is worthless once you have lost. Play "fail".${twoNote}`
+  } else if (mp.evil) {
+    call = needsTwo
+      ? `Failing this quest is evil's winning THIRD failed quest, but it needs TWO Fails, so you and a teammate on this team must BOTH play "fail" to take the game now.`
+      : `A Fail here is evil's THIRD failed quest and wins the game outright. Play "fail".`
+  } else if (needsTwo) {
+    call = `This quest needs TWO Fails to fail. A lone Fail card sinks nothing and just proves an evil rode along for free, so play "fail" only if you are confident a teammate on this team fails too. Otherwise play "success".`
+  } else if (v.role === 'oberon') {
+    call = `This is quest ${v.round}. You are the lone-wolf Oberon: you cannot see a teammate or split a Fail with anyone, so do not agonise over whether a Fail is "needed". Take it. A double Fail is priced into your role, and the extra fail card helps your unknown teammates locate you.`
+  } else if (v.round === 1) {
+    call = q.teamSize <= 2
+      ? `This is quest 1 on a ${q.teamSize}-person team. Default to "success": failing a small first team instantly hands a good player a confirmed-evil read on someone here, a bad trade this early. Fail only with a strong reason.`
+      : `This is quest 1 on a ${q.teamSize}-person team. Failing now banks a point while suspicion is still spread across the whole table and hard to trace back. Lean "fail" unless your cover is worth more than the point.`
+  } else {
+    call = `This is quest ${v.round}. If you are the only evil here, "fail" by default, since slow-playing (passing to look loyal) rarely buys back the point it costs. If a teammate is also on this team, read their play to judge whether the Fail should fall to you or to them. Pass only when your cover is genuinely worth more than the point.`
+  }
+  return `You are on the quest team and you are evil, so you may play "success" or "fail". A Fail is only worth playing when it buys more than it costs. ${call}`
+}
+
+function assassinateAsk(v: PlayerView): string {
+  const partners = evilPartnersOf(v.privateInfo)
+  const known = new Set<Seat>([v.seat, ...partners])
+  const candidates = v.players.filter((p) => !known.has(p.seat)).map((p) => seatName(v, p.seat))
+  // The highest-leverage single call in the game (>50% of evil wins run
+  // through it — research-strategy.md §2.3/§5.5). Merlin-vs-Percival from the
+  // vote record, which the bot already has in GAME STATE and DERIVED FACTS.
+  // The candidate pool rules out self + known evil partners: without it an
+  // assassin wastes reasoning on a known partner ("could be evil") instead of
+  // narrowing to the seats Merlin can actually occupy. The Percival guidance is
+  // gated on Percival actually being in play (validateRoles does not require
+  // Percival): a decoy warning is noise in a game with no Percival to decoy.
+  const percivalNote = v.rolesInPlay.includes('percival')
+    ? `
 - Do not mistake Percival for Merlin. Percival ends up accurate too, but their votes are NOISY early (they did not yet know which of their two candidates was the real Merlin) and only sharpen mid-game. Quietly right from round 1 = Merlin; wrong early then snapped correct = Percival. If you can spot Percival, whoever their votes came to mirror is your Merlin, since they spent the game shadowing the real one.
 - If two candidates look equally sharp, shoot the QUIETER one: the loud, showy "reader" is more often Percival playing decoy to draw exactly this shot.`
-      : ''
-    return `Good has won 3 quests. This is evil's last chance: name the player you believe is Merlin, and evil wins if you are right. Merlin is one of the players you do NOT know to be evil: ${candidates.join(', ')}.
+    : ''
+  return `Good has won 3 quests. This is evil's last chance: name the player you believe is Merlin, and evil wins if you are right. Merlin is one of the players you do NOT know to be evil: ${candidates.join(', ')}.
 Work backward from the now-visible truth; the vote record is your strongest evidence:
 - Merlin voted almost perfectly from round 1, approving the teams that proved clean and rejecting the ones that failed, and quietly steered the table toward good teams without ever backing your side's plans. Rank these candidates by how well their votes tracked what you now know to be true.${percivalNote}`
-  },
-  reflect: () => `Update your private read of the table. Beyond who you suspect: what can you DEDUCE? Team choices, votes, and claims are evidence: a proposal reveals who the leader trusts, a role claim can be tested against later behaviour, a vote against a proven team demands a reason. Chain observations into conclusions, carry your standing deductions forward, and revise the ones the game has since disproven.`,
+}
+
+function reflectAsk(): string {
+  return `Update your private read of the table. Beyond who you suspect: what can you DEDUCE? Team choices, votes, and claims are evidence: a proposal reveals who the leader trusts, a role claim can be tested against later behaviour, a vote against a proven team demands a reason. Chain observations into conclusions, carry your standing deductions forward, and revise the ones the game has since disproven.`
+}
+
+// Thin dispatch table: each call kind maps to its named ASK builder above.
+const ASKS: Record<LlmCallKind, (view: PlayerView, extra?: AskExtra) => string> = {
+  discuss: discussAsk,
+  propose: proposeAsk,
+  pitch: pitchAsk,
+  finalize: finalizeAsk,
+  vote: voteAsk,
+  quest: questAsk,
+  assassinate: assassinateAsk,
+  reflect: reflectAsk,
 }
 
 // ---- the builder ----
@@ -986,7 +756,7 @@ export function buildMessages(
   const system = [
     rulesDigest(view),
     ``,
-    `You are ${nameOf(view, view.seat)}. Your secret role: ${view.role.toUpperCase()} (${view.alignment}).`,
+    `You are ${seatName(view, view.seat)}. Your secret role: ${view.role.toUpperCase()} (${view.alignment}).`,
     knowledgeText(view, belief),
     ...(overrides.strategy
       ? [``, `Your general strategy. Apply it every turn: ${overrides.strategy}`]
