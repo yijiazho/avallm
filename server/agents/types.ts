@@ -32,7 +32,6 @@ export interface AvalonAgent {
    * persisted and when.
    */
   privateTraceSink?(trace: DecisionTrace): void
-  dispose?(): void
 }
 
 export type AppliedDecisionResolution =

@@ -44,6 +44,11 @@ import type {
   Role,
 } from '../engine/types.ts'
 import {
+  isComposedExecutionMode,
+  isNonComposedExecutionMode,
+  type NonComposedExecutionMode,
+} from '../agents/brain.ts'
+import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
 } from '../agents/belief/language-factor.ts'
 import {
@@ -306,14 +311,6 @@ export interface ArchitectureBenchmarkReport {
   cases: string[]
   variants: ArchitectureVariantSummary[]
   comparisons: ArchitectureComparison[]
-}
-
-function isComposedArchitectureMode(value: unknown): boolean {
-  return (
-    value === 'compatibility'
-    || value === 'structured-only'
-    || value === 'hybrid'
-  )
 }
 
 interface GameObservation {
@@ -604,7 +601,7 @@ type ArtifactArchitectureAdmission =
     }>
   | Readonly<{
       provenance: 'non-composed-host-metadata-admitted'
-      mode: 'raw-llm' | 'heuristic' | 'random'
+      mode: NonComposedExecutionMode
     }>
 
 function artifactArchitectureAdmission(
@@ -650,17 +647,14 @@ function artifactArchitectureAdmission(
       }
     }
     const legacy = admitLegacyHostComponentManifest(artifact)
+    const declaredMode = artifact.architecture?.components.mode
     if (
       legacy.provenance === 'historical-absent'
-      && (
-        artifact.architecture?.components.mode === 'raw-llm'
-        || artifact.architecture?.components.mode === 'heuristic'
-        || artifact.architecture?.components.mode === 'random'
-      )
+      && isNonComposedExecutionMode(declaredMode)
     ) {
       return {
         provenance: 'non-composed-host-metadata-admitted',
-        mode: artifact.architecture.components.mode,
+        mode: declaredMode,
       }
     }
     return legacy
@@ -953,7 +947,7 @@ function legacyArchitectureSafety(
   const componentManifestClaim = hasComponentManifestClaim(
     architectureAdmission,
   )
-  const hostRequiresComponentEvidence = isComposedArchitectureMode(
+  const hostRequiresComponentEvidence = isComposedExecutionMode(
     meta.components.mode,
   )
   const validComponentManifest =
@@ -1029,9 +1023,7 @@ function legacyArchitectureSafety(
       || meta.components.belief !== EXACT_BELIEF_MODEL_VERSION
       || meta.components.factors !== 'off'
       || meta.components.languageEvidence !== 'off'
-      || !['compatibility', 'structured-only', 'hybrid'].includes(
-        meta.components.mode,
-      )
+      || !isComposedExecutionMode(meta.components.mode)
     )
   const declaresMorganaRoleUtility =
     meta.components.morganaRoleUtility
@@ -1159,7 +1151,7 @@ function legacyArchitectureSafety(
     || componentManifestClaim
     || genericComponentClaim
     || traces.some((trace) =>
-      isComposedArchitectureMode(trace.agentMode))
+      isComposedExecutionMode(trace.agentMode))
   )
   const canonicalArtifact = artifactWithCanonicalDecisionTraces(
     artifact,
@@ -2152,13 +2144,13 @@ function componentEvidence(
   const legacy = admissions.every((admission) =>
     admission.provenance === 'legacy-host-manifest-admitted')
   const hasComposedClaim = games.some((game) =>
-    isComposedArchitectureMode(game.meta.components.mode)
+    isComposedExecutionMode(game.meta.components.mode)
     || hasComponentManifestClaim(game.architectureAdmission)
     || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined
-      || isComposedArchitectureMode(trace.agentMode)))
+      || isComposedExecutionMode(trace.agentMode)))
   const traces = games.flatMap((game) =>
     game.decisionTraces.filter(
       (trace) => trace.viewerSeat === game.meta.targetSeat,
@@ -2216,14 +2208,10 @@ function observationPromotionEvidenceEligible(
   ) {
     return false
   }
-  if (isComposedArchitectureMode(game.meta.components.mode)) {
+  if (isComposedExecutionMode(game.meta.components.mode)) {
     return game.safety.promotionEvidenceEligible === true
   }
-  if (
-    game.meta.components.mode === 'raw-llm'
-    || game.meta.components.mode === 'heuristic'
-    || game.meta.components.mode === 'random'
-  ) {
+  if (isNonComposedExecutionMode(game.meta.components.mode)) {
     return game.safety.promotionEvidenceEligible !== false
   }
   return false
@@ -2269,13 +2257,13 @@ function summarizeVariant(id: string, games: GameObservation[]): ArchitectureVar
       ? firstAdmission.plan
       : undefined
   const hasComponentEvidence = games.some((game) =>
-    isComposedArchitectureMode(game.meta.components.mode)
+    isComposedExecutionMode(game.meta.components.mode)
     || hasComponentManifestClaim(game.architectureAdmission)
     || game.decisionTraces.some((trace) =>
       trace.version === COMPONENT_DECISION_TRACE_VERSION
       || trace.componentPlan !== undefined
       || trace.components !== undefined
-      || isComposedArchitectureMode(trace.agentMode)))
+      || isComposedExecutionMode(trace.agentMode)))
   const roles = [...new Set(games.map((g) => g.meta.targetRole))].sort()
   const kinds = [...new Set(games.flatMap((g) => [
     ...g.decisions.keys(),

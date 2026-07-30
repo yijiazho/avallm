@@ -4,8 +4,9 @@ import {
   COMPOSED_POLICY_VERSION,
   PLAN_COMMUNICATION_VERSION,
   brainComponents,
+  isComposedExecutionMode,
   resolveBrain,
-  type AgentExecutionMode,
+  type ComposedExecutionMode,
   type BrainSource,
   type BrainSpec,
 } from '../brain.ts'
@@ -55,14 +56,6 @@ export const MAX_RESOLVED_ARCHITECTURE_IDENTITY_JSON_BYTES = 65_536
 
 const ARCHITECTURE_VERSION_PATTERN =
   /^[a-z0-9][a-z0-9._+-]{0,99}$/
-const ARCHITECTURE_MODES: readonly AgentExecutionMode[] = [
-  'raw-llm',
-  'heuristic',
-  'random',
-  'compatibility',
-  'structured-only',
-  'hybrid',
-]
 
 export interface ResolvedConfiguredPipeline {
   readonly belief: Readonly<{
@@ -129,10 +122,7 @@ export interface ComposedBrainConfig {
   readonly scoreLayerOrder?: readonly ScoreLayerRef[]
   readonly decisionLayerOrder?: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
-  readonly executionMode?: Extract<
-    AgentExecutionMode,
-    'compatibility' | 'structured-only' | 'hybrid'
-  >
+  readonly executionMode?: ComposedExecutionMode
   /**
    * Temporary, read-only projection of the role-specific configuration that
    * B3 adapters will migrate. It must contain data only, never callbacks.
@@ -155,10 +145,7 @@ export interface ComposedBrainConfig {
  */
 export interface ResolvedArchitectureIdentity {
   readonly version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
-  readonly executionMode: Extract<
-    AgentExecutionMode,
-    'compatibility' | 'structured-only' | 'hybrid'
-  >
+  readonly executionMode: ComposedExecutionMode
   readonly base: BrainSpec
   readonly components: ResolvedComponentGraph
   /** Stable contributions declared by the resolved component graph. */
@@ -566,11 +553,7 @@ function decodeIdentityBrain(value: unknown): BrainSpec {
   if (
     !record
     || record.version !== BRAIN_SPEC_VERSION
-    || ![
-      'compatibility',
-      'structured-only',
-      'hybrid',
-    ].includes(record.mode as string)
+    || !isComposedExecutionMode(record.mode)
     || record.belief !== EXACT_BELIEF_MODEL_VERSION
     || record.beliefVisibility !== 'none'
     || record.policy !== COMPOSED_POLICY_VERSION
@@ -730,9 +713,7 @@ export function admitResolvedArchitectureIdentity(
     if (
       !root
       || root.version !== RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
-      || !['compatibility', 'structured-only', 'hybrid'].includes(
-        String(root.executionMode),
-      )
+      || !isComposedExecutionMode(root.executionMode)
       || !contributions
       || (
         contributions.observerModel !== 'off'

@@ -13,13 +13,63 @@ export const PROMPT_COMMUNICATION_VERSION = 'prompt-voice-v1'
 export const PLAN_COMMUNICATION_VERSION = 'plan-voice-v2'
 export const EXPERIMENTAL_BELIEF_MODE = 'exact-summary-v1'
 export type ExperimentalBeliefMode = typeof EXPERIMENTAL_BELIEF_MODE
-export type AgentExecutionMode =
-  | 'raw-llm'
-  | 'heuristic'
-  | 'random'
-  | 'compatibility'
-  | 'structured-only'
-  | 'hybrid'
+/**
+ * Every execution mode, as one runtime list the union derives from.
+ *
+ * The list is the source of truth rather than a convenience copy of it: a
+ * mode set spelled out as a string array or an `||` chain somewhere else is
+ * invisible to the compiler, so it survives a change to the union without
+ * reddening anything. Retiring the `external` mode had to be done by hand in
+ * four separate literal lists for exactly that reason, and typechecking
+ * caught only the two that were typed against this union. Read the sets
+ * through the predicates below instead of restating them.
+ */
+export const AGENT_EXECUTION_MODES = Object.freeze([
+  'raw-llm',
+  'heuristic',
+  'random',
+  'compatibility',
+  'structured-only',
+  'hybrid',
+] as const)
+export type AgentExecutionMode = (typeof AGENT_EXECUTION_MODES)[number]
+
+/** The modes that run the composed component pipeline. */
+export const COMPOSED_EXECUTION_MODES = Object.freeze([
+  'compatibility',
+  'structured-only',
+  'hybrid',
+] as const) satisfies readonly AgentExecutionMode[]
+export type ComposedExecutionMode = (typeof COMPOSED_EXECUTION_MODES)[number]
+
+export type NonComposedExecutionMode =
+  Exclude<AgentExecutionMode, ComposedExecutionMode>
+
+/** Derived, so the two sets cannot drift into overlapping or leaving a gap. */
+export const NON_COMPOSED_EXECUTION_MODES = Object.freeze(
+  AGENT_EXECUTION_MODES.filter(
+    (mode): mode is NonComposedExecutionMode =>
+      !(COMPOSED_EXECUTION_MODES as readonly string[]).includes(mode),
+  ),
+)
+
+export function isAgentExecutionMode(
+  value: unknown,
+): value is AgentExecutionMode {
+  return (AGENT_EXECUTION_MODES as readonly unknown[]).includes(value)
+}
+
+export function isComposedExecutionMode(
+  value: unknown,
+): value is ComposedExecutionMode {
+  return (COMPOSED_EXECUTION_MODES as readonly unknown[]).includes(value)
+}
+
+export function isNonComposedExecutionMode(
+  value: unknown,
+): value is NonComposedExecutionMode {
+  return (NON_COMPOSED_EXECUTION_MODES as readonly unknown[]).includes(value)
+}
 
 export type BeliefComponent =
   | 'none'

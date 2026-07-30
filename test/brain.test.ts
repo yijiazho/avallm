@@ -3,8 +3,14 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import {
+  AGENT_EXECUTION_MODES,
   brainComponents,
   COMPAT_CERTAINTIES_VISIBILITY,
+  COMPOSED_EXECUTION_MODES,
+  isAgentExecutionMode,
+  isComposedExecutionMode,
+  isNonComposedExecutionMode,
+  NON_COMPOSED_EXECUTION_MODES,
   HEURISTIC_POLICY_VERSION,
   PROMPT_COMMUNICATION_VERSION,
   RANDOM_POLICY_VERSION,
@@ -232,4 +238,65 @@ test('committed Phase 0 metadata remains historical rather than relabelled', () 
   assert.equal(heuristic.variants[0].components.belief, 'none')
   assert.equal(heuristic.variants[0].components.beliefVisibility, undefined)
   assert.equal(observed.architecture.belief, 'none')
+})
+
+test('the execution mode sets partition the union exactly once', () => {
+  // NON_COMPOSED is computed by filtering COMPOSED out of the full list, so a
+  // typo in either literal silently shifts the other set rather than failing.
+  assert.deepEqual(
+    [...COMPOSED_EXECUTION_MODES, ...NON_COMPOSED_EXECUTION_MODES].sort(),
+    [...AGENT_EXECUTION_MODES].sort(),
+  )
+  for (const mode of AGENT_EXECUTION_MODES) {
+    assert.equal(isAgentExecutionMode(mode), true, mode)
+    // Exactly one side, never both and never neither.
+    assert.equal(
+      isComposedExecutionMode(mode),
+      !isNonComposedExecutionMode(mode),
+      mode,
+    )
+  }
+  assert.equal(isAgentExecutionMode('external'), false)
+  assert.equal(isComposedExecutionMode('external'), false)
+  assert.equal(isNonComposedExecutionMode('external'), false)
+})
+
+test('no server module restates an execution mode set', () => {
+  // The reason the sets live in brain.ts at all: a mode set spelled out as a
+  // string array or an || chain is invisible to the compiler, so it survives
+  // a change to the union without reddening anything. Retiring the `external`
+  // mode had to be done by hand in four separate lists, and typechecking
+  // caught only the two that were typed against AgentExecutionMode. Comparing
+  // against a single mode is fine; enumerating a set is what this rejects.
+  // Match a COMPLETE set only. Naming two of the three composed modes is
+  // legitimate (several bench helpers accept exactly `compatibility` and
+  // `structured-only`); enumerating all of them is the restatement.
+  const sep = String.raw`\s*(?:,|\|)\s*`
+  const sequence = (modes: readonly string[]): string =>
+    modes.map((mode) => `'${mode}'`).join(sep)
+  // Derived from the constants, so growing either set grows the guard with
+  // it. Hardcoding the triples here would reintroduce the exact restatement
+  // this test exists to reject. The all-modes list needs no pattern of its
+  // own: it contains the non-composed run adjacently, so it matches too.
+  const restatement = new RegExp([
+    sequence(COMPOSED_EXECUTION_MODES),
+    sequence(NON_COMPOSED_EXECUTION_MODES),
+  ].join('|'))
+  const offenders: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`
+      if (entry.isDirectory()) walk(full)
+      else if (entry.name.endsWith('.ts')) {
+        if (full === 'server/agents/brain.ts') continue
+        if (restatement.test(fs.readFileSync(full, 'utf8'))) offenders.push(full)
+      }
+    }
+  }
+  walk('server')
+  assert.deepEqual(
+    offenders,
+    [],
+    'import the sets or predicates from brain.ts instead of restating them',
+  )
 })

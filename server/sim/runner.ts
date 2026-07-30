@@ -142,6 +142,5 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     }
   }
 
-  for (const agent of agents.values()) agent.dispose?.()
   return { game, degraded, steps }
 }

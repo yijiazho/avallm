@@ -78,8 +78,8 @@ import {
   type DecisionTrace,
   type TraceComponentVersions,
 } from '../trace.ts'
-import type {
-  AgentExecutionMode,
+import {
+  isAgentExecutionMode,
 } from '../brain.ts'
 import {
   LANGUAGE_BELIEF_VERSION_SUFFIX,
@@ -2856,14 +2856,6 @@ function validDecisionTrace(
   const fullHostView = isFullPlayerView(hostView) ? hostView : undefined
   const throughSeq = trace.beliefThroughSeq
   const hypotheses = trace.topHypotheses
-  const agentModes: readonly AgentExecutionMode[] = [
-    'raw-llm',
-    'heuristic',
-    'random',
-    'compatibility',
-    'structured-only',
-    'hybrid',
-  ]
   return (
     (
       trace.version === DECISION_TRACE_VERSION
@@ -2903,7 +2895,7 @@ function validDecisionTrace(
     && isDeepStrictEqual(trace.action, decision)
     && (
       trace.agentMode === undefined
-      || agentModes.includes(trace.agentMode as AgentExecutionMode)
+      || isAgentExecutionMode(trace.agentMode)
     )
     && (
       trace.architectureIdentityDigest === undefined

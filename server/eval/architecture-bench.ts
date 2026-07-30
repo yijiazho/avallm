@@ -72,8 +72,9 @@ import {
 } from '../agents/trace.ts'
 import {
   brainComponents,
+  isAgentExecutionMode,
+  isComposedExecutionMode,
   resolveBrain,
-  type AgentExecutionMode,
 } from '../agents/brain.ts'
 import {
   LANGUAGE_FACTOR_BUNDLE_VERSION,
@@ -296,9 +297,6 @@ function withDecisionTiming(
             agent.privateTraceSink!.call(agent, trace),
         }
       : {}),
-    ...(agent.dispose
-      ? { dispose: () => agent.dispose!.call(agent) }
-      : {}),
   }
 }
 
@@ -348,15 +346,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         )
       }
     }
-    const modes: readonly AgentExecutionMode[] = [
-      'raw-llm',
-      'heuristic',
-      'random',
-      'compatibility',
-      'structured-only',
-      'hybrid',
-    ]
-    if (!modes.includes(variant.components.mode as AgentExecutionMode)) {
+    if (!isAgentExecutionMode(variant.components.mode)) {
       throw new Error(
         `custom architecture variant ${variant.id} has invalid mode ${variant.components.mode}`,
       )
@@ -549,9 +539,7 @@ function resolvedVariantComponents(variant: ArchitectureVariant): Record<string,
         || variant.components.belief !== EXACT_BELIEF_MODEL_VERSION
         || variant.components.languageEvidence !== 'off'
         || variant.components.factors !== 'off'
-        || !['compatibility', 'structured-only', 'hybrid'].includes(
-          variant.components.mode,
-        )
+        || !isComposedExecutionMode(variant.components.mode)
       )
     ) {
       throw new Error(
