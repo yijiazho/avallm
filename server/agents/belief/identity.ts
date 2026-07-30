@@ -138,11 +138,13 @@ function roleMultisetCounts(roles: readonly Role[]): Map<Role, number> {
   return counts
 }
 
-function canonicalQuery(roles: readonly Role[]): {
+interface CanonicalQuery {
   queryKey: string
   queriedRoles: readonly Role[]
   counts: ReadonlyMap<Role, number>
-} {
+}
+
+function canonicalQuery(roles: readonly Role[]): CanonicalQuery {
   if (
     !denseArray(roles)
     || roles.length === 0
@@ -173,7 +175,7 @@ function sameRoleCounts(
 }
 
 function validateQueryAgainstCast(
-  query: ReturnType<typeof canonicalQuery>,
+  query: CanonicalQuery,
   castCounts: ReadonlyMap<Role, number>,
   playerCount: number,
 ): void {
@@ -319,7 +321,7 @@ function assignmentKey(assignments: readonly CanonicalRoleAssignment[]): string 
 
 function projectRolePosterior(
   snapshot: BeliefSnapshot,
-  query: ReturnType<typeof canonicalQuery>,
+  query: CanonicalQuery,
   total: number,
 ): RoleIdentityPosterior {
   const grouped = new Map<string, CompensatedProbability & {
@@ -627,7 +629,7 @@ export function validatePrivateIdentitySnapshot(
       || typeof query.queryKey !== 'string'
       || !Array.isArray(query.queriedRoles)
     ) return false
-    let canonical: ReturnType<typeof canonicalQuery>
+    let canonical: CanonicalQuery
     try {
       canonical = canonicalQuery(query.queriedRoles as Role[])
       validateQueryAgainstCast(canonical, castCounts, playerCount)

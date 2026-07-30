@@ -10,18 +10,9 @@ import {
   type QuestRecordOptions,
 } from './quest-constraints.ts'
 
-export {
-  questFailEvidenceFromQuests,
-  worldSatisfiesQuestEvidence,
-  type QuestFailEvidence,
-} from './quest-constraints.ts'
+export { type QuestFailEvidence } from './quest-constraints.ts'
 
-export interface ConstraintOptions extends QuestRecordOptions {
-  /**
-   * `none` isolates deal knowledge. A number includes resolved quests through
-   * that quest number, and `all` includes every resolved quest in the view.
-   */
-}
+export type ConstraintOptions = QuestRecordOptions
 
 export function questFailEvidence(
   view: PlayerView,

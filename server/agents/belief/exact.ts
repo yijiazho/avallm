@@ -29,6 +29,10 @@ import { clampProbability } from '../components/probability-arithmetic.ts'
 const DEAL_CACHE_LIMIT = 32
 const dealWorldCache = new Map<string, readonly HiddenWorld[]>()
 
+// View-generic (the max event seq of any PlayerView), not belief-specific. It
+// lives here because belief is its earliest consumer and the analysis, policy,
+// cognition, and eval layers already import it from this module; there is no
+// dedicated view-util home that would not invert the dependency direction.
 export function visibleEventCursor(view: PlayerView): number {
   return view.events.reduce((cursor, event) => Math.max(cursor, event.seq), -1)
 }

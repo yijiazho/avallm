@@ -2,6 +2,10 @@ import type { Seat } from '../../engine/types.ts'
 import type { HiddenWorld } from './types.ts'
 
 export interface QuestRecordOptions {
+  /**
+   * `none` isolates deal knowledge. A number includes resolved quests through
+   * that quest number, and `all` includes every resolved quest in the view.
+   */
   questRecord?: 'none' | 'all' | number
 }
 

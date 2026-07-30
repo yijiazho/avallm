@@ -15,7 +15,7 @@ import type {
 import {
   capLogLikelihood,
   normalizeLogWeights,
-} from '../server/agents/belief/weighting.ts'
+} from '../server/agents/belief/log-weights.ts'
 import { advanceCognition } from '../server/agents/cognition/state.ts'
 import {
   candidateIdForDecision,

@@ -18,7 +18,7 @@
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "c4909a0cf7a2d503025c5983372e27b65f94cdbc17ae8fbc11e609fdeea9ea2a",
+      "sha256": "7307af85e518709c7d2c63158779ed1d9411d5889cc5489b36cf28f0e2a1cb90",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {

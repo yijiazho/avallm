@@ -19,7 +19,7 @@ import type {
 import {
   capLogLikelihood,
   normalizeLogWeights,
-} from './weighting.ts'
+} from './log-weights.ts'
 
 export const QUEST_CARD_FACTOR_VERSION = 'analytical-quest-card-v1'
 export const QUEST_FACTOR_BUNDLE_VERSION = 'quest-card-only-v1'

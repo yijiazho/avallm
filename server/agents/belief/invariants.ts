@@ -1,45 +1,21 @@
-// Postcondition guards for the belief numeric layer.
+// Postcondition guard for the belief numeric layer.
 //
 // The belief math builds probability distributions that flow, unaudited, into
 // decision scoring: a normalization or floating-point bug does not crash, it
 // produces a subtly wrong posterior that only surfaces several layers
-// downstream as a bad decision. These guards turn that silent corruption into a
-// loud, attributable failure at the exact site that produced it.
-//
-// identity.ts already performs these same checks ad hoc on the CONSUMING side
-// (normalized world total, complementary alignment marginals). This module is
-// where the PRODUCING sites (exact.ts marginals and assessTeams) get the same
-// coverage from one shared definition, so the invariant has a single home
-// rather than a scattering of inline abs-difference comparisons.
+// downstream as a bad decision. `assertDistribution` turns that silent
+// corruption into a loud, attributable failure at the site that produced it.
 //
 // A thrown BeliefInvariantError rides the existing degradation rails: the
 // cognition pipeline catches an inference failure and degrades the decision to
-// the heuristic (it never stalls the game), exactly as it already does for the
-// structurally identical throws in identity.ts.
+// the heuristic (it never stalls the game).
 //
-// There is deliberately no single-value guard here, and adding one back would
-// be a second answer to a question the tree already answers once. This module
-// briefly carried an assertProbability alongside assertDistribution. It had no
-// production caller, because there is no site that needs it: every probability
-// the belief layer emits belongs to a distribution and is checked as one. A
-// seat's alignment split is a two-element distribution, its role spread is a
-// distribution over the cast, and a team's cleanProbability is index 0 of the
-// evil-count distribution that assertDistribution already covers. The scalar
-// case simply does not occur on the producing side.
-//
-// The question "is this one value a probability" belongs to `probability` in
-// components/canonical-shape.ts, and it is asked on the CONSUMING side, of
-// untrusted payloads, where the right answer is a strict predicate over [0, 1]
-// with no slack. This module asks a different question of our own arithmetic
-// and answers it with a throw and a tolerance. Keeping both under one roof
-// invited exactly the drift canonical-shape.ts's header warns about: two
-// spellings of one concept, differing in strictness, with nothing at the call
-// site to say which contract was in force.
-//
-// The tolerance below never reaches that strict guard. Producers clamp what
-// they emit (clampProbability in exact.ts, and the uniform kernel divides
-// counts), so an out-of-range mass is a throw here rather than a value that
-// passes this check and is later refused at the admission boundary.
+// There is deliberately no single-value guard: every probability the belief
+// layer emits belongs to a distribution and is checked as one. The strict
+// predicate for a lone value over [0, 1] is `probability` in
+// components/canonical-shape.ts, asked on the consuming side of untrusted
+// payloads; this module asks a different question of our own arithmetic and
+// answers it with a throw and a tolerance.
 
 import {
   addProbability,
@@ -54,19 +30,10 @@ export class BeliefInvariantError extends Error {}
  * A discrete distribution: every entry a valid probability mass, and the whole
  * summing to 1 up to tolerance. Returns the input so callers can assert inline.
  *
- * This used to widen the sum tolerance to `tolerance * values.length`, because
- * normalizing n worlds accumulates O(n) rounding steps and a flat 1e-12 would
- * false-trip a 10-player weighted posterior whose thousands of masses are each
- * individually exact. That reasoning was right about the problem and settled
- * for absorbing it. The sum is compensated now, so the O(n) term is gone at the
- * source and the flat tolerance is honest: what is left is the rounding already
- * present in the caller's own masses, which is bounded by one ulp of their
- * total no matter how many there are.
- *
- * Dropping the widening makes this guard roughly n times stricter, which is the
- * point of a postcondition. No scaled counterpart survives anywhere: every
- * total in the tree is compensated now, so the single-value tolerance is the
- * only one a probability comparison spends.
+ * The sum is compensated, so the tolerance stays flat rather than widening with
+ * `values.length`: the O(n) rounding a naive left-to-right sum would accumulate
+ * is gone at the source, leaving only the rounding already present in the
+ * caller's own masses.
  */
 export function assertDistribution(
   values: readonly number[],
