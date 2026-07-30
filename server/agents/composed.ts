@@ -1071,8 +1071,6 @@ async function advanceDecisionCognition(input: {
 interface DecisionRoleScope {
   readonly routedObjective: RoutedRoleObjectiveModel
   readonly scorer: CandidateScorer
-  readonly roleUtilityApplicable: boolean
-  readonly evilRoleUtilityApplicable: boolean
   readonly roleObjectiveRole: RoleObjectiveRole | undefined
   readonly evilRoleObjectiveApplicable: boolean
   readonly morganaCounterfeitApplicable: boolean
@@ -1112,10 +1110,6 @@ function resolveDecisionRoleScope(input: {
   return {
     routedObjective,
     scorer,
-    roleUtilityApplicable,
-    evilRoleUtilityApplicable:
-      scorer.evilRoleUtilityRequirement
-        === EVIL_ROLE_UTILITY_PROJECTION_VERSION,
     roleObjectiveRole,
     evilRoleObjectiveApplicable,
     morganaCounterfeitApplicable:
@@ -1649,8 +1643,6 @@ export function createComposedAgent(
           evilRoleObjectiveApplicable,
           morganaCounterfeitApplicable,
         } = roleScope
-        const roleScorerApplicable = roleScope.roleUtilityApplicable
-        const evilRoleScorerApplicable = roleScope.evilRoleUtilityApplicable
         const decisionIdentityScope = roleScope.identityScope
         // Component results can still step this down its base chain below.
         let resolvedScorer = roleScope.scorer
@@ -1815,7 +1807,8 @@ export function createComposedAgent(
           ),
           scorerPayloadBinding(
             GOOD_ROLE_UTILITY_COMPONENT,
-            () => roleScorerApplicable,
+            () => resolvedScorer.roleUtilityRequirement
+              === ROLE_UTILITY_PROJECTION_VERSION,
             (payload) => { privateRoleUtility = payload },
           ),
           scorerPayloadBinding(
@@ -1825,7 +1818,8 @@ export function createComposedAgent(
           ),
           scorerPayloadBinding(
             EVIL_ROLE_UTILITY_COMPONENT,
-            () => evilRoleScorerApplicable,
+            () => resolvedScorer.evilRoleUtilityRequirement
+              === EVIL_ROLE_UTILITY_PROJECTION_VERSION,
             (payload) => { privateEvilRoleUtility = payload },
           ),
           ...(configuredMorganaRoleUtilityComponent
@@ -1837,16 +1831,28 @@ export function createComposedAgent(
               )]
             : []),
         ]
+        // Each predicate reads the scorer the walk currently stands on, so one
+        // unanswered binding can step more than once. It has to:
+        // MORGANA_ROLE_SCORER_VERSION declares the Morgana requirement and the
+        // evil one together, and the base a step lands on declares the evil one
+        // again, so a decision that admitted neither payload would otherwise
+        // stop on a scorer whose own requirement is just as unanswered.
+        const walkedScorers = new Set([resolvedScorer])
         for (const binding of scorerPayloadBindings) {
           if (!configuredComponentIds.has(binding.component.id)) continue
-          const satisfied = binding.apply(componentRun)
-          if (!satisfied && binding.requiredByScorer()) {
-            resolvedScorer = resolveRolePolicyScorer({
-              configured: resolvedScorer.baseScorer ?? resolvedScorer,
+          if (binding.apply(componentRun)) continue
+          while (binding.requiredByScorer() && resolvedScorer.baseScorer) {
+            const stepped = resolveRolePolicyScorer({
+              configured: resolvedScorer.baseScorer,
               req,
               view,
               routedObjective,
             })
+            // Snapshotting preserves whatever chain the caller supplied, so a
+            // self-referential one has to terminate here rather than spin.
+            if (walkedScorers.has(stepped)) break
+            walkedScorers.add(stepped)
+            resolvedScorer = stepped
           }
         }
         const genericPublicMorganaRead = componentPayload(

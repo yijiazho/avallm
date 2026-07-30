@@ -54,12 +54,16 @@ import {
 } from '../server/agents/stdio.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
+  compatibilityCandidateScores,
+  type CandidateScorer,
+  type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
 import {
   legalCandidates,
 } from '../server/agents/policy/candidates.ts'
 import {
   EVIL_ROLE_UTILITY_CONSTANTS,
+  EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   validatePrivateEvilRoleUtilityProjection,
 } from '../server/agents/analysis/evil-role-utility.ts'
 import {
@@ -633,6 +637,95 @@ test('an E1A-only malformed belief degrades narrowly to D2', async () => {
     ),
     false,
   )
+})
+
+test('two unanswered requirements walk two steps down the base chain', async () => {
+  // MORGANA_ROLE_SCORER_VERSION declares the Morgana requirement and the evil
+  // requirement, and its base declares the evil one again, so a decision that
+  // admits neither payload has to step down twice. The built-in identities
+  // cannot show that: they score through native layers, which gate on the same
+  // payloads independently, so the scorer the walk lands on is invisible in the
+  // trace. A caller-supplied chain with the same requirement shape scores
+  // through the custom seam, where the landing scorer is the applied one.
+  const scoresAt = (version: string) =>
+    (context: CandidateScoringContext) =>
+      compatibilityCandidateScores(context).map((score) => ({
+        ...score,
+        version,
+      }))
+  const baseOfBase: CandidateScorer = {
+    version: 'morgana-walk-base-of-base-v1',
+    score: scoresAt('morgana-walk-base-of-base-v1'),
+  }
+  const base: CandidateScorer = {
+    version: 'morgana-walk-base-v1',
+    evilRoleUtilityRequirement: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+    score: scoresAt('morgana-walk-base-v1'),
+    baseScorer: baseOfBase,
+  }
+  const configured: CandidateScorer = {
+    version: 'morgana-walk-configured-v1',
+    morganaRoleUtilityRequirement: MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
+    evilRoleUtilityRequirement: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
+    score: scoresAt('morgana-walk-configured-v1'),
+    baseScorer: base,
+  }
+  const input = morganaFamilyFixture
+
+  const supplied = await createComposedAgent({
+    seed: input.game.seed,
+    roleObjectiveRouter: true,
+    scorer: configured,
+  }).decide(input.req, input.view)
+  // The seat is eligible for both requirements, so nothing about the fixture
+  // forces a walk on its own.
+  assert.equal(
+    supplied.trace!.componentVersions!.scorer,
+    'morgana-walk-configured-v1',
+  )
+  assert.ok(evilUtility(supplied.trace!))
+  assert.ok(morganaUtility(supplied.trace!))
+
+  // An impossible role query fails identity projection, which takes the evil
+  // objective down with it, and the Morgana projection depends on the evil one.
+  const unsupplied = await createComposedAgent({
+    seed: input.game.seed,
+    roleObjectiveRouter: true,
+    scorer: configured,
+    privateIdentity: {
+      roleQueries: [{ roles: ['merlin', 'merlin'] as const }],
+      hiddenTeam: true,
+    },
+  }).decide(input.req, input.view)
+  const statuses = new Map(
+    unsupplied.trace!.components!.entries.map((entry) => [
+      entry.component.id,
+      entry.status,
+    ]),
+  )
+  assert.equal(statuses.get(EVIL_ROLE_UTILITY_COMPONENT.id), 'degraded')
+  assert.equal(statuses.get(MORGANA_ROLE_UTILITY_COMPONENT.id), 'degraded')
+  assert.equal(evilUtility(unsupplied.trace!), undefined)
+  assert.equal(morganaUtility(unsupplied.trace!), undefined)
+
+  assert.equal(
+    unsupplied.trace!.componentVersions!.configuredScorer,
+    'morgana-walk-configured-v1',
+  )
+  // One step would stop at the base, whose own evil requirement is just as
+  // unanswered as the configured scorer's.
+  assert.notEqual(
+    unsupplied.trace!.componentVersions!.scorer,
+    'morgana-walk-base-v1',
+  )
+  assert.equal(
+    unsupplied.trace!.componentVersions!.scorer,
+    'morgana-walk-base-of-base-v1',
+  )
+  assert.ok(unsupplied.trace!.candidateScores!.length > 0)
+  assert.ok(unsupplied.trace!.candidateScores!.every(
+    (score) => score.version === 'morgana-walk-base-of-base-v1',
+  ))
 })
 
 test('weighted runtime stays causal and host admission preserves nonpromotion', async () => {
