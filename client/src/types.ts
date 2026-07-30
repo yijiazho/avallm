@@ -120,10 +120,11 @@ export interface ServerPayload {
   spectator: boolean
 }
 
-export interface LobbyPayload {
+// Mirrors the server's lobby DTO (server/server.ts lobbyPayload). gameId's
+// presence follows from status, so the two travel as a discriminated union
+// rather than an independent flag plus an optional field.
+interface LobbyPayloadCommon {
   id: string
-  status: 'open' | 'started'
-  gameId?: string
   playerCount: number
   humanSeats: number
   openSeats: number
@@ -132,6 +133,9 @@ export interface LobbyPayload {
   hostName: string
   table: { id: string; name: string; model: string }[]
 }
+export type LobbyPayload =
+  | (LobbyPayloadCommon & { status: 'open' })
+  | (LobbyPayloadCommon & { status: 'started'; gameId: string })
 
 export interface RevealPlayer {
   seat: Seat

@@ -243,11 +243,26 @@ interface Lobby {
 
 const lobbies = new Map<string, Lobby>()
 
-function lobbyPayload(l: Lobby) {
-  return {
+// Wire DTO. gameId's presence follows from status — an open lobby has none, a
+// started one always does — so the two travel as a discriminated union rather
+// than an independent flag + optional field that could contradict each other.
+interface LobbyPayloadCommon {
+  id: string
+  playerCount: number
+  humanSeats: number
+  openSeats: number
+  members: string[]
+  spectators: number
+  hostName: string
+  table: { id: string; name: string; model: string }[]
+}
+type LobbyPayload =
+  | (LobbyPayloadCommon & { status: 'open' })
+  | (LobbyPayloadCommon & { status: 'started'; gameId: string })
+
+function lobbyPayload(l: Lobby): LobbyPayload {
+  const common: LobbyPayloadCommon = {
     id: l.id,
-    status: l.status,
-    gameId: l.gameId,
     playerCount: l.config.playerCount,
     humanSeats: l.config.humanSeats,
     openSeats: l.status === 'open' ? l.config.humanSeats - l.members.length : 0,
@@ -263,6 +278,12 @@ function lobbyPayload(l: Lobby) {
       return { id: info.id, name: info.name, model: info.model }
     }),
   }
+  // The one place the started-implies-gameId correlation is asserted: the
+  // internal Lobby sets status and gameId together in startLobby, and this
+  // boundary hands downstream a shape where that pairing is guaranteed.
+  return l.status === 'started'
+    ? { ...common, status: 'started', gameId: l.gameId! }
+    : { ...common, status: 'open' }
 }
 
 // Resolve a lobby seat to a seatable def — NEVER throws. An agent deleted (or

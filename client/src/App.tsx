@@ -133,7 +133,7 @@ export function App() {
     es.onmessage = (ev) => {
       const data: LobbyPayload = JSON.parse(ev.data)
       setLobby(data)
-      if (data.status === 'started' && data.gameId) openGame(data.gameId, token)
+      if (data.status === 'started') openGame(data.gameId, token)
     }
     es.onerror = () => {
       // The server 404s the SSE for a lobby it doesn't know — never existed, or
@@ -312,7 +312,7 @@ export function App() {
       onJoined={(token, data) => {
         localStorage.setItem(tokenKey(screen.lobbyId), token)
         setLobby(data)
-        if (data.status === 'started' && data.gameId) openGame(data.gameId, token)
+        if (data.status === 'started') openGame(data.gameId, token)
         else enterLobby(screen.lobbyId, token)
       }}
       onBack={backToLanding}
