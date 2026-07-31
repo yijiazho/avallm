@@ -1,3 +1,13 @@
+// The composition spine. createComposedAgent is the only thing here: it wires
+// the configured plugins into one resolved brain and then runs a decision
+// through the pipeline in order.
+//
+// Everything the spine needs but does not itself sequence lives in composed/,
+// one module per concern (options, plugin snapshots, planner admission, voice,
+// the private per-decision reads, role scope, role features, native
+// diagnostics). The split is not about file length: each of those modules owns
+// an invariant that reads as an ordering accident when it is inlined as a local
+// in decide(), and only this file may import them.
 import type {
   Decision,
   DecisionRequest,
@@ -9,28 +19,15 @@ import { analyzeSituation } from './analysis/situation.ts'
 import {
   combineSituationAnalysisRequirements,
 } from './analysis/situation-plan.ts'
-import { observePublicRecord } from './analysis/observer.ts'
-import {
-  type PublicObserverSnapshot,
-} from './analysis/observer-types.ts'
 import {
   ROLE_OBJECTIVE_MODEL_VERSION,
   type PrivateRoleObjectiveSnapshot,
-  type RoleObjectiveRole,
 } from './analysis/role-objective-types.ts'
-import {
-  mergeIdentityScopes,
-  roleObjectiveIdentityScope,
-} from './analysis/role-objectives.ts'
 import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   ROLE_OBJECTIVE_ROUTER_VERSION,
   type PrivateEvilRoleObjectiveSnapshot,
-  type RoutedRoleObjectiveModel,
 } from './analysis/evil-objective-types.ts'
-import {
-  routedRoleObjectiveModel,
-} from './analysis/role-objective-router.ts'
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,
@@ -40,33 +37,22 @@ import {
   type PrivateEvilRoleUtilityProjection,
 } from './analysis/evil-role-utility.ts'
 import {
-  MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
-  MORGANA_ROLE_SCORER_DEGRADATION,
   MORGANA_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateMorganaRoleUtilityProjection,
 } from './analysis/morgana-role-utility.ts'
 import { exactWorldBeliefModel } from './belief/exact.ts'
-import type { BeliefModel } from './belief/types.ts'
 import {
-  JOINT_IDENTITY_MODEL_VERSION,
-  projectJointIdentity,
-  type IdentityProjectionScope,
   type PrivateIdentitySnapshot,
 } from './belief/identity.ts'
 import {
-  applyBoundedLanguageEvidence,
   boundedLanguageLikelihoodFactor,
   combinedLanguageFactorBundleVersion,
-  languageBeliefPipelineVersion,
-  type LanguageLikelihoodFactor,
 } from './belief/language-factor.ts'
 import { COMPOSED_POLICY_VERSION } from './brain.ts'
 import {
-  attributeComponentPolicyUseBatch,
   componentPayload,
   decisionComponentPlan,
-  type DecisionComponentRun,
 } from './components/kernel.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
@@ -99,16 +85,7 @@ import {
   revalidatedArchitectureIdentity,
   resolveComposedBrain,
   resolvedArchitectureIdentityDigest,
-  type ResolvedComposedBrain,
 } from './components/resolved-brain.ts'
-import type {
-  ComponentRef,
-  ComponentToken,
-} from './components/types.ts'
-import {
-  advanceCognition,
-  advanceCognitionFromBelief,
-} from './cognition/state.ts'
 import type { CognitionState } from './cognition/types.ts'
 import {
   PLAN_MEMORY_VERSION,
@@ -117,40 +94,55 @@ import {
 } from './cognition/plan-memory.ts'
 import {
   COHERENCE_MODEL_VERSION,
-  type CoherenceIntent,
   isCoherenceIntent,
 } from './cognition/coherence.ts'
 import { buildCommitments } from './cognition/commitments.ts'
 import { extractEvidence } from './cognition/evidence.ts'
 import {
   normalizeInterpreterVersion,
-  orchestrateLanguageEvidence,
-  type LanguageTraceAttribution,
 } from './communication/language-orchestration.ts'
-import {
-  projectLanguageInterpreterInput,
-  recentPublicUtterances,
-} from './record/language-contract.ts'
-import type {
-  LanguageInterpreter,
-  LanguageInterpreterInput,
-} from './record/language-types.ts'
-import { projectPublicRecord } from './record/public-record.ts'
-import {
-  directionChannelFor,
-  publicEvidenceExists,
-  validCommunicationDirection,
-  type CommunicationDirectionContext,
-} from './communication/direction-contract.ts'
-import { validStrategicIntent } from './record/strategic-intent-contract.ts'
 import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
   composedPolicyContext,
-  renderCommittedVoicePlan,
-  renderComposedPolicyContext,
-  type ComposedPolicyContext,
 } from './communication/composed-renderer.ts'
+import {
+  advanceDecisionCognition,
+  lazyPublicObserver,
+  projectDecisionIdentity,
+} from './composed/decision-cognition.ts'
+import {
+  nativeScoreDiagnostics,
+} from './composed/native-diagnostics.ts'
+import {
+  resolvePlannerChoice,
+} from './composed/planner-admission.ts'
+import {
+  attributeRoleActionSelection,
+} from './composed/policy-use-attribution.ts'
+import {
+  orderedRoleFeatureComponents,
+  type RoleFeatureSetup,
+} from './composed/role-features.ts'
+import {
+  resolveDecisionRoleScope,
+  resolveRolePolicyScorer,
+  roleScorerFallbackDegradation,
+  scorerPayloadBinding,
+  type ScorerPayloadBinding,
+} from './composed/role-scope.ts'
+import {
+  scorerRequires,
+  scorerVersions,
+  snapshotBeliefModel,
+  snapshotLanguageFactor,
+  snapshotLanguageInterpreter,
+  snapshotPlanner,
+  snapshotScorer,
+  snapshotVoice,
+  validComponentVersion,
+} from './composed/snapshots.ts'
+import { speakCommittedPlan } from './composed/voice.ts'
 import { heuristicDecide } from './heuristic.ts'
 import {
   candidateIdForDecision,
@@ -160,37 +152,23 @@ import {
   CompositionInvariantError,
 } from './policy/role-adapter-attribution.ts'
 import {
-  type EvilQuestCardPolicyMode,
-} from './policy/evil-quest-card.ts'
-import {
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
-  type CommittedVoicePlan,
   type DecisionPlan,
 } from './policy/plan.ts'
 import {
   defaultCommunicationIntent,
-  plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
-  voiceUncertainty,
 } from './policy/communication-intent.ts'
 import {
   CANDIDATE_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
-  EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-  ROLE_OBJECTIVE_SCORER_VERSION,
-  ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   isCustomCandidateScorer,
-  type CandidateScore,
-  type CandidateScorer,
-  type CandidateScoringContext,
 } from './policy/score.ts'
 import { executeCustomScores } from './policy/custom-scoring.ts'
 import {
   canonicalDecisionFrame,
   commitDecision,
   projectScoredFrameForCompatibility,
-  projectScoringContext,
   projectVoicedFrameForCompatibility,
   selectDecisionCandidate,
   selectedMechanicalDecision,
@@ -201,19 +179,12 @@ import {
   withNativeScoreLayers,
   withNativeScoringAuthority,
   prepareNativeScoreLayers,
-  nativeDiagnosticOwnerVersion,
-  nativeScorerVersion,
   withResolvedDecisionLayers,
   withResolvedComponents,
   withUniversalForcedPolicy,
   type CompatibilityPlannerResolution,
-  type CompatibilityScoringBindings,
-  type NativeScoreLayersResolvedDecisionFrame,
   type PostComponentDecisionFrame,
 } from './policy/decision-frame.ts'
-import type {
-  ResolvedScoreLayerChain,
-} from './policy/score-layer/types.ts'
 import {
   configuredScoreLayerTerminalFor,
   configuredNativeFallbackTerminalFor,
@@ -228,9 +199,6 @@ import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
 } from './role-decision-layers/robust-evil-quest-card.ts'
 import {
-  projectConfiguredScoreDiagnostics,
-} from './score-diagnostics/project-score-diagnostics.ts'
-import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
 } from './candidate/types.ts'
@@ -242,967 +210,24 @@ import { composedTrace } from './trace-builder.ts'
 import type {
   AgentDecision,
   AppliedDecisionOutcome,
-  AvalonAgent,
 } from './types.ts'
 import {
   CANDIDATE_PLANNER_PROTOCOL_VERSION,
   NO_PLANNER_VERSION,
   NO_VOICE_VERSION,
   PLAN_VOICE_PROTOCOL_VERSION,
-  type CandidatePlanner,
-  type PlanVoice,
-  type PlannerInput,
-  type VoiceInput,
-  type VoiceOutput,
 } from './communication/planner-voice-adapter.ts'
+import type {
+  ComposedAgentOptions,
+  ComposedAvalonAgent,
+  ComposedStage,
+} from './composed/options.ts'
 
-export type ComposedStage =
-  | 'language'
-  | 'cognition'
-  | 'identity'
-  | 'observer'
-  | 'role-objective'
-  | 'morgana-counterfeit'
-  | 'quest-card-policy'
-  | 'analysis'
-  | 'candidates'
-  | 'forced-policy'
-  | 'scoring'
-  | 'planner'
-  | 'plan-committed'
-  | 'voice'
-
-export interface ComposedAgentOptions {
-  seed: string
-  /**
-   * Generic opt-in component roots. Dependencies are resolved by the
-   * production registry; no requested component receives policy authority
-   * unless it is also registered in a later policy layer.
-   */
-  decisionComponents?: readonly ComponentRef[]
-  beliefModel?: BeliefModel
-  /** Opt-in public-language interpretation. Never configured by the registry. */
-  languageInterpreter?: LanguageInterpreter
-  /** API-free factor injection for contract and failure testing. */
-  languageFactor?: LanguageLikelihoodFactor
-  planner?: CandidatePlanner
-  voice?: PlanVoice
-  onDecisionTrace?: (trace: DecisionTrace) => void
-  onStage?: (stage: ComposedStage) => void
-  scorer?: CandidateScorer
-  /** Opt-in exact public observer. It cannot influence Phase 7A policy. */
-  publicObserver?: boolean
-  /**
-   * Opt-in private joint identity projection. It consumes the resolved belief
-   * and remains mechanically inert in Phase 7B1.
-   */
-  privateIdentity?: IdentityProjectionScope
-  /**
-   * Opt-in Phase 7C substrate. It activates only for actual Merlin/Percival
-   * seats and remains mechanically inert until a later policy phase.
-   */
-  roleObjectives?: boolean
-  /**
-   * Explicit opt-in Phase 7D router. It resolves the actual seat role to one
-   * objective model but grants no scoring or quest-card policy authority.
-   */
-  roleObjectiveRouter?: boolean
-  /**
-   * Opt-in servant standing/decoy substrate. It is mechanically inert and
-   * resolves only for actual servant seats.
-   *
-   * Deliberately NOT routed through roleObjectiveRouter. That router answers
-   * the good/evil objective question, and its 'off' for a servant is read by
-   * joint identity and by eval attribution as "no objective here". Widening it
-   * would also refuse every legacy v1 servant trace that omits the
-   * declaration, since validRoleObjectiveRoute compares the two for equality.
-   * A servant needs none of that: the objective is public-record-only and
-   * rides the generic component run.
-   */
-  servantObjectives?: boolean
-  /**
-   * Opt-in Phase 7E1A Morgana counterfeit-read substrate. It is mechanically
-   * inert and resolves only for Morgana proposal and vote decisions.
-   */
-  morganaCounterfeitObjectives?: boolean
-  /** Opt-in heterogeneous-safe private evil quest-card strategy. */
-  evilQuestCardPolicy?: EvilQuestCardPolicyMode
-  /** Opt-in Phase 7B2 private selected/applied plan memory. */
-  planMemory?: boolean
-  /**
-   * Opt-in private pin reads (private-pin + evil-exposure) rendered into the
-   * planner's private-planning-only context. Resolves the reads only when set,
-   * so a mechanical or planner-less agent pays nothing; it grants no scoring
-   * authority.
-   */
-  pinReads?: boolean
-  /** Literal conflict classification intent. Defaults to maintain when enabled. */
-  coherenceIntent?: CoherenceIntent
-  /** Compatibility policy used by the intentionally basic Phase 3 scorer. */
-  compatibilityDecision?: (
-    req: DecisionRequest,
-    view: PlayerView,
-    seed: string,
-  ) => Decision
-}
-
-export interface ComposedAvalonAgent extends AvalonAgent {
-  setPlanner(planner: CandidatePlanner | undefined): void
-  setVoice(voice: PlanVoice | undefined): void
-  cognitionCursor(): number | undefined
-  /** Immutable construction-time description; per-decision resolution is B2. */
-  resolvedBrain(): ResolvedComposedBrain
-  /** Detached private snapshot for tests and offline diagnostics. */
-  planMemorySnapshot(): PrivatePlanMemory | undefined
-}
-
-function snapshotPlanner(
-  source: CandidatePlanner | undefined,
-): CandidatePlanner | undefined {
-  if (!source) return undefined
-  const version = source.version
-  const choose = source.choose.bind(source)
-  const snapshot: CandidatePlanner = {
-    version,
-    choose(input: PlannerInput) {
-      return choose(input)
-    },
-  }
-  return Object.freeze(snapshot)
-}
-
-function snapshotVoice(source: PlanVoice | undefined): PlanVoice | undefined {
-  if (!source) return undefined
-  const version = source.version
-  const speak = source.speak.bind(source)
-  const snapshot: PlanVoice = {
-    version,
-    speak(input: VoiceInput) {
-      return speak(input)
-    },
-  }
-  return Object.freeze(snapshot)
-}
-
-function snapshotBeliefModel(source: BeliefModel): BeliefModel {
-  const version = source.version
-  const factorsVersion = source.factorsVersion
-  const infer = source.infer.bind(source)
-  const snapshot: BeliefModel = {
-    version,
-    factorsVersion,
-    infer(view: PlayerView) {
-      return infer(view)
-    },
-  }
-  return Object.freeze(snapshot)
-}
-
-function snapshotLanguageInterpreter(
-  source: LanguageInterpreter | undefined,
-): LanguageInterpreter | undefined {
-  if (!source) return undefined
-  const interpret = source.interpret.bind(source)
-  const snapshot: LanguageInterpreter = {
-    get interpreterVersion() {
-      return source.interpreterVersion
-    },
-    interpret(input: LanguageInterpreterInput) {
-      return interpret(input)
-    },
-  }
-  return Object.freeze(snapshot)
-}
-
-function snapshotLanguageFactor(
-  source: LanguageLikelihoodFactor,
-): LanguageLikelihoodFactor {
-  const id = source.id
-  const version = source.version
-  const logLikelihood = source.logLikelihood.bind(source)
-  const snapshot: LanguageLikelihoodFactor = {
-    id,
-    version,
-    logLikelihood(world, evidence) {
-      return logLikelihood(world, evidence)
-    },
-  }
-  return Object.freeze(snapshot)
-}
-
-function snapshotScorer(
-  source: CandidateScorer,
-  seen = new Map<CandidateScorer, CandidateScorer>(),
-): CandidateScorer {
-  const existing = seen.get(source)
-  if (existing) return existing
-  const score = source.score?.bind(source)
-  const snapshot: CandidateScorer = {
-    version: source.version,
-    ...(source.analysisRequirement
-      ? { analysisRequirement: source.analysisRequirement }
-      : {}),
-    ...(source.roleUtilityRequirement
-      ? { roleUtilityRequirement: source.roleUtilityRequirement }
-      : {}),
-    ...(source.evilRoleUtilityRequirement
-      ? { evilRoleUtilityRequirement: source.evilRoleUtilityRequirement }
-      : {}),
-    ...(source.morganaRoleUtilityRequirement
-      ? { morganaRoleUtilityRequirement: source.morganaRoleUtilityRequirement }
-      : {}),
-    ...(score
-      ? {
-          score(context: CandidateScoringContext) {
-            return score(context)
-          },
-        }
-      : {}),
-  }
-  seen.set(source, snapshot)
-  if (source.baseScorer) {
-    snapshot.baseScorer = snapshotScorer(source.baseScorer, seen)
-  }
-  return Object.freeze(snapshot)
-}
-
-function scorerVersions(source: CandidateScorer): readonly string[] {
-  const versions: string[] = []
-  const seen = new Set<CandidateScorer>()
-  let current: CandidateScorer | undefined = source
-  while (current && !seen.has(current)) {
-    seen.add(current)
-    versions.push(current.version)
-    current = current.baseScorer
-  }
-  return Object.freeze(versions)
-}
-
-function scorerRequires(
-  source: CandidateScorer,
-  requirement:
-    | 'roleUtilityRequirement'
-    | 'evilRoleUtilityRequirement'
-    | 'morganaRoleUtilityRequirement',
-): boolean {
-  const seen = new Set<CandidateScorer>()
-  let current: CandidateScorer | undefined = source
-  while (current && !seen.has(current)) {
-    seen.add(current)
-    if (current[requirement] !== undefined) return true
-    current = current.baseScorer
-  }
-  return false
-}
-
-function attributeRoleActionSelection(
-  run: DecisionComponentRun,
-): DecisionComponentRun {
-  const selected = new Set(
-    run.policyUse
-      .filter((entry) =>
-        entry.used && entry.stages.includes('candidate-score'))
-      .map((entry) =>
-        `${entry.component.id}@${entry.component.version}`),
-  )
-  const tokens = run.entries.flatMap((entry) =>
-    entry.status === 'admitted'
-    && selected.has(`${entry.component.id}@${entry.component.version}`)
-      ? [{
-          ...entry.component,
-          kind: entry.kind,
-          privacy: entry.privacy,
-        }]
-      : [])
-  return attributeComponentPolicyUseBatch(
-    run,
-    tokens,
-    'action-selection',
-  ).run
-}
-
-function validComponentVersion(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
-}
-
-/**
- * What this seat knows about the table, for the shared direction contract.
- *
- * The rules themselves live in communication/direction-contract.ts, which three
- * boundaries share. This seat can answer every question the contract asks, so
- * every optional capability is supplied: an unknown seat, a role that was never
- * dealt, and a citation of a fact the table cannot see are all rejected here
- * even though the reply parser upstream cannot see far enough to reject them.
- */
-function plannerCommunicationContext(
-  decision: Decision,
-  view: PlayerView,
-): CommunicationDirectionContext {
-  const publicInput = projectLanguageInterpreterInput(view)
-  const channel = directionChannelFor(
-    decision.kind,
-    decision.kind === 'finalize' ? decision.stick : undefined,
-  )
-  return {
-    allowedChannels: channel === undefined ? [] : [channel],
-    seatExists: (seat) => view.players.some((player) => player.seat === seat),
-    rolesInPlay: view.rolesInPlay,
-    evidenceExists: (reference) => publicEvidenceExists(reference, publicInput),
-  }
-}
-
-function validPlannerReasons(
-  reasons: readonly string[] | undefined,
-  chosenScore: CandidateScore,
-  scores: readonly CandidateScore[],
-  structuredCandidateId: string,
-): reasons is readonly string[] {
-  if (reasons === undefined) {
-    return chosenScore.candidateId === structuredCandidateId
-  }
-  const permitted = chosenScore.candidateId === structuredCandidateId
-    ? selectedStrategicReasonCodes(chosenScore, scores)
-    : plannerOverrideReasonCodes(chosenScore, scores)
-  if (
-    !Array.isArray(reasons)
-    || new Set(reasons).size !== reasons.length
-    || reasons.some(
-      (code) =>
-        typeof code !== 'string'
-        || !permitted.includes(code),
-    )
-  ) {
-    return false
-  }
-  return chosenScore.candidateId === structuredCandidateId || reasons.length > 0
-}
-
-function withVoice(decision: Decision, output: VoiceOutput | undefined): Decision {
-  const voiced = structuredClone(decision)
-  const text = output?.text?.trim()
-  if (voiced.kind === 'discuss') voiced.say = text ?? ''
-  else if (voiced.kind === 'propose' && text) voiced.pitch = text
-  else if (voiced.kind === 'finalize' && !voiced.stick && text) voiced.reason = text
-  if (output?.thinking?.trim()) voiced.thinking = output.thinking.trim()
-  return voiced
-}
-
-function committedVoicePlan(
-  plan: DecisionPlan,
-  view: PlayerView,
-): CommittedVoicePlan {
-  const publicInput = projectLanguageInterpreterInput(view)
-  const communication = plan.communication
-    ? (() => {
-        const {
-          conceal: _conceal,
-          uncertainty,
-          ...publicIntent
-        } = plan.communication
-        return structuredClone({
-          ...publicIntent,
-          strategicReasonCodes: publicIntent.strategicReasonCodes.filter(
-            (reason) => reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK',
-          ),
-          ...(uncertainty
-            ? { uncertainty: voiceUncertainty(uncertainty) }
-            : {}),
-        })
-      })()
-    : undefined
-  return {
-    version: plan.version,
-    // Voice has to translate the committed seat-number action into table
-    // speech. Names are public, and supplying the whole public roster keeps it
-    // from inventing referents for otherwise anonymous numbers.
-    players: view.players.map(({ seat, name }) => ({ seat, name })),
-    // Reuse the language interpreter's public-only projection instead of
-    // handing voice a PlayerView, which also carries this seat's private role
-    // and knowledge. The rolling window matches the raw-LLM speech context.
-    publicContext: {
-      record: publicInput.publicContext,
-      recentUtterances: recentPublicUtterances(publicInput),
-    },
-    decision: structuredClone(plan.decision),
-    candidateId: plan.candidateId,
-    ...(communication ? { communication } : {}),
-  }
-}
-
-/**
- * Speak the committed plan, when a voice is configured and the plan has anything
- * to say.
- *
- * Voice can decorate the committed action but never replace it, so every path
- * here returns the mechanical decision with at most speech attached, and each
- * failure names itself. The caller feeds the result through withDecisionVoice(),
- * which independently rejects a result that altered the committed mechanics, so
- * this function is the polite half of that contract rather than its enforcement.
- */
-async function speakCommittedPlan(input: {
-  voice: PlanVoice | undefined
-  plan: DecisionPlan
-  view: PlayerView
-  mechanicalDecision: Decision
-  onSpeak: () => void
-}): Promise<Readonly<{ action: Decision; degradationCode?: string }>> {
-  const { voice, plan, view, mechanicalDecision } = input
-  if (
-    !voice
-    || !plan.communication
-    || plan.communication.actCodes.includes('PASS')
-  ) {
-    return { action: structuredClone(mechanicalDecision) }
-  }
-  input.onSpeak()
-  try {
-    const voicePlan = committedVoicePlan(plan, view)
-    const output = await voice.speak({
-      plan: structuredClone(voicePlan),
-      renderedPlan: renderCommittedVoicePlan(voicePlan),
-    })
-    return output
-      ? { action: withVoice(plan.decision, output) }
-      : {
-          action: structuredClone(mechanicalDecision),
-          degradationCode: 'voice-no-output',
-        }
-  } catch {
-    // Cloned from the plan's own decision, so the failure path is sourced from
-    // the committed plan regardless of where the attempt died. This is belt and
-    // braces, not a guard against a half-decorated action: withVoice() is
-    // consumed by a single assignment, so a throw inside it never yields a
-    // partial value to return in the first place.
-    return {
-      action: structuredClone(plan.decision),
-      degradationCode: 'voice-failed',
-    }
-  }
-}
-
-/**
- * The degradation code to record if this scorer fails, or undefined when it is
- * not a role scorer and has no role-specific code.
- *
- * This replaces a pair of overlapping version lists: one asked whether the
- * scorer was any of six role versions, the other mapped those versions to a
- * code with a bare `else` for the rest. They agreed only because the second was
- * read exclusively when the first was true, so adding a role family to one and
- * not the other would have silently attributed its failure to the good-side
- * code. One lookup cannot drift from itself.
- */
-function roleScorerFallbackDegradation(
-  scorer: CandidateScorer,
-): string | undefined {
-  switch (scorer.version) {
-    case MORGANA_ROLE_SCORER_VERSION:
-    case MORGANA_ROLE_SEEDED_SCORER_VERSION:
-      return MORGANA_ROLE_SCORER_DEGRADATION
-    case EVIL_ROLE_OBJECTIVE_SCORER_VERSION:
-    case EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION:
-      return 'evil-role-objective-scorer-failed'
-    case ROLE_OBJECTIVE_SCORER_VERSION:
-    case ROLE_OBJECTIVE_SEEDED_SCORER_VERSION:
-      return 'role-objective-scorer-failed'
-    default:
-      return undefined
-  }
-}
-
-/**
- * The additive per-candidate diagnostics the native score surface attaches.
- *
- * Every mechanical field still comes from the native layers; this only supplies
- * the private feature rows, and `withNativeScoringAuthority` rejects a
- * projection that tries to restate value, viability, or reason codes. The three
- * intermediate versions the projection needs are derived here rather than at the
- * call site because none of them outlives this computation.
- */
-function nativeScoreDiagnostics(
-  frame: NativeScoreLayersResolvedDecisionFrame,
-  chain: ResolvedScoreLayerChain,
-  bindings: CompatibilityScoringBindings,
-): readonly CandidateScore[] {
-  return projectConfiguredScoreDiagnostics(
-    projectScoringContext(frame, bindings),
-    frame.scores,
-    nativeScorerVersion(frame),
-    frame.scoreLayerRun.configured.map((layer) => layer.version),
-    nativeDiagnosticOwnerVersion(frame, chain),
-  )
-}
-
-/**
- * Project the acting seat's private identity posterior for one decision.
- *
- * Returns the cognition state to continue from instead of mutating one. A failed
- * projection has to leave cognition exactly as it was, carrying only a
- * degradation code, and that invariant is easy to misread when the success path
- * assigns a shared local from inside a try block.
- */
-function projectDecisionIdentity(
-  cognition: CognitionState,
-  scope: IdentityProjectionScope,
-): Readonly<{
-  cognition: CognitionState
-  identity?: PrivateIdentitySnapshot
-  degradation: readonly string[]
-}> {
-  try {
-    const identity = projectJointIdentity(cognition.belief, scope)
-    return {
-      cognition: {
-        ...cognition,
-        identity,
-        versions: {
-          ...cognition.versions,
-          identityModel: JOINT_IDENTITY_MODEL_VERSION,
-        },
-      },
-      identity,
-      degradation: [],
-    }
-  } catch {
-    return { cognition, degradation: ['identity-projection-failed'] }
-  }
-}
-
-/**
- * The seat's public-observer projection, observed at most once and only when
- * something actually asks for it.
- *
- * Laziness is not an optimization here. Whether this seat observed the public
- * record at all is private evidence that the trace reports, and `onFirstUse`
- * marks the moment it became true, so the observation and the signal that it
- * happened have to stay welded together. Component host inputs pull `provide`
- * on demand, which is why the memo cannot be replaced by an eager value.
- */
-function lazyPublicObserver(
-  view: PlayerView,
-  onFirstUse: () => void,
-): Readonly<{
-  provide: () => PublicObserverSnapshot
-  observed: () => PublicObserverSnapshot | undefined
-}> {
-  let snapshot: PublicObserverSnapshot | undefined
-  return {
-    provide(): PublicObserverSnapshot {
-      if (!snapshot) {
-        snapshot = observePublicRecord(projectPublicRecord(view))
-        onFirstUse()
-      }
-      return snapshot
-    },
-    observed: () => snapshot,
-  }
-}
-
-/**
- * Offer the scored candidate set to the planner and admit at most one bounded
- * choice from it.
- *
- * Every failure is a typed rejection rather than a throw, including a planner
- * that throws, because planning is optional strategy layered over a decision the
- * frame can already make: selection falls back to the structured choice and the
- * decision still happens. The admission rules are narrow by design. A planner may
- * name only a candidate that scored viable, may cite only reasons its own score
- * supports, and loses invalid communication on its own without losing the
- * candidate, so a planner cannot widen the candidate set or reopen the mechanical
- * action it was handed.
- */
-async function resolvePlannerChoice(input: {
-  planner: CandidatePlanner
-  context: ComposedPolicyContext
-  scores: readonly CandidateScore[]
-  structuredCandidateId: string
-  view: PlayerView
-}): Promise<CompatibilityPlannerResolution> {
-  const { context, scores, structuredCandidateId, view } = input
-  // The catch deliberately spans the clone and the validators, not just
-  // choose(). A planner that returns something structuredClone rejects, or a
-  // malformed output that trips a validator, is the same optional-strategy
-  // failure as one that throws outright, and must degrade rather than end the
-  // decision.
-  try {
-    const supplied = await input.planner.choose({
-      context: structuredClone(context),
-      renderedContext: renderComposedPolicyContext(context),
-      structuredCandidateId,
-    })
-    const planned = supplied === undefined
-      ? undefined
-      : structuredClone(supplied)
-    if (!planned) {
-      return { kind: 'rejected', degradationCode: 'planner-no-choice' }
-    }
-    const plannedScore = scores.find(
-      (score) => score.candidateId === planned.candidateId,
-    )
-    const plannedCandidate = context.viableCandidates.find(
-      (candidate) => candidate.id === planned.candidateId,
-    )
-    if (!plannedCandidate || !plannedScore) {
-      return {
-        kind: 'rejected',
-        degradationCode: 'planner-invalid-candidate',
-        attemptedCandidateId: planned.candidateId,
-      }
-    }
-    if (!validPlannerReasons(
-      planned.reasonCodes,
-      plannedScore,
-      scores,
-      structuredCandidateId,
-    )) {
-      return {
-        kind: 'rejected',
-        degradationCode: 'planner-invalid-reason',
-        attemptedCandidateId: planned.candidateId,
-      }
-    }
-    const communication = planned.communication !== undefined
-      && validCommunicationDirection(
-        planned.communication,
-        plannerCommunicationContext(plannedCandidate.decision, view),
-      )
-      ? structuredClone(planned.communication)
-      : undefined
-    const strategicIntent = planned.strategicIntent !== undefined
-      && validStrategicIntent(
-        planned.strategicIntent,
-        plannerCommunicationContext(plannedCandidate.decision, view),
-      )
-      ? structuredClone(planned.strategicIntent)
-      : undefined
-    return {
-      kind: 'accepted',
-      candidateId: planned.candidateId,
-      ...(planned.reasonCodes === undefined
-        ? {}
-        : { reasonCodes: [...planned.reasonCodes] }),
-      ...(strategicIntent ? { strategicIntent } : {}),
-      ...(communication ? { communication } : {}),
-      ...(planned.strategicIntent !== undefined && !strategicIntent
-        ? { degradationCode: 'planner-invalid-strategic-intent' }
-        : planned.communication !== undefined && !communication
-          ? { degradationCode: 'planner-invalid-communication' }
-          : {}),
-    }
-  } catch {
-    return { kind: 'rejected', degradationCode: 'planner-failed' }
-  }
-}
-
-/**
- * Advance typed cognition for one decision, through bounded language evidence
- * when an interpreter is configured and mechanically otherwise.
- *
- * Both arms end in the same place, a cognition state whose belief is the one
- * every later phase reads, which is why they belong in one owner rather than as
- * a branch in the middle of decide(). Only the language arm can degrade or
- * produce interpreter attribution, so those are optional in the result instead
- * of being threaded back as mutable locals.
- */
-async function advanceDecisionCognition(input: {
-  cognition: CognitionState | undefined
-  view: PlayerView
-  beliefModel: BeliefModel
-  languageFactor: LanguageLikelihoodFactor
-  interpreter: LanguageInterpreter | undefined
-  configuredLanguageVersion: string | undefined
-  onLanguageEvidence: () => void
-}): Promise<Readonly<{
-  cognition: CognitionState
-  languageTrace?: LanguageTraceAttribution
-  degradation: readonly string[]
-}>> {
-  const { cognition, view, beliefModel, interpreter } = input
-  if (!interpreter) {
-    return {
-      cognition: advanceCognition(cognition, view, beliefModel),
-      degradation: [],
-    }
-  }
-  const interpret = interpreter.interpret.bind(interpreter)
-  const language = await orchestrateLanguageEvidence(
-    view,
-    cognition,
-    {
-      interpreterVersion: interpreter.interpreterVersion,
-      interpret(request: LanguageInterpreterInput) {
-        return interpret(request)
-      },
-    },
-    input.configuredLanguageVersion,
-  )
-  input.onLanguageEvidence()
-  const mechanicalBelief = beliefModel.infer(view)
-  if (mechanicalBelief.modelVersion !== beliefModel.version) {
-    throw new Error(
-      `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
-    )
-  }
-  const resolvedBelief = language.applyLanguageWeighting && language.inferenceContext
-    ? applyBoundedLanguageEvidence(
-        view,
-        mechanicalBelief,
-        language.inferenceContext,
-        { evidence: language.reads, cursor: language.cursor },
-        input.languageFactor,
-      )
-    : mechanicalBelief
-  return {
-    cognition: advanceCognitionFromBelief(cognition, view, {
-      belief: resolvedBelief,
-      mechanicalBelief: beliefModel.version,
-      beliefPipeline: languageBeliefPipelineVersion(beliefModel.version),
-      languageEvidence: language.trace.interpreterVersion,
-      languageReads: language.reads,
-      languageCursor: language.cursor,
-    }),
-    languageTrace: language.trace,
-    degradation: language.degradation,
-  }
-}
-
-/**
- * What the configured scorer and the acting seat imply for one decision.
- *
- * These eight values were derived inline in decide() and then read from a dozen
- * places further down. Resolving them together makes their dependency order
- * legible, which is not obvious from the reads: the role objective depends on
- * the resolved scorer's declared requirements, and the identity scope depends in
- * turn on the role objective. `scorer` is the entry scorer only. Component
- * results can still step it down its base chain, so decide() keeps that as a
- * mutable local rather than reading it back from here.
- */
-interface DecisionRoleScope {
-  readonly routedObjective: RoutedRoleObjectiveModel
-  readonly scorer: CandidateScorer
-  readonly roleObjectiveRole: RoleObjectiveRole | undefined
-  readonly evilRoleObjectiveApplicable: boolean
-  readonly morganaCounterfeitApplicable: boolean
-  readonly identityScope: IdentityProjectionScope | undefined
-}
-
-function resolveDecisionRoleScope(input: {
-  configuredScorer: CandidateScorer
-  req: DecisionRequest
-  view: PlayerView
-  routerConfigured: boolean
-  roleObjectivesConfigured: boolean
-  morganaCounterfeitConfigured: boolean
-  configuredIdentityScope: IdentityProjectionScope | undefined
-}): DecisionRoleScope {
-  const { req, view, configuredIdentityScope } = input
-  const routedObjective = input.routerConfigured
-    ? routedRoleObjectiveModel(view.role)
-    : 'off'
-  const scorer = resolveRolePolicyScorer({
-    configured: input.configuredScorer,
-    req,
-    view,
-    routedObjective,
-  })
-  const roleUtilityApplicable =
-    scorer.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
-  const evilRoleObjectiveApplicable =
-    routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-  const roleObjectiveRole: RoleObjectiveRole | undefined =
-    (input.roleObjectivesConfigured || roleUtilityApplicable)
-    && (view.role === 'merlin' || view.role === 'percival')
-      ? view.role
-      : routedObjective === ROLE_OBJECTIVE_MODEL_VERSION
-        ? view.role as RoleObjectiveRole
-        : undefined
-  return {
-    routedObjective,
-    scorer,
-    roleObjectiveRole,
-    evilRoleObjectiveApplicable,
-    morganaCounterfeitApplicable:
-      (
-        input.morganaCounterfeitConfigured
-        || scorer.morganaRoleUtilityRequirement
-          === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-      )
-      && view.role === 'morgana'
-      && (req.kind === 'propose' || req.kind === 'vote'),
-    identityScope: roleObjectiveRole
-      ? mergeIdentityScopes(
-          configuredIdentityScope,
-          roleObjectiveIdentityScope(roleObjectiveRole, view.rolesInPlay),
-        )
-      : evilRoleObjectiveApplicable
-        ? mergeIdentityScopes(
-            configuredIdentityScope,
-            { roleQueries: [], hiddenTeam: true },
-          )
-        : configuredIdentityScope,
-  }
-}
-
-/**
- * One configured component whose admitted payload a scorer may depend on.
- *
- * `apply` captures the component's payload type in a closure so a decision can
- * hold bindings for unrelated roles in one list, and reports whether the
- * payload arrived. `requiredByScorer` is a thunk because the answer differs per
- * requirement: the good and evil requirements are read from the scorer that
- * entered the decision, while the Morgana requirement is read live, after any
- * earlier binding has already stepped the scorer down its base chain.
- */
-interface ScorerPayloadBinding {
-  readonly component: ComponentRef
-  readonly requiredByScorer: () => boolean
-  readonly apply: (run: DecisionComponentRun) => boolean
-}
-
-function scorerPayloadBinding<Payload>(
-  component: ComponentToken<Payload>,
-  requiredByScorer: () => boolean,
-  assign: (payload: Payload | undefined) => void,
-): ScorerPayloadBinding {
-  return {
-    component,
-    requiredByScorer,
-    apply(run: DecisionComponentRun): boolean {
-      const payload = componentPayload(run, component)
-      assign(payload)
-      // Truthiness, not a defined check: every consumer of these payloads
-      // tests them the same way, so a defined-but-falsy payload has to count
-      // as absent here too or the scorer keeps a requirement it cannot read.
-      return Boolean(payload)
-    },
-  }
-}
-
-function resolveRolePolicyScorer(input: {
-  configured: CandidateScorer
-  req: DecisionRequest
-  view: PlayerView
-  routedObjective: RoutedRoleObjectiveModel
-}): CandidateScorer {
-  let current = input.configured
-  const visited = new Set<CandidateScorer>()
-  while (true) {
-    if (visited.has(current)) {
-      throw new Error('candidate scorer fallback chain contains a cycle')
-    }
-    visited.add(current)
-    const roleApplicable =
-      current.roleUtilityRequirement === ROLE_UTILITY_PROJECTION_VERSION
-      && (input.req.kind === 'propose' || input.req.kind === 'vote')
-      && (input.view.role === 'merlin' || input.view.role === 'percival')
-    const evilApplicable =
-      current.evilRoleUtilityRequirement
-        === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-      && (input.req.kind === 'propose' || input.req.kind === 'vote')
-      && input.routedObjective === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-    const morganaApplicable =
-      current.morganaRoleUtilityRequirement
-        === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-      && evilApplicable
-      && input.view.role === 'morgana'
-    if (
-      (current.roleUtilityRequirement && !roleApplicable)
-      || (current.evilRoleUtilityRequirement && !evilApplicable)
-      || (current.morganaRoleUtilityRequirement && !morganaApplicable)
-    ) {
-      if (!current.baseScorer) return current
-      current = current.baseScorer
-      continue
-    }
-    return current
-  }
-}
-
-/**
- * Everything one opt-in role feature contributes to brain construction, in one
- * row.
- *
- * A role feature used to be threaded through five parallel sites: an option
- * flag, a requested-components slice, a compatibility.requests entry, a public
- * observer disjunct, and a good-objective decision-kind disjunct. Forgetting one
- * silently mis-wired the feature. The columns below are those sites, so adding a
- * feature is adding a row here (plus, when it carries private state into
- * scoring, a payload binding in the scorer walk).
- *
- * `components` and `forcesPublicObserver` are deliberately independent: a role
- * utility requirement that sits only on a base scorer contributes its components
- * through the chain walk yet does not force the observer, which reads the entry
- * scorer alone. Fusing the two would silently change the descriptor.
- */
-interface RoleFeatureSetup {
-  /** This feature's disjunct of the aggregate public-observer requirement. */
-  readonly forcesPublicObserver: boolean
-  /** This feature's disjunct of the good-objective all-decision-kinds reach. */
-  readonly forcesGoodObjectiveAllKinds?: boolean
-  /**
-   * Components this feature requests. Concatenated across configured features,
-   * then deduplicated and reordered canonically, so shared components (the good
-   * role objective is wanted by three features) resolve to one request at a
-   * pinned position rather than a per-feature ordering.
-   */
-  readonly components?: readonly ComponentRef[]
-}
-
-/**
- * The canonical position of every role-feature component in the requested list.
- *
- * The resolved descriptor preserves requested order verbatim, so this order is
- * a byte-level contract, not a convenience. Reordering it, or contributing a
- * component absent from it, is rejected below rather than silently reshaping the
- * descriptor.
- */
-const ROLE_FEATURE_COMPONENT_ORDER: readonly string[] = [
-  GOOD_ROLE_OBJECTIVE_COMPONENT,
-  GOOD_ROLE_UTILITY_COMPONENT,
-  EVIL_ROLE_OBJECTIVE_COMPONENT,
-  EVIL_ROLE_UTILITY_COMPONENT,
-  SERVANT_OBJECTIVE_COMPONENT,
-  SERVANT_ROLE_UTILITY_COMPONENT,
-  MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-  MORGANA_ROLE_UTILITY_COMPONENT,
-  MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-  EVIL_QUEST_CARD_ROBUST_COMPONENT,
-].map((component) => `${component.id}@${component.version}`)
-
-function orderedRoleFeatureComponents(
-  contributed: readonly ComponentRef[],
-): readonly ComponentRef[] {
-  const byKey = new Map<string, ComponentRef>()
-  for (const ref of contributed) {
-    const key = `${ref.id}@${ref.version}`
-    const existing = byKey.get(key)
-    // Shared components (the good role objective is wanted by three features)
-    // arrive more than once and collapse to one request. Two features naming
-    // the same id with different tags would instead be a silent last-writer
-    // overwrite, so reject the conflict rather than pick one.
-    if (existing && !isDeepStrictEqual(existing, ref)) {
-      throw new Error(
-        `role features contributed conflicting variants of ${key}`,
-      )
-    }
-    if (!existing) byKey.set(key, ref)
-  }
-  const ordered: ComponentRef[] = []
-  for (const key of ROLE_FEATURE_COMPONENT_ORDER) {
-    const ref = byKey.get(key)
-    if (ref) {
-      ordered.push(ref)
-      byKey.delete(key)
-    }
-  }
-  if (byKey.size > 0) {
-    throw new Error(
-      `role feature requested an uncanonical component: ${
-        [...byKey.keys()].join(', ')
-      }`,
-    )
-  }
-  return ordered
-}
+export type {
+  ComposedStage,
+  ComposedAgentOptions,
+  ComposedAvalonAgent,
+} from './composed/options.ts'
 
 /**
  * Opt-in Phase 3 hybrid. It owns strategic state independently of planner,

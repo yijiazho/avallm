@@ -859,6 +859,9 @@ const AGENT_DIRECTORY_TIERS = new Map([
   ['communication/', 8],
   // Trace admission, the last thing before the composition spine.
   ['admission/', 9],
+  // The composition spine's own machinery, split out of composed.ts. Only
+  // composed.ts imports it, so it ranks above everything it wires together.
+  ['composed/', 10],
 ])
 
 /**

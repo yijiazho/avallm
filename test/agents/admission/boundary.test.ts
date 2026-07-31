@@ -25,8 +25,12 @@ test('trace admission consumers use the agent-owned closed boundary', () => {
       toAgents: '../../agents',
     },
     {
-      path: 'server/eval/architecture-report.ts',
-      toAgents: '../agents',
+      path: 'server/eval/architecture-report/safety-current.ts',
+      toAgents: '../../agents',
+    },
+    {
+      path: 'server/eval/architecture-report/safety-legacy.ts',
+      toAgents: '../../agents',
     },
   ].map(({ path, toAgents }) => ({
     source: readFileSync(path, 'utf8'),
