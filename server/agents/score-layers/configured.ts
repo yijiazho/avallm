@@ -23,6 +23,7 @@ import {
   EVIL_CLAIM,
   MORDRED_CLAIM,
   MORGANA_CLAIM,
+  SERVANT_CLAIM,
   assertRoleClaimsPartition,
   type Applicability,
 } from '../policy/applicability.ts'
@@ -63,6 +64,13 @@ import {
   assassinScoreLayerTerminalFor,
   assassinScoreLayerTerminals,
 } from './assassin.ts'
+import {
+  SEEDED_SERVANT_ROLE_SCORE_LAYER,
+  SERVANT_ROLE_SCORE_LAYER,
+  servantScoreLayerDefinitions,
+  servantScoreLayerTerminalFor,
+  servantScoreLayerTerminals,
+} from './servant.ts'
 import {
   FULL_ROLE_POLICY_SCORE_LAYER,
   fullRoleScoreLayerDefinitions,
@@ -239,6 +247,33 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     claim: ASSASSIN_CLAIM,
     register: (predecessor) =>
       assassinScoreLayerDefinitions(predecessor(DETERMINISTIC_LANE)),
+  },
+  {
+    id: 'servant',
+    kind: 'specialization',
+    base: 'good',
+    baseRationale:
+      'The servant refinement only breaks ties the good proposal base leaves, '
+      + 'so a seat that loses the projection degrades to that base and keeps '
+      + 'its ranking rather than to any evil sibling. It is declared last '
+      + 'among the specializations because its base is the earliest of them: '
+      + 'inserting it beside good would re-point every evil chain through it '
+      + 'for no gain, since an evil seat never reaches this layer either way. '
+      + 'In the composed lane the derived predecessor is therefore the '
+      + 'assassin tip, reached through four inapplicable evil siblings; the '
+      + 'seeded lane has no composition terminal and hangs it straight off '
+      + 'seeded good.',
+    lanes: {
+      [DETERMINISTIC_LANE]: SERVANT_ROLE_SCORE_LAYER,
+      [SEEDED_LANE]: SEEDED_SERVANT_ROLE_SCORE_LAYER,
+    },
+    identities: servantScoreLayerTerminals,
+    terminalFor: servantScoreLayerTerminalFor,
+    claim: SERVANT_CLAIM,
+    register: (predecessor) => servantScoreLayerDefinitions({
+      deterministic: predecessor(DETERMINISTIC_LANE),
+      seeded: predecessor(SEEDED_LANE),
+    }),
   },
   {
     id: 'full-role',

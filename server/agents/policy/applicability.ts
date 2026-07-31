@@ -121,6 +121,36 @@ export const MORDRED_CLAIM: Applicability = {
 }
 
 /**
+ * The servant refinement is propose only. Servant VOTES already separate under
+ * the joint probability, so the refinement claims nothing there.
+ */
+export const SERVANT_CLAIM: Applicability = {
+  by: 'role',
+  role: 'servant',
+  kinds: ['propose'],
+}
+
+/**
+ * The servant refinement's one condition a claim cannot carry.
+ *
+ * Every other role gate here is discharged by validateRoles, which is why a
+ * claim never restates a game fact. This one is not: a cast with no Merlin at
+ * all is legal (Merlin is required only alongside Percival or Mordred), and the
+ * Merlin-likeness axis the shared public read computes does not exist there.
+ *
+ * It is exported beside the claim, rather than spelled out at each site,
+ * because the same two-stage agreement is at stake: the component and the score
+ * layer have to gate identically or a servant proposal in a Merlin-less cast
+ * reaches a layer with no payload to read and reports a degradation when
+ * nothing broke.
+ */
+export function merlinSeated(
+  context: { readonly view: { readonly rolesInPlay: readonly Role[] } },
+): boolean {
+  return context.view.rolesInPlay.includes('merlin')
+}
+
+/**
  * The Merlin shot is the only assassinate-kind role layer. No Merlin check:
  * validateRoles adds Merlin and the Assassin together, and the engine only
  * issues an assassinate decision with Merlin seated.

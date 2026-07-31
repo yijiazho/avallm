@@ -109,8 +109,10 @@ import {
 } from '../policy/candidates.ts'
 import {
   appliesFrom,
+  merlinSeated,
   EVIL_CLAIM,
   MORGANA_CLAIM,
+  SERVANT_CLAIM,
 } from '../policy/applicability.ts'
 import {
   FORCED_POLICY_VERSION,
@@ -431,9 +433,12 @@ export function nativeScoreComponentDefinitions(
     // likeness axis is undefined there. Without this clause such a game
     // reports 'degraded' with execution-failed on every servant decision,
     // which claims something broke when nothing did.
+    // Only the Merlin half comes from the shared home. There is no servant
+    // claim to reuse for the rest: this objective applies on every decision
+    // kind, and an Applicability states a kind list, so a claim here would
+    // enumerate the kinds rather than declare anything.
     applies(context) {
-      return context.view.role === 'servant'
-        && context.view.rolesInPlay.includes('merlin')
+      return context.view.role === 'servant' && merlinSeated(context)
     },
     join: (context) => ({
       record: projectPublicRecord(context.view),
@@ -451,11 +456,12 @@ export function nativeScoreComponentDefinitions(
   const servantUtility = roleProjection({
     token: SERVANT_ROLE_UTILITY_COMPONENT,
     degradationCode: SERVANT_ROLE_UTILITY_DEGRADATION,
-    applies(context) {
-      return context.view.role === 'servant'
-        && context.view.rolesInPlay.includes('merlin')
-        && context.request.kind === 'propose'
-    },
+    // Through the shared claim, not an inline role check: the servant score
+    // layer gates on exactly the same two conditions, and a decision this
+    // component declines but that layer accepts reaches a required-component
+    // read with nothing to read.
+    applies: (context) =>
+      appliesFrom(SERVANT_CLAIM)(context) && merlinSeated(context),
     join: (context) => ({
       view: context.view,
       candidates: legalCandidates(context.request, context.view),
