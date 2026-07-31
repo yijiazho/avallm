@@ -15,7 +15,7 @@ import {
   MAX_DECISION_LAYER_STRING_BYTES,
   runDecisionLayers,
 } from './runner.ts'
-import { projectLayerRun } from '../layer-registry-common.ts'
+import { isCanonicalCode, projectLayerRun } from '../layer-registry-common.ts'
 import type {
   DecisionLayerJournalEntry,
   DecisionLayerOperationCounts,
@@ -270,13 +270,9 @@ function stringArray(
   canonical = false,
 ): readonly string[] | undefined {
   const values = frozenArray(value)
-  return values?.every((entry) =>
-    typeof entry === 'string'
-    && (!canonical || (
-      Buffer.byteLength(entry, 'utf8') <=
-        MAX_DECISION_LAYER_STRING_BYTES
-      && /^[A-Z0-9][A-Z0-9_-]*$/.test(entry)
-    )))
+  return values?.every((entry) => canonical
+    ? isCanonicalCode(entry, MAX_DECISION_LAYER_STRING_BYTES)
+    : typeof entry === 'string')
     ? values as readonly string[]
     : undefined
 }

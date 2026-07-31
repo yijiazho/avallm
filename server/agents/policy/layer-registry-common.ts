@@ -5,6 +5,23 @@ import { DECISION_COMPONENT_KINDS } from '../components/types.ts'
 export const LAYER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 export const LAYER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,99}$/
 
+// The canonical-code grammar for a layer's reason and degradation codes: a
+// non-empty uppercase-alnum token (the leading class forbids the empty string).
+// A layer produces these write-side and re-admits them read-side, so both sides
+// route here rather than each restating the regex. The byte ceiling is a caller
+// argument because it is a per-site bound, not part of the grammar; changing
+// either the grammar or a site's bound is a real behavior change.
+const CANONICAL_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]*$/
+
+export function isCanonicalCode(
+  value: unknown,
+  maxBytes: number,
+): value is string {
+  return typeof value === 'string'
+    && Buffer.byteLength(value, 'utf8') <= maxBytes
+    && CANONICAL_CODE_PATTERN.test(value)
+}
+
 /**
  * One branded identity for the layer families.
  *

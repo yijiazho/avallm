@@ -8,6 +8,7 @@ import {
   type PolicyComponentReadJournal,
   type PolicyComponentRuntime,
 } from '../component-runtime.ts'
+import { isCanonicalCode } from '../layer-registry-common.ts'
 import type { Immutable } from '../trusted-data.ts'
 import type {
   DecisionLayerDefinition,
@@ -44,10 +45,7 @@ function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {
 }
 
 function canonicalText(value: unknown): value is string {
-  return typeof value === 'string'
-    && value.length > 0
-    && Buffer.byteLength(value, 'utf8') <= MAX_DECISION_LAYER_STRING_BYTES
-    && /^[A-Z0-9][A-Z0-9_-]*$/.test(value)
+  return isCanonicalCode(value, MAX_DECISION_LAYER_STRING_BYTES)
 }
 
 function parseResult(value: unknown): DecisionLayerResult | undefined {
