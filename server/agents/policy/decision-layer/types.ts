@@ -114,7 +114,7 @@ export interface ResolvedDecisionLayerOrder {
   readonly definitions: readonly DecisionLayerDefinition[]
 }
 
-interface DecisionLayerJournalBase {
+export interface DecisionLayerJournalBase {
   readonly layer: DecisionLayerRef
   readonly priorSurvivorCandidateIds: readonly string[]
   readonly priorSelectedCandidateId?: string

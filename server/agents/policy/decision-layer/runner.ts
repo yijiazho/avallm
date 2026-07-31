@@ -11,6 +11,7 @@ import {
 import type { Immutable } from '../trusted-data.ts'
 import type {
   DecisionLayerDefinition,
+  DecisionLayerJournalBase,
   DecisionLayerJournalEntry,
   DecisionLayerOperationCounts,
   DecisionLayerRef,
@@ -29,31 +30,13 @@ export const MAX_DECISION_LAYER_REASON_CODES = 32
 export const MAX_DECISION_LAYER_STRING_BYTES = 128
 export const MAX_DECISION_LAYER_SURFACE_JSON_BYTES = 65_536
 
-interface MutableOperationCounts {
-  universalCandidateIdsVisited: number
-  legalCandidatesVisited: number
-  layersVisited: number
-  layersSuppressed: number
-  applicabilityEvaluations: number
-  layersExecuted: number
-  componentLookupAttempts: number
-  componentPayloadIndexEntriesVisited: number
-  componentPayloadReads: number
-  componentPayloadsMaterialized: number
-  componentDefinitionIndexEntriesVisited: number
-  decisionLayerComponentRequirementsIndexed: number
-  componentClosureRootsVisited: number
-  componentDependencyEdgesVisited: number
-  componentClosureComponentsEmitted: number
-  componentAttributionUnionTokensVisited: number
-  componentAttributionTokensVisited: number
-  componentAttributionEntriesVisited: number
-  componentAttributionPolicyUseEntriesVisited: number
-  surfaceBuildAttempts: number
-  surfacePriorSurvivorsVisited: number
-  surfaceDraftSurvivorsVisited: number
-  surfaceReasonsVisited: number
-  surfaceBytesConstructed: number
+// The mutable accumulator over the run: the frozen DecisionLayerOperationCounts
+// with every counter made writable. Mapping off that interface keeps the two in
+// lockstep, so a new counter cannot be tallied here without also being declared
+// on the exported shape.
+type MutableOperationCounts = {
+  -readonly [K in keyof DecisionLayerOperationCounts]:
+    DecisionLayerOperationCounts[K]
 }
 
 function frozenRef(ref: DecisionLayerRef): DecisionLayerRef {
@@ -227,13 +210,7 @@ function journalBase(
   definition: DecisionLayerDefinition,
   prior: Immutable<DecisionLayerSurface>,
   reads: PolicyComponentReadJournal,
-): {
-  layer: DecisionLayerRef
-  priorSurvivorCandidateIds: readonly string[]
-  priorSelectedCandidateId?: string
-  componentLookups: readonly ComponentRef[]
-  componentReads: readonly ComponentRef[]
-} {
+): DecisionLayerJournalBase {
   return {
     layer: frozenRef(definition.token),
     priorSurvivorCandidateIds: prior.survivorCandidateIds,
