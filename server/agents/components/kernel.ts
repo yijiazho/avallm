@@ -9,10 +9,16 @@ import type { ResolvedComposedBrain } from './resolved-brain.ts'
 import {
   componentIdentityKey,
 } from './registry.ts'
+import { canonicalCode } from './canonical-code.ts'
+import {
+  admittedHostInputValues,
+  prepareHostInputSources,
+  resolveHostInput,
+} from './host-inputs.ts'
+import { admittedPayload } from './run-access.ts'
 import {
   canonicalizeJson,
   canonicalJsonEqual,
-  denseOwnDataArrayValues,
   exactOwnDataRecord,
   freezeComponentInput,
 } from './canonical-json.ts'
@@ -27,8 +33,6 @@ import type {
   ComponentHostInputRef,
   ComponentHostInputReader,
   ComponentHostInputToken,
-  ComponentHostInputValidationResult,
-  ComponentPayloadEnvelope,
   ComponentRef,
   ComponentToken,
   ComponentVerification,
@@ -44,10 +48,7 @@ import type {
   DecisionComponentEntry,
   DecisionComponentEntryBase,
   DecisionComponentPlan,
-  DecisionComponentPolicyUse,
   DecisionComponentRun,
-  PublicDecisionComponentEntry,
-  PublicDecisionComponentRun,
 } from './run-types.ts'
 
 // The run and plan result shapes live in run-types.ts so the policy layers can
@@ -67,7 +68,29 @@ export type {
   PublicDecisionComponentRun,
 } from './run-types.ts'
 
-const CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
+// The host-input resolution subsystem and the run read/projection helpers were
+// split into sibling modules; they are re-exported here because callers have
+// always read them from `./kernel.ts`.
+export {
+  DecisionComponentInvocationError,
+} from './host-inputs.ts'
+export type {
+  DecisionComponentInvocationErrorCode,
+} from './host-inputs.ts'
+export {
+  advanceDecisionComponentRun,
+  attributeComponentPolicyUse,
+  attributeComponentPolicyUseBatch,
+  componentEnvelope,
+  componentPayload,
+  indexDecisionComponentPayloads,
+  publicDecisionComponentRun,
+} from './run-access.ts'
+export type {
+  DecisionComponentPayloadIndex,
+  DecisionComponentPolicyAttributionBatch,
+  DecisionComponentPolicyAttributionWork,
+} from './run-access.ts'
 
 export const MAX_DECISION_COMPONENT_RUN_JSON_BYTES = 2_097_152
 export const MAX_DECISION_COMPONENT_PLAN_JSON_BYTES = 65_536
@@ -109,67 +132,12 @@ export interface DecisionComponentRunHostJoinInput {
     readonly ComponentHostInputBinding<unknown>[]
 }
 
-export type DecisionComponentInvocationErrorCode =
-  | 'malformed-invocation'
-  | 'malformed-host-input-binding'
-  | 'duplicate-host-input-binding'
-  | 'unknown-host-input-binding'
-  | 'host-input-tag-substitution'
-
-export class DecisionComponentInvocationError extends Error {
-  readonly code: DecisionComponentInvocationErrorCode
-
-  constructor(
-    code: DecisionComponentInvocationErrorCode,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'DecisionComponentInvocationError'
-    this.code = code
-  }
-}
-
 const EMPTY_COMPONENT_RUN: DecisionComponentRun = Object.freeze({
   version: DECISION_COMPONENT_RUN_VERSION,
   configured: Object.freeze([]),
   entries: Object.freeze([]),
   policyUse: Object.freeze([]),
 })
-
-/** Admit only monotonic causal-use changes to one exact component run. */
-export function advanceDecisionComponentRun(
-  prior: DecisionComponentRun,
-  next: DecisionComponentRun,
-): DecisionComponentRun {
-  if (
-    prior.version !== next.version
-    || prior.configured !== next.configured
-    || prior.entries !== next.entries
-    || prior.policyUse.length !== next.policyUse.length
-  ) {
-    throw new Error('component run advancement changed resolved graph state')
-  }
-  for (let index = 0; index < prior.policyUse.length; index++) {
-    const before = prior.policyUse[index]
-    const after = next.policyUse[index]
-    const prefix = before.stages.every(
-      (stage, stageIndex) => after.stages[stageIndex] === stage,
-    )
-    if (
-      componentIdentityKey(before.component) !==
-        componentIdentityKey(after.component)
-      || (before.used && !after.used)
-      || after.used !== (after.stages.length > 0)
-      || after.stages.length < before.stages.length
-      || !prefix
-      || new Set(after.stages).size !== after.stages.length
-      || after.stages.some((stage) => !canonicalCode(stage))
-    ) {
-      throw new Error('component run policy use did not advance monotonically')
-    }
-  }
-  return next
-}
 
 export function decisionComponentPlan(
   brain: ResolvedComposedBrain,
@@ -249,347 +217,6 @@ function degradation(
       : definition.degradationCode,
     failureCode,
   })
-}
-
-function canonicalCode(value: unknown): value is string {
-  return typeof value === 'string' && CODE_PATTERN.test(value)
-}
-
-/**
- * The one admitted-payload lookup: an entry yields its payload only when it is
- * the same component as the token by identity, kind, and privacy, and it was
- * admitted. Every reader (dependency reads, the payload index, and the
- * single-token accessor) resolves the entry however it likes and then routes
- * the match through here so the tag and status rule lives once.
- */
-function admittedPayload<Payload>(
-  entry: DecisionComponentEntry | undefined,
-  token: ComponentToken<Payload>,
-): Payload | undefined {
-  return entry
-    && componentIdentityKey(entry.component) === componentIdentityKey(token)
-    && entry.kind === token.kind
-    && entry.privacy === token.privacy
-    && entry.status === 'admitted'
-    ? entry.envelope.payload as Payload
-    : undefined
-}
-
-function parseHostInputValidation<Value>(
-  value: unknown,
-): ComponentHostInputValidationResult<Value> | undefined {
-  const rejected = exactOwnDataRecord(
-    value,
-    ['degradationCode', 'valid'],
-  )
-  if (rejected?.valid === false) {
-    if (!canonicalCode(rejected.degradationCode)) return undefined
-    return {
-      valid: false,
-      degradationCode: rejected.degradationCode,
-    }
-  }
-  const admitted = exactOwnDataRecord(value, ['valid', 'value'])
-  if (admitted?.valid !== true) return undefined
-  return {
-    valid: true,
-    value: admitted.value as Value,
-  }
-}
-
-type HostInputSource =
-  | Readonly<{ kind: 'value'; value: unknown }>
-  | Readonly<{ kind: 'provider'; provide: () => unknown }>
-
-type HostInputState =
-  | Readonly<{ status: 'unresolved'; source?: HostInputSource }>
-  | Readonly<{ status: 'missing' }>
-  | Readonly<{ status: 'invalid' }>
-  | Readonly<{ status: 'admitted'; value: unknown }>
-
-interface PreparedHostInputSources {
-  readonly states: Map<string, HostInputState>
-  readonly definitions: ReadonlyMap<string, AnyHostInputDefinition>
-}
-
-function registerHostInputSource(
-  input: unknown,
-  source: HostInputSource,
-  label: string,
-  requiredByKey: ReadonlyMap<string, ComponentHostInputRef>,
-  requiredById: ReadonlyMap<string, ComponentHostInputRef>,
-  sources: Map<string, HostInputSource>,
-): void {
-  const token = exactOwnDataRecord(
-    input,
-    ['id', 'privacy', 'version'],
-  )
-  if (
-    !token
-    || typeof token.id !== 'string'
-    || typeof token.version !== 'string'
-    || !['public', 'private'].includes(token.privacy as string)
-  ) {
-    throw new DecisionComponentInvocationError(
-      'malformed-host-input-binding',
-      `${label} has a malformed token`,
-    )
-  }
-  const key = componentIdentityKey({
-    id: token.id,
-    version: token.version,
-  })
-  const required = requiredByKey.get(key)
-  if (!required) {
-    if (requiredById.has(token.id)) {
-      throw new DecisionComponentInvocationError(
-        'host-input-tag-substitution',
-        `${label} substitutes the version for ${token.id}`,
-      )
-    }
-    throw new DecisionComponentInvocationError(
-      'unknown-host-input-binding',
-      `${label} is not required by the resolved brain`,
-    )
-  }
-  if (required.privacy !== token.privacy) {
-    throw new DecisionComponentInvocationError(
-      'host-input-tag-substitution',
-      `${label} substitutes privacy for ${key}`,
-    )
-  }
-  if (sources.has(key)) {
-    throw new DecisionComponentInvocationError(
-      'duplicate-host-input-binding',
-      `host input ${key} is bound more than once`,
-    )
-  }
-  sources.set(key, source)
-}
-
-function prepareHostInputSources(
-  requiredHostInputs: readonly ComponentHostInputRef[],
-  hostInputDefinitions: readonly AnyHostInputDefinition[],
-  invocation: DecisionComponentInvocation | undefined,
-  trusted: DecisionComponentTrustedHostInputProviders | undefined,
-): PreparedHostInputSources {
-  let bindingValues: readonly unknown[] = []
-  if (invocation !== undefined) {
-    const empty = exactOwnDataRecord(invocation, [])
-    const record = empty
-      ? undefined
-      : exactOwnDataRecord(invocation, ['hostInputs'])
-    if (!empty && !record) {
-      throw new DecisionComponentInvocationError(
-        'malformed-invocation',
-        'component invocation must contain only hostInputs',
-      )
-    }
-    if (record && record.hostInputs !== undefined) {
-      const entries = denseOwnDataArrayValues(record.hostInputs)
-      if (!entries) {
-        throw new DecisionComponentInvocationError(
-          'malformed-invocation',
-          'component invocation hostInputs must be a plain dense array',
-        )
-      }
-      bindingValues = entries
-    }
-  }
-
-  let providerValues: readonly unknown[] = []
-  if (trusted !== undefined) {
-    const empty = exactOwnDataRecord(trusted, [])
-    const record = empty
-      ? undefined
-      : exactOwnDataRecord(trusted, ['providers'])
-    if (!empty && !record) {
-      throw new DecisionComponentInvocationError(
-        'malformed-invocation',
-        'trusted host input providers must contain only providers',
-      )
-    }
-    if (record && record.providers !== undefined) {
-      const entries = denseOwnDataArrayValues(record.providers)
-      if (!entries) {
-        throw new DecisionComponentInvocationError(
-          'malformed-invocation',
-          'trusted host input providers must be a plain dense array',
-        )
-      }
-      providerValues = entries
-    }
-  }
-
-  const requiredByKey = new Map(
-    requiredHostInputs.map((input) => [
-      componentIdentityKey(input),
-      input,
-    ]),
-  )
-  const requiredById = new Map(
-    requiredHostInputs.map((input) => [
-      input.id,
-      input,
-    ]),
-  )
-  const definitions = new Map(
-    hostInputDefinitions.map((definition) => [
-      componentIdentityKey(definition.token),
-      definition,
-    ]),
-  )
-  const sources = new Map<string, HostInputSource>()
-
-  for (let index = 0; index < bindingValues.length; index++) {
-    const binding = exactOwnDataRecord(
-      bindingValues[index],
-      ['input', 'value'],
-    )
-    if (!binding) {
-      throw new DecisionComponentInvocationError(
-        'malformed-host-input-binding',
-        `host input binding ${index} must be a plain tagged data record`,
-      )
-    }
-    registerHostInputSource(
-      binding.input,
-      { kind: 'value', value: binding.value },
-      `host input binding ${index}`,
-      requiredByKey,
-      requiredById,
-      sources,
-    )
-  }
-
-  for (let index = 0; index < providerValues.length; index++) {
-    const binding = exactOwnDataRecord(
-      providerValues[index],
-      ['input', 'provide'],
-    )
-    if (!binding || typeof binding.provide !== 'function') {
-      throw new DecisionComponentInvocationError(
-        'malformed-host-input-binding',
-        `trusted host input provider ${index} must be a tagged callback`,
-      )
-    }
-    registerHostInputSource(
-      binding.input,
-      {
-        kind: 'provider',
-        provide: binding.provide as () => unknown,
-      },
-      `trusted host input provider ${index}`,
-      requiredByKey,
-      requiredById,
-      sources,
-    )
-  }
-
-  const states = new Map<string, HostInputState>()
-  for (const input of requiredHostInputs) {
-    const key = componentIdentityKey(input)
-    const source = sources.get(key)
-    states.set(
-      key,
-      source
-        ? { status: 'unresolved', source }
-        : { status: 'unresolved' },
-    )
-  }
-  return {
-    states,
-    definitions,
-  }
-}
-
-function resolveHostInput(
-  prepared: PreparedHostInputSources,
-  input: ComponentHostInputRef,
-): HostInputState {
-  const key = componentIdentityKey(input)
-  const prior = prepared.states.get(key)
-  if (!prior || prior.status !== 'unresolved') {
-    return prior ?? { status: 'invalid' }
-  }
-  if (!prior.source) {
-    const missing: HostInputState = { status: 'missing' }
-    prepared.states.set(key, missing)
-    return missing
-  }
-
-  let value: unknown
-  if (prior.source.kind === 'provider') {
-    try {
-      value = prior.source.provide()
-    } catch {
-      const invalid: HostInputState = { status: 'invalid' }
-      prepared.states.set(key, invalid)
-      return invalid
-    }
-  } else {
-    value = prior.source.value
-  }
-  if (value === undefined) {
-    const missing: HostInputState = { status: 'missing' }
-    prepared.states.set(key, missing)
-    return missing
-  }
-
-  const definition = prepared.definitions.get(key)
-  if (!definition) {
-    const invalid: HostInputState = { status: 'invalid' }
-    prepared.states.set(key, invalid)
-    return invalid
-  }
-  const source = canonicalizeJson(value, definition.maxPayloadBytes)
-  if (!source.ok) {
-    const invalid: HostInputState = { status: 'invalid' }
-    prepared.states.set(key, invalid)
-    return invalid
-  }
-  let validation: unknown
-  try {
-    validation = definition.validate(source.payload)
-  } catch {
-    const invalid: HostInputState = { status: 'invalid' }
-    prepared.states.set(key, invalid)
-    return invalid
-  }
-  const parsed = parseHostInputValidation(validation)
-  if (!parsed?.valid) {
-    const invalid: HostInputState = { status: 'invalid' }
-    prepared.states.set(key, invalid)
-    return invalid
-  }
-  const validated = canonicalizeJson(
-    parsed.value,
-    definition.maxPayloadBytes,
-  )
-  if (
-    !validated.ok
-    || !canonicalJsonEqual(source.payload, validated.payload)
-  ) {
-    const invalid: HostInputState = { status: 'invalid' }
-    prepared.states.set(key, invalid)
-    return invalid
-  }
-  const admitted: HostInputState = {
-    status: 'admitted',
-    value: validated.payload,
-  }
-  prepared.states.set(key, admitted)
-  return admitted
-}
-
-function admittedHostInputValues(
-  prepared: PreparedHostInputSources,
-): ReadonlyMap<string, unknown> {
-  const values = new Map<string, unknown>()
-  for (const [key, state] of prepared.states) {
-    if (state.status === 'admitted') values.set(key, state.value)
-  }
-  return values
 }
 
 function parseAdmission<Payload>(
@@ -1393,228 +1020,4 @@ export async function runDecisionComponents(
         stages: Object.freeze([]),
       }))),
   })
-}
-
-export interface DecisionComponentPayloadIndex {
-  readonly entriesVisited: number
-  payload<Payload>(token: ComponentToken<Payload>): Payload | undefined
-}
-
-/** Build one invocation-local exact-tag index for repeated policy reads. */
-export function indexDecisionComponentPayloads(
-  run: DecisionComponentRun,
-): DecisionComponentPayloadIndex {
-  const entries = new Map<string, DecisionComponentEntry>()
-  let entriesVisited = 0
-  for (const entry of run.entries) {
-    entriesVisited++
-    const key = componentIdentityKey(entry.component)
-    if (entries.has(key)) {
-      throw new Error(`component run repeats entry ${key}`)
-    }
-    entries.set(key, entry)
-  }
-  return Object.freeze({
-    entriesVisited,
-    payload<Payload>(
-      token: ComponentToken<Payload>,
-    ): Payload | undefined {
-      return admittedPayload(entries.get(componentIdentityKey(token)), token)
-    },
-  })
-}
-
-export function componentPayload<Payload>(
-  run: DecisionComponentRun,
-  token: ComponentToken<Payload>,
-): Payload | undefined {
-  return admittedPayload(
-    run.entries.find(
-      (candidate) =>
-        componentIdentityKey(candidate.component)
-          === componentIdentityKey(token),
-    ),
-    token,
-  )
-}
-
-export interface DecisionComponentPolicyAttributionWork {
-  readonly tokensVisited: number
-  readonly entriesVisited: number
-  readonly policyUseEntriesVisited: number
-}
-
-export interface DecisionComponentPolicyAttributionBatch {
-  readonly run: DecisionComponentRun
-  readonly work: DecisionComponentPolicyAttributionWork
-}
-
-/**
- * Project one policy-use row into its used form with the stage appended. The
- * stage dedup and append-order rule lives here so the single-token and batch
- * attributions cannot drift apart.
- */
-function appendPolicyStage(
-  attribution: DecisionComponentPolicyUse,
-  stage: string,
-): DecisionComponentPolicyUse {
-  return Object.freeze({
-    component: frozenRef(attribution.component),
-    used: true,
-    stages: attribution.stages.includes(stage)
-      ? attribution.stages
-      : Object.freeze([...attribution.stages, stage]),
-  })
-}
-
-/**
- * Attribute one accepted policy layer in one entry-validation pass and one
- * policy-use projection pass, independent of the number of component tokens.
- */
-export function attributeComponentPolicyUseBatch(
-  run: DecisionComponentRun,
-  tokens: readonly ComponentToken[],
-  stage: string,
-): DecisionComponentPolicyAttributionBatch {
-  if (!canonicalCode(stage)) {
-    throw new Error('component policy-use stage must be canonical')
-  }
-  if (tokens.length === 0) {
-    return Object.freeze({
-      run,
-      work: Object.freeze({
-        tokensVisited: 0,
-        entriesVisited: 0,
-        policyUseEntriesVisited: 0,
-      }),
-    })
-  }
-  const requested = new Map<string, ComponentToken>()
-  let tokensVisited = 0
-  for (const token of tokens) {
-    tokensVisited++
-    const key = componentIdentityKey(token)
-    const prior = requested.get(key)
-    if (
-      prior
-      && (prior.kind !== token.kind || prior.privacy !== token.privacy)
-    ) {
-      throw new Error(`component policy attribution substitutes tag ${key}`)
-    }
-    if (!prior) requested.set(key, token)
-  }
-
-  const admitted = new Set<string>()
-  let entriesVisited = 0
-  for (const entry of run.entries) {
-    entriesVisited++
-    const key = componentIdentityKey(entry.component)
-    const token = requested.get(key)
-    if (!token) continue
-    if (
-      entry.kind !== token.kind
-      || entry.privacy !== token.privacy
-      || entry.status !== 'admitted'
-    ) {
-      throw new Error(
-        `cannot attribute policy use to unadmitted component ${key}`,
-      )
-    }
-    admitted.add(key)
-  }
-  if (admitted.size !== requested.size) {
-    const missing = [...requested.keys()].find((key) => !admitted.has(key))!
-    throw new Error(
-      `cannot attribute policy use to unadmitted component ${missing}`,
-    )
-  }
-
-  const projected = new Set<string>()
-  let policyUseEntriesVisited = 0
-  const policyUse = run.policyUse.map((attribution) => {
-    policyUseEntriesVisited++
-    const key = componentIdentityKey(attribution.component)
-    if (!requested.has(key)) return attribution
-    projected.add(key)
-    return appendPolicyStage(attribution, stage)
-  })
-  if (projected.size !== requested.size) {
-    throw new Error('component run policy-use projection is incomplete')
-  }
-  return Object.freeze({
-    run: Object.freeze({
-      ...run,
-      policyUse: Object.freeze(policyUse),
-    }),
-    work: Object.freeze({
-      tokensVisited,
-      entriesVisited,
-      policyUseEntriesVisited,
-    }),
-  })
-}
-
-export function attributeComponentPolicyUse(
-  run: DecisionComponentRun,
-  token: ComponentToken,
-  stage: string,
-): DecisionComponentRun {
-  if (!canonicalCode(stage)) {
-    throw new Error('component policy-use stage must be canonical')
-  }
-  const key = componentIdentityKey(token)
-  const entry = run.entries.find(
-    (candidate) =>
-      componentIdentityKey(candidate.component) === key
-      && candidate.kind === token.kind
-      && candidate.privacy === token.privacy,
-  )
-  if (!entry || entry.status !== 'admitted') {
-    throw new Error(
-      `cannot attribute policy use to unadmitted component ${key}`,
-    )
-  }
-  return Object.freeze({
-    ...run,
-    policyUse: Object.freeze(run.policyUse.map((attribution) =>
-      componentIdentityKey(attribution.component) === key
-        ? appendPolicyStage(attribution, stage)
-        : attribution)),
-  })
-}
-
-/**
- * Projection safe for speech and public logs. Private components are omitted
- * wholesale so role metadata cannot leak through identity, status, or use.
- */
-export function publicDecisionComponentRun(
-  run: DecisionComponentRun,
-): PublicDecisionComponentRun {
-  const entries = run.entries.filter(
-    (entry): entry is PublicDecisionComponentEntry =>
-      entry.privacy === 'public',
-  )
-  const publicIdentities = new Set(
-    entries.map((entry) => componentIdentityKey(entry.component)),
-  )
-  return Object.freeze({
-    version: run.version,
-    configured: Object.freeze(run.configured.filter(
-      (component) => publicIdentities.has(componentIdentityKey(component)),
-    )),
-    entries: Object.freeze(entries),
-    policyUse: Object.freeze([]),
-  })
-}
-
-export function componentEnvelope<Payload>(
-  token: ComponentToken<Payload>,
-  payload: Payload,
-): ComponentPayloadEnvelope<Payload> {
-  return {
-    component: { id: token.id, version: token.version },
-    kind: token.kind,
-    privacy: token.privacy,
-    payload,
-  }
 }

@@ -1868,24 +1868,24 @@ test('custom scoring source remains isolated from native score-layer types', () 
   assert.match(nativeSource, /Immutable<NativeViableCandidate>/)
   assert.doesNotMatch(nativeSource, /structuredChoice\(/)
 
-  const kernelSource = readFileSync(
-    new URL('../server/agents/components/kernel.ts', import.meta.url),
+  const runAccessSource = readFileSync(
+    new URL('../server/agents/components/run-access.ts', import.meta.url),
     'utf8',
   )
-  const payloadStart = kernelSource.indexOf(
+  const payloadStart = runAccessSource.indexOf(
     'export function componentPayload<',
   )
-  const payloadEnd = kernelSource.indexOf(
+  const payloadEnd = runAccessSource.indexOf(
     'export interface DecisionComponentPolicyAttributionWork',
   )
-  const attributionStart = kernelSource.indexOf(
+  const attributionStart = runAccessSource.indexOf(
     'export function attributeComponentPolicyUse(',
   )
-  const attributionEnd = kernelSource.indexOf(
+  const attributionEnd = runAccessSource.indexOf(
     'export function publicDecisionComponentRun(',
   )
-  const payloadSource = kernelSource.slice(payloadStart, payloadEnd)
-  const attributionSource = kernelSource.slice(
+  const payloadSource = runAccessSource.slice(payloadStart, payloadEnd)
+  const attributionSource = runAccessSource.slice(
     attributionStart,
     attributionEnd,
   )

@@ -1784,9 +1784,6 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'validateServantRoleUtilityProjection',
   ])],
   ['server/agents/board.ts', new Set(['roleCertainties'])],
-  ['server/agents/components/kernel.ts', new Set([
-    'publicDecisionComponentRun',
-  ])],
   ['server/agents/components/resolved-brain.ts', new Set([
     'projectPrivateArchitectureDebug',
   ])],
