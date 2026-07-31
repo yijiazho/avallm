@@ -24,6 +24,22 @@ const DECISION_LAYER_RUNNER =
   'server/agents/policy/decision-layer/runner'
 const DECISION_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/decision-layer/admission-replay'
+// The two replay modules are confined to trace admission. composed-trace.ts
+// split into siblings and each replay travelled with its one caller:
+// `replayNativeScoresForAdmission` to the native score replay, and
+// `createDecisionLayerAdmissionAuthority` to the module that builds the
+// production registries. The siblings that need only the admitted-trace TYPE
+// take it re-exported from that registry module rather than earning an edge of
+// their own. Exact paths, never the folder: a directory prefix here would let
+// any future sibling replay the policy, which is the confinement itself.
+const SCORE_LAYER_ADMISSION_REPLAY_OWNERS = new Set([
+  'server/agents/admission/composed-trace.ts',
+  'server/agents/admission/composed-trace/native-score-replay.ts',
+])
+const DECISION_LAYER_ADMISSION_REPLAY_OWNERS = new Set([
+  'server/agents/admission/composed-trace.ts',
+  'server/agents/admission/composed-trace/production-registries.ts',
+])
 // The skeleton the layer families and the component registry instantiate. It
 // carries the identity grammar, the branded token mint, the component-read
 // contract, and the trace projection, so an unrelated agent module importing it
@@ -50,9 +66,16 @@ const DECISION_LAYER_EXECUTION_OWNERS = new Set([
 ])
 const SCORER_SITUATION_SURFACE =
   'server/agents/analysis/scorer-situation-surface'
+// Inverse list: naming a file here FORBIDS it from reading analysis/situation
+// directly, forcing it through the surface builder, so an entry tightens rather
+// than relaxes. `composed-trace.ts` split into siblings and
+// `buildScorerSituationSurface` went with the policy host reconstruction, so
+// that exact sibling is named too. The original entry stays: it still names a
+// real file, and a fitness test builds a synthetic one.
 const SCORER_SITUATION_SURFACE_CONSUMERS = new Set([
   'server/agents/policy/decision-frame.ts',
   'server/agents/admission/composed-trace.ts',
+  'server/agents/admission/composed-trace/policy-host-surface.ts',
 ])
 const TRACE_ADMISSION_OWNER =
   'server/agents/admission/composed-trace'
@@ -62,6 +85,17 @@ const TRACE_ADMISSION_OWNER =
 // retired flat shapes.
 const ROLE_TRACE_V1_READER =
   'server/agents/admission/role-trace-v1'
+// composed-trace.ts split into siblings, and the v1 readers travelled with the
+// validators that call them: `validRoleTraceV1` to the detached validator and
+// `validRoleTraceV1HostJoin` to the exact host join. The ingress file kept
+// `validRoleDependencyHostJoinV1`, so its identity stays. Exact identities only,
+// never the folder, or a sibling could revive a flat v1 validator merely by
+// being born in the right directory.
+const ROLE_TRACE_V1_OWNERS = new Set([
+  TRACE_ADMISSION_OWNER,
+  'server/agents/admission/composed-trace/detached',
+  'server/agents/admission/composed-trace/exact-host-join',
+])
 const CANONICAL_JSON_OWNER =
   'server/agents/canonical/canonical-json'
 // The shared payload shape guards. A module that imports one and then binds
@@ -1082,7 +1116,7 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (
         target === ROLE_TRACE_V1_READER
-        && moduleIdentity(sourcePath) !== TRACE_ADMISSION_OWNER
+        && !ROLE_TRACE_V1_OWNERS.has(moduleIdentity(sourcePath))
       ) {
         violations.push(violation(
           'ARCH012',
@@ -1218,7 +1252,7 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (
         target === SCORE_LAYER_ADMISSION_REPLAY
-        && sourcePath !== 'server/agents/admission/composed-trace.ts'
+        && !SCORE_LAYER_ADMISSION_REPLAY_OWNERS.has(sourcePath)
       ) {
         violations.push(violation(
           'ARCH006',
@@ -1242,7 +1276,7 @@ export function auditArchitectureSources(sourceEntries) {
       }
       if (
         target === DECISION_LAYER_ADMISSION_REPLAY
-        && sourcePath !== 'server/agents/admission/composed-trace.ts'
+        && !DECISION_LAYER_ADMISSION_REPLAY_OWNERS.has(sourcePath)
       ) {
         violations.push(violation(
           'ARCH011',
