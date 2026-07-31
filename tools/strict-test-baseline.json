@@ -43,7 +43,7 @@
     },
     {
       "path": "test/component-registry.test.ts",
-      "sha256": "aac723b62305037c33addd2a4186e199d657dbad5a3b01d6433d3b91126fd443",
+      "sha256": "9fa0850d7da3060efd365490be3fd01229a1a4571f8df2a44e4cf0a419f13483",
       "rationale": "Legacy registry fixtures intentionally mutate readonly contracts."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "dcb717ad6d2c2ae8e6f844bcd20a61d117c9e3af5768e1b15011f5f19a3eabf7",
+      "sha256": "b0901a1f445907cd5bdde0f9015bc5d769d6b217533b5dfb8768a55f2a4712c3",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

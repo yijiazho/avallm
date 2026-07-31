@@ -461,7 +461,6 @@ test('resolved brain owns frozen definitions, descriptions, and layer order', ()
   const requested = [{ id: 'objective', version: 'v1' }]
   const resolved = resolveComposedBrain({
     requestedComponents: requested,
-    scoreLayerOrder: [],
     configuredPipeline: testConfiguredPipeline(),
   }, registry)
   requested[0].id = 'changed'

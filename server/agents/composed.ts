@@ -1478,7 +1478,7 @@ export function createComposedAgent(
     hostCapabilities: [],
     ...(configuredScoreLayerTerminal
       ? { scoreLayerTerminal: configuredScoreLayerTerminal }
-      : { scoreLayerOrder: [] }),
+      : {}),
     decisionLayerOrder:
       evilQuestCardPolicyMode === 'robust-heterogeneous'
         ? [ROBUST_EVIL_QUEST_CARD_DECISION_LAYER]

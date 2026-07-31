@@ -98,10 +98,13 @@ export interface ResolvedConfiguredPipeline {
 export interface ComposedBrainConfig {
   readonly requestedComponents?: readonly ComponentRef[]
   readonly hostCapabilities?: readonly HostCapability[]
-  /** The registry derives the only valid predecessor-first chain. */
+  /**
+   * The terminal is the whole stack: the registry derives the only valid
+   * predecessor-first chain from it, and `description.scoreLayerOrder` reports
+   * what it derived. A brain with no terminal has no stack, so there is no
+   * separate declared order to hold one without the other.
+   */
   readonly scoreLayerTerminal?: ScoreLayerRef
-  /** Optional construction assertion; a nonempty order requires a terminal. */
-  readonly scoreLayerOrder?: readonly ScoreLayerRef[]
   readonly decisionLayerOrder?: readonly DecisionLayerRef[]
   readonly configuredPipeline: ResolvedConfiguredPipeline
   readonly languageEvidenceEnabled?: boolean
@@ -721,16 +724,8 @@ export function resolveComposedBrain(
   decisionLayerRegistry: DecisionLayerRegistry =
     EMPTY_DECISION_LAYER_REGISTRY,
 ): ResolvedComposedBrain {
-  if (!config.scoreLayerTerminal && (config.scoreLayerOrder?.length ?? 0) > 0) {
-    throw new Error('nonempty scoreLayerOrder requires scoreLayerTerminal')
-  }
   const scoreLayerChain = config.scoreLayerTerminal
-    ? scoreLayerRegistry.resolve({
-        terminal: config.scoreLayerTerminal,
-        ...(config.scoreLayerOrder
-          ? { declaredOrder: config.scoreLayerOrder }
-          : {}),
-      })
+    ? scoreLayerRegistry.resolve({ terminal: config.scoreLayerTerminal })
     : undefined
   const resolvedDecisionLayers = decisionLayerRegistry.resolve(
     config.decisionLayerOrder ?? [],

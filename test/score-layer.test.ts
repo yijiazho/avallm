@@ -1938,7 +1938,6 @@ test('native frame seam installs one honestly admitted root score authority', as
   const brain = resolveComposedBrain({
     configuredPipeline: testConfiguredPipeline(),
     scoreLayerTerminal: nativeRoot.token,
-    scoreLayerOrder: [nativeRoot.token],
   }, createDecisionComponentRegistry([]), scoreRegistry)
   const canonical = canonicalDecisionFrame(fixture.req, fixture.view)
   const legal = withLegalCandidates(canonical)
@@ -2127,7 +2126,6 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
   const config = {
     configuredPipeline: testConfiguredPipeline(),
     scoreLayerTerminal: nativeRoot.token,
-    scoreLayerOrder: [nativeRoot.token],
   }
   const brainA = resolveComposedBrain(config, emptyRegistry, scoreRegistry)
   const brainB = resolveComposedBrain(config, emptyRegistry, scoreRegistry)
@@ -2189,7 +2187,6 @@ test('native component binding is brain-local, exact, one-shot, and concurrent-s
   const componentConfig = {
     configuredPipeline: testConfiguredPipeline(),
     scoreLayerTerminal: componentRoot.token,
-    scoreLayerOrder: [componentRoot.token],
   }
   const componentBrainA = resolveComposedBrain(
     componentConfig,
