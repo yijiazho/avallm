@@ -425,6 +425,65 @@ interface MorganaCounterfeitObjectiveInput {
   candidates: readonly PolicyCandidate[]
 }
 
+/**
+ * Assess one counterfeit candidate. This is the per-candidate map body of
+ * buildMorganaCounterfeitObjectiveInternal, extracted verbatim; it takes
+ * exactly the operands the closure captured, so every field is produced
+ * identically (the host-join reconstructs the objective byte for byte).
+ */
+function assessCandidate(
+  candidate: MorganaCounterfeitCandidate,
+  index: number,
+  belief: BeliefSnapshot,
+  failsRequired: number,
+  publicTeams: ReturnType<typeof assessPublicJointTeams>,
+  read: PublicCounterfeitMerlinRead,
+): MorganaCounterfeitAssessment {
+  const privateDistribution = merlinVisibleDistribution(
+    belief,
+    candidate.team,
+  )
+  const q = failureCapability(privateDistribution, failsRequired)
+  const publicDistribution =
+    publicTeams[index].evilCountDistribution.slice()
+  const p = failureCapability(publicDistribution, failsRequired)
+  const support = candidate.direction === 'support'
+  const counterfeitOpportunityReadProxyIndex =
+    read.counterfeitReadProxyIndex
+  const {
+    expectedMerlinConsistencyIndex,
+    publicConsistencyBaselineIndex,
+    privateKnowledgeTellIndex,
+    publicAmbiguityIndex,
+    counterfeitSignalIndex,
+    counterfeitValue,
+  } = counterfeitAssessmentValues(
+    support,
+    q,
+    p,
+    counterfeitOpportunityReadProxyIndex,
+  )
+  return {
+    candidate,
+    probabilitySemantics: 'resolved-complete-world-sum',
+    merlinVisibleEvilCountDistribution: privateDistribution,
+    merlinVisibleFailureCapabilityProbability: q,
+    publicProbabilitySemantics:
+      'public-preaction-uniform-feasible-joint',
+    publicEvilCountDistribution: publicDistribution,
+    publicFailureCapabilityProbability: p,
+    valueSemantics:
+      'bounded-deterministic-indices-not-probabilities',
+    expectedMerlinConsistencyIndex,
+    publicConsistencyBaselineIndex,
+    privateKnowledgeTellIndex,
+    publicAmbiguityIndex,
+    counterfeitSignalIndex,
+    counterfeitOpportunityReadProxyIndex,
+    counterfeitValue,
+  }
+}
+
 function buildMorganaCounterfeitObjectiveInternal(
   input: MorganaCounterfeitObjectiveInput,
   admittedInputs: boolean,
@@ -441,6 +500,11 @@ function buildMorganaCounterfeitObjectiveInternal(
   ) {
     throw new Error('counterfeit objective is inapplicable to this decision')
   }
+  // admittedInputs gates two independent kernel-trust skips. Skip 1: the belief
+  // is checked with the admitted (structural-only) validator instead of the full
+  // hostile-boundary one. Skip 2 (below): the public read is trusted as-is
+  // rather than reconstructed and compared. Both are only skipped for inputs the
+  // component kernel already admitted; an untrusted build performs both.
   if (admittedInputs) {
     validateAdmittedBeliefForMorgana(belief, view)
   } else {
@@ -511,51 +575,8 @@ function buildMorganaCounterfeitObjectiveInternal(
     throw new Error('counterfeit objective requires the acting-seat read')
   }
   const assessments = commitments.map(
-    (candidate, index): MorganaCounterfeitAssessment => {
-        const privateDistribution = merlinVisibleDistribution(
-          belief,
-          candidate.team,
-        )
-        const q = failureCapability(privateDistribution, failsRequired)
-        const publicDistribution =
-          publicTeams[index].evilCountDistribution.slice()
-        const p = failureCapability(publicDistribution, failsRequired)
-        const support = candidate.direction === 'support'
-        const counterfeitOpportunityReadProxyIndex =
-          read.counterfeitReadProxyIndex
-        const {
-          expectedMerlinConsistencyIndex,
-          publicConsistencyBaselineIndex,
-          privateKnowledgeTellIndex,
-          publicAmbiguityIndex,
-          counterfeitSignalIndex,
-          counterfeitValue,
-        } = counterfeitAssessmentValues(
-          support,
-          q,
-          p,
-          counterfeitOpportunityReadProxyIndex,
-        )
-        return {
-          candidate,
-          probabilitySemantics: 'resolved-complete-world-sum',
-          merlinVisibleEvilCountDistribution: privateDistribution,
-          merlinVisibleFailureCapabilityProbability: q,
-          publicProbabilitySemantics:
-            'public-preaction-uniform-feasible-joint',
-          publicEvilCountDistribution: publicDistribution,
-          publicFailureCapabilityProbability: p,
-          valueSemantics:
-            'bounded-deterministic-indices-not-probabilities',
-          expectedMerlinConsistencyIndex,
-          publicConsistencyBaselineIndex,
-          privateKnowledgeTellIndex,
-          publicAmbiguityIndex,
-          counterfeitSignalIndex,
-          counterfeitOpportunityReadProxyIndex,
-          counterfeitValue,
-        }
-    },
+    (candidate, index): MorganaCounterfeitAssessment =>
+      assessCandidate(candidate, index, belief, failsRequired, publicTeams, read),
   )
   const snapshot: PrivateMorganaCounterfeitObjective = {
     version: MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,
