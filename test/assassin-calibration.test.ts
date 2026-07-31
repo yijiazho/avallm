@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   generateAssassinCalibrationViews,
   productionMerlinPosterior,
-  scoreAssassinCalibration,
+  scoreMerlinPosterior,
   type MerlinPosteriorBuilder,
 } from '../server/eval/assassin-calibration.ts'
 import { buildPrivateEvilSeatMerlinPosterior } from '../server/agents/analysis/assassin-merlin-posterior.ts'
@@ -37,9 +37,11 @@ test('held-out calibration set is non-trivial and deterministic', () => {
 })
 
 test('the behavioral overlay beats the prior-only baseline on hit-rate', () => {
-  const seedsPer = 25
-  const production = scoreAssassinCalibration(productionMerlinPosterior, seedsPer)
-  const priorOnly = scoreAssassinCalibration(priorOnlyMerlinPosterior, seedsPer)
+  // Generate the held-out set once and score both builders on the same cases,
+  // so the games are replayed once and the metrics share a denominator.
+  const cases = generateAssassinCalibrationViews(25)
+  const production = scoreMerlinPosterior(cases, productionMerlinPosterior)
+  const priorOnly = scoreMerlinPosterior(cases, priorOnlyMerlinPosterior)
   assert.equal(production.predictions, priorOnly.predictions)
   for (const metrics of [production, priorOnly]) {
     assert.ok(metrics.predictions > 200)

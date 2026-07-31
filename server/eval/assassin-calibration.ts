@@ -28,8 +28,6 @@ import { buildPrivateEvilSeatMerlinPosterior } from '../agents/analysis/assassin
 import { exactBelief } from '../agents/belief/exact.ts'
 import type { PlayerView, Role, Seat } from '../engine/types.ts'
 
-export const ASSASSIN_CALIBRATION_VERSION = 'assassin-calibration-v1'
-
 export interface AssassinCalibrationCast {
   readonly playerCount: number
   readonly roles: readonly Role[]
@@ -130,15 +128,20 @@ export function generateAssassinCalibrationViews(
 const LOG_LOSS_EPSILON = 1e-12
 
 /**
- * Score a posterior builder over the held-out set. hit-rate is argmax accuracy
- * (ties broken to the lower seat, matching the shot's tie-break); Brier is the
- * multiclass sum over targets; log-loss is on the true Merlin seat's mass.
+ * Score a posterior builder over an already-generated held-out set. hit-rate is
+ * argmax accuracy (ties broken to the lower seat, matching the shot's
+ * tie-break); Brier is the multiclass sum over targets; log-loss is on the true
+ * Merlin seat's mass.
+ *
+ * Generation is separate from scoring so a caller comparing several builders
+ * generates the set once and scores each on the SAME cases: replaying the games
+ * is the cost, and shared cases make the metrics comparable denominator-for-
+ * denominator rather than each builder scoring whatever it happened not to skip.
  */
-export function scoreAssassinCalibration(
+export function scoreMerlinPosterior(
+  cases: readonly AssassinCalibrationView[],
   builder: MerlinPosteriorBuilder,
-  seedsPer: number = ASSASSIN_CALIBRATION_SEEDS_PER,
 ): AssassinCalibrationMetrics {
-  const cases = generateAssassinCalibrationViews(seedsPer)
   let hits = 0
   let brierSum = 0
   let logLossSum = 0
@@ -165,12 +168,23 @@ export function scoreAssassinCalibration(
     brierSum += brier
     logLossSum += -Math.log(Math.max(merlinProbability, LOG_LOSS_EPSILON))
   }
+  if (predictions === 0) {
+    throw new Error('assassin calibration scored no predictions')
+  }
   return {
     predictions,
     hitRate: hits / predictions,
     meanBrier: brierSum / predictions,
     meanLogLoss: logLossSum / predictions,
   }
+}
+
+/** Generate the held-out set once, then score one builder on it. */
+export function scoreAssassinCalibration(
+  builder: MerlinPosteriorBuilder,
+  seedsPer: number = ASSASSIN_CALIBRATION_SEEDS_PER,
+): AssassinCalibrationMetrics {
+  return scoreMerlinPosterior(generateAssassinCalibrationViews(seedsPer), builder)
 }
 
 /** The production posterior: full prior x behavioral overlay. */
