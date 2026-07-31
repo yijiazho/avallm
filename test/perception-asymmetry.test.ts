@@ -12,8 +12,10 @@ import {
   accumulateSubjectMass,
   conditionalOverlayIndex,
   EMPTY_SUBJECT_MASS,
+  partitionBySubject,
   type PerceptionOverlaySample,
 } from '../server/agents/analysis/perception-asymmetry.ts'
+import { stableProbabilitySum } from '../server/agents/components/probability-arithmetic.ts'
 
 test('accumulates probability mass per subject key in input order', () => {
   const items = [
@@ -108,6 +110,51 @@ test('conditionalOverlayIndex is the guarded ratio, null without coverage', () =
       overlayWeightedMass: 0.3,
     }),
     0.5,
+  )
+})
+
+test('partitionBySubject groups items in input order per bucket', () => {
+  const items = [
+    { m: 2, p: 0.1 },
+    { m: 5, p: 0.2 },
+    { m: 2, p: 0.3 },
+    { m: 5, p: 0.4 },
+  ]
+  const { buckets } = partitionBySubject(items, (i) => i.m, (i) => i.p)
+  assert.deepEqual(buckets.get(2), [{ m: 2, p: 0.1 }, { m: 2, p: 0.3 }])
+  assert.deepEqual(buckets.get(5), [{ m: 5, p: 0.2 }, { m: 5, p: 0.4 }])
+  assert.equal(buckets.has(0), false)
+})
+
+test('partitionBySubject mass uses compensated summation, not a naive fold', () => {
+  // A large base plus many sub-ULP terms: naive += drops the small terms, while
+  // the compensated sum keeps them, so the two diverge. The sawDivergence check
+  // asserts the inputs actually distinguish the two summations, which is what
+  // makes the mass === compensated assertion able to fail if the primitive ever
+  // switched to a naive fold (it would then return the naive value instead).
+  const items = Array.from({ length: 1000 }, (_, index) => ({
+    m: index % 2,
+    p: index === 0 ? 1 : 1e-17,
+  }))
+  const { buckets, mass } = partitionBySubject(items, (i) => i.m, (i) => i.p)
+  let sawDivergence = false
+  for (const [key, bucket] of buckets) {
+    const naive = bucket.reduce((sum, i) => sum + i.p, 0)
+    const compensated = stableProbabilitySum(bucket, (i) => i.p)
+    if (naive !== compensated) sawDivergence = true
+    assert.equal(mass.get(key), compensated)
+  }
+  assert.ok(sawDivergence, 'test inputs must distinguish naive from compensated')
+})
+
+test('partitionBySubject lets keyOf reject an illegal item by throwing', () => {
+  const items = [{ m: 1, p: 0.5 }, { m: -1, p: 0.5 }]
+  assert.throws(
+    () => partitionBySubject(items, (i) => {
+      if (i.m < 0) throw new Error('illegal')
+      return i.m
+    }, (i) => i.p),
+    /illegal/,
   )
 })
 

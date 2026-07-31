@@ -30,6 +30,7 @@ import {
   closeProbability as close,
   stableProbabilitySum,
 } from '../components/probability-arithmetic.ts'
+import { partitionBySubject } from './perception-asymmetry.ts'
 
 function resolvedActions(view: PlayerView) {
   return [...view.proposals]
@@ -112,26 +113,31 @@ export function buildPrivateEvilSeatMerlinPosterior(input: {
     || belief.throughSeq !== visibleEventCursor(view)
   ) throw new Error('evil-seat Merlin predictor is inapplicable')
   const actions = resolvedActions(view)
-  const byMerlin = Array.from(
-    { length: view.playerCount },
-    (): WeightedWorld[] => [],
+  // Group the feasible worlds by their Merlin coordinate and take each
+  // candidate's prior mass through the shared perception primitive. keyOf keeps
+  // this seat's legal-world validation in the single grouping pass, and the
+  // primitive's compensated per-bucket sum is bit-identical to the inline
+  // stableProbabilitySum this replaced, so the posterior does not move.
+  const partition = partitionBySubject(
+    belief.worlds,
+    (weighted): Seat => {
+      const merlin = weighted.world.roleBySeat.indexOf('merlin')
+      if (
+        merlin < 0
+        || weighted.world.roleBySeat[view.seat] !== view.role
+        || !Number.isFinite(weighted.probability)
+        || weighted.probability <= 0
+      ) throw new Error('evil-seat predictor requires legal positive worlds')
+      return merlin
+    },
+    (weighted) => weighted.probability,
   )
-  for (const weighted of belief.worlds) {
-    const merlin = weighted.world.roleBySeat.indexOf('merlin')
-    if (
-      merlin < 0
-      || weighted.world.roleBySeat[view.seat] !== view.role
-      || !Number.isFinite(weighted.probability)
-      || weighted.probability <= 0
-    ) throw new Error('evil-seat predictor requires legal positive worlds')
-    byMerlin[merlin].push(weighted)
-  }
   const visiblePartners = new Set(evilPartnersOf(view.privateInfo))
   const rows = Array.from({ length: view.playerCount }, (_, seat) => seat)
     .filter((seat) => seat !== view.seat)
     .map((seat) => {
-      const worlds = byMerlin[seat]
-      const prior = stableProbabilitySum(worlds, (world) => world.probability)
+      const worlds = partition.buckets.get(seat) ?? []
+      const prior = partition.mass.get(seat) ?? 0
       const proposalObservations = actions.filter(
         (action) => action.leader === seat,
       ).length

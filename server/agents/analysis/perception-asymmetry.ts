@@ -10,10 +10,15 @@
 // into probability is the overlay-weighted mass a consumer explicitly asks for,
 // which is a conditional expectation, not a reweighted posterior.
 //
-// The reducer is generic and imports nothing: it knows about neither worlds nor
-// roles, only about keys, probabilities, and overlay samples. Each role module
-// supplies its own channel (which world maps to which subject) and its own
-// exploit value; those are the genuinely role-specific pieces and stay put.
+// The accumulators are generic over the subject key: they know about neither
+// worlds nor roles, only keys, probabilities, and overlay samples. The single
+// dependency is the shared compensated sum, which partitionBySubject reuses so
+// its per-subject mass is bit-identical to a caller that summed each bucket
+// inline. Each role module supplies its own channel (which world maps to which
+// subject) and its own exploit value; those are the genuinely role-specific
+// pieces and stay put.
+
+import { stableProbabilitySum } from '../components/probability-arithmetic.ts'
 
 export interface PerceptionOverlaySample {
   /** Whether the behavioral overlay had any observation for this item. */
@@ -71,6 +76,49 @@ export function accumulateSubjectMass<Item, Key>(
     totals.set(key, aggregate)
   }
   return totals
+}
+
+export interface SubjectPartition<Item, Key> {
+  /** Items grouped by subject, each bucket in input order. */
+  readonly buckets: Map<Key, Item[]>
+  /** Compensated total probability mass per subject. */
+  readonly mass: Map<Key, number>
+}
+
+/**
+ * Group items by subject and give each subject's total probability mass, using
+ * the shared compensated summation.
+ *
+ * This is the counterpart to accumulateSubjectMass for consumers that (a) need
+ * the buckets themselves for a second, subject-local pass, and (b) require the
+ * compensated summation rather than the naive fold, because their result is
+ * precision-sensitive (the assassin posterior feeds an irreversible kill shot,
+ * and its per-Merlin-candidate buckets can be large enough that a naive sum
+ * drifts). Every item must map to a subject; `keyOf` may throw to reject an
+ * illegal item, which keeps a caller's validation in its single grouping pass.
+ *
+ * Mass is stableProbabilitySum over each bucket, in insertion (input) order, so
+ * the result is bit-identical to a caller that bucketed inline and summed each
+ * bucket the same way. That identity is the whole point: it lets the assassin
+ * posterior route its prior through here without moving a single ULP.
+ */
+export function partitionBySubject<Item, Key>(
+  items: Iterable<Item>,
+  keyOf: (item: Item) => Key,
+  probabilityOf: (item: Item) => number,
+): SubjectPartition<Item, Key> {
+  const buckets = new Map<Key, Item[]>()
+  for (const item of items) {
+    const key = keyOf(item)
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(item)
+    else buckets.set(key, [item])
+  }
+  const mass = new Map<Key, number>()
+  for (const [key, bucket] of buckets) {
+    mass.set(key, stableProbabilitySum(bucket, probabilityOf))
+  }
+  return { buckets, mass }
 }
 
 /** The zero accumulation a subject with no matching item reads as. */
