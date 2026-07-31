@@ -1,3 +1,4 @@
+// test-lane: fast
 // Spoken text is capped at a word boundary, not sliced mid-word.
 //
 // A live table saw a turn end as "...testing Gemini or s". Spoken text is not

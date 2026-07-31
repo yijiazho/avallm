@@ -1,3 +1,4 @@
+// test-lane: fast
 // The role dependency lattice lives in client/src/setup.ts (the picker), but the
 // picker is UI convenience, not authority: the server re-validates every role
 // list. These tests pin both halves and, more importantly, the agreement between

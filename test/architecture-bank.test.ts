@@ -1,3 +1,4 @@
+// test-lane: eval
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'

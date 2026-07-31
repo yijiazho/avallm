@@ -1,3 +1,4 @@
+// test-lane: fast
 // The quest record, stated as a conclusion instead of as arithmetic.
 //
 // The facts dossier has printed "2 Fails, so at least 2 of these 4 are evil"

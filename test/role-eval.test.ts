@@ -1,3 +1,4 @@
+// test-lane: eval
 // Migration phase 7F2A; see docs/agent-architecture-migration.md.
 
 import assert from 'node:assert/strict'

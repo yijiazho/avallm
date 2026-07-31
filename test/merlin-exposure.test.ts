@@ -1,3 +1,4 @@
+// test-lane: fast
 // Merlin exposure: the continuous form of the assassination channel.
 //
 // The load-carrying test here is the anchor. On an opening board, before anyone

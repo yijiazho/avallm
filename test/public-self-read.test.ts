@@ -1,3 +1,4 @@
+// test-lane: contract
 // The shared two-axis public read (see server/agents/analysis/public-self-read.ts).
 // Three role families were each measuring a private version of the same two
 // public quantities, so the measurement is shared and only the weights stay

@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // Role guidance must not restate what the knowledge line already said.
 //
 // The prompt has two slots with different jobs: knowledgeText owns WHAT YOU

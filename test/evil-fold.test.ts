@@ -1,3 +1,4 @@
+// test-lane: fast
 // Evil folding under table pressure, at the one step where the leader can
 // rewrite their own team: the finalize ASK tells an evil leader what revising
 // evil off the team costs, so a hostile table can't talk them into a

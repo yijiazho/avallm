@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // A prompt must not contradict itself inside one sentence.
 //
 // Why this is its own audit: the phantom-role and talk-norm audits both check

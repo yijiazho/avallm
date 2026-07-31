@@ -1,3 +1,4 @@
+// test-lane: fast
 // Agent packs: every curated pack resolves against the shipped library, a
 // broken member surfaces instead of silently shrinking the pack, and seating a
 // pack fills leftovers from the default library with sane models.

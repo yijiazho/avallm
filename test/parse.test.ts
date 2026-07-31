@@ -1,3 +1,4 @@
+// test-lane: fast
 // Tolerant-parse behavior per decision kind: clean JSON, salvage shapes, and
 // explicit parseFailed on garbage.
 import { test } from 'node:test'

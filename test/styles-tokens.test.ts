@@ -1,3 +1,4 @@
+// test-lane: fast
 // Palette drift guard for client/src/styles.css.
 //
 // The failure this prevents: a rule hardcodes a colour that happens to BE one of

@@ -1,3 +1,4 @@
+// test-lane: contract
 // Contract tests for the shared probability arithmetic.
 //
 // The sibling of test/canonical-shape.test.ts, and it exists for the same

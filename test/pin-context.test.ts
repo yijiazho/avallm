@@ -1,3 +1,4 @@
+// test-lane: contract
 // Step B of the perception-pin wiring: with the opt-in pinReads flag, the pin
 // reads resolve and their summary is rendered into the planner's
 // private-planning-only context. Merlin at the opening is the deterministic

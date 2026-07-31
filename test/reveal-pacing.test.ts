@@ -1,3 +1,4 @@
+// test-lane: fast
 // Spoiler guard for the feed's reveals.
 //
 // The failure this prevents: the feed plays the game's turning points as

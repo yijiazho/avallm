@@ -1,3 +1,4 @@
+// test-lane: contract
 // Migration phase 7F1; see docs/agent-architecture-migration.md.
 
 import assert from 'node:assert/strict'

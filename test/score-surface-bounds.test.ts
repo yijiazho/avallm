@@ -1,3 +1,4 @@
+// test-lane: fast
 // The byte ceiling on a caller-supplied candidate score surface.
 //
 // This lives in its own file rather than beside the other scorer tests because

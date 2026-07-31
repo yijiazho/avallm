@@ -1,3 +1,4 @@
+// test-lane: fast
 // recommendPolicy is the pure core of the reasoning-suppression probe — it
 // turns a measured sweep into the reasoning-policy.ts entry to add. These cases
 // pin the decision rules offline (no network, no key), mirroring the real traps

@@ -1,3 +1,4 @@
+// test-lane: fast
 // Experiment 4 (a84664a): the discuss ask must not teach passivity as a
 // statistic. "most players pass by round 2" was removed because it encouraged
 // bots to stay quiet when their own public record demanded a reaction, and it

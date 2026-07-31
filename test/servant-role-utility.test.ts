@@ -1,3 +1,4 @@
+// test-lane: contract
 // The servant per-candidate propose utility. It exists because 75 of 76
 // servant proposals in the phase-4 bank score every viable candidate at
 // exactly the same value, leaving a lexicographic sort to pick the team. These

@@ -1,3 +1,4 @@
+// test-lane: fast
 // The discuss ASK carries evil's board stakes, because what a seat says about
 // the team is public and concerns the same team the vote ASK already reasons
 // about.

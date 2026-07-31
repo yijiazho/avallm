@@ -1,3 +1,4 @@
+// test-lane: fast
 // The reflect contract separates WHICH SIDE a seat is on from HOW WELL you read
 // them, because one `confidence` field was collapsing the two.
 //

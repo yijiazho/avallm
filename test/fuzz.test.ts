@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // Fuzz: full games at every player count with heuristic and random agents.
 // If random-legal play can crash or stall the engine, the engine is wrong.
 // Also pins replay determinism: same seed + same agents => identical logs.

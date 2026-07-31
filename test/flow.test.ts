@@ -1,3 +1,4 @@
+// test-lane: fast
 // Scripted-game tests for the rules that are easy to get wrong:
 // strict-majority voting, the auto-approved hammer proposal, quest-card
 // coercion, the double-fail quest, and the assassination phase.

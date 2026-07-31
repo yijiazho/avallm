@@ -1,3 +1,4 @@
+// test-lane: fast
 // Percival's fail-attribution rule, and the cast where he has no decoy.
 //
 // The guidance used to say a quest failure names whichever candidate was aboard

@@ -1,3 +1,4 @@
+// test-lane: contract
 import { test } from 'node:test'
 import { mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'

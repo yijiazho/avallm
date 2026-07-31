@@ -1,3 +1,4 @@
+// test-lane: contract
 // Migration phase 7R2C3; see docs/agent-architecture-migration.md.
 
 import { test } from 'node:test'

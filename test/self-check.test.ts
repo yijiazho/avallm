@@ -1,3 +1,4 @@
+// test-lane: fast
 // Experiment 3: the second-order self-check norm. Before speaking, a bot must
 // consider what its words reveal about its own secret role (ReCon import).
 import { test } from 'node:test'

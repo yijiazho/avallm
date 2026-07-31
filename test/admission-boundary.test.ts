@@ -1,3 +1,4 @@
+// test-lane: contract
 // Migration phase 7R2A; see docs/agent-architecture-migration.md.
 
 import { readFileSync } from 'node:fs'

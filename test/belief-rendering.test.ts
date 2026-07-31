@@ -1,3 +1,4 @@
+// test-lane: fast
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { applyDecision, createGame } from '../server/engine/game.ts'

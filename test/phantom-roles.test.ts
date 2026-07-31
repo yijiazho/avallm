@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // No prompt may name a role that is not at the table.
 //
 // Why this is its own test: the prompt layer splits cleanly into text COMPUTED

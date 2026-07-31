@@ -1,3 +1,4 @@
+// test-lane: fast
 // The copyable debug transcript: the pure renderer, and the HTTP route's
 // fidelity policy (full reveal when final or solo-vs-bots; scoped otherwise).
 import { test, before, after } from 'node:test'

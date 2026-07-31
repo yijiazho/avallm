@@ -1,3 +1,4 @@
+// test-lane: fast
 // The heuristic's half of the forced-play tier (docs/design-bot-guidance.md §7).
 // It is the forever-fallback every degraded LLM seat lands on, so a board
 // condition it cannot see is one the prompts can no longer compensate for.

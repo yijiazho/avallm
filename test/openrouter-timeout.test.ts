@@ -1,3 +1,4 @@
+// test-lane: fast
 // Contract test: the per-request timeout covers the WHOLE exchange, not just
 // fetch(). A provider can return headers promptly and then stall the response
 // body; the timer must stay armed across res.json()/res.text() so a stalled

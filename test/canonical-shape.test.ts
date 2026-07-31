@@ -1,3 +1,4 @@
+// test-lane: contract
 // Contract tests for the shared payload shape guards.
 //
 // These guards exist because each analysis module used to carry its own copy

@@ -1,3 +1,4 @@
+// test-lane: eval
 // The wide good-side bank: the same experiment as phase4-good-v1, with enough
 // of it to see.
 //

@@ -1,3 +1,4 @@
+// test-lane: fast
 // The LLM agent's ladder and scratchpad, with a fake transport — no API.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // roleCertainties: what a seat can PROVE from the deal alone, before reading
 // anyone's behaviour. These are the deductions bots were observed getting wrong
 // in the other direction, assigning 65-80% confidence to propositions their own

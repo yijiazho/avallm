@@ -1,3 +1,4 @@
+// test-lane: fast
 // Contract for the one statistics core behind every published evaluation
 // number (server/eval/statistics.ts).
 //

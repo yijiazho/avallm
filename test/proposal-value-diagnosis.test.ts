@@ -1,3 +1,4 @@
+// test-lane: eval
 // Migration NB-014; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'

@@ -1,3 +1,4 @@
+// test-lane: fast
 // Agent library: built-in defs are valid, validation rejects junk, prompt
 // layers reach the system prompt, and the engine-owned parts stay fixed.
 import { test } from 'node:test'

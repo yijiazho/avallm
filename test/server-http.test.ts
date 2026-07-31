@@ -1,3 +1,4 @@
+// test-lane: fast
 // HTTP-layer tests for the game server. The engine is covered elsewhere; this
 // pins the reconnect-support endpoint the client relies on after a refresh:
 // GET /api/game/:id/valid — 200 for a live seat, 403 for a wrong token, 404 for

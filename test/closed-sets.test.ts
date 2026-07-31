@@ -1,3 +1,4 @@
+// test-lane: contract
 // Contract: a closed set of string literals is spelled out in exactly one
 // module, and every other module reads that list or a predicate over it.
 //

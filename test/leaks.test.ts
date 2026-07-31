@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 // Hidden-information leak checks on viewFor: structural (event visibility,
 // player objects carry no role fields) and textual (no role words in the
 // public-shaped parts of a view).

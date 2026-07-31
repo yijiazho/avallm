@@ -1,3 +1,4 @@
+// test-lane: eval
 // Migration phase 4D; see docs/agent-architecture-migration.md.
 
 import { test } from 'node:test'

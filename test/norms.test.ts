@@ -1,3 +1,4 @@
+// test-lane: fast
 // The runtime half of the house-style loop: talk-norms.test.ts proves we never
 // SHOW the model a banned construction, this measures how often it produces one
 // anyway. Both halves import the same patterns from eval/norms.ts.

@@ -1,3 +1,4 @@
+// test-lane: fast
 import assert from 'node:assert/strict'
 import {
   existsSync,

@@ -1,3 +1,4 @@
+// test-lane: eval
 // The per-decision harness for servant proposal policies.
 //
 // The measured verdict lives in docs/design-perception-primitive.md. This suite

@@ -1,3 +1,4 @@
+// test-lane: fast
 // Forced-play detection: the deterministic tier of the playbook
 // (docs/design-bot-guidance.md §7), measured from artifacts and never enforced.
 // The two headline cases are real misses read out of a live LLM game by hand

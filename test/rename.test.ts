@@ -1,3 +1,4 @@
+// test-lane: fast
 // Mid-game renames: public event, live re-labeling, dedupe guard, and the
 // transcript notice bots learn the mapping from.
 import { test } from 'node:test'

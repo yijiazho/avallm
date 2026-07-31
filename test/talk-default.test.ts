@@ -1,3 +1,4 @@
+// test-lane: fast
 // The shipped talk pacing, pinned.
 //
 // It used to live in two places: the engine default in createGame, and a verbatim

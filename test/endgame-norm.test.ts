@@ -1,3 +1,4 @@
+// test-lane: fast
 // Good's talk incentive inverts at its own match point, and nothing used to say
 // so. The shared doctrine tells good players to make confident reads so that
 // Merlin is not the only seat who always knows, which is right while quests are

@@ -1,3 +1,4 @@
+// test-lane: fast
 // The anti-house-style talk norms (2026-07-24 playtests): with one shared
 // voice spec and no persona, every bot converged on the same debate-club
 // register — essay grammar, the same accusation re-argued a dozen times,

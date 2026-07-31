@@ -1,3 +1,4 @@
+// test-lane: contract
 // Contract tests for the shared perception-asymmetry reducer, the first
 // extracted piece of the one-layer opponent-model consolidation
 // (docs/design-perception-primitive.md). The reducer's job is narrow: fold a

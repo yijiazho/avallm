@@ -1,3 +1,4 @@
+// test-lane: contract
 // The servant objective (server/agents/analysis/servant-objective.ts), and the
 // first consumer of the shared public read. Servants used to route to 'off',
 // on the reasoning that the concealment machinery had nothing to offer a role

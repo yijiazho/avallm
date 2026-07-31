@@ -1,3 +1,4 @@
+// test-lane: fast
 // Player names are injected verbatim into other players' LLM prompts, so the
 // engine rejects pronoun/game-term names and scrubs spoken seat references.
 import { test } from 'node:test'

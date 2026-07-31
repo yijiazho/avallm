@@ -1,3 +1,4 @@
+// test-lane: eval
 import { test } from 'node:test'
 import { mutable, type Mutable } from './support/mutable.ts'
 import assert from 'node:assert/strict'

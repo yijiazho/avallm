@@ -1,3 +1,4 @@
+// test-lane: fast
 // Contract tests: the roster only names models the policy tables know, and
 // the measured reasoning-suppression flags stay pinned.
 import { test } from 'node:test'

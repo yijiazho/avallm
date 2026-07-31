@@ -1,3 +1,4 @@
+// test-lane: contract
 // The private pin read: what a seat knows that the table does not. Uses
 // Merlin's opening vision as the deterministic pin case (Merlin's belief pins
 // every evil it sees while the public read, with no quests yet, is unsure).

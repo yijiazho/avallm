@@ -1,3 +1,4 @@
+// test-lane: eval
 // Eval substrate: artifacts, commitment ledger, metrics, paired bench.
 // Everything here runs API-free (heuristic agents + synthetic logs).
 

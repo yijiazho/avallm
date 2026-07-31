@@ -1,3 +1,4 @@
+// test-lane: eval
 // Eval-lane guard for the assassin Merlin-posterior calibration harness
 // (server/eval/assassin-calibration.ts). It pins the invariant behind the
 // step-3 keep-the-bespoke-overlay decision rather than exact float metrics,

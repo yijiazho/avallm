@@ -1,3 +1,4 @@
+// test-lane: contract
 // Contract: `projectConfiguredScoreDiagnostics` is ADDITIVE over the native
 // score-layer rows it is handed. A family projection may attach private
 // per-candidate feature fields, but every mechanical field (value, viable,

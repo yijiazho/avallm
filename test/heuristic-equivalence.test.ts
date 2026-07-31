@@ -1,3 +1,4 @@
+// test-lane: exhaustive
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

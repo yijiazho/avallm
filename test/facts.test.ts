@@ -1,3 +1,4 @@
+// test-lane: fast
 // The facts dossier: computed public signals fed to LLM prompts. Pure, API-free.
 // The load-bearing test is the LEAK check — the dossier must contain only
 // public-derivable facts, never roles/alignment/private knowledge.

@@ -1,3 +1,4 @@
+// test-lane: fast
 // Migration phase 6A; see docs/agent-architecture-migration.md.
 
 import test from 'node:test'

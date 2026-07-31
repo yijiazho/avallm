@@ -1,3 +1,4 @@
+// test-lane: contract
 // The role knowledge matrix (research doc §3.3), asserted through viewFor —
 // the exact surface agents and clients consume.
 import { test } from 'node:test'

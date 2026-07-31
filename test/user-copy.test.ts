@@ -1,3 +1,4 @@
+// test-lane: fast
 // Generic player-facing copy must not infer gender from a role, player name, or
 // model label. Curated character biographies under agents/ are deliberately
 // outside this scan: a biography may describe the known fictional or real

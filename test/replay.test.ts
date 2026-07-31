@@ -1,3 +1,4 @@
+// test-lane: eval
 // Replay, record rendering, and situation-bank mining. All API-free.
 //
 // The replay contract is the foundation the situation bank stands on: a

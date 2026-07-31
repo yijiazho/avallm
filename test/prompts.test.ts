@@ -1,3 +1,4 @@
+// test-lane: fast
 // Prompt-builder contracts: knowledge lines follow the role matrix, prompts
 // are built only from views, and speech is sanitized at the boundary.
 import { test } from 'node:test'

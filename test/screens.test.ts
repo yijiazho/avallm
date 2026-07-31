@@ -1,3 +1,4 @@
+// test-lane: fast
 // Drift guard for the committed screenshot gallery (docs/screens/). This does NOT
 // re-run the (slow, Chrome-dependent) harness or compare pixels — the gallery is
 // deliberately unseeded, so pixels vary run to run (see CLAUDE.md). It only asserts

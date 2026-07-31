@@ -1,3 +1,4 @@
+// test-lane: fast
 // Match point: one quest from a side winning the quest phase. The dossier's
 // board-stakes rows state that to every seat as data (facts.test.ts); these are
 // the two decisions that can still act on it — who goes on the team, and whether
