@@ -152,6 +152,73 @@ const POSTURE_BY_ROLE: Readonly<Record<EvilObjectiveRole, EvilRolePosture>> =
     oberon: 'oberon-uncoordinated-disruption',
   })
 
+/**
+ * The per-candidate scalar derivations that both the builder and the schema
+ * recompute, extracted once so a weight can never drift between the two sites.
+ *
+ * Each helper takes exactly the operands its caller already holds: the builder
+ * passes freshly derived values, the schema passes the stored ones. This keeps
+ * the schema validating the stored intermediates (stored plausibility feeds
+ * publicCoverValue, stored contributions feed roleValue) rather than internally
+ * recomputed ones, so no comparison target moves and no tolerance boundary can
+ * flip. roleValueFrom carries the builder's clamp01; the summed contributions
+ * lie in [0, 1] (each is a weight in [0, 0.70] times a value in [0, 1] and the
+ * three weights total 1), so the clamp is a no-op over the validated domain and
+ * the schema, whose old code compared against the raw sum, sees the same value.
+ */
+function publicActionPlausibilityFrom(
+  support: boolean,
+  publicTeamFailureCapabilityProbability: number,
+): number {
+  return support
+    ? 1 - publicTeamFailureCapabilityProbability
+    : publicTeamFailureCapabilityProbability
+}
+
+function publicCoverValueFrom(
+  publicActionPlausibility: number,
+  participantCoverProxyIndex: number,
+): number {
+  return 0.5 * publicActionPlausibility + 0.5 * participantCoverProxyIndex
+}
+
+function failureCapacityContributionFrom(failureCapacityValue: number): number {
+  return EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
+    * failureCapacityValue
+}
+
+function publicCoverContributionFrom(publicCoverValue: number): number {
+  return EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight * publicCoverValue
+}
+
+function futureOpportunityContributionFrom(
+  futureOpportunityValue: number,
+): number {
+  return EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
+    * futureOpportunityValue
+}
+
+function roleValueFrom(
+  failureCapacityContribution: number,
+  publicCoverContribution: number,
+  futureOpportunityContribution: number,
+): number {
+  return clamp01(
+    failureCapacityContribution
+    + publicCoverContribution
+    + futureOpportunityContribution,
+  )
+}
+
+function alternativeRealizationFrom(rejectionsBeforeHammer: number): number {
+  return Math.min(
+    1,
+    EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationBase
+      + EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
+        * rejectionsBeforeHammer,
+  )
+}
+
 function teamProxyValue(
   objective: PrivateEvilRoleObjectiveSnapshot,
   team: readonly Seat[],
@@ -282,12 +349,7 @@ function buildEvilRoleUtilityProjectionInternal(
     )
   }
   const alternativeRealization = req.kind === 'vote'
-    ? Math.min(
-        1,
-        EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationBase
-          + EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
-            * Math.max(0, MAX_PROPOSALS - view.proposalNum),
-      )
+    ? alternativeRealizationFrom(Math.max(0, MAX_PROPOSALS - view.proposalNum))
     : 1
   const assessments = candidates.map(
     (candidate): EvilRoleUtilityAssessment => {
@@ -308,11 +370,14 @@ function buildEvilRoleUtilityProjectionInternal(
         : bestAlternative!.teamFailureCapabilityProbability
           * alternativeRealization
       const participant = participantCover(objective, team)
-      const publicActionPlausibility = support
-        ? 1 - source.publicTeamFailureCapabilityProbability
-        : source.publicTeamFailureCapabilityProbability
-      const publicCoverValue =
-        0.5 * publicActionPlausibility + 0.5 * participant.value
+      const publicActionPlausibility = publicActionPlausibilityFrom(
+        support,
+        source.publicTeamFailureCapabilityProbability,
+      )
+      const publicCoverValue = publicCoverValueFrom(
+        publicActionPlausibility,
+        participant.value,
+      )
       const completedGood = view.quests.filter(
         (quest) => quest.status === 'complete' && quest.result === 'success',
       ).length
@@ -370,17 +435,15 @@ function buildEvilRoleUtilityProjectionInternal(
         futureOpportunitySource = { kind: 'decisive-board-none' }
       }
       const failureCapacityContribution =
-        EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
-          * failureCapacityValue
+        failureCapacityContributionFrom(failureCapacityValue)
       const publicCoverContribution =
-        EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight * publicCoverValue
+        publicCoverContributionFrom(publicCoverValue)
       const futureOpportunityContribution =
-        EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
-          * futureOpportunityValue
-      const roleValue = clamp01(
-        failureCapacityContribution
-        + publicCoverContribution
-        + futureOpportunityContribution,
+        futureOpportunityContributionFrom(futureOpportunityValue)
+      const roleValue = roleValueFrom(
+        failureCapacityContribution,
+        publicCoverContribution,
+        futureOpportunityContribution,
       )
       return {
         candidateId: candidate.id,
@@ -618,17 +681,16 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
         !== 'bounded-reserve-or-runway-proxy-not-win-probability'
       || Math.abs(
         assessment.publicCoverValue
-          - (
-            0.5 * assessment.publicActionPlausibilityValue
-            + 0.5 * assessment.participantCoverProxyIndex
+          - publicCoverValueFrom(
+            assessment.publicActionPlausibilityValue,
+            assessment.participantCoverProxyIndex,
           ),
       ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.publicActionPlausibilityValue
-          - (
-            assessment.direction === 'support'
-              ? 1 - assessment.publicTeamFailureCapabilityProbability
-              : assessment.publicTeamFailureCapabilityProbability
+          - publicActionPlausibilityFrom(
+            assessment.direction === 'support',
+            assessment.publicTeamFailureCapabilityProbability,
           ),
       ) > PROBABILITY_TOLERANCE
       || (
@@ -669,25 +731,24 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       )
       || Math.abs(
         assessment.failureCapacityContribution
-          - EVIL_ROLE_UTILITY_CONSTANTS.failureCapacityWeight
-            * assessment.failureCapacityValue,
+          - failureCapacityContributionFrom(assessment.failureCapacityValue),
       ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.publicCoverContribution
-          - EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight
-            * assessment.publicCoverValue,
+          - publicCoverContributionFrom(assessment.publicCoverValue),
       ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.futureOpportunityContribution
-          - EVIL_ROLE_UTILITY_CONSTANTS.futureOpportunityWeight
-            * assessment.futureOpportunityValue,
+          - futureOpportunityContributionFrom(
+            assessment.futureOpportunityValue,
+          ),
       ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.roleValue
-          - (
-            assessment.failureCapacityContribution
-            + assessment.publicCoverContribution
-            + assessment.futureOpportunityContribution
+          - roleValueFrom(
+            assessment.failureCapacityContribution,
+            assessment.publicCoverContribution,
+            assessment.futureOpportunityContribution,
           ),
       ) > PROBABILITY_TOLERANCE
     ) return false
@@ -771,12 +832,8 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       0,
       MAX_PROPOSALS - projection.request.proposalNum,
     )
-    const expectedAlternativeRealization = Math.min(
-      1,
-      EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationBase
-        + EVIL_ROLE_UTILITY_CONSTANTS.alternativeRealizationPerRejection
-          * rejectionsBeforeHammer,
-    )
+    const expectedAlternativeRealization =
+      alternativeRealizationFrom(rejectionsBeforeHammer)
     if (oberon !== selfOnly) return false
     if (
       assessment.direction === 'oppose'
