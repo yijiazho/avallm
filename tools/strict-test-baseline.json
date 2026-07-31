@@ -133,7 +133,7 @@
     },
     {
       "path": "test/morgana-quest-adapters.test.ts",
-      "sha256": "2c6a841d29228026f1636f311e97cf2e82bcbc490052e33c30a85f67e9bccaa3",
+      "sha256": "f1a41fde8a9d7ef2a4fd87b6bb307e7bb744416d295dc2fdf3ca5310f431879f",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
