@@ -748,6 +748,88 @@ export type _PercivalPairKeysSound =
     >
   | AssertNever<DuplicateKeys<typeof PERCIVAL_PAIR_KEYS>>
 
+/**
+ * The Merlin per-assessment branch of the decode schema, verbatim. Reconstructs
+ * the failure-capability tail and the influence value from the stored operands
+ * with the shared *From helpers, keeping the exact clause set and short-circuit
+ * order (each later clause still runs only once an earlier one proved its
+ * field). teamSize and request are the operands the block already read inline.
+ */
+function validateMerlinAssessment(
+  assessment: Record<string, unknown>,
+  teamSize: number,
+  request: Record<string, unknown>,
+): boolean {
+  return !(
+    !exactKeys(assessment, MERLIN_ASSESSMENT_KEYS)
+    || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
+    || assessment.valueSemantics
+      !== 'bounded-deterministic-indices-not-probabilities'
+    || !probability(assessment.teamCleanProbability)
+    || !probability(assessment.teamFailureCapabilityProbability)
+    || !validDistribution(assessment.evilCountDistribution, teamSize)
+    || Math.abs(
+      (assessment.evilCountDistribution as number[])[0]
+        - (assessment.teamCleanProbability as number),
+    ) > PROBABILITY_TOLERANCE
+    || Math.abs(
+      failureCapabilityFrom(
+        assessment.evilCountDistribution as number[],
+        request.failsRequired as number,
+      )
+        - (assessment.teamFailureCapabilityProbability as number),
+    ) > PROBABILITY_TOLERANCE
+    || !boundedIndex(assessment.influenceValue)
+    || Math.abs(
+      influenceValueFrom(
+        directionSign(
+          (assessment.candidate as CandidatePublicCommitment).direction,
+        ),
+        assessment.teamCleanProbability as number,
+        assessment.teamFailureCapabilityProbability as number,
+      )
+        - (assessment.influenceValue as number),
+    ) > PROBABILITY_TOLERANCE
+    || assessment.publicProbabilitySemantics
+      !== 'public-preaction-uniform-feasible-joint'
+    || !probability(assessment.publicTeamCleanProbability)
+    || !probability(assessment.publicAmbiguityIndex)
+    || !probability(assessment.conspicuousnessIndex)
+    || !probability(assessment.assassinExposureProxyIndex)
+  )
+}
+
+/**
+ * The Percival per-assessment branch of the decode schema, verbatim. The proxy
+ * chain those fields must satisfy is cross-checked later against the pair
+ * posterior; this branch pins the shape and per-field probability/index bounds
+ * in the original clause set and short-circuit order.
+ */
+function validatePercivalAssessment(
+  assessment: Record<string, unknown>,
+): boolean {
+  return !(
+    !exactKeys(assessment, PERCIVAL_ASSESSMENT_KEYS)
+    || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
+    || assessment.valueSemantics
+      !== 'bounded-deterministic-indices-not-probabilities'
+    || !probability(assessment.merlinOnTeamProbability)
+    || !probability(assessment.morganaOnTeamProbability)
+    || !boundedIndex(assessment.pairInfluenceValue)
+    || assessment.publicProbabilitySemantics
+      !== 'public-preaction-uniform-feasible-joint'
+    || !probability(assessment.publicTeamCleanProbability)
+    || !probability(assessment.publicMerlinProbabilityAtSelf)
+    || !probability(assessment.publicMerlinOnTeamProbability)
+    || !probability(assessment.publicMorganaOnTeamProbability)
+    || !boundedIndex(assessment.publicPairInfluenceValue)
+    || !probability(assessment.pairKnowledgeTellIndex)
+    || !probability(assessment.decisiveAmbiguityIndex)
+    || !probability(assessment.merlinMimicryProxyIndex)
+    || !probability(assessment.selfDecoyOpportunityProxyIndex)
+  )
+}
+
 function roleObjectiveSchema(detached: unknown): boolean {
   if (!plainRecord(detached)) return false
   const snapshot = detached as Record<string, unknown>
@@ -806,62 +888,9 @@ function roleObjectiveSchema(detached: unknown): boolean {
     const teamSize = (candidate.team as Seat[]).length
     if (snapshot.role === 'merlin') {
       if (
-        !exactKeys(assessment, MERLIN_ASSESSMENT_KEYS)
-        || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
-        || assessment.valueSemantics
-          !== 'bounded-deterministic-indices-not-probabilities'
-        || !probability(assessment.teamCleanProbability)
-        || !probability(assessment.teamFailureCapabilityProbability)
-        || !validDistribution(assessment.evilCountDistribution, teamSize)
-        || Math.abs(
-          (assessment.evilCountDistribution as number[])[0]
-            - (assessment.teamCleanProbability as number),
-        ) > PROBABILITY_TOLERANCE
-        || Math.abs(
-          failureCapabilityFrom(
-            assessment.evilCountDistribution as number[],
-            request.failsRequired as number,
-          )
-            - (assessment.teamFailureCapabilityProbability as number),
-        ) > PROBABILITY_TOLERANCE
-        || !boundedIndex(assessment.influenceValue)
-        || Math.abs(
-          influenceValueFrom(
-            directionSign(
-              (assessment.candidate as CandidatePublicCommitment).direction,
-            ),
-            assessment.teamCleanProbability as number,
-            assessment.teamFailureCapabilityProbability as number,
-          )
-            - (assessment.influenceValue as number),
-        ) > PROBABILITY_TOLERANCE
-        || assessment.publicProbabilitySemantics
-          !== 'public-preaction-uniform-feasible-joint'
-        || !probability(assessment.publicTeamCleanProbability)
-        || !probability(assessment.publicAmbiguityIndex)
-        || !probability(assessment.conspicuousnessIndex)
-        || !probability(assessment.assassinExposureProxyIndex)
+        !validateMerlinAssessment(assessment, teamSize, request)
       ) return false
-    } else if (
-      !exactKeys(assessment, PERCIVAL_ASSESSMENT_KEYS)
-      || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
-      || assessment.valueSemantics
-        !== 'bounded-deterministic-indices-not-probabilities'
-      || !probability(assessment.merlinOnTeamProbability)
-      || !probability(assessment.morganaOnTeamProbability)
-      || !boundedIndex(assessment.pairInfluenceValue)
-      || assessment.publicProbabilitySemantics
-        !== 'public-preaction-uniform-feasible-joint'
-      || !probability(assessment.publicTeamCleanProbability)
-      || !probability(assessment.publicMerlinProbabilityAtSelf)
-      || !probability(assessment.publicMerlinOnTeamProbability)
-      || !probability(assessment.publicMorganaOnTeamProbability)
-      || !boundedIndex(assessment.publicPairInfluenceValue)
-      || !probability(assessment.pairKnowledgeTellIndex)
-      || !probability(assessment.decisiveAmbiguityIndex)
-      || !probability(assessment.merlinMimicryProxyIndex)
-      || !probability(assessment.selfDecoyOpportunityProxyIndex)
-    ) return false
+    } else if (!validatePercivalAssessment(assessment)) return false
   }
 
   if (snapshot.role === 'merlin') {
