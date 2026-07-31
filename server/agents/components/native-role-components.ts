@@ -1,3 +1,12 @@
+/**
+ * The built-in role components (actor-target treatment, Mordred blindness,
+ * assassin posterior), wired to their analysis builders through the shared
+ * role-projection skeleton.
+ *
+ * They share the belief host input, the public-observer host input, and the
+ * beliefIsExact predicate with the native score components module, which is
+ * where those are declared; this module imports them rather than restating them.
+ */
 import {
   buildPrivateMordredBlindnessObjective,
   decodeCanonicalPrivateMordredBlindnessObjective,
@@ -37,6 +46,7 @@ import {
   MORDRED_CLAIM,
 } from '../policy/applicability.ts'
 import {
+  beliefIsExact,
   PRIVATE_BELIEF_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
 } from './native-score-components.ts'
@@ -78,7 +88,7 @@ ComponentToken<PrivateAssassinMerlinPosterior> = Object.freeze({
 function exactBelief(
   source: Readonly<{ beliefQuality: string }>,
 ): boolean {
-  return source.beliefQuality === 'constraints-only'
+  return beliefIsExact(source.beliefQuality)
 }
 
 export function nativeRoleComponentDefinitions():
@@ -130,7 +140,7 @@ readonly DecisionComponentDefinition<any>[] {
     hostJoin: validateAdmittedPrivateMordredBlindnessHostJoin,
     detachedExact: (payload) => exactBelief(payload.source),
     hostExact: (_payload, input) =>
-      input.belief.quality === 'constraints-only',
+      beliefIsExact(input.belief.quality),
   })
 
   const assassinPosterior = roleProjection({
@@ -151,7 +161,7 @@ readonly DecisionComponentDefinition<any>[] {
     hostJoin: validateAdmittedPrivateAssassinMerlinPosteriorHostJoin,
     detachedExact: (payload) => exactBelief(payload.source),
     hostExact: (_payload, input) =>
-      input.belief.quality === 'constraints-only',
+      beliefIsExact(input.belief.quality),
   })
 
   return Object.freeze([treatment, objective, assassinPosterior])

@@ -1,3 +1,11 @@
+/**
+ * The built-in score-projection components and their host inputs.
+ *
+ * Each entry declares a score-family component token and wires it to the
+ * analysis builder that produces its payload, through the shared role-projection
+ * skeleton. The beliefIsExact predicate and the host-input tokens declared here
+ * are also consumed by the sibling native role components module.
+ */
 import type {
   DecisionRequest,
   PlayerView,
@@ -279,11 +287,20 @@ function observerContext(context: PrivateComponentContext): {
   }
 }
 
+/**
+ * The single belief-exactness literal. A belief-derived payload is exact only
+ * when it came from a constraints-only belief. Every native component routes
+ * its detached and host exactness checks through this so the rule lives once.
+ */
+export function beliefIsExact(quality: string): boolean {
+  return quality === 'constraints-only'
+}
+
 function exactQuality(
   objective: PrivateRoleObjectiveSnapshot
     | PrivateEvilRoleObjectiveSnapshot,
 ): boolean {
-  return objective.source.beliefQuality === 'constraints-only'
+  return beliefIsExact(objective.source.beliefQuality)
 }
 
 export interface NativeScoreComponentConfiguration {
@@ -514,10 +531,8 @@ export function nativeScoreComponentDefinitions(
     build: buildAdmittedMorganaCounterfeitObjective,
     decode: decodeCanonicalPrivateMorganaCounterfeitObjective,
     hostJoin: validateAdmittedPrivateMorganaCounterfeitHostJoin,
-    detachedExact: (payload) =>
-      payload.source.beliefQuality === 'constraints-only',
-    hostExact: (_payload, input) =>
-      input.belief.quality === 'constraints-only',
+    detachedExact: (payload) => beliefIsExact(payload.source.beliefQuality),
+    hostExact: (_payload, input) => beliefIsExact(input.belief.quality),
   })
 
   const morganaUtility = (
@@ -561,11 +576,9 @@ export function nativeScoreComponentDefinitions(
       decode: decodeCanonicalPrivateMorganaRoleUtilityProjection,
       hostJoin: validateAdmittedPrivateMorganaRoleUtilityHostJoin,
       detachedExact: (payload) =>
-        payload.counterfeitObjective.source.beliefQuality
-          === 'constraints-only',
+        beliefIsExact(payload.counterfeitObjective.source.beliefQuality),
       hostExact: (_payload, input) =>
-        input.counterfeitObjective.source.beliefQuality
-          === 'constraints-only',
+        beliefIsExact(input.counterfeitObjective.source.beliefQuality),
     })
 
   return Object.freeze([
