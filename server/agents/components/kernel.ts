@@ -716,6 +716,30 @@ function applicabilityKind(
   }
 }
 
+/**
+ * The verification and promotion verdict for one admitted component: exact only
+ * when both the detached and host stages are exact, and promotion-eligible only
+ * when both stages allow it and the result is exact. The forward admission
+ * engine and the reverse re-admission engine must reach the same verdict from
+ * the same two stages, so it is derived here once rather than at each.
+ */
+function admissionVerdict(
+  detached: { verification: ComponentVerification; promotionEligible: boolean },
+  host: { verification: ComponentVerification; promotionEligible: boolean },
+): { verification: ComponentVerification; promotionEligible: boolean } {
+  const verification: ComponentVerification =
+    detached.verification === 'exact' && host.verification === 'exact'
+      ? 'exact'
+      : 'structural'
+  return {
+    verification,
+    promotionEligible:
+      detached.promotionEligible
+      && host.promotionEligible
+      && verification === 'exact',
+  }
+}
+
 function executionContextFor(
   applicability: DecisionComponentApplicabilityContext,
   definition: AnyDefinition,
@@ -998,15 +1022,8 @@ export function validateDecisionComponentRunHostJoin(
           entryPayload.payload,
         )
       ) return false
-      const verification: ComponentVerification =
-        detached.verification === 'exact'
-        && host.verification === 'exact'
-          ? 'exact'
-          : 'structural'
-      const promotionEligible =
-        detached.promotionEligible
-        && host.promotionEligible
-        && verification === 'exact'
+      const { verification, promotionEligible } =
+        admissionVerdict(detached, host)
       if (
         entry.verification !== verification
         || entry.promotionEligible !== promotionEligible
@@ -1317,11 +1334,8 @@ export async function runDecisionComponents(
       ))
       continue
     }
-    const verification: ComponentVerification =
-      detachedAdmission.verification === 'exact'
-        && hostAdmission.verification === 'exact'
-        ? 'exact'
-        : 'structural'
+    const { verification, promotionEligible } =
+      admissionVerdict(detachedAdmission, hostAdmission)
     const entry: DecisionComponentEntry = Object.freeze({
       ...entryBase(definition),
       status: 'admitted',
@@ -1332,10 +1346,7 @@ export async function runDecisionComponents(
         payload: hostPayload.payload,
       }),
       verification,
-      promotionEligible:
-        detachedAdmission.promotionEligible
-        && hostAdmission.promotionEligible
-        && verification === 'exact',
+      promotionEligible,
       payloadBytes: hostPayload.bytes,
     })
     entries.push(entry)
