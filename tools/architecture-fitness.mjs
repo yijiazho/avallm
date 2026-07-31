@@ -94,6 +94,7 @@ export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
   'signedUnit',
   'strictCanonicalArray',
   'tableSize',
+  'validateBeliefSource',
 ])
 /**
  * Whole names this repository has already decided are spellings of a guard.

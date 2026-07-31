@@ -26,6 +26,7 @@ import {
   plainDataRecord as plainRecord,
   probability,
   tableSize,
+  validateBeliefSource,
 } from '../components/canonical-shape.ts'
 import {
   EVIL_EXPOSURE_READ_VERSION,
@@ -126,14 +127,7 @@ function privatePinReadSchema(detached: unknown): boolean {
   if (
     detached.version !== PRIVATE_PIN_READ_VERSION
     || detached.observerModelVersion !== PUBLIC_OBSERVER_MODEL_VERSION
-    || typeof detached.beliefModelVersion !== 'string'
-    || detached.beliefModelVersion.length === 0
-    || detached.beliefModelVersion.length > 200
-    || !Number.isSafeInteger(detached.beliefThroughSeq)
-    || (detached.beliefThroughSeq as number) < -1
-    || !['constraints-only', 'weighted', 'degraded'].includes(
-      String(detached.beliefQuality),
-    )
+    || !validateBeliefSource(detached)
     || !tableSize(detached.playerCount)
     || !Number.isSafeInteger(detached.actingSeat)
     || (detached.actingSeat as number) < 0
@@ -250,14 +244,7 @@ function evilExposureReadSchema(detached: unknown): boolean {
   ])) return false
   if (
     detached.version !== EVIL_EXPOSURE_READ_VERSION
-    || typeof detached.beliefModelVersion !== 'string'
-    || detached.beliefModelVersion.length === 0
-    || detached.beliefModelVersion.length > 200
-    || !Number.isSafeInteger(detached.beliefThroughSeq)
-    || (detached.beliefThroughSeq as number) < -1
-    || !['constraints-only', 'weighted', 'degraded'].includes(
-      String(detached.beliefQuality),
-    )
+    || !validateBeliefSource(detached)
     || !tableSize(detached.playerCount)
     || !Number.isSafeInteger(detached.actingSeat)
     || (detached.actingSeat as number) < 0

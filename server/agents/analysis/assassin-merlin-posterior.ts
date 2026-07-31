@@ -25,7 +25,10 @@ import {
   type AssassinMerlinTargetPosterior,
   type PrivateAssassinMerlinPosterior,
 } from './assassin-merlin-posterior-types.ts'
-import { probability } from '../components/canonical-shape.ts'
+import {
+  probability,
+  validateBeliefSource,
+} from '../components/canonical-shape.ts'
 import {
   closeProbability as close,
   stableProbabilitySum,
@@ -256,14 +259,7 @@ export function decodeCanonicalPrivateAssassinMerlinPosterior(
   if (
     !root || !source || !coefficients || !targets
     || root.version !== ASSASSIN_MERLIN_POSTERIOR_VERSION
-    || typeof source.beliefModelVersion !== 'string'
-    || source.beliefModelVersion.length === 0
-    || source.beliefModelVersion.length > 200
-    || !Number.isSafeInteger(source.beliefThroughSeq)
-    || (source.beliefThroughSeq as number) < -1
-    || !['constraints-only', 'weighted', 'degraded'].includes(
-      String(source.beliefQuality),
-    )
+    || !validateBeliefSource(source)
     || source.coefficientVersion !== ASSASSIN_BEHAVIOR_COEFFICIENT_VERSION
     || source.behavioralLogWeightCap !== ASSASSIN_BEHAVIOR_LOG_WEIGHT_CAP
     || coefficients.cleanTeamProposalRate

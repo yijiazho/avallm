@@ -295,6 +295,30 @@ export const signedUnit = (value: unknown): value is number =>
   && value <= 1
 
 /**
+ * The belief-provenance block a stored role read or objective carries: a
+ * non-empty, length-bounded model version, a resolved sequence cursor at or
+ * after the pre-history sentinel of -1, and one of the three declared belief
+ * qualities.
+ *
+ * The assassin posterior decoder and both private-pin schemas each spelled this
+ * six-clause check inline against their own record. It is one predicate, so a
+ * widened quality set or a changed cursor floor reaches all three at once. The
+ * caller has already established `record` is a plain record; this reads only the
+ * three provenance fields and asserts nothing about the keys around them.
+ */
+export const validateBeliefSource = (
+  record: Record<string, unknown>,
+): boolean =>
+  typeof record.beliefModelVersion === 'string'
+  && record.beliefModelVersion.length > 0
+  && record.beliefModelVersion.length <= 200
+  && Number.isSafeInteger(record.beliefThroughSeq)
+  && (record.beliefThroughSeq as number) >= -1
+  && ['constraints-only', 'weighted', 'degraded'].includes(
+    String(record.beliefQuality),
+  )
+
+/**
  * A legal table size: a safe integer inside the range the engine deals.
  *
  * Twelve validators spelled this by hand as `< 5 || > 10` against the bare
