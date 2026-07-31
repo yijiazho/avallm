@@ -1900,6 +1900,74 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
   return true
 }
 
+/**
+ * The seeded-band selection ladder shared verbatim by the good-role and
+ * evil-role composite validators. Returns true when the replayed selection is
+ * INVALID (the operand that forces the enclosing validator to reject), so each
+ * call site keeps its `|| seededSelectionReplayInvalid(...)` shape.
+ *
+ * The three arms are: a forced pick (exactly one viable row equal to the forced
+ * id, no adjustment, no seed bucket); an active seeded band (two viable rows,
+ * seed bucket 0 or 1, and each row's adjustment within tolerance of the seeded
+ * lift for the seeded candidate and zero otherwise); and the plain canonical top
+ * (exactly one viable row equal to the canonical winner, no adjustment, no seed
+ * bucket). The good and evil copies differed only in which feature object and
+ * value field the rows carry, both captured by featuresOf and valueKey; the
+ * vote-feature arm is deliberately NOT routed here because it omits the forced
+ * arm, adds an available-length guard, and coerces differently.
+ */
+function seededSelectionReplayInvalid(params: {
+  readonly rows: ReadonlyArray<Record<string, unknown>>
+  readonly viable: ReadonlyArray<Record<string, unknown>>
+  readonly featuresOf: (score: Record<string, unknown>) => Record<string, unknown>
+  readonly valueKey: string
+  readonly maxValue: number
+  readonly forcedSelected: string | undefined
+  readonly bandActive: boolean
+  readonly seedBucket: unknown
+  readonly canonicalTop: string | undefined
+}): boolean {
+  const {
+    rows, viable, featuresOf, valueKey, maxValue,
+    forcedSelected, bandActive, seedBucket, canonicalTop,
+  } = params
+  if (forcedSelected) {
+    return viable.length !== 1
+      || viable[0].candidateId !== forcedSelected
+      || rows.some((score) => {
+        const feature = featuresOf(score)
+        return feature.seedBucket !== undefined
+          || feature.selectionAdjustment !== 0
+      })
+  }
+  if (bandActive) {
+    return viable.length !== 2
+      || (seedBucket !== 0 && seedBucket !== 1)
+      || rows.some((score) => {
+        const feature = featuresOf(score)
+        const selectedId = seedBucket === 0
+          ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
+          : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
+        return feature.seedBucket !== seedBucket
+          || Math.abs(
+            Number(feature.selectionAdjustment)
+              - (
+                score.candidateId === selectedId
+                  ? maxValue - Number(feature[valueKey]) + SEEDED_SELECTION_MARGIN
+                  : 0
+              ),
+          ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE
+      })
+  }
+  return viable.length !== 1
+    || viable[0].candidateId !== canonicalTop
+    || rows.some((score) => {
+      const feature = featuresOf(score)
+      return feature.seedBucket !== undefined
+        || feature.selectionAdjustment !== 0
+    })
+}
+
 function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
   const { trace, scores, roleFeatureScores, components, componentRun, structured }
     = ctx
@@ -2025,57 +2093,18 @@ function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
             )
           )
       })
-      || (
-        forcedSelected
-          ? (
-              viable.length !== 1
-              || viable[0].candidateId !== forcedSelected
-              || roleFeatureScores.some((score) =>
-                (score.roleObjectiveFeatures as Record<string, unknown>)
-                  .selectionAdjustment !== 0
-                || (score.roleObjectiveFeatures as Record<string, unknown>)
-                  .seedBucket !== undefined)
-            )
-          : bandActive
-            ? (
-                viable.length !== 2
-                || ![0, 1].includes(firstRole.seedBucket as number)
-                || roleFeatureScores.some((score) =>
-                  (
-                    score.roleObjectiveFeatures as Record<string, unknown>
-                  ).seedBucket !== firstRole.seedBucket
-                  || Math.abs(
-                    Number(
-                      (
-                        score.roleObjectiveFeatures as Record<string, unknown>
-                      ).selectionAdjustment,
-                    )
-                    - (
-                      score.candidateId === (
-                        firstRole.seedBucket === 0
-                          ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
-                          : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
-                      )
-                        ? maxCombined - Number(
-                            (
-                              score.roleObjectiveFeatures as
-                                Record<string, unknown>
-                            ).combinedValue,
-                          ) + SEEDED_SELECTION_MARGIN
-                        : 0
-                    ),
-                  ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE)
-              )
-            : (
-                viable.length !== 1
-                || viable[0].candidateId !== canonicalTop
-                || roleFeatureScores.some((score) =>
-                  (score.roleObjectiveFeatures as Record<string, unknown>)
-                    .selectionAdjustment !== 0
-                  || (score.roleObjectiveFeatures as Record<string, unknown>)
-                    .seedBucket !== undefined)
-              )
-      )
+      || seededSelectionReplayInvalid({
+        rows: roleFeatureScores,
+        viable,
+        featuresOf: (score) =>
+          score.roleObjectiveFeatures as Record<string, unknown>,
+        valueKey: 'combinedValue',
+        maxValue: maxCombined,
+        forcedSelected,
+        bandActive,
+        seedBucket: firstRole.seedBucket,
+        canonicalTop,
+      })
     ) return false
   }
   return true
@@ -2177,50 +2206,18 @@ function validEvilRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
             )
           )
       })
-      || (
-        forcedSelected
-          ? (
-              viable.length !== 1
-              || viable[0].candidateId !== forcedSelected
-              || evilRoleFeatureScores.some((score) => {
-                const feature = score.evilRoleObjectiveFeatures as
-                  Record<string, unknown>
-                return feature.seedBucket !== undefined
-                  || feature.selectionAdjustment !== 0
-              })
-            )
-          : bandActive
-            ? (
-                viable.length !== 2
-                || (seededBucket !== 0 && seededBucket !== 1)
-                || evilRoleFeatureScores.some((score) => {
-                  const feature = score.evilRoleObjectiveFeatures as
-                    Record<string, unknown>
-                  const selectedId = seededBucket === 0
-                    ? `${LEGAL_CANDIDATE_VERSION}:vote:approve`
-                    : `${LEGAL_CANDIDATE_VERSION}:vote:reject`
-                  return feature.seedBucket !== seededBucket
-                    || Math.abs(
-                      Number(feature.selectionAdjustment)
-                        - (
-                          score.candidateId === selectedId
-                            ? maxValue - Number(feature.roleValue) + SEEDED_SELECTION_MARGIN
-                            : 0
-                        ),
-                    ) > SELECTION_ADJUSTMENT_REPLAY_TOLERANCE
-                })
-              )
-            : (
-                viable.length !== 1
-                || viable[0].candidateId !== canonicalTop
-                || evilRoleFeatureScores.some((score) => {
-                  const feature = score.evilRoleObjectiveFeatures as
-                    Record<string, unknown>
-                  return feature.seedBucket !== undefined
-                    || feature.selectionAdjustment !== 0
-                })
-              )
-      )
+      || seededSelectionReplayInvalid({
+        rows: evilRoleFeatureScores,
+        viable,
+        featuresOf: (score) =>
+          score.evilRoleObjectiveFeatures as Record<string, unknown>,
+        valueKey: 'roleValue',
+        maxValue,
+        forcedSelected,
+        bandActive,
+        seedBucket: seededBucket,
+        canonicalTop,
+      })
     ) return false
   }
   return true
