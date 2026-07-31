@@ -146,6 +146,8 @@ function validMorganaCounterfeitTrace(
   const configured = components?.configuredMorganaCounterfeitObjective
   const readVersion = components?.morganaCounterfeitPublicRead
   const objectiveVersion = components?.morganaCounterfeitObjective
+  // v1 flat-payload witness slots: always undefined at ingress (the flat public
+  // read and counterfeit objective are refused), kept as the cross-language door.
   const read = undefined
   const objective = undefined
   const degradation = Array.isArray(trace.degradation)
@@ -253,17 +255,18 @@ function validMorganaCounterfeitTrace(
   }
 }
 
-function validMorganaRolePolicyTrace(
+function validMorganaRoleUtilityTrace(
   trace: TraceValidationInput,
   req: DecisionRequest,
   hostView?: PlayerView,
-  deterministicSeed?: string,
 ): boolean {
   const components = trace.componentVersions as
     | Record<string, unknown>
     | undefined
   const configured = components?.configuredMorganaRoleUtility
   const resolved = components?.morganaRoleUtility
+  // v1 flat-payload witness slot: always undefined at ingress (the flat Morgana
+  // role-utility projection is refused), kept as the cross-language door.
   const projection = undefined
   const degradation = Array.isArray(trace.degradation)
     ? trace.degradation as unknown[]
@@ -332,6 +335,8 @@ function validMorganaRolePolicyTrace(
 }
 
 function validPrivateRoleObjectiveTrace(
+  // v1 flat-payload witness slot: always undefined at ingress (the flat role
+  // objective is refused for every version), retained as the cross-language door.
   value: unknown,
   trace: TraceValidationInput,
   req: DecisionRequest,
@@ -412,6 +417,8 @@ function validPrivateRoleObjectiveTrace(
 }
 
 function validPrivateEvilRoleObjectiveTrace(
+  // v1 flat-payload witness slot: always undefined at ingress (the flat evil role
+  // objective is refused for every version), retained as the cross-language door.
   value: unknown,
   trace: TraceValidationInput,
   req: DecisionRequest,
@@ -519,6 +526,8 @@ function validRoleObjectiveRoute(
 }
 
 function validPrivateRoleUtilityTrace(
+  // v1 flat-payload witness slot: always undefined at ingress (the flat role
+  // utility is refused for every version), retained as the cross-language door.
   value: unknown,
   trace: TraceValidationInput,
   req: DecisionRequest,
@@ -574,6 +583,8 @@ function validPrivateRoleUtilityTrace(
 }
 
 function validPrivateEvilRoleUtilityTrace(
+  // v1 flat-payload witness slot: always undefined at ingress (the flat evil role
+  // utility is refused for every version), retained as the cross-language door.
   value: unknown,
   trace: TraceValidationInput,
   req: DecisionRequest,
@@ -735,7 +746,7 @@ export function validRoleTraceV1(input: {
       view,
     )
     && validMorganaCounterfeitTrace(trace, req, view)
-    && validMorganaRolePolicyTrace(trace, req, view)
+    && validMorganaRoleUtilityTrace(trace, req, view)
   )
 }
 
@@ -749,7 +760,9 @@ export function validRoleTraceV1HostJoin(input: {
   readonly view: PlayerView
   readonly deterministicSeed: string
 }): boolean {
-  const { trace, req, view, deterministicSeed } = input
+  // deterministicSeed stays on the input contract (callers pass it) but is no
+  // longer read here: the Morgana role-utility validator it once fed dropped it.
+  const { trace, req, view } = input
   const components = trace.componentVersions
   const hasRoleObjective =
     components?.roleObjective !== undefined
@@ -763,7 +776,7 @@ export function validRoleTraceV1HostJoin(input: {
       view,
     )
     && validMorganaCounterfeitTrace(trace, req, view)
-    && validMorganaRolePolicyTrace(trace, req, view, deterministicSeed)
+    && validMorganaRoleUtilityTrace(trace, req, view)
     && validateExactRoleDependencyHostJoin(trace, req, view)
     && validateRoutedEvilDependencyHostJoin(trace, req, view)
     && (
