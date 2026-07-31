@@ -139,9 +139,6 @@ import {
   exactBelief,
 } from '../belief/exact.ts'
 import {
-  EXACT_BELIEF_MODEL_VERSION,
-} from '../belief/types.ts'
-import {
   PLAN_MEMORY_VERSION,
 } from '../cognition/plan-memory.ts'
 import {
@@ -181,7 +178,9 @@ import type {
   RequiredKeys,
 } from '../key-list-guards.ts'
 import {
+  componentVersionsOf,
   enumStringArray,
+  isExactNonLanguage,
   stringArray,
   validForcedPolicyResult,
 } from './trace-primitives.ts'
@@ -727,9 +726,7 @@ function validPlanOutcomeTrace(
   decision: Decision,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   // Stdio replies arrive before engine legality. A child cannot truthfully
   // serialize a post-apply outcome in this protocol version.
   return value === undefined
@@ -742,9 +739,7 @@ function validLanguageTrace(
   value: unknown,
   trace: TraceValidationInput,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const componentDeclaresLanguage =
     components?.languageEvidence === LANGUAGE_FACTOR_BUNDLE_VERSION
   const factorsDeclareLanguage =
@@ -890,9 +885,7 @@ function validPublicObserverTrace(
   trace: TraceValidationInput,
   hostView?: Pick<PlayerView, 'rolesInPlay'>,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const enabled =
     components?.observerModel === PUBLIC_OBSERVER_MODEL_VERSION
   if (!enabled) return value === undefined
@@ -923,9 +916,7 @@ function validPrivateIdentityTrace(
   trace: TraceValidationInput,
   hostRolesInPlay: readonly unknown[] | undefined,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const declared = components?.identityModel
   if (
     declared !== undefined
@@ -1360,17 +1351,13 @@ function validCandidateScores(
 }
 
 function validBeliefVersionRelation(trace: TraceValidationInput): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   return !components || components.belief === trace.beliefModelVersion
 }
 
 function validBeliefTraceRelations(trace: TraceValidationInput): boolean {
   if (!validBeliefVersionRelation(trace)) return false
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const provenance = trace.beliefProvenance as
     | Array<Record<string, unknown>>
     | undefined
@@ -1428,9 +1415,7 @@ interface ComposedTraceContext {
 }
 
 function validAbsentCandidateScores(trace: TraceValidationInput): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   return trace.chosenCandidateId === undefined
     && trace.structuredCandidateId === undefined
     && trace.plannerCandidateId === undefined
@@ -2550,7 +2535,7 @@ function validComposedTraceRelations(
   const scores = trace.candidateScores as Array<Record<string, unknown>>
   const ids = scores.map((score) => String(score.candidateId))
   if (new Set(ids).size !== ids.length) return false
-  const components = trace.componentVersions as Record<string, unknown> | undefined
+  const components = componentVersionsOf(trace)
   const componentRun = trace.components as DecisionComponentRun | undefined
   const hasPlanner =
     components !== undefined && components.planner !== NO_PLANNER_VERSION
@@ -3465,9 +3450,7 @@ function validExactComposedTraceHostJoin(
       || components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
     const exactNativeInputs =
       trace.version === COMPONENT_DECISION_TRACE_VERSION
-      && components.belief === EXACT_BELIEF_MODEL_VERSION
-      && components.languageEvidence === 'off'
-      && components.factors === 'off'
+      && isExactNonLanguage(components)
     if (
       morganaConfigured
       && trace.version === DECISION_TRACE_VERSION

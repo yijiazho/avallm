@@ -6,6 +6,7 @@ import type { DecisionTrace } from '../trace.ts'
 import type { ForcedPolicyResult } from '../policy/types.ts'
 import { FORCED_POLICY_VERSION } from '../policy/types.ts'
 import { FORCED_PLAY_REASON_CODES } from '../analysis/types.ts'
+import { EXACT_BELIEF_MODEL_VERSION } from '../belief/types.ts'
 
 /**
  * Shared shape for validators that accept a trace or a raw record.
@@ -22,6 +23,51 @@ import { FORCED_PLAY_REASON_CODES } from '../analysis/types.ts'
  * would actually retire them.
  */
 export type TraceValidationInput = Record<string, unknown> | DecisionTrace
+
+/**
+ * The component-version map a trace declares, read at the untrusted-JSON cast
+ * both admission owners share. Kept as one helper so the `as Record` target is
+ * written once rather than at every role/generic call site.
+ */
+export function componentVersionsOf(
+  trace: TraceValidationInput,
+): Record<string, unknown> | undefined {
+  return trace.componentVersions as Record<string, unknown> | undefined
+}
+
+/**
+ * The recurring "exact belief, no language evidence, no factors" triple that
+ * marks a trace as reconstructable from the exact constraint model alone. The
+ * three checks are a conjunction, so their source order never mattered; this
+ * fixes one order. Component properties are read as `unknown` so a raw-record
+ * map and a typed componentVersions object both satisfy the parameter.
+ */
+export function isExactNonLanguage(
+  components:
+    | {
+        readonly belief?: unknown
+        readonly languageEvidence?: unknown
+        readonly factors?: unknown
+      }
+    | undefined,
+): boolean {
+  return (
+    components?.belief === EXACT_BELIEF_MODEL_VERSION
+    && components?.languageEvidence === 'off'
+    && components?.factors === 'off'
+  )
+}
+
+/**
+ * The degradation codes a trace carries, coerced from untrusted JSON: the same
+ * array reference when it is an array, otherwise an empty list. Element typing
+ * matches the existing string-code reads (`includes`/`every` over string codes).
+ */
+export function degradationCodes(trace: TraceValidationInput): readonly string[] {
+  return Array.isArray(trace.degradation)
+    ? trace.degradation as readonly string[]
+    : []
+}
 
 export function stringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string')

@@ -42,6 +42,9 @@ import type {
   TraceValidationInput,
 } from './trace-primitives.ts'
 import {
+  componentVersionsOf,
+  degradationCodes,
+  isExactNonLanguage,
   validForcedPolicyResult,
 } from './trace-primitives.ts'
 
@@ -140,9 +143,7 @@ function validMorganaCounterfeitTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const configured = components?.configuredMorganaCounterfeitObjective
   const readVersion = components?.morganaCounterfeitPublicRead
   const objectiveVersion = components?.morganaCounterfeitObjective
@@ -150,9 +151,7 @@ function validMorganaCounterfeitTrace(
   // read and counterfeit objective are refused), kept as the cross-language door.
   const read = undefined
   const objective = undefined
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   const degraded = degradation.includes(MORGANA_COUNTERFEIT_DEGRADATION)
   if (configured === undefined) {
     return readVersion === undefined
@@ -183,9 +182,7 @@ function validMorganaCounterfeitTrace(
     if (!atomic) return false
     const exactReconstructable =
       trace.beliefModelVersion === EXACT_BELIEF_MODEL_VERSION
-      && components?.belief === EXACT_BELIEF_MODEL_VERSION
-      && components?.factors === 'off'
-      && components?.languageEvidence === 'off'
+      && isExactNonLanguage(components)
     if (!exactReconstructable) return true
     try {
       const belief = exactBelief(hostView)
@@ -217,9 +214,7 @@ function validMorganaCounterfeitTrace(
   }
   if (
     trace.beliefModelVersion !== EXACT_BELIEF_MODEL_VERSION
-    || components?.belief !== EXACT_BELIEF_MODEL_VERSION
-    || components?.factors !== 'off'
-    || components?.languageEvidence !== 'off'
+    || !isExactNonLanguage(components)
   ) {
     // Weighted transport does not carry the complete world list. The generic
     // entry may remain structurally readable, but it cannot claim exact host
@@ -260,17 +255,13 @@ function validMorganaRoleUtilityTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const configured = components?.configuredMorganaRoleUtility
   const resolved = components?.morganaRoleUtility
   // v1 flat-payload witness slot: always undefined at ingress (the flat Morgana
   // role-utility projection is refused), kept as the cross-language door.
   const projection = undefined
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   const degraded = degradation.includes(MORGANA_ROLE_UTILITY_DEGRADATION)
   if (configured === undefined) {
     return resolved === undefined
@@ -297,9 +288,7 @@ function validMorganaRoleUtilityTrace(
     if (!atomic) return false
     const exactReconstructable =
       trace.beliefModelVersion === EXACT_BELIEF_MODEL_VERSION
-      && components?.belief === EXACT_BELIEF_MODEL_VERSION
-      && components?.factors === 'off'
-      && components?.languageEvidence === 'off'
+      && isExactNonLanguage(components)
     if (!exactReconstructable) return true
     const configuredScorer =
       components?.configuredScorer ?? components?.scorer
@@ -342,9 +331,7 @@ function validPrivateRoleObjectiveTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const declared = components?.roleObjective
   if (
     declared !== undefined
@@ -356,9 +343,7 @@ function validPrivateRoleObjectiveTrace(
         && trace.degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
       )
   }
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   const roleDegraded = degradation.includes(ROLE_OBJECTIVE_DEGRADATION)
   if (
     !hostView
@@ -424,14 +409,10 @@ function validPrivateEvilRoleObjectiveTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const router = components?.roleObjectiveRouter
   const declared = components?.roleObjective
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   const roleDegraded = degradation.includes(
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
   )
@@ -471,10 +452,7 @@ function validPrivateEvilRoleObjectiveTrace(
         return true
       }
     }
-    const exactNonLanguage =
-      components.belief === EXACT_BELIEF_MODEL_VERSION
-      && components.languageEvidence === 'off'
-      && components.factors === 'off'
+    const exactNonLanguage = isExactNonLanguage(components)
     if (!exactNonLanguage) {
       return degradation.includes('identity-projection-failed')
     }
@@ -511,9 +489,7 @@ function validRoleObjectiveRoute(
   trace: TraceValidationInput,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const router = components?.roleObjectiveRouter
   if (router === undefined) {
     return components?.roleObjective !== EVIL_ROLE_OBJECTIVE_MODEL_VERSION
@@ -533,9 +509,7 @@ function validPrivateRoleUtilityTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const declared = components?.roleUtility
   const configured = components?.configuredScorer ?? components?.scorer
   const configuredForRole = (
@@ -555,9 +529,7 @@ function validPrivateRoleUtilityTrace(
     configuredForRole
     && (req.kind === 'propose' || req.kind === 'vote')
     && (hostView?.role === 'merlin' || hostView?.role === 'percival')
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   if (!applicable) {
     return declared === undefined
       && value === undefined
@@ -590,9 +562,7 @@ function validPrivateEvilRoleUtilityTrace(
   req: DecisionRequest,
   hostView?: PlayerView,
 ): boolean {
-  const components = trace.componentVersions as
-    | Record<string, unknown>
-    | undefined
+  const components = componentVersionsOf(trace)
   const configured = components?.configuredScorer ?? components?.scorer
   const applicable =
     (
@@ -603,9 +573,7 @@ function validPrivateEvilRoleUtilityTrace(
     )
     && (req.kind === 'propose' || req.kind === 'vote')
     && hostView?.alignment === 'evil'
-  const degradation = Array.isArray(trace.degradation)
-    ? trace.degradation as unknown[]
-    : []
+  const degradation = degradationCodes(trace)
   const dependencyDegradation = [
     'identity-projection-failed',
     EVIL_ROLE_OBJECTIVE_DEGRADATION,
@@ -654,10 +622,7 @@ function validateExactRoleDependencyHostJoin(
     roleConfigured
     && (req.kind === 'propose' || req.kind === 'vote')
     && isRoleObjectiveRole(role)
-  const exactNonLanguage =
-    components.belief === EXACT_BELIEF_MODEL_VERSION
-    && components.languageEvidence === 'off'
-    && components.factors === 'off'
+  const exactNonLanguage = isExactNonLanguage(components)
   // An applicable exact C1/C2 host join required the flat objective and
   // utility payloads to compare against a host reconstruction. Both are refused
   // at ingress, so the join can never succeed and the reconstruction is skipped
@@ -676,10 +641,7 @@ function validateRoutedEvilDependencyHostJoin(
     components.roleObjectiveRouter === ROLE_OBJECTIVE_ROUTER_VERSION
     && routedRoleObjectiveModel(view.role)
       === EVIL_ROLE_OBJECTIVE_MODEL_VERSION
-  const exactNonLanguage =
-    components.belief === EXACT_BELIEF_MODEL_VERSION
-    && components.languageEvidence === 'off'
-    && components.factors === 'off'
+  const exactNonLanguage = isExactNonLanguage(components)
   if (!applicable) return true
   if (!exactNonLanguage) {
     const identityFailed = trace.degradation.includes(
