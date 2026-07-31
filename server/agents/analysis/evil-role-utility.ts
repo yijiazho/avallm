@@ -544,6 +544,250 @@ export function buildAdmittedEvilRoleUtilityProjection(
   return buildEvilRoleUtilityProjectionInternal(input, true)
 }
 
+/**
+ * Per-assessment scalar formulas: role/kind/direction shape plus every stored
+ * intermediate reconstructed from the same *From helpers the builder used.
+ * Verbatim tail of the original per-assessment guard (the `values` finiteness
+ * sweep included), so the exact clause set and short-circuit order are kept.
+ */
+function validateAssessmentFormulas(
+  assessment: EvilRoleUtilityAssessment,
+  projection: PrivateEvilRoleUtilityProjection,
+  alternativeKeys: readonly string[],
+): boolean {
+  const values = [
+    assessment.teamFailureCapabilityProbability,
+    assessment.publicTeamFailureCapabilityProbability,
+    assessment.alternativeRealization,
+    assessment.failureCapacityValue,
+    assessment.publicActionPlausibilityValue,
+    assessment.participantCoverProxyIndex,
+    assessment.publicCoverValue,
+    assessment.futureOpportunityValue,
+    assessment.failureCapacityContribution,
+    assessment.publicCoverContribution,
+    assessment.futureOpportunityContribution,
+    assessment.roleValue,
+  ]
+  return !(
+    assessment.role !== projection.role
+    || typeof assessment.candidateId !== 'string'
+    || !assessment.candidateId.length
+    || assessment.candidateId.length > 256
+    || assessment.kind !== projection.request.kind
+    || assessment.posture !== POSTURE_BY_ROLE[projection.role]
+    || !['support', 'oppose'].includes(assessment.direction)
+    || !canonicalSeats(
+      assessment.team,
+      projection.source.playerCount,
+    )
+    || assessment.valueSemantics !== EVIL_ROLE_UTILITY_VALUE_SEMANTICS
+    || assessment.probabilitySemantics
+      !== 'resolved-complete-world-sum'
+    || assessment.publicProbabilitySemantics
+      !== 'public-preaction-uniform-feasible-joint'
+    || typeof assessment.publicCoverAvailable !== 'boolean'
+    || typeof assessment.participantCoverAvailable !== 'boolean'
+    || assessment.publicCoverAvailable
+      !== assessment.participantCoverAvailable
+    || assessment.publicCoverSemantics
+      !== 'bounded-action-plausibility-plus-participant-cover-proxy'
+    || typeof assessment.futureOpportunityAvailable !== 'boolean'
+    || assessment.futureOpportunitySemantics
+      !== 'bounded-reserve-or-runway-proxy-not-win-probability'
+    || Math.abs(
+      assessment.publicCoverValue
+        - publicCoverValueFrom(
+          assessment.publicActionPlausibilityValue,
+          assessment.participantCoverProxyIndex,
+        ),
+    ) > PROBABILITY_TOLERANCE
+    || Math.abs(
+      assessment.publicActionPlausibilityValue
+        - publicActionPlausibilityFrom(
+          assessment.direction === 'support',
+          assessment.publicTeamFailureCapabilityProbability,
+        ),
+    ) > PROBABILITY_TOLERANCE
+    || (
+      assessment.direction === 'support'
+        ? (
+            alternativeKeys.length !== 0
+            || assessment.alternativeRealization !== 1
+            || Math.abs(
+              assessment.failureCapacityValue
+                - assessment.teamFailureCapabilityProbability,
+            ) > PROBABILITY_TOLERANCE
+          )
+        : (
+            alternativeKeys.length !== 3
+            || typeof assessment.bestAlternativeCandidateId !== 'string'
+            || !assessment.bestAlternativeCandidateId.length
+            || assessment.bestAlternativeCandidateId.length > 256
+            || !canonicalSeats(
+              assessment.bestAlternativeTeam,
+              projection.source.playerCount,
+            )
+            || !Number.isFinite(
+              assessment.bestAlternativeFailureCapabilityProbability,
+            )
+            || assessment.bestAlternativeFailureCapabilityProbability! < 0
+            || assessment.bestAlternativeFailureCapabilityProbability! > 1
+            || Math.abs(
+              assessment.failureCapacityValue
+                - assessment
+                  .bestAlternativeFailureCapabilityProbability!
+                  * assessment.alternativeRealization,
+            ) > PROBABILITY_TOLERANCE
+          )
+    )
+    || values.some(
+      (entry) =>
+        !Number.isFinite(entry) || entry < 0 || entry > 1,
+    )
+    || Math.abs(
+      assessment.failureCapacityContribution
+        - failureCapacityContributionFrom(assessment.failureCapacityValue),
+    ) > PROBABILITY_TOLERANCE
+    || Math.abs(
+      assessment.publicCoverContribution
+        - publicCoverContributionFrom(assessment.publicCoverValue),
+    ) > PROBABILITY_TOLERANCE
+    || Math.abs(
+      assessment.futureOpportunityContribution
+        - futureOpportunityContributionFrom(
+          assessment.futureOpportunityValue,
+        ),
+    ) > PROBABILITY_TOLERANCE
+    || Math.abs(
+      assessment.roleValue
+        - roleValueSumFrom(
+          assessment.failureCapacityContribution,
+          assessment.publicCoverContribution,
+          assessment.futureOpportunityContribution,
+        ),
+    ) > PROBABILITY_TOLERANCE
+  )
+}
+
+/**
+ * futureOpportunitySource shape and its value reconstruction. The original was
+ * a five-deep nested ternary with a fail-closed `: true` tail; rewritten as a
+ * switch over the discriminant with an explicit `default: return false`, which
+ * is the same fail-closed behavior for an unknown kind. Per-kind clause sets
+ * and short-circuit order are unchanged.
+ */
+function validateFutureOpportunitySource(
+  assessment: EvilRoleUtilityAssessment,
+): boolean {
+  const source = assessment.futureOpportunitySource
+  if (!source || typeof source !== 'object') return false
+  switch (source.kind) {
+    case 'visible-coordination-reserve':
+      return !(
+        !exactKeys(source, [
+          'kind', 'reservedVisibleEvil', 'totalVisibleEvil',
+        ])
+        || !Number.isSafeInteger(source.reservedVisibleEvil)
+        || !Number.isSafeInteger(source.totalVisibleEvil)
+        || source.totalVisibleEvil <= 0
+        || source.reservedVisibleEvil < 0
+        || source.reservedVisibleEvil > source.totalVisibleEvil
+        || Math.abs(
+          assessment.futureOpportunityValue
+            - source.reservedVisibleEvil / source.totalVisibleEvil,
+        ) > PROBABILITY_TOLERANCE
+      )
+    case 'oberon-unseen-placement-reserve':
+      return !(
+        !exactKeys(source, [
+          'kind', 'unseenEvilOnTeamProbability',
+        ])
+        || !Number.isFinite(source.unseenEvilOnTeamProbability)
+        || source.unseenEvilOnTeamProbability < 0
+        || source.unseenEvilOnTeamProbability > 1
+        || Math.abs(
+          assessment.futureOpportunityValue
+            - (1 - source.unseenEvilOnTeamProbability),
+        ) > PROBABILITY_TOLERANCE
+      )
+    case 'rejection-runway':
+      return !(
+        !exactKeys(source, [
+          'kind', 'rejectionsBeforeHammer', 'runwayDenominator',
+        ])
+        || !Number.isSafeInteger(source.rejectionsBeforeHammer)
+        || source.rejectionsBeforeHammer < 0
+        || source.rejectionsBeforeHammer > 4
+        || source.runwayDenominator !== 4
+        || Math.abs(
+          assessment.futureOpportunityValue
+            - source.rejectionsBeforeHammer / 4,
+        ) > PROBABILITY_TOLERANCE
+      )
+    case 'terminal-none':
+    case 'decisive-board-none':
+      return !(
+        !exactKeys(source, ['kind'])
+        || assessment.futureOpportunityValue !== 0
+        || assessment.futureOpportunityAvailable
+      )
+    default:
+      return false
+  }
+}
+
+/**
+ * Coordination-kind block: shape and per-kind bounds. Verbatim from the
+ * original if/else-if/else (unknown kind returns false), so the check set and
+ * order are unchanged. The selfOnly/oberon consts that later cross-checks rely
+ * on for narrowing stay in the caller, so this extraction does not move them.
+ */
+function validateCoordination(
+  assessment: EvilRoleUtilityAssessment,
+  projection: PrivateEvilRoleUtilityProjection,
+): boolean {
+  if (assessment.coordination.kind === 'visible-coordination') {
+    return !(
+      !exactKeys(assessment.coordination, [
+        'kind', 'coordinatedEvilAboard', 'totalVisibleEvil',
+      ])
+      || !Number.isSafeInteger(
+        assessment.coordination.coordinatedEvilAboard,
+      )
+      || assessment.coordination.coordinatedEvilAboard < 0
+      || assessment.coordination.coordinatedEvilAboard
+        > assessment.team.length
+      || !Number.isSafeInteger(
+        assessment.coordination.totalVisibleEvil,
+      )
+      || assessment.coordination.totalVisibleEvil <= 0
+      || assessment.coordination.totalVisibleEvil
+        > Math.ceil(projection.source.playerCount / 3)
+      || assessment.coordination.coordinatedEvilAboard
+        > assessment.coordination.totalVisibleEvil
+    )
+  } else if (
+    assessment.coordination.kind === 'self-only-uncoordinated'
+  ) {
+    return !(
+      !exactKeys(assessment.coordination, [
+        'kind', 'selfAboard', 'unseenEvilOnTeamProbability',
+      ])
+      || typeof assessment.coordination.selfAboard !== 'boolean'
+      || !Number.isFinite(
+        assessment.coordination.unseenEvilOnTeamProbability,
+      )
+      || assessment.coordination.unseenEvilOnTeamProbability < 0
+      || assessment.coordination.unseenEvilOnTeamProbability > 1
+      || assessment.coordination.selfAboard
+        !== assessment.team.includes(projection.request.seat)
+    )
+  } else {
+    return false
+  }
+}
+
 function evilRoleUtilitySchema(detached: unknown): boolean {
   if (
     !detached
@@ -637,178 +881,11 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       'roleValue',
       'coordination',
     ])) return false
-    const values = [
-      assessment.teamFailureCapabilityProbability,
-      assessment.publicTeamFailureCapabilityProbability,
-      assessment.alternativeRealization,
-      assessment.failureCapacityValue,
-      assessment.publicActionPlausibilityValue,
-      assessment.participantCoverProxyIndex,
-      assessment.publicCoverValue,
-      assessment.futureOpportunityValue,
-      assessment.failureCapacityContribution,
-      assessment.publicCoverContribution,
-      assessment.futureOpportunityContribution,
-      assessment.roleValue,
-    ]
     if (
-      assessment.role !== projection.role
-      || typeof assessment.candidateId !== 'string'
-      || !assessment.candidateId.length
-      || assessment.candidateId.length > 256
-      || assessment.kind !== projection.request.kind
-      || assessment.posture !== POSTURE_BY_ROLE[projection.role]
-      || !['support', 'oppose'].includes(assessment.direction)
-      || !canonicalSeats(
-        assessment.team,
-        projection.source.playerCount,
-      )
-      || assessment.valueSemantics !== EVIL_ROLE_UTILITY_VALUE_SEMANTICS
-      || assessment.probabilitySemantics
-        !== 'resolved-complete-world-sum'
-      || assessment.publicProbabilitySemantics
-        !== 'public-preaction-uniform-feasible-joint'
-      || typeof assessment.publicCoverAvailable !== 'boolean'
-      || typeof assessment.participantCoverAvailable !== 'boolean'
-      || assessment.publicCoverAvailable
-        !== assessment.participantCoverAvailable
-      || assessment.publicCoverSemantics
-        !== 'bounded-action-plausibility-plus-participant-cover-proxy'
-      || typeof assessment.futureOpportunityAvailable !== 'boolean'
-      || assessment.futureOpportunitySemantics
-        !== 'bounded-reserve-or-runway-proxy-not-win-probability'
-      || Math.abs(
-        assessment.publicCoverValue
-          - publicCoverValueFrom(
-            assessment.publicActionPlausibilityValue,
-            assessment.participantCoverProxyIndex,
-          ),
-      ) > PROBABILITY_TOLERANCE
-      || Math.abs(
-        assessment.publicActionPlausibilityValue
-          - publicActionPlausibilityFrom(
-            assessment.direction === 'support',
-            assessment.publicTeamFailureCapabilityProbability,
-          ),
-      ) > PROBABILITY_TOLERANCE
-      || (
-        assessment.direction === 'support'
-          ? (
-              alternativeKeys.length !== 0
-              || assessment.alternativeRealization !== 1
-              || Math.abs(
-                assessment.failureCapacityValue
-                  - assessment.teamFailureCapabilityProbability,
-              ) > PROBABILITY_TOLERANCE
-            )
-          : (
-              alternativeKeys.length !== 3
-              || typeof assessment.bestAlternativeCandidateId !== 'string'
-              || !assessment.bestAlternativeCandidateId.length
-              || assessment.bestAlternativeCandidateId.length > 256
-              || !canonicalSeats(
-                assessment.bestAlternativeTeam,
-                projection.source.playerCount,
-              )
-              || !Number.isFinite(
-                assessment.bestAlternativeFailureCapabilityProbability,
-              )
-              || assessment.bestAlternativeFailureCapabilityProbability! < 0
-              || assessment.bestAlternativeFailureCapabilityProbability! > 1
-              || Math.abs(
-                assessment.failureCapacityValue
-                  - assessment
-                    .bestAlternativeFailureCapabilityProbability!
-                    * assessment.alternativeRealization,
-              ) > PROBABILITY_TOLERANCE
-            )
-      )
-      || values.some(
-        (entry) =>
-          !Number.isFinite(entry) || entry < 0 || entry > 1,
-      )
-      || Math.abs(
-        assessment.failureCapacityContribution
-          - failureCapacityContributionFrom(assessment.failureCapacityValue),
-      ) > PROBABILITY_TOLERANCE
-      || Math.abs(
-        assessment.publicCoverContribution
-          - publicCoverContributionFrom(assessment.publicCoverValue),
-      ) > PROBABILITY_TOLERANCE
-      || Math.abs(
-        assessment.futureOpportunityContribution
-          - futureOpportunityContributionFrom(
-            assessment.futureOpportunityValue,
-          ),
-      ) > PROBABILITY_TOLERANCE
-      || Math.abs(
-        assessment.roleValue
-          - roleValueSumFrom(
-            assessment.failureCapacityContribution,
-            assessment.publicCoverContribution,
-            assessment.futureOpportunityContribution,
-          ),
-      ) > PROBABILITY_TOLERANCE
+      !validateAssessmentFormulas(assessment, projection, alternativeKeys)
     ) return false
     const source = assessment.futureOpportunitySource
-    if (
-      !source
-      || typeof source !== 'object'
-      || (
-        source.kind === 'visible-coordination-reserve'
-          ? (
-              !exactKeys(source, [
-                'kind', 'reservedVisibleEvil', 'totalVisibleEvil',
-              ])
-              || !Number.isSafeInteger(source.reservedVisibleEvil)
-              || !Number.isSafeInteger(source.totalVisibleEvil)
-              || source.totalVisibleEvil <= 0
-              || source.reservedVisibleEvil < 0
-              || source.reservedVisibleEvil > source.totalVisibleEvil
-              || Math.abs(
-                assessment.futureOpportunityValue
-                  - source.reservedVisibleEvil / source.totalVisibleEvil,
-              ) > PROBABILITY_TOLERANCE
-            )
-          : source.kind === 'oberon-unseen-placement-reserve'
-            ? (
-                !exactKeys(source, [
-                  'kind', 'unseenEvilOnTeamProbability',
-                ])
-                || !Number.isFinite(source.unseenEvilOnTeamProbability)
-                || source.unseenEvilOnTeamProbability < 0
-                || source.unseenEvilOnTeamProbability > 1
-                || Math.abs(
-                  assessment.futureOpportunityValue
-                    - (1 - source.unseenEvilOnTeamProbability),
-                ) > PROBABILITY_TOLERANCE
-              )
-            : source.kind === 'rejection-runway'
-              ? (
-                  !exactKeys(source, [
-                    'kind', 'rejectionsBeforeHammer', 'runwayDenominator',
-                  ])
-                  || !Number.isSafeInteger(source.rejectionsBeforeHammer)
-                  || source.rejectionsBeforeHammer < 0
-                  || source.rejectionsBeforeHammer > 4
-                  || source.runwayDenominator !== 4
-                  || Math.abs(
-                    assessment.futureOpportunityValue
-                      - source.rejectionsBeforeHammer / 4,
-                  ) > PROBABILITY_TOLERANCE
-                )
-            : (
-                source.kind === 'terminal-none'
-                || source.kind === 'decisive-board-none'
-              )
-                ? (
-                    !exactKeys(source, ['kind'])
-                    || assessment.futureOpportunityValue !== 0
-                    || assessment.futureOpportunityAvailable
-                  )
-                : true
-      )
-    ) return false
+    if (!validateFutureOpportunitySource(assessment)) return false
     if (
       assessment.futureOpportunityAvailable
         !== (
@@ -840,45 +917,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
           - expectedAlternativeRealization,
       ) > PROBABILITY_TOLERANCE
     ) return false
-    if (assessment.coordination.kind === 'visible-coordination') {
-      if (
-        !exactKeys(assessment.coordination, [
-          'kind', 'coordinatedEvilAboard', 'totalVisibleEvil',
-        ])
-        || !Number.isSafeInteger(
-          assessment.coordination.coordinatedEvilAboard,
-        )
-        || assessment.coordination.coordinatedEvilAboard < 0
-        || assessment.coordination.coordinatedEvilAboard
-          > assessment.team.length
-        || !Number.isSafeInteger(
-          assessment.coordination.totalVisibleEvil,
-        )
-        || assessment.coordination.totalVisibleEvil <= 0
-        || assessment.coordination.totalVisibleEvil
-          > Math.ceil(projection.source.playerCount / 3)
-        || assessment.coordination.coordinatedEvilAboard
-          > assessment.coordination.totalVisibleEvil
-      ) return false
-    } else if (
-      assessment.coordination.kind === 'self-only-uncoordinated'
-    ) {
-      if (
-        !exactKeys(assessment.coordination, [
-          'kind', 'selfAboard', 'unseenEvilOnTeamProbability',
-        ])
-        || typeof assessment.coordination.selfAboard !== 'boolean'
-        || !Number.isFinite(
-          assessment.coordination.unseenEvilOnTeamProbability,
-        )
-        || assessment.coordination.unseenEvilOnTeamProbability < 0
-        || assessment.coordination.unseenEvilOnTeamProbability > 1
-        || assessment.coordination.selfAboard
-          !== assessment.team.includes(projection.request.seat)
-      ) return false
-    } else {
-      return false
-    }
+    if (!validateCoordination(assessment, projection)) return false
     if (source.kind === 'visible-coordination-reserve') {
       if (
         decisiveBoard
