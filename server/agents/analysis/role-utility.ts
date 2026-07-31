@@ -27,6 +27,7 @@ import {
   exactKeys,
   plainDataRecord as plainRecord,
   probability,
+  signedUnit as boundedInfluence,
   tableSize,
 } from '../components/canonical-shape.ts'
 import {
@@ -120,12 +121,6 @@ export interface PrivateRoleUtilityProjection {
   request: RoleUtilityRequest
   assessments: readonly RoleUtilityAssessment[]
 }
-
-const boundedInfluence = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isFinite(value)
-  && value >= -1
-  && value <= 1
 
 function candidateDirectionSign(
   candidate: CandidatePublicCommitment,

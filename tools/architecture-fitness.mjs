@@ -91,6 +91,7 @@ export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
   'plainRecord',
   'probability',
   'sequenceEqual',
+  'signedUnit',
   'strictCanonicalArray',
   'tableSize',
 ])
@@ -1752,9 +1753,25 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ['server/agents/analysis/observer.ts', new Set([
     'publicAlignmentMaskHistogram',
   ])],
+  // The shared two-axis public read and its first consumer, both landed as
+  // inert substrate ahead of the scoring that will reach them, the same way
+  // role-utility.ts between them was. The servant objective additionally waits
+  // on role-objective-router.ts, which cannot route servants to a model until
+  // composed.ts emits one, since trace admission checks the two agree.
+  //
+  // All three entries go when scoring arrives, and the staleness check above
+  // is what will say so: left here past that point they fail rather than rot.
+  ['server/agents/analysis/public-self-read.ts', new Set([
+    'validateAdmittedPublicSelfReadHostJoin',
+    'validatePublicSelfReadSnapshot',
+  ])],
   ['server/agents/analysis/role-utility.ts', new Set([
     'buildRoleUtilityProjection',
     'validatePrivateRoleUtilityProjection',
+  ])],
+  ['server/agents/analysis/servant-objective.ts', new Set([
+    'validateAdmittedServantObjectiveHostJoin',
+    'validateServantObjectiveSnapshot',
   ])],
   ['server/agents/board.ts', new Set(['roleCertainties'])],
   ['server/agents/components/kernel.ts', new Set([

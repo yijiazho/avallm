@@ -95,6 +95,7 @@ const LANES = Object.freeze({
     'plan-coherence.test.ts',
     'probability-arithmetic.test.ts',
     'public-observer.test.ts',
+    'public-self-read.test.ts',
     'quest-coordination.test.ts',
     'robust-evil-quest-cutover.test.ts',
     'role-adapters.test.ts',
@@ -104,6 +105,7 @@ const LANES = Object.freeze({
     'score-layer.test.ts',
     'scorer-situation-surface.test.ts',
     'seat-decision-inspector.test.ts',
+    'servant-objective.test.ts',
   ]),
   eval: Object.freeze([
     'active-language-eval.test.ts',

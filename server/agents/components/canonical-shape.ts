@@ -276,6 +276,26 @@ export const probability = (value: unknown): value is number =>
   && value <= 1
 
 /**
+ * A signed bounded value: finite and inside [-1, 1].
+ *
+ * The sibling of `probability`, for the quantities that carry a DIRECTION as
+ * well as a magnitude. An influence that can help or hurt, and a deviation
+ * that can sit above or below a baseline, are both meaningless without the
+ * sign, so they cannot reuse the [0, 1] predicate next door.
+ *
+ * It lived privately in role-utility.ts, which was correct while one module
+ * needed it. It is promoted here on the second caller rather than the fifth,
+ * because the failure mode is silent: a private copy that drifts to `> -1`
+ * still type-checks, still passes its own tests, and only disagrees with the
+ * original on the exact boundary value that motivated writing it down.
+ */
+export const signedUnit = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isFinite(value)
+  && value >= -1
+  && value <= 1
+
+/**
  * A legal table size: a safe integer inside the range the engine deals.
  *
  * Twelve validators spelled this by hand as `< 5 || > 10` against the bare
