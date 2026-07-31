@@ -14,27 +14,36 @@ import type {
  * fallback base, and silently re-point when a family is inserted in the middle.
  * Callers declare the tree once, with each family's base and the reason for it,
  * and the predecessor for every lane is derived from that declaration.
+ *
+ * Nothing about how a lane resolves predecessors is declared either. A lane is
+ * composed exactly when a composition family joins it, so the declaration has
+ * no way to claim a traversal that no terminal needs, and the composition that
+ * creates the obligation is the one that has to justify it.
  */
 
+/**
+ * How a lane resolves predecessors. Derived from the tree, never declared: a
+ * lane is composed exactly when a composition family joins it.
+ */
 export type ScoreLayerLaneMode =
   /**
-   * One composition terminal has to traverse the whole lane, so a family's
-   * predecessor is the previous family that joined the lane rather than its
-   * base. That is only sound when sibling applicability predicates are
-   * mutually exclusive: an intervening sibling is inapplicable for the seat
-   * that reaches it and passes the prior surface through untouched.
+   * A composition terminal traverses the whole lane, so a family's predecessor
+   * is the previous family that joined the lane rather than its base. The
+   * composition that puts the lane in this mode owes the precondition that
+   * makes it sound: sibling applicability predicates are mutually exclusive,
+   * so an intervening sibling is inapplicable for the seat that reaches it and
+   * passes the prior surface through untouched.
    */
   | 'composed'
   /**
-   * No composition terminal exists, so nothing forces siblings onto one chain
+   * No composition joins the lane, so nothing forces siblings onto one chain
    * and each family hangs directly off its declared base.
    */
   | 'isolated'
 
 export interface ScoreLayerLaneDeclaration<Lane extends string> {
   readonly id: Lane
-  readonly mode: ScoreLayerLaneMode
-  /** Why the lane resolves predecessors this way. Recorded, never branched on. */
+  /** What the lane is for. Recorded, never branched on. */
   readonly rationale: string
 }
 
@@ -85,6 +94,7 @@ export interface ScoreLayerFamilyTree<Lane extends string> {
 export interface ScoreLayerFamilyWiring {
   readonly family: string
   readonly lane: string
+  /** Derived from whether a composition joined the lane, never declared. */
   readonly mode: ScoreLayerLaneMode
   readonly base: string | null
   readonly predecessor: ScoreLayerToken
@@ -128,10 +138,10 @@ function isToken(value: unknown): value is ScoreLayerToken {
   )
 }
 
-function declaredLaneModes<Lane extends string>(
+function declaredLaneIds<Lane extends string>(
   lanes: readonly ScoreLayerLaneDeclaration<Lane>[],
-): Map<string, ScoreLayerLaneMode> {
-  const modes = new Map<string, ScoreLayerLaneMode>()
+): Set<string> {
+  const ids = new Set<string>()
   if (!Array.isArray(lanes) || !lanes.length) {
     throw new ScoreLayerFamilyError(
       'invalid-lane',
@@ -145,27 +155,39 @@ function declaredLaneModes<Lane extends string>(
         'every lane needs a non-empty id',
       )
     }
-    if (modes.has(lane.id)) {
+    if (ids.has(lane.id)) {
       throw new ScoreLayerFamilyError(
         'invalid-lane',
         `lane ${lane.id} is declared twice`,
       )
     }
-    if (lane.mode !== 'composed' && lane.mode !== 'isolated') {
-      throw new ScoreLayerFamilyError(
-        'invalid-lane',
-        `lane ${lane.id} has no predecessor mode`,
-      )
-    }
     if (typeof lane.rationale !== 'string' || !lane.rationale) {
       throw new ScoreLayerFamilyError(
         'invalid-lane',
-        `lane ${lane.id} must state why it resolves predecessors as it does`,
+        `lane ${lane.id} must state what it is for`,
       )
     }
-    modes.set(lane.id, lane.mode)
+    ids.add(lane.id)
   }
-  return modes
+  return ids
+}
+
+/**
+ * The lanes a composition traverses, which is what puts a lane in composed
+ * mode. Reading the mode off the tree rather than off a declared field is what
+ * keeps the two from disagreeing: a composed lane with no terminal to justify
+ * it, or a composition routed through a lane that claims not to have one, are
+ * both unspellable instead of rejected after the fact.
+ */
+function composedLaneIds<Lane extends string>(
+  families: readonly ScoreLayerFamilyDeclaration<Lane>[],
+): Set<string> {
+  const composed = new Set<string>()
+  for (const family of families) {
+    if (family?.kind !== 'composition') continue
+    for (const laneId of Object.keys(family.lanes ?? {})) composed.add(laneId)
+  }
+  return composed
 }
 
 function assertFamilyShape<Lane extends string>(
@@ -252,12 +274,6 @@ function assertFamilyShape<Lane extends string>(
 export function resolveScoreLayerFamilyTree<Lane extends string>(
   tree: ScoreLayerFamilyTree<Lane>,
 ): ResolvedScoreLayerFamilyTree {
-  const laneModes = declaredLaneModes(tree.lanes)
-  const tipsByFamily = new Map<string, ScoreLayerLaneTips<Lane>>()
-  const laneTip = new Map<string, ScoreLayerToken>()
-  const definitions: ScoreLayerDefinition[] = []
-  const wiring: ScoreLayerFamilyWiring[] = []
-
   const families = tree.families
   if (!Array.isArray(families) || !families.length) {
     throw new ScoreLayerFamilyError(
@@ -265,25 +281,27 @@ export function resolveScoreLayerFamilyTree<Lane extends string>(
       'a family tree needs at least one family',
     )
   }
+  const declaredLanes = declaredLaneIds(tree.lanes)
+  const composedLanes = composedLaneIds(families)
+  const tipsByFamily = new Map<string, ScoreLayerLaneTips<Lane>>()
+  const laneTip = new Map<string, ScoreLayerToken>()
+  const definitions: ScoreLayerDefinition[] = []
+  const wiring: ScoreLayerFamilyWiring[] = []
+
   for (const [position, family] of families.entries()) {
     assertFamilyShape(family, position, families.length, tipsByFamily)
     const laneIds = Object.keys(family.lanes) as Lane[]
     const predecessors = new Map<string, ScoreLayerToken>()
     for (const laneId of laneIds) {
-      const mode = laneModes.get(laneId)
-      if (!mode) {
+      if (!declaredLanes.has(laneId)) {
         throw new ScoreLayerFamilyError(
           'invalid-lane',
           `family ${family.id} joins undeclared lane ${laneId}`,
         )
       }
       if (family.kind === 'root') continue
-      if (family.kind === 'composition' && mode !== 'composed') {
-        throw new ScoreLayerFamilyError(
-          'misplaced-composition',
-          `family ${family.id} can only terminate a composed lane, not ${laneId}`,
-        )
-      }
+      const mode: ScoreLayerLaneMode =
+        composedLanes.has(laneId) ? 'composed' : 'isolated'
       const baseTip = family.base === null
         ? undefined
         : tipsByFamily.get(family.base)?.[laneId]

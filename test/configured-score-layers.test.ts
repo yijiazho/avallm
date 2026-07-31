@@ -306,8 +306,8 @@ test('family bases stay separate from the derived linear predecessors', () => {
 
 test('family tree derivation rejects declarations that would invert it', () => {
   const lanes: readonly ScoreLayerLaneDeclaration<'wide' | 'narrow'>[] = [
-    { id: 'wide', mode: 'composed', rationale: 'one terminal traverses it' },
-    { id: 'narrow', mode: 'isolated', rationale: 'selected one at a time' },
+    { id: 'wide', rationale: 'the whole stack' },
+    { id: 'narrow', rationale: 'selected one at a time' },
   ]
   const tip = (name: string) => scoreLayerToken(name, 'v1')
   const family = (
@@ -338,8 +338,17 @@ test('family tree derivation rejects declarations that would invert it', () => {
     id: 'third',
     lanes: { wide: tip('third-wide'), narrow: tip('third-narrow') },
   })
+  const whole = family({
+    id: 'whole',
+    kind: 'composition',
+    base: null,
+    lanes: { wide: tip('whole-wide') },
+  })
   assert.deepEqual(
-    resolveScoreLayerFamilyTree({ lanes, families: [root, second, third] })
+    resolveScoreLayerFamilyTree({
+      lanes,
+      families: [root, second, third, whole],
+    })
       .wiring
       .filter((entry) => entry.family === 'third')
       .map((entry) => [entry.lane, entry.predecessor.id, entry.viaSibling]),
@@ -384,37 +393,25 @@ test('family tree derivation rejects declarations that would invert it', () => {
   assert.throws(
     () => resolveScoreLayerFamilyTree({
       lanes,
-      families: [
-        root,
-        family({
-          id: 'whole',
-          kind: 'composition',
-          base: null,
-          lanes: { wide: tip('whole-wide') },
-        }),
-        second,
-      ],
+      families: [root, whole, second],
     }),
     (error: unknown) => error instanceof ScoreLayerFamilyError
       && error.code === 'misplaced-composition',
   )
 
-  // A composition cannot terminate an isolated lane, which has no composition.
-  assert.throws(
-    () => resolveScoreLayerFamilyTree({
-      lanes,
-      families: [
-        root,
-        family({
-          id: 'whole',
-          kind: 'composition',
-          base: null,
-          lanes: { wide: tip('whole-wide'), narrow: tip('whole-narrow') },
-        }),
-      ],
-    }),
-    (error: unknown) => error instanceof ScoreLayerFamilyError
-      && error.code === 'misplaced-composition',
+  // Dropping the composition is the only way to make the wide lane isolated:
+  // 'third' then hangs off its own base's tip rather than off its sibling.
+  // A lane cannot claim a traversal no terminal needs, so there is no
+  // composed-with-no-composition declaration to reject.
+  assert.deepEqual(
+    resolveScoreLayerFamilyTree({ lanes, families: [root, second, third] })
+      .wiring
+      .filter((entry) => entry.family === 'third')
+      .map((entry) => [entry.lane, entry.mode, entry.predecessor.id]),
+    [
+      ['wide', 'isolated', 'first-wide'],
+      ['narrow', 'isolated', 'first-narrow'],
+    ],
   )
 })
 

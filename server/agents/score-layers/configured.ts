@@ -70,8 +70,9 @@ import {
 /**
  * Deterministic layers compose into one stack; seeded layers are ablations.
  *
- * A lane's mode is what decides how a family's registry predecessor is
- * derived, so the two lanes cannot be read off one shared ordering.
+ * Only the deterministic lane has a composition terminal, which is what makes
+ * it resolve predecessors along the chain rather than off each family's base,
+ * so the two lanes cannot be read off one shared ordering.
  */
 const DETERMINISTIC_LANE = 'deterministic'
 const SEEDED_LANE = 'seeded'
@@ -84,23 +85,15 @@ const SCORE_FAMILY_LANES:
 readonly ScoreLayerLaneDeclaration<ConfiguredScoreLane>[] = Object.freeze([
   Object.freeze({
     id: DETERMINISTIC_LANE,
-    mode: 'composed',
     rationale:
-      'The full-role family terminates this lane on behalf of the whole role '
-      + 'stack, so every deterministic family has to sit on one chain. A '
-      + 'family therefore hangs off the previous family in the lane rather '
-      + 'than off its base. That is sound only because the role '
-      + 'specializations have mutually exclusive applicability predicates: a '
-      + 'seat that reaches an intervening sibling finds it inapplicable, and '
-      + 'the prior surface passes through untouched.',
+      'The live stack. Every deterministic score family joins it, and the '
+      + 'full-role terminal at the end is what the composed policy resolves.',
   }),
   Object.freeze({
     id: SEEDED_LANE,
-    mode: 'isolated',
     rationale:
-      'No composition terminal exists for seeded scorers. They are selected '
-      + 'one at a time as ablations, so nothing forces siblings onto a shared '
-      + 'chain and each family hangs directly off its own base.',
+      'Seeded scorers, which are ablations selected one at a time rather than '
+      + 'a stack anything resolves as a whole.',
   }),
 ])
 
@@ -236,7 +229,12 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       + 'than specializing any one family, so its base is the composed lane '
       + 'itself. It keeps values, viability, survivors, and the mechanical '
       + 'choice of whichever specialization applied, and attributes '
-      + 'diagnostics to that predecessor.',
+      + 'diagnostics to that predecessor. Joining the deterministic lane is '
+      + 'what puts it in composed mode, so this family owes the precondition '
+      + 'that makes traversing siblings sound: the role specializations have '
+      + 'mutually exclusive applicability predicates, so a seat that reaches '
+      + 'an intervening sibling finds it inapplicable and the prior surface '
+      + 'passes through untouched.',
     lanes: { [DETERMINISTIC_LANE]: FULL_ROLE_POLICY_SCORE_LAYER },
     terminals: [FULL_ROLE_POLICY_SCORE_LAYER],
     terminalFor: fullRoleScoreLayerTerminalFor,
