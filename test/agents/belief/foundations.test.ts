@@ -15,6 +15,7 @@ import type {
 } from '../../../server/agents/belief/types.ts'
 import {
   capLogLikelihood,
+  logWeightsToProbabilities,
   normalizeLogWeights,
 } from '../../../server/agents/belief/log-weights.ts'
 import { advanceCognition } from '../../../server/agents/cognition/state.ts'
@@ -208,6 +209,58 @@ test('log weights normalize stably and every contribution is capped', () => {
     value: -1,
     capped: false,
   })
+})
+
+test('log-sum-exp is domain free and survives the whole feasible support', () => {
+  // The world-shaped wrapper is a zip over the numeric core and nothing else,
+  // so the two have to agree bit for bit or the split changed belief output.
+  const game = createGame({ seed: 'phase5a-log-sum-exp', playerCount: 5 })
+  const view = viewFor(game, 0)
+  const worlds = exactBelief(view).worlds.slice(0, 2)
+    .map((weighted) => weighted.world)
+  for (const weights of [[1_000, 999], [0, 0], [-3.5, 12.25]]) {
+    assert.deepEqual(
+      normalizeLogWeights(worlds, weights).map((entry) => entry.probability),
+      [...logWeightsToProbabilities(weights)],
+    )
+  }
+
+  // The fold pin. `Math.max(...weights)` throws past roughly 125,000 arguments
+  // on this V8, so a length above that is what actually separates the fold from
+  // the spread: the previous 120,000 sat under the measured threshold and would
+  // have passed either way. Real inputs are far smaller (a ten-player servant
+  // view tops out near 60,480 feasible worlds), so this is a guard on the
+  // implementation, not a case the belief layer reaches.
+  const wide = Array.from({ length: 200_000 }, (_, index) => -index / 10_000)
+  assert.throws(() => Math.max(...wide), RangeError)
+  const spread = logWeightsToProbabilities(wide)
+  assert.equal(spread.length, wide.length)
+  assert.ok(spread.every((probability) => probability > 0))
+  assert.ok(Math.abs(
+    spread.reduce((sum, probability) => sum + probability, 0) - 1,
+  ) < 1e-9)
+
+  assert.throws(
+    () => logWeightsToProbabilities([]),
+    /at least one weight/,
+  )
+  assert.throws(
+    () => logWeightsToProbabilities([0, Number.NaN]),
+    /finite weights/,
+  )
+  // A hole is not a weight. Every array method here skips one, so folding the
+  // maximum instead of spreading it removed the accident that used to reject a
+  // sparse vector, and the guard has to say so on its own.
+  const sparse: number[] = [0, 0, -1]
+  delete sparse[1]
+  assert.throws(
+    () => logWeightsToProbabilities(sparse),
+    /finite weights/,
+  )
+  assert.throws(
+    () => normalizeLogWeights(worlds, [0]),
+    /one weight per world/,
+  )
 })
 
 test('mechanical rows are public-only, split by game, and exclude reserved data', async () => {
