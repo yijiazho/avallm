@@ -103,6 +103,22 @@ function primitiveBytes(
   )
 }
 
+/**
+ * A property descriptor for a plain, enumerable, own DATA property: a real
+ * value slot and no accessor. This is the single definition of a safe own data
+ * property, so every own-data reader here and the plainDetachedData guard route
+ * through it and none can end up weaker than another.
+ */
+export function isPlainDataDescriptor(
+  descriptor: PropertyDescriptor | undefined,
+): descriptor is PropertyDescriptor & { value: unknown } {
+  return descriptor !== undefined
+    && descriptor.enumerable === true
+    && Object.hasOwn(descriptor, 'value')
+    && descriptor.get === undefined
+    && descriptor.set === undefined
+}
+
 function freezeJsonValue(
   value: unknown,
   ancestors: Set<object>,
@@ -183,13 +199,7 @@ function freezeJsonValue(
           value,
           `${index}`,
         )
-        if (
-          !descriptor
-          || descriptor.enumerable !== true
-          || !Object.hasOwn(descriptor, 'value')
-          || descriptor.get !== undefined
-          || descriptor.set !== undefined
-        ) {
+        if (!isPlainDataDescriptor(descriptor)) {
           unsafe('non-JSON array shape')
         }
         const child = freezeJsonValue(
@@ -229,13 +239,7 @@ function freezeJsonValue(
     let emitted = 0
     for (const key of sortedKeys) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key)
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-      ) {
+      if (!isPlainDataDescriptor(descriptor)) {
         unsafe('non-JSON property')
       }
       if (
@@ -400,13 +404,7 @@ export function exactOwnDataRecord(
     const record = Object.create(null) as Record<string, unknown>
     for (const key of expected) {
       const descriptor = descriptors[key]
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-      ) {
+      if (!isPlainDataDescriptor(descriptor)) {
         return undefined
       }
       Object.defineProperty(record, key, {
@@ -422,12 +420,23 @@ export function exactOwnDataRecord(
   }
 }
 
+/**
+ * Read the dense own data values of an array without invoking accessors.
+ *
+ * Pins Array.prototype the way exactOwnDataRecord pins the object prototype, so
+ * a re-prototyped or subclassed array that reads as an array to Array.isArray
+ * but iterates as something else is refused at this untrusted boundary.
+ */
 export function denseOwnDataArrayValues(
   value: unknown,
   maxLength = 65_536,
 ): readonly unknown[] | undefined {
   try {
-    if (!Array.isArray(value) || isProxy(value)) return undefined
+    if (
+      !Array.isArray(value)
+      || isProxy(value)
+      || Object.getPrototypeOf(value) !== Array.prototype
+    ) return undefined
     if (
       !Number.isSafeInteger(maxLength)
       || maxLength < 0
@@ -446,13 +455,7 @@ export function denseOwnDataArrayValues(
         value,
         `${index}`,
       )
-      if (
-        !descriptor
-        || descriptor.enumerable !== true
-        || !Object.hasOwn(descriptor, 'value')
-        || descriptor.get !== undefined
-        || descriptor.set !== undefined
-      ) {
+      if (!isPlainDataDescriptor(descriptor)) {
         return undefined
       }
       result.push(descriptor.value)

@@ -23,6 +23,7 @@
 
 import { isDeepStrictEqual } from 'node:util'
 import { isProxy } from 'node:util/types'
+import { isPlainDataDescriptor } from './canonical-json.ts'
 import {
   failsRequired,
   MAX_PLAYERS,
@@ -143,9 +144,7 @@ export function plainDetachedData(
     if (typeof key !== 'string') return false
     const descriptor = descriptors[key]
     if (
-      !descriptor
-      || !descriptor.enumerable
-      || !('value' in descriptor)
+      !isPlainDataDescriptor(descriptor)
       || !plainDetachedData(descriptor.value, visited)
     ) return false
   }
@@ -363,9 +362,7 @@ export function canonicalRequestBlock(
       ...contract.extraKeys ?? [],
       ...currentTeam ? ['currentTeam'] : [],
     ])
-    || !Number.isSafeInteger(playerCount)
-    || playerCount < MIN_PLAYERS
-    || playerCount > MAX_PLAYERS
+    || !tableSize(playerCount)
     || typeof value.kind !== 'string'
     || !kinds.includes(value.kind)
     || !Number.isSafeInteger(value.seat)
