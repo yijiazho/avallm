@@ -4202,3 +4202,50 @@ here.
   reading. BELIEF-001 remains open and is now the SECOND step: the two vote-matrix signals the
   heuristic reads (`+1.5` for leading a proposal whose quest failed, `+0.4` for approving one from
   off the team) still have no factor, and they are what the quest-card model cannot express.
+
+- Quest-card factor gated on the wide bank, and it passes the cross-population test that has
+  blocked every previous candidate. `full-role` with `analytical-quest-card-v1` against the same
+  `full-role` on `constraints-only`, servant cell, `360` paired deals per population, with
+  compatibility carried as the reference.
+
+  | quest-weighted minus constraints-only | heuristic | random |
+  | --- | --- | --- |
+  | win | `+1.9%` (95% `-1.4%` to `+5.3%`) | `-0.3%` (95% `-4.4%` to `+3.9%`) |
+  | clean proposal | `+10.5%` (95% `+5.8%` to `+15.2%`) | `+4.4%` (95% `+0.9%` to `+7.9%`) |
+  | vote truth | `+4.6%` (95% `+2.8%` to `+6.4%`) | `+7.4%` (95% `+6.1%` to `+8.8%`) |
+  | dirty-team approve | `-10.2%` (95% `-12.3%` to `-8.2%`) | `-10.0%` (95% `-11.4%` to `-8.6%`) |
+  | clean-team reject | `+13.9%` (95% `+10.4%` to `+17.6%`) | `+7.0%` (95% `+4.1%` to `+9.9%`) |
+
+  Three decision-quality channels improve in BOTH populations with every interval clear of zero,
+  and win rate moves in neither (both intervals span zero). Against the reference, the
+  quest-weighted arm ties compatibility exactly on heuristic wins (`75/360` each, against the
+  constraints-only arm's `68/360`) while beating it on clean proposals (`31.7%` against `28.2%`)
+  and vote truth (`57.0%` against `51.8%`). This is the first candidate in the register to
+  improve decision quality in both populations without regressing win rate in either, which is
+  the gate NB-012, NB-013 and NB-016 each failed.
+
+  The two ways it could have been paid for were checked rather than assumed, and neither
+  happened. **Votes:** a sharper posterior could have made an information-poor seat more
+  exploitably decisive, which is NB-010's mechanism. Instead vote truth rose and dirty-team
+  approval fell by ten points in both populations, the latter being NB-013's own gating metric,
+  reached through the belief rather than through a vote objective. **Merlin exposure:** a sharper
+  belief could have made the good side more legible. Paired and depth matched on the same games,
+  the quest-weighted arm reads `-0.0010` (95% `-0.0020` to `+0.0001`), trending slightly down,
+  while compatibility reads `+0.0014` (95% `+0.0001` to `+0.0026`) and does leak more.
+
+  **Calibration**, which the factor's own header asks for because its probabilities are
+  "analytical conventions, not measured frequencies": on the heuristic cell the weighted belief
+  improves the player-evil target (Brier `0.2422` to `0.2382`, log loss `0.6775` to `0.6689`,
+  ~26k rows) and is neutral on team-clean (Brier `0.0602` to `0.0605`, log loss `0.2112` to
+  `0.2125`, ~235k rows). So the reweighting is honest and not merely useful.
+
+  The one cost is clean-team rejection, up in both populations. The arm rejects more overall: it
+  trades away some clean teams to refuse far more dirty ones, and the symmetric vote-truth metric
+  nets positive. Compatibility is worse still on that measure (`+24.3%` on heuristic against this
+  arm's `+13.9%`), so the quest-weighted arm sits between the two rather than at an extreme.
+
+  Scope, stated because promotion should not outrun it: this is the SERVANT cell only. Merlin and
+  Percival cells are unrun, and the factor changes belief `quality` to `weighted` for every
+  downstream consumer at an enumeration cost that has not been profiled. A tooling limit also
+  surfaced: `readArtifacts` threw `ERR_STRING_TOO_LONG` on the random cell's artifact file, so the
+  calibration reading above covers the heuristic population only.
