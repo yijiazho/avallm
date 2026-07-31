@@ -16,11 +16,15 @@ const names = (view: PlayerView, seats: readonly Seat[]): string =>
     ? seats.map((seat) => `${view.players[seat].name}(seat ${seat})`).join(', ')
     : 'none'
 
-function probabilityLabel(snapshot: BeliefSnapshot): string {
-  const quality = snapshot.quality as string
-  if (quality === 'weighted') return 'weighted probability'
-  if (quality === 'degraded') return 'degraded fallback share'
-  return 'uniform share of feasible hypotheses'
+function probabilitySemantics(snapshot: BeliefSnapshot): string {
+  switch (snapshot.quality) {
+    case 'weighted':
+      return 'weighted probability'
+    case 'degraded':
+      return 'degraded fallback share'
+    case 'constraints-only':
+      return 'uniform share of feasible hypotheses'
+  }
 }
 
 function teamLine(
@@ -96,16 +100,17 @@ function exactOnePairs(
 }
 
 /**
- * Deterministic prompt/offline renderer. It labels Phase 1 values as uniform
- * hypothesis shares and reserves probability wording for future weighted
- * snapshots.
+ * Deterministic prompt/offline renderer. It labels each snapshot with the
+ * semantics of its quality: a uniform share of feasible hypotheses for a
+ * constraints-only snapshot, weighted probability for a weighted one, and a
+ * degraded fallback share for a degraded one.
  */
 export function renderBeliefSummary(
   view: PlayerView,
   snapshot: BeliefSnapshot,
   analysis: SituationAnalysis,
 ): string {
-  const semantics = probabilityLabel(snapshot)
+  const semantics = probabilitySemantics(snapshot)
   const lines = [
     `== EXACT BELIEF SUMMARY (experimental, ${BELIEF_RENDERER_VERSION}) ==`,
     `Model ${snapshot.modelVersion} | visible event cursor ${snapshot.throughSeq} | quality ${snapshot.quality}.`,
