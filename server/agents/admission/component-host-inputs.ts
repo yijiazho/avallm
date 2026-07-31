@@ -22,6 +22,7 @@ import {
 import type { DecisionComponentRegistry } from '../components/registry.ts'
 import type {
   ComponentHostInputBinding,
+  ComponentHostInputRef,
   ComponentHostInputToken,
 } from '../components/types.ts'
 import {
@@ -31,10 +32,18 @@ import {
 import { applyForcedPolicy } from '../policy/forced.ts'
 import type { DecisionTrace } from '../trace.ts'
 
+/** The `${id}@${version}` set key a host-input token is required under. */
+function tokenKey(token: ComponentHostInputRef): string {
+  return `${token.id}@${token.version}`
+}
+
 /**
  * Reconstruct only host roots independently derivable from canonical
  * request/view coordinates. Weighted trace diagnostics cannot reconstruct
  * their private belief and identity roots.
+ *
+ * This re-derives host inputs during trace admission so an admitted trace's
+ * component scores can be re-checked against a host reconstruction.
  */
 export function reconstructScoreComponentHostInputs(input: {
   readonly trace: DecisionTrace
@@ -57,19 +66,21 @@ export function reconstructScoreComponentHostInputs(input: {
   })
   const required = new Set(
     plan.configured.flatMap((ref) =>
-      registry.definition(ref)?.requiredHostInputs.map(
-        (root) => `${root.id}@${root.version}`,
-      ) ?? []),
+      registry.definition(ref)?.requiredHostInputs.map(tokenKey) ?? []),
   )
+  const requires = (token: ComponentHostInputRef): boolean =>
+    required.has(tokenKey(token))
   const bindings: ComponentHostInputBinding<unknown>[] = []
   const bind = <Value>(
     token: ComponentHostInputToken<Value>,
     value: Value,
   ): void => {
-    if (required.has(`${token.id}@${token.version}`)) {
+    if (requires(token)) {
       bindings.push({ input: token, value })
     }
   }
+  const needsSituationOrForcedPolicy =
+    requires(PRIVATE_SITUATION_INPUT) || requires(PRIVATE_FORCED_POLICY_INPUT)
 
   const exactReconstructable =
     trace.quality === 'constraints-only'
@@ -80,12 +91,7 @@ export function reconstructScoreComponentHostInputs(input: {
   let validationBelief: BeliefSnapshot | undefined
   const needsValidationBelief =
     exactReconstructable
-    || required.has(
-      `${PRIVATE_SITUATION_INPUT.id}@${PRIVATE_SITUATION_INPUT.version}`,
-    )
-    || required.has(
-      `${PRIVATE_FORCED_POLICY_INPUT.id}@${PRIVATE_FORCED_POLICY_INPUT.version}`,
-    )
+    || needsSituationOrForcedPolicy
   if (needsValidationBelief) validationBelief = exactBelief(view)
 
   if (exactReconstructable && validationBelief) {
@@ -104,17 +110,7 @@ export function reconstructScoreComponentHostInputs(input: {
     observePublicRecord(projectPublicRecord(view)),
   )
 
-  if (
-    validationBelief
-    && (
-      required.has(
-        `${PRIVATE_SITUATION_INPUT.id}@${PRIVATE_SITUATION_INPUT.version}`,
-      )
-      || required.has(
-        `${PRIVATE_FORCED_POLICY_INPUT.id}@${PRIVATE_FORCED_POLICY_INPUT.version}`,
-      )
-    )
-  ) {
+  if (validationBelief && needsSituationOrForcedPolicy) {
     const candidates = legalCandidates(req, view)
     const analysis = analyzeSituation(view, {
       belief: validationBelief,
