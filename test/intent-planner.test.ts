@@ -10,6 +10,7 @@ import {
   createComposedAgent,
 } from '../server/agents/composed.ts'
 import {
+  createBoundedPlanner,
   createBoundedPlannerVoice,
   type PlannerInput,
   type PlannerOutput,
@@ -22,6 +23,7 @@ import {
   defaultComponents,
   runArchitectureBench,
 } from '../server/eval/architecture-bench.ts'
+import { composedBrainOptions } from '../server/agents/registry.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { AgentDef } from '../server/agents/defs.ts'
@@ -62,6 +64,40 @@ function plannerInput(call: FakeCall): {
     structuredCandidateId: string
     context: PlannerInput['context']
   }
+}
+
+interface PromptSchema {
+  type?: string
+  const?: unknown
+  enum?: readonly unknown[]
+  required?: readonly string[]
+  properties?: Readonly<Record<string, PromptSchema>>
+  items?: PromptSchema
+  allOf?: readonly PromptSchema[]
+  if?: PromptSchema
+  then?: PromptSchema
+  not?: PromptSchema
+}
+
+function plannerPrompt(call: FakeCall): {
+  structuredCandidateId: string
+  context: PlannerInput['context']
+  outputSchema: PromptSchema
+} {
+  return JSON.parse(call.messages[1].content) as {
+    structuredCandidateId: string
+    context: PlannerInput['context']
+    outputSchema: PromptSchema
+  }
+}
+
+function schemaProperty(
+  schema: PromptSchema,
+  key: string,
+): PromptSchema {
+  const property = schema.properties?.[key]
+  assert.ok(property, `missing schema property ${key}`)
+  return property
 }
 
 test('bounded fake-client planner and voice use chosen posterior reasons without changing mechanics', async () => {
@@ -247,6 +283,247 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
     plannerContexts[1].plannerCognition.belief.players.every((player) =>
       !Object.hasOwn(player, 'goodProbability')
       && !Object.hasOwn(player, 'evilProbability')),
+  )
+})
+
+test('bounded planner v4 renders scalar intent and context-specific evidence and speech schemas', async () => {
+  const calls = new Map<string, FakeCall>()
+  for (const fixtureId of [
+    'merlin-opening-proposal',
+    'servant-vote-after-evidence',
+    'minion-late-discussion',
+    'assassin-late-finalize',
+  ]) {
+    const source = fixture(fixtureId)
+    const client = fakeClient((call) => {
+      if (call.opts?.tag?.endsWith('/voice')) {
+        return '{"text":"I support the committed team."}'
+      }
+      calls.set(fixtureId, call)
+      const input = plannerInput(call)
+      const selected = input.context.viableCandidates.find(
+        (candidate) => candidate.id === input.structuredCandidateId,
+      )!
+      const strategicIntent = {
+        version: 'strategic-intent-v1',
+        objective: source.req.kind === 'vote'
+          ? 'OPPOSE_TEAM'
+          : source.req.kind === 'discuss'
+            ? 'PRESERVE_COVER'
+            : 'BUILD_TRUST',
+        targetSeats: selected.decision.kind === 'propose'
+          ? selected.decision.team
+          : [],
+        horizon: source.req.kind === 'vote'
+          ? 'CURRENT_PROPOSAL'
+          : 'THIS_ACTION',
+        evidenceRefs: source.req.kind === 'vote'
+          ? [{ kind: 'proposal', round: 3, proposalNum: 1 }]
+          : [],
+      }
+      const revision = selected.decision.kind === 'finalize'
+        && !selected.decision.stick
+      return JSON.stringify({
+        candidateId: input.structuredCandidateId,
+        strategicIntent,
+        ...(source.req.kind === 'propose'
+          ? {
+              communication: {
+                version: 'communication-intent-v3',
+                channel: 'proposal-pitch',
+                targetSeats: selected.decision.kind === 'propose'
+                  ? selected.decision.team
+                  : [],
+                actCodes: ['EXPLAIN_COMMITTED_TEAM'],
+                evidenceRefs: [],
+                tone: 'natural',
+              },
+            }
+            : source.req.kind === 'discuss'
+            ? {
+                communication: {
+                  version: 'communication-intent-v3',
+                  channel: 'discussion',
+                  targetSeats: [],
+                  actCodes: ['PASS'],
+                  evidenceRefs: [],
+                  tone: 'natural',
+                },
+              }
+            : revision
+              ? {
+                  communication: {
+                    version: 'communication-intent-v3',
+                    channel: 'revision-reason',
+                    targetSeats: selected.decision.team,
+                    actCodes: ['EXPLAIN_COMMITTED_REVISION'],
+                    evidenceRefs: [],
+                    tone: 'natural',
+                  },
+                }
+              : {}),
+      })
+    })
+    const output = await createComposedAgent({
+      seed: source.source.seed,
+      ...composedBrainOptions('full-role'),
+      planMemory: true,
+      pinReads: true,
+      ...createBoundedPlannerVoice({
+        client,
+        model: 'fake/model',
+        tagPrefix: `v4-${fixtureId}`,
+      }),
+    }).decide(source.req, source.view)
+    assert.ok(
+      !output.trace!.degradation.some((code) => code.startsWith('planner-')),
+      `${fixtureId}: ${output.trace!.degradation.join(',')}`,
+    )
+  }
+
+  const proposalCall = calls.get('merlin-opening-proposal')!
+  const proposalPrompt = plannerPrompt(proposalCall)
+  const proposalIntent = schemaProperty(
+    schemaProperty(proposalPrompt.outputSchema, 'strategicIntent'),
+    'objective',
+  )
+  const proposalHorizon = schemaProperty(
+    schemaProperty(proposalPrompt.outputSchema, 'strategicIntent'),
+    'horizon',
+  )
+  assert.equal(proposalIntent.type, 'string')
+  assert.ok(proposalIntent.enum?.includes('BUILD_TRUST'))
+  assert.equal(proposalHorizon.type, 'string')
+  assert.ok(proposalHorizon.enum?.includes('THIS_ACTION'))
+  const proposalCommunication = schemaProperty(
+    proposalPrompt.outputSchema,
+    'communication',
+  )
+  assert.equal(
+    schemaProperty(proposalCommunication, 'channel').const,
+    'proposal-pitch',
+  )
+  assert.ok(proposalCommunication.properties?.claimedRole)
+  assert.ok(proposalCommunication.properties?.roleTopic)
+  assert.ok(!proposalCommunication.required?.includes('claimedRole'))
+  assert.ok(!proposalCommunication.required?.includes('roleTopic'))
+  const proposalTargetSeats = schemaProperty(
+    proposalCommunication,
+    'targetSeats',
+  )
+  assert.deepEqual(
+    proposalTargetSeats.items?.enum,
+    proposalPrompt.context.publicContext.record.players.map(
+      (player) => player.seat,
+    ),
+  )
+  assert.match(proposalCall.messages[0].content, /concise bare JSON object/)
+  assert.match(proposalCall.messages[0].content, /exactly one objective/)
+
+  const votePrompt = plannerPrompt(calls.get('servant-vote-after-evidence')!)
+  assert.equal(votePrompt.outputSchema.properties?.communication, undefined)
+  const voteEvidence = schemaProperty(
+    schemaProperty(votePrompt.outputSchema, 'strategicIntent'),
+    'evidenceRefs',
+  )
+  assert.ok(voteEvidence.items?.enum?.some((reference) =>
+    JSON.stringify(reference) === JSON.stringify({ kind: 'quest', questNum: 1 })))
+  assert.ok(voteEvidence.items?.enum?.some((reference) =>
+    JSON.stringify(reference) === JSON.stringify({ kind: 'quest', questNum: 2 })))
+  assert.ok(!voteEvidence.items?.enum?.some((reference) =>
+    JSON.stringify(reference) === JSON.stringify({ kind: 'quest', questNum: 3 })))
+  assert.ok((voteEvidence.items?.enum?.length ?? 0) <= 46)
+
+  const passPrompt = plannerPrompt(calls.get('minion-late-discussion')!)
+  const passCommunication = schemaProperty(
+    passPrompt.outputSchema,
+    'communication',
+  )
+  assert.deepEqual(
+    schemaProperty(passCommunication, 'targetSeats').const,
+    [],
+  )
+  assert.deepEqual(
+    schemaProperty(passCommunication, 'actCodes').const,
+    ['PASS'],
+  )
+  assert.deepEqual(
+    schemaProperty(passCommunication, 'evidenceRefs').const,
+    [],
+  )
+  assert.equal(passCommunication.properties?.claimedRole, undefined)
+  assert.equal(passCommunication.properties?.roleTopic, undefined)
+
+  const finalizeBase = plannerPrompt(calls.get('assassin-late-finalize')!)
+  const stickCandidate = finalizeBase.context.viableCandidates.find(
+    (candidate) =>
+      candidate.decision.kind === 'finalize' && candidate.decision.stick,
+  )!
+  const revisionCandidate = {
+    id: 'test:finalize:revise',
+    decision: {
+      kind: 'finalize' as const,
+      stick: false as const,
+      team: finalizeBase.context.publicContext.record.currentTeam?.slice()
+        .reverse() ?? [0, 1],
+    },
+    score: stickCandidate.score - 1,
+    reasonCodes: ['TEST_REVISION'],
+  }
+  let mixedFinalizeCall: FakeCall | undefined
+  await createBoundedPlanner({
+    client: fakeClient((call) => {
+      mixedFinalizeCall = call
+      return JSON.stringify({
+        candidateId: stickCandidate.id,
+        strategicIntent: {
+          version: 'strategic-intent-v1',
+          objective: 'PRESERVE_COVER',
+          targetSeats: [],
+          horizon: 'THIS_ACTION',
+          evidenceRefs: [],
+        },
+      })
+    }),
+    model: 'fake/model',
+  }).choose({
+    context: {
+      ...finalizeBase.context,
+      viableCandidates: [stickCandidate, revisionCandidate],
+    },
+    renderedContext: JSON.stringify({
+      ...finalizeBase.context,
+      viableCandidates: [stickCandidate, revisionCandidate],
+    }),
+    structuredCandidateId: stickCandidate.id,
+  })
+  assert.ok(mixedFinalizeCall)
+  const finalizePrompt = plannerPrompt(mixedFinalizeCall)
+  const silentFinalizeIds = finalizePrompt.context.viableCandidates
+    .filter((candidate) =>
+      candidate.decision.kind === 'finalize' && candidate.decision.stick)
+    .map((candidate) => candidate.id)
+  const revisionFinalizeIds = finalizePrompt.context.viableCandidates
+    .filter((candidate) =>
+      candidate.decision.kind === 'finalize' && !candidate.decision.stick)
+    .map((candidate) => candidate.id)
+  assert.ok(silentFinalizeIds.length > 0)
+  assert.ok(revisionFinalizeIds.length > 0)
+  assert.deepEqual(
+    finalizePrompt.outputSchema.allOf?.[0]?.if?.properties?.candidateId?.enum,
+    silentFinalizeIds,
+  )
+  assert.deepEqual(
+    finalizePrompt.outputSchema.allOf?.[0]?.then?.not?.required,
+    ['communication'],
+  )
+  assert.deepEqual(
+    finalizePrompt.outputSchema.allOf?.[1]?.if?.properties?.candidateId?.enum,
+    revisionFinalizeIds,
+  )
+  assert.deepEqual(
+    finalizePrompt.outputSchema.allOf?.[1]?.then?.required,
+    ['communication'],
   )
 })
 

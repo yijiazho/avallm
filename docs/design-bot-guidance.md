@@ -579,3 +579,31 @@ Facts are not free, and the benchmark is also the evidence for that:
   instrument for a single section; use a same-seed run against the previous commit instead.
 - **Prefer one row over one section.** The dossier grows by accretion, and its FORMAT CONVENTIONS
   (`facts.ts` header) exist because a pile of sections stops being a single-lookup record.
+
+### 8.6 Structured output is a schema problem
+
+A cross-model planner probe on 2026-07-31 separated strategic quality from serialization. The
+production v3 prompt was replayed on three fixed decision views (opening Merlin proposal, later
+Servant vote, late Minion discussion) with DeepSeek Flash, Gemini Flash Lite, and Kimi. All nine
+models chose the correct structured candidate, but none passed the reply parser. The output example
+showed the allowed strategic objectives and horizons as arrays, so every complete reply returned an
+array where the contract required one string. The longer vote replies also exposed truncation and
+Markdown-fence failures. The nine calls cost $0.0109.
+
+A context-specific JSON Schema fixed the syntax: scalar enums, no communication property for a
+non-speaking decision, exact PASS constraints, and no reason list when retaining the structured
+candidate. That prototype parsed 9/9 replies, but one Kimi vote cited a pending quest and failed the
+host join. Replacing open-ended evidence shapes with a bounded enum of exact public coordinates made
+the second prototype pass both parser and host validation 9/9 across the same matrix. The two
+prototype rounds cost $0.0201 together.
+
+The lesson is narrower than "add more prompt guidance." When every model chooses the intended move
+but fails the same typed boundary, inspect the rendered output schema first. Keep choice vocabularies
+separate from the example instance, specialize optional fields to the current action channel, and
+give references as host-generated coordinates rather than asking the model to derive them from the
+record.
+
+The production v4 prompt, including its optional role-discussion fields, then repeated the same
+three-model, three-fixture matrix at 9/9 parser and host acceptance for $0.0108. DeepSeek Flash and
+Gemini Flash Lite emitted no reasoning tokens. Kimi emitted one reasoning token on each call despite
+the configured suppression; that is a model-policy observation, not a planner-contract failure.

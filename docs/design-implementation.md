@@ -95,8 +95,14 @@ completed quest that must resolve against the same public projection before voic
 Strategic intent v1 is a separate private continuity channel with a finite objective and horizon
 vocabulary, seat targets, and the same public evidence coordinates. It contains no free-form model
 reasoning, enters private plan memory only after the engine accepts the action, and is deliberately
-absent from the committed voice plan. The web-library Probabilistic + LLM factory enables that plan
-memory; the structured-only Probabilistic factory remains memory-off for a clean mechanical arm.
+absent from the committed voice plan. Planner prompt v4 renders the response contract as a
+context-specific JSON Schema: objective and horizon are scalar enums, communication is absent when
+the decision cannot speak, mixed finalize choices tie revision speech to a revise candidate, seat
+targets are limited to the current public roster, and evidence must be copied from a bounded exact
+menu containing the eight most recent utterances, three most recent proposals and ballots, and every
+completed quest.
+The web-library Probabilistic + LLM factory enables plan memory; the structured-only Probabilistic
+factory remains memory-off for a clean mechanical arm.
 Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.
 The setup dropdown exposes both a deterministic `full-role` composed agent and the same mechanical
 brain with bounded LLM planner/voice adapters. Neither is selected by the default table fill. The
