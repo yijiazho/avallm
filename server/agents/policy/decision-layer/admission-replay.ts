@@ -303,6 +303,56 @@ function journalRecord(
   return undefined
 }
 
+/*
+ * Read-side survivor-set rule: a decoded survivor list is admissible when it is
+ * a non-empty set of unique strings and any accompanying selection names one of
+ * its members. Applied journal entries and the run surface each carry a survivor
+ * list plus an optional selectedCandidateId, so both route through here rather
+ * than restating the rule. This validates already-decoded input; the write-side
+ * runner still owns surface construction.
+ */
+function validSurvivorSet(
+  survivors: readonly string[] | undefined,
+  selected: unknown,
+): survivors is readonly string[] {
+  return !!survivors
+    && survivors.length > 0
+    && new Set(survivors).size === survivors.length
+    && (
+      selected === undefined
+      || (typeof selected === 'string' && survivors.includes(selected))
+    )
+}
+
+/*
+ * Read-side reason-code rule: a decoded reason list is admissible when it is a
+ * set of unique canonical codes within the count ceiling. Callers supply the
+ * list already parsed with the canonical grammar via stringArray(x, true).
+ */
+function validReasonCodes(
+  reasons: readonly string[] | undefined,
+): reasons is readonly string[] {
+  return !!reasons
+    && reasons.length <= MAX_DECISION_LAYER_REASON_CODES
+    && new Set(reasons).size === reasons.length
+}
+
+function validAppliedJournalEntry(
+  loose: Readonly<Record<string, unknown>>,
+): boolean {
+  const selectedKey = loose.selectedCandidateId === undefined
+    ? []
+    : ['selectedCandidateId']
+  const survivors = stringArray(loose.survivorCandidateIds)
+  const reasons = stringArray(loose.reasonCodes, true)
+  const attributed = refArray(loose.attributedComponents)
+  return (selectedKey.length === 1)
+      === Object.hasOwn(loose, 'selectedCandidateId')
+    && validSurvivorSet(survivors, loose.selectedCandidateId)
+    && validReasonCodes(reasons)
+    && !!attributed
+}
+
 function validJournalEntry(
   value: unknown,
   configured: DecisionLayerRef,
@@ -348,28 +398,7 @@ function validJournalEntry(
       ].includes(String(loose.failureCode))
   }
   if (loose.status !== 'applied') return false
-  const selectedKey = loose.selectedCandidateId === undefined
-    ? []
-    : ['selectedCandidateId']
-  const survivors = stringArray(loose.survivorCandidateIds)
-  const reasons = stringArray(loose.reasonCodes, true)
-  const attributed = refArray(loose.attributedComponents)
-  return (selectedKey.length === 1)
-      === Object.hasOwn(loose, 'selectedCandidateId')
-    && !!survivors
-    && survivors.length > 0
-    && new Set(survivors).size === survivors.length
-    && (
-      loose.selectedCandidateId === undefined
-      || (
-        typeof loose.selectedCandidateId === 'string'
-        && survivors.includes(loose.selectedCandidateId)
-      )
-    )
-    && !!reasons
-    && reasons.length <= MAX_DECISION_LAYER_REASON_CODES
-    && new Set(reasons).size === reasons.length
-    && !!attributed
+  return validAppliedJournalEntry(loose)
 }
 
 function decodeCanonicalDecisionLayerTrace(
@@ -399,19 +428,8 @@ function decodeCanonicalDecisionLayerTrace(
   const operations = frozenRecord(run.operations, OPERATION_KEYS)
   return surface
     && surface.version === DECISION_LAYER_SURFACE_VERSION
-    && survivors
-    && survivors.length > 0
-    && new Set(survivors).size === survivors.length
-    && (
-      surface.selectedCandidateId === undefined
-      || (
-        typeof surface.selectedCandidateId === 'string'
-        && survivors.includes(surface.selectedCandidateId)
-      )
-    )
-    && reasons
-    && reasons.length <= MAX_DECISION_LAYER_REASON_CODES
-    && new Set(reasons).size === reasons.length
+    && validSurvivorSet(survivors, surface.selectedCandidateId)
+    && validReasonCodes(reasons)
     && operations
     && OPERATION_KEYS.every((key) =>
       Number.isSafeInteger(operations[key])
