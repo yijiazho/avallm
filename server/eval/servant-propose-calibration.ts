@@ -45,8 +45,8 @@ import {
   roleObjectiveScorer,
   type CandidateScorer,
 } from '../agents/policy/score.ts'
-import { compareCandidateIds } from '../agents/policy/candidates.ts'
-import { legalCandidates } from '../agents/policy/candidates.ts'
+import { compareCandidateIds } from '../agents/candidate/candidates.ts'
+import { legalCandidates } from '../agents/candidate/candidates.ts'
 import {
   buildServantRoleUtilityProjection,
 } from '../agents/analysis/servant-role-utility.ts'

@@ -25,7 +25,7 @@ import {
   MORGANA_CLAIM,
   assertRoleClaimsPartition,
   type Applicability,
-} from '../policy/applicability.ts'
+} from '../candidate/applicability.ts'
 import {
   COMPATIBILITY_SCORE_LAYER,
   GOOD_ROLE_SCORE_LAYER,

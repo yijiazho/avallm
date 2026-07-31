@@ -28,7 +28,7 @@ import type {
 import {
   candidateTeams,
   legalCandidates,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import { applyForcedPolicy } from '../policy/forced.ts'
 import type { DecisionTrace } from '../trace.ts'
 

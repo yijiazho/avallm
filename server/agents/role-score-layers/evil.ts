@@ -5,7 +5,7 @@ import {
 import {
   EVIL_ROLE_UTILITY_COMPONENT,
 } from '../components/native-score-components.ts'
-import { compareCandidateIds } from '../policy/candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import { SEEDED_SELECTION_MARGIN } from '../canonical/probability-arithmetic.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
@@ -32,7 +32,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
-import { appliesFrom, EVIL_CLAIM } from '../policy/applicability.ts'
+import { appliesFrom, EVIL_CLAIM } from '../candidate/applicability.ts'
 
 export const EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
   'evil-role-score',

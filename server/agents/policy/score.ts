@@ -1,6 +1,6 @@
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
 import type { SituationAnalysis } from '../analysis/situation-types.ts'
-import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
+import type { ForcedPolicyResult, PolicyCandidate } from '../candidate/types.ts'
 import type {
   DecisionCandidateBoundary,
 } from './decision-layer/types.ts'
@@ -42,7 +42,7 @@ import {
   type GoodVoteFeatures,
   type GoodVoteSelectionMode,
 } from './good-score-contract.ts'
-import { compareCandidateIds } from './candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import { calculateCompatibilityBase } from './compatibility-score.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,

@@ -4,7 +4,7 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import type { ForcedPlayReasonCode } from '../analysis/situation-types.ts'
+import type { ForcedPlayReasonCode } from '../candidate/types.ts'
 import type {
   LanguageUtteranceChannel,
   PublicAttributedUtterance,

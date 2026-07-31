@@ -25,7 +25,7 @@
 
 import type { PlayerView, Seat } from '../../engine/types.ts'
 import { isCanonicalTeam } from '../../engine/seatset.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import { projectPublicRecord } from '../record/public-record.ts'
 import { buildPublicSelfRead } from './public-self-read.ts'
 import { PUBLIC_SELF_READ_VERSION } from './public-self-read-types.ts'

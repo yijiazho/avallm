@@ -18,7 +18,7 @@ import {
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
 import { canonicalRoleMultiset } from '../belief/worlds.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
   type PublicJointTeamAssessment,

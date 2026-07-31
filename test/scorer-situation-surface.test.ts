@@ -20,7 +20,7 @@ import {
 import {
   candidateIdForDecision,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   seededEvilRoleObjectiveScorer,
   seededGoodProposalVoteScorer,

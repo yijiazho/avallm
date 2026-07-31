@@ -122,7 +122,7 @@ import {
 } from '../components/native-score-components.ts'
 import {
   legalCandidates,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,

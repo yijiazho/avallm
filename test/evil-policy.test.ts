@@ -19,7 +19,7 @@ import {
   candidateTeams,
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   createProductionComponentRegistry,
 } from '../server/agents/components/production-registry.ts'

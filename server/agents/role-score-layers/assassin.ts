@@ -1,7 +1,7 @@
 import {
   ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
 } from '../components/native-role-components.ts'
-import { compareCandidateIds } from '../policy/candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import {
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
   assassinMerlinTargetScorer,
@@ -19,7 +19,7 @@ import {
   terminalForIdentities,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
-import { appliesFrom, ASSASSIN_CLAIM } from '../policy/applicability.ts'
+import { appliesFrom, ASSASSIN_CLAIM } from '../candidate/applicability.ts'
 
 export const ASSASSIN_MERLIN_TARGET_SCORE_LAYER = scoreLayerToken(
   'assassin-merlin-target-score',

@@ -43,7 +43,7 @@ import {
   advanceCognitionFromBelief,
   publicCognition,
 } from '../server/agents/cognition/state.ts'
-import { legalCandidates } from '../server/agents/policy/candidates.ts'
+import { legalCandidates } from '../server/agents/candidate/candidates.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { createGame } from '../server/engine/game.ts'
 import { EVIL_COUNT } from '../server/engine/rules.ts'

@@ -13,8 +13,8 @@ import { heuristicDecide } from '../server/agents/heuristic.ts'
 import {
   candidateIdForDecision,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
-import { LEGAL_CANDIDATE_VERSION } from '../server/agents/policy/types.ts'
+} from '../server/agents/candidate/candidates.ts'
+import { LEGAL_CANDIDATE_VERSION } from '../server/agents/candidate/types.ts'
 import { TEAM_SIZES } from '../server/engine/rules.ts'
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
@@ -323,7 +323,7 @@ test('the candidate surface is complete up to observable game equivalence', () =
 
 test('policy modules have no raw Game dependency', () => {
   for (const file of [
-    'server/agents/policy/candidates.ts',
+    'server/agents/candidate/candidates.ts',
     'server/agents/policy/forced.ts',
   ]) {
     const source = readFileSync(file, 'utf8')

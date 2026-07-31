@@ -55,12 +55,12 @@ import {
   type EvilExposureRead,
   type PrivatePinRead,
 } from '../analysis/private-pin-types.ts'
-import { legalCandidates } from '../policy/candidates.ts'
+import { legalCandidates } from '../candidate/candidates.ts'
 import {
   appliesFrom,
   ASSASSIN_CLAIM,
   MORDRED_CLAIM,
-} from '../policy/applicability.ts'
+} from '../candidate/applicability.ts'
 import {
   beliefIsExact,
   PRIVATE_BELIEF_INPUT,

@@ -3,7 +3,7 @@ import {
 } from '../components/robust-evil-quest-card.ts'
 import {
   candidateIdForDecision,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   decisionLayerToken,
   type DecisionLayerDefinition,

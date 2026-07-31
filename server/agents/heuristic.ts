@@ -18,9 +18,9 @@ import {
   candidateIdForDecision,
   candidateTeams,
   legalCandidates,
-} from './policy/candidates.ts'
+} from './candidate/candidates.ts'
 import { applyForcedPolicy, forcedVoteChoice } from './policy/forced.ts'
-import type { PolicyCandidate } from './policy/types.ts'
+import type { PolicyCandidate } from './candidate/types.ts'
 
 // ---- shared analysis helpers ----
 

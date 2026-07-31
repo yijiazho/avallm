@@ -18,7 +18,7 @@
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "418d0c2cc6dc30b2ce7838176e07b2e1387ddddc62269f5c5c450ff0e8aa2cfb",
+      "sha256": "04cac048a94a8b71c6313f81b6d27572b3cf5315e3f30afd1fd4fb5d190e4433",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "0e8f5e657c15cbecbcda451fc9b08e092090e4c1c36907e3313baccf7d211f91",
+      "sha256": "68f4c17dab97a76f69eaed4951e88c3cda72a3fd6c7f3b6214d76222907274dc",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "07685dc723a7c3567767bb1b9b268f0dd1c2b04ade6989ec633faad91266f7df",
+      "sha256": "76bc7a15805b788ac0bfce96eeec43ea159cb9e49893ab2377203fcd2026ec61",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -88,17 +88,17 @@
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "ec74baecef30f28a41ce01d6d51894da487ab591a64262d3d8b429a6e670d703",
+      "sha256": "8736d8a2bd9c74dd57895e506b691c3528d996828a6d45fbd8cf51caaa83d20c",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "1af60085b77b011e916f1cb540af67602a7c03b2d4de39e1d73da0397e02c51b",
+      "sha256": "041bc472a8b57345a48d3edf2b0b9ae4cd28634898ff6d37182c78239173d1dd",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "c61099acc8e7362813ecd2f228033486670cc86df2c39b4d7ae987910681e0c3",
+      "sha256": "0bcf1066a2ccf48a92d8b1248be2489f5abd7fed7020e8493464b2b7d93e03dc",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -118,17 +118,17 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "f1c42bada7a44f656f6fbd2371c6b5af1cc0b56ebfde972bd7fc7e13355ec186",
+      "sha256": "568bab766a9d1d28229049dce3d533691135cf944b967fbb64692b6595ed7da7",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "966f4ec62830a7144dff48f8589a269735b01aa98b97ab45503df1315ed7d58a",
+      "sha256": "f3efab2e5acd4302e81deb0a1a3416d3d4b2f1edb96d19fa348b85d3047f88c7",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "ddd9c0f4a51e6cd0b483d7df9c3adbc060b30cc66ce45cfdc5bce824a7770bfa",
+      "sha256": "b6309639be29b1601ec263b69267e681cc05eebb761d1257c3421b1a40ce5c2c",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "42e68cf737c1433c25bd7922cf9e8813ab4577ce10344992a5f7bcf9c772bcbb",
+      "sha256": "267e9d60c3661ae5a726caccbc6904034accb2d04fd81e8e5bfe3f1cc13095c9",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

@@ -124,7 +124,7 @@ import {
 import {
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { createGame } from '../server/engine/game.ts'
 import { DEFAULT_ROLES } from '../server/engine/rules.ts'
 import type { Role } from '../server/engine/types.ts'

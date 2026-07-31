@@ -19,7 +19,7 @@ import type { Immutable } from '../trusted-data.ts'
 import type {
   ForcedPolicyResult,
   PolicyCandidate,
-} from '../types.ts'
+} from '../../candidate/types.ts'
 
 declare const DECISION_LAYER_SURFACE_BRAND: unique symbol
 

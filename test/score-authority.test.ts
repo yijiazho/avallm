@@ -27,7 +27,7 @@ import {
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   buildScorerSituationSurface,
 } from '../server/agents/analysis/scorer-situation-surface.ts'

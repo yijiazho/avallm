@@ -4,8 +4,8 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { MAX_PROPOSALS } from '../../engine/rules.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
-import { compareCandidateIds } from '../policy/candidates.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import { JOINT_IDENTITY_MODEL_VERSION } from '../belief/identity.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './observer-types.ts'
 import { validatePrivateEvilRoleObjectiveSnapshot } from './evil-objectives.ts'

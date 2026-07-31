@@ -14,7 +14,7 @@ import {
   candidateTeams,
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -37,7 +37,7 @@ import {
 import {
   calculateGoodProposalVoteCandidateScores,
 } from '../server/agents/role-score-layers/good.ts'
-import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
+import type { ForcedPolicyResult } from '../server/agents/candidate/types.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import { createGame } from '../server/engine/game.ts'

@@ -8,7 +8,7 @@ import {
   type GoodProposalFeatures,
   type GoodVoteFeatures,
 } from './score.ts'
-import { compareCandidateIds } from './candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import {
   clampProbabilityOrZero as clampProbability,
   PROBABILITY_TOLERANCE,

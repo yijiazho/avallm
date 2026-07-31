@@ -61,7 +61,7 @@ import {
   selectedStrategicReasonCodes,
 } from '../server/agents/policy/communication-intent.ts'
 import { COMPOSED_POLICY_VERSION } from '../server/agents/brain.ts'
-import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
+import type { ForcedPolicyResult } from '../server/agents/candidate/types.ts'
 import {
   roleObjectiveScorer,
   type CandidateScore,

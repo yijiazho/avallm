@@ -7,9 +7,9 @@ import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
   candidateTeams,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
-import { FORCED_POLICY_VERSION } from '../server/agents/policy/types.ts'
+import { FORCED_POLICY_VERSION } from '../server/agents/candidate/types.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type {
   DecisionKind,

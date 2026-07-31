@@ -135,7 +135,7 @@ import {
 } from '../agents/policy/score.ts'
 import {
   legalCandidates,
-} from '../agents/policy/candidates.ts'
+} from '../agents/candidate/candidates.ts'
 import {
   authoritativeDecisionReplay,
   decisionTraceReplayJoin,

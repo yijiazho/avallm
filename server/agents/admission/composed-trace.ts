@@ -18,9 +18,9 @@ import type {
 } from '../../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
-  FORCED_PLAY_REASON_CODES,
   type SituationAnalysis,
 } from '../analysis/situation-types.ts'
+import { FORCED_PLAY_REASON_CODES } from '../candidate/types.ts'
 import {
   combineSituationAnalysisRequirements,
 } from '../analysis/situation-plan.ts'
@@ -30,7 +30,7 @@ import {
 import {
   LEGAL_CANDIDATE_VERSION,
   type ForcedPolicyResult,
-} from '../policy/types.ts'
+} from '../candidate/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
@@ -207,7 +207,7 @@ import {
   compareCandidateIds,
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   applyForcedPolicy,
 } from '../policy/forced.ts'

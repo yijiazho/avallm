@@ -5,18 +5,18 @@ import type {
 } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/seatset.ts'
 import type {
-  ForcedPlayReasonCode,
   SituationAnalysis,
 } from '../analysis/situation-types.ts'
+import type { ForcedPlayReasonCode } from '../candidate/types.ts'
 import {
   candidateIdForDecision,
   teamForCandidate,
-} from './candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   FORCED_POLICY_VERSION,
   type ForcedPolicyResult,
   type PolicyCandidate,
-} from './types.ts'
+} from '../candidate/types.ts'
 
 const ids = (candidates: readonly PolicyCandidate[]): readonly string[] =>
   candidates.map((candidate) => candidate.id)

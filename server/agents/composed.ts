@@ -154,7 +154,7 @@ import {
 import { heuristicDecide } from './heuristic.ts'
 import {
   candidateIdForDecision,
-} from './policy/candidates.ts'
+} from './candidate/candidates.ts'
 import {
   attributeCompatibilityRolePolicyUse,
   CompositionInvariantError,
@@ -233,7 +233,7 @@ import {
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,
-} from './policy/types.ts'
+} from './candidate/types.ts'
 import {
   finalizeProvisionalAppliedTrace,
   type DecisionTrace,

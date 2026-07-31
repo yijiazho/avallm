@@ -13,7 +13,7 @@ import {
   validateServantRoleUtilityProjection,
   SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
 } from '../server/agents/analysis/servant-role-utility.ts'
-import { legalCandidates } from '../server/agents/policy/candidates.ts'
+import { legalCandidates } from '../server/agents/candidate/candidates.ts'
 import { createHeuristicAgent } from '../server/agents/heuristic.ts'
 import {
   applyDecision,

@@ -11,11 +11,11 @@ import {
   LEGAL_CANDIDATE_VERSION,
   type PolicyCandidate,
   type ForcedPolicyResult,
-} from '../policy/types.ts'
+} from '../candidate/types.ts'
 import {
   candidateIdForDecision,
   compareCandidateIds,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   type CanonicalJsonValue,
 } from '../canonical/canonical-json.ts'

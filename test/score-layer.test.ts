@@ -46,10 +46,10 @@ import type {
 import type {
   ForcedPolicyResult,
   PolicyCandidate,
-} from '../server/agents/policy/types.ts'
+} from '../server/agents/candidate/types.ts'
 import {
   FORCED_POLICY_VERSION,
-} from '../server/agents/policy/types.ts'
+} from '../server/agents/candidate/types.ts'
 import type {
   DecisionRequest,
   PlayerView,

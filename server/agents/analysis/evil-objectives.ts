@@ -16,7 +16,7 @@ import {
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
 import { projectPublicRecord } from '../record/public-record.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import {
   exactHostJoin,
   projectionCodec,

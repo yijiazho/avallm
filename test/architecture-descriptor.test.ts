@@ -40,7 +40,7 @@ import {
 import {
   LEGAL_CANDIDATE_VERSION,
   FORCED_POLICY_VERSION,
-} from '../server/agents/policy/types.ts'
+} from '../server/agents/candidate/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   compatibilityCandidateScores,

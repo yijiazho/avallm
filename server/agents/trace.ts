@@ -13,7 +13,7 @@ import type {
 } from './belief/types.ts'
 import type { PolicyCandidateTeamAssessment } from './analysis/situation-types.ts'
 import type { CandidateScore } from './policy/score.ts'
-import type { ForcedPolicyResult } from './policy/types.ts'
+import type { ForcedPolicyResult } from './candidate/types.ts'
 import type { CommunicationIntent } from './policy/plan.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { PublicObserverSnapshot } from './analysis/observer-types.ts'

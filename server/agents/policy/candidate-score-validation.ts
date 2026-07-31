@@ -15,7 +15,7 @@ import {
 } from '../canonical/probability-arithmetic.ts'
 import { canonicalTeam } from '../../engine/seatset.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/situation-types.ts'
-import type { PolicyCandidate } from './types.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import {
   GOOD_PROPOSAL_FEATURE_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
@@ -33,7 +33,7 @@ import {
   type GoodVoteSelectionMode,
   type GoodVoteUtilityVersion,
 } from './good-score-contract.ts'
-import { compareCandidateIds } from './candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,

@@ -114,18 +114,18 @@ import { projectPublicRecord } from '../record/public-record.ts'
 import {
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   appliesFrom,
   merlinSeated,
   EVIL_CLAIM,
   MORGANA_CLAIM,
   SERVANT_CLAIM,
-} from '../policy/applicability.ts'
+} from '../candidate/applicability.ts'
 import {
   FORCED_POLICY_VERSION,
   type ForcedPolicyResult,
-} from '../policy/types.ts'
+} from '../candidate/types.ts'
 import {
   publicRoleProjection,
   roleProjection,

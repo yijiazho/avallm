@@ -45,11 +45,11 @@ import {
 import {
   candidateTeams,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   FORCED_POLICY_VERSION,
   type ForcedPolicyResult,
-} from '../server/agents/policy/types.ts'
+} from '../server/agents/candidate/types.ts'
 import {
   analyzeSituation,
 } from '../server/agents/analysis/situation.ts'

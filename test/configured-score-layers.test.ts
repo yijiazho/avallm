@@ -43,7 +43,7 @@ import {
 } from '../server/agents/role-score-layers/full-role.ts'
 import {
   compareCandidateIds,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   ASSASSIN_CLAIM,
   EVIL_CLAIM,
@@ -52,7 +52,7 @@ import {
   appliesFrom,
   assertRoleClaimsPartition,
   type Applicability,
-} from '../server/agents/policy/applicability.ts'
+} from '../server/agents/candidate/applicability.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from '../server/agents/score-diagnostics/project-score-diagnostics.ts'

@@ -57,7 +57,7 @@ import {
   candidateTeams,
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import { knownEvilOf, merlinCandidatesOf } from '../server/engine/knowledge.ts'
 import {

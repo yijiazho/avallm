@@ -30,7 +30,7 @@ import {
   candidateTeams,
   hypotheticalProposalCandidates,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from '../server/agents/score-diagnostics/project-score-diagnostics.ts'

@@ -6,7 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { isCanonicalTeam } from '../../engine/seatset.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import {
   assessPublicJointTeams,
   observePublicRecord,

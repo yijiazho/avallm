@@ -36,7 +36,7 @@ import type { PublicRecord } from '../server/agents/record/public-record.ts'
 import {
   candidateIdForDecision,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { CANDIDATE_SCORER_VERSION } from '../server/agents/policy/score.ts'
 import {
   parseExternalDecisionReply,

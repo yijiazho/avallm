@@ -18,7 +18,7 @@ import type {
   HiddenWorld,
 } from '../belief/types.ts'
 import type { Evidence } from '../cognition/types.ts'
-import { compareCandidateIds } from '../policy/candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import { alignmentOf, provenanceFor } from './deduction-provenance.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
@@ -33,6 +33,7 @@ import {
   type SituationAnalysis,
   type SituationTeamAssessment,
 } from './situation-types.ts'
+import type { ForcedPlayReasonCode } from '../candidate/types.ts'
 
 export function boardSituation(
   view: {

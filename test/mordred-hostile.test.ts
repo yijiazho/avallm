@@ -76,7 +76,7 @@ import {
 } from '../server/agents/admission/composed-trace.ts'
 import {
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   buildMessages,
 } from '../server/agents/prompts.ts'

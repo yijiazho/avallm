@@ -3,7 +3,7 @@ import {
 } from '../components/native-role-components.ts'
 import {
   compareCandidateIds,
-} from '../policy/candidates.ts'
+} from '../candidate/candidates.ts'
 import {
   stablePolicyBucket,
 } from '../policy/deterministic-policy.ts'
@@ -33,7 +33,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
-import { appliesFrom, MORDRED_CLAIM } from '../policy/applicability.ts'
+import { appliesFrom, MORDRED_CLAIM } from '../candidate/applicability.ts'
 
 export const MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
   'mordred-role-score',

@@ -64,7 +64,7 @@ import {
 } from '../policy/score.ts'
 import { sequenceEqual } from '../canonical/canonical-shape.ts'
 import { SEEDED_SELECTION_MARGIN } from '../canonical/probability-arithmetic.ts'
-import { compareCandidateIds } from '../policy/candidates.ts'
+import { compareCandidateIds } from '../candidate/candidates.ts'
 import { calculateCompatibilityBase } from '../policy/compatibility-score.ts'
 import type { DecisionKind } from '../../engine/types.ts'
 import { canonicalTeam } from '../../engine/seatset.ts'

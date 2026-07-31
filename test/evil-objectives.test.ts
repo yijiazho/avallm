@@ -38,7 +38,7 @@ import {
 } from '../server/agents/cognition/state.ts'
 import {
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   seededRoleObjectiveScorer,

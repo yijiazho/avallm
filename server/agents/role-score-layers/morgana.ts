@@ -26,7 +26,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
-import { appliesFrom, MORGANA_CLAIM } from '../policy/applicability.ts'
+import { appliesFrom, MORGANA_CLAIM } from '../candidate/applicability.ts'
 
 export const MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
   'morgana-role-score',

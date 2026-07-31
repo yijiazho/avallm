@@ -18,7 +18,7 @@ import {
   admitDecisionTrace,
 } from '../../server/agents/admission/composed-trace.ts'
 import type { CandidateScorer } from '../../server/agents/policy/score.ts'
-import { legalCandidates } from '../../server/agents/policy/candidates.ts'
+import { legalCandidates } from '../../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../../server/agents/policy/forced.ts'
 import {
   replayNativeScoresForAdmission,

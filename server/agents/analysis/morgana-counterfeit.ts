@@ -28,8 +28,8 @@ import {
   validatePublicCounterfeitMerlinReadHostJoin,
   validReadRow,
 } from './morgana-counterfeit-public-read.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
-import { candidateIdForDecision } from '../policy/candidates.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
+import { candidateIdForDecision } from '../candidate/candidates.ts'
 import {
   exactHostJoin,
   projectionCodec,

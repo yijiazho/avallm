@@ -23,7 +23,7 @@ import { isCoherenceIntent } from './cognition/coherence.ts'
 import type { LanguageTraceAttribution } from './communication/language-orchestration.ts'
 import type { DecisionPlan } from './policy/plan.ts'
 import type { CandidateScore } from './policy/score.ts'
-import type { ForcedPolicyResult } from './policy/types.ts'
+import type { ForcedPolicyResult } from './candidate/types.ts'
 import type { CompatibilityVoicedOutputProjection } from './policy/decision-frame.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,

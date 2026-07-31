@@ -28,7 +28,7 @@ import type { CandidateScore } from '../policy/score.ts'
 import type {
   DecisionCandidateBoundary,
 } from '../policy/decision-layer/types.ts'
-import type { ForcedPolicyResult, PolicyCandidate } from '../policy/types.ts'
+import type { ForcedPolicyResult, PolicyCandidate } from '../candidate/types.ts'
 import type {
   EvilExposureRead,
   PrivatePinRead,

@@ -3,7 +3,7 @@ import type { SituationAnalysis } from '../../analysis/situation-types.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
 import type { DecisionComponentDefinition } from '../../components/types.ts'
 import { detachTrustedPolicyData } from '../trusted-data.ts'
-import type { ForcedPolicyResult, PolicyCandidate } from '../types.ts'
+import type { ForcedPolicyResult, PolicyCandidate } from '../../candidate/types.ts'
 import type {
   DecisionCandidateBoundary,
 } from '../decision-layer/types.ts'

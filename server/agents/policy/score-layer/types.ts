@@ -23,7 +23,7 @@ import type { Immutable } from '../trusted-data.ts'
 import type {
   ForcedPolicyResult,
   PolicyCandidate,
-} from '../types.ts'
+} from '../../candidate/types.ts'
 import type {
   DecisionCandidateBoundary,
 } from '../decision-layer/types.ts'

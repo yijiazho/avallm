@@ -31,7 +31,7 @@ import {
 import {
   candidateIdForDecision,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   readDecisionFixtures,
 } from '../server/eval/decision-fixtures.ts'

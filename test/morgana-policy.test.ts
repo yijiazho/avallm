@@ -63,7 +63,7 @@ import {
 } from '../server/agents/policy/score.ts'
 import {
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import {
   EVIL_ROLE_UTILITY_CONSTANTS,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,

@@ -118,23 +118,10 @@ export const ANALYSIS_FACT_CODES = [
 ] as const
 export type AnalysisFactCode = typeof ANALYSIS_FACT_CODES[number]
 
-export const FORCED_PLAY_REASON_CODES = [
-  'GOOD_QUEST_CARD_FORCED_SUCCESS',
-  'EVIL_QUEST_CARD_CANNOT_SINK',
-  'EVIL_INSUFFICIENT_VISIBLE_QUOTA_HOLD',
-  'EVIL_SHARED_SLOW_PLAY_HOLD',
-  'EVIL_ROBUST_DECISIVE_FAIL',
-  'EVIL_ROBUST_LOCAL_SLOW_PLAY_FAIL',
-  'EVIL_ROBUST_LOCAL_SLOW_PLAY_HOLD',
-  'EVIL_MATCH_POINT_FAIL_AVAILABLE',
-  'GOOD_MATCH_POINT_FAIL_REQUIRED',
-  'EVIL_TEAM_CAN_SINK',
-  'EVIL_TEAM_CANNOT_SINK_GOOD_MATCH_POINT',
-  'EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED',
-  'EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED',
-  'HAMMER_TEAM_AUTOMATIC',
-] as const
-export type ForcedPlayReasonCode = typeof FORCED_PLAY_REASON_CODES[number]
+// FORCED_PLAY_REASON_CODES and ForcedPlayReasonCode moved down to
+// candidate/types.ts, which is where ForcedPolicyResult names them. Imported
+// back rather than re-exported, so the codes have one owner and one spelling.
+import type { ForcedPlayReasonCode } from '../candidate/types.ts'
 
 export interface SituationAnalysis extends BoardSituation {
   throughSeq: number

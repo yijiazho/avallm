@@ -1271,7 +1271,10 @@ test('shared layer registry skeleton stays confined and role-blind', () => {
         'import { layerToken } from "./policy/layer-registry-common.ts"',
       ],
       [
-        'server/agents/policy/types.ts',
+        // A policy file that is not one of the three owners. The specifier is
+        // resolved relative to this path, so the source has to sit in policy/
+        // for it to name the confined module at all.
+        'server/agents/policy/forced.ts',
         'import { layerToken } from "./layer-registry-common.ts"',
       ],
       [
@@ -1333,11 +1336,11 @@ test('concrete score families stay separate from observability and composition I
       ],
       [
         'server/agents/role-score-layers/legacy-row.ts',
-        'import type { CandidateScore } from "../policy/types.ts"',
+        'import type { CandidateScore } from "../candidate/types.ts"',
       ],
       [
         'server/agents/role-score-layers/legacy-namespace.ts',
-        `import type * as Legacy from "../policy/types.ts"
+        `import type * as Legacy from "../candidate/types.ts"
          type Row = Legacy.CandidateScore`,
       ],
       [

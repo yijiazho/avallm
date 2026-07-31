@@ -4,8 +4,8 @@ import type { Evidence } from '../cognition/types.ts'
 import {
   candidateTeams,
   hypotheticalProposalCandidates,
-} from '../policy/candidates.ts'
-import type { PolicyCandidate } from '../policy/types.ts'
+} from '../candidate/candidates.ts'
+import type { PolicyCandidate } from '../candidate/types.ts'
 import { analyzeSituation } from './situation.ts'
 import type { SituationAnalysisPlan } from './situation-plan.ts'
 import type { SituationAnalysis } from './situation-types.ts'

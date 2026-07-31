@@ -22,7 +22,7 @@ import {
   candidateIdForDecision,
   candidateTeams,
   legalCandidates,
-} from '../server/agents/policy/candidates.ts'
+} from '../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import {
   GOOD_PROPOSAL_SCORER_VERSION,

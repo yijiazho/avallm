@@ -68,7 +68,7 @@ import {
   exactBelief,
 } from '../server/agents/belief/exact.ts'
 import { projectPublicRecord } from '../server/agents/record/public-record.ts'
-import { legalCandidates } from '../server/agents/policy/candidates.ts'
+import { legalCandidates } from '../server/agents/candidate/candidates.ts'
 import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'

@@ -50,7 +50,7 @@ import {
   compareCandidateIds,
   legalCandidates,
   validateCandidateRequest,
-} from './candidates.ts'
+} from '../candidate/candidates.ts'
 import { applyForcedPolicy } from './forced.ts'
 import {
   DECISION_PLAN_VERSION,
@@ -72,7 +72,7 @@ import {
 import type {
   ForcedPolicyResult,
   PolicyCandidate,
-} from './types.ts'
+} from '../candidate/types.ts'
 
 export const DECISION_FRAME_VERSION = 'decision-frame-v1'
 /** Engine and simulator seeds are short; keep native policy host state bounded. */
