@@ -427,6 +427,11 @@ export type _LanguageTraceKeysSound =
  */
 type WithoutSeedBucket<T> = Omit<T, 'seedBucket'>
 
+/** A seed bucket is absent or one of the two seeded band positions. */
+function validSeedBucket(value: unknown): boolean {
+  return value === undefined || value === 0 || value === 1
+}
+
 const ROLE_OBJECTIVE_FEATURE_KEYS = [
   'version',
   'utilityVersion',
@@ -722,9 +727,6 @@ function validComponentVersions(value: unknown): boolean {
 function validPlanOutcomeTrace(
   value: unknown,
   trace: TraceValidationInput,
-  req: DecisionRequest,
-  decision: Decision,
-  hostView?: PlayerView,
 ): boolean {
   const components = componentVersionsOf(trace)
   // Stdio replies arrive before engine legality. A child cannot truthfully
@@ -986,6 +988,29 @@ function validBeliefPlayerMarginals(value: unknown): boolean {
   })
 }
 
+/**
+ * A per-team evil-count distribution: a probability vector one longer than the
+ * team, summing to one within tolerance, whose clean-team mass (index 0) matches
+ * the separately declared cleanProbability. Callers pass the already-narrowed
+ * team length and their own cleanProbability, and gate this behind their own
+ * `probability(cleanProbability)` check exactly as before.
+ */
+function validEvilCountDistribution(
+  distribution: unknown,
+  teamLen: number,
+  cleanProbability: number,
+): boolean {
+  return (
+    Array.isArray(distribution)
+    && distribution.length === teamLen + 1
+    && distribution.every(probability)
+    && Math.abs(
+      stableProbabilitySum(distribution, (mass) => mass) - 1,
+    ) <= PROBABILITY_TOLERANCE
+    && Math.abs(distribution[0] - cleanProbability) <= PROBABILITY_TOLERANCE
+  )
+}
+
 function validBeliefTeamAssessments(
   value: unknown,
   playerCount: number | undefined,
@@ -1014,13 +1039,11 @@ function validBeliefTeamAssessments(
       )
       && canonicalTraceSeats(team, playerCount)
       && probability(assessment.cleanProbability)
-      && Array.isArray(distribution)
-      && distribution.length === team.length + 1
-      && distribution.every(probability)
-      && Math.abs(
-        stableProbabilitySum(distribution, (mass) => mass) - 1,
-      ) <= PROBABILITY_TOLERANCE
-      && Math.abs(distribution[0] - assessment.cleanProbability) <= PROBABILITY_TOLERANCE
+      && validEvilCountDistribution(
+        distribution,
+        team.length,
+        assessment.cleanProbability,
+      )
       && canonicalTraceSeats(assessment.knownFailsAboard, playerCount, true)
   })
 }
@@ -1048,13 +1071,11 @@ function validCandidateScores(
       && Number.isInteger(features.beliefThroughSeq)
       && canonicalTraceSeats(team, playerCount)
       && probability(features.cleanProbability)
-      && Array.isArray(distribution)
-      && distribution.length === team.length + 1
-      && distribution.every(probability)
-      && Math.abs(
-        stableProbabilitySum(distribution, (mass) => mass) - 1,
-      ) <= PROBABILITY_TOLERANCE
-      && Math.abs(distribution[0] - features.cleanProbability) <= PROBABILITY_TOLERANCE
+      && validEvilCountDistribution(
+        distribution,
+        team.length,
+        features.cleanProbability,
+      )
     )
     const currentDistribution = features?.currentEvilCountDistribution
     const alternativeDistribution =
@@ -1102,15 +1123,11 @@ function validCandidateScores(
       && Number.isInteger(features.beliefThroughSeq)
       && canonicalTraceSeats(currentTeam, playerCount)
       && probability(features.currentCleanProbability)
-      && Array.isArray(currentDistribution)
-      && currentDistribution.length === currentTeam.length + 1
-      && currentDistribution.every(probability)
-      && Math.abs(
-        stableProbabilitySum(currentDistribution, (mass) => mass) - 1,
-      ) <= PROBABILITY_TOLERANCE
-      && Math.abs(
-        currentDistribution[0] - features.currentCleanProbability,
-      ) <= PROBABILITY_TOLERANCE
+      && validEvilCountDistribution(
+        currentDistribution,
+        currentTeam.length,
+        features.currentCleanProbability,
+      )
       && typeof features.bestAlternativeCandidateId === 'string'
       && features.bestAlternativeCandidateId.startsWith(
         `${LEGAL_CANDIDATE_VERSION}:propose:`,
@@ -1122,16 +1139,11 @@ function validCandidateScores(
       )
       && !isDeepStrictEqual(currentTeam, alternativeTeam)
       && probability(features.bestAlternativeCleanProbability)
-      && Array.isArray(alternativeDistribution)
-      && alternativeDistribution.length === alternativeTeam.length + 1
-      && alternativeDistribution.every(probability)
-      && Math.abs(
-        stableProbabilitySum(alternativeDistribution, (mass) => mass) - 1,
-      ) <= PROBABILITY_TOLERANCE
-      && Math.abs(
-        alternativeDistribution[0]
-        - features.bestAlternativeCleanProbability,
-      ) <= PROBABILITY_TOLERANCE
+      && validEvilCountDistribution(
+        alternativeDistribution,
+        alternativeTeam.length,
+        features.bestAlternativeCleanProbability,
+      )
       && !!boardScore
       && typeof boardScore === 'object'
       && Number.isInteger(boardScore.good)
@@ -1182,11 +1194,7 @@ function validCandidateScores(
           - Number(features.rejectUtility),
         ) <= GOOD_VOTE_UTILITY_CONSTANTS.viableBand
       )
-      && (
-        features.seedBucket === undefined
-        || features.seedBucket === 0
-        || features.seedBucket === 1
-      )
+      && validSeedBucket(features.seedBucket)
     )
     const validFeatures = features === undefined
       || validProposalFeatures
@@ -1241,11 +1249,7 @@ function validCandidateScores(
       && typeof role.inViableBand === 'boolean'
       && typeof role.selectionAdjustment === 'number'
       && Number.isFinite(role.selectionAdjustment)
-      && (
-        role.seedBucket === undefined
-        || role.seedBucket === 0
-        || role.seedBucket === 1
-      )
+      && validSeedBucket(role.seedBucket)
       && !!role.utility
       && typeof role.utility === 'object'
       && !Array.isArray(role.utility)
@@ -1277,11 +1281,7 @@ function validCandidateScores(
       && typeof evilRole.inViableBand === 'boolean'
       && typeof evilRole.selectionAdjustment === 'number'
       && Number.isFinite(evilRole.selectionAdjustment)
-      && (
-        evilRole.seedBucket === undefined
-        || evilRole.seedBucket === 0
-        || evilRole.seedBucket === 1
-      )
+      && validSeedBucket(evilRole.seedBucket)
       && !!evilRole.utility
       && typeof evilRole.utility === 'object'
       && !Array.isArray(evilRole.utility)
@@ -1323,11 +1323,7 @@ function validCandidateScores(
       && morganaRole.seededVoteCounterfeitBand
         === MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand
       && typeof morganaRole.selectedByPolicy === 'boolean'
-      && (
-        morganaRole.seedBucket === undefined
-        || morganaRole.seedBucket === 0
-        || morganaRole.seedBucket === 1
-      )
+      && validSeedBucket(morganaRole.seedBucket)
       && !!morganaRole.utility
       && typeof morganaRole.utility === 'object'
       && !Array.isArray(morganaRole.utility)
@@ -1904,7 +1900,7 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
   return true
 }
 
-function validGoodRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
   const { trace, scores, roleFeatureScores, components, componentRun, structured }
     = ctx
   if (roleFeatureScores.length > 0) {
@@ -2085,7 +2081,7 @@ function validGoodRoleFeatureScores(ctx: ComposedTraceContext): boolean {
   return true
 }
 
-function validEvilRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+function validEvilRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
   const { trace, scores, evilRoleFeatureScores, components, componentRun } = ctx
   if (evilRoleFeatureScores.length > 0) {
     const projection = (
@@ -2230,7 +2226,7 @@ function validEvilRoleFeatureScores(ctx: ComposedTraceContext): boolean {
   return true
 }
 
-function validMorganaRoleFeatureScores(ctx: ComposedTraceContext): boolean {
+function validMorganaRoleCompositeSelection(ctx: ComposedTraceContext): boolean {
   const {
     scores, morganaRoleFeatureScores, components, componentRun, structured, chosen,
   } = ctx
@@ -2613,9 +2609,9 @@ function validComposedTraceRelations(
     return false
   }
   if (!validCommunicationIntent(ctx)) return false
-  if (!validGoodRoleFeatureScores(ctx)) return false
-  if (!validEvilRoleFeatureScores(ctx)) return false
-  if (!validMorganaRoleFeatureScores(ctx)) return false
+  if (!validGoodRoleCompositeSelection(ctx)) return false
+  if (!validEvilRoleCompositeSelection(ctx)) return false
+  if (!validMorganaRoleCompositeSelection(ctx)) return false
   if (!validProposalFeatureScores(ctx)) return false
   if (!validVoteFeatureScores(ctx)) return false
   if (!validForcedPolicyRelation(ctx)) return false
@@ -2858,7 +2854,7 @@ function expectedNativeTraceStages(
   return undefined
 }
 
-function validGenericRoleComponents(
+function validGenericComponentRun(
   trace: DecisionTrace,
   hostView?: PlayerView,
 ): boolean {
@@ -3076,7 +3072,7 @@ function validGenericRoleComponents(
   return true
 }
 
-function validGenericRoleComponentsHostJoin(
+function validGenericComponentRunHostJoin(
   trace: DecisionTrace,
   req: DecisionRequest,
   view: PlayerView,
@@ -3162,7 +3158,7 @@ function validDecisionTrace(
       || typeof trace.statedReasoning === 'string'
     )
     && validComponentVersions(trace.componentVersions)
-    && validGenericRoleComponents(
+    && validGenericComponentRun(
       trace as unknown as DecisionTrace,
       fullHostView,
     )
@@ -3184,9 +3180,6 @@ function validDecisionTrace(
     && validPlanOutcomeTrace(
       trace.privatePlanOutcome,
       trace,
-      req,
-      decision,
-      fullHostView,
     )
     && validCandidateScores(trace.candidateScores, playerCount)
     && (
@@ -3327,8 +3320,8 @@ function validExactComposedTraceHostJoin(
             candidateBoundary: decisionLayerReplay.surface,
           }
         : policyHostSurface
-    const genericRoleComponentsValid = validGenericRoleComponents(trace, view)
-    const genericRoleHostJoinValid = validGenericRoleComponentsHostJoin(
+    const genericRoleComponentsValid = validGenericComponentRun(trace, view)
+    const genericRoleHostJoinValid = validGenericComponentRunHostJoin(
       trace,
       req,
       view,
@@ -3828,6 +3821,20 @@ function expectedNativeDiagnostics(
   })
 }
 
+/**
+ * For the exact, API-free role architecture, dependency failures are
+ * host-recomputable from the authoritative PlayerView. Do not admit a trace
+ * that hides a recoverable identity/objective/utility chain behind forged
+ * degradation labels. Language-weighted variants are deliberately excluded:
+ * their bounded external evidence must be validated by its own attribution
+ * path rather than reconstructed as exact cognition.
+ *
+ * Exact routed D1 dependencies are wholly reconstructable from PlayerView.
+ * Rebuild the mandatory hidden-team scope and reject coordinated deletion or
+ * scope substitution hidden behind degradation labels. Weighted dependencies
+ * remain externally attributable through their narrowly typed paired
+ * degradation because the host does not own their private world weights.
+ */
 function validateExactNativeScoreSurface(
   trace: DecisionTrace,
   req: DecisionRequest,
@@ -3896,21 +3903,6 @@ function validateExactNativeScoreSurface(
   }
 }
 
-/**
- * For the exact, API-free role architecture, dependency failures are
- * host-recomputable from the authoritative PlayerView. Do not admit a trace
- * that hides a recoverable identity/objective/utility chain behind forged
- * degradation labels. Language-weighted variants are deliberately excluded:
- * their bounded external evidence must be validated by its own attribution
- * path rather than reconstructed as exact cognition.
- */
-/**
- * Exact routed D1 dependencies are wholly reconstructable from PlayerView.
- * Rebuild the mandatory hidden-team scope and reject coordinated deletion or
- * scope substitution hidden behind degradation labels. Weighted dependencies
- * remain externally attributable through their narrowly typed paired
- * degradation because the host does not own their private world weights.
- */
 interface ExactPolicyHostSurface {
   readonly candidates: ReturnType<typeof legalCandidates>
   readonly analysis: SituationAnalysis
@@ -4111,7 +4103,7 @@ function validFinalizedDiagnosticDecisionTrace(
     && validDecisionTraceProvenance(candidate)
     && validComponentVersions(candidate.componentVersions)
     && validBeliefVersionRelation(candidate)
-    && validGenericRoleComponents(candidate, hostView)
+    && validGenericComponentRun(candidate, hostView)
     && validPublicObserverTrace(
       candidate.publicObserver,
       candidate,
