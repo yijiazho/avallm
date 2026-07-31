@@ -128,19 +128,44 @@ export function addProbability(
   accumulator.sum = next
 }
 
-/** Compensated total of a bounded probability support. */
-export function stableProbabilitySum<T>(
+/**
+ * Compensated total of any finite sequence, whatever the terms mean.
+ *
+ * The Neumaier step above is sign-agnostic and knows nothing about the unit
+ * interval; only the names around it were probability-specific. This exists
+ * because the belief layer has one long fold whose terms are honestly not
+ * probabilities: the entropy sum accumulates `p * log2(p)`, which is negative
+ * for every world. Running that through stableProbabilitySum would have worked
+ * and would have been a small lie in the callback's name and the helper's
+ * documented contract, on the same reasoning that gives clampProbability and
+ * clampProbabilityOrZero separate names for one line of arithmetic.
+ */
+export function compensatedSum<T>(
   values: Iterable<T>,
-  probabilityOf: (value: T) => number,
+  valueOf: (value: T) => number,
 ): number {
   const accumulator: CompensatedProbability = {
     sum: 0,
     compensation: 0,
   }
   for (const value of values) {
-    addProbability(accumulator, probabilityOf(value))
+    addProbability(accumulator, valueOf(value))
   }
   return accumulator.sum + accumulator.compensation
+}
+
+/**
+ * Compensated total of a bounded probability support.
+ *
+ * One implementation, two names: this is the fold above with a contract
+ * attached, and it stays the spelling every probability total uses so a reader
+ * can tell at the call site which of the two a sum claims to be.
+ */
+export function stableProbabilitySum<T>(
+  values: Iterable<T>,
+  probabilityOf: (value: T) => number,
+): number {
+  return compensatedSum(values, probabilityOf)
 }
 
 /**

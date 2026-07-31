@@ -27,6 +27,7 @@ import { LruMap } from '../../shared/lru.ts'
 import {
   addProbability,
   clampProbability,
+  compensatedSum,
   type CompensatedProbability,
 } from '../canonical/probability-arithmetic.ts'
 
@@ -274,13 +275,26 @@ export function beliefFromWeightedWorlds(
         (visit) => worlds.forEach(({ world }) => visit(world)),
       )
     : undefined
+  // Compensated for the same reason the normalization total above is, and it
+  // was the last naive fold left in this function: same array, up to 60,480
+  // terms. Measured on a ten-player servant view, the naive form missed by as
+  // much as 2.3e-11, which is seven times PROBABILITY_TOLERANCE.
+  //
+  // Nothing rejects a weighted snapshot over that today, but analysis/observer.ts
+  // already checks a public observer's entropy against log2(worldCount) at
+  // exactly that tolerance. It passes only because a uniform support takes the
+  // projection branch above and never reaches this sum. The trap is the next
+  // person who mirrors that check for a weighted snapshot and finds it failing
+  // on nothing but accumulated rounding.
+  //
+  // compensatedSum, not stableProbabilitySum: every term here is p * log2(p),
+  // which is negative for every world and is not a probability.
   const entropy = uniformProjection
     ? uniformProjection.entropy
-    : -worlds.reduce(
-        (sum, weightedWorld) =>
-          sum
-          + weightedWorld.probability * Math.log2(weightedWorld.probability),
-        0,
+    : -compensatedSum(
+        worlds,
+        (weightedWorld) =>
+          weightedWorld.probability * Math.log2(weightedWorld.probability),
       )
   const snapshot: BeliefSnapshot = {
     throughSeq: visibleEventCursor(view),

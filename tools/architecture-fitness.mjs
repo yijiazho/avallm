@@ -201,6 +201,7 @@ export const SHARED_ARITHMETIC_HELPER_NAMES = Object.freeze([
   'clampProbability',
   'clampProbabilityOrZero',
   'closeProbability',
+  'compensatedSum',
   'countLatticeTolerance',
   'latticeCount',
   'logWeightsToProbabilities',

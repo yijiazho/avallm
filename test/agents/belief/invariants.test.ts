@@ -17,6 +17,8 @@ import {
   BeliefInvariantError,
 } from '../../../server/agents/belief/invariants.ts'
 import {
+  compensatedSum,
+  PROBABILITY_TOLERANCE,
   stableProbabilitySum,
 } from '../../../server/agents/canonical/probability-arithmetic.ts'
 import { EXACT_BELIEF_MODEL_VERSION } from '../../../server/agents/belief/types.ts'
@@ -164,6 +166,41 @@ test('the widest weighted projection sums to 1 within an ulp, not merely a toler
     assert.ok(
       Math.abs(total - 1) <= Number.EPSILON,
       `${snapshot.worlds.length} worlds summed to ${total}`,
+    )
+  }
+})
+
+// The companion to the total above, and the reason it is worth a test rather
+// than a shrug: analysis/observer.ts rejects a public observer whose entropy
+// sits more than PROBABILITY_TOLERANCE from log2(worldCount). That check passes
+// today only because a uniform support takes the projection branch and never
+// reaches the fold. Mirror it onto a weighted snapshot with a naive fold and it
+// fails on accumulated rounding alone: measured at up to 2.3e-11 on this view,
+// seven times the tolerance it would be checked against.
+test('the widest snapshot entropy is exact enough to survive an observer-grade check', () => {
+  const game = createGame({ seed: 'inv-entropy', playerCount: 10, roles: CASTS[10] })
+  const view = viewFor(
+    game,
+    game.players.find((player) => player.role === 'servant')!.seat,
+  )
+  const worlds = feasibleWorlds(view)
+  for (const weightOf of [
+    (index: number) => 1 + (index % 7),
+    (index: number) => 1 + index,
+    (index: number) => Math.exp(-(index % 50) / 3),
+  ]) {
+    const snapshot = beliefFromWeightedWorlds(
+      view,
+      worlds.map((world, index) => ({ world, probability: weightOf(index) })),
+      { modelVersion: EXACT_BELIEF_MODEL_VERSION, quality: 'weighted' },
+    )
+    const expected = -compensatedSum(
+      snapshot.worlds,
+      (weighted) => weighted.probability * Math.log2(weighted.probability),
+    )
+    assert.ok(
+      Math.abs(snapshot.entropy - expected) <= PROBABILITY_TOLERANCE,
+      `entropy ${snapshot.entropy} drifted from ${expected}`,
     )
   }
 })

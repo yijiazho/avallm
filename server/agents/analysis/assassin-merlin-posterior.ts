@@ -206,6 +206,23 @@ export function buildPrivateEvilSeatMerlinPosterior(input: {
   const scale = rawSpan > ASSASSIN_BEHAVIOR_LOG_WEIGHT_CAP
     ? ASSASSIN_BEHAVIOR_LOG_WEIGHT_CAP / rawSpan
     : 1
+  // Subtract the maximum, exponentiate, normalize. That is the shape of
+  // components/probability-arithmetic.ts's logWeightsToProbabilities, and this
+  // deliberately does not use it.
+  //
+  // Three reasons, none of them stylistic. The weight here multiplies a prior
+  // in linear space, so the log-space spelling would be log(prior) + weight,
+  // and log(0) is -Infinity on exactly the visible-evil rows this function
+  // keeps at mass zero and carries through so every seat appears in `targets`;
+  // the shared normalizer rejects a non-finite weight, correctly. The cap is a
+  // span rescale that preserves the relative spacing of every candidate, not
+  // the per-row clamp capLogLikelihood applies. And the denominator below is
+  // already compensated, which was the defect the shared core was consolidated
+  // to fix, so there is nothing left to inherit.
+  //
+  // What would be inherited is a log/exp round trip on the input to the
+  // assassination shot, in exchange for sharing four lines. Left alone on
+  // purpose; this note is here so the resemblance does not get re-litigated.
   const weighted = rows.map((row) => {
     const cappedBehaviorLogWeight = row.priorProbability === 0
       ? 0
