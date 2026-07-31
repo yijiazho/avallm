@@ -9,7 +9,6 @@ import {
   isProxy,
 } from 'node:util/types'
 import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
-import { hasDistinctSeats } from '../../engine/seatset.ts'
 import type {
   Decision,
   DecisionRequest,
@@ -17,7 +16,6 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import { isRole } from '../../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
@@ -63,7 +61,6 @@ import {
 } from '../policy/score.ts'
 import {
   canonicalSeats,
-  denseArray,
   exactKeys,
   onlyAllowedKeys,
   probability,
@@ -107,19 +104,21 @@ import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_INTERPRETER_INPUT_VERSION,
 } from '../communication/language-types.ts'
+import { projectLanguageInterpreterInput } from '../communication/language-contract.ts'
 import {
-  projectLanguageInterpreterInput,
-  recentPublicUtterances,
-} from '../communication/language-contract.ts'
-import {
-  COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,
-  communicationActAllowed,
   communicationFactProjection,
   plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
+  type PlannerCommunicationDirection,
+  type PublicEvidenceReference,
 } from '../policy/plan.ts'
+import {
+  communicationDirectionFailure,
+  directionChannelFor,
+  publicEvidenceExists,
+} from '../communication/direction-contract.ts'
 import {
   DECISION_FRAME_VERSION,
   mechanicalDecision,
@@ -534,6 +533,34 @@ const COMMUNICATION_INTENT_KEYS = [
   'uncertainty',
   'tone',
 ] as const satisfies ExactKeyList<CommunicationIntent>
+/**
+ * What a CommunicationIntent adds to the direction the shared contract owns.
+ *
+ * Passed to that contract so it admits these four keys and leaves them to the
+ * rules below. Derived from the two types, so moving a field between them
+ * cannot leave this list behind.
+ */
+const COMMUNICATION_INTENT_ONLY_KEYS = [
+  'safeFactCodes',
+  'conceal',
+  'strategicReasonCodes',
+  'uncertainty',
+] as const satisfies readonly Exclude<
+  keyof CommunicationIntent,
+  keyof PlannerCommunicationDirection
+>[]
+/*
+ * `satisfies` proves every listed key is intent-only; this proves the list is
+ * all of them. Without it a new intent-only field compiles clean here and then
+ * fails every admission at runtime, because the shared contract would see a key
+ * neither half claimed.
+ */
+export type _CommunicationIntentOnlyKeysComplete = AssertNever<
+  Exclude<
+    Exclude<keyof CommunicationIntent, keyof PlannerCommunicationDirection>,
+    typeof COMMUNICATION_INTENT_ONLY_KEYS[number]
+  >
+>
 export type _CommunicationIntentKeysSound =
   | AssertNever<
       MissingKeys<CommunicationIntent, typeof COMMUNICATION_INTENT_KEYS>
@@ -1602,47 +1629,16 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
     if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
       return false
     }
-    const expectedChannel =
-      action.kind === 'discuss' ? 'discussion'
-        : action.kind === 'propose' ? 'proposal-pitch'
-          : action.kind === 'finalize' && action.stick === false
-            ? 'revision-reason'
-            : undefined
+    const expectedChannel = directionChannelFor(
+      action.kind as string,
+      action.stick as boolean | undefined,
+    )
     const facts = trace.factCodes as string[]
     const projection = communicationFactProjection(facts)
     const strategicReasons = intent.strategicReasonCodes
-    const actCodes = intent.actCodes
-    const evidenceRefs = intent.evidenceRefs
     const publicInput = hostView
       ? projectLanguageInterpreterInput(hostView)
       : undefined
-    const evidenceExists = (reference: Record<string, unknown>): boolean => {
-      if (!publicInput) return true
-      if (reference.kind === 'utterance') {
-        return recentPublicUtterances(publicInput).some(
-          (utterance) => utterance.sourceSeq === reference.sourceSeq,
-        )
-      }
-      if (reference.kind === 'proposal') {
-        return publicInput.publicContext.proposals.some(
-          (proposal) => proposal.round === reference.round
-            && proposal.proposalNum === reference.proposalNum,
-        )
-      }
-      if (reference.kind === 'proposal-vote') {
-        return publicInput.publicContext.proposals.some(
-          (proposal) => proposal.outcome === 'voted'
-            && proposal.round === reference.round
-            && proposal.proposalNum === reference.proposalNum
-            && proposal.votes.some((vote) => vote.seat === reference.seat),
-        )
-      }
-      return reference.kind === 'quest'
-        && publicInput.publicContext.quests.some(
-          (quest) => quest.num === reference.questNum
-            && quest.result !== undefined,
-        )
-    }
     const decisionLayerRun =
       trace.decisionLayerRun as Record<string, unknown> | undefined
     const decisionLayerSurface =
@@ -1663,116 +1659,36 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
         : []),
       ...committedPolicyReasons,
     ]
+    // The direction half of the intent is the shared contract, checked with
+    // everything this boundary knows: the committed action's channel, the table
+    // size, the host's deal, and the host's public record. A host that supplied
+    // no view leaves the last two unanswerable, so those capabilities are
+    // omitted rather than faked, and the structural rules still apply.
+    //
+    // Seat lists here are bounded and dense but deliberately not canonicalSeats.
+    // A planner names the seats it is addressing in whatever order it chose, and
+    // a discussion intent addresses nobody, so ascending order and non-emptiness
+    // are the two parts of the canonical contract this list does not carry.
+    if (communicationDirectionFailure(intent, {
+      allowedChannels: expectedChannel === undefined ? [] : [expectedChannel],
+      additionalKeys: COMMUNICATION_INTENT_ONLY_KEYS,
+      ...(playerCount === undefined
+        ? {}
+        : { seatExists: (seat: Seat) => seat < playerCount }),
+      ...(hostRolesInPlay === undefined
+        ? {}
+        : { rolesInPlay: hostRolesInPlay }),
+      ...(publicInput === undefined
+        ? {}
+        : {
+            evidenceExists: (reference: PublicEvidenceReference) =>
+              publicEvidenceExists(reference, publicInput),
+          }),
+    }) !== undefined) {
+      return false
+    }
     if (
       !onlyAllowedKeys(intent, COMMUNICATION_INTENT_KEYS)
-      ||
-      intent.version !== COMMUNICATION_INTENT_VERSION
-      || intent.channel !== expectedChannel
-      // Bounded and dense, but deliberately not canonicalSeats. A planner names
-      // the seats it is addressing in whatever order it chose, and a discussion
-      // intent addresses nobody, so ascending order and non-emptiness are the
-      // two parts of the canonical contract this list does not carry. The bound
-      // is the part that was missing. Distinctness is the engine's predicate,
-      // which is why it is not spelled out again here.
-      || !denseArray(intent.targetSeats)
-      || !intent.targetSeats.every(
-        (seat) =>
-          Number.isSafeInteger(seat)
-          && (seat as number) >= 0
-          && (playerCount === undefined || (seat as number) < playerCount),
-      )
-      || !hasDistinctSeats(intent.targetSeats as readonly Seat[])
-      || !Array.isArray(actCodes)
-      || actCodes.length === 0
-      || new Set(actCodes).size !== actCodes.length
-      || !actCodes.every((code) =>
-        typeof code === 'string'
-        && expectedChannel !== undefined
-        && communicationActAllowed(expectedChannel, code))
-      || !Array.isArray(evidenceRefs)
-      || evidenceRefs.length > 8
-      || evidenceRefs.some((reference) => {
-        if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
-          return true
-        }
-        const raw = reference as Record<string, unknown>
-        if (raw.kind === 'utterance') {
-          return !onlyAllowedKeys(raw, ['kind', 'sourceSeq'])
-            || !Number.isSafeInteger(raw.sourceSeq)
-            || (raw.sourceSeq as number) < 0
-        }
-        if (raw.kind === 'proposal') {
-          return !onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum'])
-            || !Number.isSafeInteger(raw.round)
-            || (raw.round as number) < 1
-            || !Number.isSafeInteger(raw.proposalNum)
-            || (raw.proposalNum as number) < 1
-            || (raw.proposalNum as number) > MAX_PROPOSALS
-        }
-        if (raw.kind === 'proposal-vote') {
-          return !onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum', 'seat'])
-            || !Number.isSafeInteger(raw.round)
-            || (raw.round as number) < 1
-            || !Number.isSafeInteger(raw.proposalNum)
-            || (raw.proposalNum as number) < 1
-            || (raw.proposalNum as number) > MAX_PROPOSALS
-            || !Number.isSafeInteger(raw.seat)
-            || (raw.seat as number) < 0
-            || (
-              playerCount !== undefined
-              && (raw.seat as number) >= playerCount
-            )
-        }
-        if (raw.kind === 'quest') {
-          return !onlyAllowedKeys(raw, ['kind', 'questNum'])
-            || !Number.isSafeInteger(raw.questNum)
-            || (raw.questNum as number) < 1
-            || (raw.questNum as number) > 5
-        }
-        return true
-      })
-      || evidenceRefs.some((reference) =>
-        !evidenceExists(reference as Record<string, unknown>))
-      || new Set(evidenceRefs.map((reference) => JSON.stringify(reference))).size
-        !== evidenceRefs.length
-      || (
-        actCodes.includes('PASS')
-        && (
-          actCodes.length !== 1
-          || intent.targetSeats.length !== 0
-          || evidenceRefs.length !== 0
-        )
-      )
-      || (
-        actCodes.some((code) =>
-          code === 'EXPRESS_SUSPICION'
-          || code === 'EXPRESS_TRUST'
-          || code === 'RESPOND_TO_PLAYER')
-        && intent.targetSeats.length === 0
-      )
-      || (actCodes.includes('CLAIM_ROLE') !== (intent.claimedRole !== undefined))
-      || (intent.claimedRole !== undefined && !isRole(intent.claimedRole))
-      || (
-        intent.claimedRole !== undefined
-        && hostRolesInPlay !== undefined
-        && !hostRolesInPlay.includes(intent.claimedRole as Role)
-      )
-      || (
-        (
-          actCodes.includes('WARN_ROLE_EXPOSURE')
-          || actCodes.includes('DISCUSS_ROLE_STRATEGY')
-        ) !== (intent.roleTopic !== undefined)
-      )
-      || (intent.roleTopic !== undefined && !isRole(intent.roleTopic))
-      || (
-        intent.roleTopic !== undefined
-        && hostRolesInPlay !== undefined
-        && !hostRolesInPlay.includes(intent.roleTopic as Role)
-      )
-      || (
-        actCodes.includes('WARN_ROLE_EXPOSURE')
-        && intent.roleTopic !== 'merlin'
-      )
       || !stringArray(intent.safeFactCodes)
       || new Set(intent.safeFactCodes as string[]).size
         !== (intent.safeFactCodes as string[]).length
@@ -1787,7 +1703,6 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
       || strategicReasons.some(
         (reason) => !availableStrategicReasons.includes(reason),
       )
-      || intent.tone !== 'natural'
     ) {
       return false
     }

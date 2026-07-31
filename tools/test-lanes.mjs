@@ -81,6 +81,7 @@ const LANES = Object.freeze({
     'decision-layer.test.ts',
     'decision-scenario.test.ts',
     'decision-trace.test.ts',
+    'direction-contract.test.ts',
     'evil-objectives.test.ts',
     'evil-policy.test.ts',
     'full-role-brain.test.ts',

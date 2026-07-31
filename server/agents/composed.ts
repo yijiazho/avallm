@@ -3,7 +3,6 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../engine/types.ts'
-import { hasDistinctSeats } from '../engine/seatset.ts'
 import { isDeepStrictEqual } from 'node:util'
 import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
@@ -40,7 +39,6 @@ import {
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateEvilRoleUtilityProjection,
 } from './analysis/evil-role-utility.ts'
-import { onlyAllowedKeys } from './components/canonical-shape.ts'
 import {
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -65,7 +63,6 @@ import {
 } from './belief/language-factor.ts'
 import { COMPOSED_POLICY_VERSION } from './brain.ts'
 import {
-  attributeComponentPolicyUse,
   attributeComponentPolicyUseBatch,
   componentPayload,
   decisionComponentPlan,
@@ -80,7 +77,6 @@ import {
   GOOD_ROLE_OBJECTIVE_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-  MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
   PRIVATE_BELIEF_INPUT,
@@ -141,6 +137,12 @@ import type {
 } from './communication/language-types.ts'
 import { projectPublicRecord } from './communication/public-record.ts'
 import {
+  directionChannelFor,
+  publicEvidenceExists,
+  validCommunicationDirection,
+  type CommunicationDirectionContext,
+} from './communication/direction-contract.ts'
+import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
   composedPolicyContext,
@@ -153,11 +155,14 @@ import {
   candidateIdForDecision,
 } from './policy/candidates.ts'
 import {
+  attributeCompatibilityRolePolicyUse,
+  CompositionInvariantError,
+} from './policy/role-adapter-attribution.ts'
+import {
   type EvilQuestCardPolicyMode,
 } from './policy/evil-quest-card.ts'
 import {
   COMMUNICATION_INTENT_VERSION,
-  communicationActAllowed,
   DECISION_PLAN_VERSION,
   defaultCommunicationIntent,
   plannerOverrideReasonCodes,
@@ -165,8 +170,6 @@ import {
   voiceUncertainty,
   type CommittedVoicePlan,
   type DecisionPlan,
-  type PlannerCommunicationDirection,
-  type PublicEvidenceReference,
 } from './policy/plan.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -489,111 +492,6 @@ function scorerRequires(
   return false
 }
 
-function attributeCompatibilityRolePolicyUse(
-  run: DecisionComponentRun,
-  appliedScorer: CandidateScorer,
-  scores: readonly CandidateScore[],
-  morganaRoleUtilityComponent:
-    typeof MORGANA_ROLE_UTILITY_COMPONENT | undefined,
-): DecisionComponentRun {
-  const goodUsed =
-    appliedScorer.roleUtilityRequirement
-      === ROLE_UTILITY_PROJECTION_VERSION
-    && scores.every((score) => score.roleObjectiveFeatures !== undefined)
-  const evilUsed =
-    appliedScorer.evilRoleUtilityRequirement
-      === EVIL_ROLE_UTILITY_PROJECTION_VERSION
-    && scores.every((score) =>
-      score.evilRoleObjectiveFeatures !== undefined
-      || (
-        (
-          appliedScorer.morganaRoleUtilityRequirement
-            === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-        )
-        && score.morganaRoleObjectiveFeatures !== undefined
-      ))
-  const morganaUsed =
-    appliedScorer.morganaRoleUtilityRequirement
-      === MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-    && scores.every(
-      (score) => score.morganaRoleObjectiveFeatures !== undefined,
-    )
-  let attributed = run
-  if (goodUsed) {
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      GOOD_ROLE_OBJECTIVE_COMPONENT,
-      'candidate-score',
-    )
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      GOOD_ROLE_UTILITY_COMPONENT,
-      'candidate-score',
-    )
-  }
-  if (evilUsed) {
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      EVIL_ROLE_OBJECTIVE_COMPONENT,
-      'candidate-score',
-    )
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      EVIL_ROLE_UTILITY_COMPONENT,
-      'candidate-score',
-    )
-  }
-  if (morganaUsed) {
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
-      'candidate-score',
-    )
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
-      'candidate-score',
-    )
-    attributed = attributeComponentPolicyUse(
-      attributed,
-      morganaRoleUtilityComponent!,
-      'candidate-score',
-    )
-  }
-  const used = new Map(
-    attributed.policyUse.map((entry) => [entry.component.id, entry.used]),
-  )
-  if (
-    (
-      used.has(GOOD_ROLE_OBJECTIVE_COMPONENT.id)
-      && used.get(GOOD_ROLE_OBJECTIVE_COMPONENT.id) !== goodUsed
-    )
-    || (
-      used.has(GOOD_ROLE_UTILITY_COMPONENT.id)
-      && used.get(GOOD_ROLE_UTILITY_COMPONENT.id) !== goodUsed
-    )
-    || (
-      used.has(EVIL_ROLE_OBJECTIVE_COMPONENT.id)
-      && used.get(EVIL_ROLE_OBJECTIVE_COMPONENT.id) !== evilUsed
-    )
-    || (
-      used.has(EVIL_ROLE_UTILITY_COMPONENT.id)
-      && used.get(EVIL_ROLE_UTILITY_COMPONENT.id) !== evilUsed
-    )
-    || (
-      used.has(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
-      && used.get(MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id)
-        !== morganaUsed
-    )
-    || [MORGANA_ROLE_UTILITY_COMPONENT, MORGANA_ROLE_UTILITY_SEEDED_COMPONENT]
-      .some((token) =>
-        used.has(token.id) && used.get(token.id) !== morganaUsed)
-  ) {
-    throw new Error('generic adapter causal policy-use mismatch')
-  }
-  return attributed
-}
-
 function attributeRoleActionSelection(
   run: DecisionComponentRun,
 ): DecisionComponentRun {
@@ -624,121 +522,30 @@ function validComponentVersion(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
-function validPlannerCommunication(
-  value: PlannerCommunicationDirection | undefined,
+/**
+ * What this seat knows about the table, for the shared direction contract.
+ *
+ * The rules themselves live in communication/direction-contract.ts, which three
+ * boundaries share. This seat can answer every question the contract asks, so
+ * every optional capability is supplied: an unknown seat, a role that was never
+ * dealt, and a citation of a fact the table cannot see are all rejected here
+ * even though the reply parser upstream cannot see far enough to reject them.
+ */
+function plannerCommunicationContext(
   decision: Decision,
   view: PlayerView,
-): value is PlannerCommunicationDirection {
-  const expectedChannel =
-    decision.kind === 'discuss' ? 'discussion'
-      : decision.kind === 'propose' ? 'proposal-pitch'
-        : decision.kind === 'finalize' && !decision.stick
-          ? 'revision-reason'
-          : undefined
+): CommunicationDirectionContext {
   const publicInput = projectLanguageInterpreterInput(view)
-  const evidenceKey = (reference: PublicEvidenceReference): string =>
-    JSON.stringify(reference)
-  const validEvidenceReference = (reference: unknown): boolean => {
-    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
-      return false
-    }
-    const raw = reference as Record<string, unknown>
-    if (raw.kind === 'utterance') {
-      return onlyAllowedKeys(raw, ['kind', 'sourceSeq'])
-        && Number.isSafeInteger(raw.sourceSeq)
-        && recentPublicUtterances(publicInput).some(
-          (utterance) => utterance.sourceSeq === raw.sourceSeq,
-        )
-    }
-    if (raw.kind === 'proposal') {
-      return onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum'])
-        && publicInput.publicContext.proposals.some(
-          (proposal) => proposal.round === raw.round
-            && proposal.proposalNum === raw.proposalNum,
-        )
-    }
-    if (raw.kind === 'proposal-vote') {
-      return onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum', 'seat'])
-        && publicInput.publicContext.proposals.some(
-          (proposal) => proposal.outcome === 'voted'
-            && proposal.round === raw.round
-            && proposal.proposalNum === raw.proposalNum
-            && proposal.votes.some((vote) => vote.seat === raw.seat),
-        )
-    }
-    if (raw.kind === 'quest') {
-      return onlyAllowedKeys(raw, ['kind', 'questNum'])
-        && publicInput.publicContext.quests.some(
-          (quest) => quest.num === raw.questNum && quest.result !== undefined,
-        )
-    }
-    return false
-  }
-  const acts = value?.actCodes ?? []
-  const hasAct = (code: string): boolean => acts.includes(code as never)
-  const pass = hasAct('PASS')
-  const needsTargets = acts.some((code) =>
-    code === 'EXPRESS_SUSPICION'
-    || code === 'EXPRESS_TRUST'
-    || code === 'RESPOND_TO_PLAYER')
-  const needsClaimedRole = hasAct('CLAIM_ROLE')
-  const needsRoleTopic = hasAct('WARN_ROLE_EXPOSURE')
-    || hasAct('DISCUSS_ROLE_STRATEGY')
-  return (
-    expectedChannel !== undefined
-    &&
-    !!value
-    && onlyAllowedKeys(value, [
-      'version',
-      'channel',
-      'targetSeats',
-      'actCodes',
-      'evidenceRefs',
-      'claimedRole',
-      'roleTopic',
-      'tone',
-    ])
-    && value.version === COMMUNICATION_INTENT_VERSION
-    && value.channel === expectedChannel
-    && Array.isArray(value.targetSeats)
-    && hasDistinctSeats(value.targetSeats)
-    && value.targetSeats.every(
-      (seat) => Number.isInteger(seat)
-        && view.players.some((player) => player.seat === seat),
-    )
-    && Array.isArray(value.actCodes)
-    && value.actCodes.length > 0
-    && new Set(value.actCodes).size === value.actCodes.length
-    && value.actCodes.every(
-      (code) =>
-        typeof code === 'string'
-        && communicationActAllowed(expectedChannel, code),
-    )
-    && (!pass || value.actCodes.length === 1)
-    && (!pass || value.targetSeats.length === 0)
-    && (!needsTargets || value.targetSeats.length > 0)
-    && Array.isArray(value.evidenceRefs)
-    && value.evidenceRefs.length <= 8
-    && value.evidenceRefs.every(validEvidenceReference)
-    && new Set(value.evidenceRefs.map(evidenceKey)).size
-      === value.evidenceRefs.length
-    && (needsClaimedRole === (value.claimedRole !== undefined))
-    && (
-      value.claimedRole === undefined
-      || view.rolesInPlay.includes(value.claimedRole)
-    )
-    && (needsRoleTopic === (value.roleTopic !== undefined))
-    && (
-      value.roleTopic === undefined
-      || view.rolesInPlay.includes(value.roleTopic)
-    )
-    && (
-      !hasAct('WARN_ROLE_EXPOSURE')
-      || value.roleTopic === 'merlin'
-    )
-    && (!pass || value.evidenceRefs.length === 0)
-    && value.tone === 'natural'
+  const channel = directionChannelFor(
+    decision.kind,
+    decision.kind === 'finalize' ? decision.stick : undefined,
   )
+  return {
+    allowedChannels: channel === undefined ? [] : [channel],
+    seatExists: (seat) => view.players.some((player) => player.seat === seat),
+    rolesInPlay: view.rolesInPlay,
+    evidenceExists: (reference) => publicEvidenceExists(reference, publicInput),
+  }
 }
 
 function validPlannerReasons(
@@ -1051,10 +858,9 @@ async function resolvePlannerChoice(input: {
       }
     }
     const communication = planned.communication !== undefined
-      && validPlannerCommunication(
+      && validCommunicationDirection(
         planned.communication,
-        plannedCandidate.decision,
-        view,
+        plannerCommunicationContext(plannedCandidate.decision, view),
       )
       ? structuredClone(planned.communication)
       : undefined
@@ -2154,7 +1960,15 @@ export function createComposedAgent(
                 }
               },
             )
-          } catch {
+          } catch (error) {
+            // This catch owns one thing: a custom scorer that returned output
+            // this composition cannot use, which degrades to the native scorer.
+            // An inconsistency in our own policy-use bookkeeping is not that,
+            // and silently spending the scorer-fault budget on it would report
+            // the plugin as the culprit and continue on a fallback that fixes
+            // nothing. It leaves as itself; the agent boundary above records
+            // the message and falls back to the heuristic.
+            if (error instanceof CompositionInvariantError) throw error
             degradation.push('scorer-invalid-output')
             if (fallbackDegradation) degradation.push(fallbackDegradation)
           }

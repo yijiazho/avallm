@@ -1,20 +1,15 @@
 import type { OpenRouterClient } from '../../llm/openrouter.ts'
-import { ROLES, isRole, type Role, type Seat } from '../../engine/types.ts'
-import { hasDistinctSeats } from '../../engine/seatset.ts'
+import { ROLES, isRole, type Role } from '../../engine/types.ts'
 import {
   COMMUNICATION_ACT_CODES,
   COMMUNICATION_INTENT_VERSION,
-  communicationActAllowed,
-  type CommunicationActCode,
   type CommittedVoicePlan,
   type PlannerCommunicationDirection,
-  type PublicEvidenceReference,
 } from '../policy/plan.ts'
+import { validCommunicationDirection } from './direction-contract.ts'
+import { LANGUAGE_UTTERANCE_CHANNELS } from './language-types.ts'
 import type { ComposedPolicyContext } from './composed-renderer.ts'
-import {
-  onlyAllowedKeys,
-  plainRecord,
-} from '../components/canonical-shape.ts'
+import { onlyAllowedKeys } from '../components/canonical-shape.ts'
 import {
   PLAYER_REFERENCE_NORMS,
   TABLE_TALK_NORMS,
@@ -103,140 +98,36 @@ function parseObject(content: string): Record<string, unknown> | undefined {
   }
 }
 
-function safePositiveInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) >= 0
-}
-
-function evidenceReference(
-  value: unknown,
-): PublicEvidenceReference | undefined {
-  if (!plainRecord(value) || typeof value.kind !== 'string') return undefined
-  if (value.kind === 'utterance') {
-    return onlyAllowedKeys(value, ['kind', 'sourceSeq'])
-      && safePositiveInteger(value.sourceSeq)
-      ? { kind: 'utterance', sourceSeq: value.sourceSeq }
-      : undefined
-  }
-  if (value.kind === 'proposal') {
-    return onlyAllowedKeys(value, ['kind', 'round', 'proposalNum'])
-      && safePositiveInteger(value.round)
-      && safePositiveInteger(value.proposalNum)
-      ? {
-          kind: 'proposal',
-          round: value.round,
-          proposalNum: value.proposalNum,
-        }
-      : undefined
-  }
-  if (value.kind === 'proposal-vote') {
-    return onlyAllowedKeys(value, ['kind', 'round', 'proposalNum', 'seat'])
-      && safePositiveInteger(value.round)
-      && safePositiveInteger(value.proposalNum)
-      && safePositiveInteger(value.seat)
-      ? {
-          kind: 'proposal-vote',
-          round: value.round,
-          proposalNum: value.proposalNum,
-          seat: value.seat,
-        }
-      : undefined
-  }
-  if (value.kind === 'quest') {
-    return onlyAllowedKeys(value, ['kind', 'questNum'])
-      && safePositiveInteger(value.questNum)
-      ? { kind: 'quest', questNum: value.questNum }
-      : undefined
-  }
-  return undefined
-}
-
+/**
+ * A model's direction, validated against the shared contract.
+ *
+ * This boundary knows the least: it has the reply JSON and nothing about the
+ * table, so it names every channel as allowed and supplies no roster, no deal,
+ * and no public record. The composed planner seam re-validates the same value
+ * with all of those, which is where a well-formed direction that cites a fact
+ * nobody can see, or claims a role that was never dealt, is caught.
+ */
 function communicationDirection(
   value: unknown,
 ): PlannerCommunicationDirection | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return undefined
-  }
-  const raw = value as Record<string, unknown>
-  const channel = raw.channel
-  const targetSeats = raw.targetSeats
-  const actCodes = stringArray(raw.actCodes)
-  const evidenceRefs = Array.isArray(raw.evidenceRefs)
-    ? raw.evidenceRefs.map(evidenceReference)
-    : undefined
-  const pass = actCodes?.includes('PASS') ?? false
-  const needsTargets = actCodes?.some((code) =>
-    code === 'EXPRESS_SUSPICION'
-    || code === 'EXPRESS_TRUST'
-    || code === 'RESPOND_TO_PLAYER') ?? false
-  const needsClaimedRole = actCodes?.includes('CLAIM_ROLE') ?? false
-  const needsRoleTopic = actCodes?.some((code) =>
-    code === 'WARN_ROLE_EXPOSURE'
-    || code === 'DISCUSS_ROLE_STRATEGY') ?? false
-  if (
-    !onlyAllowedKeys(raw, [
-      'version',
-      'channel',
-      'targetSeats',
-      'actCodes',
-      'evidenceRefs',
-      'claimedRole',
-      'roleTopic',
-      'tone',
-    ])
-    || raw.version !== COMMUNICATION_INTENT_VERSION
-    || (
-      channel !== 'discussion'
-      && channel !== 'proposal-pitch'
-      && channel !== 'revision-reason'
-    )
-    || !Array.isArray(targetSeats)
-    || !targetSeats.every(Number.isInteger)
-    || !hasDistinctSeats(targetSeats as readonly Seat[])
-    || !actCodes
-    || actCodes.length === 0
-    || new Set(actCodes).size !== actCodes.length
-    || !actCodes.every((code) =>
-      COMMUNICATION_ACT_CODES.includes(code as CommunicationActCode)
-      && communicationActAllowed(channel, code as CommunicationActCode))
-    || !evidenceRefs
-    || evidenceRefs.length > 8
-    || evidenceRefs.some((reference) => reference === undefined)
-    || new Set(evidenceRefs.map((reference) => JSON.stringify(reference))).size
-      !== evidenceRefs.length
-    || (pass && actCodes.length !== 1)
-    || (pass && targetSeats.length !== 0)
-    || (pass && evidenceRefs.length !== 0)
-    || (needsTargets && targetSeats.length === 0)
-    || (needsClaimedRole !== (raw.claimedRole !== undefined))
-    || (needsRoleTopic !== (raw.roleTopic !== undefined))
-    || (
-      actCodes.includes('WARN_ROLE_EXPOSURE')
-      && raw.roleTopic !== 'merlin'
-    )
-    || (
-      raw.claimedRole !== undefined
-      && !isRole(raw.claimedRole)
-    )
-    || (
-      raw.roleTopic !== undefined
-      && !isRole(raw.roleTopic)
-    )
-    || raw.tone !== 'natural'
-  ) {
-    return undefined
-  }
+  if (!validCommunicationDirection(value, {
+    allowedChannels: LANGUAGE_UTTERANCE_CHANNELS,
+  })) return undefined
+  // Rebuilt field by field rather than cloned, so an optional key the model
+  // spelled as an explicit `undefined` leaves as absent. The validator treats
+  // the two as the same; the exact-key checks downstream do not.
   return {
     version: COMMUNICATION_INTENT_VERSION,
-    channel,
-    targetSeats: targetSeats as number[],
-    actCodes: actCodes as CommunicationActCode[],
-    evidenceRefs: evidenceRefs as PublicEvidenceReference[],
-    ...(raw.claimedRole === undefined
+    channel: value.channel,
+    targetSeats: [...value.targetSeats],
+    actCodes: [...value.actCodes],
+    evidenceRefs: structuredClone(value.evidenceRefs),
+    ...(value.claimedRole === undefined
       ? {}
-      : { claimedRole: raw.claimedRole as Role }),
-    ...(raw.roleTopic === undefined
+      : { claimedRole: value.claimedRole }),
+    ...(value.roleTopic === undefined
       ? {}
-      : { roleTopic: raw.roleTopic as Role }),
+      : { roleTopic: value.roleTopic }),
     tone: 'natural',
   }
 }
