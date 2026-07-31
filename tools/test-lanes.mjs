@@ -96,6 +96,7 @@ const LANES = Object.freeze({
     'morgana-quest-adapters.test.ts',
     'native-score-diagnostics.test.ts',
     'perception-asymmetry.test.ts',
+    'pin-context.test.ts',
     'plan-coherence.test.ts',
     'private-pin.test.ts',
     'probability-arithmetic.test.ts',

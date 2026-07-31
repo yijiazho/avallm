@@ -93,6 +93,10 @@ import {
   SERVANT_ROLE_UTILITY_COMPONENT,
 } from './components/native-score-components.ts'
 import {
+  EVIL_EXPOSURE_READ_COMPONENT,
+  PRIVATE_PIN_READ_COMPONENT,
+} from './components/native-role-components.ts'
+import {
   createProductionComponentRegistry,
 } from './components/production-registry.ts'
 import {
@@ -319,6 +323,13 @@ export interface ComposedAgentOptions {
   evilQuestCardPolicy?: EvilQuestCardPolicyMode
   /** Opt-in Phase 7B2 private selected/applied plan memory. */
   planMemory?: boolean
+  /**
+   * Opt-in private pin reads (private-pin + evil-exposure) rendered into the
+   * planner's private-planning-only context. Resolves the reads only when set,
+   * so a mechanical or planner-less agent pays nothing; it grants no scoring
+   * authority.
+   */
+  pinReads?: boolean
   /** Literal conflict classification intent. Defaults to maintain when enabled. */
   coherenceIntent?: CoherenceIntent
   /** Compatibility policy used by the intentionally basic Phase 3 scorer. */
@@ -1384,6 +1395,7 @@ export function createComposedAgent(
   const seed = options.seed
   const onDecisionTrace = options.onDecisionTrace
   const onStage = options.onStage
+  const pinReadsConfigured = options.pinReads === true
   const publicObserverConfigured = options.publicObserver === true
   const roleObjectivesConfigured = options.roleObjectives === true
   const roleObjectiveRouterConfigured =
@@ -1547,8 +1559,15 @@ export function createComposedAgent(
       ),
     },
   )
+  // The pin reads are an explicit opt-in (options.pinReads), rendered into the
+  // planner's private-planning-only context and carrying no scoring authority.
+  // Requested raw (not role-feature ordered), like decisionComponents. Off by
+  // default so every existing agent's resolved component set is unchanged.
   const requestedComponents = [
     ...(options.decisionComponents ?? []),
+    ...(pinReadsConfigured
+      ? [PRIVATE_PIN_READ_COMPONENT, EVIL_EXPOSURE_READ_COMPONENT]
+      : []),
     ...orderedRoleFeatureComponents(
       roleFeatures.flatMap((feature) => feature.components ?? []),
     ),
@@ -2175,6 +2194,8 @@ export function createComposedAgent(
           compatibilityScored.candidateBoundary,
           compatibilityScored.scores,
           compatibilityScored.structuredCandidateId,
+          componentPayload(componentRun, PRIVATE_PIN_READ_COMPONENT),
+          componentPayload(componentRun, EVIL_EXPOSURE_READ_COMPONENT),
         )
         let plannerResolution: CompatibilityPlannerResolution = { kind: 'not-run' }
         if (

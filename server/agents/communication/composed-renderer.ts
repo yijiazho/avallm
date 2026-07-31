@@ -16,6 +16,10 @@ import type {
   DecisionCandidateBoundary,
 } from '../policy/decision-layer/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from '../policy/types.ts'
+import type {
+  EvilExposureRead,
+  PrivatePinRead,
+} from '../analysis/private-pin-types.ts'
 
 export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v3'
 export const COMPOSED_PROMPT_VERSION = 'composed-typed-context-v3'
@@ -32,6 +36,18 @@ export interface ComposedPolicyContext {
   analysisFacts: {
     visibility: 'private-planning-only'
     codes: SituationAnalysis['factCodes']
+    /**
+     * Private pin reads, present only when their components resolved (planner
+     * decisions). Advisory context for planning: alignments this seat is
+     * certain of that the table is not, and the good seats certain this (evil)
+     * seat is evil. Never a public claim, so it stays under this
+     * private-planning-only section and is never handed to voice.
+     */
+    pins?: {
+      readonly leverageEvil: readonly number[]
+      readonly leverageGood: readonly number[]
+      readonly exposedTo: readonly number[]
+    }
   }
   forcedPolicy: {
     version: string
@@ -56,6 +72,34 @@ export interface ComposedPolicyContext {
  * and the decision boundary's survivors. The raw-LLM ASKS renderer remains
  * untouched as a frozen baseline.
  */
+/**
+ * The private pin summary for the planning context, or nothing when neither
+ * read resolved. Leverage rows exclude the acting seat's own row (its cover),
+ * so they name only what the seat knows about OTHERS; exposure names the good
+ * seats certain the acting seat is evil.
+ */
+function pinAnalysisFacts(
+  actingSeat: number,
+  privatePin: PrivatePinRead | undefined,
+  evilExposure: EvilExposureRead | undefined,
+): Pick<ComposedPolicyContext['analysisFacts'], 'pins'> {
+  if (!privatePin && !evilExposure) return {}
+  const others = privatePin
+    ? privatePin.rows.filter((row) => row.seat !== actingSeat)
+    : []
+  return {
+    pins: {
+      leverageEvil: others
+        .filter((row) => row.pin === 'evil').map((row) => row.seat),
+      leverageGood: others
+        .filter((row) => row.pin === 'good').map((row) => row.seat),
+      exposedTo: evilExposure
+        ? evilExposure.pinners.map((pinner) => pinner.seat)
+        : [],
+    },
+  }
+}
+
 export function composedPolicyContext(
   view: PlayerView,
   analysis: SituationAnalysis,
@@ -64,6 +108,8 @@ export function composedPolicyContext(
   candidateBoundary: DecisionCandidateBoundary,
   scores: readonly CandidateScore[],
   structuredCandidateId?: string,
+  privatePin?: PrivatePinRead,
+  evilExposure?: EvilExposureRead,
 ): ComposedPolicyContext {
   const byScore = new Map(scores.map((score) => [score.candidateId, score]))
   const publicInput = projectLanguageInterpreterInput(view)
@@ -79,6 +125,7 @@ export function composedPolicyContext(
     analysisFacts: {
       visibility: 'private-planning-only',
       codes: analysis.factCodes,
+      ...pinAnalysisFacts(view.seat, privatePin, evilExposure),
     },
     forcedPolicy: {
       version: forced.version,
