@@ -82,25 +82,80 @@ function addBytes(
   return bytes
 }
 
+/**
+ * The UTF-8 byte length of one JSON string literal, counted rather than built.
+ *
+ * The obvious spelling, Buffer.byteLength(JSON.stringify(value)), allocates the
+ * whole escaped string only to read its size and drop it, and this is the
+ * hottest measurement in the canonicalizer: every key and every string value of
+ * every payload passes through it. Counting is exact by construction because
+ * JSON string escaping is per code unit, and the arms below are the complete
+ * escape table from the JSON grammar:
+ *
+ *   quote and backslash          two bytes (the escape plus the character)
+ *   the five short escapes       two bytes (\b \t \n \f \r)
+ *   any other control character  six bytes (\u00xx)
+ *   a lone surrogate             six bytes (\udxxx; well-formed JSON.stringify)
+ *   everything else              its plain UTF-8 length
+ *
+ * test/component-conformance.test.ts pins it against the allocating spelling
+ * over the shapes that separate the arms, because an undercount here would
+ * admit a payload past its byte bound.
+ */
+function jsonStringBytes(value: string): number {
+  let bytes = 2 // the enclosing quotes
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index)
+    if (unit < 0x80) {
+      bytes += unit === 0x22 || unit === 0x5c
+        ? 2
+        : unit >= 0x20
+          ? 1
+          : unit === 0x08 || unit === 0x09 || unit === 0x0a
+            || unit === 0x0c || unit === 0x0d
+            ? 2
+            : 6
+    } else if (unit < 0x800) {
+      bytes += 2
+    } else if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = index + 1 < value.length ? value.charCodeAt(index + 1) : 0
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        // One astral code point: four UTF-8 bytes for the whole pair.
+        bytes += 4
+        index++
+      } else {
+        bytes += 6
+      }
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      bytes += 6
+    } else {
+      bytes += 3
+    }
+  }
+  return bytes
+}
+
+// JSON numbers, booleans, and null are ASCII, so their serialized length is
+// their byte length. Number reaches this arm already known finite.
 function primitiveBytes(
   value: null | string | boolean | number,
   budget: TraversalBudget,
 ): number {
   if (typeof value === 'string') {
-    // JSON escaping never makes a string shorter than its UTF-8 source. This
-    // cheap lower bound avoids allocating a much larger escaped form after
-    // the payload is already known to be oversized.
+    // Every code unit costs at least one byte (a surrogate pair spends four on
+    // two units), so length plus the quotes is a lower bound. Rejecting on it
+    // first keeps an oversized string from being walked at all.
     if (
       budget.maxBytes !== undefined
-      && Buffer.byteLength(value, 'utf8') + 2 > budget.maxBytes
+      && value.length + 2 > budget.maxBytes
     ) {
       tooLarge()
     }
+    return addBytes(budget, jsonStringBytes(value))
   }
-  return addBytes(
-    budget,
-    Buffer.byteLength(JSON.stringify(value), 'utf8'),
-  )
+  if (value === null) return addBytes(budget, 4)
+  if (typeof value === 'boolean') return addBytes(budget, value ? 4 : 5)
+  return addBytes(budget, String(value).length)
 }
 
 /**

@@ -671,6 +671,80 @@ test('strict canonical JSON boundary rejects hostile JavaScript shapes', () => {
   })
 })
 
+test('canonical byte accounting equals the serialized payload it measures', () => {
+  // The canonicalizer counts JSON bytes instead of building the escaped string
+  // and measuring it, because that measurement is its hottest inner loop. The
+  // count feeds the maxBytes bound, so an undercount would admit an oversized
+  // payload: every arm of the escape table is pinned here against the
+  // allocating spelling it replaced.
+  const strings = [
+    '',
+    'plain ascii',
+    '"',
+    '\\',
+    '"\\/',
+    '\b\t\n\f\r',
+    ' ',
+    '',
+    'é café ÿ',
+    '߿ࠀ￿',
+    '😀',
+    'mixed 😀 é "quoted" \n',
+    // Lone surrogates: well-formed JSON.stringify escapes each as \udxxx.
+    '\ud800',
+    '\udfff',
+    '\ud800a',
+    '\udc00\ud800',
+    '\ud83d😀',
+  ]
+  // Deterministic pseudo-random strings over the whole code-unit space, so the
+  // arms meet in combinations nobody thought to enumerate above.
+  let state = 0x2545f491
+  const nextUnit = (): number => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff
+    return state % 0x11000
+  }
+  for (let index = 0; index < 200; index++) {
+    let built = ''
+    for (let unit = 0; unit < 24; unit++) {
+      built += String.fromCharCode(nextUnit())
+    }
+    strings.push(built)
+  }
+  for (const value of strings) {
+    const result = canonicalizeJson({ v: value }, 1_000_000)
+    assert.equal(result.ok, true, `canonicalizing ${JSON.stringify(value)}`)
+    if (!result.ok) continue
+    assert.equal(
+      result.bytes,
+      Buffer.byteLength(JSON.stringify(result.payload), 'utf8'),
+      `byte count for ${JSON.stringify(value)}`,
+    )
+  }
+  // Numbers, booleans, and null take the non-string arms.
+  for (const value of [
+    0, -0, 1, -1, 1.5, -1.5, 1e21, 1e-7, Number.MAX_SAFE_INTEGER,
+    Number.MIN_VALUE, Number.MAX_VALUE, true, false, null,
+  ]) {
+    const result = canonicalizeJson({ v: value }, 1_000_000)
+    assert.equal(result.ok, true)
+    if (!result.ok) continue
+    assert.equal(
+      result.bytes,
+      Buffer.byteLength(JSON.stringify(result.payload), 'utf8'),
+      `byte count for ${String(value)}`,
+    )
+  }
+  // The bound still binds exactly at the boundary for a multi-byte string.
+  const wide = { v: 'café 😀' }
+  const wideBytes = Buffer.byteLength(JSON.stringify(wide), 'utf8')
+  assert.equal(canonicalizeJson(wide, wideBytes).ok, true)
+  assert.deepEqual(canonicalizeJson(wide, wideBytes - 1), {
+    ok: false,
+    failureCode: 'payload-too-large',
+  })
+})
+
 test('transport canonicalization omits object undefined without weakening arrays', () => {
   const transported = canonicalizeTransportJson(
     {
