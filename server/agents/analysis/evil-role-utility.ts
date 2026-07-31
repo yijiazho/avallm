@@ -161,10 +161,10 @@ const POSTURE_BY_ROLE: Readonly<Record<EvilObjectiveRole, EvilRolePosture>> =
  * the schema validating the stored intermediates (stored plausibility feeds
  * publicCoverValue, stored contributions feed roleValue) rather than internally
  * recomputed ones, so no comparison target moves and no tolerance boundary can
- * flip. roleValueFrom carries the builder's clamp01; the summed contributions
- * lie in [0, 1] (each is a weight in [0, 0.70] times a value in [0, 1] and the
- * three weights total 1), so the clamp is a no-op over the validated domain and
- * the schema, whose old code compared against the raw sum, sees the same value.
+ * flip. roleValueSumFrom returns the raw contribution sum, exactly what the
+ * schema has always compared against; the builder clamps that sum at its own
+ * call site (the stored roleValue is a probability), so build and schema keep
+ * their original clamp-vs-raw asymmetry and neither comparison target moves.
  */
 function publicActionPlausibilityFrom(
   support: boolean,
@@ -198,16 +198,14 @@ function futureOpportunityContributionFrom(
     * futureOpportunityValue
 }
 
-function roleValueFrom(
+function roleValueSumFrom(
   failureCapacityContribution: number,
   publicCoverContribution: number,
   futureOpportunityContribution: number,
 ): number {
-  return clamp01(
-    failureCapacityContribution
+  return failureCapacityContribution
     + publicCoverContribution
-    + futureOpportunityContribution,
-  )
+    + futureOpportunityContribution
 }
 
 function alternativeRealizationFrom(rejectionsBeforeHammer: number): number {
@@ -440,11 +438,11 @@ function buildEvilRoleUtilityProjectionInternal(
         publicCoverContributionFrom(publicCoverValue)
       const futureOpportunityContribution =
         futureOpportunityContributionFrom(futureOpportunityValue)
-      const roleValue = roleValueFrom(
+      const roleValue = clamp01(roleValueSumFrom(
         failureCapacityContribution,
         publicCoverContribution,
         futureOpportunityContribution,
-      )
+      ))
       return {
         candidateId: candidate.id,
         kind: requestKind,
@@ -745,7 +743,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
       ) > PROBABILITY_TOLERANCE
       || Math.abs(
         assessment.roleValue
-          - roleValueFrom(
+          - roleValueSumFrom(
             assessment.failureCapacityContribution,
             assessment.publicCoverContribution,
             assessment.futureOpportunityContribution,
