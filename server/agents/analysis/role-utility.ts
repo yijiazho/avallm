@@ -131,6 +131,79 @@ function candidateDirectionSign(
     : candidate.direction === 'oppose' ? -1 : 0
 }
 
+/**
+ * The public failure capability: probability mass at or above the failure
+ * threshold in the public evil-count distribution. Derived once here so the
+ * builder and the schema slice-and-sum identically.
+ */
+function publicFailureCapabilityFrom(
+  evilCountDistribution: readonly number[],
+  failsRequired: number,
+): number {
+  return evilCountDistribution
+    .slice(failsRequired)
+    .reduce((sum, value) => sum + value, 0)
+}
+
+interface MerlinDerivedIndices {
+  publicInfluence: number
+  tell: number
+  ambiguity: number
+  exposure: number
+  roleValue: number
+}
+
+/**
+ * The Merlin utility chain, derived once for both the builder and the schema.
+ *
+ * `sign` is the direction sign (support = +1, oppose = -1, otherwise 0). The
+ * builder carries the `Math.abs(sign)` factor on the ambiguity term so a
+ * direction-less commitment contributes no ambiguity exposure; the schema only
+ * ever admits support/oppose, where `Math.abs(sign)` is exactly 1, so this
+ * helper reproduces both computations without changing any output.
+ */
+function merlinRoleValueFrom(args: {
+  sign: number
+  publicCleanProbability: number
+  publicFailureCapability: number
+  privateInfluenceValue: number
+  ownSalienceIndex: number
+}): MerlinDerivedIndices {
+  const publicInfluence =
+    args.sign * (args.publicCleanProbability - args.publicFailureCapability)
+  const tell = clamp01(
+    Math.max(0, args.privateInfluenceValue - publicInfluence) / 2,
+  )
+  const ambiguity = clamp01(
+    1 - Math.abs(args.publicCleanProbability - args.publicFailureCapability),
+  )
+  const exposure = clamp01(
+    ROLE_UTILITY_CONSTANTS.exposureTellWeight * tell
+    + ROLE_UTILITY_CONSTANTS.exposureAmbiguityWeight
+      * Math.abs(args.sign) * ambiguity
+    + ROLE_UTILITY_CONSTANTS.exposureOwnSalienceWeight * args.ownSalienceIndex,
+  )
+  const roleValue = clamp01(
+    ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
+      * ((args.privateInfluenceValue + 1) / 2)
+    + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
+  )
+  return { publicInfluence, tell, ambiguity, exposure, roleValue }
+}
+
+/** The Percival blend, derived once for both the builder and the schema. */
+function percivalRoleValueFrom(
+  pairInfluenceValue: number,
+  selfDecoyOpportunityProxyIndex: number,
+): number {
+  return clamp01(
+    ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
+      * ((pairInfluenceValue + 1) / 2)
+    + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight
+      * selfDecoyOpportunityProxyIndex,
+  )
+}
+
 function ownPublicSalience(
   observer: PublicObserverSnapshot,
   viewerSeat: Seat,
@@ -242,30 +315,18 @@ function buildRoleUtilityProjectionInternal(
         }
         const merlin = source as MerlinCandidateObjective
         const sign = candidateDirectionSign(merlin.candidate)
-        const publicFailureCapability = publicTeam.evilCountDistribution
-          .slice(failsRequired)
-          .reduce((sum, value) => sum + value, 0)
-        const publicInfluence =
-          sign * (publicTeam.cleanProbability - publicFailureCapability)
-        const tell = clamp01(
-          Math.max(0, merlin.influenceValue - publicInfluence) / 2,
+        const publicFailureCapability = publicFailureCapabilityFrom(
+          publicTeam.evilCountDistribution,
+          failsRequired,
         )
-        const ambiguity = clamp01(
-          1 - Math.abs(
-            publicTeam.cleanProbability - publicFailureCapability,
-          ),
-        )
-        const exposure = clamp01(
-          ROLE_UTILITY_CONSTANTS.exposureTellWeight * tell
-          + ROLE_UTILITY_CONSTANTS.exposureAmbiguityWeight
-            * Math.abs(sign) * ambiguity
-          + ROLE_UTILITY_CONSTANTS.exposureOwnSalienceWeight * ownSalience,
-        )
-        const roleValue = clamp01(
-          ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-            * ((merlin.influenceValue + 1) / 2)
-          + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
-        )
+        const { publicInfluence, tell, ambiguity, exposure, roleValue } =
+          merlinRoleValueFrom({
+            sign,
+            publicCleanProbability: publicTeam.cleanProbability,
+            publicFailureCapability,
+            privateInfluenceValue: merlin.influenceValue,
+            ownSalienceIndex: ownSalience,
+          })
         return {
           candidateId: candidate.id,
           kind: requestKind,
@@ -291,11 +352,9 @@ function buildRoleUtilityProjectionInternal(
         }
       }
       const percival = source as PercivalCandidateObjective
-      const roleValue = clamp01(
-        ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-          * ((percival.pairInfluenceValue + 1) / 2)
-        + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight
-          * percival.selfDecoyOpportunityProxyIndex,
+      const roleValue = percivalRoleValueFrom(
+        percival.pairInfluenceValue,
+        percival.selfDecoyOpportunityProxyIndex,
       )
       return {
         candidateId: candidate.id,
@@ -462,35 +521,24 @@ function roleUtilitySchema(detached: unknown): boolean {
         (entry) => entry,
       )
       const failsRequired = detached.request.failsRequired as number
-      const publicFailure = distribution
-        .slice(failsRequired)
-        .reduce((sum, entry) => sum + entry, 0)
+      const publicFailure = publicFailureCapabilityFrom(
+        distribution,
+        failsRequired,
+      )
       const sign = common.direction === 'support' ? 1 : -1
-      const publicInfluence = sign * (
-        (common.publicTeamCleanProbability as number) - publicFailure
-      )
-      const tell = clamp01(
-        Math.max(
-          0,
-          (common.privateInfluenceValue as number) - publicInfluence,
-        ) / 2,
-      )
-      const ambiguity = clamp01(
-        1 - Math.abs(
-          (common.publicTeamCleanProbability as number) - publicFailure,
-        ),
-      )
-      const exposure = clamp01(
-        ROLE_UTILITY_CONSTANTS.exposureTellWeight * tell
-        + ROLE_UTILITY_CONSTANTS.exposureAmbiguityWeight * ambiguity
-        + ROLE_UTILITY_CONSTANTS.exposureOwnSalienceWeight
-          * (common.ownPublicSalienceIndex as number),
-      )
-      const expectedRoleValue = clamp01(
-        ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-          * (((common.privateInfluenceValue as number) + 1) / 2)
-        + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight * (1 - exposure),
-      )
+      const {
+        publicInfluence,
+        tell,
+        ambiguity,
+        exposure,
+        roleValue: expectedRoleValue,
+      } = merlinRoleValueFrom({
+        sign,
+        publicCleanProbability: common.publicTeamCleanProbability as number,
+        publicFailureCapability: publicFailure,
+        privateInfluenceValue: common.privateInfluenceValue as number,
+        ownSalienceIndex: common.ownPublicSalienceIndex as number,
+      })
       if (
         Math.abs(distributionTotal - 1) > PROBABILITY_TOLERANCE
         || Math.abs(distribution[0]
@@ -529,11 +577,9 @@ function roleUtilitySchema(detached: unknown): boolean {
       || !probability(common.merlinMimicryProxyIndex)
     ) return false
     else {
-      const expectedRoleValue = clamp01(
-        ROLE_UTILITY_CONSTANTS.primaryInfluenceWeight
-          * (((common.pairInfluenceValue as number) + 1) / 2)
-        + ROLE_UTILITY_CONSTANTS.concealmentOrDecoyWeight
-          * (common.selfDecoyOpportunityProxyIndex as number),
+      const expectedRoleValue = percivalRoleValueFrom(
+        common.pairInfluenceValue as number,
+        common.selfDecoyOpportunityProxyIndex as number,
       )
       if (
         Math.abs(expectedRoleValue - (common.roleValue as number)) > PROBABILITY_TOLERANCE
