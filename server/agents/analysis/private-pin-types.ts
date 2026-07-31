@@ -3,6 +3,7 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivatePin } from './perception-asymmetry.ts'
 
 export const PRIVATE_PIN_READ_VERSION = 'private-pin-read-v1'
+export const PRIVATE_PIN_READ_DEGRADATION = 'private-pin-read-failed'
 
 export interface PrivatePinRow {
   /** The seat this row is about. */
@@ -48,6 +49,7 @@ export interface PrivatePinRead {
 }
 
 export const EVIL_EXPOSURE_READ_VERSION = 'evil-exposure-read-v1'
+export const EVIL_EXPOSURE_READ_DEGRADATION = 'evil-exposure-read-failed'
 
 /** The exact channels by which a good seat can be certain the acting seat is evil. */
 export type EvilExposureChannel = 'quest-collapse'

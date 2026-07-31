@@ -174,6 +174,8 @@ const privatePinReadCodec =
 
 export const validatePrivatePinReadSnapshot = privatePinReadCodec.validate
 
+export const decodeCanonicalPrivatePinRead = privatePinReadCodec.decode
+
 export const validateAdmittedPrivatePinReadHostJoin =
   exactHostJoin(buildPrivatePinRead)
 
@@ -286,6 +288,8 @@ const evilExposureReadCodec =
   projectionCodec<EvilExposureRead>(evilExposureReadSchema)
 
 export const validateEvilExposureReadSnapshot = evilExposureReadCodec.validate
+
+export const decodeCanonicalEvilExposureRead = evilExposureReadCodec.decode
 
 export const validateAdmittedEvilExposureReadHostJoin =
   exactHostJoin(buildEvilExposureRead)

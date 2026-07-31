@@ -12,7 +12,9 @@ import {
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
   ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
+  EVIL_EXPOSURE_READ_COMPONENT,
   MORDRED_BLINDNESS_COMPONENT,
+  PRIVATE_PIN_READ_COMPONENT,
 } from '../server/agents/components/native-role-components.ts'
 import {
   createProductionComponentRegistry,
@@ -162,6 +164,10 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
     { proof: 'servant-native-family' },
   'servant-role-utility':
     { proof: 'servant-native-family' },
+  'private-pin-read':
+    { proof: 'pin-native-family' },
+  'evil-exposure-read':
+    { proof: 'pin-native-family' },
 })
 
 const NATIVE_PROOF_OWNERS = new Map([
@@ -178,6 +184,8 @@ const NATIVE_PROOF_OWNERS = new Map([
   [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id, 'morgana-native-family'],
   [SERVANT_OBJECTIVE_COMPONENT.id, 'servant-native-family'],
   [SERVANT_ROLE_UTILITY_COMPONENT.id, 'servant-native-family'],
+  [PRIVATE_PIN_READ_COMPONENT.id, 'pin-native-family'],
+  [EVIL_EXPOSURE_READ_COMPONENT.id, 'pin-native-family'],
   [
     EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
     'robust-quest-native-family',
@@ -970,6 +978,45 @@ test('native servant family conforms with no host inputs at all', async () => {
     view: fixture.view,
     brain,
     hostInputs: [],
+    entries,
+  })
+})
+
+test('native pin family conforms through execution and host join', async () => {
+  const evil = evilNativeFixture()
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [
+      PRIVATE_PIN_READ_COMPONENT,
+      EVIL_EXPOSURE_READ_COMPONENT,
+    ],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  // Ordered by component id, matching the admitted graph the contract compares.
+  const entries = [
+    {
+      token: EVIL_EXPOSURE_READ_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+    {
+      token: PRIVATE_PIN_READ_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      missingRootFailure: 'host-input-unavailable',
+    },
+  ]
+  assertProofCoverage('pin-native-family', entries.map((entry) => entry.token))
+  await assertNativeExecutionContract({
+    label: 'pin native family',
+    registry,
+    request: evil.fixture.req,
+    view: evil.fixture.view,
+    brain,
+    hostInputs: [{ input: PRIVATE_BELIEF_INPUT, value: evil.belief }],
     entries,
   })
 })

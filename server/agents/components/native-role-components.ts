@@ -39,6 +39,22 @@ import {
   MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
   type PrivateAssassinMerlinPosterior,
 } from '../analysis/assassin-merlin-posterior-types.ts'
+import {
+  buildEvilExposureRead,
+  buildPrivatePinRead,
+  decodeCanonicalEvilExposureRead,
+  decodeCanonicalPrivatePinRead,
+  validateAdmittedEvilExposureReadHostJoin,
+  validateAdmittedPrivatePinReadHostJoin,
+} from '../analysis/private-pin.ts'
+import {
+  EVIL_EXPOSURE_READ_DEGRADATION,
+  EVIL_EXPOSURE_READ_VERSION,
+  PRIVATE_PIN_READ_DEGRADATION,
+  PRIVATE_PIN_READ_VERSION,
+  type EvilExposureRead,
+  type PrivatePinRead,
+} from '../analysis/private-pin-types.ts'
 import { legalCandidates } from '../policy/candidates.ts'
 import {
   appliesFrom,
@@ -81,6 +97,22 @@ ComponentToken<PrivateAssassinMerlinPosterior> = Object.freeze({
   id: 'assassin-merlin-posterior',
   version: ASSASSIN_MERLIN_POSTERIOR_VERSION,
   kind: 'projection',
+  privacy: 'private',
+})
+
+export const PRIVATE_PIN_READ_COMPONENT:
+ComponentToken<PrivatePinRead> = Object.freeze({
+  id: 'private-pin-read',
+  version: PRIVATE_PIN_READ_VERSION,
+  kind: 'observer',
+  privacy: 'private',
+})
+
+export const EVIL_EXPOSURE_READ_COMPONENT:
+ComponentToken<EvilExposureRead> = Object.freeze({
+  id: 'evil-exposure-read',
+  version: EVIL_EXPOSURE_READ_VERSION,
+  kind: 'observer',
   privacy: 'private',
 })
 
@@ -164,5 +196,60 @@ readonly DecisionComponentDefinition<any>[] {
       beliefIsExact(input.belief.quality),
   })
 
-  return Object.freeze([treatment, objective, assassinPosterior])
+  // The private pin read: what the acting seat knows the table does not. Belief
+  // plus the public observer, so exactness follows belief quality like the
+  // belief-derived reads above. Applies wherever a team is chosen or judged.
+  const privatePin = roleProjection({
+    token: PRIVATE_PIN_READ_COMPONENT,
+    degradationCode: PRIVATE_PIN_READ_DEGRADATION,
+    requiredHostInputs: [PRIVATE_BELIEF_INPUT],
+    applies(context) {
+      return context.request.kind === 'propose'
+        || context.request.kind === 'vote'
+    },
+    join(context) {
+      return {
+        view: context.view,
+        belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
+      }
+    },
+    build: buildPrivatePinRead,
+    decode: decodeCanonicalPrivatePinRead,
+    hostJoin: validateAdmittedPrivatePinReadHostJoin,
+    detachedExact: (payload) => exactBelief(payload),
+    hostExact: (_payload, input) => beliefIsExact(input.belief.quality),
+  })
+
+  // The level-2 mirror: which good seats are certain the acting evil seat is
+  // evil. Evil-only, so it applies only to an evil seat choosing or judging a
+  // team; buildEvilExposureRead throws for a good seat, which the guard avoids.
+  const evilExposure = roleProjection({
+    token: EVIL_EXPOSURE_READ_COMPONENT,
+    degradationCode: EVIL_EXPOSURE_READ_DEGRADATION,
+    requiredHostInputs: [PRIVATE_BELIEF_INPUT],
+    applies(context) {
+      return (context.request.kind === 'propose'
+        || context.request.kind === 'vote')
+        && context.view.alignment === 'evil'
+    },
+    join(context) {
+      return {
+        view: context.view,
+        belief: context.hostInputs.require(PRIVATE_BELIEF_INPUT),
+      }
+    },
+    build: buildEvilExposureRead,
+    decode: decodeCanonicalEvilExposureRead,
+    hostJoin: validateAdmittedEvilExposureReadHostJoin,
+    detachedExact: (payload) => exactBelief(payload),
+    hostExact: (_payload, input) => beliefIsExact(input.belief.quality),
+  })
+
+  return Object.freeze([
+    treatment,
+    objective,
+    assassinPosterior,
+    privatePin,
+    evilExposure,
+  ])
 }
