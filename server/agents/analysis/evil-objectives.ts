@@ -86,6 +86,41 @@ function availableMean(values: readonly (number | null)[]): number | null {
     : available.reduce((sum, value) => sum + value, 0) / available.length
 }
 
+interface EvilStandingProxyIndices {
+  burnProxyIndex: number | null
+  coverProxyIndex: number | null
+  standingProxyIndex: number | null
+}
+
+/**
+ * The burn/cover/standing proxy triple, derived once for both the builder and
+ * the schema from the three observation-fraction indices. availableMean and
+ * the fraction indices are already shared this way; this triple was the one
+ * derivation still written out by hand at both sites. Operator-for-operator
+ * identical to both, including the null propagation through each mean.
+ */
+function evilStandingProxyIndices(
+  selectionIndex: number | null,
+  approvalIndex: number | null,
+  failedQuestExposureIndex: number | null,
+): EvilStandingProxyIndices {
+  const burnProxyIndex = availableMean([
+    approvalIndex === null ? null : 1 - approvalIndex,
+    failedQuestExposureIndex,
+  ])
+  const coverProxyIndex = availableMean([
+    selectionIndex,
+    approvalIndex,
+    failedQuestExposureIndex === null ? null : 1 - failedQuestExposureIndex,
+  ])
+  const standingProxyIndex = availableMean([
+    selectionIndex,
+    coverProxyIndex,
+    burnProxyIndex === null ? null : 1 - burnProxyIndex,
+  ])
+  return { burnProxyIndex, coverProxyIndex, standingProxyIndex }
+}
+
 function publicStanding(
   view: PlayerView,
   observer: PublicObserverSnapshot,
@@ -110,17 +145,12 @@ function publicStanding(
       questExposure.filter((quest) => quest.result === 'fail').length,
       questExposure.length,
     )
-    const burn = availableMean([
-      approval.index === null ? null : 1 - approval.index,
-      failedQuestExposure.index,
-    ])
-    const cover = availableMean([
-      selected.index,
-      approval.index,
-      failedQuestExposure.index === null
-        ? null
-        : 1 - failedQuestExposure.index,
-    ])
+    const { burnProxyIndex, coverProxyIndex, standingProxyIndex } =
+      evilStandingProxyIndices(
+        selected.index,
+        approval.index,
+        failedQuestExposure.index,
+      )
     return {
       seat,
       probabilitySemantics: 'public-uniform-feasible-joint',
@@ -135,13 +165,9 @@ function publicStanding(
       approval,
       failedQuestExposure,
       proxySemantics: 'bounded-deterministic-indices-not-probabilities',
-      burnProxyIndex: burn,
-      coverProxyIndex: cover,
-      standingProxyIndex: availableMean([
-        selected.index,
-        cover,
-        burn === null ? null : 1 - burn,
-      ]),
+      burnProxyIndex,
+      coverProxyIndex,
+      standingProxyIndex,
     }
   })
 }
@@ -751,20 +777,15 @@ function evilRoleObjectiveSchema(detached: unknown): boolean {
     const selection = standing.selection as ObservationFraction
     const approval = standing.approval as ObservationFraction
     const exposure = standing.failedQuestExposure as ObservationFraction
-    const expectedBurn = availableMean([
-      approval.index === null ? null : 1 - approval.index,
-      exposure.index,
-    ])
-    const expectedCover = availableMean([
+    const {
+      burnProxyIndex: expectedBurn,
+      coverProxyIndex: expectedCover,
+      standingProxyIndex: expectedStanding,
+    } = evilStandingProxyIndices(
       selection.index,
       approval.index,
-      exposure.index === null ? null : 1 - exposure.index,
-    ])
-    const expectedStanding = availableMean([
-      selection.index,
-      expectedCover,
-      expectedBurn === null ? null : 1 - expectedBurn,
-    ])
+      exposure.index,
+    )
     for (const [actual, expected] of [
       [standing.burnProxyIndex, expectedBurn],
       [standing.coverProxyIndex, expectedCover],
