@@ -69,31 +69,27 @@ export function literalCommitmentBasis(
 ): readonly LiteralCommitmentBasis[] {
   return commitments
     .filter(
-      (commitment) =>
+      (commitment): commitment is Extract<PublicCommitment, { kind: 'team' }> =>
         commitment.status === 'current'
         && commitment.actor === req.seat
         && commitment.context.round === req.round
         && commitment.context.proposalNum === req.proposalNum
         && commitment.kind === 'team',
     )
-    .map((commitment): LiteralCommitmentBasis => {
-      if (commitment.payload.type !== 'team') {
-        throw new Error('literal coherence received a non-literal commitment')
-      }
-      return {
-        id: commitment.id,
-        sourceSeq: commitment.sourceSeq,
-        actor: commitment.actor,
-        kind: 'team',
-        round: req.round,
-        proposalNum: req.proposalNum,
-        payload: {
-          type: 'team',
-          action: commitment.payload.action,
-          team: commitment.payload.team.slice(),
-        },
-      }
-    })
+    .map((commitment): LiteralCommitmentBasis => ({
+      id: commitment.id,
+      sourceSeq: commitment.sourceSeq,
+      actor: commitment.actor,
+      kind: 'team',
+      round: req.round,
+      proposalNum: req.proposalNum,
+      payload: {
+        type: 'team',
+        // kind: 'team' now narrows the payload, so no runtime guard is needed.
+        action: commitment.payload.action,
+        team: commitment.payload.team.slice(),
+      },
+    }))
     .sort((left, right) =>
       left.sourceSeq - right.sourceSeq || left.id.localeCompare(right.id))
 }
@@ -107,9 +103,8 @@ export function assessLiteralCoherence(
 ): CoherenceAssessment {
   const codes = new Set<CoherenceConflictCode>()
   const ownTeam = commitmentBasis.find(
-    (commitment) =>
-      commitment.payload.type === 'team'
-      && teamsEqual(commitment.payload.team, currentTeam),
+    // Every basis entry is a team commitment by construction, so match on team.
+    (commitment) => teamsEqual(commitment.payload.team, currentTeam),
   )
 
   if (appliedDecision.kind === 'vote') {

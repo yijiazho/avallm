@@ -31,16 +31,37 @@ export interface CommitmentContext {
   team?: readonly Seat[]
 }
 
-export type PublicCommitment = {
+interface PublicCommitmentBase {
   id: string
   sourceId: string
   sourceSeq: number
   actor: Seat
-  kind: CommitmentKind
   visibility: 'public'
   context: CommitmentContext
-  payload:
-    | { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
-    | { type: 'vote'; vote: 'approve' | 'reject' }
-    | { type: 'utterance'; text: string; channel: 'discussion' | 'pitch' | 'revision-reason' }
-} & SupersessionState
+}
+
+/**
+ * Discriminated on the single `kind` tag so that a `kind` narrows its own
+ * payload shape: `kind: 'team'` implies `payload.type: 'team'`, and so on. The
+ * payload keeps its own `type` field (identical serialized shape as before) but
+ * it is no longer a free union that could disagree with `kind`, so consumers
+ * narrow instead of guarding an unrepresentable mismatch.
+ */
+export type PublicCommitment = PublicCommitmentBase & SupersessionState & (
+  | {
+      kind: 'team'
+      payload: { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
+    }
+  | {
+      kind: 'vote'
+      payload: { type: 'vote'; vote: 'approve' | 'reject' }
+    }
+  | {
+      kind: 'utterance'
+      payload: {
+        type: 'utterance'
+        text: string
+        channel: 'discussion' | 'pitch' | 'revision-reason'
+      }
+    }
+)
