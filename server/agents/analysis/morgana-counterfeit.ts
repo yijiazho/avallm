@@ -274,6 +274,57 @@ function failureCapability(
   )
 }
 
+interface CounterfeitAssessmentValues {
+  expectedMerlinConsistencyIndex: number
+  publicConsistencyBaselineIndex: number
+  privateKnowledgeTellIndex: number
+  publicAmbiguityIndex: number
+  counterfeitSignalIndex: number
+  counterfeitValue: number
+}
+
+/**
+ * The counterfeit assessment math, derived once for both the builder and the
+ * schema. Given the two failure-capability probabilities (private q, public p)
+ * and the acting-seat opportunity read, it produces the full index chain. The
+ * schema previously recomputed the same expressions under single-letter locals
+ * (a, b, tell, signal); routing both callers through this helper removes that
+ * translation. No index here is clamped in either the old builder or the old
+ * schema, so the extraction is operator-for-operator identical with no domain
+ * assumptions.
+ */
+function counterfeitAssessmentValues(
+  support: boolean,
+  merlinVisibleFailureCapabilityProbability: number,
+  publicFailureCapabilityProbability: number,
+  counterfeitOpportunityReadProxyIndex: number,
+): CounterfeitAssessmentValues {
+  const q = merlinVisibleFailureCapabilityProbability
+  const p = publicFailureCapabilityProbability
+  const expectedMerlinConsistencyIndex = support ? 1 - q : q
+  const publicConsistencyBaselineIndex = support ? 1 - p : p
+  const privateKnowledgeTellIndex = Math.max(
+    0,
+    expectedMerlinConsistencyIndex - publicConsistencyBaselineIndex,
+  )
+  const publicAmbiguityIndex = 1 - Math.abs(2 * p - 1)
+  const counterfeitSignalIndex = expectedMerlinConsistencyIndex * (
+    0.5 * publicAmbiguityIndex
+    + 0.5 * privateKnowledgeTellIndex
+  )
+  const counterfeitValue =
+    counterfeitOpportunityReadProxyIndex * expectedMerlinConsistencyIndex
+    + (1 - counterfeitOpportunityReadProxyIndex) * counterfeitSignalIndex
+  return {
+    expectedMerlinConsistencyIndex,
+    publicConsistencyBaselineIndex,
+    privateKnowledgeTellIndex,
+    publicAmbiguityIndex,
+    counterfeitSignalIndex,
+    counterfeitValue,
+  }
+}
+
 function validateBeliefForMorgana(
   belief: BeliefSnapshot,
   view: PlayerView,
@@ -470,24 +521,21 @@ function buildMorganaCounterfeitObjectiveInternal(
           publicTeams[index].evilCountDistribution.slice()
         const p = failureCapability(publicDistribution, failsRequired)
         const support = candidate.direction === 'support'
-        const expectedMerlinConsistencyIndex = support ? 1 - q : q
-        const publicConsistencyBaselineIndex = support ? 1 - p : p
-        const privateKnowledgeTellIndex = Math.max(
-          0,
-          expectedMerlinConsistencyIndex - publicConsistencyBaselineIndex,
-        )
-        const publicAmbiguityIndex = 1 - Math.abs(2 * p - 1)
-        const counterfeitSignalIndex = expectedMerlinConsistencyIndex * (
-          0.5 * publicAmbiguityIndex
-          + 0.5 * privateKnowledgeTellIndex
-        )
         const counterfeitOpportunityReadProxyIndex =
           read.counterfeitReadProxyIndex
-        const counterfeitValue =
-          counterfeitOpportunityReadProxyIndex
-            * expectedMerlinConsistencyIndex
-          + (1 - counterfeitOpportunityReadProxyIndex)
-            * counterfeitSignalIndex
+        const {
+          expectedMerlinConsistencyIndex,
+          publicConsistencyBaselineIndex,
+          privateKnowledgeTellIndex,
+          publicAmbiguityIndex,
+          counterfeitSignalIndex,
+          counterfeitValue,
+        } = counterfeitAssessmentValues(
+          support,
+          q,
+          p,
+          counterfeitOpportunityReadProxyIndex,
+        )
         return {
           candidate,
           probabilitySemantics: 'resolved-complete-world-sum',
@@ -881,28 +929,38 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
       threshold,
     )
     const support = candidate.direction === 'support'
-    const a = support ? 1 - q : q
-    const b = support ? 1 - p : p
-    const tell = Math.max(0, a - b)
-    const ambiguity = 1 - Math.abs(2 * p - 1)
-    const signal = a * (0.5 * ambiguity + 0.5 * tell)
     const read = (
       value.actingSeatRead as PublicCounterfeitMerlinRead
     ).counterfeitReadProxyIndex
-    const counterfeitValue = read * a + (1 - read) * signal
+    const derived = counterfeitAssessmentValues(support, q, p, read)
     if (
       !close(q, raw.merlinVisibleFailureCapabilityProbability as number)
       || !close(p, raw.publicFailureCapabilityProbability as number)
-      || !close(a, raw.expectedMerlinConsistencyIndex as number)
-      || !close(b, raw.publicConsistencyBaselineIndex as number)
-      || !close(tell, raw.privateKnowledgeTellIndex as number)
-      || !close(ambiguity, raw.publicAmbiguityIndex as number)
-      || !close(signal, raw.counterfeitSignalIndex as number)
+      || !close(
+        derived.expectedMerlinConsistencyIndex,
+        raw.expectedMerlinConsistencyIndex as number,
+      )
+      || !close(
+        derived.publicConsistencyBaselineIndex,
+        raw.publicConsistencyBaselineIndex as number,
+      )
+      || !close(
+        derived.privateKnowledgeTellIndex,
+        raw.privateKnowledgeTellIndex as number,
+      )
+      || !close(
+        derived.publicAmbiguityIndex,
+        raw.publicAmbiguityIndex as number,
+      )
+      || !close(
+        derived.counterfeitSignalIndex,
+        raw.counterfeitSignalIndex as number,
+      )
       || !close(
         read,
         raw.counterfeitOpportunityReadProxyIndex as number,
       )
-      || !close(counterfeitValue, raw.counterfeitValue as number)
+      || !close(derived.counterfeitValue, raw.counterfeitValue as number)
     ) return false
   }
   const expectedCandidateIds = request.kind === 'vote'
