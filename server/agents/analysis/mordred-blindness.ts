@@ -41,6 +41,7 @@ import {
   DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   type CanonicalJsonValue,
 } from '../components/canonical-json.ts'
+import { exactHostJoin } from './projection-codec.ts'
 import {
   canonicalCombinations,
   canonicalRequestBlock,
@@ -214,13 +215,17 @@ function candidateTeam(
   return undefined
 }
 
-export function buildPrivateMordredBlindnessObjective(input: {
+interface MordredBlindnessObjectiveInput {
   req: DecisionRequest
   view: PlayerView
   belief: BeliefSnapshot
   treatment: PrivateActorTargetTreatmentRead
   candidates: readonly PolicyCandidate[]
-}): PrivateMordredBlindnessObjective {
+}
+
+export function buildPrivateMordredBlindnessObjective(
+  input: MordredBlindnessObjectiveInput,
+): PrivateMordredBlindnessObjective {
   const {
     req,
     view,
@@ -717,35 +722,13 @@ export function decodeCanonicalPrivateMordredBlindnessObjective(
     : undefined
 }
 
+export const validateAdmittedPrivateMordredBlindnessHostJoin =
+  exactHostJoin(buildPrivateMordredBlindnessObjective)
+
 export function validatePrivateMordredBlindnessHostJoin(
   value: unknown,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    belief: BeliefSnapshot
-    treatment: PrivateActorTargetTreatmentRead
-    candidates: readonly PolicyCandidate[]
-  },
+  input: MordredBlindnessObjectiveInput,
 ): value is PrivateMordredBlindnessObjective {
   return validatePrivateMordredBlindnessObjective(value)
-    && isDeepStrictEqual(
-      value,
-      buildPrivateMordredBlindnessObjective(input),
-    )
-}
-
-export function validateAdmittedPrivateMordredBlindnessHostJoin(
-  value: PrivateMordredBlindnessObjective,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    belief: BeliefSnapshot
-    treatment: PrivateActorTargetTreatmentRead
-    candidates: readonly PolicyCandidate[]
-  },
-): boolean {
-  return isDeepStrictEqual(
-    value,
-    buildPrivateMordredBlindnessObjective(input),
-  )
+    && validateAdmittedPrivateMordredBlindnessHostJoin(value, input)
 }

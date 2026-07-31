@@ -926,20 +926,14 @@ interface EvilRoleObjectiveHostJoinInput {
   candidates: readonly PolicyCandidate[]
 }
 
-const validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal = exactHostJoin(
+export const validateAdmittedPrivateEvilRoleObjectiveHostJoin = exactHostJoin(
   (input: EvilRoleObjectiveHostJoinInput) =>
     buildEvilRoleObjectiveSnapshot(input),
 )
 
 export function validatePrivateEvilRoleObjectiveHostJoin(
   value: unknown,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    identity: PrivateIdentitySnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-  },
+  input: EvilRoleObjectiveHostJoinInput,
 ): value is PrivateEvilRoleObjectiveSnapshot {
   if (!validatePrivateEvilRoleObjectiveSnapshot(value)) return false
   const hidden = input.identity.hiddenTeamPosterior
@@ -956,21 +950,8 @@ export function validatePrivateEvilRoleObjectiveHostJoin(
     input.identity,
     input.view.rolesInPlay,
     marginals,
-  ) && validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(
+  ) && validateAdmittedPrivateEvilRoleObjectiveHostJoin(
     value,
     input,
   )
-}
-
-export function validateAdmittedPrivateEvilRoleObjectiveHostJoin(
-  value: PrivateEvilRoleObjectiveSnapshot,
-  input: {
-    req: DecisionRequest
-    view: PlayerView
-    identity: PrivateIdentitySnapshot
-    observer: PublicObserverSnapshot
-    candidates: readonly PolicyCandidate[]
-  },
-): boolean {
-  return validateAdmittedPrivateEvilRoleObjectiveHostJoinInternal(value, input)
 }

@@ -873,12 +873,5 @@ export const validatePrivateEvilRoleUtilityProjection =
 export const decodeCanonicalPrivateEvilRoleUtilityProjection =
   evilRoleUtilityCodec.decode
 
-export const validateAdmittedPrivateEvilRoleUtilityHostJoin = exactHostJoin(
-  (input: {
-    req: DecisionRequest
-    view: PlayerView
-    objective: PrivateEvilRoleObjectiveSnapshot
-    candidates: readonly PolicyCandidate[]
-    alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
-  }) => buildEvilRoleUtilityProjectionInternal(input, true),
-)
+export const validateAdmittedPrivateEvilRoleUtilityHostJoin =
+  exactHostJoin(buildAdmittedEvilRoleUtilityProjection)
