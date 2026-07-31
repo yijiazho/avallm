@@ -45,9 +45,11 @@ import {
   withResolvedComponents,
   withUniversalForcedPolicy,
   type ComponentsResolvedDecisionFrame,
-  type DecisionAnalysisPlan,
   type ScoredDecisionFrame,
 } from '../server/agents/policy/decision-frame.ts'
+import type {
+  SituationAnalysisPlan,
+} from '../server/agents/analysis/situation-plan.ts'
 import {
   DECISION_PLAN_VERSION,
   defaultCommunicationIntent,
@@ -166,7 +168,7 @@ async function resolvedFrame(
   view: PlayerView,
   options: {
     brain?: ResolvedComposedBrain
-    analysisPlan?: DecisionAnalysisPlan
+    analysisPlan?: SituationAnalysisPlan
     trusted?: (
       frame: ReturnType<typeof withUniversalForcedPolicy>,
     ) => DecisionComponentTrustedHostInputProviders

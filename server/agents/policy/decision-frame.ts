@@ -76,8 +76,6 @@ import type {
 export const DECISION_FRAME_VERSION = 'decision-frame-v1'
 /** Engine and simulator seeds are short; keep native policy host state bounded. */
 export const MAX_NATIVE_SCORE_LAYER_SEED_LENGTH = 1_024
-/** @deprecated Analysis-domain plans replace this migration alias. */
-export type DecisionAnalysisPlan = SituationAnalysisPlan
 
 export type { Immutable } from './trusted-data.ts'
 export type NonEmptyReadonly<T> = readonly [T, ...T[]]
@@ -113,10 +111,10 @@ interface ComponentSurface {
   readonly componentRun: Immutable<DecisionComponentRun>
   readonly effectiveForced: Immutable<ForcedPolicyResult>
   /**
-   * The frozen data-only descriptor of the brain that resolved this run. It
-   * lets a later transition prove brain agreement by comparing one reference,
-   * which is what the retired native score-layer lease used mutable binding
-   * state to establish.
+   * The frozen data-only descriptor of the brain that resolved this run. A
+   * later transition proves brain agreement by comparing this one reference, so
+   * no mutable binding state is needed to establish that the run and the
+   * score-layer chain came from the same brain.
    */
   readonly resolvedArchitecture: ResolvedArchitectureDescriptor
 }
@@ -255,9 +253,9 @@ export interface CompatibilityVoicedOutputProjection {
 
 /**
  * Caller-supplied scoring inputs threaded to both the custom and native
- * scoring authorities. 7R3 extracted scorer ownership but did not retire this
- * binding: it is still the live seam that carries the deterministic seed and
- * the role-utility feature reads into whichever authority scores the frame.
+ * scoring authorities. This is the live seam that carries the deterministic
+ * seed and the role-utility feature reads into whichever authority scores the
+ * frame.
  */
 export type CompatibilityScoringBindings = Readonly<
   Pick<
@@ -318,18 +316,18 @@ function scoringContext(
 ): CandidateScoringContext {
   return Object.freeze({
     ...supplied,
-    request: legacy<DecisionRequest>(frame.request),
-    view: legacy<PlayerView>(frame.view),
-    analysis: legacy<SituationAnalysis>(frame.analysis),
-    candidates: legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
-    forced: legacy<ForcedPolicyResult>(frame.effectiveForced),
-    candidateBoundary: legacy<DecisionCandidateBoundary>(
+    request: unbrand<DecisionRequest>(frame.request),
+    view: unbrand<PlayerView>(frame.view),
+    analysis: unbrand<SituationAnalysis>(frame.analysis),
+    candidates: unbrand<readonly PolicyCandidate[]>(frame.legalCandidates),
+    forced: unbrand<ForcedPolicyResult>(frame.effectiveForced),
+    candidateBoundary: unbrand<DecisionCandidateBoundary>(
       candidateBoundaryFor(frame),
     ),
     ...(frame.hypotheticalTeamCandidates
       ? {
           hypotheticalTeamCandidates:
-            legacy<readonly PolicyCandidate[]>(
+            unbrand<readonly PolicyCandidate[]>(
               frame.hypotheticalTeamCandidates,
             ),
         }
@@ -371,7 +369,7 @@ function finalizeScoredDecisionFrame(
     )
   }
   const nextRun = advanceDecisionComponentRun(
-    legacy<DecisionComponentRun>(frame.componentRun),
+    unbrand<DecisionComponentRun>(frame.componentRun),
     resolution.componentRun,
   )
   const scores = nonEmpty(
@@ -383,17 +381,14 @@ function finalizeScoredDecisionFrame(
     resolution.survivorCandidateIds,
     candidateBoundary.survivorCandidateIds,
   )) throw new Error('scored surface changed the hard candidate survivors')
-  const survivors = new Map(
-    frame.legalCandidates
-      .filter((candidate) =>
-        resolution.survivorCandidateIds.includes(candidate.id))
-      .map((candidate) => [candidate.id, candidate]),
+  const { survivors, viable } = deriveViableCandidates(
+    frame.legalCandidates,
+    resolution.survivorCandidateIds,
+    scores,
+    false,
   )
   const viableCandidates = nonEmpty(
-    Object.freeze(scores.flatMap((score) => {
-      const candidate = survivors.get(score.candidateId)
-      return score.viable && candidate ? [{ candidate, score }] : []
-    })) as readonly Immutable<ViableCandidate>[],
+    viable as readonly Immutable<ViableCandidate>[],
     'scorer must retain a viable forced survivor',
   )
   const structured = scores.find((score) =>
@@ -429,8 +424,44 @@ function nonEmpty<T>(
   return values as NonEmptyReadonly<T>
 }
 
-function legacy<T>(value: Immutable<T>): T {
+/** Drop the Immutable brand to hand frozen frame data to a plain-typed API. */
+function unbrand<T>(value: Immutable<T>): T {
   return value as T
+}
+
+/**
+ * Join the survivor legal candidates to their scores and keep the viable ones,
+ * paired with the survivor lookup both scoring authorities also consult for
+ * their structured-choice guard. Native entries are individually frozen; the
+ * custom path leaves them unfrozen, matching each authority's prior shape.
+ */
+function deriveViableCandidates<
+  S extends { readonly candidateId: string; readonly viable: boolean },
+>(
+  legalCandidates: readonly Immutable<PolicyCandidate>[],
+  survivorCandidateIds: readonly string[],
+  scores: readonly S[],
+  freezeEntry: boolean,
+): {
+  readonly survivors: ReadonlyMap<string, Immutable<PolicyCandidate>>
+  readonly viable: readonly {
+    readonly candidate: Immutable<PolicyCandidate>
+    readonly score: S
+  }[]
+} {
+  const survivorIds = new Set(survivorCandidateIds)
+  const survivors = new Map(
+    legalCandidates
+      .filter((candidate) => survivorIds.has(candidate.id))
+      .map((candidate) => [candidate.id, candidate] as const),
+  )
+  const viable = Object.freeze(scores.flatMap((score) => {
+    const candidate = survivors.get(score.candidateId)
+    if (!score.viable || !candidate) return []
+    const entry = { candidate, score }
+    return [freezeEntry ? Object.freeze(entry) : entry]
+  }))
+  return { survivors, viable }
 }
 
 function validVersion(value: string, owner: string): void {
@@ -458,8 +489,8 @@ export function withLegalCandidates(
 ): CandidateDecisionFrame {
   const legal = nonEmpty(
     detachTrustedPolicyData(legalCandidates(
-      legacy<DecisionRequest>(frame.request),
-      legacy<PlayerView>(frame.view),
+      unbrand<DecisionRequest>(frame.request),
+      unbrand<PlayerView>(frame.view),
     )),
     'legal candidate surface must be nonempty',
   )
@@ -475,7 +506,7 @@ export function withDecisionAnalysis(
   cognition: CognitionState,
   plan: SituationAnalysisPlan,
 ): AnalyzedDecisionFrame {
-  const view = legacy<PlayerView>(frame.view)
+  const view = unbrand<PlayerView>(frame.view)
   const cursor = visibleEventCursor(view)
   if (
     cognition.viewerSeat !== frame.view.seat
@@ -488,7 +519,7 @@ export function withDecisionAnalysis(
     view,
     belief: cognition.belief,
     evidence: cognition.evidence,
-    legalCandidates: legacy<readonly PolicyCandidate[]>(
+    legalCandidates: unbrand<readonly PolicyCandidate[]>(
       frame.legalCandidates,
     ),
     plan,
@@ -508,10 +539,10 @@ export function withUniversalForcedPolicy(
   frame: AnalyzedDecisionFrame,
 ): UniversalForcedDecisionFrame {
   const forced = detachTrustedPolicyData(applyForcedPolicy(
-    legacy<DecisionRequest>(frame.request),
-    legacy<PlayerView>(frame.view),
-    legacy<SituationAnalysis>(frame.analysis),
-    legacy<readonly PolicyCandidate[]>(frame.legalCandidates),
+    unbrand<DecisionRequest>(frame.request),
+    unbrand<PlayerView>(frame.view),
+    unbrand<SituationAnalysis>(frame.analysis),
+    unbrand<readonly PolicyCandidate[]>(frame.legalCandidates),
   ))
   const allowed = new Set(forced.allowedCandidateIds)
   const survivors = nonEmpty(
@@ -537,8 +568,8 @@ export async function withResolvedComponents(
 ): Promise<ComponentsResolvedDecisionFrame> {
   const run = await runDecisionComponents(
     brain,
-    legacy<DecisionRequest>(frame.request),
-    legacy<PlayerView>(frame.view),
+    unbrand<DecisionRequest>(frame.request),
+    unbrand<PlayerView>(frame.view),
     invocation,
     trusted?.(frame),
   )
@@ -589,7 +620,7 @@ function customStructuredChoice(
     ?? selectTopViableScore(scores).candidateId
 }
 
-/** Run the C4B scorer/fallback owner synchronously against one exact frame. */
+/** Run the custom scorer/fallback owner synchronously against one exact frame. */
 export function withCustomScoring(
   frame: PostComponentDecisionFrame,
   bindings: (run: DecisionComponentRun) => CompatibilityScoringBindings,
@@ -598,7 +629,7 @@ export function withCustomScoring(
     run: DecisionComponentRun,
   ) => CompatibilityScoringResolution,
 ): ScoredDecisionFrame {
-  const run = legacy<DecisionComponentRun>(frame.componentRun)
+  const run = unbrand<DecisionComponentRun>(frame.componentRun)
   const supplied = bindings(run)
   const context = scoringContext(frame, supplied)
   const resolution = resolve(context, run)
@@ -747,19 +778,14 @@ export function withNativeScoreLayers(
     run.surface.scores,
     'native score layers must produce a nonempty score surface',
   )
-  const survivorIds = new Set(run.surface.survivorCandidateIds)
-  const survivors = new Map(
-    frame.legalCandidates
-      .filter((candidate) => survivorIds.has(candidate.id))
-      .map((candidate) => [candidate.id, candidate]),
+  const { survivors, viable } = deriveViableCandidates(
+    frame.legalCandidates,
+    run.surface.survivorCandidateIds,
+    scores,
+    true,
   )
   const viableCandidates = nonEmpty(
-    Object.freeze(scores.flatMap((score) => {
-      const candidate = survivors.get(score.candidateId)
-      return score.viable && candidate
-        ? [Object.freeze({ candidate, score })]
-        : []
-    })) as readonly Immutable<NativeViableCandidate>[],
+    viable as readonly Immutable<NativeViableCandidate>[],
     'native score layers must retain a viable hard survivor',
   )
   const candidateBoundary = candidateBoundaryFor(frame)
@@ -855,7 +881,7 @@ export function withNativeScoringAuthority(
       survivorCandidateIds: frame.survivorCandidateIds,
       scorerVersion,
       degradation: diagnostics.degradation,
-      componentRun: legacy<DecisionComponentRun>(frame.componentRun),
+      componentRun: unbrand<DecisionComponentRun>(frame.componentRun),
       structuredCandidateId: frame.structuredCandidateId,
     },
   )
@@ -885,9 +911,9 @@ export function selectDecisionCandidate(
       && attributeStructuredChoice
     )
     ? advanceDecisionComponentRun(
-        legacy<DecisionComponentRun>(frame.componentRun),
+        unbrand<DecisionComponentRun>(frame.componentRun),
         attributeStructuredChoice(
-          legacy<DecisionComponentRun>(frame.componentRun),
+          unbrand<DecisionComponentRun>(frame.componentRun),
         ),
       )
     : frame.componentRun
@@ -921,7 +947,7 @@ export function selectedMechanicalDecision(
   frame: SelectedDecisionFrame,
 ): Decision {
   return structuredClone(mechanicalDecision(
-    legacy<Decision>(frame.selected.candidate.decision),
+    unbrand<Decision>(frame.selected.candidate.decision),
   ))
 }
 
@@ -991,7 +1017,7 @@ export function projectVoicedFrameForCompatibility(
     ...(frame.scoreLayerRun
       ? {
           scoreLayerRun: projectLayerRun(
-            legacy<ScoreLayerRun>(frame.scoreLayerRun),
+            unbrand<ScoreLayerRun>(frame.scoreLayerRun),
           ),
         }
       : {}),
