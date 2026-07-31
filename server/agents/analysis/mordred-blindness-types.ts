@@ -1,11 +1,8 @@
-import type {
-  Role,
-  Seat,
-} from '../../engine/types.ts'
-import type { BeliefSnapshot } from '../belief/types.ts'
+import type { Seat } from '../../engine/types.ts'
 import {
   ACTOR_TARGET_TREATMENT_READ_VERSION,
 } from './actor-target-treatment-types.ts'
+import type { ObjectiveSourceBase } from './role-objective-types.ts'
 
 export const MORDRED_BLINDNESS_OBJECTIVE_VERSION =
   'mordred-blindness-objective-v1'
@@ -49,15 +46,8 @@ export interface MordredBlindnessAssessment {
 export interface PrivateMordredBlindnessObjective {
   version: typeof MORDRED_BLINDNESS_OBJECTIVE_VERSION
   role: 'mordred'
-  source: {
-    beliefModelVersion: string
-    beliefThroughSeq: number
-    beliefQuality: BeliefSnapshot['quality']
-    playerCount: number
-    rolesInPlay: readonly Role[]
+  source: ObjectiveSourceBase & {
     treatmentReadVersion: typeof ACTOR_TARGET_TREATMENT_READ_VERSION
-    observerModelVersion: string
-    observerFeasibleWorldCount: number
     worldSemantics: 'resolved-weighted-complete-worlds'
     promotionSemantics:
       'constraints-only-exact-weighted-structural'

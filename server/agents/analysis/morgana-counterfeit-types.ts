@@ -1,10 +1,9 @@
-import type {
-  DecisionKind,
-  Role,
-  Seat,
-} from '../../engine/types.ts'
-import type { BeliefSnapshot } from '../belief/types.ts'
+import type { Seat } from '../../engine/types.ts'
 import type { ObservationFraction } from './types.ts'
+import type {
+  ObjectiveRequest,
+  ObjectiveSourceBase,
+} from './role-objective-types.ts'
 
 export const MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION =
   'morgana-counterfeit-public-read-v1'
@@ -70,23 +69,11 @@ export interface MorganaCounterfeitAssessment {
 export interface PrivateMorganaCounterfeitObjective {
   version: typeof MORGANA_COUNTERFEIT_OBJECTIVE_VERSION
   role: 'morgana'
-  source: {
-    beliefModelVersion: string
-    beliefThroughSeq: number
-    beliefQuality: BeliefSnapshot['quality']
-    playerCount: number
-    rolesInPlay: readonly Role[]
+  source: ObjectiveSourceBase & {
     publicReadVersion: typeof MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION
-    observerModelVersion: string
-    observerFeasibleWorldCount: number
   }
-  request: {
-    seat: Seat
-    kind: DecisionKind
-    round: number
-    proposalNum: number
-    failsRequired: number
-    /** Canonical public team on the table; present only for vote objectives. */
+  /** Canonical public team present only for vote objectives; see currentTeam. */
+  request: ObjectiveRequest & {
     currentTeam?: readonly Seat[]
   }
   counterfeitApplicability: 'percival-in-cast'

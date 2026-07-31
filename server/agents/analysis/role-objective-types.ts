@@ -35,19 +35,29 @@ export function isPublicCommitmentDirection(
 export type ObjectiveTeam = 'good' | 'evil'
 
 /**
- * The shared objective envelope. Good and evil private objectives carry the
- * identical belief/source provenance, so it is declared once here rather than
- * duplicated per team.
+ * The belief and observer provenance every role objective source carries,
+ * whatever team it belongs to. The good/evil ObjectiveSource, the Morgana
+ * counterfeit source, and the Mordred blindness source all extend this with
+ * their own trailing dependency version(s); it is declared once here so the
+ * shared five belief/observer fields plus the cast cannot drift per role.
  */
-export interface ObjectiveSource {
+export interface ObjectiveSourceBase {
   beliefModelVersion: string
   beliefThroughSeq: number
   beliefQuality: BeliefSnapshot['quality']
   playerCount: number
   rolesInPlay: readonly Role[]
-  identityModelVersion: string
   observerModelVersion: string
   observerFeasibleWorldCount: number
+}
+
+/**
+ * The shared objective envelope. Good and evil private objectives carry the
+ * identical belief/source provenance, so it is declared once here rather than
+ * duplicated per team.
+ */
+export interface ObjectiveSource extends ObjectiveSourceBase {
+  identityModelVersion: string
 }
 
 /** The decision the objective snapshot was built for. Shared, like the source. */
