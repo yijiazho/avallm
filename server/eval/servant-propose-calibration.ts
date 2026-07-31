@@ -43,16 +43,13 @@ import { createHeuristicAgent } from '../agents/heuristic.ts'
 import { createComposedAgent } from '../agents/composed.ts'
 import {
   roleObjectiveScorer,
-  servantRoleScorer,
   type CandidateScorer,
 } from '../agents/policy/score.ts'
+import { compareCandidateIds } from '../agents/policy/candidates.ts'
 import { legalCandidates } from '../agents/policy/candidates.ts'
 import {
   buildServantRoleUtilityProjection,
 } from '../agents/analysis/servant-role-utility.ts'
-import {
-  SERVANT_ROLE_UTILITY_CONSTANTS,
-} from '../agents/policy/servant-score-contract.ts'
 import { diagnosisPercent } from './report-format.ts'
 import type { DecisionRequest, PlayerView, Role, Seat } from '../engine/types.ts'
 
@@ -104,6 +101,16 @@ readonly ServantCalibrationCast[] = Object.freeze([
 
 export const SERVANT_CALIBRATION_SEEDS_PER = 150
 
+/**
+ * The centered adjustment the withdrawn score layer applied, kept here so the
+ * hypothesis stays reproducible without a policy module shipping it. Matches
+ * the good role layer's scale, which is what the layer used.
+ */
+export const SERVANT_REFINEMENT_SCALE = 0.20
+
+/** Spread below which the public read has said nothing and every pick agrees. */
+export const SERVANT_SEPARATION_BAND = 0.01
+
 /** One held-out servant proposal, with the deal the seat cannot see. */
 export interface ServantProposeCase {
   readonly view: PlayerView
@@ -135,7 +142,7 @@ function separates(view: PlayerView, req: DecisionRequest): boolean {
     candidates: legalCandidates(req, view),
   }).assessments.map((entry) => entry.roleValue)
   return Math.max(...values) - Math.min(...values)
-    > SERVANT_ROLE_UTILITY_CONSTANTS.separationBand
+    > SERVANT_SEPARATION_BAND
 }
 
 /**
@@ -389,8 +396,60 @@ export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
 /** The base the refinement sits on: the good proposal value plus its tie-break. */
 export const baseProposalPicker = scorerPicker(roleObjectiveScorer)
 
-/** The refinement under test. */
-export const servantProposalPicker = scorerPicker(servantRoleScorer)
+/**
+ * The refinement as a HYPOTHESIS rather than as a shipped layer: the base's own
+ * surface, re-ranked by the centered public-read adjustment, selected with the
+ * same canonical tie-break.
+ *
+ * This exists so the question stays answerable after the score layer that
+ * implemented it was withdrawn from production for failing this harness. A
+ * hypothesis that lost should be cheap to re-test and cost the shipped agent
+ * nothing, which a scorer identity in the live registry cannot be.
+ */
+export function projectionAdjustedPicker(
+  scale: number = SERVANT_REFINEMENT_SCALE,
+): ProposalPicker {
+  return async (input) => {
+    const output = await createComposedAgent({
+      seed: `servant-cal-${input.req.seat}`,
+      scorer: roleObjectiveScorer,
+    }).decide(input.req, input.view)
+    const rows = output.trace?.candidateScores
+    if (!rows?.length) throw new Error('servant calibration got no base scores')
+    const roleValue = new Map(
+      buildServantRoleUtilityProjection({
+        view: input.view,
+        candidates: legalCandidates(input.req, input.view),
+      }).assessments.map((entry) => [entry.candidateId, entry.roleValue]),
+    )
+    const survivors = rows.filter((row) =>
+      row.reasonCodes.includes('FORCED_POLICY_ALLOWED'))
+    if (!survivors.length) throw new Error('servant calibration got no survivors')
+    const mean = survivors.reduce(
+      (sum, row) => sum + (roleValue.get(row.candidateId) ?? 0),
+      0,
+    ) / survivors.length
+    const combined = survivors.map((row) => ({
+      id: row.candidateId,
+      value: row.value + scale * ((roleValue.get(row.candidateId) ?? 0) - mean),
+    }))
+    const best = Math.max(...combined.map((row) => row.value))
+    const topId = combined
+      .filter((row) => row.value === best)
+      .map((row) => row.id)
+      .sort(compareCandidateIds)[0]
+    const candidate = legalCandidates(input.req, input.view).find(
+      (entry) => entry.id === topId,
+    )
+    if (!candidate || candidate.decision.kind !== 'propose') {
+      throw new Error('servant calibration resolved no proposal candidate')
+    }
+    return candidate.decision.team
+  }
+}
+
+/** The refinement under test, as the withdrawn layer computed it. */
+export const servantProposalPicker = projectionAdjustedPicker()
 
 export interface ServantProposeCalibration {
   readonly version: typeof SERVANT_PROPOSE_CALIBRATION_VERSION

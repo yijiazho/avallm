@@ -222,9 +222,9 @@ The right pattern is already in the repo. `assassin-calibration.ts` scores a
 binding. A servant equivalent would sweep many seeded games, and for **every**
 servant propose decision record whether the base pick and the refined pick each
 seated evil, giving a paired binary comparison with n in the thousands from the
-same play. `servant-propose-bench.ts` should keep its job (it caught the
-component-closure defect below, and it bounds the size of any outcome effect),
-but it should not be the gate.
+same play. The game bench that preceded it (`servant-propose-bench.ts`) was deleted along
+with the layer: with one arm withdrawn it compares a policy against itself. It
+earned its keep first by catching the component-closure defect below.
 
 ### Two defects the run did establish
 
@@ -240,6 +240,24 @@ but it should not be the gate.
   narrows viability to a single row: its value-structure and posterior columns
   key on the good proposal features and go blank. The matched-pair section still
   works.
+
+### Withdrawn
+
+The score layer that granted the refinement propose authority is gone. It was
+live in production through `fullRolePolicyScorer`, it measures inert, and it
+cost every evil chain an inapplicable layer traversal and a component entry to
+carry. What it computed survives as
+`projectionAdjustedPicker` in the calibration harness, verified 130 picks out of
+130 identical to the layer before the layer was deleted, so the hypothesis stays
+cheap to re-test and costs the shipped agent nothing.
+
+The projection itself (`analysis/servant-role-utility.ts`) stays as the inert
+substrate it originally shipped as, because the harness scores against it.
+
+**The rule this is an instance of.** A hypothesis that fails its gate should be
+retained as something an evaluation can call, not as an identity in the live
+registry. The registry is where behavior ships; a scorer sitting in it is
+running in every game whether or not anyone believes in it.
 
 ### What still stands, and the open question
 

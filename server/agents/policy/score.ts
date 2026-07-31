@@ -32,13 +32,6 @@ import {
 } from '../analysis/evil-role-utility.ts'
 import { EVIL_ROLE_OBJECTIVE_MODEL_VERSION } from '../analysis/evil-objective-types.ts'
 import {
-  SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
-} from '../analysis/servant-role-utility.ts'
-import {
-  SERVANT_ROLE_SCORER_VERSION,
-  SERVANT_ROLE_SEEDED_SCORER_VERSION,
-} from './servant-score-contract.ts'
-import {
   MORGANA_ROLE_SCORE_FEATURE_VERSION,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -191,9 +184,6 @@ export interface CandidateScorer {
   evilRoleUtilityRequirement?: typeof EVIL_ROLE_UTILITY_PROJECTION_VERSION
   /** Activates the private E1A/D2-bound Morgana policy input. */
   morganaRoleUtilityRequirement?: typeof MORGANA_ROLE_UTILITY_PROJECTION_VERSION
-  /** Activates the servant per-candidate propose utility as a scorer input. */
-  servantRoleUtilityRequirement?:
-    typeof SERVANT_ROLE_UTILITY_PROJECTION_VERSION
   /** Truthful fallback used when this opt-in scorer is inapplicable/degraded. */
   baseScorer?: CandidateScorer
   /**
@@ -999,27 +989,6 @@ export const roleObjectiveScorer = ROLE_OBJECTIVE_SCORER_DESCRIPTOR
 /** Recommended opt-in role policy; variation remains confined to vote bands. */
 export const seededRoleObjectiveScorer =
   SEEDED_ROLE_OBJECTIVE_SCORER_DESCRIPTOR
-
-/**
- * The servant refinement sits directly on the good role base rather than on any
- * evil identity: a servant is a good seat whose proposal the good base has
- * already ranked, and the refinement only breaks the ties that base leaves.
- */
-const SERVANT_ROLE_SCORER_DESCRIPTOR: CandidateScorer = Object.freeze({
-  version: SERVANT_ROLE_SCORER_VERSION,
-  servantRoleUtilityRequirement: SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
-  baseScorer: roleObjectiveScorer,
-})
-
-const SEEDED_SERVANT_ROLE_SCORER_DESCRIPTOR: CandidateScorer = Object.freeze({
-  version: SERVANT_ROLE_SEEDED_SCORER_VERSION,
-  servantRoleUtilityRequirement: SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
-  baseScorer: seededRoleObjectiveScorer,
-})
-
-export const servantRoleScorer = SERVANT_ROLE_SCORER_DESCRIPTOR
-
-export const seededServantRoleScorer = SEEDED_SERVANT_ROLE_SCORER_DESCRIPTOR
 
 export interface EvilRoleObjectiveScorerOptions {
   selectionMode: EvilRoleObjectiveSelectionMode

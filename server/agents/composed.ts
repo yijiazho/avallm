@@ -429,9 +429,6 @@ function snapshotScorer(
     ...(source.morganaRoleUtilityRequirement
       ? { morganaRoleUtilityRequirement: source.morganaRoleUtilityRequirement }
       : {}),
-    ...(source.servantRoleUtilityRequirement
-      ? { servantRoleUtilityRequirement: source.servantRoleUtilityRequirement }
-      : {}),
     ...(score
       ? {
           score(context: CandidateScoringContext) {
@@ -464,8 +461,7 @@ function scorerRequires(
   requirement:
     | 'roleUtilityRequirement'
     | 'evilRoleUtilityRequirement'
-    | 'morganaRoleUtilityRequirement'
-    | 'servantRoleUtilityRequirement',
+    | 'morganaRoleUtilityRequirement',
 ): boolean {
   const seen = new Set<CandidateScorer>()
   let current: CandidateScorer | undefined = source
@@ -1354,10 +1350,6 @@ export function createComposedAgent(
     scorer,
     'morganaRoleUtilityRequirement',
   )
-  const servantRoleUtilityConfigured = scorerRequires(
-    scorer,
-    'servantRoleUtilityRequirement',
-  )
   const stage = (value: ComposedStage): void => onStage?.(value)
   const beliefModel = snapshotBeliefModel(
     options.beliefModel ?? exactWorldBeliefModel,
@@ -1431,21 +1423,7 @@ export function createComposedAgent(
       // through the acting seat's own view, so it needs nothing hoisted here.
       forcesPublicObserver: false,
       components: servantObjectivesConfigured
-        ? [SERVANT_OBJECTIVE_COMPONENT]
-        : [],
-    },
-    {
-      // The propose utility used to ride the servantObjectives opt-in, which
-      // was correct while nothing scored on it. Now that a scorer does, the
-      // scorer's own requirement is the truthful trigger: the substrate flag
-      // no longer implies the component, and configuring the servant scorer
-      // does. The score-layer chain would request it anyway through
-      // requiredComponents, but only this row pins its canonical position in
-      // ROLE_FEATURE_COMPONENT_ORDER, which is a byte-level descriptor
-      // contract rather than a convenience.
-      forcesPublicObserver: false,
-      components: servantRoleUtilityConfigured
-        ? [SERVANT_ROLE_UTILITY_COMPONENT]
+        ? [SERVANT_OBJECTIVE_COMPONENT, SERVANT_ROLE_UTILITY_COMPONENT]
         : [],
     },
     {

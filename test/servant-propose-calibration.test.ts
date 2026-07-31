@@ -18,6 +18,7 @@ import {
   runServantProposeCalibration,
   scoreProposalPicker,
   servantProposalPicker,
+  projectionAdjustedPicker,
 } from '../server/eval/servant-propose-calibration.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
 
@@ -105,6 +106,17 @@ test('the sign test is the exact two-sided binomial over discordant pairs', () =
   assert.equal(split.baseCleanCandidateDirty, 5)
   assert.equal(split.candidateCleanBaseDirty, 3)
   assert.ok(Math.abs(split.discordantPValue - 0.7265625) < 1e-12)
+})
+
+// The refinement is a hypothesis scored offline, not a shipped layer, so the
+// thing that has to hold is that turning the adjustment off reproduces the base
+// exactly. If it did not, the harness would be comparing the base against
+// something other than "the base plus this adjustment".
+test('a zero adjustment reproduces the base policy exactly', async () => {
+  const cases = (await generateServantProposeCases(SEEDS)).slice(0, 12)
+  const base = await scoreProposalPicker(cases, baseProposalPicker)
+  const inert = await scoreProposalPicker(cases, projectionAdjustedPicker(0))
+  assert.deepEqual(inert.picks, base.picks)
 })
 
 test('pairing refuses pick lists that do not match the cases', async () => {

@@ -38,10 +38,6 @@ import {
   ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
 } from '../server/agents/score-layers/assassin.ts'
 import {
-  SEEDED_SERVANT_ROLE_SCORE_LAYER,
-  SERVANT_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/servant.ts'
-import {
   FULL_ROLE_POLICY_SCORE_LAYER,
 } from '../server/agents/score-layers/full-role.ts'
 import {
@@ -52,9 +48,7 @@ import {
   EVIL_CLAIM,
   MORDRED_CLAIM,
   MORGANA_CLAIM,
-  SERVANT_CLAIM,
   appliesFrom,
-  merlinSeated,
   assertRoleClaimsPartition,
   type Applicability,
 } from '../server/agents/policy/applicability.ts'
@@ -86,8 +80,6 @@ import {
   seededRoleObjectiveScorer,
   assassinMerlinTargetScorer,
   fullRolePolicyScorer,
-  seededServantRoleScorer,
-  servantRoleScorer,
 } from '../server/agents/policy/score.ts'
 
 test('configured score seam owns family selection and registry construction', () => {
@@ -115,12 +107,10 @@ test('configured score seam owns family selection and registry construction', ()
       SEEDED_MORDRED_ROLE_SCORE_LAYER,
     ],
     [assassinMerlinTargetScorer, ASSASSIN_MERLIN_TARGET_SCORE_LAYER],
-    [servantRoleScorer, SERVANT_ROLE_SCORE_LAYER],
-    [seededServantRoleScorer, SEEDED_SERVANT_ROLE_SCORE_LAYER],
     [fullRolePolicyScorer, FULL_ROLE_POLICY_SCORE_LAYER],
   ] as const
   const registry = createConfiguredScoreLayerRegistry()
-  assert.equal(registry.size, 17)
+  assert.equal(registry.size, 15)
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
@@ -145,10 +135,6 @@ test('configured score seam owns family selection and registry construction', ()
   )
   assert.equal(
     configuredScoreLayerTerminalFor({ ...assassinMerlinTargetScorer }),
-    undefined,
-  )
-  assert.equal(
-    configuredScoreLayerTerminalFor({ ...servantRoleScorer }),
     undefined,
   )
   assert.equal(
@@ -207,7 +193,6 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
     ],
   )
@@ -226,7 +211,6 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
     ],
@@ -247,7 +231,6 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
@@ -269,32 +252,10 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
       ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
-    ],
-  )
-  // The servant refinement hangs straight off good in both lanes, which is
-  // what keeps its component closure to the good base plus its own projection
-  // instead of the whole evil subtree's.
-  assert.deepEqual(
-    registry.resolve({ terminal: SERVANT_ROLE_SCORE_LAYER }).order,
-    [
-      COMPATIBILITY_SCORE_LAYER,
-      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
-      GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
-    ],
-  )
-  assert.deepEqual(
-    registry.resolve({ terminal: SEEDED_SERVANT_ROLE_SCORE_LAYER }).order,
-    [
-      COMPATIBILITY_SCORE_LAYER,
-      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
-      SEEDED_GOOD_ROLE_SCORE_LAYER,
-      SEEDED_SERVANT_ROLE_SCORE_LAYER,
     ],
   )
   assert.deepEqual(
@@ -303,7 +264,6 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
@@ -325,24 +285,7 @@ test('family bases stay separate from the derived linear predecessors', () => {
     [
       // Every family names its truthful base. Only the composed lane routes a
       // family through an inapplicable sibling to reach that base's surface.
-      // Servant is the first specialization off good, so the composed lane
-      // hands evil the servant tip: an evil seat finds it inapplicable and
-      // reaches the good surface untouched.
-      [
-        'servant',
-        'deterministic',
-        'good',
-        GOOD_ROLE_SCORE_LAYER.id,
-        false,
-      ],
-      [
-        'servant',
-        'seeded',
-        'good',
-        SEEDED_GOOD_ROLE_SCORE_LAYER.id,
-        false,
-      ],
-      ['evil', 'deterministic', 'good', SERVANT_ROLE_SCORE_LAYER.id, true],
+      ['evil', 'deterministic', 'good', GOOD_ROLE_SCORE_LAYER.id, false],
       ['evil', 'seeded', 'good', SEEDED_GOOD_ROLE_SCORE_LAYER.id, false],
       ['morgana', 'deterministic', 'evil', EVIL_ROLE_SCORE_LAYER.id, false],
       ['morgana', 'seeded', 'evil', SEEDED_EVIL_ROLE_SCORE_LAYER.id, false],
@@ -399,14 +342,6 @@ test('role claims derive applies and are enforced to partition', () => {
     true,
   )
   assert.equal(assassin(context({ role: 'assassin', kind: 'vote' })), false)
-  const servant = appliesFrom(SERVANT_CLAIM)
-  assert.equal(servant(context({ role: 'servant', kind: 'propose' })), true)
-  assert.equal(servant(context({ role: 'servant', kind: 'vote' })), false)
-  assert.equal(servant(context({ role: 'merlin', kind: 'propose' })), false)
-  // The one condition a claim cannot carry, because validateRoles does not
-  // enforce it: a Merlin-less cast is legal and has no Merlin-likeness axis.
-  assert.equal(merlinSeated({ view: { rolesInPlay: ['merlin'] } }), true)
-  assert.equal(merlinSeated({ view: { rolesInPlay: ['percival'] } }), false)
 
   // The real tree partitions, and the alignment base co-applies without
   // tripping the check.
@@ -415,7 +350,6 @@ test('role claims derive applies and are enforced to partition', () => {
     MORGANA_CLAIM,
     MORDRED_CLAIM,
     ASSASSIN_CLAIM,
-    SERVANT_CLAIM,
   ]))
   // A second layer claiming an already-claimed role is rejected, even when it
   // narrows to a different kind: a seat has one role and both would run.

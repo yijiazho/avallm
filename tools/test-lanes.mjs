@@ -109,7 +109,6 @@ const LANES = Object.freeze({
     'scorer-situation-surface.test.ts',
     'seat-decision-inspector.test.ts',
     'servant-objective.test.ts',
-    'servant-policy.test.ts',
     'servant-role-utility.test.ts',
   ]),
   eval: Object.freeze([
@@ -132,7 +131,6 @@ const LANES = Object.freeze({
     'role-report.test.ts',
     'seat-view-inspector-ui.test.ts',
     'seat-view-inspector.test.ts',
-    'servant-propose-bench.test.ts',
     'servant-propose-calibration.test.ts',
     'vote-conversion.test.ts',
     'vote-direction.test.ts',

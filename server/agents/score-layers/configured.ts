@@ -23,7 +23,6 @@ import {
   EVIL_CLAIM,
   MORDRED_CLAIM,
   MORGANA_CLAIM,
-  SERVANT_CLAIM,
   assertRoleClaimsPartition,
   type Applicability,
 } from '../policy/applicability.ts'
@@ -64,13 +63,6 @@ import {
   assassinScoreLayerTerminalFor,
   assassinScoreLayerTerminals,
 } from './assassin.ts'
-import {
-  SEEDED_SERVANT_ROLE_SCORE_LAYER,
-  SERVANT_ROLE_SCORE_LAYER,
-  servantScoreLayerDefinitions,
-  servantScoreLayerTerminalFor,
-  servantScoreLayerTerminals,
-} from './servant.ts'
 import {
   FULL_ROLE_POLICY_SCORE_LAYER,
   fullRoleScoreLayerDefinitions,
@@ -165,34 +157,6 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     identities: goodScoreLayerTerminals,
     terminalFor: goodScoreLayerTerminalFor,
     register: () => goodScoreLayerDefinitions(),
-  },
-  {
-    id: 'servant',
-    kind: 'specialization',
-    base: 'good',
-    baseRationale:
-      'The servant refinement only breaks ties the good proposal base leaves, '
-      + 'so a seat that loses the projection degrades to that base and keeps '
-      + 'its ranking rather than to any evil sibling. It is declared here, '
-      + 'immediately after its base, rather than after the evil siblings, '
-      + 'because a family inherits the component closure of every layer before '
-      + 'it in the composed lane: declared last, the servant terminal '
-      + 'configured eleven components including the assassin, Mordred and '
-      + 'Morgana machinery that can never apply to a good seat. Declared here '
-      + 'it configures two. The cost is that every evil chain now routes '
-      + 'through one inapplicable servant layer, which is the pass-through the '
-      + 'composed lane is built for and what Mordred already does via Morgana.',
-    lanes: {
-      [DETERMINISTIC_LANE]: SERVANT_ROLE_SCORE_LAYER,
-      [SEEDED_LANE]: SEEDED_SERVANT_ROLE_SCORE_LAYER,
-    },
-    identities: servantScoreLayerTerminals,
-    terminalFor: servantScoreLayerTerminalFor,
-    claim: SERVANT_CLAIM,
-    register: (predecessor) => servantScoreLayerDefinitions({
-      deterministic: predecessor(DETERMINISTIC_LANE),
-      seeded: predecessor(SEEDED_LANE),
-    }),
   },
   {
     id: 'evil',
