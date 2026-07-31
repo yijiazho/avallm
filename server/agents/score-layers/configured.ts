@@ -257,8 +257,8 @@ export function configuredScoreLayerTerminalFor(
 
 /**
  * Custom sources always carry a canonical native failure path. The first
- * registered descriptor in their declared base chain wins; otherwise the
- * total compatibility root is the fallback.
+ * ancestor scorer in their base chain that maps to a configured terminal
+ * wins; otherwise the total compatibility root is the fallback.
  */
 export function configuredNativeFallbackTerminalFor(
   scorer: CandidateScorer | undefined,
@@ -304,6 +304,10 @@ export function configuredScoreLayerChainForVersion(
   })
 }
 
+/**
+ * Re-exported through the seam so callers depend on the configured facade
+ * rather than importing the good family directly.
+ */
 export const calculateConfiguredDeterministicGoodBase =
   calculateDeterministicGoodBase
 
