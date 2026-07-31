@@ -15,6 +15,18 @@ import {
   TABLE_TALK_NORMS,
 } from '../prompts.ts'
 
+/*
+ * Four version axes travel with these adapters, kept as separate constants
+ * because they change for different reasons:
+ *   - run-mode sentinels (NO_PLANNER_VERSION, NO_VOICE_VERSION): reported as
+ *     the adapter version when planning or voice is switched off.
+ *   - protocol versions (*_PROTOCOL_VERSION): the request/response contract a
+ *     real adapter must satisfy, independent of who implements it.
+ *   - implementation versions (BOUNDED_*_VERSION, defined below): which
+ *     built-in adapter answered, surfaced through its version field.
+ *   - prompt versions (BOUNDED_*_PROMPT_VERSION, defined below): the
+ *     system-prompt text the bounded adapter sends, bumped when it changes.
+ */
 export const NO_PLANNER_VERSION = 'planner-off'
 export const NO_VOICE_VERSION = 'voice-off'
 export const CANDIDATE_PLANNER_PROTOCOL_VERSION =
@@ -183,19 +195,28 @@ function voiceReply(content: string): VoiceOutput | undefined {
   }
 }
 
-export function createBoundedPlanner(
+function requireClientAndModel(
   options: BoundedPlannerVoiceOptions,
-): CandidatePlanner {
+  role: 'planner' | 'voice',
+): { call: CallClient['call']; model: string } {
   if (
     !options.client
     || typeof options.client.call !== 'function'
     || typeof options.model !== 'string'
     || !options.model.trim()
   ) {
-    throw new Error('bounded planner requires a client and model')
+    throw new Error(`bounded ${role} requires a client and model`)
   }
-  const call = options.client.call.bind(options.client)
-  const model = options.model
+  return {
+    call: options.client.call.bind(options.client),
+    model: options.model,
+  }
+}
+
+export function createBoundedPlanner(
+  options: BoundedPlannerVoiceOptions,
+): CandidatePlanner {
+  const { call, model } = requireClientAndModel(options, 'planner')
   const tagPrefix = options.tagPrefix ?? 'composed'
   return {
     version: BOUNDED_PLANNER_VERSION,
@@ -245,16 +266,7 @@ export function createBoundedPlanner(
 export function createBoundedVoice(
   options: BoundedPlannerVoiceOptions,
 ): PlanVoice {
-  if (
-    !options.client
-    || typeof options.client.call !== 'function'
-    || typeof options.model !== 'string'
-    || !options.model.trim()
-  ) {
-    throw new Error('bounded voice requires a client and model')
-  }
-  const call = options.client.call.bind(options.client)
-  const model = options.model
+  const { call, model } = requireClientAndModel(options, 'voice')
   const tagPrefix = options.tagPrefix ?? 'composed'
   return {
     version: BOUNDED_VOICE_VERSION,
