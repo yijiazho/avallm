@@ -33,9 +33,46 @@ import {
   TEAM_SIZES,
   validateRoles,
 } from '../../engine/rules.ts'
-import { isRole } from '../../engine/types.ts'
+import { isRole, ROLES } from '../../engine/types.ts'
 import type { Role, Seat } from '../../engine/types.ts'
-import { compareCanonicalRoles } from '../belief/types.ts'
+
+/**
+ * The canonical order of roles, and the comparator over it.
+ *
+ * These sat in belief/types.ts, because the world enumerator was the first
+ * thing that needed a stable role order. That put the role comparator ABOVE
+ * the shape guard that validates against it, so this module reached up into
+ * belief/ for one pure two-argument comparison and belief became something the
+ * canonical layer depended on. There is no belief content in an alphabetical
+ * ordering of the role union.
+ */
+/**
+ * The serialization order for role-valued collections: ascending by role name.
+ *
+ * Derived from ROLES, never restated. This used to be its own list of the eight
+ * names, which made it a second membership authority alongside the engine's:
+ * adding a role to ROLES (and so to the Role union) would have left every
+ * role-ordered projection silently omitting it, with nothing to typecheck
+ * against. Only the ORDER is this module's contribution, and alphabetical is a
+ * total order over any set of names, so a ninth role slots itself in.
+ *
+ * ROLES is declaration-ordered (good roles, then evil) because that is how the
+ * rulebook reads. Sorting is deliberately not that: this order reaches world
+ * keys and snapshot payloads, where stability matters more than legibility.
+ */
+export const CANONICAL_ROLE_ORDER: readonly Role[] = Object.freeze(
+  [...ROLES].sort(),
+)
+
+/** Where each role sorts. Membership questions go to the engine's isRole. */
+export const CANONICAL_ROLE_RANK: ReadonlyMap<Role, number> = new Map(
+  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
+)
+
+/** Ascending CANONICAL_ROLE_ORDER comparator. An unranked role sorts last. */
+export const compareCanonicalRoles = (left: Role, right: Role): number =>
+  (CANONICAL_ROLE_RANK.get(left) ?? Number.MAX_SAFE_INTEGER)
+  - (CANONICAL_ROLE_RANK.get(right) ?? Number.MAX_SAFE_INTEGER)
 
 export const plainRecord = (
   value: unknown,

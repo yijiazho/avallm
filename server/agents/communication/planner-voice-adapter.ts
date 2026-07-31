@@ -17,9 +17,9 @@ import {
   validCommunicationDirection,
 } from './direction-contract.ts'
 import { validStrategicIntent } from './strategic-intent-contract.ts'
-import { LANGUAGE_UTTERANCE_CHANNELS } from './language-types.ts'
+import { LANGUAGE_UTTERANCE_CHANNELS } from '../record/language-types.ts'
 import type { ComposedPolicyContext } from './composed-renderer.ts'
-import { onlyAllowedKeys } from '../components/canonical-shape.ts'
+import { onlyAllowedKeys } from '../canonical/canonical-shape.ts'
 import {
   PLAYER_REFERENCE_NORMS,
   TABLE_TALK_NORMS,

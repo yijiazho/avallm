@@ -31,8 +31,8 @@ import {
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
-import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
-import type { PublicRecord } from '../server/agents/communication/public-record.ts'
+import { projectPublicRecord } from '../server/agents/record/public-record.ts'
+import type { PublicRecord } from '../server/agents/record/public-record.ts'
 import {
   candidateIdForDecision,
   legalCandidates,
@@ -63,7 +63,7 @@ import {
 import { ARCHITECTURE_BANK } from '../server/eval/architecture-bank.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
-import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/canonical/canonical-json.ts'
 
 const morganaCounterfeitObjective = (trace: DecisionTrace) => componentPayload(
   trace.components!,

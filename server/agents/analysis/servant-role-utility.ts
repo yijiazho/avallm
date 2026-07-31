@@ -26,7 +26,7 @@
 import type { PlayerView, Seat } from '../../engine/types.ts'
 import { isCanonicalTeam } from '../../engine/seatset.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import { buildPublicSelfRead } from './public-self-read.ts'
 import { PUBLIC_SELF_READ_VERSION } from './public-self-read-types.ts'
 import {
@@ -36,8 +36,8 @@ import {
   plainDataRecord as plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
-import { clampProbability as clamp01 } from '../components/probability-arithmetic.ts'
+} from '../canonical/canonical-shape.ts'
+import { clampProbability as clamp01 } from '../canonical/probability-arithmetic.ts'
 import {
   exactHostJoin,
   projectionCodec,

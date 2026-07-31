@@ -9,7 +9,7 @@ import {
   canonicalizeJson,
   canonicalizeTransportJson,
   DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
-} from '../server/agents/components/canonical-json.ts'
+} from '../server/agents/canonical/canonical-json.ts'
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
   ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
@@ -111,7 +111,7 @@ import {
 } from '../server/agents/analysis/morgana-role-utility.ts'
 import {
   projectPublicRecord,
-} from '../server/agents/communication/public-record.ts'
+} from '../server/agents/record/public-record.ts'
 import {
   applyForcedPolicy,
 } from '../server/agents/policy/forced.ts'

@@ -17,7 +17,7 @@ import {
   PUBLIC_OBSERVER_MODEL_VERSION,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import { projectionCodec } from './projection-codec.ts'
 import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
@@ -31,11 +31,11 @@ import {
   plainDataRecord as plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   closeProbability as close,
   latticeCount,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 function fraction(
   numerator: number,

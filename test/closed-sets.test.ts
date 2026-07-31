@@ -27,7 +27,7 @@ import {
 } from '../server/agents/communication/language-orchestration.ts'
 import {
   LANGUAGE_UTTERANCE_CHANNELS,
-} from '../server/agents/communication/language-types.ts'
+} from '../server/agents/record/language-types.ts'
 import {
   DECISION_COMPONENT_KINDS,
 } from '../server/agents/components/types.ts'
@@ -86,7 +86,7 @@ const CLOSED_SETS: readonly ClosedSet[] = [
   },
   {
     name: 'LANGUAGE_UTTERANCE_CHANNELS',
-    owner: 'server/agents/communication/language-types.ts',
+    owner: 'server/agents/record/language-types.ts',
     members: LANGUAGE_UTTERANCE_CHANNELS,
   },
   {

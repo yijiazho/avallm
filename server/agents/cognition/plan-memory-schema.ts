@@ -18,11 +18,11 @@ import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
   plainDetachedData,
   strictCanonicalArray,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import { isAppliedDecisionResolution } from './applied-decision.ts'
 import {
   projectLanguageInterpreterInput,
-} from '../communication/language-contract.ts'
+} from '../record/language-contract.ts'
 import { publicEvidenceExists } from '../communication/direction-contract.ts'
 import { validStrategicIntent } from '../communication/strategic-intent-contract.ts'
 import { buildCommitments } from './commitments.ts'

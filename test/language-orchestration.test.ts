@@ -13,7 +13,7 @@ import {
   LANGUAGE_EVIDENCE_VERSION,
   type LanguageInterpreter,
   type LanguageInterpreterInput,
-} from '../server/agents/communication/language-types.ts'
+} from '../server/agents/record/language-types.ts'
 import {
   goodProposalScorer,
 } from '../server/agents/policy/score.ts'

@@ -30,8 +30,8 @@ import {
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
   stableProbabilitySum,
-} from '../server/agents/components/probability-arithmetic.ts'
-import { CANONICAL_ROLE_ORDER } from '../server/agents/belief/types.ts'
+} from '../server/agents/canonical/probability-arithmetic.ts'
+import { CANONICAL_ROLE_ORDER } from '../server/agents/canonical/canonical-shape.ts'
 // Architecture fitness is an executable JavaScript tool, not a server module.
 // @ts-expect-error The test supplies the narrow runtime contract below.
 import * as architectureModule from '../tools/architecture-fitness.mjs'
@@ -46,7 +46,7 @@ const { SHARED_ARITHMETIC_HELPER_NAMES, SHARED_ARITHMETIC_HELPER_SYNONYMS } =
   }
 
 const ARITHMETIC_SOURCE =
-  'server/agents/components/probability-arithmetic.ts'
+  'server/agents/canonical/probability-arithmetic.ts'
 
 /** The value exports, pinned by name so a rename is a visible failure. */
 const CONSTANT_NAMES = [

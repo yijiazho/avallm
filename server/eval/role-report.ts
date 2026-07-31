@@ -28,7 +28,7 @@ import type {
 import {
   exactKeys,
   plainRecord,
-} from '../agents/components/canonical-shape.ts'
+} from '../agents/canonical/canonical-shape.ts'
 
 export const PHASE7_ROLE_REPORT_VERSION = 'phase7-role-report-v1'
 export const PHASE7_ROLE_EVIDENCE_BASELINE = 'docs/baselines/phase7-role-evidence-standard-v1.jsonl'

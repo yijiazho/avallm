@@ -13,7 +13,7 @@ import {
 } from '../server/agents/belief/types.ts'
 import {
   PROBABILITY_TOLERANCE,
-} from '../server/agents/components/probability-arithmetic.ts'
+} from '../server/agents/canonical/probability-arithmetic.ts'
 import {
   canonicalWorldKey,
   enumerateCanonicalWorlds,

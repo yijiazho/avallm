@@ -24,7 +24,7 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import { certaintyDifferential } from './perception-asymmetry.ts'
 import { observePublicRecord } from './observer.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './observer-types.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import {
   denseArray,
   exactKeys,
@@ -32,7 +32,7 @@ import {
   probability,
   tableSize,
   validateBeliefSource,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   EVIL_EXPOSURE_READ_VERSION,
   PRIVATE_PIN_READ_VERSION,

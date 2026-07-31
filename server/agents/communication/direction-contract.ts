@@ -5,7 +5,7 @@ import {
   denseArray,
   onlyAllowedKeys,
   plainDataRecord,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import type {
   AssertNever,
   DuplicateKeys,
@@ -21,8 +21,8 @@ import {
 import type {
   LanguageInterpreterInput,
   LanguageUtteranceChannel,
-} from './language-types.ts'
-import { recentPublicUtterances } from './language-contract.ts'
+} from '../record/language-types.ts'
+import { recentPublicUtterances } from '../record/language-contract.ts'
 
 /**
  * The one contract for a planner-authored communication direction.

@@ -19,11 +19,11 @@ import {
   onlyAllowedKeys,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   assignmentKey,
   canonicalQuery,

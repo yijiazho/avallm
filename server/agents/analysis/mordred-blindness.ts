@@ -40,7 +40,7 @@ import {
 import {
   DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import { exactHostJoin } from './projection-codec.ts'
 import {
   canonicalCombinations,
@@ -53,13 +53,13 @@ import {
   plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability,
   closeProbability as close,
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   accumulateSubjectMass,
   conditionalOverlayIndex,

@@ -13,7 +13,7 @@ import type {
 import {
   canonicalizeJson,
   type CanonicalJsonValue,
-} from '../../server/agents/components/canonical-json.ts'
+} from '../../server/agents/canonical/canonical-json.ts'
 import type {
   ComponentHostInputBinding,
   ComponentToken,

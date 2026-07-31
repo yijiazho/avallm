@@ -15,7 +15,7 @@ import {
   type PrivateIdentitySnapshot,
   validatePrivateIdentityHostJoin,
 } from '../belief/identity.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import type { PolicyCandidate } from '../policy/types.ts'
 import {
   exactHostJoin,
@@ -48,7 +48,7 @@ import {
   exactKeys,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import type {
   AssertNever,
   ConcatKeys,
@@ -60,7 +60,7 @@ import {
   clampProbability,
   latticeCount,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {

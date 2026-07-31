@@ -1,9 +1,7 @@
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import type { Role, Seat } from '../../engine/types.ts'
-import {
-  compareCanonicalRoles,
-  type HiddenWorld,
-} from './types.ts'
+import { compareCanonicalRoles } from '../canonical/canonical-shape.ts'
+import type { HiddenWorld } from './types.ts'
 import { LruMap } from '../../shared/lru.ts'
 
 export interface RoleMultisetEvidence {

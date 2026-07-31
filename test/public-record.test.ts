@@ -9,10 +9,10 @@ import {
 } from '../server/agents/facts.ts'
 import {
   projectLanguageInterpreterInput,
-} from '../server/agents/communication/language-contract.ts'
+} from '../server/agents/record/language-contract.ts'
 import {
   projectPublicRecord,
-} from '../server/agents/communication/public-record.ts'
+} from '../server/agents/record/public-record.ts'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import type {
@@ -27,7 +27,7 @@ test('prompt facts and language context import the same public-record owner', ()
     'utf8',
   )
   const languageSource = readFileSync(
-    'server/agents/communication/language-contract.ts',
+    'server/agents/record/language-contract.ts',
     'utf8',
   )
 

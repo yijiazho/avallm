@@ -6,13 +6,13 @@ import {
   plainDetachedData,
   probability,
   sequenceEqual,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   stableProbabilitySum,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import { canonicalTeam } from '../../engine/seatset.ts'
 import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/situation-types.ts'
 import type { PolicyCandidate } from './types.ts'

@@ -1,5 +1,5 @@
 import type { Seat } from '../../engine/types.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 
 export const SERVANT_OBJECTIVE_MODEL_VERSION =
   'servant-standing-decoy-objectives-v1'

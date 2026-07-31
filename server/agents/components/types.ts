@@ -13,11 +13,11 @@ import type {
 } from '../../engine/types.ts'
 import type {
   PublicRecord,
-} from '../communication/public-record.ts'
+} from '../record/public-record.ts'
 import type {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../analysis/observer-types.ts'
-import type { CanonicalJsonValue } from './canonical-json.ts'
+import type { CanonicalJsonValue } from '../canonical/canonical-json.ts'
 
 export const DECISION_COMPONENT_KINDS = Object.freeze([
   'observer',

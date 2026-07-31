@@ -8,7 +8,7 @@
 // them from `./kernel.ts`, and which reuses admittedPayload for its own
 // dependency reads.
 
-import { canonicalCode } from './canonical-code.ts'
+import { canonicalCode } from '../canonical/canonical-code.ts'
 import { componentIdentityKey } from './registry.ts'
 import type {
   ComponentPayloadEnvelope,

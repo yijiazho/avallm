@@ -32,7 +32,7 @@ import { resolveQuest } from './support/quests.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {
   LANGUAGE_EVIDENCE_VERSION,
-} from '../server/agents/communication/language-types.ts'
+} from '../server/agents/record/language-types.ts'
 import type {
   DecisionRequest,
   PlayerView,

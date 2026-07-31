@@ -14,7 +14,7 @@ import {
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
 } from '../analysis/role-utility.ts'
-import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts'
+import { SEEDED_SELECTION_MARGIN } from '../canonical/probability-arithmetic.ts'
 import type { ScoreLayerRow } from '../policy/score-layer/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,

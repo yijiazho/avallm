@@ -25,7 +25,7 @@ import { rotatePublicRecord } from './support/player-view-metamorphic.ts'
 import {
   projectPublicRecord,
   type PublicRecord,
-} from '../server/agents/communication/public-record.ts'
+} from '../server/agents/record/public-record.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { createGame } from '../server/engine/game.ts'
 import {

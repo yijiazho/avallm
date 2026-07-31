@@ -16,7 +16,7 @@ import {
   canonicalizeJson,
   DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 
 export interface ProjectionCodec<Payload> {
   /**

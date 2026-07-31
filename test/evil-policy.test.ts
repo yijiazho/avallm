@@ -85,7 +85,7 @@ import {
   mutableClone,
   type Mutable,
 } from './support/score-family.ts'
-import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/canonical/canonical-json.ts'
 
 const fixtures = readDecisionFixtures()
 const fixture = (role: Role) =>

@@ -13,7 +13,7 @@ import type { PrivateEvilRoleObjectiveSnapshot } from '../analysis/evil-objectiv
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
-} from '../communication/language-types.ts'
+} from '../record/language-types.ts'
 import type { AppliedDecisionResolution } from './applied-decision.ts'
 import type { StrategicIntent } from '../policy/plan.ts'
 import { COHERENCE_MODEL_VERSION } from './coherence.ts'

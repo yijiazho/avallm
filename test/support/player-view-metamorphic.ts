@@ -1,5 +1,5 @@
 import type { PlayerView } from '../../server/engine/types.ts'
-import type { PublicRecord } from '../../server/agents/communication/public-record.ts'
+import type { PublicRecord } from '../../server/agents/record/public-record.ts'
 
 // Shared seat-rotation primitives for the metamorphic tests: rotate a seat index
 // by a fixed shift, and rotate + re-sort a seat array. One home so a proposal

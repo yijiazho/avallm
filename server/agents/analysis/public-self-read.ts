@@ -20,7 +20,7 @@
  */
 
 import type { Seat } from '../../engine/types.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import { observePublicRecord } from './observer.ts'
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
@@ -35,12 +35,12 @@ import {
   probability,
   signedUnit,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability as clamp01,
   stableProbabilitySum,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   PUBLIC_SELF_READ_CONSTANTS as C,
   PUBLIC_SELF_READ_VERSION,

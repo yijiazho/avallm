@@ -13,7 +13,7 @@
 // There is deliberately no single-value guard: every probability the belief
 // layer emits belongs to a distribution and is checked as one. The strict
 // predicate for a lone value over [0, 1] is `probability` in
-// components/canonical-shape.ts, asked on the consuming side of untrusted
+// canonical/canonical-shape.ts, asked on the consuming side of untrusted
 // payloads; this module asks a different question of our own arithmetic and
 // answers it with a throw and a tolerance.
 
@@ -21,7 +21,7 @@ import {
   addProbability,
   PROBABILITY_TOLERANCE,
   type CompensatedProbability,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 /** A belief distribution violated its own numeric contract. */
 export class BeliefInvariantError extends Error {}

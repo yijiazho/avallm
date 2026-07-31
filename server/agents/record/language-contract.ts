@@ -6,7 +6,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
-import { exactKeys, plainRecord } from '../components/canonical-shape.ts'
+import { exactKeys, plainRecord } from '../canonical/canonical-shape.ts'
 import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_EVIDENCE_CLASSES,

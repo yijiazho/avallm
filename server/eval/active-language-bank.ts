@@ -13,7 +13,7 @@ import {
   LANGUAGE_EVIDENCE_VERSION,
   type LanguageEvidence,
   type LanguageInterpreter,
-} from '../agents/communication/language-types.ts'
+} from '../agents/record/language-types.ts'
 import type { Seat } from '../engine/types.ts'
 import type { ArchitectureVariant } from './architecture-bench.ts'
 

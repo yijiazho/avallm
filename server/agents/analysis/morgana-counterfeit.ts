@@ -22,7 +22,7 @@ import {
 } from '../belief/worlds.ts'
 import { assessPublicJointTeams, observePublicRecord } from './observer.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from './observer-types.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import {
   buildPublicCounterfeitMerlinRead,
   validatePublicCounterfeitMerlinReadHostJoin,
@@ -54,13 +54,13 @@ import {
   plainDataRecord as plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability as clamp01,
   closeProbability as close,
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import { teamEvilCountDistribution } from './perception-asymmetry.ts'
 
 // The public-read half moved to morgana-counterfeit-public-read.ts. Re-export its

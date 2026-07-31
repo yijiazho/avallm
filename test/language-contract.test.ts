@@ -11,11 +11,11 @@ import {
   projectLanguageInterpreterInput,
   validateLanguageEvidenceCursor,
   validateLanguageInterpreterInput,
-} from '../server/agents/communication/language-contract.ts'
+} from '../server/agents/record/language-contract.ts'
 import {
   LANGUAGE_EVIDENCE_VERSION,
   type LanguageInterpreter,
-} from '../server/agents/communication/language-types.ts'
+} from '../server/agents/record/language-types.ts'
 import {
   applyDecision,
   createGame,
@@ -497,7 +497,7 @@ test('interpreter contract leaves provider output unknown until admission', asyn
 test('language contract has a PlayerView-only static tripwire, never raw Game', () => {
   const source = readFileSync(
     new URL(
-      '../server/agents/communication/language-contract.ts',
+      '../server/agents/record/language-contract.ts',
       import.meta.url,
     ),
     'utf8',

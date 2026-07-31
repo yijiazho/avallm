@@ -57,7 +57,7 @@ import { seatName } from './prompt-format.ts'
 import {
   projectPublicRecord,
   type PublicRecord,
-} from './communication/public-record.ts'
+} from './record/public-record.ts'
 
 // The canonical rendering of a quest result token — `Q3(FAIL)` / `Q1(ok)`. Lives
 // here (the facts layer that owns the dossier vocabulary) and is reused by the

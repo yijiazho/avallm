@@ -4,12 +4,12 @@ import type {
 } from '../../engine/types.ts'
 import {
   projectPublicRecord,
-} from '../communication/public-record.ts'
+} from '../record/public-record.ts'
 import type { ResolvedComposedBrain } from './resolved-brain.ts'
 import {
   componentIdentityKey,
 } from './registry.ts'
-import { canonicalCode } from './canonical-code.ts'
+import { canonicalCode } from '../canonical/canonical-code.ts'
 import {
   admittedHostInputValues,
   prepareHostInputSources,
@@ -21,7 +21,7 @@ import {
   canonicalJsonEqual,
   exactOwnDataRecord,
   freezeComponentInput,
-} from './canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import type {
   DecisionComponentRegistry,
 } from './registry.ts'

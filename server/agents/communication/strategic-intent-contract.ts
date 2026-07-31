@@ -4,7 +4,7 @@ import {
   denseArray,
   onlyAllowedKeys,
   plainDataRecord,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   STRATEGIC_INTENT_HORIZONS,
   STRATEGIC_INTENT_VERSION,

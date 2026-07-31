@@ -167,7 +167,7 @@ import {
 } from '../agents/components/architecture-metadata.ts'
 import {
   exactOwnDataRecord as exactCurrentArchitectureRecord,
-} from '../agents/components/canonical-json.ts'
+} from '../agents/canonical/canonical-json.ts'
 import {
   admitResolvedArchitectureIdentity,
   resolvedArchitectureIdentityDigest,

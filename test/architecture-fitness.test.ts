@@ -135,7 +135,7 @@ test('server consumers cannot bypass closed trace admission results', () => {
 })
 
 test('transport canonicalization is confined to trace admission ingress', () => {
-  const canonical = '../agents/components/canonical-json.ts'
+  const canonical = '../agents/canonical/canonical-json.ts'
   const violations = auditArchitectureSources([
     [
       'server/eval/named.ts',
@@ -447,7 +447,7 @@ test('a shared shape guard cannot be rebound in a nested scope', () => {
       import {
         plainDataRecord as plainRecord,
         probability,
-      } from '../components/canonical-shape.ts'
+      } from '../canonical/canonical-shape.ts'
       ${body}
     `]])
 
@@ -546,7 +546,7 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
     rules([['server/agents/analysis/probe.ts', body]])
   const importing = (body: string) =>
     rules([['server/agents/analysis/probe.ts', `
-      import { exactKeys, probability } from '../components/canonical-shape.ts'
+      import { exactKeys, probability } from '../canonical/canonical-shape.ts'
       ${body}
     `]])
 
@@ -639,7 +639,7 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
   // of them rather than for none.
   assert.deepEqual(
     rules([['server/agents/analysis/probe.ts', `
-      import * as shapes from '../components/canonical-shape.ts'
+      import * as shapes from '../canonical/canonical-shape.ts'
       const validProbability = (v: unknown): boolean => shapes.probability(v)
     `]]),
     [],
@@ -663,7 +663,7 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
   // The guard module itself declares the names, so it is not its own offender.
   assert.deepEqual(
     rules([[
-      'server/agents/components/canonical-shape.ts',
+      'server/agents/canonical/canonical-shape.ts',
       'export const plainRecordOrArray = (v: unknown): boolean => !!v',
     ]]),
     [],
@@ -682,7 +682,7 @@ test('a shared shape guard cannot be re-declared under a known synonym', () => {
     rules([['server/agents/analysis/probe.ts', body]])
   const importing = (guard: string, body: string) =>
     rules([['server/agents/analysis/probe.ts', `
-      import { ${guard} } from '../components/canonical-shape.ts'
+      import { ${guard} } from '../canonical/canonical-shape.ts'
       ${body}
     `]])
 
@@ -751,7 +751,7 @@ test('a shared numeric helper cannot be re-declared privately', () => {
     rules([['server/agents/analysis/probe.ts', body]])
   const importing = (helper: string, body: string) =>
     rules([['server/agents/analysis/probe.ts', `
-      import { ${helper} } from '../components/probability-arithmetic.ts'
+      import { ${helper} } from '../canonical/probability-arithmetic.ts'
       ${body}
     `]])
 
@@ -809,7 +809,7 @@ test('a shared numeric helper cannot be re-declared privately', () => {
   )
   assert.deepEqual(
     rules([['server/agents/analysis/probe.ts', `
-      import * as arithmetic from '../components/probability-arithmetic.ts'
+      import * as arithmetic from '../canonical/probability-arithmetic.ts'
       const clamp01 = (v: number): number => arithmetic.clampProbability(v)
     `]]),
     [],
@@ -836,7 +836,7 @@ test('a shared numeric helper cannot be re-declared privately', () => {
   // The owner module declares the names, so it is not its own offender.
   assert.deepEqual(
     rules([[
-      'server/agents/components/probability-arithmetic.ts',
+      'server/agents/canonical/probability-arithmetic.ts',
       'export const clampProbabilityTwice = (v: number): number => v',
     ]]),
     [],
@@ -882,7 +882,7 @@ test('a bare tolerance literal in the agent tree has no owner', () => {
   // The owner module is where the magnitudes live.
   assert.deepEqual(
     rules([[
-      'server/agents/components/probability-arithmetic.ts',
+      'server/agents/canonical/probability-arithmetic.ts',
       'export const PROBABILITY_TOLERANCE = 1e-12',
     ]]),
     [],
@@ -1223,7 +1223,7 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
       ],
       [
         'server/agents/policy/decision-layer/admission-replay.ts',
-        'import { canonicalizeJson } from "../../components/canonical-json.ts"',
+        'import { canonicalizeJson } from "../../canonical/canonical-json.ts"',
       ],
       [
         'server/agents/composed.ts',

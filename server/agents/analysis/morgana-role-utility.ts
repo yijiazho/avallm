@@ -18,7 +18,7 @@ import {
 } from '../policy/candidates.ts'
 import {
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import {
   exactHostJoin,
   projectionCodec,
@@ -41,7 +41,7 @@ import {
   canonicalSeats,
   exactKeys,
   plainDataRecord as plainRecord,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import type {
   AssertNever,
   ConcatKeys,
@@ -51,7 +51,7 @@ import type {
 } from '../../shared/key-list-guards.ts'
 import {
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 export const MORGANA_ROLE_UTILITY_PROJECTION_VERSION =
   'morgana-counterfeit-role-utility-v1'

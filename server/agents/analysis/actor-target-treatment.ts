@@ -12,7 +12,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { proposalApproved, proposalVotes } from '../../engine/rules.ts'
 import type { Seat } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/seatset.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import {
   observePublicRecord,
 } from './observer.ts'
@@ -29,7 +29,7 @@ import {
 } from './actor-target-treatment-types.ts'
 import type {
   CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import {
   denseArray,
   exactKeys,
@@ -37,10 +37,10 @@ import {
   plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   closeProbability as close,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 function fraction(
   numerator: number,

@@ -12,10 +12,10 @@ import {
   type LanguageEvidenceClass,
   type LanguageEvidenceConfidence,
   type LanguageEvidenceDirection,
-} from '../server/agents/communication/language-types.ts'
+} from '../server/agents/record/language-types.ts'
 import {
   projectLanguageInterpreterInput,
-} from '../server/agents/communication/language-contract.ts'
+} from '../server/agents/record/language-contract.ts'
 import {
   LANGUAGE_HISTORY_LOG_ODDS_CAP,
   LANGUAGE_INFERENCE_CONTEXT_VERSION,

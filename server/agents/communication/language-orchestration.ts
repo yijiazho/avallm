@@ -10,7 +10,7 @@ import {
   advanceLanguageEvidenceCursorWithoutEvidence,
   initialLanguageEvidenceCursor,
   projectLanguageInterpreterInput,
-} from './language-contract.ts'
+} from '../record/language-contract.ts'
 import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_INTERPRETER_INPUT_VERSION,
@@ -18,7 +18,7 @@ import {
   type LanguageEvidenceCursor,
   type LanguageInterpreter,
   type LanguageInterpreterInput,
-} from './language-types.ts'
+} from '../record/language-types.ts'
 
 const INTERPRETER_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
 export const INVALID_LANGUAGE_INTERPRETER_VERSION =

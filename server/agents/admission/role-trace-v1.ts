@@ -116,7 +116,7 @@ import {
 } from '../belief/types.ts'
 import {
   projectPublicRecord,
-} from '../communication/public-record.ts'
+} from '../record/public-record.ts'
 import {
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
 } from '../components/native-score-components.ts'

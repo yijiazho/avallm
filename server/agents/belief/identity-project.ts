@@ -5,28 +5,28 @@ import {
 } from '../../engine/rules.ts'
 import { isRole } from '../../engine/types.ts'
 import type { Role, Seat } from '../../engine/types.ts'
-import {
-  CANONICAL_ROLE_ORDER,
-  type BeliefSnapshot,
-  type HiddenWorld,
-  type WeightedWorld,
+import { CANONICAL_ROLE_ORDER } from '../canonical/canonical-shape.ts'
+import type {
+  BeliefSnapshot,
+  HiddenWorld,
+  WeightedWorld,
 } from './types.ts'
 import { canonicalRoleMultiset } from './worlds.ts'
 import {
   denseArray,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   addProbability,
   clampProbability,
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
   type CompensatedProbability,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 // The compensated summation used below was written here, because this is where
 // the strict normalization check first met a 58,080-world support and lost. It
-// moved to components/probability-arithmetic.ts for the same reason
+// moved to canonical/probability-arithmetic.ts for the same reason
 // PROBABILITY_TOLERANCE did: analysis already imported it from this module, so
 // the belief layer owned a numeric kernel that four layers need, and ARCH017
 // scans that module's exports for private copies. Deliberately not re-exported.

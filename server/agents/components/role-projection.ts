@@ -18,7 +18,7 @@ import { componentEnvelope } from './kernel.ts'
 import {
   DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES,
   type CanonicalJsonValue,
-} from './canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import type {
   ComponentAdmissionResult,
   ComponentHostInputRef,

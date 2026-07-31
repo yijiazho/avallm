@@ -5,12 +5,12 @@ import type {
   PrivateInfo,
   Seat,
 } from '../../engine/types.ts'
-import type { PublicAttributedUtterance } from './language-types.ts'
-import type { PublicRecord } from './public-record.ts'
+import type { PublicAttributedUtterance } from '../record/language-types.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import {
   projectLanguageInterpreterInput,
   recentPublicUtterances,
-} from './language-contract.ts'
+} from '../record/language-contract.ts'
 import type { SituationAnalysis } from '../analysis/situation-types.ts'
 import type {
   CognitionState,

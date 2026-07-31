@@ -26,7 +26,7 @@ import {
 } from '../server/agents/policy/evil-quest-card.ts'
 import {
   canonicalizeJson,
-} from '../server/agents/components/canonical-json.ts'
+} from '../server/agents/canonical/canonical-json.ts'
 import {
   type AgentDecision,
 } from '../server/agents/types.ts'

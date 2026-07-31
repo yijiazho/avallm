@@ -17,7 +17,7 @@ import {
   MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
 } from '../server/agents/analysis/assassin-merlin-posterior-types.ts'
 import { exactBelief } from '../server/agents/belief/exact.ts'
-import { canonicalizeJson } from '../server/agents/components/canonical-json.ts'
+import { canonicalizeJson } from '../server/agents/canonical/canonical-json.ts'
 import { ASSASSIN_MERLIN_POSTERIOR_COMPONENT } from '../server/agents/components/native-role-components.ts'
 import { PRIVATE_BELIEF_INPUT } from '../server/agents/components/native-score-components.ts'
 import { createProductionComponentRegistry } from '../server/agents/components/production-registry.ts'

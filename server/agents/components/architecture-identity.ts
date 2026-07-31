@@ -27,7 +27,7 @@ import {
   canonicalizeJson,
   denseOwnDataArrayValues,
   exactOwnDataRecord,
-} from './canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 
 export const RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION =
   'resolved-architecture-descriptor-v1'

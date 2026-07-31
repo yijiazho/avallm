@@ -25,7 +25,7 @@ import {
   denseOwnDataArrayValues,
   exactOwnDataRecord,
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import type {
   AssertNever,
   ConcatKeys,

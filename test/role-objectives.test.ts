@@ -61,7 +61,7 @@ import {
 } from '../server/eval/architecture-bench.ts'
 import { architectureReport } from '../server/eval/architecture-report.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
-import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
+import { projectPublicRecord } from '../server/agents/record/public-record.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import type { AvalonAgent } from '../server/agents/types.ts'
 

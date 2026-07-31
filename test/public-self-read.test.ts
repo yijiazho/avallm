@@ -16,7 +16,7 @@ import {
 import {
   PUBLIC_SELF_READ_VERSION,
 } from '../server/agents/analysis/public-self-read-types.ts'
-import { projectPublicRecord } from '../server/agents/communication/public-record.ts'
+import { projectPublicRecord } from '../server/agents/record/public-record.ts'
 import { createGame } from '../server/engine/game.ts'
 import { MAX_PLAYERS, MIN_PLAYERS } from '../server/engine/rules.ts'
 import { viewFor } from '../server/engine/view.ts'

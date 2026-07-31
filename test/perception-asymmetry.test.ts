@@ -18,7 +18,7 @@ import {
   teamEvilCountDistribution,
   type PerceptionOverlaySample,
 } from '../server/agents/analysis/perception-asymmetry.ts'
-import { stableProbabilitySum } from '../server/agents/components/probability-arithmetic.ts'
+import { stableProbabilitySum } from '../server/agents/canonical/probability-arithmetic.ts'
 
 test('accumulates probability mass per subject key in input order', () => {
   const items = [

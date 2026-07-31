@@ -5,7 +5,7 @@
 // servant-objective weights that measurement. A copy per file lets one drift
 // while both stay green, which is the failure this file exists to prevent.
 
-import type { PublicRecord } from '../server/agents/communication/public-record.ts'
+import type { PublicRecord } from '../server/agents/record/public-record.ts'
 import {
   DEFAULT_ROLES,
   QUESTS_PER_GAME,

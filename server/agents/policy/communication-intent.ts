@@ -12,7 +12,7 @@ import { compareCandidateIds } from './candidates.ts'
 import {
   clampProbabilityOrZero as clampProbability,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   COMMUNICATION_INTENT_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,

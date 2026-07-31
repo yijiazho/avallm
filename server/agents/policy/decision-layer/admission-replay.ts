@@ -3,7 +3,7 @@ import {
   denseOwnDataArrayValues,
   exactOwnDataRecord,
   type CanonicalJsonValue,
-} from '../../components/canonical-json.ts'
+} from '../../canonical/canonical-json.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
 import { componentIdentityKey } from '../../components/registry.ts'
 import type { DecisionLayerRegistry } from './registry.ts'

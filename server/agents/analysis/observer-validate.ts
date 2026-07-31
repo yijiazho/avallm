@@ -23,11 +23,11 @@ import {
   onlyAllowedKeys,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   latticeCount,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 
 function factorial(value: number): number {
   let result = 1

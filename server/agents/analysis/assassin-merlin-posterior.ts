@@ -28,7 +28,7 @@ import {
   denseOwnDataArrayValues,
   exactOwnDataRecord,
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import {
   ASSASSIN_BEHAVIOR_COEFFICIENTS,
   ASSASSIN_BEHAVIOR_COEFFICIENT_VERSION,
@@ -40,11 +40,11 @@ import {
 import {
   probability,
   validateBeliefSource,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   closeProbability as close,
   stableProbabilitySum,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import { partitionBySubject } from './perception-asymmetry.ts'
 
 function resolvedActions(view: PlayerView) {

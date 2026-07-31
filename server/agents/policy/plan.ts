@@ -8,8 +8,8 @@ import type { ForcedPlayReasonCode } from '../analysis/situation-types.ts'
 import type {
   LanguageUtteranceChannel,
   PublicAttributedUtterance,
-} from '../communication/language-types.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+} from '../record/language-types.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import {
   type CandidateScore,
   type GoodProposalFeatures,

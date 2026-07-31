@@ -24,7 +24,7 @@
 // fold that the counterfeit and blindness objectives share. Both reuse the same
 // compensated sum so their totals match an inline loop bit for bit.
 
-import { stableProbabilitySum } from '../components/probability-arithmetic.ts'
+import { stableProbabilitySum } from '../canonical/probability-arithmetic.ts'
 
 export interface PerceptionOverlaySample {
   /** Whether the behavioral overlay had any observation for this item. */

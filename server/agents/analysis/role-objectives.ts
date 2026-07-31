@@ -29,7 +29,7 @@ import {
   observePublicRecord,
   validatePublicObserverSnapshot,
 } from './observer.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import {
   MAX_ROLE_OBJECTIVE_ASSESSMENTS,
   ROLE_OBJECTIVE_MODEL_VERSION,
@@ -58,11 +58,11 @@ import {
   plainDataRecord as plainRecord,
   probability,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability as clamp01,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   exactHostJoin,
   projectionCodec,

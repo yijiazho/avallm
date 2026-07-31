@@ -64,13 +64,13 @@ import {
   exactKeys,
   onlyAllowedKeys,
   probability,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   stableProbabilitySum,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from '../score-diagnostics/project-score-diagnostics.ts'
@@ -103,8 +103,8 @@ import {
 import {
   LANGUAGE_CURSOR_VERSION,
   LANGUAGE_INTERPRETER_INPUT_VERSION,
-} from '../communication/language-types.ts'
-import { projectLanguageInterpreterInput } from '../communication/language-contract.ts'
+} from '../record/language-types.ts'
+import { projectLanguageInterpreterInput } from '../record/language-contract.ts'
 import {
   DECISION_PLAN_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,
@@ -166,7 +166,7 @@ import {
 
 import {
   projectPublicRecord,
-} from '../communication/public-record.ts'
+} from '../record/public-record.ts'
 import type {
   TraceValidationInput,
 } from './trace-primitives.ts'
@@ -284,7 +284,7 @@ import {
   canonicalizeTransportJson,
   canonicalJsonEqual,
   type CanonicalJsonValue,
-} from '../components/canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import {
   MORGANA_COUNTERFEIT_DEGRADATION,
   MORGANA_COUNTERFEIT_OBJECTIVE_VERSION,

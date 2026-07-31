@@ -69,7 +69,7 @@ import {
 import {
   PUBLIC_OBSERVER_MODEL_VERSION,
 } from '../analysis/observer-types.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import { roleProjection } from './role-projection.ts'
 import type {
   ComponentToken,

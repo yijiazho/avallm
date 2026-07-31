@@ -44,7 +44,7 @@ import {
 } from '../server/agents/belief/exact.ts'
 import {
   projectPublicRecord,
-} from '../server/agents/communication/public-record.ts'
+} from '../server/agents/record/public-record.ts'
 import {
   componentPayload,
   decisionComponentPlan,
@@ -90,7 +90,7 @@ import {
 import {
   architectureReport,
 } from '../server/eval/architecture-report.ts'
-import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/components/canonical-json.ts'
+import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../server/agents/canonical/canonical-json.ts'
 
 const ROLES: Record<number, Role[]> = {
   5: ['merlin', 'servant', 'servant', 'assassin', 'mordred'],

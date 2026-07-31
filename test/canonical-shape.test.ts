@@ -28,12 +28,10 @@ import {
   plainRecord,
   probability,
   strictCanonicalArray,
-} from '../server/agents/components/canonical-shape.ts'
-import {
   CANONICAL_ROLE_ORDER,
   CANONICAL_ROLE_RANK,
   compareCanonicalRoles,
-} from '../server/agents/belief/types.ts'
+} from '../server/agents/canonical/canonical-shape.ts'
 import { EVIL_COUNT, validateRoles } from '../server/engine/rules.ts'
 import { isRole, ROLES } from '../server/engine/types.ts'
 import type { Role } from '../server/engine/types.ts'
@@ -573,7 +571,7 @@ test('canonicalRequestBlock states extra and vote-only fields per call', () => {
 //
 // This catches importers only. The next test covers the rest of the tree,
 // which is where the surviving private copies actually were.
-const GUARD_SOURCE = 'server/agents/components/canonical-shape.ts'
+const GUARD_SOURCE = 'server/agents/canonical/canonical-shape.ts'
 
 function serverSources(directory: string): string[] {
   const entries = readdirSync(new URL(`../${directory}/`, import.meta.url), {

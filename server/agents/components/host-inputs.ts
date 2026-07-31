@@ -8,14 +8,14 @@
 // this module accepts the invocation and provider containers by their
 // structural shape and never names those confined types.
 
-import { canonicalCode } from './canonical-code.ts'
+import { canonicalCode } from '../canonical/canonical-code.ts'
 import { componentIdentityKey } from './registry.ts'
 import {
   canonicalizeJson,
   canonicalJsonEqual,
   denseOwnDataArrayValues,
   exactOwnDataRecord,
-} from './canonical-json.ts'
+} from '../canonical/canonical-json.ts'
 import type {
   ComponentHostInputDefinition,
   ComponentHostInputRef,

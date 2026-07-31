@@ -1,4 +1,3 @@
-import { ROLES } from '../../engine/types.ts'
 import type {
   Alignment,
   PlayerView,
@@ -23,38 +22,15 @@ export const DEFAULT_TOP_WORLD_LIMIT = 10
 
 // PROBABILITY_TOLERANCE used to live here, which made the belief layer the
 // owner of a constant that analysis, policy, admission, and the score layers
-// all needed. It moved to components/probability-arithmetic.ts, beside the
+// all needed. It moved to canonical/probability-arithmetic.ts, beside the
 // shared shape guards, so the numeric contract has one home rather than a home
 // plus 83 raw literals. Deliberately not re-exported: a second spelling of the
 // import path is the first step back toward two definitions.
 
-/**
- * The serialization order for role-valued collections: ascending by role name.
- *
- * Derived from ROLES, never restated. This used to be its own list of the eight
- * names, which made it a second membership authority alongside the engine's:
- * adding a role to ROLES (and so to the Role union) would have left every
- * role-ordered projection silently omitting it, with nothing to typecheck
- * against. Only the ORDER is this module's contribution, and alphabetical is a
- * total order over any set of names, so a ninth role slots itself in.
- *
- * ROLES is declaration-ordered (good roles, then evil) because that is how the
- * rulebook reads. Sorting is deliberately not that: this order reaches world
- * keys and snapshot payloads, where stability matters more than legibility.
- */
-export const CANONICAL_ROLE_ORDER: readonly Role[] = Object.freeze(
-  [...ROLES].sort(),
-)
-
-/** Where each role sorts. Membership questions go to the engine's isRole. */
-export const CANONICAL_ROLE_RANK: ReadonlyMap<Role, number> = new Map(
-  CANONICAL_ROLE_ORDER.map((role, index) => [role, index]),
-)
-
-/** Ascending CANONICAL_ROLE_ORDER comparator. An unranked role sorts last. */
-export const compareCanonicalRoles = (left: Role, right: Role): number =>
-  (CANONICAL_ROLE_RANK.get(left) ?? Number.MAX_SAFE_INTEGER)
-  - (CANONICAL_ROLE_RANK.get(right) ?? Number.MAX_SAFE_INTEGER)
+// The canonical role order and its comparator moved down one tier, to live
+// with the shape guard that validates against them, in
+// canonical/canonical-shape.ts. Not re-exported here: the callers import them
+// from the owner, so there is one spelling of where the role order lives.
 
 export interface HiddenWorld {
   roleBySeat: readonly Role[]

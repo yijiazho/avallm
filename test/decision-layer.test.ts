@@ -27,7 +27,7 @@ import {
 } from '../server/agents/policy/decision-layer/admission-replay.ts'
 import {
   canonicalizeJson,
-} from '../server/agents/components/canonical-json.ts'
+} from '../server/agents/canonical/canonical-json.ts'
 import {
   runDecisionLayers,
 } from '../server/agents/policy/decision-layer/runner.ts'

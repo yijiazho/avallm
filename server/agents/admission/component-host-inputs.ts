@@ -8,7 +8,7 @@ import {
   EXACT_BELIEF_MODEL_VERSION,
   type BeliefSnapshot,
 } from '../belief/types.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import type { DecisionComponentPlan } from '../components/kernel.ts'
 import {
   createNativeScoreComponentRegistry,

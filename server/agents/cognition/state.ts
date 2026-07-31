@@ -7,11 +7,11 @@ import type { BeliefModel, BeliefSnapshot } from '../belief/types.ts'
 import {
   initialLanguageEvidenceCursor,
   validateLanguageEvidenceCursor,
-} from '../communication/language-contract.ts'
+} from '../record/language-contract.ts'
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
-} from '../communication/language-types.ts'
+} from '../record/language-types.ts'
 import { buildCommitments } from './commitments.ts'
 import { compareEvidence, extractEvidence } from './evidence.ts'
 import {

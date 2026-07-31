@@ -23,11 +23,11 @@ import {
   probability,
   signedUnit,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability as clamp01,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import {
   SERVANT_OBJECTIVE_CONSTANTS as W,
   SERVANT_OBJECTIVE_MODEL_VERSION,

@@ -9,12 +9,12 @@ import {
   exactKeys,
   plainRecord,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   addProbability,
   PROBABILITY_TOLERANCE,
   type CompensatedProbability,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import type {
   Alignment,
   PlayerView,
@@ -24,7 +24,7 @@ import {
   projectLanguageInterpreterInput,
   validateLanguageEvidenceCursor,
   validateLanguageInterpreterInput,
-} from '../communication/language-contract.ts'
+} from '../record/language-contract.ts'
 import {
   LANGUAGE_EVIDENCE_CLASSES,
   LANGUAGE_EVIDENCE_CONFIDENCES,
@@ -36,7 +36,7 @@ import {
   type LanguageEvidenceCursor,
   type LanguageEvidenceDirection,
   type LanguageInterpreterInput,
-} from '../communication/language-types.ts'
+} from '../record/language-types.ts'
 import {
   beliefFromWeightedWorlds,
   visibleEventCursor,

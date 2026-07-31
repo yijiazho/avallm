@@ -130,12 +130,12 @@ import {
 import {
   projectLanguageInterpreterInput,
   recentPublicUtterances,
-} from './communication/language-contract.ts'
+} from './record/language-contract.ts'
 import type {
   LanguageInterpreter,
   LanguageInterpreterInput,
-} from './communication/language-types.ts'
-import { projectPublicRecord } from './communication/public-record.ts'
+} from './record/language-types.ts'
+import { projectPublicRecord } from './record/public-record.ts'
 import {
   directionChannelFor,
   publicEvidenceExists,

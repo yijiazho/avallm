@@ -10,10 +10,10 @@ import {
 import {
   projectLanguageInterpreterInput,
   recentPublicUtterances,
-} from '../server/agents/communication/language-contract.ts'
+} from '../server/agents/record/language-contract.ts'
 import {
   projectPublicRecord,
-} from '../server/agents/communication/public-record.ts'
+} from '../server/agents/record/public-record.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { Msg, CallOpts } from '../server/llm/openrouter.ts'
 import type {

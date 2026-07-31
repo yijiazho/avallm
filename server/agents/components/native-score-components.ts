@@ -110,7 +110,7 @@ import {
   type PrivateServantRoleUtilityProjection,
   validateAdmittedServantRoleUtilityHostJoin,
 } from '../analysis/servant-role-utility.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import {
   hypotheticalProposalCandidates,
   legalCandidates,

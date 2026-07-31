@@ -30,14 +30,14 @@ import {
   probability,
   signedUnit as boundedInfluence,
   tableSize,
-} from '../components/canonical-shape.ts'
+} from '../canonical/canonical-shape.ts'
 import {
   clampProbability as clamp01,
   stableProbabilitySum,
   PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+} from '../canonical/probability-arithmetic.ts'
 import { validatePrivateRoleObjectiveSnapshot } from './role-objectives.ts'
-import { projectPublicRecord } from '../communication/public-record.ts'
+import { projectPublicRecord } from '../record/public-record.ts'
 import {
   exactHostJoin,
   projectionCodec,

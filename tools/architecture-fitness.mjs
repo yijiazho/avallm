@@ -63,13 +63,13 @@ const TRACE_ADMISSION_OWNER =
 const ROLE_TRACE_V1_READER =
   'server/agents/admission/role-trace-v1'
 const CANONICAL_JSON_OWNER =
-  'server/agents/components/canonical-json'
+  'server/agents/canonical/canonical-json'
 // The shared payload shape guards. A module that imports one and then binds
 // the same name in a nested scope has a guard that silently resolves to
 // something else inside that scope, which is how the private copies these
 // replaced drifted apart in the first place.
 const SHARED_SHAPE_GUARDS =
-  'server/agents/components/canonical-shape'
+  'server/agents/canonical/canonical-shape'
 /**
  * The callable exports of that module, pinned here so ARCH016 can name them.
  *
@@ -83,6 +83,11 @@ export const SHARED_SHAPE_GUARD_NAMES = Object.freeze([
   'canonicalRequestBlock',
   'canonicalRoles',
   'canonicalSeats',
+  // The role comparator came down here with the role order it reads. It is a
+  // comparator rather than a shape predicate, but it belongs in this set for
+  // the reason the set exists: a hand-rolled role sort is exactly the private
+  // copy that drifts, and now there is one owner for ARCH016 to name.
+  'compareCanonicalRoles',
   'denseArray',
   'exactKeys',
   'onlyAllowedKeys',
@@ -147,7 +152,7 @@ export const SHARED_SHAPE_GUARD_SYNONYMS = Object.freeze([
 // The shared numeric arithmetic: tolerances, clamps, the tolerance comparator,
 // and the count-lattice check.
 const SHARED_PROBABILITY_ARITHMETIC =
-  'server/agents/components/probability-arithmetic'
+  'server/agents/canonical/probability-arithmetic'
 /**
  * The callable exports of that module, pinned here so ARCH017 can name them.
  *
@@ -1449,7 +1454,7 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           undefined,
           `tolerance literal ${literal.text} (line ${literal.line}) has no `
-            + 'owner; name it in components/probability-arithmetic.ts so a '
+            + 'owner; name it in canonical/probability-arithmetic.ts so a '
             + 'call site says which regime it wanted',
         ))
       }

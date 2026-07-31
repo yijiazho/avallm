@@ -10,7 +10,7 @@ import {
   visitCanonicalWorlds,
 } from '../belief/worlds.ts'
 import { projectUniformJointWorlds } from '../belief/projection.ts'
-import type { PublicRecord } from '../communication/public-record.ts'
+import type { PublicRecord } from '../record/public-record.ts'
 import {
   PUBLIC_BEHAVIOR_READING_VERSION,
   PUBLIC_OBSERVER_MODEL_VERSION,
@@ -19,7 +19,7 @@ import {
   type PublicAlignmentMaskCount,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
-import { LEGAL_TEAM_CANDIDATE_BOUND } from '../components/canonical-shape.ts'
+import { LEGAL_TEAM_CANDIDATE_BOUND } from '../canonical/canonical-shape.ts'
 
 const PUBLIC_OBSERVER_CACHE_LIMIT = 16
 const exactProjectionCache = new Map<string, {

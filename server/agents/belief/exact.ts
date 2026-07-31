@@ -24,7 +24,7 @@ import {
 import { projectUniformJointWorlds } from './projection.ts'
 import { assertDistribution } from './invariants.ts'
 import { LruMap } from '../../shared/lru.ts'
-import { clampProbability } from '../components/probability-arithmetic.ts'
+import { clampProbability } from '../canonical/probability-arithmetic.ts'
 
 // Keyed on the per-seat private view (role, alignment, and private knowledge),
 // not just the public cast, so this space is far wider than worlds.ts's
