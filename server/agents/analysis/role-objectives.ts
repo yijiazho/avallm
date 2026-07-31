@@ -127,12 +127,95 @@ function directionSign(
   return direction === 'support' ? 1 : direction === 'oppose' ? -1 : 0
 }
 
+function publicTeamAmbiguityFrom(cleanProbability: number): number {
+  return clamp01(
+    1 - Math.abs(2 * cleanProbability - 1),
+  )
+}
+
 function publicTeamAmbiguity(
   assessment: PublicJointTeamAssessment,
 ): number {
-  return clamp01(
-    1 - Math.abs(2 * assessment.cleanProbability - 1),
+  return publicTeamAmbiguityFrom(assessment.cleanProbability)
+}
+
+/**
+ * The Merlin derivations that both the builder and the schema recompute: the
+ * failure-capability tail of the evil-count distribution, and the influence
+ * value. Derived once here so a coefficient can never drift between the two
+ * sites. Each helper takes exactly the operands its caller already holds - the
+ * builder feeds freshly derived values, the schema feeds the stored ones - so
+ * the schema keeps validating stored quantities rather than distribution-
+ * derived ones.
+ */
+function failureCapabilityFrom(
+  evilCountDistribution: readonly number[],
+  failsRequired: number,
+): number {
+  return evilCountDistribution
+    .slice(failsRequired)
+    .reduce((sum, entry) => sum + entry, 0)
+}
+
+function influenceValueFrom(
+  sign: number,
+  cleanProbability: number,
+  failureCapability: number,
+): number {
+  return sign * (cleanProbability - failureCapability)
+}
+
+interface PercivalProxyIndices {
+  publicPairInfluenceValue: number
+  pairKnowledgeTellIndex: number
+  decisiveAmbiguityIndex: number
+  merlinMimicryProxyIndex: number
+  selfDecoyOpportunityProxyIndex: number
+}
+
+/**
+ * The Percival proxy chain, derived once for the builder and the schema.
+ *
+ * `pairInfluenceValue` is supplied by the caller (the builder passes its fresh
+ * value, the schema passes the stored one) so the tell keeps reading exactly
+ * the operand each side reads today. The inner clamps on the ambiguity and the
+ * self-decoy product are provable no-ops over the validated domain - the
+ * ambiguity argument is 1 - |2c - 1| with c a probability, so it lies in
+ * [0, 1], and the self-decoy product multiplies two [0, 1] factors - so the
+ * schema, whose old code omitted those clamps, computes the same numbers.
+ */
+function percivalProxies(args: {
+  sign: number
+  pairInfluenceValue: number
+  publicMerlinOnTeamProbability: number
+  publicMorganaOnTeamProbability: number
+  publicTeamCleanProbability: number
+  publicMerlinProbabilityAtSelf: number
+}): PercivalProxyIndices {
+  const publicPairInfluenceValue =
+    args.sign * (
+      args.publicMerlinOnTeamProbability - args.publicMorganaOnTeamProbability
+    )
+  const pairKnowledgeTellIndex = clamp01(
+    Math.max(0, args.pairInfluenceValue - publicPairInfluenceValue) / 2,
   )
+  const decisiveAmbiguityIndex = clamp01(
+    Math.abs(args.sign)
+      * publicTeamAmbiguityFrom(args.publicTeamCleanProbability),
+  )
+  const merlinMimicryProxyIndex = clamp01(
+    0.75 * pairKnowledgeTellIndex + 0.25 * decisiveAmbiguityIndex,
+  )
+  const selfDecoyOpportunityProxyIndex = clamp01(
+    (1 - args.publicMerlinProbabilityAtSelf) * merlinMimicryProxyIndex,
+  )
+  return {
+    publicPairInfluenceValue,
+    pairKnowledgeTellIndex,
+    decisiveAmbiguityIndex,
+    merlinMimicryProxyIndex,
+    selfDecoyOpportunityProxyIndex,
+  }
 }
 
 function ownPublicSalience(
@@ -209,9 +292,10 @@ function merlinAssessments(
       distribution[index] = clamp01(distribution[index] / distributionTotal)
     }
     const teamCleanProbability = distribution[0]
-    const teamFailureCapabilityProbability = distribution
-      .slice(failsRequired)
-      .reduce((sum, entry) => sum + entry, 0)
+    const teamFailureCapabilityProbability = failureCapabilityFrom(
+      distribution,
+      failsRequired,
+    )
     const sign = directionSign(candidate.direction)
     const ambiguity = publicTeamAmbiguity(publicTeam)
     const conspicuousness = clamp01(Math.abs(sign) * ambiguity)
@@ -222,8 +306,11 @@ function merlinAssessments(
       teamCleanProbability,
       teamFailureCapabilityProbability,
       evilCountDistribution: distribution,
-      influenceValue:
-        sign * (teamCleanProbability - teamFailureCapabilityProbability),
+      influenceValue: influenceValueFrom(
+        sign,
+        teamCleanProbability,
+        teamFailureCapabilityProbability,
+      ),
       publicProbabilitySemantics: 'public-preaction-uniform-feasible-joint',
       publicTeamCleanProbability: publicTeam.cleanProbability,
       publicAmbiguityIndex: ambiguity,
@@ -314,7 +401,6 @@ function percivalAssessments(
     )
     const sign = directionSign(candidate.direction)
     const publicTeam = publicTeams[candidateIndex]
-    const ambiguity = publicTeamAmbiguity(publicTeam)
     const publicMerlinProbabilityAtSelf =
       observer.seats[viewerSeat].roleMarginals.find(
         (marginal) => marginal.role === 'merlin',
@@ -325,17 +411,14 @@ function percivalAssessments(
       publicRoleOnTeamProbability(observer, team, 'morgana')
     const pairInfluenceValue =
       sign * (merlinOnTeamProbability - morganaOnTeamProbability)
-    const publicPairInfluenceValue =
-      sign * (
-        publicMerlinOnTeamProbability - publicMorganaOnTeamProbability
-      )
-    const pairKnowledgeTellIndex = clamp01(
-      Math.max(0, pairInfluenceValue - publicPairInfluenceValue) / 2,
-    )
-    const decisiveAmbiguityIndex = clamp01(Math.abs(sign) * ambiguity)
-    const merlinMimicryProxyIndex = clamp01(
-      0.75 * pairKnowledgeTellIndex + 0.25 * decisiveAmbiguityIndex,
-    )
+    const proxies = percivalProxies({
+      sign,
+      pairInfluenceValue,
+      publicMerlinOnTeamProbability,
+      publicMorganaOnTeamProbability,
+      publicTeamCleanProbability: publicTeam.cleanProbability,
+      publicMerlinProbabilityAtSelf,
+    })
     return {
       candidate,
       probabilitySemantics: 'resolved-complete-world-sum',
@@ -348,13 +431,11 @@ function percivalAssessments(
       publicMerlinProbabilityAtSelf,
       publicMerlinOnTeamProbability,
       publicMorganaOnTeamProbability,
-      publicPairInfluenceValue,
-      pairKnowledgeTellIndex,
-      decisiveAmbiguityIndex,
-      merlinMimicryProxyIndex,
-      selfDecoyOpportunityProxyIndex: clamp01(
-        (1 - publicMerlinProbabilityAtSelf) * merlinMimicryProxyIndex,
-      ),
+      publicPairInfluenceValue: proxies.publicPairInfluenceValue,
+      pairKnowledgeTellIndex: proxies.pairKnowledgeTellIndex,
+      decisiveAmbiguityIndex: proxies.decisiveAmbiguityIndex,
+      merlinMimicryProxyIndex: proxies.merlinMimicryProxyIndex,
+      selfDecoyOpportunityProxyIndex: proxies.selfDecoyOpportunityProxyIndex,
     }
   })
 }
@@ -737,18 +818,20 @@ function roleObjectiveSchema(detached: unknown): boolean {
             - (assessment.teamCleanProbability as number),
         ) > PROBABILITY_TOLERANCE
         || Math.abs(
-          (assessment.evilCountDistribution as number[])
-            .slice(request.failsRequired as number)
-            .reduce((sum, entry) => sum + entry, 0)
+          failureCapabilityFrom(
+            assessment.evilCountDistribution as number[],
+            request.failsRequired as number,
+          )
             - (assessment.teamFailureCapabilityProbability as number),
         ) > PROBABILITY_TOLERANCE
         || !boundedIndex(assessment.influenceValue)
         || Math.abs(
-          directionSign(
-            (assessment.candidate as CandidatePublicCommitment).direction,
-          ) * (
-            (assessment.teamCleanProbability as number)
-            - (assessment.teamFailureCapabilityProbability as number)
+          influenceValueFrom(
+            directionSign(
+              (assessment.candidate as CandidatePublicCommitment).direction,
+            ),
+            assessment.teamCleanProbability as number,
+            assessment.teamFailureCapabilityProbability as number,
           )
             - (assessment.influenceValue as number),
         ) > PROBABILITY_TOLERANCE
@@ -883,33 +966,30 @@ function roleObjectiveSchema(detached: unknown): boolean {
       ) > PROBABILITY_TOLERANCE
     ) return false
     const sign = directionSign(assessment.candidate.direction)
-    const expectedPublicPair = sign * (
-      assessment.publicMerlinOnTeamProbability
-      - assessment.publicMorganaOnTeamProbability
-    )
-    const expectedTell = clamp01(
-      Math.max(0, assessment.pairInfluenceValue - expectedPublicPair) / 2,
-    )
-    const expectedDecisive = clamp01(
-      Math.abs(sign)
-      * (
-        1 - Math.abs(2 * assessment.publicTeamCleanProbability - 1)
-      ),
-    )
-    const expectedMimicry = clamp01(
-      0.75 * expectedTell + 0.25 * expectedDecisive,
-    )
+    const proxies = percivalProxies({
+      sign,
+      pairInfluenceValue: assessment.pairInfluenceValue,
+      publicMerlinOnTeamProbability: assessment.publicMerlinOnTeamProbability,
+      publicMorganaOnTeamProbability: assessment.publicMorganaOnTeamProbability,
+      publicTeamCleanProbability: assessment.publicTeamCleanProbability,
+      publicMerlinProbabilityAtSelf: assessment.publicMerlinProbabilityAtSelf,
+    })
     if (
-      Math.abs(expectedPublicPair - assessment.publicPairInfluenceValue)
-        > PROBABILITY_TOLERANCE
-      || Math.abs(expectedTell - assessment.pairKnowledgeTellIndex)
-        > PROBABILITY_TOLERANCE
-      || Math.abs(expectedDecisive - assessment.decisiveAmbiguityIndex)
-        > PROBABILITY_TOLERANCE
-      || Math.abs(expectedMimicry - assessment.merlinMimicryProxyIndex)
-        > PROBABILITY_TOLERANCE
+      Math.abs(
+        proxies.publicPairInfluenceValue
+          - assessment.publicPairInfluenceValue,
+      ) > PROBABILITY_TOLERANCE
       || Math.abs(
-        (1 - assessment.publicMerlinProbabilityAtSelf) * expectedMimicry
+        proxies.pairKnowledgeTellIndex - assessment.pairKnowledgeTellIndex,
+      ) > PROBABILITY_TOLERANCE
+      || Math.abs(
+        proxies.decisiveAmbiguityIndex - assessment.decisiveAmbiguityIndex,
+      ) > PROBABILITY_TOLERANCE
+      || Math.abs(
+        proxies.merlinMimicryProxyIndex - assessment.merlinMimicryProxyIndex,
+      ) > PROBABILITY_TOLERANCE
+      || Math.abs(
+        proxies.selfDecoyOpportunityProxyIndex
           - assessment.selfDecoyOpportunityProxyIndex,
       ) > PROBABILITY_TOLERANCE
     ) return false
