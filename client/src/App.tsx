@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AgentInfo, AgentPack, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ServerPayload, TableSeat } from './types.ts'
 import { tokenEstimate as tokenEst } from './agentConfig.ts'
+import { useRevealPacing } from './revealPacing.ts'
 import { EVIL_COUNT, PRESETS, ROLE_INFO, RULES_SUMMARY, buildRoles } from './setup.ts'
 import type { PresetId, Role, SpecialSelection } from './setup.ts'
 import { ActionBar } from './components/ActionBar.tsx'
@@ -228,8 +229,17 @@ export function App() {
     }
   }, [openGame, enterLobby])
 
+  // Everything the feed is still animating, in one place: the view as the
+  // surfaces outside the feed may read it, and whether the endgame screen may
+  // take the stage yet. Called before the no-payload return below, since a hook
+  // cannot sit behind one.
+  const pacing = useRevealPacing(payload?.view ?? null)
+
   const gameId = screen.name === 'game' ? screen.id : null
   const gameToken = screen.name === 'game' ? screen.token : null
+  // The FACT that the game ended, which is what the prefetch below wants: the
+  // reveal payload should be in hand by the time the closing beat finishes and
+  // the screen turns over. Presentation reads `pacing.showOutcome` instead.
   const gameOver = payload?.view.phase === 'gameOver'
 
   useEffect(() => {
@@ -328,6 +338,10 @@ export function App() {
   }
 
   const { view, ask, acting, bots } = payload
+  // Non-null whenever `payload` is; the coalesce is only to carry that past the
+  // hook's nullable signature.
+  const gatedView = pacing.view ?? view
+  const { showOutcome } = pacing
   const myAsk: DecisionRequest | undefined = ask[0]
 
   const roleTitle = payload.spectator
@@ -347,7 +361,7 @@ export function App() {
         </span>
       </header>
       {showRef && <Reference view={view} bots={bots} library={library} onClose={() => setShowRef(false)} />}
-      {showHistory && <HistoryGrid view={view} onClose={() => setShowHistory(false)} />}
+      {showHistory && <HistoryGrid view={gatedView} onClose={() => setShowHistory(false)} />}
       <div className="fartable">
         {/* Decorative sky — clipped to the zone (see .fartable-sky) so the arcs
             don't spill into the feed, while the seats' tooltips stay uncropped. */}
@@ -361,18 +375,23 @@ export function App() {
           <span className="tw" style={{ left: '88%', top: '12%', animationDelay: '3.2s' }} />
         </div>
         <TableSeats view={view} bots={bots} acting={acting} />
-        <QuestBoard view={view} />
+        <QuestBoard view={gatedView} />
       </div>
-      {gameOver ? (
+      {showOutcome ? (
         <main className="reveal-main">
           <Reveal view={view} reveal={reveal} onNewGame={backToLanding} onCopyLog={copyLog} copyLabel={copyLabel} />
         </main>
       ) : (
       <main>
-        <Feed view={view} bots={bots} acting={acting} waitingOn={payload.waitingOn} degradedSeqs={payload.degradedSeqs} />
+        <Feed view={view} bots={bots} acting={acting} waitingOn={payload.waitingOn}
+          degradedSeqs={payload.degradedSeqs} questTurning={pacing.questTurning} />
         <aside>
           <QuestParty view={view} bots={bots} />
           {payload.spectator ? <SpectatorCard /> : <RoleCard view={view} />}
+          {/* Still `gameOver`, not `showOutcome`: the closing beat runs with the
+              game already over, and the server rejects a rename from there
+              (server.ts, "the game is over"). The rail is a fixed-width column
+              of its own, so dropping the editor cannot disturb the reveal. */}
           {!payload.spectator && !gameOver && (
             <NameEditor
               current={view.name}
@@ -394,7 +413,12 @@ export function App() {
         </aside>
       </main>
       )}
-      {!gameOver && (
+      {/* The footer stays for the closing beat. Pulling it the instant the game
+          ends would say "that was the third fail" while the card is still
+          turning, which is the leak this whole gate exists to close. Nobody is
+          asked for a decision, so it reads the same "table is thinking" line it
+          showed all the way through the quest. */}
+      {!showOutcome && (
       <footer className={`youredge${myAsk && !payload.spectator ? ' waits' : ''}`}>
         <div className="edge-inner">
           <div className="youchip" title={payload.spectator ? roleTitle : `${roleTitle}: you are ⊕ Earth at this table`}>

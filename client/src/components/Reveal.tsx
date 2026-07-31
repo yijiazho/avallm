@@ -16,8 +16,10 @@ export function Reveal({ view, reveal, onNewGame, onCopyLog, copyLabel }: {
 }) {
   const [showThinking, setShowThinking] = useState(false)
   const winnerCls = view.outcome?.winner === 'good' ? 'ok' : 'bad'
-  // If the game ended on the Knife, name who the Assassin marked — the reveal is
-  // the only screen shown at game over, so this beat lives nowhere else now.
+  // If the game ended on the Knife, name who the Assassin marked. The feed does
+  // narrate this now (client/src/revealPacing.ts holds this screen back until
+  // that line has been on screen long enough to read), but it scrolls away with
+  // the rest of the transcript, and the mark belongs on the record of the game.
   const shotEvent = reveal?.log.find((ev) => ev.type === 'assassination')
   const shot = shotEvent?.type === 'assassination' ? shotEvent.payload : undefined
   const shotName = (s: Seat) => reveal?.players.find((p) => p.seat === s)?.name ?? `seat ${s}`

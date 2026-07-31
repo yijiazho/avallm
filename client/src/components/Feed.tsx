@@ -1,14 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { AgentInfo, GameEvent, PlayerView, Seat } from '../types.ts'
 import { Emblem } from './Arcana.tsx'
-import { winReasonText } from '../setup.ts'
+import { QUEST_REVEAL_MS } from '../revealPacing.ts'
 
-export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
+export function Feed({ view, bots, acting, waitingOn, degradedSeqs, questTurning }: {
   view: PlayerView
   bots: Record<number, AgentInfo>
   acting?: Seat[]
   waitingOn?: string[]
   degradedSeqs?: number[]
+  // A quest card is still turning over (client/src/revealPacing.ts). See the
+  // row filter below for what that suppresses.
+  questTurning?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // Everyone with a decision still outstanding this phase: bots mid-decision
@@ -96,7 +99,13 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
   const mc = (s: number) => (s === view.seat ? 'var(--gold)' : bots[s]?.color ?? 'var(--gold)')
   const degraded = new Set(degradedSeqs ?? [])
 
-  const rows = view.events.map((ev) => renderEvent(ev, name, view)).filter(Boolean) as FeedRow[]
+  const rows = view.events
+    // The Knife is drawn only once good has taken three quests, so naming Merlin
+    // while the third quest is still flipping announces that card's face. A
+    // rule-based Assassin answers in milliseconds, putting both moments in one
+    // payload; the row waits for the card, then takes its own beat.
+    .filter((ev) => !(questTurning && ev.type === 'assassination'))
+    .map((ev) => renderEvent(ev, name, view)).filter(Boolean) as FeedRow[]
 
   return (
     <div className="feed-wrap">
@@ -237,12 +246,6 @@ export function Feed({ view, bots, acting, waitingOn, degradedSeqs }: {
 }
 
 const Dots = () => <span className="tr-dots"><i>●</i><i>●</i><i>●</i></span>
-
-// The questResult reveal is a ~3s mount animation (see .feed-row.questreveal in
-// styles.css). Hold the Knife beat at least this long so it never appears while
-// the deciding quest is still flipping. Small cushion past the 3s so the card
-// has fully landed before the beat joins it.
-const QUEST_REVEAL_MS = 3200
 
 // Fan offset for quest card i of a `size`-card team. Shared by the sealing
 // indicator and the reveal row so the two share one stage: the cards start
@@ -480,12 +483,12 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
         text: `The Knife is drawn`,
         sub: `${name(ev.payload.assassin)} is the Assassin, and names ${name(ev.payload.target)} as Merlin. ${ev.payload.wasMerlin ? 'Correct. Evil steals the game.' : 'Wrong.'}`,
       }
-    case 'gameOver':
-      return {
-        key: ev.seq, kind: 'moment', cls: ev.payload.winner === 'good' ? 'ok' : 'bad',
-        text: `${String(ev.payload.winner).toUpperCase()} WINS`,
-        sub: winReasonText(String(ev.payload.reason)),
-      }
+    // No case for 'gameOver'. It is the ANSWER to whatever the feed is still
+    // playing, and it arrives in the same payload as that moment: printed, it
+    // called the game over the top of a quest card mid-flip. The feed is on
+    // screen at all only while the closing beat runs (client/src/revealPacing.ts
+    // swaps in the endgame screen the instant it lands), so this line would only
+    // ever appear at the one time it must not. The winner banner carries it.
     case 'gameCreated':
       return { key: ev.seq, kind: 'deed', text: `The table is set: ${ev.payload.playerCount} players. Roles in play: ${ev.payload.rolesInPlay.join(', ')}.` }
     case 'rename':
