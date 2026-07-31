@@ -163,7 +163,11 @@ test('curated agent prompt text follows the same house style', () => {
   for (const file of files) {
     const def = JSON.parse(fs.readFileSync(new URL(file, dir), 'utf8'))
     const e = def.engine ?? {}
-    if (e.type !== 'llm') continue
+    // Deliberately NOT gated on engine.type. Only llm engines consume these
+    // fields today, but gating on that means a composed def carrying persona
+    // text is unchecked, and the text is unchecked precisely because it is
+    // also inert, which is the pair of facts least likely to be noticed. Any
+    // engine that grows a text field is covered from the moment it exists.
     const fields: [string, unknown][] = [
       ['personality', e.personality],
       ['strategy', e.strategy],
@@ -191,7 +195,24 @@ test('curated agent prompt text follows the same house style', () => {
 // given board state selects. Comment stripping is heuristic rather than a real
 // parse, which can only ever make this check see LESS than the whole file, so
 // the render test stays as the complement that reads composed output.
-const PROMPT_SOURCES = ['prompts.ts', 'facts.ts']
+// The list must follow the code. knowledgeText was split out of prompts.ts
+// into its own module and the scan stayed behind, so every "N seats hold ...
+// in some order" sentence went unguarded until this comment was written. A
+// file split is exactly when this list goes stale, because nothing about
+// moving a function tells you a test names its old home.
+//
+// The composed (probabilistic) agent does not call buildMessages at all: it
+// prompts through communication/planner-voice-adapter.ts, and renders belief
+// state through communication/belief-summary.ts. That text reaches a model
+// just as much as the prose path does, so it is held to the same style.
+const PROMPT_SOURCES = [
+  'prompts.ts',
+  'facts.ts',
+  'knowledge-text.ts',
+  'prompt-format.ts',
+  'communication/belief-summary.ts',
+  'communication/planner-voice-adapter.ts',
+]
 
 function stripComments(src: string): string {
   const noBlocks = src.replace(/\/\*[\s\S]*?\*\//g, ' ')
