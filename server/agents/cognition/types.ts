@@ -178,6 +178,21 @@ type EvidenceRecord<K extends EvidenceKind> =
 
 export type Evidence = { [K in EvidenceKind]: EvidenceRecord<K> }[EvidenceKind]
 
+/**
+ * The one way to build a record. `id` is derived from the same `sourceSeq` and
+ * `kind` the record carries, so the identity cannot drift from the fields it
+ * claims to name, and `rest` demands an `actor` exactly for the attributed
+ * kinds. Returns a one-record tuple because every producer so far maps an event
+ * to zero or one record.
+ */
+export const evidenceRecord = <K extends EvidenceKind>(
+  sourceSeq: number,
+  kind: K,
+  rest: Omit<EvidenceRecord<K>, 'id' | 'sourceSeq' | 'kind'>,
+): readonly [EvidenceRecord<K>] => [
+  { id: `event:${sourceSeq}:${kind}`, sourceSeq, kind, ...rest } as EvidenceRecord<K>,
+]
+
 /** Records that name one seat, the only ones carrying an `actor`. */
 export type AttributedEvidence = Extract<Evidence, { actor: Seat }>
 

@@ -1,9 +1,7 @@
 import { clonePrivateInfo } from '../../engine/knowledge.ts'
 import type { GameEvent, PlayerView, Seat } from '../../engine/types.ts'
+import { evidenceRecord } from './types.ts'
 import type { Evidence } from './types.ts'
-
-const eventId = (seq: number, kind: Evidence['kind']): string =>
-  `event:${seq}:${kind}`
 
 // Returns [] for a quest that is not yet complete by design: the finished team
 // is only settled once the quest resolves.
@@ -49,47 +47,32 @@ export function evidenceFromEvent(
 ): readonly Evidence[] {
   switch (event.type) {
     case 'gameCreated':
-      return [{
-        id: eventId(event.seq, 'game-setup'),
-        sourceSeq: event.seq,
-        kind: 'game-setup',
+      return evidenceRecord(event.seq, 'game-setup', {
         payload: {
           playerCount: event.payload.playerCount,
           rolesInPlay: event.payload.rolesInPlay.slice(),
           firstLeader: event.payload.firstLeader,
         },
-      }]
+      })
     case 'roleDealt':
       if (event.payload.seat !== view.seat) return []
-      return [{
-        id: eventId(event.seq, 'private-role'),
-        sourceSeq: event.seq,
-        kind: 'private-role',
+      return evidenceRecord(event.seq, 'private-role', {
         actor: view.seat,
         payload: { role: view.role, alignment: view.alignment },
-      }]
+      })
     case 'knowledge':
       if (event.payload.seat !== view.seat) return []
-      return [{
-        id: eventId(event.seq, 'private-knowledge'),
-        sourceSeq: event.seq,
-        kind: 'private-knowledge',
+      return evidenceRecord(event.seq, 'private-knowledge', {
         actor: view.seat,
         payload: clonePrivateInfo(view.privateInfo),
-      }]
+      })
     case 'leadChange':
-      return [{
-        id: eventId(event.seq, 'leader-change'),
-        sourceSeq: event.seq,
-        kind: 'leader-change',
+      return evidenceRecord(event.seq, 'leader-change', {
         actor: event.payload.seat,
         payload: { round: event.payload.round, proposalNum: event.payload.proposalNum },
-      }]
+      })
     case 'proposal':
-      return [{
-        id: eventId(event.seq, 'proposal'),
-        sourceSeq: event.seq,
-        kind: 'proposal',
+      return evidenceRecord(event.seq, 'proposal', {
         actor: event.payload.leader,
         payload: {
           round: event.payload.round,
@@ -97,24 +80,18 @@ export function evidenceFromEvent(
           team: event.payload.team.slice(),
           ...(typeof event.payload.pitch === 'string' ? { pitch: event.payload.pitch } : {}),
         },
-      }]
+      })
     case 'proposalLocked':
-      return [{
-        id: eventId(event.seq, 'proposal-locked'),
-        sourceSeq: event.seq,
-        kind: 'proposal-locked',
+      return evidenceRecord(event.seq, 'proposal-locked', {
         actor: event.payload.leader,
         payload: {
           round: event.payload.round,
           proposalNum: event.payload.proposalNum,
           team: event.payload.team.slice(),
         },
-      }]
+      })
     case 'proposalRevised':
-      return [{
-        id: eventId(event.seq, 'proposal-revised'),
-        sourceSeq: event.seq,
-        kind: 'proposal-revised',
+      return evidenceRecord(event.seq, 'proposal-revised', {
         actor: event.payload.leader,
         payload: {
           round: event.payload.round,
@@ -123,32 +100,24 @@ export function evidenceFromEvent(
           to: event.payload.to.slice(),
           ...(typeof event.payload.reason === 'string' ? { reason: event.payload.reason } : {}),
         },
-      }]
+      })
     case 'utterance': {
       const context = publicProposalContext(view, event.seq)
-      const round = context?.round ?? view.round
-      const proposalNum = context?.proposalNum ?? view.proposalNum
       const team = context?.team
-      return [{
-        id: eventId(event.seq, 'utterance'),
-        sourceSeq: event.seq,
-        kind: 'utterance',
+      return evidenceRecord(event.seq, 'utterance', {
         actor: event.payload.seat,
         payload: {
           text: event.payload.text,
           discussionRound: event.payload.round,
           postRevision: event.payload.postRevision === true,
-          round,
-          proposalNum,
+          round: context?.round ?? view.round,
+          proposalNum: context?.proposalNum ?? view.proposalNum,
           ...(team ? { team } : {}),
         },
-      }]
+      })
     }
     case 'voteReveal':
-      return [{
-        id: eventId(event.seq, 'vote-reveal'),
-        sourceSeq: event.seq,
-        kind: 'vote-reveal',
+      return evidenceRecord(event.seq, 'vote-reveal', {
         payload: {
           round: event.payload.round,
           proposalNum: event.payload.proposalNum,
@@ -157,13 +126,10 @@ export function evidenceFromEvent(
           approved: event.payload.approved,
           automatic: event.payload.auto === true,
         },
-      }]
+      })
     case 'questResult': {
       const questNum = event.payload.round
-      return [{
-        id: eventId(event.seq, 'quest-result'),
-        sourceSeq: event.seq,
-        kind: 'quest-result',
+      return evidenceRecord(event.seq, 'quest-result', {
         payload: {
           questNum,
           team: teamAt(view, questNum),
@@ -171,31 +137,22 @@ export function evidenceFromEvent(
           failsRequired: event.payload.failsRequired,
           result: event.payload.result,
         },
-      }]
+      })
     }
     case 'rename':
-      return [{
-        id: eventId(event.seq, 'rename'),
-        sourceSeq: event.seq,
-        kind: 'rename',
+      return evidenceRecord(event.seq, 'rename', {
         actor: event.payload.seat,
         payload: { from: event.payload.from, to: event.payload.to },
-      }]
+      })
     case 'assassination':
-      return [{
-        id: eventId(event.seq, 'assassination'),
-        sourceSeq: event.seq,
-        kind: 'assassination',
+      return evidenceRecord(event.seq, 'assassination', {
         actor: event.payload.assassin,
         payload: { target: event.payload.target, wasMerlin: event.payload.wasMerlin },
-      }]
+      })
     case 'gameOver':
-      return [{
-        id: eventId(event.seq, 'game-result'),
-        sourceSeq: event.seq,
-        kind: 'game-result',
+      return evidenceRecord(event.seq, 'game-result', {
         payload: { winner: event.payload.winner, reason: event.payload.reason },
-      }]
+      })
     // Hidden votes/cards and private model scratch data are deliberately not
     // evidence. voteReveal is the public vote source once the table can see it.
     case 'voteCast':
