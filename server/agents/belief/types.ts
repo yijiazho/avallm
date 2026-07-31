@@ -92,6 +92,47 @@ export interface EvidenceContribution {
   maxLogLikelihood: number
 }
 
+/**
+ * A conservative likelihood factor: it prices one piece of admitted evidence
+ * against a complete world as an additive log-likelihood. Both the quest-card
+ * and language factors conform, so their orchestration shares one shape even
+ * though each factor reads a different evidence type.
+ */
+export interface LikelihoodFactor<Evidence, Id extends string = string> {
+  id: Id
+  version: string
+  logLikelihood(world: HiddenWorld, evidence: Evidence): number
+}
+
+/**
+ * The provenance record every factor emits: its identity, the evidence it
+ * consumed, the cap it enforced, and the span of the capped contributions.
+ * min/max are folded left to right rather than spread through Math.min/max,
+ * because the capped array carries one entry per feasible world and a
+ * ten-player support can exceed the argument-count limit of a spread call.
+ */
+export function buildFactorProvenance(
+  factor: { id: string; version: string },
+  evidenceIds: readonly string[],
+  logLikelihoodCap: number,
+  cappedLogLikelihoods: readonly number[],
+): EvidenceContribution {
+  let minLogLikelihood = Infinity
+  let maxLogLikelihood = -Infinity
+  for (const value of cappedLogLikelihoods) {
+    if (value < minLogLikelihood) minLogLikelihood = value
+    if (value > maxLogLikelihood) maxLogLikelihood = value
+  }
+  return {
+    factorId: factor.id,
+    factorVersion: factor.version,
+    evidenceIds,
+    logLikelihoodCap,
+    minLogLikelihood,
+    maxLogLikelihood,
+  }
+}
+
 export interface BeliefSnapshot {
   throughSeq: number
   modelVersion: string

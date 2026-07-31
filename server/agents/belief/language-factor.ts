@@ -42,12 +42,26 @@ import {
   visibleEventCursor,
 } from './exact.ts'
 import {
+  buildFactorProvenance,
   EXACT_BELIEF_MODEL_VERSION,
   type BeliefSnapshot,
   type HiddenWorld,
+  type LikelihoodFactor,
   type WeightedWorld,
 } from './types.ts'
 
+// Version tokens, each pinning a distinct contract. Do not change a string
+// value without treating it as a new model: consumers, fixtures, and admission
+// paths match these exact tokens.
+//   LANGUAGE_INFERENCE_CONTEXT_VERSION  the shape of the attribution context
+//                                       that crosses interpretation -> math.
+//   LANGUAGE_LIKELIHOOD_FACTOR_VERSION  the factor's own id.version, checked in
+//                                       the application contract and provenance.
+//   LANGUAGE_FACTOR_BUNDLE_VERSION      the factors-available bundle label.
+//   LANGUAGE_BELIEF_VERSION_SUFFIX      appended to a non-exact base model
+//                                       version once the factor has been applied.
+//   LANGUAGE_WEIGHTED_BELIEF_VERSION    the whole belief model version when the
+//                                       base is the plain exact-constraints model.
 export const LANGUAGE_INFERENCE_CONTEXT_VERSION =
   'language-inference-context-v1'
 export const LANGUAGE_LIKELIHOOD_FACTOR_VERSION =
@@ -57,6 +71,7 @@ export const LANGUAGE_FACTOR_BUNDLE_VERSION =
 export const LANGUAGE_BELIEF_VERSION_SUFFIX = 'bounded-language-v1'
 export const LANGUAGE_WEIGHTED_BELIEF_VERSION =
   'exact-constraints+bounded-language-v1'
+// Not a version token: the absolute log-odds cap on the whole history factor.
 export const LANGUAGE_HISTORY_LOG_ODDS_CAP = Math.log(1.25)
 
 /** Stable configured identity of the mechanical plus language belief path. */
@@ -98,14 +113,8 @@ export interface LanguageInferenceContext {
   sources: readonly LanguageInferenceSource[]
 }
 
-export interface LanguageLikelihoodFactor {
-  id: 'language'
-  version: string
-  logLikelihood(
-    world: HiddenWorld,
-    evidence: LanguageLikelihoodEvidence,
-  ): number
-}
+export type LanguageLikelihoodFactor =
+  LikelihoodFactor<LanguageLikelihoodEvidence, 'language'>
 
 /** Finite evidence fields permitted to participate in factor arithmetic. */
 export interface LanguageLikelihoodEvidence {
@@ -368,6 +377,18 @@ function combinedModelVersion(base: BeliefSnapshot): string {
 /**
  * Normalize log weights without dropping a positive base world when a valid
  * but extremely small IEEE-754 probability underflows after normalization.
+ *
+ * This is deliberately NOT the shared normalizeLogWeights (log-weights.ts) that
+ * the quest-card factor uses. It differs in two ways that both change the
+ * emitted masses, so the two cannot be folded into one without changing numeric
+ * output: (1) it floors underflowed probabilities at Number.MIN_VALUE so a
+ * feasible base world is never silently dropped, and (2) it applies the whole
+ * residual `1 - sum` to the largest mass so the result sums to exactly 1. The
+ * history factor needs both because it streams the entire feasible support (a
+ * ten-player servant view carries up to ~60,480 worlds) and reweights every one
+ * of them; the quest factor normalizes over a small feasible set where neither
+ * underflow nor the residual matters. Unifying the two normalizers is left as
+ * future work precisely because it is a numeric change, not a refactor.
  */
 function normalizePreservingSupport(
   worlds: readonly HiddenWorld[],
@@ -420,6 +441,10 @@ function weightedLanguageSnapshot(
   state: LanguageEvidenceState,
   factor: LanguageLikelihoodFactor,
 ): BeliefSnapshot {
+  // validateApplicationContract already ran validateEvidence and the
+  // repeated-source check over exactly this state.evidence before we were
+  // called, so this function trusts the items and only needs the source map to
+  // route each seq back to its speaker.
   const evidence = state.evidence
   const sources = new Map(
     context.sources.map((source) => [
@@ -427,11 +452,6 @@ function weightedLanguageSnapshot(
       source.speakerSeat,
     ]),
   )
-  for (const item of evidence) validateEvidence(item, context, sources)
-  const evidenceSeqs = evidence.map((item) => item.sourceSeq)
-  if (new Set(evidenceSeqs).size !== evidenceSeqs.length) {
-    throw new Error('language likelihood evidence repeats a source')
-  }
 
   const active = evidence
     .filter((item) =>
@@ -467,6 +487,15 @@ function weightedLanguageSnapshot(
   if (!Number.isFinite(span)) {
     throw new Error('language factor produced a non-finite history span')
   }
+  // Capping semantics here differ from the quest factor's capLogLikelihood on
+  // purpose. The quest factor clamps each world's summed log-likelihood to
+  // [-cap, cap] relative to the best world, an independent per-world clip. The
+  // language factor instead rescales the whole raw span (max - min) by a single
+  // factor when it exceeds the cap, so the RELATIVE ordering and spacing of
+  // every world are preserved and only the overall strength of the history
+  // signal is bounded. History accumulates across many utterances, so a hard
+  // per-world clip would flatten the tail of a long, coherent read; span-scaling
+  // keeps the shape and only limits how far the whole factor can move belief.
   const scale = span > LANGUAGE_HISTORY_LOG_ODDS_CAP
     ? LANGUAGE_HISTORY_LOG_ODDS_CAP / span
     : 1
@@ -482,23 +511,15 @@ function weightedLanguageSnapshot(
     quality: base.quality === 'degraded' ? 'degraded' : 'weighted',
     provenance: [
       ...base.provenance,
-      {
-        factorId: factor.id,
-        factorVersion: factor.version,
-        evidenceIds: active.map((item) =>
+      buildFactorProvenance(
+        factor,
+        active.map((item) =>
           `event:${item.sourceSeq}:language:${item.interpreterVersion}:`
           + `subject:${item.subject}:${item.class}:`
           + `${item.direction}:${item.confidence}`),
-        logLikelihoodCap: LANGUAGE_HISTORY_LOG_ODDS_CAP,
-        minLogLikelihood: capped.reduce(
-          (current, value) => Math.min(current, value),
-          Infinity,
-        ),
-        maxLogLikelihood: capped.reduce(
-          (current, value) => Math.max(current, value),
-          -Infinity,
-        ),
-      },
+        LANGUAGE_HISTORY_LOG_ODDS_CAP,
+        capped,
+      ),
     ],
     degradation: base.degradation,
   })

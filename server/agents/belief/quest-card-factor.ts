@@ -11,10 +11,12 @@ import {
   exactBelief,
   feasibleWorlds,
 } from './exact.ts'
-import type {
-  BeliefModel,
-  BeliefSnapshot,
-  HiddenWorld,
+import {
+  buildFactorProvenance,
+  type BeliefModel,
+  type BeliefSnapshot,
+  type HiddenWorld,
+  type LikelihoodFactor,
 } from './types.ts'
 import {
   capLogLikelihood,
@@ -117,14 +119,8 @@ export interface QuestCardEvidence {
   scoreBefore: Readonly<{ good: number; evil: number }>
 }
 
-export interface QuestCardLikelihoodFactor {
-  id: 'quest-card'
-  version: string
-  logLikelihood(
-    world: HiddenWorld,
-    evidence: QuestCardEvidence,
-  ): number
-}
+export type QuestCardLikelihoodFactor =
+  LikelihoodFactor<QuestCardEvidence, 'quest-card'>
 
 function questResultSeq(view: PlayerView, questNum: number): number {
   const event = view.events.find(
@@ -300,14 +296,14 @@ function weightedSnapshot(
   return beliefFromWeightedWorlds(view, weighted, {
     modelVersion: QUEST_WEIGHTED_BELIEF_VERSION,
     quality: 'weighted',
-    provenance: [{
-      factorId: factor.id,
-      factorVersion: factor.version,
-      evidenceIds: evidence.map((item) => item.evidenceId),
-      logLikelihoodCap: QUEST_FACTOR_LOG_LIKELIHOOD_CAP,
-      minLogLikelihood: Math.min(...capped),
-      maxLogLikelihood: Math.max(...capped),
-    }],
+    provenance: [
+      buildFactorProvenance(
+        factor,
+        evidence.map((item) => item.evidenceId),
+        QUEST_FACTOR_LOG_LIKELIHOOD_CAP,
+        capped,
+      ),
+    ],
   })
 }
 
