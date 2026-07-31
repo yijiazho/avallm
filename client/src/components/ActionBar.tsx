@@ -145,7 +145,7 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
         </span>
         <span className="bar-spacer" />
         <button data-t="finalize-stick" onClick={() => onDecide({ kind: 'finalize', stick: true })}>Keep team</button>
-        <button className="ghost" data-t="finalize-revise" onClick={() => setRevising(true)}>Revise…</button>
+        <button className="ghost" data-t="finalize-revise" onClick={() => setRevising(true)}>Revise</button>
       </div>
     )
   }
