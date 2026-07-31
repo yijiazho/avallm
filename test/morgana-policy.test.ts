@@ -14,6 +14,7 @@ import {
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  SERVANT_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
@@ -1041,16 +1042,37 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
     MORGANA_ROLE_SCORER_VERSION
   const token = MORGANA_ROLE_UTILITY_COMPONENT
   const ref = { id: token.id, version: token.version }
-  forged.trace!.componentPlan!.configured = [
-    ...forged.trace!.componentPlan!.configured,
-    ref,
-  ]
-  forged.trace!.components!.configured = [
-    ...forged.trace!.components!.configured,
-    ref,
-  ]
-  forged.trace!.components!.entries = [
-    ...forged.trace!.components!.entries,
+  // Inserted at its canonical position, not appended. The configured graph is
+  // ordered by the resolver, not alphabetically, and morgana-role-utility sits
+  // immediately before servant-role-utility there. A blind append only happened
+  // to be right while morgana-role-utility was the last component in the graph;
+  // it stopped being right the moment the servant family joined the composed
+  // lane. A forgery rejected merely for being out of order would pass this test
+  // for the wrong reason, since the case is about rejecting a COHERENT one.
+  const spliceCanonically = <Entry>(
+    entries: readonly Entry[],
+    entry: Entry,
+    idOf: (value: Entry) => string,
+  ): Entry[] => {
+    const at = entries.findIndex(
+      (value) => idOf(value) === SERVANT_ROLE_UTILITY_COMPONENT.id,
+    )
+    const next = [...entries]
+    next.splice(at === -1 ? next.length : at, 0, entry)
+    return next
+  }
+  forged.trace!.componentPlan!.configured = spliceCanonically(
+    forged.trace!.componentPlan!.configured,
+    ref as never,
+    (value) => value.id,
+  )
+  forged.trace!.components!.configured = spliceCanonically(
+    forged.trace!.components!.configured,
+    ref as never,
+    (value) => value.id,
+  )
+  forged.trace!.components!.entries = spliceCanonically(
+    forged.trace!.components!.entries,
     {
       component: ref,
       kind: token.kind,
@@ -1058,12 +1080,14 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
       status: 'degraded',
       degradationCode: MORGANA_ROLE_UTILITY_DEGRADATION,
       failureCode: 'execution-failed',
-    },
-  ]
-  forged.trace!.components!.policyUse = [
-    ...forged.trace!.components!.policyUse,
-    { component: ref, used: false, stages: [] },
-  ]
+    } as never,
+    (value) => value.component.id,
+  )
+  forged.trace!.components!.policyUse = spliceCanonically(
+    forged.trace!.components!.policyUse,
+    { component: ref, used: false, stages: [] } as never,
+    (value) => value.component.id,
+  )
   assert.equal(
     forged.trace!.componentVersions!.scorer,
     EVIL_ROLE_OBJECTIVE_SCORER_VERSION,

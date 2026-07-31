@@ -167,6 +167,34 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     register: () => goodScoreLayerDefinitions(),
   },
   {
+    id: 'servant',
+    kind: 'specialization',
+    base: 'good',
+    baseRationale:
+      'The servant refinement only breaks ties the good proposal base leaves, '
+      + 'so a seat that loses the projection degrades to that base and keeps '
+      + 'its ranking rather than to any evil sibling. It is declared here, '
+      + 'immediately after its base, rather than after the evil siblings, '
+      + 'because a family inherits the component closure of every layer before '
+      + 'it in the composed lane: declared last, the servant terminal '
+      + 'configured eleven components including the assassin, Mordred and '
+      + 'Morgana machinery that can never apply to a good seat. Declared here '
+      + 'it configures two. The cost is that every evil chain now routes '
+      + 'through one inapplicable servant layer, which is the pass-through the '
+      + 'composed lane is built for and what Mordred already does via Morgana.',
+    lanes: {
+      [DETERMINISTIC_LANE]: SERVANT_ROLE_SCORE_LAYER,
+      [SEEDED_LANE]: SEEDED_SERVANT_ROLE_SCORE_LAYER,
+    },
+    identities: servantScoreLayerTerminals,
+    terminalFor: servantScoreLayerTerminalFor,
+    claim: SERVANT_CLAIM,
+    register: (predecessor) => servantScoreLayerDefinitions({
+      deterministic: predecessor(DETERMINISTIC_LANE),
+      seeded: predecessor(SEEDED_LANE),
+    }),
+  },
+  {
     id: 'evil',
     kind: 'specialization',
     base: 'good',
@@ -247,33 +275,6 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     claim: ASSASSIN_CLAIM,
     register: (predecessor) =>
       assassinScoreLayerDefinitions(predecessor(DETERMINISTIC_LANE)),
-  },
-  {
-    id: 'servant',
-    kind: 'specialization',
-    base: 'good',
-    baseRationale:
-      'The servant refinement only breaks ties the good proposal base leaves, '
-      + 'so a seat that loses the projection degrades to that base and keeps '
-      + 'its ranking rather than to any evil sibling. It is declared last '
-      + 'among the specializations because its base is the earliest of them: '
-      + 'inserting it beside good would re-point every evil chain through it '
-      + 'for no gain, since an evil seat never reaches this layer either way. '
-      + 'In the composed lane the derived predecessor is therefore the '
-      + 'assassin tip, reached through four inapplicable evil siblings; the '
-      + 'seeded lane has no composition terminal and hangs it straight off '
-      + 'seeded good.',
-    lanes: {
-      [DETERMINISTIC_LANE]: SERVANT_ROLE_SCORE_LAYER,
-      [SEEDED_LANE]: SEEDED_SERVANT_ROLE_SCORE_LAYER,
-    },
-    identities: servantScoreLayerTerminals,
-    terminalFor: servantScoreLayerTerminalFor,
-    claim: SERVANT_CLAIM,
-    register: (predecessor) => servantScoreLayerDefinitions({
-      deterministic: predecessor(DETERMINISTIC_LANE),
-      seeded: predecessor(SEEDED_LANE),
-    }),
   },
   {
     id: 'full-role',

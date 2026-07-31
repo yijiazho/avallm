@@ -207,6 +207,7 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
+      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
     ],
   )
@@ -225,6 +226,7 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
+      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
     ],
@@ -245,6 +247,7 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
+      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
@@ -266,25 +269,22 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
+      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
       ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
     ],
   )
-  // The servant refinement declares good as its base but is declared last, so
-  // the composed lane reaches it through four inapplicable evil siblings while
-  // the isolated seeded lane hangs it straight off seeded good.
+  // The servant refinement hangs straight off good in both lanes, which is
+  // what keeps its component closure to the good base plus its own projection
+  // instead of the whole evil subtree's.
   assert.deepEqual(
     registry.resolve({ terminal: SERVANT_ROLE_SCORE_LAYER }).order,
     [
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
-      EVIL_ROLE_SCORE_LAYER,
-      MORGANA_ROLE_SCORE_LAYER,
-      MORDRED_ROLE_SCORE_LAYER,
-      ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
       SERVANT_ROLE_SCORE_LAYER,
     ],
   )
@@ -303,11 +303,11 @@ test('native family chains preserve exact predecessor order', () => {
       COMPATIBILITY_SCORE_LAYER,
       GOOD_PROPOSAL_VOTE_SCORE_LAYER,
       GOOD_ROLE_SCORE_LAYER,
+      SERVANT_ROLE_SCORE_LAYER,
       EVIL_ROLE_SCORE_LAYER,
       MORGANA_ROLE_SCORE_LAYER,
       MORDRED_ROLE_SCORE_LAYER,
       ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
-      SERVANT_ROLE_SCORE_LAYER,
       FULL_ROLE_POLICY_SCORE_LAYER,
     ],
   )
@@ -325,7 +325,24 @@ test('family bases stay separate from the derived linear predecessors', () => {
     [
       // Every family names its truthful base. Only the composed lane routes a
       // family through an inapplicable sibling to reach that base's surface.
-      ['evil', 'deterministic', 'good', GOOD_ROLE_SCORE_LAYER.id, false],
+      // Servant is the first specialization off good, so the composed lane
+      // hands evil the servant tip: an evil seat finds it inapplicable and
+      // reaches the good surface untouched.
+      [
+        'servant',
+        'deterministic',
+        'good',
+        GOOD_ROLE_SCORE_LAYER.id,
+        false,
+      ],
+      [
+        'servant',
+        'seeded',
+        'good',
+        SEEDED_GOOD_ROLE_SCORE_LAYER.id,
+        false,
+      ],
+      ['evil', 'deterministic', 'good', SERVANT_ROLE_SCORE_LAYER.id, true],
       ['evil', 'seeded', 'good', SEEDED_GOOD_ROLE_SCORE_LAYER.id, false],
       ['morgana', 'deterministic', 'evil', EVIL_ROLE_SCORE_LAYER.id, false],
       ['morgana', 'seeded', 'evil', SEEDED_EVIL_ROLE_SCORE_LAYER.id, false],
@@ -343,24 +360,10 @@ test('family bases stay separate from the derived linear predecessors', () => {
         true,
       ],
       [
-        'servant',
-        'deterministic',
-        'good',
-        ASSASSIN_MERLIN_TARGET_SCORE_LAYER.id,
-        true,
-      ],
-      [
-        'servant',
-        'seeded',
-        'good',
-        SEEDED_GOOD_ROLE_SCORE_LAYER.id,
-        false,
-      ],
-      [
         'full-role',
         'deterministic',
         null,
-        SERVANT_ROLE_SCORE_LAYER.id,
+        ASSASSIN_MERLIN_TARGET_SCORE_LAYER.id,
         false,
       ],
     ],

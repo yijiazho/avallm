@@ -132,6 +132,7 @@ const LANES = Object.freeze({
     'role-report.test.ts',
     'seat-view-inspector-ui.test.ts',
     'seat-view-inspector.test.ts',
+    'servant-propose-bench.test.ts',
     'vote-conversion.test.ts',
     'vote-direction.test.ts',
     'vote-objective.test.ts',

@@ -102,9 +102,80 @@ pinned tests stay green.
 
 Gate every overlay change on the eval benches the repo trusts (Brier/log-loss on
 held-out casts) before granting scoring authority — as step 3 did, and matching
-how the quest-card factor is pinned. The step-3 harness lives in the session
-scratchpad (`assassin-cal.ts`, `assassin-steelman.ts`); formalize it under
-`server/eval/` if the overlay question is ever reopened.
+how the quest-card factor is pinned. The step-3 harness is now formalized as
+`server/eval/assassin-calibration.ts`.
+
+## Measured: the servant weight pair does not earn scoring authority
+
+The servant is the first role whose objective was written as a weight pair over
+the shared public read rather than as its own model, and the only one whose
+objective is a function of the public record alone (no belief, no host input,
+no dependency). That made it the cheapest possible test of the wider claim that
+every role is a signed weight pair over one measurement. It was granted propose
+scoring authority and then gated by `server/eval/servant-propose-bench.ts`: 60
+servant-target cases of the frozen phase-4 bank, two arms differing by exactly
+one layer and one component, both free populations, plus compatibility as a
+reference.
+
+**The refinement did not earn it.**
+
+| delta vs its own base | heuristic | random |
+| --- | --- | --- |
+| win | +0.0% (7/60 both arms) | -1.7% (95% -6.7 to +3.3) |
+| clean proposal | -3.1% (95% -10.0 to +3.6) | -1.3% (95% -7.9 to +4.6) |
+| dirty-team approve | -0.5% (95% -2.2 to +0.9) | **+1.7% (95% +0.2 to +3.6)** |
+
+Nothing improved. The only interval that excludes zero moved the wrong way, and
+against heuristic opponents the win rate was not merely flat in expectation but
+*identical*, case for case.
+
+The mechanism is the interesting part, and it indicts the weight pair rather
+than the arithmetic. `proposal-value-diagnosis.ts` pairs each arm's first target
+proposal with the baseline's from an identical prefix, so the two are the same
+decision. The refinement changed 23% of them (heuristic), and of the changes
+that moved cleanliness at all, **every one made the team dirtier** (2 to 0;
+21.4% to 11.5% clean over the changed pairs). By round, the clean rate falls
+exactly where the layer has signal: q3 20.0% to 10.0%, q4 13.6% to 4.5% — the
+rounds where the public read was measured to separate 50% and 100% of proposals.
+
+So `evilReadIndex` is anti-correlated with actual cleanliness precisely where it
+discriminates. That is coherent with how it is built: it deliberately double
+counts failed-quest exposure on top of the exact marginal (see
+`PUBLIC_SELF_READ_CONSTANTS`), which measures how evil a seat *looks* to the
+table, not how evil it *is*. Optimizing the look is the decoy half of the
+servant objective, and on this bank it trades against the standing half rather
+than being free, which is what the servant module's own comment assumed.
+
+Two further findings from the same run, both already fixed:
+
+- The score family was first declared last among the specializations, which made
+  its terminal inherit the whole evil subtree's component closure: the candidate
+  arm configured **eleven** components (assassin, Mordred, Morgana machinery,
+  none of which can apply to a good seat) against the baseline's two, and the
+  A/B silently stopped being an A/B. A family inherits the closure of every
+  layer before it in the composed lane, so a specialization belongs next to its
+  base. `test/servant-propose-bench.test.ts` now pins the one-component
+  difference.
+- `proposal-value-diagnosis.ts` cannot read a surface from any layer that
+  narrows viability to a single row: its value-structure and posterior columns
+  key on the good proposal features and go blank. The matched-pair section still
+  works, which is where the finding above came from.
+
+**The wider lesson, alongside step 3's.** Two roles have now been tested against
+the shared-measurement claim and both split the same way. Summation discipline
+and the measurement itself consolidate. The *preference* does not: the assassin's
+overlay beat a shared-matrix steelman by 5 hit-rate points, and the servant's
+weight pair failed to beat the base it refines. One success would have been
+suggestive; two failures in the same direction say the per-role weight table is
+the wrong shape for the preference layer, not merely unfinished.
+
+**Open question this raises, and it is the bigger one.** Compatibility beats the
+composed good policy at a servant seat by **+15.0% win (95% +5.0 to +25.0)**
+against heuristic opponents on these same games. The refinement was polishing
+tie-breaks on a policy that is fifteen points behind the checked-in behavior at
+the seat it was refining. NB-010 localized that gap to the vote channel; this
+run restates it on the propose side of the same bank. Closing it is worth more
+than any weight pair.
 
 ## Experiment: does surfacing the perception read help? (hybrid vs pure-LLM)
 

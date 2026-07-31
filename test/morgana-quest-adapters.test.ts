@@ -711,5 +711,10 @@ test('the 10-player 252-candidate E1 chain stays below the unchanged run cap', a
     'utf8',
   )
   assert.ok(runBytes < MAX_DECISION_COMPONENT_RUN_JSON_BYTES)
-  assert.equal(runBytes, 1_404_055)
+  // 1_404_055 before the servant score family joined the composed lane ahead of
+  // the evil siblings. A Morgana seat now configures servant-role-utility too
+  // and reports it inapplicable, which is one small entry: +315 bytes, against
+  // a cap this run still clears by a third. The pin is a ratchet on the 252
+  // candidate payloads, not on the configured graph's length.
+  assert.equal(runBytes, 1_404_370)
 })
