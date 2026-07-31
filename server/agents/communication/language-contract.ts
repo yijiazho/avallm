@@ -197,7 +197,7 @@ export function projectLanguageInterpreterInput(
  * all, which is the drift the shared module's header describes.
  */
 
-function finiteSeat(value: unknown, playerCount: number): value is Seat {
+function isSeatInRange(value: unknown, playerCount: number): value is Seat {
   return Number.isInteger(value)
     && (value as number) >= 0
     && (value as number) < playerCount
@@ -227,7 +227,7 @@ function exactOptionalKeys(
 
 function validSeatArray(value: unknown, playerCount: number): value is Seat[] {
   return Array.isArray(value)
-    && value.every((seat) => finiteSeat(seat, playerCount))
+    && value.every((seat) => isSeatInRange(seat, playerCount))
     && new Set(value).size === value.length
 }
 
@@ -264,7 +264,7 @@ function validUtterance(
     || !isLanguageUtteranceChannel(value.channel)
     || !plainRecord(value.speaker)
     || !exactKeys(value.speaker, ['seat', 'name'])
-    || !finiteSeat(value.speaker.seat, playerCount)
+    || !isSeatInRange(value.speaker.seat, playerCount)
     || typeof value.speaker.name !== 'string'
     || typeof value.text !== 'string'
   ) {
@@ -279,7 +279,7 @@ function validUtterance(
     )
     && safeInteger(value.context.round, 1)
     && safeInteger(value.context.proposalNum, 1, 5)
-    && finiteSeat(value.context.leader, playerCount)
+    && isSeatInRange(value.context.leader, playerCount)
     && validSeatArray(value.context.team, playerCount)
     && (
       value.context.discussionRound === undefined
@@ -337,7 +337,7 @@ function validPublicContext(
     || !PHASES.includes(value.phase as Phase)
     || !safeInteger(value.round, 1, 5)
     || !safeInteger(value.proposalNum, 1, 5)
-    || !finiteSeat(value.leaderSeat, playerCount)
+    || !isSeatInRange(value.leaderSeat, playerCount)
     || !Array.isArray(value.quests)
     || value.quests.length !== 5
     || !value.quests.every((quest, index) =>
@@ -371,7 +371,7 @@ function validPublicContext(
         !plainRecord(proposal)
         || !safeInteger(proposal.round, 1, 5)
         || !safeInteger(proposal.proposalNum, 1, 5)
-        || !finiteSeat(proposal.leader, playerCount)
+        || !isSeatInRange(proposal.leader, playerCount)
         || !validSeatArray(proposal.team, playerCount)
         || (
           proposal.revisedFrom !== undefined
@@ -452,7 +452,7 @@ export function validateLanguageInterpreterInput(
     || !Array.isArray(value.newUtterances)
     || !Array.isArray(value.utteranceHistory)
   ) {
-    throw new Error('language interpreter input failed v1 validation')
+    throw new Error('language interpreter input failed v1 validation: shape')
   }
   const playerCount = value.publicContext.playerCount
   const throughSeq = value.throughSeq
@@ -469,7 +469,7 @@ export function validateLanguageInterpreterInput(
     !validOrderedUtterances(value.newUtterances)
     || !validOrderedUtterances(value.utteranceHistory)
   ) {
-    throw new Error('language interpreter input failed v1 validation')
+    throw new Error('language interpreter input failed v1 validation: ordering')
   }
   const history = new Map(
     (value.utteranceHistory as PublicAttributedUtterance[]).map((item) => [
@@ -481,7 +481,9 @@ export function validateLanguageInterpreterInput(
     (value.newUtterances as PublicAttributedUtterance[]).some((item) =>
       history.get(item.sourceSeq) !== JSON.stringify(item))
   ) {
-    throw new Error('language interpreter input failed v1 validation')
+    throw new Error(
+      'language interpreter input failed v1 validation: history divergence',
+    )
   }
 }
 
@@ -507,7 +509,7 @@ function parseLanguageEvidence(
     value.schemaVersion !== LANGUAGE_EVIDENCE_VERSION
     || !Number.isSafeInteger(value.sourceSeq)
     || !eligible.has(value.sourceSeq as number)
-    || !finiteSeat(value.subject, input.publicContext.playerCount)
+    || !isSeatInRange(value.subject, input.publicContext.playerCount)
     || !LANGUAGE_EVIDENCE_DIRECTIONS.includes(
       value.direction as LanguageEvidenceDirection,
     )
@@ -563,6 +565,26 @@ export function validateLanguageEvidenceCursor(
 }
 
 /**
+ * The invariant every admission path shares: the batch may only advance the
+ * cursor (never rewind), every new utterance is strictly beyond what the cursor
+ * has seen, and newUtterances is exactly the post-cursor tail of the history.
+ * Both admitLanguageEvidence and advanceLanguageEvidenceCursorWithoutEvidence
+ * enforce it, so it lives here rather than being restated at each site.
+ */
+function inputMatchesCursor(
+  input: LanguageInterpreterInput,
+  cursor: LanguageEvidenceCursor,
+): boolean {
+  return input.throughSeq >= cursor.throughSeq
+    && input.newUtterances.every(
+      (utterance) => utterance.sourceSeq > cursor.throughSeq,
+    )
+    && input.newUtterances.length === input.utteranceHistory.filter(
+      (utterance) => utterance.sourceSeq > cursor.throughSeq,
+    ).length
+}
+
+/**
  * Validate and admit one interpreter batch. Each public source sequence may
  * contribute at most one record for the lifetime represented by the cursor.
  */
@@ -576,13 +598,7 @@ export function admitLanguageEvidence(
   validateLanguageInterpreterInput(input)
   if (
     !INTERPRETER_VERSION_PATTERN.test(interpreterVersion)
-    || input.throughSeq < cursor.throughSeq
-    || input.newUtterances.some(
-      (utterance) => utterance.sourceSeq <= cursor.throughSeq,
-    )
-    || input.newUtterances.length !== input.utteranceHistory.filter(
-      (utterance) => utterance.sourceSeq > cursor.throughSeq,
-    ).length
+    || !inputMatchesCursor(input, cursor)
   ) {
     throw new Error('language admission contract mismatch')
   }
@@ -627,15 +643,7 @@ export function advanceLanguageEvidenceCursorWithoutEvidence(
 ): LanguageEvidenceAdmission {
   validateLanguageEvidenceCursor(cursor)
   validateLanguageInterpreterInput(input)
-  if (
-    input.throughSeq < cursor.throughSeq
-    || input.newUtterances.some(
-      (utterance) => utterance.sourceSeq <= cursor.throughSeq,
-    )
-    || input.newUtterances.length !== input.utteranceHistory.filter(
-      (utterance) => utterance.sourceSeq > cursor.throughSeq,
-    ).length
-  ) {
+  if (!inputMatchesCursor(input, cursor)) {
     throw new Error('language cursor-only admission contract mismatch')
   }
   return {
