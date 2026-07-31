@@ -11,6 +11,33 @@ import type {
 } from '../record/language-types.ts'
 import type { PublicRecord } from '../record/public-record.ts'
 import {
+  STRATEGIC_INTENT_VERSION,
+  STRATEGIC_OBJECTIVE_CODES,
+  STRATEGIC_INTENT_HORIZONS,
+  PUBLIC_EVIDENCE_KINDS,
+} from '../record/intent.ts'
+import type {
+  StrategicObjectiveCode,
+  StrategicIntentHorizon,
+  PublicEvidenceKind,
+  PublicEvidenceReference,
+  StrategicIntent,
+} from '../record/intent.ts'
+
+export {
+  STRATEGIC_INTENT_VERSION,
+  STRATEGIC_OBJECTIVE_CODES,
+  STRATEGIC_INTENT_HORIZONS,
+  PUBLIC_EVIDENCE_KINDS,
+}
+export type {
+  StrategicObjectiveCode,
+  StrategicIntentHorizon,
+  PublicEvidenceKind,
+  PublicEvidenceReference,
+  StrategicIntent,
+}
+import {
   type CandidateScore,
   type GoodProposalFeatures,
   type GoodVoteFeatures,
@@ -19,27 +46,8 @@ import {
 export const DECISION_PLAN_VERSION = 'decision-plan-v3'
 export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v3'
 export const POSTERIOR_UNCERTAINTY_VERSION = 'posterior-uncertainty-v1'
-export const STRATEGIC_INTENT_VERSION = 'strategic-intent-v1'
 
-export const STRATEGIC_OBJECTIVE_CODES = [
-  'BUILD_TRUST',
-  'TEST_PLAYER',
-  'SUPPORT_TEAM',
-  'OPPOSE_TEAM',
-  'GATHER_INFORMATION',
-  'PRESERVE_COVER',
-  'REPAIR_COHERENCE',
-] as const
-export type StrategicObjectiveCode =
-  typeof STRATEGIC_OBJECTIVE_CODES[number]
 
-export const STRATEGIC_INTENT_HORIZONS = [
-  'THIS_ACTION',
-  'CURRENT_PROPOSAL',
-  'NEXT_QUEST',
-] as const
-export type StrategicIntentHorizon =
-  typeof STRATEGIC_INTENT_HORIZONS[number]
 
 export const COMMUNICATION_ACT_CODES = [
   'PASS',
@@ -99,35 +107,7 @@ export function communicationActAllowed(
     .includes(code as CommunicationActCode)
 }
 
-export const PUBLIC_EVIDENCE_KINDS = [
-  'utterance',
-  'proposal',
-  'proposal-vote',
-  'quest',
-] as const
-export type PublicEvidenceKind = typeof PUBLIC_EVIDENCE_KINDS[number]
 
-/** Stable coordinates into facts every player can observe. */
-export type PublicEvidenceReference =
-  | {
-      kind: 'utterance'
-      sourceSeq: number
-    }
-  | {
-      kind: 'proposal'
-      round: number
-      proposalNum: number
-    }
-  | {
-      kind: 'proposal-vote'
-      round: number
-      proposalNum: number
-      seat: Seat
-    }
-  | {
-      kind: 'quest'
-      questNum: number
-    }
 
 export type PosteriorUncertainty =
   | {
@@ -179,19 +159,6 @@ export interface CommunicationIntent extends PlannerCommunicationDirection {
   uncertainty?: PosteriorUncertainty
 }
 
-/**
- * Private, bounded continuity metadata chosen by the planner. It is persisted
- * only after the associated mechanical decision has passed engine legality.
- * The finite vocabulary and public evidence coordinates keep durable strategy
- * auditable without storing free-form model reasoning.
- */
-export interface StrategicIntent {
-  version: typeof STRATEGIC_INTENT_VERSION
-  objective: StrategicObjectiveCode
-  targetSeats: readonly Seat[]
-  horizon: StrategicIntentHorizon
-  evidenceRefs: readonly PublicEvidenceReference[]
-}
 
 export interface DecisionPlan {
   version: typeof DECISION_PLAN_VERSION

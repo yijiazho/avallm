@@ -1,6 +1,6 @@
 import type { PlayerView } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
-import type { Evidence } from '../cognition/types.ts'
+import type { Evidence } from '../record/evidence.ts'
 import {
   candidateTeams,
   hypotheticalProposalCandidates,

@@ -1,4 +1,3 @@
-import { MAX_PROPOSALS, QUESTS_PER_GAME } from '../../engine/rules.ts'
 import { isRole, type Role, type Seat } from '../../engine/types.ts'
 import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
@@ -19,10 +18,18 @@ import {
   type PublicEvidenceReference,
 } from '../policy/plan.ts'
 import type {
-  LanguageInterpreterInput,
   LanguageUtteranceChannel,
 } from '../record/language-types.ts'
-import { recentPublicUtterances } from '../record/language-contract.ts'
+import {
+  MAX_EVIDENCE_REFS,
+  evidenceKey,
+  evidenceReferenceShaped,
+  publicEvidenceExists,
+  safeIndex,
+  validPublicEvidenceReferences,
+} from '../record/evidence-reference.ts'
+
+export { MAX_EVIDENCE_REFS, publicEvidenceExists, validPublicEvidenceReferences }
 
 /**
  * The one contract for a planner-authored communication direction.
@@ -68,8 +75,6 @@ export interface CommunicationDirectionContext {
   readonly additionalKeys?: readonly string[]
 }
 
-/** A direction may cite at most this many public facts. */
-export const MAX_EVIDENCE_REFS = 8
 
 /**
  * Pinned to the type, so a new direction field cannot be added without a
@@ -118,96 +123,9 @@ export type CommunicationDirectionFailure =
   | 'role-exposure-topic'
   | 'tone'
 
-function safeIndex(value: unknown, min: number, max?: number): boolean {
-  return Number.isSafeInteger(value)
-    && (value as number) >= min
-    && (max === undefined || (value as number) <= max)
-}
 
-/**
- * Structural validity of one evidence reference, independent of the record.
- *
- * `onlyAllowedKeys` permits an absent key, so each coordinate is required here
- * by its own integer check rather than by the key list. The upper bounds are
- * the rules' own constants, which every caller can apply whether or not it can
- * see the record the reference points into.
- */
-function evidenceReferenceShaped(
-  value: unknown,
-  context: CommunicationDirectionContext,
-): value is PublicEvidenceReference {
-  if (!plainDataRecord(value)) return false
-  const seatKnown = (seat: unknown): boolean =>
-    safeIndex(seat, 0)
-    && (context.seatExists?.(seat as Seat) ?? true)
-  if (value.kind === 'utterance') {
-    return onlyAllowedKeys(value, ['kind', 'sourceSeq'])
-      && safeIndex(value.sourceSeq, 0)
-  }
-  if (value.kind === 'proposal') {
-    return onlyAllowedKeys(value, ['kind', 'round', 'proposalNum'])
-      && safeIndex(value.round, 1, QUESTS_PER_GAME)
-      && safeIndex(value.proposalNum, 1, MAX_PROPOSALS)
-  }
-  if (value.kind === 'proposal-vote') {
-    return onlyAllowedKeys(value, ['kind', 'round', 'proposalNum', 'seat'])
-      && safeIndex(value.round, 1, QUESTS_PER_GAME)
-      && safeIndex(value.proposalNum, 1, MAX_PROPOSALS)
-      && seatKnown(value.seat)
-  }
-  if (value.kind === 'quest') {
-    return onlyAllowedKeys(value, ['kind', 'questNum'])
-      && safeIndex(value.questNum, 1, QUESTS_PER_GAME)
-  }
-  return false
-}
 
-/**
- * A reference's identity, read field by field rather than serialized.
- *
- * Citing one fact twice is the rule this feeds, and JSON.stringify cannot state
- * it: two references to the same quest whose keys arrive in different orders
- * serialize to different strings, so a model that varied its key order got two
- * citations of one fact past every boundary.
- */
-function evidenceKey(reference: PublicEvidenceReference): string {
-  if (reference.kind === 'utterance') {
-    return `utterance:${reference.sourceSeq}`
-  }
-  if (reference.kind === 'proposal') {
-    return `proposal:${reference.round}:${reference.proposalNum}`
-  }
-  if (reference.kind === 'proposal-vote') {
-    return [
-      'proposal-vote',
-      reference.round,
-      reference.proposalNum,
-      reference.seat,
-    ].join(':')
-  }
-  return `quest:${reference.questNum}`
-}
 
-/** Shared structural and optional host join for a bounded evidence-ref set. */
-export function validPublicEvidenceReferences(
-  value: unknown,
-  context: Pick<
-    CommunicationDirectionContext,
-    'seatExists' | 'evidenceExists'
-  > = {},
-): value is readonly PublicEvidenceReference[] {
-  if (!denseArray(value) || value.length > MAX_EVIDENCE_REFS) return false
-  if (!value.every((reference) => evidenceReferenceShaped(reference, {
-    allowedChannels: [],
-    ...context,
-  }))) return false
-  const references = value as readonly PublicEvidenceReference[]
-  if (new Set(references.map(evidenceKey)).size !== references.length) {
-    return false
-  }
-  return context.evidenceExists === undefined
-    || references.every(context.evidenceExists)
-}
 
 /**
  * Validate a communication direction, naming the first rule it breaks.
@@ -329,40 +247,6 @@ export function validCommunicationDirection(
   return communicationDirectionFailure(value, context) === undefined
 }
 
-/**
- * Whether a reference names a fact the whole table can already see.
- *
- * The public projection is the only thing consulted, so this is the same answer
- * for every seat: a direction may only cite what a listener could check.
- */
-export function publicEvidenceExists(
-  reference: PublicEvidenceReference,
-  input: LanguageInterpreterInput,
-): boolean {
-  if (reference.kind === 'utterance') {
-    return recentPublicUtterances(input).some(
-      (utterance) => utterance.sourceSeq === reference.sourceSeq,
-    )
-  }
-  if (reference.kind === 'proposal') {
-    return input.publicContext.proposals.some(
-      (proposal) => proposal.round === reference.round
-        && proposal.proposalNum === reference.proposalNum,
-    )
-  }
-  if (reference.kind === 'proposal-vote') {
-    return input.publicContext.proposals.some(
-      (proposal) => proposal.outcome === 'voted'
-        && proposal.round === reference.round
-        && proposal.proposalNum === reference.proposalNum
-        && proposal.votes.some((vote) => vote.seat === reference.seat),
-    )
-  }
-  return input.publicContext.quests.some(
-    (quest) => quest.num === reference.questNum
-      && quest.result !== undefined,
-  )
-}
 
 /** The channel a decision of this kind speaks on, if it speaks at all. */
 export function directionChannelFor(

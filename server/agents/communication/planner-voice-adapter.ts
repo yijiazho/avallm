@@ -16,7 +16,7 @@ import {
   directionChannelFor,
   validCommunicationDirection,
 } from './direction-contract.ts'
-import { validStrategicIntent } from './strategic-intent-contract.ts'
+import { validStrategicIntent } from '../record/strategic-intent-contract.ts'
 import { LANGUAGE_UTTERANCE_CHANNELS } from '../record/language-types.ts'
 import type { ComposedPolicyContext } from './composed-renderer.ts'
 import { onlyAllowedKeys } from '../canonical/canonical-shape.ts'

@@ -17,7 +17,7 @@ import type {
   BeliefSnapshot,
   HiddenWorld,
 } from '../belief/types.ts'
-import type { Evidence } from '../cognition/types.ts'
+import type { Evidence } from '../record/evidence.ts'
 import { compareCandidateIds } from '../candidate/candidates.ts'
 import { alignmentOf, provenanceFor } from './deduction-provenance.ts'
 import {

@@ -4,7 +4,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../../engine/types.ts'
-import type { DecisionPlan } from '../policy/plan.ts'
+import type { StrategicIntent } from '../record/intent.ts'
 import type { AppliedDecisionResolution } from './applied-decision.ts'
 import {
   assessLiteralCoherence,
@@ -39,9 +39,31 @@ export type {
   SelectedPlanSummary,
 } from './types.ts'
 
+/**
+ * The part of a selected plan this module actually reads.
+ *
+ * Stated structurally rather than imported as policy/plan.ts's DecisionPlan,
+ * which was the last edge making cognition and policy mutually dependent:
+ * decision-frame.ts consumes the whole CognitionState, so policy genuinely
+ * sits above cognition, and this one type reference was all that pointed back.
+ * A plan is recorded here, never built or interpreted here. Structural typing
+ * means every existing caller still passes a real DecisionPlan and nothing at
+ * the call sites changed; what changed is that cognition no longer has to know
+ * the shape policy chose.
+ */
+interface SelectedPlanIdentity {
+  version: string
+  candidateId: string
+  policyId: string
+  beliefThroughSeq: number
+  request: DecisionRequest
+  decision: Decision
+  strategicIntent?: StrategicIntent
+}
+
 function planSummary(
   selectedDecision: Decision,
-  plan: DecisionPlan,
+  plan: SelectedPlanIdentity,
 ): SelectedPlanSummary {
   return {
     decision: structuredClone(selectedDecision),
@@ -63,7 +85,7 @@ export interface RecordAppliedPlanInput {
   view: PlayerView
   commitments: readonly PublicCommitment[]
   selectedDecision?: Decision
-  selectedPlan?: DecisionPlan
+  selectedPlan?: SelectedPlanIdentity
   appliedDecision: Decision
   resolution: AppliedDecisionResolution
   intent: CoherenceIntent

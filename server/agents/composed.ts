@@ -142,7 +142,7 @@ import {
   validCommunicationDirection,
   type CommunicationDirectionContext,
 } from './communication/direction-contract.ts'
-import { validStrategicIntent } from './communication/strategic-intent-contract.ts'
+import { validStrategicIntent } from './record/strategic-intent-contract.ts'
 import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,

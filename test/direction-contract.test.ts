@@ -9,7 +9,7 @@ import {
 } from '../server/agents/communication/direction-contract.ts'
 import {
   validStrategicIntent,
-} from '../server/agents/communication/strategic-intent-contract.ts'
+} from '../server/agents/record/strategic-intent-contract.ts'
 import {
   COMMUNICATION_INTENT_VERSION,
   STRATEGIC_INTENT_VERSION,

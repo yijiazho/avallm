@@ -15,7 +15,7 @@ import type {
 } from '../../engine/types.ts'
 import type { QuestFailEvidence } from '../belief/constraints.ts'
 import type { HiddenWorld } from '../belief/types.ts'
-import { isPublicEvidence, type Evidence } from '../cognition/types.ts'
+import { isPublicEvidence, type Evidence } from '../record/evidence.ts'
 import type { DeductionProvenance } from './types.ts'
 
 export function alignmentOf(

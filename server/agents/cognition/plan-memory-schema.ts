@@ -23,8 +23,8 @@ import { isAppliedDecisionResolution } from './applied-decision.ts'
 import {
   projectLanguageInterpreterInput,
 } from '../record/language-contract.ts'
-import { publicEvidenceExists } from '../communication/direction-contract.ts'
-import { validStrategicIntent } from '../communication/strategic-intent-contract.ts'
+import { publicEvidenceExists } from '../record/evidence-reference.ts'
+import { validStrategicIntent } from '../record/strategic-intent-contract.ts'
 import { buildCommitments } from './commitments.ts'
 import {
   assessLiteralCoherence,
