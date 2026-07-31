@@ -184,7 +184,7 @@ export const SHARED_SHAPE_GUARD_SYNONYMS = Object.freeze([
   }),
 ])
 // The shared numeric arithmetic: tolerances, clamps, the tolerance comparator,
-// and the count-lattice check.
+// the count-lattice check, and the log-space pair.
 const SHARED_PROBABILITY_ARITHMETIC =
   'server/agents/canonical/probability-arithmetic'
 /**
@@ -197,11 +197,13 @@ const SHARED_PROBABILITY_ARITHMETIC =
  */
 export const SHARED_ARITHMETIC_HELPER_NAMES = Object.freeze([
   'addProbability',
+  'capLogLikelihood',
   'clampProbability',
   'clampProbabilityOrZero',
   'closeProbability',
   'countLatticeTolerance',
   'latticeCount',
+  'logWeightsToProbabilities',
   'stableProbabilitySum',
 ])
 /**

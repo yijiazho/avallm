@@ -13,11 +13,10 @@ import type {
   BeliefModel,
   WeightedWorld,
 } from '../../../server/agents/belief/types.ts'
+import { normalizeLogWeights } from '../../../server/agents/belief/log-weights.ts'
 import {
-  capLogLikelihood,
   logWeightsToProbabilities,
-  normalizeLogWeights,
-} from '../../../server/agents/belief/log-weights.ts'
+} from '../../../server/agents/canonical/probability-arithmetic.ts'
 import { advanceCognition } from '../../../server/agents/cognition/state.ts'
 import {
   candidateIdForDecision,
@@ -191,29 +190,10 @@ test('non-uniform world weights drive every posterior projection', () => {
   assert.deepEqual(advanceCognition(cognition, view, model), cognition)
 })
 
-test('log weights normalize stably and every contribution is capped', () => {
-  const game = createGame({ seed: 'phase5a-log-sum-exp', playerCount: 5 })
-  const view = viewFor(game, 0)
-  const worlds = exactBelief(view).worlds.slice(0, 2)
-    .map((weighted) => weighted.world)
-  const weighted = normalizeLogWeights(worlds, [1_000, 999])
-  assert.ok(Math.abs(
-    weighted.reduce((sum, entry) => sum + entry.probability, 0) - 1,
-  ) < 1e-12)
-  assert.ok(weighted[0].probability > weighted[1].probability)
-  assert.deepEqual(capLogLikelihood(3, 1.5), {
-    value: 1.5,
-    capped: true,
-  })
-  assert.deepEqual(capLogLikelihood(-1, 1.5), {
-    value: -1,
-    capped: false,
-  })
-})
-
-test('log-sum-exp is domain free and survives the whole feasible support', () => {
-  // The world-shaped wrapper is a zip over the numeric core and nothing else,
-  // so the two have to agree bit for bit or the split changed belief output.
+test('the world wrapper is a zip over the shared arithmetic and nothing else', () => {
+  // The arithmetic's own contract is pinned in probability-arithmetic.test.ts.
+  // What belongs here is the only part the belief layer owns: that the worlds
+  // come back carrying exactly the masses the shared core computed, in order.
   const game = createGame({ seed: 'phase5a-log-sum-exp', playerCount: 5 })
   const view = viewFor(game, 0)
   const worlds = exactBelief(view).worlds.slice(0, 2)
@@ -223,42 +203,17 @@ test('log-sum-exp is domain free and survives the whole feasible support', () =>
       normalizeLogWeights(worlds, weights).map((entry) => entry.probability),
       [...logWeightsToProbabilities(weights)],
     )
+    assert.deepEqual(
+      normalizeLogWeights(worlds, weights).map((entry) => entry.world),
+      worlds,
+    )
   }
-
-  // The fold pin. `Math.max(...weights)` throws past roughly 125,000 arguments
-  // on this V8, so a length above that is what actually separates the fold from
-  // the spread: the previous 120,000 sat under the measured threshold and would
-  // have passed either way. Real inputs are far smaller (a ten-player servant
-  // view tops out near 60,480 feasible worlds), so this is a guard on the
-  // implementation, not a case the belief layer reaches.
-  const wide = Array.from({ length: 200_000 }, (_, index) => -index / 10_000)
-  assert.throws(() => Math.max(...wide), RangeError)
-  const spread = logWeightsToProbabilities(wide)
-  assert.equal(spread.length, wide.length)
-  assert.ok(spread.every((probability) => probability > 0))
-  assert.ok(Math.abs(
-    spread.reduce((sum, probability) => sum + probability, 0) - 1,
-  ) < 1e-9)
-
-  assert.throws(
-    () => logWeightsToProbabilities([]),
-    /at least one weight/,
-  )
-  assert.throws(
-    () => logWeightsToProbabilities([0, Number.NaN]),
-    /finite weights/,
-  )
-  // A hole is not a weight. Every array method here skips one, so folding the
-  // maximum instead of spreading it removed the accident that used to reject a
-  // sparse vector, and the guard has to say so on its own.
-  const sparse: number[] = [0, 0, -1]
-  delete sparse[1]
-  assert.throws(
-    () => logWeightsToProbabilities(sparse),
-    /finite weights/,
-  )
   assert.throws(
     () => normalizeLogWeights(worlds, [0]),
+    /one weight per world/,
+  )
+  assert.throws(
+    () => normalizeLogWeights([], []),
     /one weight per world/,
   )
 })

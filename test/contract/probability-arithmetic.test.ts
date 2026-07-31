@@ -20,12 +20,14 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import {
   addProbability,
+  capLogLikelihood,
   clampProbability,
   clampProbabilityOrZero,
   closeProbability,
   COUNT_LATTICE_ULP_MULTIPLIER,
   countLatticeTolerance,
   latticeCount,
+  logWeightsToProbabilities,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
@@ -118,6 +120,64 @@ test('closeProbability spends exactly the single-value tolerance', () => {
   // AND-chain over untrusted values: an unusable payload fails closed.
   assert.equal(closeProbability(Number.NaN, 0.5), false)
   assert.equal(closeProbability(0.5, Number.NaN), false)
+})
+
+test('capLogLikelihood bounds a contribution and says when it bit', () => {
+  assert.deepEqual(capLogLikelihood(3, 1.5), { value: 1.5, capped: true })
+  assert.deepEqual(capLogLikelihood(-3, 1.5), { value: -1.5, capped: true })
+  assert.deepEqual(capLogLikelihood(-1, 1.5), { value: -1, capped: false })
+  // Exactly at the bound is not capped: the provenance would otherwise report a
+  // clamp on a contribution the model produced unaltered.
+  assert.deepEqual(capLogLikelihood(1.5, 1.5), { value: 1.5, capped: false })
+
+  // It rejects where the probability clamps saturate. An infinite log
+  // likelihood means a factor priced a world at zero, which is a modelling
+  // failure to surface rather than a value to round to the bound.
+  for (const value of [Number.NaN, Infinity, -Infinity]) {
+    assert.throws(() => capLogLikelihood(value, 1.5), /must be finite/)
+  }
+  for (const cap of [0, -1, Number.NaN, Infinity]) {
+    assert.throws(() => capLogLikelihood(0, cap), /cap must be positive/)
+  }
+})
+
+test('log-sum-exp normalizes without overflowing and rejects a non-vector', () => {
+  // The stability the max-subtraction buys: exp(1000) is Infinity on its own,
+  // so a normalizer that did not shift first would return NaN here.
+  assert.ok(Number.isFinite(Math.exp(1_000)) === false)
+  const large = logWeightsToProbabilities([1_000, 999])
+  assert.ok(Math.abs(large[0] + large[1] - 1) < PROBABILITY_TOLERANCE)
+  assert.ok(large[0] > large[1])
+  // Equal weights are the uniform distribution, exactly.
+  assert.deepEqual([...logWeightsToProbabilities([7, 7, 7, 7])], Array(4).fill(0.25))
+
+  // The fold pin. `Math.max(...weights)` throws past roughly 125,000 arguments
+  // on this V8, so a length above that is what separates the fold from the
+  // spread. Real inputs are far smaller (a ten-player servant view tops out
+  // near 60,480 feasible worlds), so this guards the implementation, not a case
+  // the belief layer reaches.
+  const wide = Array.from({ length: 200_000 }, (_, index) => -index / 10_000)
+  assert.throws(() => Math.max(...wide), RangeError)
+  const spread = logWeightsToProbabilities(wide)
+  assert.equal(spread.length, wide.length)
+  assert.ok(spread.every((probability) => probability > 0))
+  assert.ok(Math.abs(
+    spread.reduce((sum, probability) => sum + probability, 0) - 1,
+  ) < 1e-9)
+
+  assert.throws(() => logWeightsToProbabilities([]), /at least one weight/)
+  for (const bad of [Number.NaN, Infinity, -Infinity]) {
+    assert.throws(
+      () => logWeightsToProbabilities([0, bad]),
+      /finite weights/,
+    )
+  }
+  // A hole is not a weight. Every array method here skips one, so folding the
+  // maximum instead of spreading it removed the accident that used to reject a
+  // sparse vector, and the guard has to say so on its own.
+  const sparse: number[] = [0, 0, -1]
+  delete sparse[1]
+  assert.throws(() => logWeightsToProbabilities(sparse), /finite weights/)
 })
 
 test('latticeCount recovers the integer count or refuses the value', () => {

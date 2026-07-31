@@ -18,10 +18,8 @@ import {
   type HiddenWorld,
   type LikelihoodFactor,
 } from './types.ts'
-import {
-  capLogLikelihood,
-  normalizeLogWeights,
-} from './log-weights.ts'
+import { capLogLikelihood } from '../canonical/probability-arithmetic.ts'
+import { normalizeLogWeights } from './log-weights.ts'
 
 export const QUEST_CARD_FACTOR_VERSION = 'analytical-quest-card-v1'
 export const QUEST_FACTOR_BUNDLE_VERSION = 'quest-card-only-v1'

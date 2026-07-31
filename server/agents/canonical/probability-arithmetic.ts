@@ -1,11 +1,12 @@
 /**
  * Numeric arithmetic shared by every layer that carries a probability: the
  * tolerance a comparison is allowed to spend, the unit-interval clamp, the
- * count-lattice check, and the one selection margin that has to agree between
- * the layer that writes it and the admission that replays it. Belief, analysis,
- * policy, score layers, admission, and communication are all in scope, on the
- * same argument canonical-shape.ts makes next door: a constant that is weaker
- * or looser at one call site than another is a hole at that site only.
+ * count-lattice check, the log-space pair that turns bounded log likelihoods
+ * into masses, and the one selection margin that has to agree between the layer
+ * that writes it and the admission that replays it. Belief, analysis, policy,
+ * score layers, admission, and communication are all in scope, on the same
+ * argument canonical-shape.ts makes next door: a constant that is weaker or
+ * looser at one call site than another is a hole at that site only.
  *
  * canonical-shape.ts owns the shared *predicates*, and ARCH016 scans the tree
  * for private copies of them. That scan reads return types, and its own doc
@@ -140,6 +141,96 @@ export function stableProbabilitySum<T>(
     addProbability(accumulator, probabilityOf(value))
   }
   return accumulator.sum + accumulator.compensation
+}
+
+/**
+ * A log likelihood held inside a symmetric bound, and whether the bound bit.
+ *
+ * The `capped` flag is not decoration. A likelihood factor records the clamp it
+ * applied in its provenance, so the belief snapshot can say a contribution was
+ * limited rather than silently reporting the limited value as the model's own
+ * opinion.
+ */
+export interface CappedLogLikelihood {
+  value: number
+  capped: boolean
+}
+
+/**
+ * Clamp a log likelihood to +/- absoluteCap.
+ *
+ * The log-space sibling of clampProbability, and here for the same reason: it
+ * is the one place a factor's contribution is bounded, and a second copy with a
+ * different idea about a non-finite input or a nonpositive cap would be a hole
+ * at that factor only. Unlike the probability clamps it rejects rather than
+ * saturates, because an infinite log likelihood means the factor priced a world
+ * at zero and that is a modelling failure to surface, not a value to round.
+ */
+export function capLogLikelihood(
+  value: number,
+  absoluteCap: number,
+): CappedLogLikelihood {
+  if (!Number.isFinite(value)) {
+    throw new Error(`log likelihood must be finite, got ${value}`)
+  }
+  if (!Number.isFinite(absoluteCap) || absoluteCap <= 0) {
+    throw new Error(`log likelihood cap must be positive, got ${absoluteCap}`)
+  }
+  const bounded = Math.max(-absoluteCap, Math.min(absoluteCap, value))
+  return { value: bounded, capped: bounded !== value }
+}
+
+/**
+ * Stable log-sum-exp: the probabilities a finite log-weight vector encodes.
+ *
+ * Domain-free on purpose. Nothing about subtracting the maximum, exponentiating
+ * and dividing by the total knows or cares what the weights are attached to.
+ * The belief layer zips hidden worlds back onto the result; a second caller
+ * with a different domain gets to reuse the arithmetic without inheriting that
+ * type, which is what put this here rather than beside the worlds.
+ *
+ * The maximum is folded rather than spread, and the weights are walked by index
+ * rather than through `some` and `map`. Both are about what the array-method
+ * spellings quietly tolerate, not about the arithmetic, which is unchanged.
+ *
+ * `Math.max(...weights)` passes one argument per element and throws a
+ * RangeError past roughly 125,000 of them on this V8 (measured; it is a stack
+ * limit, so it is not a fixed number). Today's largest real input is the
+ * ~60,480 feasible worlds a ten-player servant view carries, which clears that
+ * comfortably, so the spread was not a live bug. It is that an argument-count
+ * ceiling has nothing to do with normalizing a vector, the fold returns the
+ * identical double for every input, and a limit nobody has a reason to think
+ * about is better not present.
+ *
+ * The index walk exists because the spread was also, by accident, the only
+ * thing rejecting a sparse weight vector. `some`, `map` and `reduce` all skip
+ * array holes, but spreading one materializes it as `undefined`, which made the
+ * maximum NaN, the total NaN, and tripped the invalid-total guard below. Fold
+ * the maximum instead and the hole is skipped end to end: the vector passes
+ * every check and comes back carrying a hole, which the caller reads as an
+ * `undefined` probability sitting in a `readonly number[]`. So the rejection
+ * that used to be a side effect of the spelling is now written down.
+ */
+export function logWeightsToProbabilities(
+  logWeights: readonly number[],
+): readonly number[] {
+  if (!logWeights.length) {
+    throw new Error('log-weight normalization requires at least one weight')
+  }
+  let maximum = -Infinity
+  for (let index = 0; index < logWeights.length; index++) {
+    const weight = logWeights[index]
+    if (!Number.isFinite(weight)) {
+      throw new Error('log-weight normalization requires finite weights')
+    }
+    if (weight > maximum) maximum = weight
+  }
+  const relative = logWeights.map((weight) => Math.exp(weight - maximum))
+  const total = relative.reduce((sum, weight) => sum + weight, 0)
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error('log-weight normalization produced invalid total weight')
+  }
+  return relative.map((weight) => weight / total)
 }
 
 /** The closed unit interval, for a value already known to be a number. */
