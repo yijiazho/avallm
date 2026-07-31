@@ -28,7 +28,7 @@ import {
   decisionComponentPlan,
 } from '../server/agents/components/kernel.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import { publicCognition } from '../server/agents/cognition/state.ts'
 import {
@@ -587,7 +587,7 @@ test('large exact uniform support preserves identity and trusted trace admission
     authoritativeAction: snapshot.original,
     deterministicSeed: bankCase.seed,
     expectedComponentPlan: decisionComponentPlan(resolved),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       resolved.description,
     ),
     expectComponentTrace: true,

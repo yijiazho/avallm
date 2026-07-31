@@ -33,7 +33,7 @@ import {
 } from '../server/agents/admission/composed-trace.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { GoodVoteFeatures } from '../server/agents/policy/good-score-contract.ts'
@@ -255,7 +255,7 @@ test('a board-swing decision is produced and admitted as its own identity', asyn
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: fixture.source.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   })
@@ -264,7 +264,7 @@ test('a board-swing decision is produced and admitted as its own identity', asyn
 
 test('admission refuses a trace whose scorer and value function disagree', async () => {
   const { fixture, agent, output } = await boardSwingDecision()
-  const identity = projectResolvedArchitectureIdentity(
+  const identity = revalidatedArchitectureIdentity(
     agent.resolvedBrain().description,
   )
   const admit = (trace: DecisionTrace) => admitDecisionTrace({
@@ -367,7 +367,7 @@ test('a symmetric decision still replays exactly after the NB-013 change', async
       authoritativeAction: output.decision,
       selectedDecision: output.decision,
       deterministicSeed: fixture.source.seed,
-      expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+      expectedArchitectureIdentity: revalidatedArchitectureIdentity(
         agent.resolvedBrain().description,
       ),
     }).kind,

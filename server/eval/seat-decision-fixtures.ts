@@ -9,7 +9,7 @@ import {
 } from '../agents/admission/composed-trace.ts'
 import { createComposedAgent } from '../agents/composed.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../agents/components/resolved-brain.ts'
 import {
   composedBrainOptions,
@@ -52,7 +52,7 @@ async function trustedRun(
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   })

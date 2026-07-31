@@ -13,7 +13,7 @@ import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/robust-evil-quest-card.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
   admitDecisionTrace,
@@ -129,7 +129,7 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
     authoritativeAction: output.decision,
     selectedDecision: output.decision,
     deterministicSeed: 'phase7r3b2b-native-authority',
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   }).kind, 'trusted-exact')

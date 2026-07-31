@@ -113,27 +113,27 @@
     },
     {
       "path": "test/joint-identity.test.ts",
-      "sha256": "7a11b50f42b40183b20af7344be405c8970df515239b9c8b847697edb5f9593e",
+      "sha256": "dbb56c7be14da12fa23481bb19d61c92fabd9d4d7357cb6ed671c5c17752411c",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "80037cbaffbe2ef6eedc1cab10d756e8b8c2859f622c9471eae9dcb340263893",
+      "sha256": "a242e19d2989bc68c1e71f0fa819447c64947e78dc899e9d47b944badf03a3bd",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "12e1750f3a54410c29a56f3491eb7472eb63d72ebc974b437d0543b81a5c9a24",
+      "sha256": "be49ad3d5ac486da486844f72777953f32c8050dd8d8405046956144d88bac98",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "774967291274aa2bec54e29422c7d7d9e99e2a98ef3a0fde6d00a1d5d0c91037",
+      "sha256": "da60ea34a45a47589932817b15df094feb3de8b0488bf6866dd98e3c837c8f58",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/morgana-quest-adapters.test.ts",
-      "sha256": "2c6a841d29228026f1636f311e97cf2e82bcbc490052e33c30a85f67e9bccaa3",
+      "sha256": "f1a41fde8a9d7ef2a4fd87b6bb307e7bb744416d295dc2fdf3ca5310f431879f",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {

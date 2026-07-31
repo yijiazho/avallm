@@ -35,7 +35,7 @@ import {
   createProductionComponentRegistry,
 } from '../server/agents/components/production-registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
@@ -99,13 +99,13 @@ const fixtures = readDecisionFixtures()
 const merlin = fixtures.find((fixture) => fixture.view.role === 'merlin')!
 const percival = fixtures.find((fixture) => fixture.view.role === 'percival')!
 const servant = fixtures.find((fixture) => fixture.view.role === 'servant')!
-const rolePolicyIdentity = projectResolvedArchitectureIdentity(
+const rolePolicyIdentity = revalidatedArchitectureIdentity(
   createComposedAgent({
   seed: 'identity',
   scorer: roleObjectiveScorer,
   }).resolvedBrain().description,
 )
-const seededRolePolicyIdentity = projectResolvedArchitectureIdentity(
+const seededRolePolicyIdentity = revalidatedArchitectureIdentity(
   createComposedAgent({
   seed: 'identity',
   scorer: seededRoleObjectiveScorer,

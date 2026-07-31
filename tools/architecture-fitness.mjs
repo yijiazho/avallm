@@ -1785,7 +1785,7 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ])],
   ['server/agents/board.ts', new Set(['roleCertainties'])],
   ['server/agents/components/resolved-brain.ts', new Set([
-    'projectPrivateArchitectureDebug',
+    'trustedArchitectureIdentityDebug',
   ])],
   ['server/agents/policy/score.ts', new Set([
     'createEvilRoleObjectiveScorer',

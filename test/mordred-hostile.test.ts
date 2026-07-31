@@ -62,7 +62,7 @@ import {
   ComponentRegistryError,
 } from '../server/agents/components/registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
 import { brainComponents } from '../server/agents/brain.ts'
@@ -705,7 +705,7 @@ test('host admission rejects dependency, version, privacy, tag, use, and observe
     view: input.view,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: plan,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,

@@ -96,7 +96,7 @@ import {
   createProductionComponentRegistry,
 } from './components/production-registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolveComposedBrain,
   resolvedArchitectureIdentityDigest,
   type ResolvedComposedBrain,
@@ -1556,7 +1556,7 @@ export function createComposedAgent(
   }, componentRegistry, createConfiguredScoreLayerRegistry(),
   createConfiguredDecisionLayerRegistry())
   const architectureIdentityDigest = resolvedArchitectureIdentityDigest(
-    projectResolvedArchitectureIdentity(resolvedBrain.description),
+    revalidatedArchitectureIdentity(resolvedBrain.description),
   )
   const configuredComponentPlan = decisionComponentPlan(resolvedBrain)
   const requiredHostInputKeys = new Set(

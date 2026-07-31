@@ -26,7 +26,7 @@ import {
 } from '../agents/components/architecture-metadata.ts'
 import {
   admitResolvedArchitectureIdentity,
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolvedArchitectureIdentityDigest,
   type ResolvedArchitectureDescriptor,
   type ResolvedArchitectureIdentity,
@@ -299,7 +299,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
   ])
   const trustedIdentity = opts.trustedArchitecture === undefined
     ? undefined
-    : projectResolvedArchitectureIdentity(
+    : revalidatedArchitectureIdentity(
         opts.trustedArchitecture.descriptor,
       )
   const evilQuestCardPolicies = sortedUnique(
@@ -401,7 +401,7 @@ function trustedResolvedArchitectureManifest(
   ) {
     throw new Error('trusted architecture has an invalid target seat')
   }
-  const identity = projectResolvedArchitectureIdentity(trusted.descriptor)
+  const identity = revalidatedArchitectureIdentity(trusted.descriptor)
   const seatTraces = traces.filter((trace) =>
     trace.viewerSeat === trusted.seat)
   if (

@@ -34,7 +34,7 @@ import {
   PRIVATE_PUBLIC_OBSERVER_INPUT,
 } from '../server/agents/components/native-score-components.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
 import { brainComponents } from '../server/agents/brain.ts'
@@ -220,7 +220,7 @@ test('native Mordred graph is private, inert, exact, and host-admitted', async (
     selectedDecision: output.decision,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: plan,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
@@ -480,7 +480,7 @@ test('weighted beliefs remain structural and cannot become promotion evidence', 
     selectedDecision: output.decision,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
@@ -749,7 +749,7 @@ test('native trace admission rejects coherent payload and graph forgeries', asyn
     selectedDecision: output.decision,
     deterministicSeed: input.game.seed,
     expectedComponentPlan: plan,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,

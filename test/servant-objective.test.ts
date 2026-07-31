@@ -24,7 +24,7 @@ import {
 } from '../server/agents/components/kernel.ts'
 import { SERVANT_OBJECTIVE_COMPONENT } from '../server/agents/components/native-score-components.ts'
 import { admitDecisionTrace } from '../server/agents/admission/composed-trace.ts'
-import { projectResolvedArchitectureIdentity } from '../server/agents/components/resolved-brain.ts'
+import { revalidatedArchitectureIdentity } from '../server/agents/components/resolved-brain.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import { createGame, expectedDecisions } from '../server/engine/game.ts'
@@ -238,7 +238,7 @@ test('a servant trace survives real admission and forgery does not', async () =>
     selectedDecision: output.decision,
     deterministicSeed: 'servant-admission',
     expectedArchitectureIdentity:
-      projectResolvedArchitectureIdentity(agent.resolvedBrain().description),
+      revalidatedArchitectureIdentity(agent.resolvedBrain().description),
   }
   // trusted-exact, not merely accepted: the host rebuilt the servant payload
   // byte for byte. Anything weaker would admit a plausible-looking objective.

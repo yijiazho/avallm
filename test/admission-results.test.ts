@@ -12,7 +12,7 @@ import {
 } from '../server/agents/admission/composed-trace.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolvedArchitectureIdentityDigest,
 } from '../server/agents/components/resolved-brain.ts'
 import {
@@ -178,7 +178,7 @@ test('only an out-of-band identity can produce trusted exact evidence', async ()
     selectedDecision: output.decision,
     deterministicSeed: fixture.source.seed,
     expectedComponentPlan: output.trace!.componentPlan!,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
@@ -221,7 +221,7 @@ test('self-reported identity cannot mint trust or survive a wrong witness', asyn
     selectedDecision: output.decision,
     deterministicSeed: fixture.source.seed,
     expectedComponentPlan: output.trace!.componentPlan!,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
@@ -277,7 +277,7 @@ test('canonical admission rejects forged wrappers without reading their trace', 
     selectedDecision: output.decision,
     deterministicSeed: fixture.source.seed,
     expectedComponentPlan: output.trace!.componentPlan!,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true,
@@ -313,7 +313,7 @@ test('authentic canonical candidates are reusable, detached, and deeply frozen',
     selectedDecision: output.decision,
     deterministicSeed: fixture.source.seed,
     expectedComponentPlan: expectedPlan,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
     expectComponentTrace: true as const,

@@ -64,7 +64,7 @@ import {
 } from '../server/agents/admission/composed-trace.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 
 const roleUtilityFrom = (trace: DecisionTrace) =>
@@ -358,7 +358,7 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
     scorer: seededRoleObjectiveScorer,
   })
   const output = await agent.decide(fixture.req, fixture.view)
-  const expectedIdentity = projectResolvedArchitectureIdentity(
+  const expectedIdentity = revalidatedArchitectureIdentity(
     agent.resolvedBrain().description,
   )
   const expectedPlan = structuredClone(output.trace!.componentPlan!)
@@ -471,7 +471,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     roleObjectives: true,
   })
   const passive = await passiveAgent.decide(fixture.req, fixture.view)
-  const passiveIdentity = projectResolvedArchitectureIdentity(
+  const passiveIdentity = revalidatedArchitectureIdentity(
     passiveAgent.resolvedBrain().description,
   )
   const expectedPlan = structuredClone(passive.trace!.componentPlan!)
@@ -514,7 +514,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     seed: 'a4b-empty-plan',
   })
   const compatibility = await compatibilityAgent.decide(fixture.req, fixture.view)
-  const compatibilityIdentity = projectResolvedArchitectureIdentity(
+  const compatibilityIdentity = revalidatedArchitectureIdentity(
     compatibilityAgent.resolvedBrain().description,
   )
   assert.deepEqual(compatibility.trace!.componentPlan!.configured, [])
@@ -544,7 +544,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
     'witnessless current trace remains diagnostic',
   )
   assert.equal(diagnosticAdmission.promotionEvidenceEligible, false)
-  const differentScoringIdentity = projectResolvedArchitectureIdentity(
+  const differentScoringIdentity = revalidatedArchitectureIdentity(
     createComposedAgent({
       seed: 'identity',
       scorer: seededGoodProposalVoteScorer,

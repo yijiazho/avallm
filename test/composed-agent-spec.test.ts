@@ -10,7 +10,7 @@ import {
 } from '../server/agents/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
   fullRolePolicyScorer,
@@ -67,7 +67,7 @@ test('an unknown preset cannot reach the composed constructor', () => {
 })
 
 const presetIdentity = (preset: ComposedBrainPreset) =>
-  projectResolvedArchitectureIdentity(
+  revalidatedArchitectureIdentity(
     createComposedAgent({
       seed: 'identity',
       ...composedBrainOptions(preset),
@@ -88,7 +88,7 @@ const variantIdentity = (variantId: string) => {
     seed: 'identity',
     seat: 0,
   }) as ReturnType<typeof createComposedAgent>
-  return projectResolvedArchitectureIdentity(agent.resolvedBrain().description)
+  return revalidatedArchitectureIdentity(agent.resolvedBrain().description)
 }
 
 /**

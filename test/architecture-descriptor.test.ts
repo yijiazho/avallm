@@ -16,8 +16,8 @@ import {
 import {
   RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION,
   admitResolvedArchitectureIdentity,
-  projectPrivateArchitectureDebug,
-  projectResolvedArchitectureIdentity,
+  trustedArchitectureIdentityDebug,
+  revalidatedArchitectureIdentity,
   resolveComposedBrain,
   type ResolvedConfiguredPipeline,
 } from '../server/agents/components/resolved-brain.ts'
@@ -120,7 +120,7 @@ test('runtime and persisted identity share one codec and omit migration', () => 
     seed: 'phase7r2c3-identity-codec',
     decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
   }).resolvedBrain().description
-  const runtime = projectResolvedArchitectureIdentity(descriptor)
+  const runtime = revalidatedArchitectureIdentity(descriptor)
   const persisted = admitResolvedArchitectureIdentity(
     JSON.parse(JSON.stringify(runtime)),
   )
@@ -175,7 +175,7 @@ test('runtime and persisted identity share one codec and omit migration', () => 
 })
 
 test('identity codec rejects impossible component graph partitions', () => {
-  const identity = projectResolvedArchitectureIdentity(
+  const identity = revalidatedArchitectureIdentity(
     createComposedAgent({
       seed: 'phase7r2c3-identity-graph-codec',
       decisionComponents: [ACTOR_TARGET_TREATMENT_COMPONENT],
@@ -421,7 +421,7 @@ test('private debug projection is a pure descriptor projection', () => {
       hiddenTeam: false,
     },
   }).resolvedBrain().description
-  const debug = projectPrivateArchitectureDebug(descriptor)
+  const debug = trustedArchitectureIdentityDebug(descriptor)
 
   assert.deepEqual(Object.keys(debug), [
     'version',

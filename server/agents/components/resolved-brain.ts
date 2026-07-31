@@ -17,6 +17,7 @@ import type {
   ComponentHostInputDefinition,
   ComponentHostInputRef,
   ComponentRef,
+  ComponentToken,
   DecisionComponentDefinition,
   HostCapability,
   ResolvedComponentGraph,
@@ -213,10 +214,6 @@ function resolvedArchitectureIdentityInvariants(
   )
 }
 
-export type PrivateArchitectureDebugProjection = Readonly<
-  ResolvedArchitectureIdentity
->
-
 export interface ResolvedComposedBrain {
   /** Data-only construction description for later trace/manifest projection. */
   readonly description: ResolvedArchitectureDescriptor
@@ -318,13 +315,12 @@ function freezeConfiguredPipeline(
   ) {
     throw new Error('configuredPipeline has an invalid shape')
   }
-  const versionPattern = /^[a-z0-9][a-z0-9._+-]{0,99}$/
   const version = (
     record: Readonly<Record<string, unknown>>,
     key: string,
   ): string => {
     const value = record[key]
-    if (typeof value !== 'string' || !versionPattern.test(value)) {
+    if (typeof value !== 'string' || !ARCHITECTURE_VERSION_PATTERN.test(value)) {
       throw new Error(
         `configuredPipeline.${key} must be a valid version string`,
       )
@@ -341,7 +337,10 @@ function freezeConfiguredPipeline(
     )
   }
   const configuredBaseChain = configuredBaseValues.map((value, index) => {
-    if (typeof value !== 'string' || !versionPattern.test(value)) {
+    if (
+      typeof value !== 'string'
+      || !ARCHITECTURE_VERSION_PATTERN.test(value)
+    ) {
       throw new Error(
         `configuredPipeline.configuredBaseChain[${index}]`
         + ' must be a valid version string',
@@ -679,19 +678,46 @@ export function resolvedArchitectureIdentityDigest(
     .digest('hex')
 }
 
-export function projectResolvedArchitectureIdentity(
+/**
+ * The eight stable identity fields, extracted once. Both projections below and
+ * the two internal constructions name the same shape; this builder is the one
+ * place the descriptor's fields are copied verbatim.
+ */
+function identityFields(
+  source: ResolvedArchitectureIdentity,
+): {
+  version: typeof RESOLVED_ARCHITECTURE_DESCRIPTOR_VERSION
+  base: BrainSpec
+  components: ResolvedComponentGraph
+  componentContributions: ResolvedArchitectureIdentity['componentContributions']
+  requiredHostInputs: readonly ComponentHostInputRef[]
+  scoreLayerOrder: readonly ScoreLayerRef[]
+  decisionLayerOrder: readonly DecisionLayerRef[]
+  configuredPipeline: ResolvedConfiguredPipeline
+} {
+  return {
+    version: source.version,
+    base: source.base,
+    components: source.components,
+    componentContributions: source.componentContributions,
+    requiredHostInputs: source.requiredHostInputs,
+    scoreLayerOrder: source.scoreLayerOrder,
+    decisionLayerOrder: source.decisionLayerOrder,
+    configuredPipeline: source.configuredPipeline,
+  }
+}
+
+/**
+ * Re-admit a trusted-typed descriptor through the semantic codec. The type
+ * already says the fields are valid, but this path re-runs admission so a
+ * descriptor that reached this call by an unchecked cast still cannot escape as
+ * an identity the codec would reject. Its consumers hold the re-validated
+ * result, not the descriptor they passed in.
+ */
+export function revalidatedArchitectureIdentity(
   descriptor: ResolvedArchitectureDescriptor,
 ): ResolvedArchitectureIdentity {
-  const admitted = admitResolvedArchitectureIdentity({
-    version: descriptor.version,
-    base: descriptor.base,
-    components: descriptor.components,
-    componentContributions: descriptor.componentContributions,
-    requiredHostInputs: descriptor.requiredHostInputs,
-    scoreLayerOrder: descriptor.scoreLayerOrder,
-    decisionLayerOrder: descriptor.decisionLayerOrder,
-    configuredPipeline: descriptor.configuredPipeline,
-  })
+  const admitted = admitResolvedArchitectureIdentity(identityFields(descriptor))
   if (!admitted) {
     throw new Error('resolved architecture descriptor has invalid identity')
   }
@@ -699,22 +725,111 @@ export function projectResolvedArchitectureIdentity(
 }
 
 /**
- * Private, data-only construction metadata for trusted diagnostics. The
- * component graph and host-input roots remain seat-private metadata.
+ * Trusted passthrough of the same identity for private diagnostics: it freezes
+ * and returns the descriptor's fields as-is, without re-running admission,
+ * because its caller already holds a codec-admitted descriptor. The component
+ * graph and host-input roots remain seat-private metadata.
  */
-export function projectPrivateArchitectureDebug(
+export function trustedArchitectureIdentityDebug(
   descriptor: ResolvedArchitectureDescriptor,
-): PrivateArchitectureDebugProjection {
-  return Object.freeze({
-    version: descriptor.version,
-    base: descriptor.base,
-    components: descriptor.components,
-    componentContributions: descriptor.componentContributions,
-    requiredHostInputs: descriptor.requiredHostInputs,
-    scoreLayerOrder: descriptor.scoreLayerOrder,
-    decisionLayerOrder: descriptor.decisionLayerOrder,
-    configuredPipeline: descriptor.configuredPipeline,
-  })
+): ResolvedArchitectureIdentity {
+  return Object.freeze(identityFields(descriptor))
+}
+
+/**
+ * A score or decision layer paired with the components it declares. Both layer
+ * families expose the same two fields, so the requirement checks below iterate
+ * either one through this shape.
+ */
+interface LayerRequirementSource {
+  readonly token: { readonly id: string; readonly version: string }
+  readonly requiredComponents: readonly ComponentToken[]
+}
+
+/** The one kind/privacy substitution check shared by every requirement pass. */
+function assertLayerComponentTag(
+  layer: LayerRequirementSource,
+  required: ComponentToken,
+  actual: ComponentToken,
+  family: string,
+): void {
+  if (actual.kind !== required.kind || actual.privacy !== required.privacy) {
+    throw new Error(
+      `${family} layer ${layer.token.id}@${layer.token.version} substitutes `
+        + `component tag ${required.id}@${required.version}`,
+    )
+  }
+}
+
+/**
+ * Fold each layer's required components into the request set, validating that
+ * the registry has each one at the declared tag. New requirements are appended
+ * to uniqueRequests in first-seen order.
+ */
+function collectLayerRequirements(
+  layers: readonly LayerRequirementSource[],
+  registry: DecisionComponentRegistry,
+  family: string,
+  seen: Set<string>,
+  uniqueRequests: ComponentRef[],
+): void {
+  for (const layer of layers) {
+    for (const required of layer.requiredComponents) {
+      const key = `${required.id}@${required.version}`
+      const registered = registry.definition(required)
+      if (!registered) {
+        throw new Error(
+          `${family} layer ${layer.token.id}@${layer.token.version} requires `
+            + `missing registry component ${key}`,
+        )
+      }
+      assertLayerComponentTag(layer, required, registered.token, family)
+      if (!seen.has(key)) {
+        seen.add(key)
+        uniqueRequests.push(required)
+      }
+    }
+  }
+}
+
+/**
+ * Assert each layer's required components are construction-eligible. When a
+ * configured-definition map is supplied the check additionally requires the
+ * component to be configured and to match its declared tag; without it, only
+ * eligibility is asserted (the registry pass already proved the tag).
+ */
+function assertLayerComponentsEligible(
+  layers: readonly LayerRequirementSource[],
+  family: string,
+  eligible: ReadonlySet<string>,
+  configuredByKey?: ReadonlyMap<string, DecisionComponentDefinition<any>>,
+): void {
+  for (const layer of layers) {
+    for (const required of layer.requiredComponents) {
+      const key = `${required.id}@${required.version}`
+      if (configuredByKey) {
+        const component = configuredByKey.get(key)
+        if (!component) {
+          throw new Error(
+            `${family} layer ${layer.token.id}@${layer.token.version} requires `
+              + `unconfigured component ${key}`,
+          )
+        }
+        if (!eligible.has(key)) {
+          throw new Error(
+            `${family} layer ${layer.token.id}@${layer.token.version} requires `
+              + `construction-ineligible component ${key}`,
+          )
+        }
+        assertLayerComponentTag(layer, required, component.token, family)
+      } else if (!eligible.has(key)) {
+        throw new Error(
+          `${family} layer ${layer.token.id}@${layer.token.version} requires `
+            + `construction-ineligible component ${key}`,
+        )
+      }
+    }
+  }
 }
 
 export function resolveComposedBrain(
@@ -743,56 +858,20 @@ export function resolveComposedBrain(
     }
     seen.add(key)
   }
-  for (const layer of resolvedDecisionLayers.definitions) {
-    for (const request of layer.requiredComponents) {
-      const key = `${request.id}@${request.version}`
-      const registered = registry.definition(request)
-      if (!registered) {
-        throw new Error(
-          `decision layer ${layer.token.id}@${layer.token.version} requires `
-            + `missing registry component ${key}`,
-        )
-      }
-      if (
-        registered.token.kind !== request.kind
-        || registered.token.privacy !== request.privacy
-      ) {
-        throw new Error(
-          `decision layer ${layer.token.id}@${layer.token.version} substitutes `
-            + `component tag ${key}`,
-        )
-      }
-      if (!seen.has(key)) {
-        seen.add(key)
-        uniqueRequests.push(request)
-      }
-    }
-  }
-  for (const layer of scoreLayerChain?.definitions ?? []) {
-    for (const required of layer.requiredComponents) {
-      const key = `${required.id}@${required.version}`
-      const registered = registry.definition(required)
-      if (!registered) {
-        throw new Error(
-          `score layer ${layer.token.id}@${layer.token.version} requires `
-            + `missing registry component ${key}`,
-        )
-      }
-      if (
-        registered.token.kind !== required.kind
-        || registered.token.privacy !== required.privacy
-      ) {
-        throw new Error(
-          `score layer ${layer.token.id}@${layer.token.version} substitutes `
-            + `component tag ${key}`,
-        )
-      }
-      if (!seen.has(key)) {
-        seen.add(key)
-        uniqueRequests.push(required)
-      }
-    }
-  }
+  collectLayerRequirements(
+    resolvedDecisionLayers.definitions,
+    registry,
+    'decision',
+    seen,
+    uniqueRequests,
+  )
+  collectLayerRequirements(
+    scoreLayerChain?.definitions ?? [],
+    registry,
+    'score',
+    seen,
+    uniqueRequests,
+  )
   const components = registry.resolve({
     requested: uniqueRequests,
     hostCapabilities: [...(config.hostCapabilities ?? [])],
@@ -886,45 +965,18 @@ export function resolveComposedBrain(
         definition,
       ],
     ))
-    for (const layer of scoreLayerChain.definitions) {
-      for (const required of layer.requiredComponents) {
-        const key = `${required.id}@${required.version}`
-        const component = configuredByKey.get(key)
-        if (!component) {
-          throw new Error(
-            `score layer ${layer.token.id}@${layer.token.version} requires `
-              + `unconfigured component ${key}`,
-          )
-        }
-        if (!eligible.has(key)) {
-          throw new Error(
-            `score layer ${layer.token.id}@${layer.token.version} requires `
-              + `construction-ineligible component ${key}`,
-          )
-        }
-        if (
-          component.token.kind !== required.kind
-          || component.token.privacy !== required.privacy
-        ) {
-          throw new Error(
-            `score layer ${layer.token.id}@${layer.token.version} substitutes `
-              + `component tag ${key}`,
-          )
-        }
-      }
-    }
+    assertLayerComponentsEligible(
+      scoreLayerChain.definitions,
+      'score',
+      eligible,
+      configuredByKey,
+    )
   }
-  for (const layer of resolvedDecisionLayers.definitions) {
-    for (const required of layer.requiredComponents) {
-      const key = `${required.id}@${required.version}`
-      if (!eligible.has(key)) {
-        throw new Error(
-          `decision layer ${layer.token.id}@${layer.token.version} requires `
-            + `construction-ineligible component ${key}`,
-        )
-      }
-    }
-  }
+  assertLayerComponentsEligible(
+    resolvedDecisionLayers.definitions,
+    'decision',
+    eligible,
+  )
   const decisionLayerOrder = Object.freeze(
     resolvedDecisionLayers.order.map(freezeRef),
   )

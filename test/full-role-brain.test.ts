@@ -12,7 +12,7 @@ import {
   MORGANA_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import {
@@ -123,7 +123,7 @@ async function compare(input: Fixture, isolated: CandidateScorer) {
     authoritativeAction: result.decision,
     selectedDecision: result.decision,
     deterministicSeed: input.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   }).kind, 'trusted-exact')

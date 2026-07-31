@@ -9,7 +9,7 @@ import {
   createProductionComponentRegistry,
 } from '../../server/agents/components/production-registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../../server/agents/components/resolved-brain.ts'
 import type {
   ResolvedArchitectureIdentity,
@@ -187,7 +187,7 @@ function identityFor(
   descriptor: ScoreFamilyDescriptor,
   scorer: CandidateScorer | undefined,
 ): ResolvedArchitectureIdentity {
-  return projectResolvedArchitectureIdentity(
+  return revalidatedArchitectureIdentity(
     agentFor(descriptor, scorer).resolvedBrain().description,
   )
 }

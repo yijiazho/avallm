@@ -23,7 +23,7 @@ import {
   createProductionComponentRegistry,
 } from '../server/agents/components/production-registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
   replayNativeScoresForAdmission,
@@ -102,7 +102,7 @@ const goodUtility = (trace: DecisionTrace) => componentPayload(
   trace.components!,
   GOOD_ROLE_UTILITY_COMPONENT,
 )
-const seededEvilPolicyIdentity = projectResolvedArchitectureIdentity(
+const seededEvilPolicyIdentity = revalidatedArchitectureIdentity(
   createComposedAgent({
   seed: 'identity',
   roleObjectiveRouter: true,

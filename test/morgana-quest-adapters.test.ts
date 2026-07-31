@@ -30,7 +30,7 @@ import {
   createNativeScoreComponentRegistry,
 } from '../server/agents/components/native-score-components.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
   morganaRoleScorer,
@@ -188,7 +188,7 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   }).kind, 'trusted-exact')
@@ -236,7 +236,7 @@ test('E1A/E1B generic entries solely own Morgana policy payloads', async () => {
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   })
@@ -305,7 +305,7 @@ test('public E1 read resolves from public record without a Morgana flat projecti
     deterministicSeed: 'phase7r2b3b-public-read',
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   } as const
@@ -409,7 +409,7 @@ test('weighted Morgana outputs remain structural and nonpromotable', async () =>
     deterministicSeed: input.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: decisionComponentPlan(agent.resolvedBrain()),
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   })
@@ -468,7 +468,7 @@ test('seeded E1B has its own plan identity and host descriptor', async () => {
     deterministicSeed: source.game.seed,
     expectComponentTrace: true,
     expectedComponentPlan: plan,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   }).kind, 'trusted-exact')
@@ -533,7 +533,7 @@ test('trusted construction plan rejects coherent rewrites and v1 downgrade', asy
   const expectedComponentPlan = decisionComponentPlan(
     agent.resolvedBrain(),
   )
-  const expectedArchitectureIdentity = projectResolvedArchitectureIdentity(
+  const expectedArchitectureIdentity = revalidatedArchitectureIdentity(
     agent.resolvedBrain().description,
   )
   const input = {

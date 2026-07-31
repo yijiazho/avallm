@@ -7,7 +7,7 @@ import {
 } from '../server/agents/admission/composed-trace.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import { composedBrainOptions } from '../server/agents/registry.ts'
 import {
@@ -33,7 +33,7 @@ async function exactFixture() {
   })
   const output = await agent.decide(fixture.req, fixture.view)
   assert.ok(output.trace)
-  const identity = projectResolvedArchitectureIdentity(
+  const identity = revalidatedArchitectureIdentity(
     agent.resolvedBrain().description,
   )
   const admit = (trace: unknown) => admitDecisionTrace({

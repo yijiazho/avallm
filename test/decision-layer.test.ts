@@ -11,7 +11,7 @@ import {
   createDecisionComponentRegistry,
 } from '../server/agents/components/registry.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   resolveComposedBrain,
 } from '../server/agents/components/resolved-brain.ts'
 import type {
@@ -1045,7 +1045,7 @@ test('production empty seam is neutral and exact host replay rejects rewrites', 
     deterministicSeed: seed,
     expectedComponentPlan: decisionComponentPlan(brain),
     expectedArchitectureIdentity:
-      projectResolvedArchitectureIdentity(brain.description),
+      revalidatedArchitectureIdentity(brain.description),
     expectComponentTrace: true,
   }
   assert.equal(admitDecisionTrace({

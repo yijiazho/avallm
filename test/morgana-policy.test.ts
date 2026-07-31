@@ -17,7 +17,7 @@ import {
 } from '../server/agents/components/native-score-components.ts'
 import type { DecisionTrace } from '../server/agents/trace.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import {
   evilRoleObjectiveScorer,
@@ -103,7 +103,7 @@ const morganaUtility = (trace: DecisionTrace) =>
     trace.components!,
     MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
   )
-const morganaPolicyIdentity = projectResolvedArchitectureIdentity(
+const morganaPolicyIdentity = revalidatedArchitectureIdentity(
   createComposedAgent({
   seed: 'identity',
   roleObjectiveRouter: true,
@@ -785,7 +785,7 @@ test('weighted runtime stays causal and host admission preserves nonpromotion', 
     authoritativeAction: result.decision,
     selectedDecision: result.decision,
     deterministicSeed: input.game.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       weightedAgent.resolvedBrain().description,
     ),
   })
@@ -1098,7 +1098,7 @@ test('exact reconstructable E1B rejects coherent D2 projection degradation acros
     authoritativeAction: forged.decision,
     selectedDecision: forged.decision,
     deterministicSeed: input.game.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       d2Agent.resolvedBrain().description,
     ),
   })

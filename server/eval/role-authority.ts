@@ -16,7 +16,7 @@ import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../agents/components/robust-evil-quest-card.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../agents/components/resolved-brain.ts'
 import { heuristicDecide } from '../agents/heuristic.ts'
 import {
@@ -228,7 +228,7 @@ async function authorityRow(input: {
     authoritativeAction: full.decision,
     selectedDecision: full.decision,
     deterministicSeed: input.fixture.seed,
-    expectedArchitectureIdentity: projectResolvedArchitectureIdentity(
+    expectedArchitectureIdentity: revalidatedArchitectureIdentity(
       agent.resolvedBrain().description,
     ),
   })

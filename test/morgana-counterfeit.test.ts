@@ -44,7 +44,7 @@ import {
   admitDecisionTrace,
 } from '../server/agents/admission/composed-trace.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
 } from '../server/agents/components/resolved-brain.ts'
 import type {
   DecisionRequest,
@@ -723,7 +723,7 @@ test('strict detached validators and external ingress host joins reject hostile 
   const output = await agent.decide(req, view)
   const trace = output.trace!
   const expectedArchitectureIdentity =
-    projectResolvedArchitectureIdentity(agent.resolvedBrain().description)
+    revalidatedArchitectureIdentity(agent.resolvedBrain().description)
   assert.doesNotThrow(() => parseExternalDecisionReply(
     req,
     { decision: output.decision, trace },

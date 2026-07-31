@@ -158,7 +158,7 @@ import {
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
 } from '../agents/components/native-score-components.ts'
 import {
-  projectResolvedArchitectureIdentity,
+  revalidatedArchitectureIdentity,
   type ResolvedArchitectureDescriptor,
   type ResolvedComposedBrain,
 } from '../agents/components/resolved-brain.ts'
@@ -831,7 +831,7 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
                   expectedComponentPlan,
                   expectedArchitectureIdentity:
                     expectedArchitectureDescriptor
-                      ? projectResolvedArchitectureIdentity(
+                      ? revalidatedArchitectureIdentity(
                           expectedArchitectureDescriptor,
                         )
                       : undefined,
