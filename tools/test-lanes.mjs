@@ -32,6 +32,7 @@ const LANES = Object.freeze({
     'llm-agent.test.ts',
     'llm-policies.test.ts',
     'match-point.test.ts',
+    'merlin-exposure.test.ts',
     'name-policy.test.ts',
     'norms.test.ts',
     'openrouter-ceiling.test.ts',

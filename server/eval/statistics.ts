@@ -108,6 +108,53 @@ export function rate(successes: number, trials: number): RateEstimate {
   }
 }
 
+export interface MeanEstimate {
+  observations: number
+  mean: number | null
+  standardError: number | null
+  interval95: Readonly<{ low: number; high: number }> | null
+}
+
+/**
+ * Mean of a continuous sample with its normal 95% interval.
+ *
+ * The counterpart to `rate` for quantities that are not proportions, and it
+ * lives here for the same reason `rate` does: the first continuous metric to
+ * need one was about to spell the z quantile a second time, which is exactly
+ * the fork this module exists to prevent.
+ *
+ * Variance carries the n-1 correction, because these are draws from a wider
+ * population of games rather than a whole population. A single observation
+ * reports its mean and no interval, which is the truthful answer: one draw
+ * bounds nothing.
+ */
+export function meanEstimate(values: readonly number[]): MeanEstimate {
+  if (!values.length) {
+    return { observations: 0, mean: null, standardError: null, interval95: null }
+  }
+  const center = values.reduce((sum, value) => sum + value, 0) / values.length
+  if (values.length === 1) {
+    return {
+      observations: 1,
+      mean: center,
+      standardError: null,
+      interval95: null,
+    }
+  }
+  const variance = values.reduce(
+    (sum, value) => sum + (value - center) ** 2,
+    0,
+  ) / (values.length - 1)
+  const standardError = Math.sqrt(variance / values.length)
+  const radius = NORMAL_QUANTILE_95 * standardError
+  return {
+    observations: values.length,
+    mean: center,
+    standardError,
+    interval95: { low: center - radius, high: center + radius },
+  }
+}
+
 /**
  * Nearest-rank percentile: the smallest observed value at or above the given
  * probability. Reports an observation rather than interpolating between two, so
