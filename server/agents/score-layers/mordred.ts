@@ -145,6 +145,8 @@ function mordredDefinition(
         throw new Error('Mordred score layer received no hard survivors')
       }
       const d2Max = Math.max(...survivors.map(({ prior }) => prior.value))
+      // D2 viability is a shared evil-policy notion, so its band is the shared
+      // evil constant; the seeded-vote band below is Mordred's own.
       const d2Band = EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
       const inD2Band = (row: typeof joined[number]): boolean =>
         row.prior.value >= d2Max - d2Band

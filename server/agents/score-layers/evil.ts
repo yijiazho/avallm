@@ -138,6 +138,8 @@ function evilDefinition(
         status: 'applied',
         surface: context.surface.create({
           scores: context.candidates.map((candidate) => {
+            // Present for every candidate: the completeness guard above proved
+            // utilityById covers all candidates. The check keeps the type honest.
             const utility = utilityById.get(candidate.id)
             if (!utility) {
               throw new Error('evil role layer utility join mismatch')
@@ -165,6 +167,8 @@ function evilDefinition(
                 forcedAllowed
                   ? 'FORCED_POLICY_ALLOWED'
                   : 'FORCED_POLICY_REMOVED',
+                // Constant provenance stamped on every row, not per-candidate
+                // signals: the evil objective always carries these three.
                 'EVIL_ROLE_FAILURE_CAPACITY',
                 'EVIL_ROLE_PUBLIC_COVER',
                 'EVIL_ROLE_FUTURE_OPPORTUNITY',
