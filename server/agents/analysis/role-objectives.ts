@@ -36,11 +36,19 @@ import {
   type CandidatePublicCommitment,
   type MerlinCandidateObjective,
   type MerlinMorganaPairHypothesis,
+  type ObjectiveSource,
   type PercivalCandidateObjective,
+  type PercivalRoleObjective,
   type PrivateRoleObjectiveSnapshot,
   type RoleObjectiveRole,
   isPublicCommitmentDirection,
 } from './role-objective-types.ts'
+import type {
+  AssertNever,
+  DuplicateKeys,
+  ExactKeyList,
+  MissingKeys,
+} from '../../shared/key-list-guards.ts'
 import {
   canonicalRequestBlock,
   canonicalRoles,
@@ -578,6 +586,87 @@ function validDistribution(value: unknown, teamSize: number): value is number[] 
     ) <= PROBABILITY_TOLERANCE
 }
 
+/*
+ * The schema key lists bound to the interfaces they enumerate, so a field
+ * renamed or added on any of these shapes turns its stale list here into a
+ * compile error instead of a silently dropped exactKeys check. None of these
+ * shapes has an optional field, so ExactKeyList rejects a stray or misspelled
+ * key and the paired MissingKeys assertion rejects a forgotten one.
+ *
+ * The underscore-prefixed soundness aliases are exported only so the assertion
+ * has a referenced home; nothing imports one, and deleting one as unused would
+ * silently drop its check.
+ */
+const ROLE_OBJECTIVE_SOURCE_KEYS = [
+  'beliefModelVersion',
+  'beliefThroughSeq',
+  'beliefQuality',
+  'playerCount',
+  'rolesInPlay',
+  'identityModelVersion',
+  'observerModelVersion',
+  'observerFeasibleWorldCount',
+] as const satisfies ExactKeyList<ObjectiveSource>
+export type _RoleObjectiveSourceKeysSound =
+  | AssertNever<MissingKeys<ObjectiveSource, typeof ROLE_OBJECTIVE_SOURCE_KEYS>>
+  | AssertNever<DuplicateKeys<typeof ROLE_OBJECTIVE_SOURCE_KEYS>>
+
+const MERLIN_ASSESSMENT_KEYS = [
+  'candidate',
+  'probabilitySemantics',
+  'valueSemantics',
+  'teamCleanProbability',
+  'teamFailureCapabilityProbability',
+  'evilCountDistribution',
+  'influenceValue',
+  'publicProbabilitySemantics',
+  'publicTeamCleanProbability',
+  'publicAmbiguityIndex',
+  'conspicuousnessIndex',
+  'assassinExposureProxyIndex',
+] as const satisfies ExactKeyList<MerlinCandidateObjective>
+export type _MerlinAssessmentKeysSound =
+  | AssertNever<
+      MissingKeys<MerlinCandidateObjective, typeof MERLIN_ASSESSMENT_KEYS>
+    >
+  | AssertNever<DuplicateKeys<typeof MERLIN_ASSESSMENT_KEYS>>
+
+const PERCIVAL_ASSESSMENT_KEYS = [
+  'candidate',
+  'probabilitySemantics',
+  'valueSemantics',
+  'merlinOnTeamProbability',
+  'morganaOnTeamProbability',
+  'pairInfluenceValue',
+  'publicProbabilitySemantics',
+  'publicTeamCleanProbability',
+  'publicMerlinProbabilityAtSelf',
+  'publicMerlinOnTeamProbability',
+  'publicMorganaOnTeamProbability',
+  'publicPairInfluenceValue',
+  'pairKnowledgeTellIndex',
+  'decisiveAmbiguityIndex',
+  'merlinMimicryProxyIndex',
+  'selfDecoyOpportunityProxyIndex',
+] as const satisfies ExactKeyList<PercivalCandidateObjective>
+export type _PercivalAssessmentKeysSound =
+  | AssertNever<
+      MissingKeys<PercivalCandidateObjective, typeof PERCIVAL_ASSESSMENT_KEYS>
+    >
+  | AssertNever<DuplicateKeys<typeof PERCIVAL_ASSESSMENT_KEYS>>
+
+const PERCIVAL_PAIR_KEYS = [
+  'probabilitySemantics',
+  'includesMorgana',
+  'privateCandidateSeats',
+  'hypotheses',
+] as const satisfies ExactKeyList<PercivalRoleObjective['pairPosterior']>
+export type _PercivalPairKeysSound =
+  | AssertNever<
+      MissingKeys<PercivalRoleObjective['pairPosterior'], typeof PERCIVAL_PAIR_KEYS>
+    >
+  | AssertNever<DuplicateKeys<typeof PERCIVAL_PAIR_KEYS>>
+
 function roleObjectiveSchema(detached: unknown): boolean {
   if (!plainRecord(detached)) return false
   const snapshot = detached as Record<string, unknown>
@@ -597,16 +686,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
     || snapshot.team !== 'good'
     || !['merlin', 'percival'].includes(snapshot.role as string)
     || !plainRecord(source)
-    || !exactKeys(source, [
-      'beliefModelVersion',
-      'beliefThroughSeq',
-      'beliefQuality',
-      'playerCount',
-      'rolesInPlay',
-      'identityModelVersion',
-      'observerModelVersion',
-      'observerFeasibleWorldCount',
-    ])
+    || !exactKeys(source, ROLE_OBJECTIVE_SOURCE_KEYS)
     || typeof source.beliefModelVersion !== 'string'
     || source.beliefModelVersion.length === 0
     || source.beliefModelVersion.length > 200
@@ -645,20 +725,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
     const teamSize = (candidate.team as Seat[]).length
     if (snapshot.role === 'merlin') {
       if (
-        !exactKeys(assessment, [
-          'candidate',
-          'probabilitySemantics',
-          'valueSemantics',
-          'teamCleanProbability',
-          'teamFailureCapabilityProbability',
-          'evilCountDistribution',
-          'influenceValue',
-          'publicProbabilitySemantics',
-          'publicTeamCleanProbability',
-          'publicAmbiguityIndex',
-          'conspicuousnessIndex',
-          'assassinExposureProxyIndex',
-        ])
+        !exactKeys(assessment, MERLIN_ASSESSMENT_KEYS)
         || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
         || assessment.valueSemantics
           !== 'bounded-deterministic-indices-not-probabilities'
@@ -693,24 +760,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
         || !probability(assessment.assassinExposureProxyIndex)
       ) return false
     } else if (
-      !exactKeys(assessment, [
-        'candidate',
-        'probabilitySemantics',
-        'valueSemantics',
-        'merlinOnTeamProbability',
-        'morganaOnTeamProbability',
-        'pairInfluenceValue',
-        'publicProbabilitySemantics',
-        'publicTeamCleanProbability',
-        'publicMerlinProbabilityAtSelf',
-        'publicMerlinOnTeamProbability',
-        'publicMorganaOnTeamProbability',
-        'publicPairInfluenceValue',
-        'pairKnowledgeTellIndex',
-        'decisiveAmbiguityIndex',
-        'merlinMimicryProxyIndex',
-        'selfDecoyOpportunityProxyIndex',
-      ])
+      !exactKeys(assessment, PERCIVAL_ASSESSMENT_KEYS)
       || assessment.probabilitySemantics !== 'resolved-complete-world-sum'
       || assessment.valueSemantics
         !== 'bounded-deterministic-indices-not-probabilities'
@@ -738,12 +788,7 @@ function roleObjectiveSchema(detached: unknown): boolean {
   if (
     !exactKeys(objective, ['role', 'pairPosterior', 'assessments'])
     || !plainRecord(pair)
-    || !exactKeys(pair, [
-      'probabilitySemantics',
-      'includesMorgana',
-      'privateCandidateSeats',
-      'hypotheses',
-    ])
+    || !exactKeys(pair, PERCIVAL_PAIR_KEYS)
     || pair.probabilitySemantics !== 'resolved-complete-world-sum'
     || typeof pair.includesMorgana !== 'boolean'
     || pair.includesMorgana !== (source.rolesInPlay as Role[]).includes('morgana')
