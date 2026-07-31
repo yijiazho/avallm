@@ -26,7 +26,8 @@ import {
 } from '../engine/types.ts'
 import type { ExactKeyList } from '../agents/key-list-guards.ts'
 
-export const SEAT_VIEW_INSPECTION_SCHEMA = 2
+// 3: the merlin-candidates variant dropped its single-valued `ordering` field.
+export const SEAT_VIEW_INSPECTION_SCHEMA = 3
 export const DEFAULT_SEAT_VIEW_FIXTURE_FILE =
   'test/fixtures/architecture-decision-views.json'
 
@@ -35,9 +36,14 @@ interface SeatRef {
   name: string
 }
 
+// No variant records an ordering. refsFor sorts every one of these by seat, so
+// array order carries no information in any of them, which makes it a property
+// of the projection rather than of one variant. Percival's pair is the case a
+// reader is most likely to over-read, and the inspector says so in its own copy
+// off the kind; the engine states the same at PrivateInfo (engine/types.ts).
 export type InspectedPrivateKnowledge =
   | { kind: 'known-evil'; seats: SeatRef[] }
-  | { kind: 'merlin-candidates'; seats: SeatRef[]; ordering: 'unordered' }
+  | { kind: 'merlin-candidates'; seats: SeatRef[] }
   | { kind: 'evil-partners'; seats: SeatRef[] }
   | { kind: 'none'; seats: [] }
 
@@ -736,6 +742,9 @@ function refFor(seat: Seat, refs: Map<Seat, SeatRef>): SeatRef {
   return { ...ref }
 }
 
+// Seat-sorted, which is what makes every projected seat list unordered in the
+// only sense that matters: whatever order the view held is discarded here, so
+// no InspectedPrivateKnowledge variant can leak one.
 function refsFor(seats: readonly Seat[], refs: Map<Seat, SeatRef>): SeatRef[] {
   return seats
     .slice()
@@ -752,11 +761,7 @@ function inspectPrivateKnowledge(
     return { kind: 'known-evil', seats: refsFor(info.knownEvil, refs) }
   }
   if (info.kind === 'percival') {
-    return {
-      kind: 'merlin-candidates',
-      seats: refsFor(info.merlinCandidates, refs),
-      ordering: 'unordered',
-    }
+    return { kind: 'merlin-candidates', seats: refsFor(info.merlinCandidates, refs) }
   }
   if (info.kind === 'evil') {
     return { kind: 'evil-partners', seats: refsFor(info.evilPartners, refs) }

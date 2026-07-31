@@ -35,13 +35,23 @@ export interface SeatViewInspectorUiOptions {
   fixtureFile?: string
   initialFixture?: string
   port?: number
+  /**
+   * Defaults to native-policy, which runs the policy and is why this entry
+   * point is asynchronous. Seat-view is served here too, for the CLI flag.
+   */
   mode?: 'native-policy' | 'seat-view'
 }
 
+/**
+ * No mode here. Seat-view is the only projection this entry point can serve,
+ * because it is the only one that needs no native policy run, and that is what
+ * lets the server be constructed synchronously. Which projection you get is
+ * settled by which function you call, so a mode field could only ever restate
+ * the choice already made. Native-policy is startSeatViewInspectorUi.
+ */
 export interface SeatViewInspectorServerOptions {
   fixtureFile?: string
   initialFixture?: string
-  mode?: 'seat-view'
 }
 
 export interface RunningSeatViewInspectorUi {
@@ -168,18 +178,10 @@ function createRequestHandler(
   }
 }
 
+/** The seat-view-only server, built without listening. See the options doc. */
 export function createSeatViewInspectorUiServer(
   options: SeatViewInspectorServerOptions = {},
 ): http.Server {
-  if (
-    (options as { mode?: unknown }).mode !== undefined
-    && options.mode !== 'seat-view'
-  ) {
-    throw new Error(
-      'synchronous seat microscope server supports seat-view mode only; '
-      + 'use startSeatViewInspectorUi for native-policy mode',
-    )
-  }
   const entries = readSeatViewSnapshotFile(
     options.fixtureFile ?? 'test/fixtures/architecture-decision-views.json',
   )

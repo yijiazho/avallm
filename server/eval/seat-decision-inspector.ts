@@ -37,7 +37,10 @@ import type {
 } from './seat-view-inspector.ts'
 import { inspectSeatView } from './seat-view-inspector.ts'
 
-export const SEAT_DECISION_INSPECTION_SCHEMA = 2
+// Versioned independently of SEAT_VIEW_INSPECTION_SCHEMA, but this shape
+// extends that one, so a change there lands here too.
+// 3: the merlin-candidates variant dropped its single-valued `ordering` field.
+export const SEAT_DECISION_INSPECTION_SCHEMA = 3
 
 export interface InspectedBelief {
   modelVersion: string

@@ -9,6 +9,9 @@ import {
   startSeatViewInspectorUi,
 } from '../server/eval/seat-view-inspector-ui.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
+import {
+  SEAT_DECISION_INSPECTION_SCHEMA,
+} from '../server/eval/seat-decision-inspector.ts'
 
 async function textAt(url: string): Promise<{
   status: number
@@ -63,13 +66,34 @@ test('seat microscope binds only to IPv4 loopback on an ephemeral port', async (
   )
 })
 
-test('the synchronous constructor is explicitly seat-view-only', () => {
-  assert.throws(
-    () => createSeatViewInspectorUiServer({
-      mode: 'native-policy',
-    } as unknown as Parameters<typeof createSeatViewInspectorUiServer>[0]),
-    /supports seat-view mode only/,
-  )
+test('the synchronous constructor serves the seat-view-only projection', async (t) => {
+  const server = createSeatViewInspectorUiServer()
+  t.after(() => new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve())
+  }))
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const url = `http://127.0.0.1:${address.port}/`
+
+  const metadata = await fetch(`${url}api/fixtures`).then(
+    (response) => response.json(),
+  ) as { selectedId: string }
+  const inspection = await fetch(
+    `${url}api/fixture?id=${encodeURIComponent(metadata.selectedId)}`,
+  ).then((response) => response.json()) as {
+    schema: number
+    policyRun: { status: string }
+  }
+
+  // Seat-view-only is the whole contract of this entry point, and it is now
+  // carried by the type rather than by a rejected mode argument: no native
+  // policy run happens, so none is reported.
+  assert.equal(inspection.schema, SEAT_DECISION_INSPECTION_SCHEMA)
+  assert.equal(inspection.policyRun.status, 'absent')
 })
 
 test('non-loopback Host headers are rejected without reflecting the host', async (t) => {
@@ -231,7 +255,7 @@ test('seat-view-only mode preserves the boundary projection without inventing po
     policyRun: { status: string; reason: string }
   }
 
-  assert.equal(inspection.schema, 2)
+  assert.equal(inspection.schema, SEAT_DECISION_INSPECTION_SCHEMA)
   assert.equal(inspection.policyRun.status, 'absent')
   assert.match(inspection.policyRun.reason, /No exact admitted policy run/)
 })

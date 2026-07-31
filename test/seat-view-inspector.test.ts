@@ -54,7 +54,10 @@ test('inspects a frozen decision fixture deterministically from the agent bounda
   assert.equal(first.publicBoard.players.length, fixture.view.playerCount)
   assert.ok(first.publicBoard.players.every((player) =>
     Object.keys(player).sort().join(',') === 'name,seat'))
-  assert.match(renderSeatViewInspection(first), /^Seat view inspection v2\n/)
+  assert.match(
+    renderSeatViewInspection(first),
+    new RegExp(`^Seat view inspection v${SEAT_VIEW_INSPECTION_SCHEMA}\\n`),
+  )
   assert.match(SEAT_VIEW_INSPECTOR_USAGE, /--fixture <id>/)
 })
 
