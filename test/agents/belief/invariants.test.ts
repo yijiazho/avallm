@@ -16,6 +16,9 @@ import {
   assertDistribution,
   BeliefInvariantError,
 } from '../../../server/agents/belief/invariants.ts'
+import {
+  stableProbabilitySum,
+} from '../../../server/agents/canonical/probability-arithmetic.ts'
 import { EXACT_BELIEF_MODEL_VERSION } from '../../../server/agents/belief/types.ts'
 import type { Role } from '../../../server/engine/types.ts'
 import type { WeightedWorld } from '../../../server/agents/belief/types.ts'
@@ -115,6 +118,54 @@ test('assessTeams distributions are valid across a real deal', () => {
   }
   // Single-team convenience wrapper agrees with the batch.
   assert.deepEqual(assessTeam(snapshot, teams[0]), assessments[0])
+})
+
+// The projection's own normalization is the last summation before a snapshot
+// reaches a consumer, it runs over the largest array in the system, and every
+// probability anyone reads is divided by it. Whatever error that total carries
+// is the error the whole belief pipeline carries, which is why it is
+// compensated and why the check here is exact rather than tolerant.
+//
+// One machine epsilon, not PROBABILITY_TOLERANCE, is the point of the test.
+// Measured across the belief corpus, the naive total this replaced left the
+// widest snapshots off by up to 6.9e-13: inside the strict tolerance, and so
+// invisible to every existing check. Only a bound roughly four thousand times
+// tighter tells the two apart.
+//
+// One ulp rather than exact equality because exact is not available and
+// claiming it would be a test that passes by luck. A uniform 60,480-world
+// snapshot divides by a total that is itself a rounded double, and 60,480
+// copies of fl(1/60480) land one ulp below 1 no matter how the sum is
+// accumulated. A ten-player servant view is the widest support the game
+// produces; the three weight shapes cover the uniform case and two the
+// projection cannot take its uniform shortcut on.
+test('the widest weighted projection sums to 1 within an ulp, not merely a tolerance', () => {
+  const game = createGame({ seed: 'inv-widest', playerCount: 10, roles: CASTS[10] })
+  const view = viewFor(
+    game,
+    game.players.find((player) => player.role === 'servant')!.seat,
+  )
+  const worlds = feasibleWorlds(view)
+  assert.ok(worlds.length > 20_000, `expected a wide support, got ${worlds.length}`)
+  for (const weightOf of [
+    (index: number) => 1 + (index % 7),
+    () => 1,
+    (index: number) => 1 + (index % 1_000) / 1_000,
+  ]) {
+    const snapshot = beliefFromWeightedWorlds(
+      view,
+      worlds.map((world, index) => ({ world, probability: weightOf(index) })),
+      { modelVersion: EXACT_BELIEF_MODEL_VERSION, quality: 'weighted' },
+    )
+    const total = stableProbabilitySum(
+      snapshot.worlds,
+      (weighted) => weighted.probability,
+    )
+    assert.ok(
+      Math.abs(total - 1) <= Number.EPSILON,
+      `${snapshot.worlds.length} worlds summed to ${total}`,
+    )
+  }
 })
 
 // ---- the honest projection never trips the guard; the guard rejects corruption ----

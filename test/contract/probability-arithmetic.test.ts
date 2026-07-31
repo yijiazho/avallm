@@ -28,6 +28,7 @@ import {
   countLatticeTolerance,
   latticeCount,
   logWeightsToProbabilities,
+  logWeightsToProbabilitiesPreservingSupport,
   PROBABILITY_TOLERANCE,
   SEEDED_SELECTION_MARGIN,
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
@@ -178,6 +179,58 @@ test('log-sum-exp normalizes without overflowing and rejects a non-vector', () =
   const sparse: number[] = [0, 0, -1]
   delete sparse[1]
   assert.throws(() => logWeightsToProbabilities(sparse), /finite weights/)
+})
+
+test('the support-preserving policy differs exactly where it says it does', () => {
+  // The pin on why these are two functions rather than one with a flag. A
+  // weight this far below the maximum underflows to nothing, and the two
+  // policies then disagree about whether that entry still exists.
+  const underflowing = [0, -800]
+  assert.equal(logWeightsToProbabilities(underflowing)[1], 0)
+  const preserved = logWeightsToProbabilitiesPreservingSupport(underflowing)
+  assert.equal(preserved[1], Number.MIN_VALUE)
+  assert.ok(preserved.every((mass) => mass > 0))
+
+  // The residual settles on the largest mass. Checked with the compensated sum,
+  // because that is the sum assertDistribution performs on the way out of the
+  // belief layer; a naive readout answers a different question.
+  const settled = (logWeights: readonly number[]) =>
+    stableProbabilitySum(
+      logWeightsToProbabilitiesPreservingSupport(logWeights),
+      (mass) => mass,
+    )
+  assert.equal(
+    settled(Array.from({ length: 20_000 }, (_, index) => -index / 2_000)),
+    1,
+  )
+
+  // One ulp is the contract, and exact equality is deliberately not asserted
+  // across shapes. The correction goes onto the largest mass, so when one entry
+  // holds nearly all the probability the residual falls under half an ulp of it
+  // and rounds away; over 49 deliberately dominant-mass vectors one came back
+  // half an ulp under 1. Which vector that is depends on the engine's rounding,
+  // so pinning that one input would be pinning an accident. Pin the bound that
+  // holds for all of them instead.
+  for (const length of [2, 3, 10, 100, 1_000, 60_480]) {
+    for (const gap of [0.001, 5, 40, 200, 700]) {
+      const dominant = Array.from(
+        { length },
+        (_, index) => (index === 0 ? 0 : -gap - index / 1_000),
+      )
+      const total = settled(dominant)
+      assert.ok(
+        Math.abs(total - 1) <= Number.EPSILON,
+        `${length} weights at gap ${gap} summed to ${total}`,
+      )
+    }
+  }
+
+  // The shared core is shared: both policies reject the same bad vectors.
+  const sparse: number[] = [0, 0, -1]
+  delete sparse[1]
+  for (const bad of [[], [0, Number.NaN], sparse]) {
+    assert.throws(() => logWeightsToProbabilitiesPreservingSupport(bad))
+  }
 })
 
 test('latticeCount recovers the integer count or refuses the value', () => {

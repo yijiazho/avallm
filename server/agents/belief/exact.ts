@@ -24,7 +24,11 @@ import {
 import { projectUniformJointWorlds } from './projection.ts'
 import { assertDistribution } from './invariants.ts'
 import { LruMap } from '../../shared/lru.ts'
-import { clampProbability } from '../canonical/probability-arithmetic.ts'
+import {
+  addProbability,
+  clampProbability,
+  type CompensatedProbability,
+} from '../canonical/probability-arithmetic.ts'
 
 // Keyed on the per-seat private view (role, alignment, and private knowledge),
 // not just the public cast, so this space is far wider than worlds.ts's
@@ -228,7 +232,13 @@ export function beliefFromWeightedWorlds(
 ): BeliefSnapshot {
   if (!input.length) throw new Error('belief projection requires at least one world')
   const keys = new Set<string>()
-  let total = 0
+  // Compensated, and this is the summation in the belief layer that most needs
+  // to be. It is the last one before a snapshot is emitted, it runs over the
+  // largest array in the system (a ten-player servant view carries up to 60,480
+  // feasible worlds), and every probability a consumer ever reads is divided by
+  // it. A factor that normalizes carefully upstream has its work redone here, so
+  // whatever error this total carries is the error the whole pipeline carries.
+  const accumulator: CompensatedProbability = { sum: 0, compensation: 0 }
   for (const weightedWorld of input) {
     if (keys.has(weightedWorld.world.key)) {
       throw new Error(`belief projection contains duplicate world ${weightedWorld.world.key}`)
@@ -240,8 +250,9 @@ export function beliefFromWeightedWorlds(
     ) {
       throw new Error(`invalid world weight ${weightedWorld.probability}`)
     }
-    total += weightedWorld.probability
+    addProbability(accumulator, weightedWorld.probability)
   }
+  const total = accumulator.sum + accumulator.compensation
   if (!Number.isFinite(total) || total <= 0) {
     throw new Error('belief projection requires positive finite total weight')
   }

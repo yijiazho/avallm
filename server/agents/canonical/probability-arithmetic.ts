@@ -181,17 +181,13 @@ export function capLogLikelihood(
 }
 
 /**
- * Stable log-sum-exp: the probabilities a finite log-weight vector encodes.
- *
- * Domain-free on purpose. Nothing about subtracting the maximum, exponentiating
- * and dividing by the total knows or cares what the weights are attached to.
- * The belief layer zips hidden worlds back onto the result; a second caller
- * with a different domain gets to reuse the arithmetic without inheriting that
- * type, which is what put this here rather than beside the worlds.
+ * The shared half of both log-sum-exp normalizers: validate, subtract the
+ * maximum, exponentiate. What the two policies below disagree about is only
+ * what happens to the result, so only this much can be common.
  *
  * The maximum is folded rather than spread, and the weights are walked by index
  * rather than through `some` and `map`. Both are about what the array-method
- * spellings quietly tolerate, not about the arithmetic, which is unchanged.
+ * spellings quietly tolerate, not about the arithmetic.
  *
  * `Math.max(...weights)` passes one argument per element and throws a
  * RangeError past roughly 125,000 of them on this V8 (measured; it is a stack
@@ -205,15 +201,13 @@ export function capLogLikelihood(
  * The index walk exists because the spread was also, by accident, the only
  * thing rejecting a sparse weight vector. `some`, `map` and `reduce` all skip
  * array holes, but spreading one materializes it as `undefined`, which made the
- * maximum NaN, the total NaN, and tripped the invalid-total guard below. Fold
- * the maximum instead and the hole is skipped end to end: the vector passes
- * every check and comes back carrying a hole, which the caller reads as an
+ * maximum NaN, the total NaN, and tripped the invalid-total guard. Fold the
+ * maximum instead and the hole is skipped end to end: the vector passes every
+ * check and comes back carrying a hole, which the caller reads as an
  * `undefined` probability sitting in a `readonly number[]`. So the rejection
- * that used to be a side effect of the spelling is now written down.
+ * that used to be a side effect of the spelling is written down here.
  */
-export function logWeightsToProbabilities(
-  logWeights: readonly number[],
-): readonly number[] {
+function relativeWeights(logWeights: readonly number[]): number[] {
   if (!logWeights.length) {
     throw new Error('log-weight normalization requires at least one weight')
   }
@@ -225,12 +219,85 @@ export function logWeightsToProbabilities(
     }
     if (weight > maximum) maximum = weight
   }
-  const relative = logWeights.map((weight) => Math.exp(weight - maximum))
-  const total = relative.reduce((sum, weight) => sum + weight, 0)
+  return logWeights.map((weight) => Math.exp(weight - maximum))
+}
+
+function normalizationTotal(relative: readonly number[]): number {
+  const total = stableProbabilitySum(relative, (weight) => weight)
   if (!Number.isFinite(total) || total <= 0) {
     throw new Error('log-weight normalization produced invalid total weight')
   }
+  return total
+}
+
+/**
+ * Stable log-sum-exp: the probabilities a finite log-weight vector encodes.
+ *
+ * Domain-free on purpose. Nothing about subtracting the maximum, exponentiating
+ * and dividing by the total knows or cares what the weights are attached to.
+ * The belief layer zips hidden worlds back onto the result; a caller with a
+ * different domain reuses the arithmetic without inheriting that type.
+ *
+ * An entry may normalize to zero. That is the honest answer for a weight this
+ * far below the maximum, and the caller that cannot afford it should say so by
+ * asking for the variant below rather than by hoping.
+ */
+export function logWeightsToProbabilities(
+  logWeights: readonly number[],
+): readonly number[] {
+  const relative = relativeWeights(logWeights)
+  const total = normalizationTotal(relative)
   return relative.map((weight) => weight / total)
+}
+
+/**
+ * As above, but no entry is allowed to reach zero and the total is settled onto
+ * 1 as closely as doubles allow.
+ *
+ * Two departures, both of which change the emitted masses, which is why this is
+ * a separate function rather than a flag on the one above. A caller gets the
+ * behavior by naming it.
+ *
+ * The floor: an entry that underflows is pulled up to Number.MIN_VALUE instead
+ * of vanishing. The language factor reweights the entire feasible support, and
+ * a feasible world silently dropping to zero mass is a world the belief can
+ * never recover, however much later evidence argues for it. Note that the
+ * factor caps keep every real input far from underflow today, so the floor is a
+ * guarantee about the contract rather than a thing observed firing.
+ *
+ * The residual: whatever `1 - sum` remains after dividing is added to the
+ * largest mass. With the compensated total this is already at most an ulp or
+ * two, but the belief snapshot is consumed as a distribution and checked by
+ * assertDistribution, so closing it is worth one extra pass.
+ *
+ * "As closely as doubles allow" and not "exactly", which is what the comment
+ * this replaced claimed. The correction lands on the largest mass, so when one
+ * entry holds nearly all of the probability the residual is smaller than half
+ * an ulp of that entry and the addition rounds away to nothing. Measured over
+ * 49 deliberately dominant-mass vectors, one came back half an ulp under 1. A
+ * flat support, which is every real caller, closes exactly. Callers wanting a
+ * guarantee should spend PROBABILITY_TOLERANCE, not an equality.
+ */
+export function logWeightsToProbabilitiesPreservingSupport(
+  logWeights: readonly number[],
+): readonly number[] {
+  const relative = relativeWeights(logWeights)
+    .map((weight) => Math.max(Number.MIN_VALUE, weight))
+  const total = normalizationTotal(relative)
+  const probabilities = relative.map((weight) => weight / total)
+  for (let index = 0; index < probabilities.length; index++) {
+    if (probabilities[index] === 0) probabilities[index] = Number.MIN_VALUE
+  }
+  let largest = 0
+  for (let index = 1; index < probabilities.length; index++) {
+    if (probabilities[index] > probabilities[largest]) largest = index
+  }
+  probabilities[largest] +=
+    1 - stableProbabilitySum(probabilities, (mass) => mass)
+  if (probabilities.some((mass) => !Number.isFinite(mass) || mass <= 0)) {
+    throw new Error('log-weight normalization lost support it must preserve')
+  }
+  return probabilities
 }
 
 /** The closed unit interval, for a value already known to be a number. */

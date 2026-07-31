@@ -12,6 +12,7 @@ import {
 } from '../canonical/canonical-shape.ts'
 import {
   addProbability,
+  logWeightsToProbabilitiesPreservingSupport,
   PROBABILITY_TOLERANCE,
   type CompensatedProbability,
 } from '../canonical/probability-arithmetic.ts'
@@ -375,59 +376,31 @@ function combinedModelVersion(base: BeliefSnapshot): string {
 }
 
 /**
- * Normalize log weights without dropping a positive base world when a valid
- * but extremely small IEEE-754 probability underflows after normalization.
+ * Zip the support-preserving normalization back onto the base worlds.
  *
- * This is deliberately NOT the shared normalizeLogWeights (log-weights.ts) that
- * the quest-card factor uses. It differs in two ways that both change the
- * emitted masses, so the two cannot be folded into one without changing numeric
- * output: (1) it floors underflowed probabilities at Number.MIN_VALUE so a
- * feasible base world is never silently dropped, and (2) it applies the whole
- * residual `1 - sum` to the largest mass so the result sums to exactly 1. The
- * history factor needs both because it streams the entire feasible support (a
- * ten-player servant view carries up to ~60,480 worlds) and reweights every one
- * of them; the quest factor normalizes over a small feasible set where neither
- * underflow nor the residual matters. Unifying the two normalizers is left as
- * future work precisely because it is a numeric change, not a refactor.
+ * The arithmetic moved to components/probability-arithmetic.ts, where it sits
+ * beside the plain normalizer as a second named policy over one shared core.
+ * The two still emit different masses, which is why they are two functions and
+ * not one with a flag: this one floors an underflowed world at
+ * Number.MIN_VALUE rather than letting it vanish, and settles the residual on
+ * the largest mass so the total lands on 1 as closely as doubles allow. The
+ * history factor wants both because it reweights the entire feasible support
+ * and a world that reaches zero here can never be argued back.
+ *
+ * The comment this replaced said the residual made the result sum to exactly 1.
+ * That was two claims too strong. It is within an ulp, not exact (see the
+ * dominant-mass case recorded on the shared function), and until the projection
+ * total in exact.ts was compensated the settlement was undone by the
+ * renormalization one call downstream anyway.
  */
 function normalizePreservingSupport(
   worlds: readonly HiddenWorld[],
   logWeights: readonly number[],
 ): readonly WeightedWorld[] {
-  if (
-    worlds.length === 0
-    || worlds.length !== logWeights.length
-    || logWeights.some((weight) => !Number.isFinite(weight))
-  ) {
-    throw new Error('language factor requires finite log weights')
+  if (worlds.length === 0 || worlds.length !== logWeights.length) {
+    throw new Error('language factor requires one log weight per world')
   }
-  const maximum = logWeights.reduce(
-    (current, weight) => Math.max(current, weight),
-    -Infinity,
-  )
-  const relative = logWeights.map((weight) =>
-    Math.max(Number.MIN_VALUE, Math.exp(weight - maximum)))
-  const total = relative.reduce((sum, weight) => sum + weight, 0)
-  if (!Number.isFinite(total) || total <= 0) {
-    throw new Error('language factor normalization failed')
-  }
-  const probabilities = relative.map((weight) => weight / total)
-  for (let index = 0; index < probabilities.length; index++) {
-    if (probabilities[index] === 0) probabilities[index] = Number.MIN_VALUE
-  }
-  const correctedTotal = probabilities.reduce(
-    (sum, probability) => sum + probability,
-    0,
-  )
-  let largest = 0
-  for (let index = 1; index < probabilities.length; index++) {
-    if (probabilities[index] > probabilities[largest]) largest = index
-  }
-  probabilities[largest] += 1 - correctedTotal
-  if (probabilities.some((probability) =>
-    !Number.isFinite(probability) || probability <= 0)) {
-    throw new Error('language factor normalization lost base support')
-  }
+  const probabilities = logWeightsToProbabilitiesPreservingSupport(logWeights)
   return worlds.map((world, index) => ({
     world,
     probability: probabilities[index],
