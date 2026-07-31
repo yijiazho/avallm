@@ -98,6 +98,10 @@ export function prepareScoreLayerRequirements(
     } catch {
       candidate = undefined
     }
+    // refsVisited is a two-pass work counter: this adds the refs walked while
+    // canonicalizing one definition's requested refs, and the dedup-indexing
+    // loop below adds each admitted ref again as it folds into the run-wide set.
+    // Admitted refs are therefore counted in both passes by design.
     refsVisited += candidate?.visited ?? 0
     const admitted = candidate?.refs
     if (!admitted) {

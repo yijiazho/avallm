@@ -30,6 +30,9 @@ function jsonStringBytes(value: string): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8')
 }
 
+// Exact serialized byte size of one row object, modelled term by term: the
+// leading +2 is the `{}` braces, each `+ 1` is a structural `:` or `,`, and the
+// `row.viable ? 4 : 5` is the literal length of `true` versus `false`.
 function fixedRowBytes(
   row: ScoreLayerRow,
   reasonBytes: number,
@@ -44,6 +47,9 @@ function fixedRowBytes(
     + 1 + jsonStringBytes('reasonCodes') + 1 + reasonBytes
 }
 
+// Exact serialized byte size of the whole surface object, same convention as
+// fixedRowBytes: the `scoreBytes` +2 is the `[]` of the scores array and the
+// `Math.max(0, rowCount - 1)` is one `,` between each pair of rows.
 function fixedSurfaceBytes(
   rowsBytes: number,
   rowCount: number,
@@ -57,39 +63,76 @@ function fixedSurfaceBytes(
     + 1 + jsonStringBytes('survivorCandidateIds') + 1 + survivorBytes
 }
 
-export function canonicalForcedPolicy(
-  input: Pick<ScoreLayerRunCompletion, 'candidates' | 'forced'>,
+interface CandidateSubsetLabels {
+  readonly emptyOrOversized: string
+  readonly nonUniqueString: string
+  readonly nonCanonicalOrder: string
+  readonly unknownCandidate: string
+}
+
+/**
+ * Canonicalize a declared subset of the legal candidates. Reject an empty or
+ * oversized source, require the source ids to be a set of unique strings, then
+ * walk the legal candidates in order admitting exactly the members in that same
+ * order and rejecting an unknown member. Returns the canonical-order subset and
+ * its member set. The source counter and the selection rules differ between the
+ * forced policy and the candidate boundary, so each caller supplies its own.
+ */
+function canonicalizeCandidateSubset(
+  source: readonly string[],
+  candidates: ScoreLayerRunCompletion['candidates'],
   operations: ScoreLayerSurfaceWork,
-): Immutable<ScoreLayerRunCompletion['forced']> {
-  const source = input.forced.allowedCandidateIds
-  if (source.length === 0 || source.length > input.candidates.length) {
-    throw new Error('forced policy must retain a legal candidate')
+  sourceCounter: 'forcedCandidateIdsVisited' | 'candidateBoundaryIdsVisited',
+  labels: CandidateSubsetLabels,
+): { canonical: string[]; members: ReadonlySet<string> } {
+  if (source.length === 0 || source.length > candidates.length) {
+    throw new Error(labels.emptyOrOversized)
   }
-  const allowed = new Set<string>()
+  const members = new Set<string>()
   for (const id of source) {
-    operations.forcedCandidateIdsVisited++
-    if (typeof id !== 'string' || allowed.has(id)) {
-      throw new Error('forced policy candidate ids must be unique strings')
+    operations[sourceCounter]++
+    if (typeof id !== 'string' || members.has(id)) {
+      throw new Error(labels.nonUniqueString)
     }
-    allowed.add(id)
+    members.add(id)
   }
   const canonical: string[] = []
   const legalIds = new Set<string>()
-  for (const candidate of input.candidates) {
+  for (const candidate of candidates) {
     operations.legalCandidatesVisited++
     if (legalIds.has(candidate.id)) {
       throw new Error('legal score candidates must have unique ids')
     }
     legalIds.add(candidate.id)
-    if (!allowed.has(candidate.id)) continue
+    if (!members.has(candidate.id)) continue
     if (candidate.id !== source[canonical.length]) {
-      throw new Error('forced policy candidates are not in canonical legal order')
+      throw new Error(labels.nonCanonicalOrder)
     }
     canonical.push(candidate.id)
   }
   if (canonical.length !== source.length) {
-    throw new Error('forced policy contains an unknown candidate')
+    throw new Error(labels.unknownCandidate)
   }
+  return { canonical, members }
+}
+
+export function canonicalForcedPolicy(
+  input: Pick<ScoreLayerRunCompletion, 'candidates' | 'forced'>,
+  operations: ScoreLayerSurfaceWork,
+): Immutable<ScoreLayerRunCompletion['forced']> {
+  const { canonical, members: allowed } = canonicalizeCandidateSubset(
+    input.forced.allowedCandidateIds,
+    input.candidates,
+    operations,
+    'forcedCandidateIdsVisited',
+    {
+      emptyOrOversized: 'forced policy must retain a legal candidate',
+      nonUniqueString: 'forced policy candidate ids must be unique strings',
+      nonCanonicalOrder:
+        'forced policy candidates are not in canonical legal order',
+      unknownCandidate: 'forced policy contains an unknown candidate',
+    },
+  )
   if (
     input.forced.selectedCandidateId !== undefined
     && !allowed.has(input.forced.selectedCandidateId)
@@ -112,37 +155,20 @@ export function canonicalCandidateBoundary(
   >,
   operations: ScoreLayerSurfaceWork,
 ): Immutable<ScoreLayerRunCompletion['candidateBoundary']> {
-  const source = input.candidateBoundary.survivorCandidateIds
-  if (source.length === 0 || source.length > input.candidates.length) {
-    throw new Error('candidate boundary must retain a legal candidate')
-  }
-  const retained = new Set<string>()
-  for (const id of source) {
-    operations.candidateBoundaryIdsVisited++
-    if (typeof id !== 'string' || retained.has(id)) {
-      throw new Error('candidate boundary ids must be unique strings')
-    }
-    retained.add(id)
-  }
-  const canonical: string[] = []
-  const legalIds = new Set<string>()
-  for (const candidate of input.candidates) {
-    operations.legalCandidatesVisited++
-    if (legalIds.has(candidate.id)) {
-      throw new Error('legal score candidates must have unique ids')
-    }
-    legalIds.add(candidate.id)
-    if (!retained.has(candidate.id)) continue
-    if (candidate.id !== source[canonical.length]) {
-      throw new Error(
-        'candidate boundary is not in canonical legal order',
-      )
-    }
-    canonical.push(candidate.id)
-  }
-  if (canonical.length !== source.length) {
-    throw new Error('candidate boundary contains an unknown candidate')
-  }
+  const { canonical, members: retained } = canonicalizeCandidateSubset(
+    input.candidateBoundary.survivorCandidateIds,
+    input.candidates,
+    operations,
+    'candidateBoundaryIdsVisited',
+    {
+      emptyOrOversized: 'candidate boundary must retain a legal candidate',
+      nonUniqueString: 'candidate boundary ids must be unique strings',
+      nonCanonicalOrder: 'candidate boundary is not in canonical legal order',
+      unknownCandidate: 'candidate boundary contains an unknown candidate',
+    },
+  )
+  // The candidate boundary adds a rule the forced policy does not: a selection
+  // must be the sole survivor.
   const selected = input.candidateBoundary.selectedCandidateId
   if (selected !== undefined && !retained.has(selected)) {
     throw new Error('candidate boundary selected outside its survivors')
@@ -303,6 +329,9 @@ export function createScoreLayerSurfaceRuntime(
               reasonCodes: Object.freeze(reasons),
             })
             rowsBytes += fixedRowBytes(row, reasonBytes)
+            // Incremental bound: check the running size after each row so a
+            // surface cannot balloon mid-construction. The final retained bound
+            // below re-checks the completed size once every row is in.
             if (
               fixedSurfaceBytes(rowsBytes, rows.length + 1, survivorBytes)
                 > MAX_SCORE_LAYER_SURFACE_JSON_BYTES

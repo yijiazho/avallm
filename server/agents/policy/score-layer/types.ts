@@ -62,12 +62,11 @@ export interface ScoreLayerRow {
   readonly reasonCodes: readonly string[]
 }
 
-export interface ScoreLayerRowDraft {
-  readonly candidateId: string
-  readonly value: number
-  readonly viable: boolean
-  readonly reasonCodes: readonly string[]
-}
+// A pre-finalization row a layer hands the surface factory. It carries exactly
+// the fields of a finalized ScoreLayerRow; the factory (createScoreLayerSurface
+// Runtime.create) is the real seam that validates and freezes a draft into a
+// row, so no distinct draft shape earns its keep here.
+export type ScoreLayerRowDraft = ScoreLayerRow
 
 export interface ScoreLayerSurfaceDraft {
   readonly scores: readonly ScoreLayerRowDraft[]
@@ -85,9 +84,13 @@ export interface ScoreLayerComponentReader {
   require<Payload>(token: ComponentToken<Payload>): Immutable<Payload>
 }
 
-export interface ScoreLayerApplicabilityContext {
-  readonly request: Immutable<DecisionRequest>
-  readonly view: Immutable<PlayerView>
+/**
+ * The scoring inputs shared by the applicability context a layer sees and the
+ * run completion the runner consumes: the analysis, the legal candidates, the
+ * two hard boundaries, and the deterministic scoring keys. The two consumers
+ * each add their own extras (request/view; componentRun) on top.
+ */
+export interface ScoreLayerScoringInputs {
   readonly analysis: Immutable<SituationAnalysis>
   readonly candidates: readonly Immutable<PolicyCandidate>[]
   /** Hard survivors after universal policy and strategic decision layers. */
@@ -99,6 +102,12 @@ export interface ScoreLayerApplicabilityContext {
   readonly hypotheticalTeamCandidates:
     | readonly Immutable<PolicyCandidate>[]
     | null
+}
+
+export interface ScoreLayerApplicabilityContext
+extends ScoreLayerScoringInputs {
+  readonly request: Immutable<DecisionRequest>
+  readonly view: Immutable<PlayerView>
 }
 
 export interface ScoreLayerAnalysisRef extends ScoreLayerRef {}
@@ -274,16 +283,7 @@ export interface ScoreLayerRun {
 /** Detached observability projection; component payloads stay in trace.components. */
 export type ScoreLayerTrace = LayerRunTrace<ScoreLayerRun>
 
-export interface ScoreLayerRunCompletion {
-  readonly analysis: Immutable<SituationAnalysis>
-  readonly candidates: readonly Immutable<PolicyCandidate>[]
-  readonly candidateBoundary: Immutable<DecisionCandidateBoundary>
-  readonly forced: Immutable<ForcedPolicyResult>
-  readonly deterministicSeed: string
-  readonly compatibilityCandidateId: string
-  readonly hypotheticalTeamCandidates:
-    | readonly Immutable<PolicyCandidate>[]
-    | null
+export interface ScoreLayerRunCompletion extends ScoreLayerScoringInputs {
   readonly componentRun: Immutable<DecisionComponentRun>
 }
 

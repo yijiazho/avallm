@@ -164,36 +164,13 @@ export function scoreLayerDiagnosticOwnerVersion(
   return active.layer.version
 }
 
-interface MutableOperationCounts {
-  analysisRequirementEvaluations: number
-  analysisRequirementFailures: number
-  analysisRefsVisited: number
-  analysisAdmissionEvaluations: number
-  analysisAdmissionFailures: number
-  forcedCandidateIdsVisited: number
-  candidateBoundaryIdsVisited: number
-  legalCandidatesVisited: number
-  applicabilityEvaluations: number
-  layersExecuted: number
-  componentLookupAttempts: number
-  componentPayloadIndexEntriesVisited: number
-  componentPayloadReads: number
-  componentPayloadsMaterialized: number
-  componentDefinitionIndexEntriesVisited: number
-  scoreLayerComponentRequirementsIndexed: number
-  componentClosureRootsVisited: number
-  componentDependencyEdgesVisited: number
-  componentClosureComponentsEmitted: number
-  componentAttributionUnionTokensVisited: number
-  componentAttributionTokensVisited: number
-  componentAttributionEntriesVisited: number
-  componentAttributionPolicyUseEntriesVisited: number
-  surfaceBuildAttempts: number
-  surfacePriorSurvivorsVisited: number
-  surfaceDraftSurvivorsVisited: number
-  surfaceRowsVisited: number
-  surfaceReasonsVisited: number
-  surfaceBytesConstructed: number
+// The mutable accumulator over the run: the frozen ScoreLayerOperationCounts
+// with every counter made writable. Mapping off that interface keeps the two in
+// lockstep, so a new counter cannot be tallied here without also being declared
+// on the exported shape.
+type MutableOperationCounts = {
+  -readonly [K in keyof ScoreLayerOperationCounts]:
+    ScoreLayerOperationCounts[K]
 }
 
 function frozenRef(ref: ScoreLayerRef): ScoreLayerRef {
@@ -384,7 +361,7 @@ function runPreparedScoreLayers(
   ) {
     const candidate = input.chain.definitions[layerIndex]
     if (candidate.kind !== 'transform') {
-      throw new Error('score layer chain contains a non-root root')
+      throw new Error('score layer chain has a second root')
     }
     const definition = candidate
     const key = `${definition.token.id}@${definition.token.version}`
