@@ -24,14 +24,16 @@ import {
   type LiteralCommitmentBasis,
 } from '../server/agents/cognition/coherence.ts'
 import {
-  PLAN_MEMORY_HISTORY_LIMIT,
-  PLAN_MEMORY_SERIALIZED_LIMIT,
   recordAppliedPlan,
-  validateAppliedPlanOutcomeHostJoin,
-  validatePrivatePlanMemory,
   type AppliedPlanHistoryEntry,
   type PrivatePlanMemory,
 } from '../server/agents/cognition/plan-memory.ts'
+import {
+  PLAN_MEMORY_HISTORY_LIMIT,
+  PLAN_MEMORY_SERIALIZED_LIMIT,
+  validateAppliedPlanOutcomeHostJoin,
+  validatePrivatePlanMemory,
+} from '../server/agents/cognition/plan-memory-schema.ts'
 import type { DecisionPlan } from '../server/agents/policy/plan.ts'
 import {
   type AvalonAgent,

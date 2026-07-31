@@ -23,10 +23,8 @@ import {
   type Evidence,
   type PublicCognitionProjection,
 } from './types.ts'
-import {
-  PLAN_MEMORY_VERSION,
-  validatePrivatePlanMemory,
-} from './plan-memory.ts'
+import { PLAN_MEMORY_VERSION } from './plan-memory.ts'
+import { validatePrivatePlanMemory } from './plan-memory-schema.ts'
 import { COHERENCE_MODEL_VERSION } from './coherence.ts'
 import {
   ROLE_OBJECTIVE_MODEL_VERSION,

@@ -87,10 +87,8 @@ import {
   JOINT_IDENTITY_MODEL_VERSION,
   validatePrivateIdentityHostJoin,
 } from '../agents/belief/identity.ts'
-import {
-  PLAN_MEMORY_VERSION,
-  validateAppliedPlanOutcomeHostJoin,
-} from '../agents/cognition/plan-memory.ts'
+import { PLAN_MEMORY_VERSION } from '../agents/cognition/plan-memory.ts'
+import { validateAppliedPlanOutcomeHostJoin } from '../agents/cognition/plan-memory-schema.ts'
 import {
   COHERENCE_MODEL_VERSION,
   isCoherenceIntent,

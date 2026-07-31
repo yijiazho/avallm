@@ -20,10 +20,8 @@ import type { PublicObserverSnapshot } from './analysis/observer-types.ts'
 import type { PrivateIdentitySnapshot } from './belief/identity.ts'
 import type { AppliedPlanHistoryEntry } from './cognition/plan-memory.ts'
 import type { OptInComponentVersions } from './cognition/types.ts'
-import {
-  PLAN_MEMORY_VERSION,
-  validateAppliedPlanOutcomeHostJoin,
-} from './cognition/plan-memory.ts'
+import { PLAN_MEMORY_VERSION } from './cognition/plan-memory.ts'
+import { validateAppliedPlanOutcomeHostJoin } from './cognition/plan-memory-schema.ts'
 import {
   COHERENCE_MODEL_VERSION,
   type CoherenceIntent,
