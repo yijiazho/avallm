@@ -322,21 +322,31 @@ export interface ServantProposePairing {
   readonly discordantPValue: number
 }
 
-/** Exact two-sided binomial tail at p = 1/2, computed without a clock or float drift. */
+/**
+ * Exact two-sided binomial tail at p = 1/2, computed without a clock or float
+ * drift.
+ *
+ * The coefficient is carried in LOG space and each term is exponentiated after
+ * the 2^-n divisor is folded in, rather than summing raw coefficients and
+ * dividing at the end. That is not defensive style: the raw form overflows to
+ * Infinity once `n` passes 1023, because `2 ** n` does, and it returned NaN
+ * rather than a p-value for every discordant count above roughly a thousand.
+ * This harness exists to push n into the thousands, so the naive form fails
+ * exactly where the module is meant to be used. Each term here is at most 1 and
+ * the smallest simply underflows to zero, which is the correct contribution.
+ */
 function twoSidedSignPValue(left: number, right: number): number {
   const n = left + right
   if (n === 0) return 1
   const extreme = Math.min(left, right)
-  // Sum the lower tail exactly with a rolling binomial coefficient, then double
-  // and clamp: at p = 1/2 the distribution is symmetric, so the two-sided value
-  // is twice the smaller tail.
-  let coefficient = 1
-  let tail = 1
+  const logHalfPower = -n * Math.LN2
+  let logCoefficient = 0
+  let tail = Math.exp(logHalfPower)
   for (let k = 1; k <= extreme; k++) {
-    coefficient = coefficient * (n - k + 1) / k
-    tail += coefficient
+    logCoefficient += Math.log(n - k + 1) - Math.log(k)
+    tail += Math.exp(logCoefficient + logHalfPower)
   }
-  return Math.min(1, 2 * tail / 2 ** n)
+  return Math.min(1, 2 * tail)
 }
 
 export function pairProposalPickers(
@@ -379,11 +389,21 @@ export function pairProposalPickers(
   })
 }
 
+/** Identifies one held-out case, so a seeded policy varies across them. */
+const caseSeed = (input: ServantProposeCase): string =>
+  `servant-cal-${input.playerCount}-${input.req.seat}`
+  + `-${input.req.round}-${input.req.proposalNum}`
+
 /** A picker driven by a configured native scorer, exactly as production runs it. */
 export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
   return async (input) => {
     const decision = (await createComposedAgent({
-      seed: `servant-cal-${input.req.seat}`,
+      // The whole case, not just the seat. The deterministic scorers scored
+      // here never read the seed on a proposal, but this module exists to
+      // compare arbitrary policies, and a seeded one would otherwise receive
+      // the same seed at every case sharing a seat index across every game and
+      // cast, making its band correlated in a way the output would not show.
+      seed: caseSeed(input),
       scorer,
     }).decide(input.req, input.view)).decision
     if (decision.kind !== 'propose') {
@@ -411,7 +431,7 @@ export function projectionAdjustedPicker(
 ): ProposalPicker {
   return async (input) => {
     const output = await createComposedAgent({
-      seed: `servant-cal-${input.req.seat}`,
+      seed: caseSeed(input),
       scorer: roleObjectiveScorer,
     }).decide(input.req, input.view)
     const rows = output.trace?.candidateScores

@@ -106,6 +106,28 @@ test('the sign test is the exact two-sided binomial over discordant pairs', () =
   assert.equal(split.baseCleanCandidateDirty, 5)
   assert.equal(split.candidateCleanBaseDirty, 3)
   assert.ok(Math.abs(split.discordantPValue - 0.7265625) < 1e-12)
+
+  // Above about a thousand discordant pairs the naive form overflows: a raw
+  // binomial coefficient and 2**n both reach Infinity, and the p-value came
+  // back NaN. This harness exists to push n into the thousands, so the failure
+  // sat exactly where the module is meant to be used.
+  const large = cases([
+    ...Array.from({ length: 620 }, () => [false, true] as const),
+    ...Array.from({ length: 600 }, () => [true, false] as const),
+  ])
+  assert.ok(
+    Number.isFinite(large.discordantPValue),
+    `a 620/600 split returned ${large.discordantPValue}`,
+  )
+  assert.ok(large.discordantPValue > 0 && large.discordantPValue <= 1)
+  // A near-even split of that size is nowhere near significant, and a lopsided
+  // one of the same size is decisive. Both must be reachable, or the guard
+  // above would pass on a function that returned a constant.
+  assert.ok(large.discordantPValue > 0.5)
+  const lopsided = cases(
+    Array.from({ length: 1200 }, () => [false, true] as const),
+  )
+  assert.ok(lopsided.discordantPValue < 1e-12)
 })
 
 // The refinement is a hypothesis scored offline, not a shipped layer, so the

@@ -167,6 +167,49 @@ test('the pooled interval is clustered by game, not by reading', async () => {
   }
 })
 
+// The pooled headline must be a BALANCED panel. Exposure rises with rounds, so
+// averaging each game over however many readings it happened to produce lets a
+// policy that wins its quests faster read as leaking less, which inverts what
+// the metric is for.
+test('the headline is balanced by depth, not by whatever each game produced', async () => {
+  const artifacts = await Promise.all(
+    ['bal-a', 'bal-b', 'bal-c', 'bal-d'].map((seed) => play(7, seed)),
+  )
+  const { scored, summary } = measureMerlinExposure(artifacts)
+  assert.ok(scored.length >= 3)
+  const depths = scored.map((game) => game.samples.length)
+  assert.equal(summary.balancedDepth, Math.min(...depths))
+  assert.equal(summary.balancedLift.observations, scored.length)
+  // Recompute the panel independently: every game contributes exactly
+  // balancedDepth readings, so no game's length can weight its own mean.
+  const expected = scored.map((game) => {
+    const window = game.samples.slice(0, summary.balancedDepth)
+    return window.reduce((sum, sample) => sum + sample.lift, 0) / window.length
+  })
+  const mean = expected.reduce((sum, value) => sum + value, 0) / expected.length
+  assert.ok(Math.abs((summary.balancedLift.mean ?? NaN) - mean) < 1e-12)
+  // The unbalanced figure is kept, and must be labelled rather than removed:
+  // it uses the whole corpus and is the right thing when depths already match.
+  assert.equal(summary.clusteredLift.observations, scored.length)
+  if (new Set(depths).size > 1) {
+    assert.notEqual(summary.balancedLift.mean, summary.clusteredLift.mean)
+  }
+})
+
+// A run that quietly lost most of its readings must not present tight intervals
+// over the remainder as though it were complete.
+test('skipped readings are counted, not silently dropped', async () => {
+  const { scored, summary } = measureMerlinExposure([await play(7, 'skip')])
+  assert.equal(
+    summary.skippedReadings,
+    scored.reduce((sum, game) => sum + game.skippedReadings, 0),
+  )
+  // This corpus should lose nothing; the assertion is that the count exists and
+  // is truthful, so a future regression shows up as a number rather than as
+  // silence.
+  assert.equal(summary.skippedReadings, 0)
+})
+
 // Retroactivity is the point of reading artifacts rather than replaying policy:
 // every run already archived can be re-scored for this without a new game.
 test('scoring is a pure function of the archived artifact', async () => {

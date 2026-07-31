@@ -82,6 +82,8 @@ export interface MerlinExposureGame {
   readonly merlinSeat: Seat
   readonly assassinSeat: Seat
   readonly samples: readonly MerlinExposureSample[]
+  /** Sample points that yielded no reading; see MerlinExposureSummary. */
+  readonly skippedReadings: number
   /** Whether the game actually reached an execution, for the contrast. */
   readonly reachedShot: boolean
   readonly merlinAssassinated: boolean
@@ -101,13 +103,36 @@ export interface MerlinExposureSummary {
   readonly games: number
   readonly samples: number
   /**
-   * Pooled over games, NOT over samples. Samples inside one game share a deal
-   * and a Merlin, so they are not independent draws and pooling them raw would
-   * overstate the precision by roughly the square root of the samples per game.
-   * Each game contributes its own mean, and the interval is taken across games.
+   * The headline. Pooled over games, NOT over samples, and over a BALANCED
+   * panel: only the rounds every scored game reached.
+   *
+   * Both corrections are load-bearing and they fix different things. Clustering
+   * fixes precision: readings inside one game share a deal and a Merlin, so
+   * pooling them raw would shrink the interval by roughly the square root of
+   * the readings per game while the real uncertainty had not moved. Balancing
+   * fixes the point estimate: exposure rises with rounds, so a game that ended
+   * after three quests contributes only its cheap early readings. Averaging
+   * unequal depths makes a policy that WINS FASTER read as leaking less, which
+   * inverts what the metric is for. On the measured round profile that bias is
+   * about a third of the signal.
+   */
+  readonly balancedLift: ExposureEstimate
+  readonly balancedExposure: ExposureEstimate
+  /** Rounds the balanced panel covers: the depth every scored game reached. */
+  readonly balancedDepth: number
+  /**
+   * Every reading, unbalanced. Retained because it uses the whole corpus, and
+   * labelled because it is confounded with game length: compare two policies on
+   * it only when their games run to the same depth.
    */
   readonly clusteredLift: ExposureEstimate
   readonly clusteredExposure: ExposureEstimate
+  /**
+   * Sample points that produced no reading, because the predictor declined or
+   * no seat remained feasible. Reported so a run that quietly lost most of its
+   * readings cannot present tight intervals over the remainder as a full result.
+   */
+  readonly skippedReadings: number
   /**
    * Per round there is exactly one sample per game, so within a slice the
    * observations ARE independent and the interval needs no clustering.
@@ -147,6 +172,7 @@ export function scoreMerlinExposure(
   if (!merlin || !assassin) return undefined
 
   const samples: MerlinExposureSample[] = []
+  let skipped = 0
   let questsResolved = 0
   for (const seq of samplePoints(artifact)) {
     const game = replayGame(artifact, seq)
@@ -160,7 +186,10 @@ export function scoreMerlinExposure(
     } catch {
       // The predictor declines rather than guesses (no Merlin in the cast, or a
       // belief cursor that does not match the view). Skipping the reading is
-      // the truthful response; inventing one would be the alternative.
+      // the truthful response; inventing one would be the alternative. It is
+      // counted rather than merely skipped, so a run that lost most of its
+      // readings says so instead of reporting tight intervals over the rest.
+      skipped += 1
       questsResolved += 1
       continue
     }
@@ -172,6 +201,7 @@ export function scoreMerlinExposure(
       (target) => target.posteriorProbability > 0,
     ).length
     if (candidates === 0) {
+      skipped += 1
       questsResolved += 1
       continue
     }
@@ -191,6 +221,9 @@ export function scoreMerlinExposure(
   }
   if (!samples.length) return undefined
 
+  // Both facts from the one event that owns them. Reading the outcome off the
+  // winReason string instead would couple this metric to that spelling, and a
+  // rename would zero the assassination rate while reachedShot kept counting.
   const assassination = artifact.log.find(
     (event) => event.type === 'assassination',
   )
@@ -200,8 +233,10 @@ export function scoreMerlinExposure(
     merlinSeat: merlin.seat,
     assassinSeat: assassin.seat,
     samples: Object.freeze(samples),
+    skippedReadings: skipped,
     reachedShot: assassination !== undefined,
-    merlinAssassinated: artifact.winReason === 'merlinAssassinated',
+    merlinAssassinated: assassination?.type === 'assassination'
+      && assassination.payload.wasMerlin,
   })
 }
 
@@ -224,11 +259,33 @@ export function summarizeMerlinExposure(
     scored.map((game) =>
       game.samples.reduce((sum, sample) => sum + pick(sample), 0)
       / game.samples.length)
+  // The depth every scored game reached. Averaging over unequal depths is what
+  // would make a shorter game look safer, so the headline uses this panel.
+  const balancedDepth = scored.length
+    ? Math.min(...scored.map((game) => game.samples.length))
+    : 0
+  const perGameBalancedMean = (
+    pick: (sample: MerlinExposureSample) => number,
+  ): number[] =>
+    scored.map((game) => {
+      const window = game.samples.slice(0, balancedDepth)
+      return window.reduce((sum, sample) => sum + pick(sample), 0)
+        / window.length
+    })
   const reaching = scored.filter((game) => game.reachedShot)
   return Object.freeze({
     version: MERLIN_EXPOSURE_VERSION,
     games: scored.length,
     samples: scored.reduce((sum, game) => sum + game.samples.length, 0),
+    balancedDepth,
+    balancedLift: meanEstimate(perGameBalancedMean((sample) => sample.lift)),
+    balancedExposure: meanEstimate(
+      perGameBalancedMean((sample) => sample.exposure),
+    ),
+    skippedReadings: scored.reduce(
+      (sum, game) => sum + game.skippedReadings,
+      0,
+    ),
     clusteredLift: meanEstimate(perGameMean((sample) => sample.lift)),
     clusteredExposure: meanEstimate(perGameMean((sample) => sample.exposure)),
     byRound: Object.freeze(
@@ -286,11 +343,22 @@ export function renderMerlinExposure(
     '  five-player table comparable with a ten-player one. Zero lift is a',
     '  Merlin that told the assassin nothing the deal had not already.',
     '',
-    `  pooled over games   exposure ${plain(summary.clusteredExposure.mean)}`
+    `  balanced panel (${summary.balancedDepth} readings per game, the depth`
+    + ' every game reached)',
+    `    exposure ${plain(summary.balancedExposure.mean)}`
+    + `   lift ${signed(summary.balancedLift.mean)}`
+    + `${bounds(summary.balancedLift.interval95)}`,
+    '  clustered by game, because readings inside one game share a deal and a',
+    '  Merlin; balanced by depth, because exposure rises with rounds and a game',
+    '  that ended early would otherwise read as leaking less than one that did',
+    '  not. Both corrections stop the shape of a game masquerading as the',
+    '  concealment of its Merlin.',
+    '',
+    `  all readings, unbalanced  exposure ${plain(summary.clusteredExposure.mean)}`
     + `   lift ${signed(summary.clusteredLift.mean)}`
     + `${bounds(summary.clusteredLift.interval95)}`,
-    '  (clustered by game: readings inside one game share a deal and a Merlin,',
-    '   so they are not independent and the interval is taken across games)',
+    '  (whole corpus, but confounded with game length: compare two policies on',
+    '   this line only when their games run to the same depth)',
     '',
     '  by quests resolved. One reading per game per row, so these need no',
     '  clustering and their intervals are exact.',
