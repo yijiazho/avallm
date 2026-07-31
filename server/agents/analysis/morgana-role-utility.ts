@@ -143,6 +143,21 @@ function rankByCounterfeit(
   return new Map(ordered.map((row, index) => [row.candidateId, index + 1]))
 }
 
+/**
+ * The D2 viable-band floor and its membership test, derived once for both the
+ * builder and the schema. Each caller supplies its own floor operand - the
+ * builder passes the floor it freshly computes, the schema passes the stored
+ * one it also validates against d2BandFloorFrom - so no comparison target
+ * moves. The tolerance slack matches the shared PROBABILITY_TOLERANCE.
+ */
+function d2BandFloorFrom(maxD2RoleValue: number, d2ViableBand: number): number {
+  return maxD2RoleValue - d2ViableBand
+}
+
+function withinD2Band(d2RoleValue: number, d2BandFloor: number): boolean {
+  return d2RoleValue >= d2BandFloor - PROBABILITY_TOLERANCE
+}
+
 function sameRequest(
   objective: PrivateMorganaCounterfeitObjective,
   d2: PrivateEvilRoleUtilityProjection,
@@ -284,10 +299,12 @@ function buildMorganaRoleUtilityProjectionInternal(
   const maxD2RoleValue = Math.max(
     ...survivors.map(({ d2Utility }) => d2Utility.roleValue),
   )
-  const d2BandFloor =
-    maxD2RoleValue - MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand
+  const d2BandFloor = d2BandFloorFrom(
+    maxD2RoleValue,
+    MORGANA_ROLE_UTILITY_CONSTANTS.d2ViableBand,
+  )
   const band = survivors.filter(
-    ({ d2Utility }) => d2Utility.roleValue >= d2BandFloor - PROBABILITY_TOLERANCE,
+    ({ d2Utility }) => withinD2Band(d2Utility.roleValue, d2BandFloor),
   )
   const ranks = rankByCounterfeit(
     band.map(({ candidate, counterfeitAssessment }) => ({
@@ -344,7 +361,7 @@ function buildMorganaRoleUtilityProjectionInternal(
     const counterfeitAssessment = counterfeitById.get(candidate.id)!
     const inD2ViableBand =
       allowed.has(candidate.id)
-      && d2Utility.roleValue >= d2BandFloor - PROBABILITY_TOLERANCE
+      && withinD2Band(d2Utility.roleValue, d2BandFloor)
     return {
       candidateId: candidate.id,
       kind: requestKind,
@@ -541,7 +558,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     || typeof value.d2BandFloor !== 'number'
     || Math.abs(
       value.d2BandFloor
-        - (value.maxD2RoleValue - value.d2ViableBand),
+        - d2BandFloorFrom(value.maxD2RoleValue, value.d2ViableBand),
     ) > PROBABILITY_TOLERANCE
     || value.seedDomain !== MORGANA_ROLE_SEEDED_SCORER_VERSION
     || (
@@ -639,7 +656,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
       || typeof candidate.inD2ViableBand !== 'boolean'
       || candidate.inD2ViableBand !== (
         candidate.forcedAllowed
-        && candidate.d2RoleValue >= d2BandFloor - PROBABILITY_TOLERANCE
+        && withinD2Band(candidate.d2RoleValue, d2BandFloor)
       )
       || typeof candidate.counterfeitValue !== 'number'
       || !safeInteger(candidate.counterfeitRank)
@@ -674,24 +691,26 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
     ...survivors.map((candidate) => candidate.d2RoleValue),
   )
   const bandRows = survivors.filter(
-    (candidate) =>
-      candidate.d2RoleValue >= d2BandFloor - PROBABILITY_TOLERANCE,
+    (candidate) => withinD2Band(candidate.d2RoleValue, d2BandFloor),
   )
-  const ranked = [...bandRows].sort(
-    (left, right) =>
-      right.counterfeitValue - left.counterfeitValue
-      || compareCandidateIds(left.candidateId, right.candidateId),
+  const ranks = rankByCounterfeit(
+    bandRows.map((candidate) => ({
+      candidateId: candidate.candidateId,
+      counterfeitValue: candidate.counterfeitValue,
+    })),
   )
+  // rankByCounterfeit inserts in descending-counterfeit order, so the rank-1
+  // entry is the top of the band; this reproduces the old sorted ranked[0].
+  const topBandCandidateId = [...ranks].find(
+    ([, rank]) => rank === 1,
+  )?.[0]
   if (
     Math.abs(value.maxD2RoleValue - maxD2) > PROBABILITY_TOLERANCE
-    || value.candidates.some((candidate) => {
-      const rank = ranked.findIndex(
-        (row) => row.candidateId === candidate.candidateId,
-      )
-      return candidate.counterfeitRank !== (
-        rank === -1 ? 0 : rank + 1
-      )
-    })
+    || value.candidates.some(
+      (candidate) =>
+        candidate.counterfeitRank
+          !== (ranks.get(candidate.candidateId) ?? 0),
+    )
   ) return false
   const seededEligible =
     value.selectionMode
@@ -709,7 +728,7 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
   const expectedSelected = value.forcedSelectedCandidateId
     ?? (
       value.seedBucket === undefined
-        ? ranked[0]?.candidateId
+        ? topBandCandidateId
         : `${LEGAL_CANDIDATE_VERSION}:vote:${
             value.seedBucket === 0 ? 'approve' : 'reject'
           }`
