@@ -803,6 +803,14 @@ function executionContextFor(
       return payload
     },
   })
+  if (applicability.privacy === 'public') {
+    // The public arm carries no host-input reader: V1 forbids public
+    // components from declaring host inputs, so none is built for them.
+    return Object.freeze({
+      ...applicability,
+      dependencies,
+    })
+  }
   const declaredHostInputs = new Map(
     definition.requiredHostInputs.map((input) => [
       componentIdentityKey(input),

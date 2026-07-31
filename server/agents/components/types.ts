@@ -161,13 +161,13 @@ export type DecisionComponentContext =
       /**
        * Only declared public dependencies that were admitted earlier in the
        * resolved dependency order are visible through this reader.
+       *
+       * V1 forbids public components from declaring host inputs because root
+       * bindings do not carry reconstructable public provenance, so the public
+       * arm deliberately has no hostInputs reader: the forbidden read is not
+       * spellable rather than merely guaranteed to fail.
        */
       readonly dependencies: ComponentDependencyReader
-      /**
-       * V1 forbids public components from declaring host inputs because root
-       * bindings do not carry reconstructable public provenance.
-       */
-      readonly hostInputs: ComponentHostInputReader
     }>
   | Readonly<PrivateDecisionComponentApplicabilityContext & {
       /**
