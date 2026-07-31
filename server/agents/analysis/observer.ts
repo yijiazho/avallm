@@ -21,6 +21,7 @@ import {
   type PublicObserverSnapshot,
 } from './observer-types.ts'
 import {
+  LEGAL_TEAM_CANDIDATE_BOUND,
   onlyAllowedKeys,
   probability,
   tableSize,
@@ -140,7 +141,7 @@ export function assessPublicJointTeams(
         !Array.isArray(team)
         || Object.keys(team).length !== team.length,
     )
-    || teams.length > 252
+    || teams.length > LEGAL_TEAM_CANDIDATE_BOUND
   ) {
     throw new Error('public joint team query exceeds the legal candidate bound')
   }

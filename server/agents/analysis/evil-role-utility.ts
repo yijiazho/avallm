@@ -25,6 +25,7 @@ import {
   canonicalRequestBlock,
   canonicalSeats,
   exactKeys,
+  LEGAL_TEAM_CANDIDATE_BOUND,
   tableSize,
 } from '../components/canonical-shape.ts'
 import {
@@ -241,7 +242,7 @@ function buildEvilRoleUtilityProjectionInternal(
     || objective.assessmentApplicability !== 'team-candidates'
     || req.seat !== view.seat
     || candidates.length === 0
-    || candidates.length > 252
+    || candidates.length > LEGAL_TEAM_CANDIDATE_BOUND
   ) {
     throw new Error('evil role utility is inapplicable or has invalid sources')
   }
@@ -531,7 +532,7 @@ function evilRoleUtilitySchema(detached: unknown): boolean {
         !== projection.request.round - 1
     || !Array.isArray(projection.assessments)
     || projection.assessments.length === 0
-    || projection.assessments.length > 252
+    || projection.assessments.length > LEGAL_TEAM_CANDIDATE_BOUND
     || new Set(
       projection.assessments.map((assessment) => assessment.candidateId),
     ).size !== projection.assessments.length

@@ -25,6 +25,7 @@ import {
   canonicalRequestBlock,
   denseArray,
   exactKeys,
+  LEGAL_TEAM_CANDIDATE_BOUND,
   plainDataRecord as plainRecord,
   probability,
   signedUnit as boundedInfluence,
@@ -202,7 +203,7 @@ function buildRoleUtilityProjectionInternal(
   const objectives = assessmentMap(objective)
   if (
     candidates.length === 0
-    || candidates.length > 252
+    || candidates.length > LEGAL_TEAM_CANDIDATE_BOUND
     || objectives.size !== candidates.length
   ) {
     throw new Error('role utility requires the complete legal candidate surface')
@@ -378,7 +379,7 @@ function roleUtilitySchema(detached: unknown): boolean {
     })
     || !denseArray(detached.assessments)
     || detached.assessments.length === 0
-    || detached.assessments.length > 252
+    || detached.assessments.length > LEGAL_TEAM_CANDIDATE_BOUND
   ) return false
   const playerCount = detached.source.playerCount
   const ids = new Set<string>()

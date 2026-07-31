@@ -386,6 +386,15 @@ export function canonicalRequestBlock(
     && (value.currentTeam as Seat[]).length === teamSize
 }
 
+/**
+ * The largest number of distinct legal team candidates a single decision can
+ * face: C(10, 5) = 252, the maximum count of size-k seat subsets over any legal
+ * table. Every exhaustive candidate/assessment surface in the analysis layer is
+ * capped by this, so a query or payload claiming more teams than the game can
+ * ever deal is rejected before it is iterated.
+ */
+export const LEGAL_TEAM_CANDIDATE_BOUND = 252
+
 /** Every ascending seat combination of the given size, in canonical order. */
 export function canonicalCombinations(
   playerCount: number,
