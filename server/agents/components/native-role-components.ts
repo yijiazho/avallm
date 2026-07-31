@@ -109,8 +109,9 @@ readonly DecisionComponentDefinition<any>[] {
     dependencies: [ACTOR_TARGET_TREATMENT_COMPONENT],
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
     applies(context) {
+      // No Merlin check: validateRoles guarantees Merlin wherever Mordred is
+      // seated, so a merlin-less Mordred host is corrupt upstream state.
       return context.view.role === 'mordred'
-        && context.view.rolesInPlay.includes('merlin')
         && (
           context.request.kind === 'propose'
           || context.request.kind === 'vote'
@@ -141,8 +142,9 @@ readonly DecisionComponentDefinition<any>[] {
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
     maxPayloadBytes: MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
     applies(context) {
+      // No Merlin check: the engine only issues an assassinate decision with
+      // Merlin seated (validateRoles pairs Merlin and the Assassin).
       return context.view.role === 'assassin'
-        && context.view.rolesInPlay.includes('merlin')
         && context.request.kind === 'assassinate'
     },
     join(context) {

@@ -561,7 +561,7 @@ test('Mordred treatment and objective are name- and seat-rotation invariant', ()
   )
 })
 
-test('applicability excludes no-Merlin, non-Mordred, and wrong-kind hosts', async () => {
+test('applicability excludes non-Mordred and wrong-kind hosts', async () => {
   const input = mordredProposal()
   const registry = createProductionComponentRegistry({
     goodObjectiveAllDecisionKinds: true,
@@ -576,16 +576,9 @@ test('applicability excludes no-Merlin, non-Mordred, and wrong-kind hosts', asyn
     expected: readonly string[]
   }> = []
 
-  const noMerlin = structuredClone(input.view)
-  noMerlin.rolesInPlay = noMerlin.rolesInPlay.map(
-    (role) => role === 'merlin' ? 'servant' : role,
-  )
-  cases.push({
-    req: input.req,
-    view: noMerlin,
-    expected: ['degraded', 'inapplicable'],
-  })
-
+  // No no-Merlin case: validateRoles guarantees a Mordred seat has Merlin, so a
+  // merlin-less Mordred host is corrupt upstream state, not an input this
+  // component is responsible for excluding.
   const nonMordred = structuredClone(input.view)
   nonMordred.role = 'servant'
   nonMordred.alignment = 'good'

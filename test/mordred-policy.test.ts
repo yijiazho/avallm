@@ -235,10 +235,13 @@ test('seeded vote variation stays inside both bounded gates', () => {
     ...applicable,
     view: { ...applicable.view, role: 'servant' },
   }), false)
+  // Applicability gates on role and kind only. validateRoles guarantees Merlin
+  // wherever Mordred is seated, so applicability does not re-check rolesInPlay:
+  // a Mordred seat still applies on vote without it.
   assert.equal(definition.applies({
     ...applicable,
     view: { ...applicable.view, rolesInPlay: ['mordred'] },
-  }), false)
+  }), true)
 
   const decisions = new Set<string>()
   for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {

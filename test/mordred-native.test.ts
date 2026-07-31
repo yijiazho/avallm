@@ -353,7 +353,7 @@ test('two-Fail threshold and anomalous treatment use direct joint worlds', () =>
   assert.equal(selfOnly.hiddenThresholdCrossingProbability, 0)
 })
 
-test('native applicability distinguishes role, cast, and decision kind', () => {
+test('native applicability distinguishes role and decision kind', () => {
   const input = mordredProposal()
   const registry = createProductionComponentRegistry({
     goodObjectiveAllDecisionKinds: true,
@@ -377,12 +377,6 @@ test('native applicability distinguishes role, cast, and decision kind', () => {
   servant.privateInfo = { kind: 'none' }
   assert.equal(objective.applies(context(servant, input.req)), false)
   assert.equal(treatment.applies(context(servant, input.req)), true)
-
-  const noMerlin = structuredClone(input.view)
-  noMerlin.rolesInPlay = noMerlin.rolesInPlay.map(
-    (role) => role === 'merlin' ? 'servant' : role,
-  )
-  assert.equal(objective.applies(context(noMerlin, input.req)), false)
 
   const discuss: DecisionRequest = { ...input.req, kind: 'discuss' }
   assert.equal(objective.applies(context(input.view, discuss)), false)
