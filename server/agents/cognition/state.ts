@@ -42,14 +42,38 @@ import {
   ROLE_OBJECTIVE_ROUTER_VERSION,
 } from '../analysis/evil-objective-types.ts'
 
-function validateEarlier(
+interface ConfiguredCognitionVersions {
+  mechanicalBelief: string
+  beliefPipeline: string
+  languageEvidence: string
+}
+
+/**
+ * The single language-cognition invariant, shared by the earlier-state guard and
+ * the freshly assembled state below so the two cannot drift. `countedSourceSeqs`
+ * is compared as a serialized array on purpose: an order-sensitive structural
+ * match, not a set membership check.
+ */
+function languageConsistent(
+  reads: readonly LanguageEvidence[],
+  cursor: LanguageEvidenceCursor,
+  throughSeq: number,
+  interpreterVersion: string,
+): boolean {
+  const readSeqs = reads.map((read) => read.sourceSeq)
+  return (
+    new Set(readSeqs).size === readSeqs.length
+    && readSeqs.every((seq, index) => index === 0 || readSeqs[index - 1] < seq)
+    && JSON.stringify(readSeqs) === JSON.stringify(cursor.countedSourceSeqs)
+    && cursor.throughSeq <= throughSeq
+    && reads.every((read) => read.interpreterVersion === interpreterVersion)
+    && !(interpreterVersion === 'off' && reads.length > 0)
+  )
+}
+
+function checkVersionCompat(
   earlier: CognitionState,
-  view: PlayerView,
-  configured: {
-    mechanicalBelief: string
-    beliefPipeline: string
-    languageEvidence: string
-  },
+  configured: ConfiguredCognitionVersions,
 ): void {
   if (
     earlier.versions.schema !== COGNITION_SCHEMA_VERSION
@@ -63,6 +87,9 @@ function validateEarlier(
   ) {
     throw new Error('cannot advance cognition produced by incompatible component versions')
   }
+}
+
+function checkPlanMemory(earlier: CognitionState): void {
   const hasPlanMemory = earlier.planMemory !== undefined
   if (
     hasPlanMemory !== (earlier.versions.planMemory !== undefined)
@@ -78,6 +105,9 @@ function validateEarlier(
   ) {
     throw new Error('cannot advance malformed private plan memory')
   }
+}
+
+function checkRoleObjective(earlier: CognitionState): void {
   // One union field, discriminated on team: "both a good and an evil objective"
   // is unrepresentable, so the branches below narrow rather than guard it.
   const objective = earlier.roleObjective
@@ -106,31 +136,34 @@ function validateEarlier(
   ) {
     throw new Error('cannot advance malformed private role objective')
   }
+}
+
+function checkLanguage(
+  earlier: CognitionState,
+  configured: ConfiguredCognitionVersions,
+): void {
   validateLanguageEvidenceCursor(earlier.languageCursor)
-  const readSeqs = earlier.languageReads.map((read) => read.sourceSeq)
   if (
-    new Set(readSeqs).size !== readSeqs.length
-    || !readSeqs.every(
-      (seq, index) => index === 0 || readSeqs[index - 1] < seq,
-    )
-    || JSON.stringify(readSeqs)
-      !== JSON.stringify(earlier.languageCursor.countedSourceSeqs)
-    || earlier.languageCursor.throughSeq > earlier.throughSeq
-    || earlier.languageReads.some(
-      (read) => read.interpreterVersion !== configured.languageEvidence,
-    )
-    || (
-      configured.languageEvidence === 'off'
-      && earlier.languageReads.length > 0
+    !languageConsistent(
+      earlier.languageReads,
+      earlier.languageCursor,
+      earlier.throughSeq,
+      configured.languageEvidence,
     )
   ) {
     throw new Error('cannot advance malformed private language cognition')
   }
+}
+
+function checkSeat(earlier: CognitionState, view: PlayerView): void {
   if (earlier.viewerSeat !== view.seat) {
     throw new Error(
       `cannot advance seat ${earlier.viewerSeat} cognition with seat ${view.seat} view`,
     )
   }
+}
+
+function checkEvidenceVisible(earlier: CognitionState, view: PlayerView): void {
   const visible = new Map(view.events.map((event) => [event.seq, event]))
   for (const evidence of earlier.evidence) {
     if (!visible.has(evidence.sourceSeq)) {
@@ -139,6 +172,24 @@ function validateEarlier(
       )
     }
   }
+}
+
+/**
+ * Reject an earlier cognition state the new view cannot legally advance. Each
+ * invariant is a named check throwing its own diagnosable message; they run in a
+ * fixed order so the first violated invariant reports.
+ */
+function validateEarlier(
+  earlier: CognitionState,
+  view: PlayerView,
+  configured: ConfiguredCognitionVersions,
+): void {
+  checkVersionCompat(earlier, configured)
+  checkPlanMemory(earlier)
+  checkRoleObjective(earlier)
+  checkLanguage(earlier, configured)
+  checkSeat(earlier, view)
+  checkEvidenceVisible(earlier, view)
 }
 
 export interface ResolvedCognitionInput {
@@ -188,18 +239,12 @@ export function advanceCognitionFromBelief(
       ?? initialLanguageEvidenceCursor(),
   )
   validateLanguageEvidenceCursor(languageCursor)
-  const readSeqs = languageReads.map((read) => read.sourceSeq)
   if (
-    new Set(readSeqs).size !== readSeqs.length
-    || JSON.stringify(readSeqs)
-      !== JSON.stringify(languageCursor.countedSourceSeqs)
-    || languageCursor.throughSeq > throughSeq
-    || languageReads.some(
-      (read) => read.interpreterVersion !== resolved.languageEvidence,
-    )
-    || (
-      resolved.languageEvidence === 'off'
-      && languageReads.length > 0
+    !languageConsistent(
+      languageReads,
+      languageCursor,
+      throughSeq,
+      resolved.languageEvidence,
     )
   ) {
     throw new Error('resolved language cognition is inconsistent')
@@ -209,6 +254,8 @@ export function advanceCognitionFromBelief(
   for (const evidence of earlier?.evidence ?? []) byId.set(evidence.id, evidence)
   for (const evidence of extractEvidence(view, earlier?.throughSeq ?? -1)) {
     const existing = byId.get(evidence.id)
+    // Full structural compare of the whole record; compareEvidence only orders
+    // by sourceSeq/id and would miss a diverging payload under the same id.
     if (existing && JSON.stringify(existing) !== JSON.stringify(evidence)) {
       throw new Error(`conflicting evidence identity ${evidence.id}`)
     }
