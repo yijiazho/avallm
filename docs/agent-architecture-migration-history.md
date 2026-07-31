@@ -4276,3 +4276,39 @@ here.
   What does not exist yet is any version-to-model resolver, and adding one at this boundary needs
   hostile-artifact coverage proving a forged belief claim cannot make a bad trace admit. Tracked as
   ADMIT-001; BELIEF-002 is blocked on it.
+
+- ADMIT-001 built, and the quest-card factor seated on `full-role`. Promotion had reverted because
+  admission recomputes a decision to prove it and named the uniform belief literally, which was
+  the same thing as "the model this trace used" only while the uniform model was the only one
+  anything ran.
+
+  It turned out to be three gates, not one, and the third is the reason the first attempt was
+  right to revert:
+
+  1. `policy-host-surface` rebuilt its scoring surface from `exactBelief` unconditionally.
+  2. `component-host-inputs` bound a rebuilt belief as a trusted input only when the trace named
+     the uniform model with factors off, so a weighted decision's components had nothing to be
+     verified against.
+  3. `isExactNonLanguage` gated the exact native score replay on the same literal, so seating the
+     factor SKIPPED the strongest verification entirely. The `score-layer deletion` forgery in
+     `seat-decision-inspector` admitted as `trusted-exact` with the whole `scoreLayerRun` removed.
+     A promotion that only fixed the first two would have quietly widened what admission accepts
+     while appearing to work.
+
+  The fix is one predicate, `isHostReconstructibleCognition`, asked by both the host-input gate and
+  the score replay, over a closed list keyed off each model's own reported version. Gates 1 and 2
+  fall out of it. The list holds only models the host can rebuild from a view alone; the
+  language-weighted belief is absent because its version is composed at runtime and rebuilding it
+  needs interpreted evidence no host holds, which makes it unreconstructible rather than merely
+  unimplemented. The legacy v1 role reader keeps its own frozen `isExactNonLanguage`: widening a
+  historical ingress is a separate decision with separate evidence.
+
+  Six tests cover the boundary, and most of them are about what is still refused: a trace claiming
+  the cheaper model while carrying weighted content, a model and factor bundle that do not belong
+  together, a component graph disagreeing with the trace about the belief, a claimed `weighted`
+  quality the host's own rebuild does not produce, and an invented model name. All rejected.
+
+  Seating the factor then tripped `composed-spec`'s invariant that the `full-role` preset and the
+  bench arm resolve one identity, which is the invariant working: the arm moved with the preset,
+  so what ships and what was measured stay the same configuration. `good-base` is untouched,
+  because only `full-role` was gated.

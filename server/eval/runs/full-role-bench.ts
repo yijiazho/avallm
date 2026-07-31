@@ -17,6 +17,11 @@ import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { createComposedAgent } from '../../agents/composed.ts'
 import {
+  questWeightedBeliefModel,
+  QUEST_WEIGHTED_BELIEF_VERSION,
+  QUEST_FACTOR_BUNDLE_VERSION,
+} from '../../agents/belief/quest-card-factor.ts'
+import {
   JOINT_IDENTITY_MODEL_VERSION,
 } from '../../agents/belief/identity.ts'
 import {
@@ -132,6 +137,12 @@ const common = (
  */
 const fullRoleComponents = (targetRole: Role): Record<string, string> => ({
   ...common(fullRolePolicyScorer.version, 'candidate'),
+  // BELIEF-002 seated the quest-card factor on this preset, and the arm has to
+  // move with it: `composed-spec` asserts the preset and this variant resolve
+  // one identity, so a bench that kept the uniform belief would be measuring a
+  // configuration nothing runs.
+  belief: QUEST_WEIGHTED_BELIEF_VERSION,
+  factors: QUEST_FACTOR_BUNDLE_VERSION,
   observerModel: PUBLIC_OBSERVER_MODEL_VERSION,
   ...(routedRoleObjectiveModel(targetRole) === 'off'
     ? {}
@@ -208,6 +219,7 @@ export function phase7FullRoleVariantsFor(
         scorer: fullRolePolicyScorer,
         roleObjectiveRouter: true,
         evilQuestCardPolicy: 'robust-heterogeneous',
+        beliefModel: questWeightedBeliefModel,
       }),
     },
   ])

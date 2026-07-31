@@ -10,6 +10,7 @@ import {
   fullRolePolicyScorer,
   goodProposalVoteScorer,
 } from './policy/score.ts'
+import { questWeightedBeliefModel } from './belief/quest-card-factor.ts'
 import { promptOverridesOf, resolveModel } from './defs.ts'
 import { createBoundedPlannerVoice } from './communication/planner-voice-adapter.ts'
 import type { AgentDef } from './defs.ts'
@@ -38,6 +39,19 @@ export function composedBrainOptions(
         scorer: fullRolePolicyScorer,
         roleObjectiveRouter: true,
         evilQuestCardPolicy: 'robust-heterogeneous',
+        // BELIEF-002. Hard feasibility still decides which worlds exist; this
+        // reweights inside that set under a capped log-likelihood, so a
+        // SUCCESSFUL quest finally means something. The constraints-only
+        // belief learns nothing from one, because evil may always choose to
+        // play success, and that blindness was measurable: on the wide bank's
+        // servant cell it cost 10.5 points of clean proposals against
+        // heuristic opponents and 4.4 against random, with dirty-team approval
+        // 10 points worse in both.
+        //
+        // `good-base` deliberately does NOT get this. This module's contract is
+        // that a preset matches a measured arm exactly, and only full-role was
+        // gated.
+        beliefModel: questWeightedBeliefModel,
       }
     default: {
       // Assigning to `never` keeps the switch exhaustive at build time: a new

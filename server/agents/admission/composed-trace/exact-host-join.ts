@@ -10,6 +10,9 @@ import type {
   PlayerView,
 } from '../../../engine/types.ts'
 import {
+  isHostReconstructibleCognition,
+} from '../../belief/host-reconstructible.ts'
+import {
   MORGANA_ROLE_SCORER_DEGRADATION,
   MORGANA_ROLE_SCORER_VERSION,
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
@@ -65,7 +68,6 @@ import {
   validRoleTraceV1HostJoin,
 } from '../role-trace-v1.ts'
 import {
-  isExactNonLanguage,
   validForcedPolicyResult,
 } from '../trace-primitives.ts'
 import {
@@ -313,7 +315,7 @@ export function validExactComposedTraceHostJoin(
       || components.scorer === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
     const exactNativeInputs =
       trace.version === COMPONENT_DECISION_TRACE_VERSION
-      && isExactNonLanguage(components)
+      && isHostReconstructibleCognition(components)
     if (
       morganaConfigured
       && trace.version === DECISION_TRACE_VERSION

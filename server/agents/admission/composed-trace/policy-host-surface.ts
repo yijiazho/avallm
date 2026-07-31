@@ -22,6 +22,9 @@ import {
   exactBelief,
 } from '../../belief/exact.ts'
 import {
+  hostReconstructibleBeliefModel,
+} from '../../belief/host-reconstructible.ts'
+import {
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../../candidate/candidates.ts'
@@ -90,6 +93,27 @@ export function exactPolicyHostSurface(
       ? trustedNativeScoreChain(expectedArchitectureIdentity)
       : configuredScoreLayerChainForVersion(CANDIDATE_SCORER_VERSION)
     if (!chain) return undefined
+    // Rebuild the belief the decision actually used, when the host can.
+    //
+    // This module assumed `exactBelief` unconditionally, which was correct only
+    // while every seated preset ran the uniform model: a decision made on a
+    // weighted posterior was recomputed against a uniform one and refused as a
+    // forgery, even where the two were numerically identical, because the
+    // rebuilt model version still differed.
+    //
+    // Falling back to `exactBelief` for an unrecognized model is deliberate and
+    // is NOT a hole. Admission already carries arbitrary weighted beliefs by a
+    // different route: they reach `trusted-exact` on their structure and are
+    // then marked `promotionEvidenceEligible: false`, so an unreconstructible
+    // model is contained by the promotion gate rather than by refusing to
+    // verify it at all. Declining the surface here would instead turn those
+    // traces from verified-but-unpromotable into rejected, which is a strictly
+    // worse answer for a trace that is not a forgery.
+    const beliefModel = expectedArchitectureIdentity
+      ? hostReconstructibleBeliefModel(
+          expectedArchitectureIdentity.configuredPipeline.belief.model,
+        )
+      : undefined
     const analysisPlan = combineSituationAnalysisRequirements(
       prepareScoreLayerRequirements(chain, {
         request: Object.freeze(structuredClone(req)),
@@ -101,7 +125,7 @@ export function exactPolicyHostSurface(
       hypotheticalTeamCandidates,
     } = buildScorerSituationSurface({
       view,
-      belief: exactBelief(view),
+      belief: beliefModel ? beliefModel.infer(view) : exactBelief(view),
       legalCandidates: candidates,
       plan: analysisPlan,
     })

@@ -3,9 +3,12 @@ import { observePublicRecord } from '../analysis/observer.ts'
 import { roleObjectiveIdentityScope } from '../analysis/role-objectives.ts'
 import { analyzeSituation } from '../analysis/situation.ts'
 import { exactBelief } from '../belief/exact.ts'
+import {
+  hostReconstructibleBeliefModel,
+  isHostReconstructibleCognition,
+} from '../belief/host-reconstructible.ts'
 import { projectJointIdentity } from '../belief/identity.ts'
 import {
-  EXACT_BELIEF_MODEL_VERSION,
   type BeliefSnapshot,
 } from '../belief/types.ts'
 import { projectPublicRecord } from '../record/public-record.ts'
@@ -82,17 +85,53 @@ export function reconstructScoreComponentHostInputs(input: {
   const needsSituationOrForcedPolicy =
     requires(PRIVATE_SITUATION_INPUT) || requires(PRIVATE_FORCED_POLICY_INPUT)
 
-  const exactReconstructable =
-    trace.quality === 'constraints-only'
-    && trace.beliefModelVersion === EXACT_BELIEF_MODEL_VERSION
-    && trace.componentVersions?.belief === EXACT_BELIEF_MODEL_VERSION
-    && trace.componentVersions?.factors === 'off'
-    && trace.componentVersions?.languageEvidence === 'off'
+  // Which traces may be handed a host-rebuilt belief as a TRUSTED input.
+  //
+  // This used to name the uniform model literally, which was the same thing as
+  // this list while that model was the only one anything ran. It is not the
+  // same thing now: a decision made on the quest-weighted belief was refused
+  // here, so its components never received a host belief to be verified
+  // against and the whole join failed. The condition is really "can the host
+  // rebuild what this trace says it used", so it now asks that directly.
+  //
+  // Every clause is still load-bearing. The model has to be one the host can
+  // rebuild from the view alone; the component graph has to agree with the
+  // trace about which belief and which factor bundle produced it, so a trace
+  // cannot name a cheap model in one field and a different one in another; and
+  // language evidence has to be off, because a language-weighted posterior
+  // needs interpreted evidence no host holds.
+  const claimedBeliefModel = typeof trace.beliefModelVersion === 'string'
+    ? hostReconstructibleBeliefModel(trace.beliefModelVersion)
+    : undefined
+  const beliefClaimReconstructible =
+    claimedBeliefModel !== undefined
+    // The shared predicate, so this gate and the exact score replay cannot
+    // drift into verifying different sets of traces.
+    && isHostReconstructibleCognition(trace.componentVersions)
+    // Plus the one relation only this gate can check: the trace's own belief
+    // version must be the one its component graph names, or a trace could be
+    // rebuilt from a model it never claimed to have run.
+    && trace.componentVersions?.belief === trace.beliefModelVersion
   let validationBelief: BeliefSnapshot | undefined
   const needsValidationBelief =
-    exactReconstructable
+    beliefClaimReconstructible
     || needsSituationOrForcedPolicy
-  if (needsValidationBelief) validationBelief = exactBelief(view)
+  if (needsValidationBelief) {
+    validationBelief = claimedBeliefModel
+      ? claimedBeliefModel.infer(view)
+      : exactBelief(view)
+  }
+  // The rebuild has to agree with the trace about what KIND of posterior it
+  // produced, not only about which model produced it. Without this a trace
+  // could claim `weighted` while the host rebuilds `constraints-only` from the
+  // same view, and every component would then be verified against a posterior
+  // the trace never used. Disagreement withholds the binding rather than
+  // failing outright, which leaves the trace verifiable by the other routes
+  // exactly as an unreconstructible model already is.
+  const exactReconstructable =
+    beliefClaimReconstructible
+    && validationBelief !== undefined
+    && validationBelief.quality === trace.quality
 
   if (exactReconstructable && validationBelief) {
     bind(PRIVATE_BELIEF_INPUT, validationBelief)
