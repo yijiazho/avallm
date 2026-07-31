@@ -105,7 +105,7 @@ held-out casts) before granting scoring authority — as step 3 did, and matchin
 how the quest-card factor is pinned. The step-3 harness is now formalized as
 `server/eval/assassin-calibration.ts`.
 
-## Measured: the servant weight pair shows no effect, on an instrument too blunt to say more
+## Measured: the servant weight pair carries no information about cleanliness
 
 The servant is the first role whose objective was written as a weight pair over
 the shared public read rather than as its own model, and the only one whose
@@ -172,6 +172,44 @@ a measurement. Likewise the one interval that excluded zero (`dirty-approve`
 populations, which is where one such interval is expected by chance. The register
 already warns about exactly this reading, and this section was doing it.
 
+### Measured properly: the reshuffle is a coin flip
+
+`server/eval/servant-propose-calibration.ts` asks the question the policy
+actually answers. Every servant proposal in every game is one held-out case: the
+seat's view, and the true evil seats from the deal it cannot see. Both policies
+are scored on the **same** cases, so the comparison is paired per decision
+rather than per game, and the two arms cannot drift into different games.
+
+1,552 held-out servant proposals, 600 seeded games across four casts:
+
+| | base | candidate |
+| --- | --- | --- |
+| dirty teams (seated any evil) | 80.0% | 80.3% |
+| evil seats per team | 1.118 | 1.112 |
+
+The refinement changed **569 of 1,552 picks (36.7%)** — every one of them inside
+the 1,066 cases where the public read discriminates, and none in the 486 flat
+ones, exactly as designed. Of the picks where cleanliness changed:
+
+- base clean, candidate dirty: **58**
+- candidate clean, base dirty: **52**
+- exact two-sided sign test: **p = 0.63**
+
+That is a coin flip, on enough discordant pairs to have seen a real effect: a
+60/40 split would have landed near p = 0.06. So the standing half of the servant
+weight pair reshuffles more than a third of proposals and the reshuffle carries
+**no information about whether the team is actually clean**.
+
+This is a genuine negative, and it is the one the earlier draft claimed on four
+proposals. The direction it guessed (that the refinement makes teams dirtier)
+is not supported either: 58 against 52 is noise in both directions.
+
+What remains unmeasured is the decoy half. Looking Merlin-like pays off only
+when an assassin spends its shot wrongly, which is a game outcome and not a
+property of a proposal, so no per-decision harness can see it. A policy could
+lose here and still be worth having if it buys the shot. Nothing in either run
+suggests it does, but nothing tests it.
+
 ### The instrument was the wrong shape
 
 The question is per-decision: given this proposal, does the refinement pick a
@@ -205,12 +243,23 @@ but it should not be the gate.
 
 ### What still stands, and the open question
 
-Two roles have now been tested against the shared-measurement claim. Summation
-discipline and the measurement itself consolidate, twice. On the *preference*,
-step 3 has a real negative (the assassin overlay beat a shared-matrix steelman
-by 5 hit-rate points on 1,200 held-out predictions) and the servant has **no
-result at all**, not a negative one. One negative is not a pattern; the weight
-table is open, and testing it needs the calibration-shaped harness above.
+Two roles have now been tested against the shared-measurement claim, and both
+split the same way. Summation discipline and the measurement itself consolidate.
+The *preference* does not: the assassin overlay beat a shared-matrix steelman by
+5 hit-rate points on 1,200 held-out predictions, and the servant weight pair
+carries no information about cleanliness across 1,552. Both verdicts now rest on
+per-decision harnesses with n in the thousands, which is the only reason either
+is worth quoting.
+
+Two negatives in the same direction, on the same kind of evidence, is a pattern:
+the shared read is a good *measurement* and a poor *objective*. Worth noting
+precisely what that does and does not say. It does not say `evilReadIndex` is
+wrong; it says a signed weight over it does not beat an exact joint posterior at
+choosing teams, which is unsurprising once stated, because the posterior already
+uses every hard constraint the public record implies and the read adds only a
+proxy on top. Where a weight pair might still earn its place is exactly where
+the posterior has nothing to say and the payoff is not team cleanliness at all:
+the decoy channel, which neither harness can currently see.
 
 The larger finding from this run is not about the weight pair. Compatibility
 beats the composed good policy at a servant seat by **+15.0% win (95% +5.0 to

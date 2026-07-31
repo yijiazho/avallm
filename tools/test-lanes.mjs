@@ -133,6 +133,7 @@ const LANES = Object.freeze({
     'seat-view-inspector-ui.test.ts',
     'seat-view-inspector.test.ts',
     'servant-propose-bench.test.ts',
+    'servant-propose-calibration.test.ts',
     'vote-conversion.test.ts',
     'vote-direction.test.ts',
     'vote-objective.test.ts',
