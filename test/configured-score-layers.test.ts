@@ -351,10 +351,16 @@ test('family tree derivation rejects declarations that would invert it', () => {
     })
       .wiring
       .filter((entry) => entry.family === 'third')
-      .map((entry) => [entry.lane, entry.predecessor.id, entry.viaSibling]),
+      .map((entry) => [
+        entry.lane,
+        entry.mode,
+        entry.predecessor.id,
+        entry.viaSibling,
+      ]),
     [
-      ['wide', 'second-wide', true],
-      ['narrow', 'first-narrow', false],
+      // 'whole' joins only the wide lane, so only that lane is composed.
+      ['wide', 'composed', 'second-wide', true],
+      ['narrow', 'isolated', 'first-narrow', false],
     ],
   )
 

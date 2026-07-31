@@ -320,7 +320,20 @@ export function resolveScoreLayerFamilyTree<Lane extends string>(
           `lane ${laneId} reaches ${family.id} with nothing registered before it`,
         )
       }
-      const predecessor = mode === 'composed' ? previous : baseTip!
+      const predecessor = mode === 'composed' ? previous : baseTip
+      // A composition is the only family that reaches here with no base, and
+      // joining a lane is what puts that lane in composed mode, so an isolated
+      // lane always has a base tip. Checked rather than asserted on the type:
+      // the declared-mode check used to be what proved it, and deriving the
+      // mode moved that proof out of this function.
+      if (!predecessor) {
+        throw new ScoreLayerFamilyError(
+          'missing-lane-predecessor',
+          `family ${family.id} has no base to hang off in isolated lane ${
+            laneId
+          }`,
+        )
+      }
       predecessors.set(laneId, predecessor)
       wiring.push(Object.freeze({
         family: family.id,
