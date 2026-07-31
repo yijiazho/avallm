@@ -59,6 +59,11 @@ import {
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
 } from '../components/probability-arithmetic.ts'
+import {
+  accumulateSubjectMass,
+  conditionalOverlayIndex,
+  EMPTY_SUBJECT_MASS,
+} from './perception-asymmetry.ts'
 
 function matrixIndex(
   playerCount: number,
@@ -307,55 +312,39 @@ export function buildPrivateMordredBlindnessObjective(input: {
     }
   })
 
-  const hypothesisTotals = new Map<
-    Seat,
-    {
-      worldMass: number
-      observationCoverageMass: number
-      anomalousTreatmentMass: number
-    }
-  >()
-  for (const world of worldRows) {
-    const aggregate = hypothesisTotals.get(world.merlin) ?? {
-      worldMass: 0,
-      observationCoverageMass: 0,
-      anomalousTreatmentMass: 0,
-    }
-    aggregate.worldMass += world.probability
-    if (world.anomaly.available) {
-      aggregate.observationCoverageMass += world.probability
-      aggregate.anomalousTreatmentMass +=
-        world.probability * world.anomaly.index
-    }
-    hypothesisTotals.set(world.merlin, aggregate)
-  }
+  // The private complete-world mass per Merlin-hypothesis seat, split by the
+  // treatment overlay, is the shared perception-asymmetry accumulation: the
+  // subject is the Merlin coordinate, the overlay is this world's anomaly
+  // sample. worldMass/observationCoverageMass/anomalousTreatmentMass are the
+  // primitive's mass/overlayAvailableMass/overlayWeightedMass, and the
+  // conditional index is its guarded ratio; clamping stays here with the
+  // payload. The reducer folds worldRows in order, so the sums are identical to
+  // the loop this replaces.
+  const hypothesisTotals = accumulateSubjectMass(
+    worldRows,
+    (world) => world.merlin,
+    (world) => world.probability,
+    (world) => world.anomaly,
+  )
   const merlinHypotheses: MordredMerlinHypothesis[] =
     Array.from({ length: view.playerCount }, (_, seat) => seat)
       .filter((seat) => seat !== view.seat)
       .map((seat) => {
-        const aggregate = hypothesisTotals.get(seat) ?? {
-          worldMass: 0,
-          observationCoverageMass: 0,
-          anomalousTreatmentMass: 0,
-        }
+        const aggregate = hypothesisTotals.get(seat) ?? EMPTY_SUBJECT_MASS
+        const conditional = conditionalOverlayIndex(aggregate)
         return {
           seat,
           hypothesisSemantics:
             'legal-world-merlin-coordinate-not-privileged-identity',
-          worldMass: clampProbability(aggregate.worldMass),
+          worldMass: clampProbability(aggregate.mass),
           observationCoverageMass: clampProbability(
-            aggregate.observationCoverageMass,
+            aggregate.overlayAvailableMass,
           ),
           anomalousTreatmentMass: clampProbability(
-            aggregate.anomalousTreatmentMass,
+            aggregate.overlayWeightedMass,
           ),
           conditionalAnomalousTreatmentIndex:
-            aggregate.observationCoverageMass === 0
-              ? null
-              : clampProbability(
-                  aggregate.anomalousTreatmentMass
-                    / aggregate.observationCoverageMass,
-                ),
+            conditional === null ? null : clampProbability(conditional),
         }
       })
 
