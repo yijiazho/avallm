@@ -238,8 +238,8 @@ loop is only as good as the reward signal under it.
 
 ## 9. Build order
 
-> **Status 2026-07-23:** steps 1–5 built in `server/eval/`; tests in `test/eval.test.ts` and
-> `test/replay.test.ts`. Steps 1–3 (artifact.ts, ledger.ts, metrics.ts, bench.ts, report.ts):
+> **Status 2026-07-23:** steps 1–5 built in `server/eval/`; tests in `test/eval/substrate.test.ts` and
+> `test/eval/replay.test.ts`. Steps 1–3 (artifact.ts, ledger.ts, metrics.ts, bench.ts, report.ts):
 > `npm run bench -- --candidate <agentId>` plays paired role-forced games (heuristic table free;
 > `--table llm` spends); `npm run report -- <jsonl>` prints per-agent, Merlin-detectability,
 > paired-delta, and judge sections; `npm run sim -- --out <jsonl>` archives ordinary sim games.

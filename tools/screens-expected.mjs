@@ -1,6 +1,6 @@
 // Single source of truth for which gallery shots the harness targets — shared by
 // the harness (tools/screenshots.mjs, to report what a run missed) and the drift
-// test (test/screens.test.ts, to fail when a required shot is absent or empty).
+// test (test/tools/screens.test.ts, to fail when a required shot is absent or empty).
 //
 //   required: true  — deterministic; the harness should produce it every run, so
 //                     its absence means the harness broke or the game ended weird.

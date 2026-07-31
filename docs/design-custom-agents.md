@@ -254,7 +254,7 @@ manifest.
   answers, and the host can re-roll by hand. The server's own resolution order is untouched.
 - **Dangling members are surfaced, not dropped.** `resolvePacks` runs after every tier loads and
   reports a missing/unavailable/shadowed member through the existing `LibraryProblem` channel; a
-  pack with no seatable members is reported rather than served empty. `test/packs.test.ts` pins
+  pack with no seatable members is reported rather than served empty. `test/agents/packs.test.ts` pins
   that the shipped library produces no pack problems at all.
 - **Two fill paths, one behavior.** `seatPack` (server, used by `npm run sim -- --pack <id>`) and
   `fillFromPack` (client setup screen) implement the same rule; the client's copy exists because

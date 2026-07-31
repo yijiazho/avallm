@@ -22,7 +22,7 @@ npm run test:eval                          # evaluation tooling and fixture cont
 npm run test:exhaustive                    # combinatorial, fuzz, and privacy sweeps
 npm run test:perf                          # isolated serial elapsed-time budgets
 npm run test:lanes                         # fail on missing/duplicate test classification
-node --test test/rules.test.ts             # a single test file
+node --test test/engine/rules.test.ts             # a single test file
 npm run sim -- --help                      # EVERY sim flag, with examples and live roster ids
 npm run sim -- --players 7 --seed 42       # one headless heuristic game, full transcript
 npm run sim -- --games 200 --talk 0,0      # aggregate win-rate stats
@@ -72,7 +72,7 @@ Expectations:
 - The harness drives the live client through **stable `data-kind` / `data-t` hooks** on the
   action bar (`client/src/components/ActionBar.tsx`), not button copy or CSS classes — so keep
   those hooks when restyling. Setup/lobby/sheet/reveal are still matched by their (stable) text.
-- `test/screens.test.ts` (part of `npm test`) is the cheap drift guard: it asserts every
+- `test/tools/screens.test.ts` (part of `npm test`) is the cheap drift guard: it asserts every
   required shot exists and is non-empty (no Chrome, no pixels) — so a partial run or a lost
   image reddens the suite. It skips entirely if the gallery was never generated in a checkout.
 - Runs are **intentionally unseeded**: the seed determines the hidden role deal, so a
@@ -96,10 +96,10 @@ Layering (details in `docs/design-implementation.md` §1; rules reference in `do
 
 ### Invariants to preserve
 
-- **Hidden information flows through one chokepoint**: `viewFor(game, seat)` in `server/engine/view.ts`. No prompt builder, client payload, or agent ever touches raw `Game` — they get a `PlayerView`. Contract tests `test/knowledge.test.ts` and `test/leaks.test.ts` pin this; new `PlayerView` fields are private-by-default for spectators (opt-in public in `viewForSpectator`).
+- **Hidden information flows through one chokepoint**: `viewFor(game, seat)` in `server/engine/view.ts`. No prompt builder, client payload, or agent ever touches raw `Game` — they get a `PlayerView`. Contract tests `test/engine/knowledge.test.ts` and `test/contract/leaks.test.ts` pin this; new `PlayerView` fields are private-by-default for spectators (opt-in public in `viewForSpectator`).
 - **The OpenRouter key and live-game bot prompts never reach the browser.** The server owns all state and prompt construction; the client sees only the human's filtered view of a real game. Deliberate exceptions, transparency-by-design (docs/design-custom-agents.md §4/§7): the static prompt anatomy (rules digest, baseline guidance, table-talk norms, output contracts) served by `GET /api/agents`, and fully rendered prompts for the fixed-seed FIXTURE game served by `POST /api/agents/preview` — neither can carry state from any live session.
 - **Player names are untrusted input** — they pass through sanitization plus a reserved-name policy (`nameIsReserved` in `server/engine/rules.ts`) before being embedded in other players' prompts. Anything else user-authored that lands in a prompt needs the same treatment.
-- **Bots mimic the prose they are shown, so prompt text follows a house style**: no em/en dashes and no "that's not X, that's Y" reframes in any string that reaches the model (`server/agents/prompts.ts`, `server/agents/facts.ts`, and the curated `agent-cards/*.json` personality/strategy/guidance fields). Stripping dashes from the prompts measurably cut dashes in bot *speech* by roughly a third (matched A/B, 4 games). `test/talk-norms.test.ts` enforces it over **rendered** prompts, so `ASKS` and the view renderers are covered too, not just the exported constants. The rule binds **our** text only: runtime user agents (`data/agents/*.json`) are deliberately never checked, because that text belongs to the user and mimicking their voice back is the point. Code comments are exempt. When adding prompt text, rewrite the sentence rather than weakening the test.
+- **Bots mimic the prose they are shown, so prompt text follows a house style**: no em/en dashes and no "that's not X, that's Y" reframes in any string that reaches the model (`server/agents/prompts.ts`, `server/agents/facts.ts`, and the curated `agent-cards/*.json` personality/strategy/guidance fields). Stripping dashes from the prompts measurably cut dashes in bot *speech* by roughly a third (matched A/B, 4 games). `test/agents/prompts/talk-norms.test.ts` enforces it over **rendered** prompts, so `ASKS` and the view renderers are covered too, not just the exported constants. The rule binds **our** text only: runtime user agents (`data/agents/*.json`) are deliberately never checked, because that text belongs to the user and mimicking their voice back is the point. Code comments are exempt. When adding prompt text, rewrite the sentence rather than weakening the test.
 - Games live in memory; a restart ends running games (snapshot persistence is on the roadmap — `docs/ROADMAP.md`).
 
 ## Git

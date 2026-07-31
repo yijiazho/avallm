@@ -982,9 +982,9 @@ refusing any agent import of `server/engine/game`, `server/engine/view`, or the 
 other in the wrong direction, which is the import half of the evaluation-isolation rule.
 
 The rest are behavioral, and their coverage is uneven in a way worth knowing before trusting the
-list. "Voice does not change committed actions" is pinned by `test/prompt-coherence.test.ts` and
-`test/plan-coherence.test.ts`. The hidden-information boundary these rules exist to protect
-is pinned by `test/leaks.test.ts` and `test/knowledge.test.ts`. "Evidence does not choose actions"
+list. "Voice does not change committed actions" is pinned by `test/agents/prompts/prompt-coherence.test.ts` and
+`test/agents/cognition/coherence.test.ts`. The hidden-information boundary these rules exist to protect
+is pinned by `test/contract/leaks.test.ts` and `test/engine/knowledge.test.ts`. "Evidence does not choose actions"
 and "belief does not render prompts" have no mechanical check today and rest on the directory
 layering above, so a green suite is not evidence that either still holds.
 

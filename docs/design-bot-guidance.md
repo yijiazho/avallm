@@ -125,9 +125,9 @@ Gating predicates in use, all read off `rolesInPlay`:
 | `rolesInPlay.includes('oberon')` | `knowledgeText` | whether an evil partner list is complete |
 | `alignmentComplete` | `board.ts` `roleCertainties` | whether a seat can *prove* its Merlin-candidate pool rather than guess it |
 
-`test/phantom-roles.test.ts` pins the invariant over **rendered** prompts across a matrix of
+`test/agents/prompts/phantom-roles.test.ts` pins the invariant over **rendered** prompts across a matrix of
 legal casts, so the knowledge lines, ASKs and view renderers are covered rather than just the
-exported constants (same approach as `talk-norms.test.ts`). `test/certainties.test.ts` pins the
+exported constants (same approach as `talk-norms.test.ts`). `test/agents/board-certainties.test.ts` pins the
 deductions themselves.
 
 ### 6.1b The second gating dimension: board state
@@ -160,7 +160,7 @@ rest of `knowledgeText` is gagged for.
 
 `RoleCertainties.fromRecord` exists so the two stay distinguishable — it holds exactly the seats
 the deal alone leaves open and the record closes, computed by running the same closure twice.
-`test/certainties.test.ts` re-runs the never-wrong sweep over **played-out** boards for all 71
+`test/agents/board-certainties.test.ts` re-runs the never-wrong sweep over **played-out** boards for all 71
 casts, with a floor on how often the new rules fire so the propagation cannot regress to a no-op
 and still pass.
 
@@ -171,9 +171,9 @@ reason each time: a constant does not tell you what the model actually receives.
 
 | audit | catches | how it is scoped |
 |-------|---------|------------------|
-| `test/phantom-roles.test.ts` | a prompt naming a role nobody holds | all 71 legal casts, every seat, every call kind |
-| `test/talk-norms.test.ts` | house-style violations (dashes, "not X, that's Y") | rendered prompts, so `ASKS` and view renderers are covered |
-| `test/prompt-coherence.test.ts` | a sentence that contradicts **itself** | 71 casts on boards with a FAILED quest, so failure-gated text renders |
+| `test/agents/prompts/phantom-roles.test.ts` | a prompt naming a role nobody holds | all 71 legal casts, every seat, every call kind |
+| `test/agents/prompts/talk-norms.test.ts` | house-style violations (dashes, "not X, that's Y") | rendered prompts, so `ASKS` and view renderers are covered |
+| `test/agents/prompts/prompt-coherence.test.ts` | a sentence that contradicts **itself** | 71 casts on boards with a FAILED quest, so failure-gated text renders |
 
 The third one is newer and worth explaining, because it catches a failure the other two cannot see:
 no individual word is wrong. Text assembled by joining a variable-length list can be true for one
@@ -318,7 +318,7 @@ Ordered by expected win-rate leverage. **Coordination (historical):** items tagg
 into the alignment-shared fragment that task #1 owned, so they had to wait for that slot to exist;
 items tagged **[safe]** touched S5 ASKs, individual S3 blobs, or S7 and could land without
 collision. Run `npm test` after any `prompts.ts` change, and note that prompt text has since
-acquired a house style enforced by `test/talk-norms.test.ts` (no dashes, no antithesis slogans, in
+acquired a house style enforced by `test/agents/prompts/talk-norms.test.ts` (no dashes, no antithesis slogans, in
 any string the model sees — this doc is dev-facing, so dashes here are fine).
 
 1. **[safe] Fill the `assassinate` ASK (S5)** with the §5.5 method: rank good players by vote-
@@ -561,7 +561,7 @@ more helpful than one that is not. Hold the line at the sentence:
 The first is an observation any seat can compute and belongs in S7. The second is a judgement, it
 belongs in a guidance slot, and putting it in S7 would quietly make the facts layer a second prompt
 that custom agents cannot override — defeating the reason S7 carries zero imperatives (§6.1).
-`test/facts.test.ts` guards this boundary directly for the quest-evidence section, which sits one
+`test/agents/facts.test.ts` guards this boundary directly for the quest-evidence section, which sits one
 short step from crossing it.
 
 ### 8.5 What a new fact costs

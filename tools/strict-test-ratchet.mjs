@@ -13,9 +13,9 @@ import ts from '../node_modules/typescript/lib/typescript.js'
 const BASELINE_PATH = 'tools/strict-test-baseline.json'
 const CONFIG_PATH = 'tsconfig.server.json'
 const REQUIRED_STRICT_TOP_LEVEL = Object.freeze([
-  'test/admission-results.test.ts',
-  'test/component-conformance.test.ts',
-  'test/score-authority.test.ts',
+  'test/agents/admission/results.test.ts',
+  'test/agents/components/conformance.test.ts',
+  'test/agents/policy/score-authority.test.ts',
 ])
 
 function normalizeRepoPath(value) {
@@ -52,18 +52,14 @@ function listFilesRecursively(root, relativeDirectory) {
 }
 
 export function discoverStrictTestInventory(root = process.cwd()) {
-  const testDirectory = path.join(root, 'test')
-  const topLevelTests = []
-  for (const entry of readdirSync(testDirectory, { withFileTypes: true })) {
-    if (!entry.name.endsWith('.test.ts')) continue
-    if (!entry.isFile()) {
-      throw new Error(
-        `top-level test root must be a regular file: test/${entry.name}`,
-      )
-    }
-    topLevelTests.push(`test/${entry.name}`)
-  }
-  topLevelTests.sort()
+  // Recursive, because the test tree mirrors the source tree. It used to read
+  // only the top level, which was correct when every test was a direct child
+  // of test/ and would now be a silent hole: an unlisted file is not an error
+  // here, it is simply absent from strictRoots, so a nested test would drop out
+  // of strict typechecking with nothing to say so.
+  const topLevelTests = listFilesRecursively(root, 'test')
+    .filter((relative) => relative.endsWith('.test.ts'))
+    .sort()
   const alwaysRoots = [
     ...listFilesRecursively(root, 'test/support'),
     ...listFilesRecursively(root, 'test/typecheck'),
@@ -106,7 +102,7 @@ function readBaseline(root) {
       || Array.isArray(entry)
       || Object.keys(entry).sort().join(',') !== 'path,rationale,sha256'
       || typeof entry.path !== 'string'
-      || !/^test\/[^/]+\.test\.ts$/.test(entry.path)
+      || !/^test\/(?:[^/]+\/)*[^/]+\.test\.ts$/.test(entry.path)
       || typeof entry.sha256 !== 'string'
       || !/^[0-9a-f]{64}$/.test(entry.sha256)
       || typeof entry.rationale !== 'string'

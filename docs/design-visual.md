@@ -174,7 +174,7 @@ name editor, and the hover-only seat/quest tooltips. Regenerate on demand before
 design commits, not per commit. The playthrough is unseeded on purpose — a client-chosen
 seed would determine the hidden role deal — so those pixels vary run to run; the fixtures
 are stable. The run writes `manifest.json` and exits non-zero on a missing *required* shot
-(`tools/screens-expected.mjs` classifies required vs. luck-of-the-deal); `test/screens.test.ts`
+(`tools/screens-expected.mjs` classifies required vs. luck-of-the-deal); `test/tools/screens.test.ts`
 guards the committed set under `npm test` without Chrome. The error/reconnect banner —
 the one transient state a live stream never drops into on its own — is forced via a
 dev-only hook: the harness server runs with `AVALON_DEV_SEVER=1`, unlocking

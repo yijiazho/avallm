@@ -317,8 +317,20 @@ if (concepts.length) {
 
 // Test-name drift: a proxy for whether the code under test is understood.
 const testDir = path.join(root, 'test')
+// Recursive since the test tree mirrors the source tree. A non-recursive read
+// here returned [] the moment the tests moved into folders, which is a report
+// that silently says "no drift" forever rather than failing.
+function testFilesIn(dir) {
+  const found = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) found.push(...testFilesIn(full))
+    else if (entry.name.endsWith('.test.ts')) found.push(entry.name)
+  }
+  return found
+}
 if (fs.existsSync(testDir)) {
-  const tests = fs.readdirSync(testDir).filter((f) => f.endsWith('.test.ts'))
+  const tests = testFilesIn(testDir)
   const phaseNamed = tests.filter((f) => /phase\d|p\d[a-z]|step\d|wip|tmp/i.test(f))
   if (phaseNamed.length) {
     console.log(`\nTest-name drift: ${phaseNamed.length}/${tests.length} tests named after refactor phases, not behavior`)

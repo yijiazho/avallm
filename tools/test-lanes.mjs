@@ -39,7 +39,14 @@ const HEADER_LINES = 10
 // type-only contracts, and fixture data. Skipped rather than reported as
 // unclassified, which is what the old tool did by only ever listing the top
 // level.
-const NON_LANE_DIRECTORIES = Object.freeze(['support', 'helpers', 'typecheck', 'fixtures'])
+const NON_LANE_DIRECTORIES = Object.freeze(['support', 'typecheck', 'fixtures'])
+
+// The one place lane and directory DO coincide, pinned in both directions.
+// The perf lane asserts wall-clock budgets and only holds when it runs alone in
+// its own process, which `full` below arranges. Giving it a directory makes that
+// requirement visible in a listing, and stops a timing test drifting into a
+// mirror directory where no reader would expect one.
+const LANE_DIRECTORIES = Object.freeze({ perf: 'test/perf' })
 
 function normalize(value) {
   return value.replaceAll('\\', '/')
@@ -89,6 +96,15 @@ function classifiedTests() {
     if (result.error) {
       errors.push(result.error)
       continue
+    }
+    const owner = LANE_DIRECTORIES[result.lane]
+    if (owner && !file.startsWith(`${owner}/`)) {
+      errors.push(`${file} is lane ${result.lane}, which lives only under ${owner}/`)
+    }
+    for (const [lane, directory] of Object.entries(LANE_DIRECTORIES)) {
+      if (file.startsWith(`${directory}/`) && result.lane !== lane) {
+        errors.push(`${file} under ${directory}/ cannot be lane ${result.lane}`)
+      }
     }
     lanes[result.lane].push(file)
   }

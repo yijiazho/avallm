@@ -55,7 +55,7 @@ client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts h
 
 The subdirectories of `server/agents/` carry a **rank**, and an import may only point at a
 rank at or below its own. ARCH020 enforces it; `AGENT_DIRECTORY_TIERS` in
-`tools/architecture-fitness.mjs` is the table, and `test/architecture-fitness.test.ts`
+`tools/architecture-fitness.mjs` is the table, and `test/tools/architecture-fitness.test.ts`
 asserts every directory on disk appears in it, so a new folder cannot be created unranked.
 
 ```

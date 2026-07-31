@@ -214,7 +214,7 @@ the client destructures. Mixed picture:
 `test/**` alone holds 14 `currentTeam!` + 8 `discussion!` + assorted
 `view.currentTeam` reads (85 `view.currentTeam` references total across the tree).
 Many tests reach into `g.discussion!.roundNum` (`flow.test.ts`,
-`talk-default.test.ts`) and `view.currentTeam!` (`forced-policy.test.ts`,
+`talk-default.test.ts`) and `view.currentTeam!` (`forced.test.ts`,
 `morgana-counterfeit.test.ts`). A union turns each of those into a narrow-or-cast
 edit. None are hard, but the count is real and every one is a chance to regress a
 contract test.

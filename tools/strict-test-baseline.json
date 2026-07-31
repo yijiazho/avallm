@@ -3,187 +3,187 @@
   "exemptions": [
     {
       "path": "test/active-language-eval.test.ts",
-      "sha256": "cdb7fb732a47bcf7ca1a280a39050b010552ff78e75ea8e6b1192ec46cd2ee16",
+      "sha256": "470b872e12f01b653575efc2bd9f939a99d2b225b6bb9d62312f95ef4d02cf30",
       "rationale": "Legacy language evaluation fixtures need current union narrowing."
     },
     {
       "path": "test/architecture-performance.test.ts",
-      "sha256": "a8bd768b84a37ace91250702620858c82ad38c281dc74e603c878c81a619b9fc",
+      "sha256": "efe5b404a3b0662c8eeb8cc338a145e076a5b72e6d4f17bcfe968d4fc152be51",
       "rationale": "Legacy environment fixture uses a narrowed process.env shape."
     },
     {
       "path": "test/artifact-manifest.test.ts",
-      "sha256": "a80076293e1f48e96a693d9690b1b23dc30b33126aebf4ced2c528f94313100b",
+      "sha256": "c257ac861ed8befa0d90fe645fb2c66d466295fc8617e898b591b9b2a66de364",
       "rationale": "Legacy artifact fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "04cac048a94a8b71c6313f81b6d27572b3cf5315e3f30afd1fd4fb5d190e4433",
+      "sha256": "05698d29eef86efe44b5f4ee965d0fe1c9d44f8d3e04fbf642f9db5c445fcd08",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/certainties.test.ts",
-      "sha256": "1d8aa71f6fafb5e6d40a07fb191f36580facac8caab9cb3341b746652fbe77f9",
+      "sha256": "69a5c7040b9dfafff25bea320f8eaf27a7d38de1b7c9b5af04530c0913d92bf5",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/cognition.test.ts",
-      "sha256": "71bce6ca5b4796863091c5ae5414d824cf508b229615774083e37974815e6098",
+      "sha256": "bc4794fb315d1e1001e81f63acad6e6bb4a84ccc9772a05a90125f89a7674524",
       "rationale": "Legacy fixture exercises a retired phase spelling."
     },
     {
       "path": "test/compat-certainties.test.ts",
-      "sha256": "99a1ae9ba15297f1c16b8d82caa8d914a728d4d0ac4613554121f8daba914d97",
+      "sha256": "827a776944da34dcb2ab16634f899ebdeda2c4a90c088d3818c4ac7568b0964f",
       "rationale": "Legacy compatibility fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/component-kernel.test.ts",
-      "sha256": "8808c8cb08991726ba94f028b9d6dcc22773654693526226d0f43e82cc7a44be",
+      "sha256": "35082d61b7e583030a15d7eb3d6535142694c8907fc2ae8affb72267214fda8b",
       "rationale": "Legacy kernel fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/component-registry.test.ts",
-      "sha256": "8e8b2db2d4cd219a06d87b6bd6541ebc31eab28b07c9ff0e6753b714fee5e50c",
+      "sha256": "9fa0850d7da3060efd365490be3fd01229a1a4571f8df2a44e4cf0a419f13483",
       "rationale": "Legacy registry fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "7235af9307024781430b2f798df7f7561ea654ce49ddcd70a688a4bddd4370de",
+      "sha256": "b8c740593041e0e10ccb7d66d502c17f092fdfc7f12c67e8472a089e12ef5b97",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "68f4c17dab97a76f69eaed4951e88c3cda72a3fd6c7f3b6214d76222907274dc",
+      "sha256": "24d81fb10309423f680ca58f1ff76fc861f11aceaa7efe4dba262465cc17f5dc",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
       "path": "test/discuss-stakes.test.ts",
-      "sha256": "23682c48537f8eda1663bb068d99690979ad8264aa349e1016c50e0dbbc39318",
+      "sha256": "f8bdf5975b4c03b6108c878064e956f8234d9e6018704b4a33ef8db404a1479c",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/endgame-norm.test.ts",
-      "sha256": "bd35688c7ce338d3613a9c0ff1770042d2f3851a37c85652f14148f155a2e12b",
+      "sha256": "a7ffa9bf1e3487c342c54e350ce1a937d72c67f254bcf62d43d89c7e2207c13e",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/eval.test.ts",
-      "sha256": "b51e662505602c304dd177793b9769102d0cf0d9d2973373ee7d46ba74c39cdf",
+      "sha256": "f1262d8d7e2a61f646fcb252439c2f3cd59d4d65e7cfcef5669557293337b861",
       "rationale": "Legacy evaluation fixtures omit a newer talk configuration field."
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "76bc7a15805b788ac0bfce96eeec43ea159cb9e49893ab2377203fcd2026ec61",
+      "sha256": "74a584df0ca5dc5bddeaaec0a5e200eb8f0f99aa5993dc7aecf4b6ad66f0cc2f",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/facts.test.ts",
-      "sha256": "a1bbacb5562f4dc3c711e3d201fc4fca9af16171784f93a650716e0cb6f9a899",
+      "sha256": "033c48481536ab1c55cda6b5946d8a9fa0b6f18c0030044fabc297d2dc7caf41",
       "rationale": "Legacy fact fixture widens role literals to strings."
     },
     {
       "path": "test/forced-play.test.ts",
-      "sha256": "ad29deb67fed60dba14fcff7a0cee5a7216976bfc6206d1ae1aad082f9e2b6a7",
+      "sha256": "7e85d093e662ff84d5afe3ef10c9a440e7bdf4ac558dc92fe708ab9f5d3344a3",
       "rationale": "Legacy forced-play fixture omits a newer talk configuration field."
     },
     {
       "path": "test/forced-policy.test.ts",
-      "sha256": "8736d8a2bd9c74dd57895e506b691c3528d996828a6d45fbd8cf51caaa83d20c",
+      "sha256": "f0cfdf92d4d8e65f441f4a0c371449e0280bb1e392f1f4ceae6534eccc0cc1ff",
       "rationale": "Legacy policy fixture mixes decision and engine phase spellings."
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "041bc472a8b57345a48d3edf2b0b9ae4cd28634898ff6d37182c78239173d1dd",
+      "sha256": "be6cc788d95811fd833725d9f3e8922a5386ebc5014540dc6349eaa9c41570a2",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "0bcf1066a2ccf48a92d8b1248be2489f5abd7fed7020e8493464b2b7d93e03dc",
+      "sha256": "9b494eadb073ffb1bca92798312599eb835cfd7eb2dbb9d678c15e6622c80405",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
       "path": "test/hostile-artifact.test.ts",
-      "sha256": "6ab61d9a88defec3760e8a9d1ada724de5bec43081ff25280ee54c38c956768f",
+      "sha256": "a71505795c973445f251793e2edce027db3d2ac4030669ae20cef42943e40924",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/intent-planner.test.ts",
-      "sha256": "2f8fd573692c7ae6874e67a3629e9694079dfa17582fc30800db9c68f40b46b0",
+      "sha256": "5ef0a6bb2ec3f66d5c75291b74de50824c2fac10bde1e1f7680cefccc8e0316d",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
       "path": "test/joint-identity.test.ts",
-      "sha256": "08ac4739b356bfe7dbe7c426922e9f494e097d7602aa3a13c7ef8e5b18649024",
+      "sha256": "dbb56c7be14da12fa23481bb19d61c92fabd9d4d7357cb6ed671c5c17752411c",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "568bab766a9d1d28229049dce3d533691135cf944b967fbb64692b6595ed7da7",
+      "sha256": "a242e19d2989bc68c1e71f0fa819447c64947e78dc899e9d47b944badf03a3bd",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "f3efab2e5acd4302e81deb0a1a3416d3d4b2f1edb96d19fa348b85d3047f88c7",
+      "sha256": "be49ad3d5ac486da486844f72777953f32c8050dd8d8405046956144d88bac98",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "b6309639be29b1601ec263b69267e681cc05eebb761d1257c3421b1a40ce5c2c",
+      "sha256": "62e73a4005d6b89498a862ead61cf9bf73df6334ee873004d95f3d38dfaf9d25",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/morgana-quest-adapters.test.ts",
-      "sha256": "485b51d68b38e0a4dabbe0a56e28ab4ce613e49ad287b82a74d95f03467d2f59",
+      "sha256": "f1a41fde8a9d7ef2a4fd87b6bb307e7bb744416d295dc2fdf3ca5310f431879f",
       "rationale": "Legacy adapter fixtures need trace narrowing and readonly cleanup."
     },
     {
       "path": "test/norms.test.ts",
-      "sha256": "5da72e2581c093c18b4544fdc6d3c3657b3db80b342b52b7d4b0ef40d8521693",
+      "sha256": "30dc1cab154e589ba15a2546c5a4763efb4ee8b1d95d7ff17118e34cb3ba0922",
       "rationale": "Legacy norms fixture omits a newer talk configuration field."
     },
     {
       "path": "test/plan-coherence.test.ts",
-      "sha256": "3e1061864269ea4c8ff16ef69fc42e565e617f4eda6fdf4ee05de2a5fb4c9658",
+      "sha256": "efa927c6823abfd8771e8452e2ce9a3f5fbe461545c23fe96be6cc38ef7be231",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/prompts.test.ts",
-      "sha256": "86c3cc7ffebaebadfb07248134587c3a7b0289abce93761db69dc749ff5ee579",
+      "sha256": "830c33afa0d956d1c84ac45cb52ecfd9984c0c7106142e8758eeb95a4fb484e4",
       "rationale": "Legacy prompt fixture exercises a retired phase spelling."
     },
     {
       "path": "test/public-observer.test.ts",
-      "sha256": "62703886c64a7bf8cff866f28917088d0b408b4ffe20957d111a7100183eb2b1",
+      "sha256": "d78926fb4a42d4eb2bbd1847c4931b8dc4350d5b4b82ea83320df4e4961fd668",
       "rationale": "Legacy observer fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/public-record.test.ts",
-      "sha256": "2ce7a993d66636354d62536a793f9e25a29cc42d8c751dc27a9453017a673855",
+      "sha256": "a5df8b9863f757a8e87427c2ddaffc50fc52c62a350d54f9d0e591f61ce9cd1c",
       "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
     },
     {
       "path": "test/record-line.test.ts",
-      "sha256": "1ba607130701f1edfbfac5242fe246d1e7125f031e4cd778ac41e63f9f83fd82",
+      "sha256": "dc6cf8d22460e820043433970a1d12ce2da4b7e46bb057159d56a5a24e9a2ad0",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/replay-timeline.test.ts",
-      "sha256": "3cf1c0315a4280541b9a4484f531b5b1e4efb91a71d52d6cb8ae2bf8ef8edd9c",
+      "sha256": "e7b4c5bc6f4a409348c353956700a3e8b94d0c5c0f47d5e4958231178c78976d",
       "rationale": "Legacy replay fixture needs visibility union narrowing."
     },
     {
       "path": "test/role-adapters.test.ts",
-      "sha256": "cfd374bbf6bf7c351e423ec63724b51ceab2cf17f6e31ba98aa5a1fb4aa78bfc",
+      "sha256": "66202c65ec9e24490b0fadb0742d8824853f96f7847475c06ace27b7f0c31aaa",
       "rationale": "Legacy adapter fixtures need current trace union narrowing."
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "267e9d60c3661ae5a726caccbc6904034accb2d04fd81e8e5bfe3f1cc13095c9",
+      "sha256": "98a86cac4fc9e254fa71a5d8515c4d6f20082524b21eb75fd51bcec3e030a7d9",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {
       "path": "test/screens.test.ts",
-      "sha256": "97cc45bbadebb64465850e1a2528139697275315b0c81afe89f1cf68bfa69714",
+      "sha256": "5ad88a5a02ebf0a39ee4eb3f1eca79cb639dcd7a747ae8ae8aa5005df7c02e80",
       "rationale": "Legacy JavaScript-tool import lacks declarations; migrate this harness separately."
     }
   ]

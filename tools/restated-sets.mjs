@@ -18,13 +18,13 @@
 //
 //   restated        the set appears verbatim in another module. Actionable now:
 //                   give it a frozen list plus a derived type, point the copies
-//                   at it, and register it in test/closed-sets.test.ts.
+//                   at it, and register it in test/contract/closed-sets.test.ts.
 //   unconsolidated  still a bare literal union with no runtime list. Nobody has
 //                   restated it yet, but nothing can read it at runtime, so the
 //                   first validator that needs a membership test will have to
 //                   spell it out. Shown under --all.
 //
-// This tool finds; it does not enforce. Enforcement is test/closed-sets.test.ts,
+// This tool finds; it does not enforce. Enforcement is test/contract/closed-sets.test.ts,
 // which fails the suite when a registered set is restated. Consolidating a set
 // means adding it to that registry, which is what keeps it consolidated.
 //
@@ -167,7 +167,7 @@ if (!restated.length) {
     console.log()
   }
   console.log('Give each a frozen list plus a derived type, point the copies')
-  console.log('at it, then register it in test/closed-sets.test.ts.')
+  console.log('at it, then register it in test/contract/closed-sets.test.ts.')
 }
 
 if (has('--all')) {

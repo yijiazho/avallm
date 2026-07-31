@@ -32,7 +32,7 @@ needs a `provider-policy.ts` pin, or it's not a fit (§ 5, step 5).
 
 Everything a seat touches is a small checked-in table, so "add a model" is a bounded
 set of edits (§ 6) that the contract tests in
-[`test/llm-policies.test.ts`](../test/llm-policies.test.ts) partly enforce.
+[`test/llm/policies.test.ts`](../test/llm/policies.test.ts) partly enforce.
 
 ## Step 0 — Find candidates
 
@@ -76,7 +76,7 @@ recommends the entry to add. Read the recommendation, but read the table too:
 The winner maps 1:1 to a `POLICIES` row in `reasoning-policy.ts` (`suppress: null`
 or `suppress: { effort: '…' }`). The probe's logic lives in
 [`server/eval/reasoning-probe.ts`](../server/eval/reasoning-probe.ts); its decision
-rules are pinned offline by [`test/reasoning-probe.test.ts`](../test/reasoning-probe.test.ts).
+rules are pinned offline by [`test/eval/reasoning-probe.test.ts`](../test/eval/reasoning-probe.test.ts).
 
 ## Step 2 — Cost
 
@@ -145,7 +145,7 @@ Most models need no `provider-policy.ts` entry. Add one only when the measured
 evidence says the unconstrained rotation misbehaves — e.g. glm-5.2's pin exists
 because its open rotation leaked reasoning across mixed-quant endpoints. An unmeasured
 pin is just a silent routing experiment; leave it off until a run proves it's needed.
-`test/llm-policies.test.ts` documents the one pin that exists.
+`test/llm/policies.test.ts` documents the one pin that exists.
 
 ## Step 6 — Wire it in (checklist)
 
@@ -160,7 +160,7 @@ Every edit for a new seat, and the test that guards it:
   complete is what makes the retirement rule below safe to follow.
 - **`server/llm/reasoning-policy.ts`** — add or confirm a `POLICIES` family that
   matches the slug, with the `suppress` value from Step 1. **Required:**
-  `test/llm-policies.test.ts` asserts every roster slug resolves to a *known* family
+  `test/llm/policies.test.ts` asserts every roster slug resolves to a *known* family
   with `canSuppress`, so a missing/`unknown` family reddens the suite immediately.
 - **`server/llm/provider-policy.ts`** — only if Step 5 found a real problem.
 - **`client/src/components/Arcana.tsx`** — add the badge glyph keyed by roster id
