@@ -108,12 +108,14 @@ import { projectLanguageInterpreterInput } from '../communication/language-contr
 import {
   DECISION_PLAN_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,
-  communicationFactProjection,
-  plannerOverrideReasonCodes,
-  selectedStrategicReasonCodes,
   type PlannerCommunicationDirection,
   type PublicEvidenceReference,
 } from '../policy/plan.ts'
+import {
+  communicationFactProjection,
+  plannerOverrideReasonCodes,
+  selectedStrategicReasonCodes,
+} from '../policy/communication-intent.ts'
 import {
   communicationDirectionFailure,
   directionChannelFor,

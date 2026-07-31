@@ -52,11 +52,13 @@ import type {
 } from '../server/agents/analysis/situation-plan.ts'
 import {
   DECISION_PLAN_VERSION,
-  defaultCommunicationIntent,
-  selectedStrategicReasonCodes,
   type CommunicationIntent,
   type DecisionPlan,
 } from '../server/agents/policy/plan.ts'
+import {
+  defaultCommunicationIntent,
+  selectedStrategicReasonCodes,
+} from '../server/agents/policy/communication-intent.ts'
 import { COMPOSED_POLICY_VERSION } from '../server/agents/brain.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import {

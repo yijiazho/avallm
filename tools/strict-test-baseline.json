@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "71420e77cee69213a7b73b07a3a40db88619ce837f8393130025c237a09582b2",
+      "sha256": "24d81fb10309423f680ca58f1ff76fc861f11aceaa7efe4dba262465cc17f5dc",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {

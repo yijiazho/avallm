@@ -164,13 +164,15 @@ import {
 import {
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
+  type CommittedVoicePlan,
+  type DecisionPlan,
+} from './policy/plan.ts'
+import {
   defaultCommunicationIntent,
   plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
   voiceUncertainty,
-  type CommittedVoicePlan,
-  type DecisionPlan,
-} from './policy/plan.ts'
+} from './policy/communication-intent.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,

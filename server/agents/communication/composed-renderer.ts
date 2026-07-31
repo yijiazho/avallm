@@ -7,10 +7,12 @@ import {
 } from './language-contract.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
 import {
-  plannerOverrideReasonCodes,
-  selectedStrategicReasonCodes,
   type CommittedVoicePlan,
 } from '../policy/plan.ts'
+import {
+  plannerOverrideReasonCodes,
+  selectedStrategicReasonCodes,
+} from '../policy/communication-intent.ts'
 import type { CandidateScore } from '../policy/score.ts'
 import type {
   DecisionCandidateBoundary,
