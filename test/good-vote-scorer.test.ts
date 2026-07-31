@@ -25,12 +25,14 @@ import {
   goodProposalScorer,
   goodProposalVoteScorer,
   selectTopViableScore,
-  validateCandidateScores,
   type CandidateScore,
   type CandidateScoringContext,
   type GoodVoteFeatures,
   type GoodVoteSelectionMode,
 } from '../server/agents/policy/score.ts'
+import {
+  validateCandidateScores,
+} from '../server/agents/policy/candidate-score-validation.ts'
 import {
   calculateGoodProposalVoteCandidateScores,
 } from '../server/agents/score-layers/good.ts'

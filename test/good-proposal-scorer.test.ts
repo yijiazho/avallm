@@ -17,9 +17,11 @@ import {
   GOOD_PROPOSAL_SCORER_VERSION,
   goodProposalScorer,
   selectTopViableScore,
-  validateCandidateScores,
   type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
+import {
+  validateCandidateScores,
+} from '../server/agents/policy/candidate-score-validation.ts'
 import {
   calculateGoodProposalCandidateScores as scoreGoodProposalCandidates,
 } from '../server/agents/score-layers/good.ts'

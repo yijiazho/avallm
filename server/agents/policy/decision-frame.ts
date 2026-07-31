@@ -59,11 +59,11 @@ import {
 } from './plan.ts'
 import {
   selectTopViableScore,
-  validateCandidateScores,
   type CandidateScore,
   type CandidateScorer,
   type CandidateScoringContext,
 } from './score.ts'
+import { validateCandidateScores } from './candidate-score-validation.ts'
 import {
   detachTrustedPolicyData,
   type Immutable,

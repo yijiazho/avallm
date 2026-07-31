@@ -25,8 +25,10 @@ import {
 import { applyForcedPolicy } from '../server/agents/policy/forced.ts'
 import {
   GOOD_PROPOSAL_SCORER_VERSION,
-  validateCandidateScores,
 } from '../server/agents/policy/score.ts'
+import {
+  validateCandidateScores,
+} from '../server/agents/policy/candidate-score-validation.ts'
 import {
   calculateGoodProposalCandidateScores,
 } from '../server/agents/score-layers/good.ts'

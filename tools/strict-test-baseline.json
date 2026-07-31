@@ -18,7 +18,7 @@
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "727d146c9d2da1bf54d2ee27cdd44de13afad779be1f7337b8253d53a392dd0a",
+      "sha256": "05698d29eef86efe44b5f4ee965d0fe1c9d44f8d3e04fbf642f9db5c445fcd08",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -93,12 +93,12 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "ef7d49bdd54d9c486d832dbe31fb84acee06524d72648ff7a5f232663f7589f0",
+      "sha256": "be6cc788d95811fd833725d9f3e8922a5386ebc5014540dc6349eaa9c41570a2",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "bac45d017ac05c24bb7cc083635d940af6264df43bfff4e6fad8a6d0e5d6820b",
+      "sha256": "9b494eadb073ffb1bca92798312599eb835cfd7eb2dbb9d678c15e6622c80405",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {

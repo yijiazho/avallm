@@ -15,10 +15,12 @@ import assert from 'node:assert/strict'
 import {
   MAX_CANDIDATE_SCORE_SURFACE_JSON_BYTES,
   ROLE_OBJECTIVE_SCORER_VERSION,
-  validateCandidateScores,
   type CandidateScore,
   type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
+import {
+  validateCandidateScores,
+} from '../server/agents/policy/candidate-score-validation.ts'
 import {
   MAX_SCORE_LAYER_SURFACE_JSON_BYTES,
 } from '../server/agents/policy/score-layer/surface.ts'

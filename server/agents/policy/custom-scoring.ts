@@ -1,10 +1,10 @@
 import {
-  validateCandidateScores,
   type CandidateScore,
   type CandidateScorer,
   type CandidateScoringContext,
   type CustomCandidateScorer,
 } from './score.ts'
+import { validateCandidateScores } from './candidate-score-validation.ts'
 
 export interface CustomScoreResult {
   readonly appliedScorer: CandidateScorer
