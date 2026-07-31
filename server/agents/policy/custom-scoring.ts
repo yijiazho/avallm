@@ -33,6 +33,8 @@ export function executeCustomScores(
   return {
     appliedScorer: configured,
     scores: score(configured, context),
+    // Always empty: a failed attempt throws (see `score`) rather than degrading
+    // in place, and the fallback chain records degradation as it advances.
     degradation: [],
   }
 }

@@ -1,3 +1,11 @@
+// Scorer-version constants + the single shared vote-value function.
+import {
+  GOOD_VOTE_SITUATION_VERSION,
+  type JointProbabilitySemantics,
+} from '../analysis/types.ts'
+
+export { stablePolicyBucket } from './deterministic-policy.ts'
+
 export const CANDIDATE_SCORER_VERSION = 'compatibility-scorer-v1'
 export const CALIBRATION_COMPATIBILITY_SCORER_VERSION =
   'calibration-compatibility-scorer-v1'
@@ -234,9 +242,3 @@ export const GOOD_VOTE_REASON_CODES = [
   'GOOD_VOTE_SEEDED_VIABLE_BAND',
   'GOOD_POLICY_OUT_OF_SCOPE_COMPATIBILITY',
 ] as const
-
-export { stablePolicyBucket } from './deterministic-policy.ts'
-import {
-  GOOD_VOTE_SITUATION_VERSION,
-  type JointProbabilitySemantics,
-} from '../analysis/types.ts'
