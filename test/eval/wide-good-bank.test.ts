@@ -12,10 +12,10 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createGame } from '../server/engine/game.ts'
-import { validateArchitectureBank } from '../server/eval/architecture-bank.ts'
-import { PHASE4_POLICY_BANK } from '../server/eval/good-policy-bank.ts'
-import { runWideGoodGate } from '../server/eval/wide-good-gate.ts'
+import { createGame } from '../../server/engine/game.ts'
+import { validateArchitectureBank } from '../../server/eval/banks/architecture-bank.ts'
+import { PHASE4_POLICY_BANK } from '../../server/eval/banks/good-policy-bank.ts'
+import { runWideGoodGate } from '../../server/eval/harness/wide-good-gate.ts'
 import {
   WIDE_GOOD_BANK,
   WIDE_GOOD_BANK_ID,
@@ -24,7 +24,7 @@ import {
   WIDE_GOOD_TARGET_ROLES,
   wideGoodBankDigest,
   wideGoodBankFor,
-} from '../server/eval/wide-good-bank.ts'
+} from '../../server/eval/banks/wide-good-bank.ts'
 
 test('the bank is sized for the shift it exists to resolve', () => {
   assert.equal(WIDE_GOOD_DEALS_PER_CELL, 60)

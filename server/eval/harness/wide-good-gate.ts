@@ -27,16 +27,16 @@ import {
   architectureReport,
   renderArchitectureReport,
   type ArchitectureBenchmarkReport,
-} from './architecture-report.ts'
-import { phase4PolicyVariants } from './good-policy-bench.ts'
+} from '../architecture-report.ts'
+import { phase4PolicyVariants } from '../runs/good-policy-bench.ts'
 import {
   WIDE_GOOD_BANK_ID,
   WIDE_GOOD_TARGET_ROLES,
   wideGoodBankDigest,
   wideGoodBankFor,
-} from './wide-good-bank.ts'
-import type { AgentSpec } from '../agents/types.ts'
-import type { Role } from '../engine/types.ts'
+} from '../banks/wide-good-bank.ts'
+import type { AgentSpec } from '../../agents/types.ts'
+import type { Role } from '../../engine/types.ts'
 
 export type WideGoodPopulation = Extract<
   AgentSpec['type'],

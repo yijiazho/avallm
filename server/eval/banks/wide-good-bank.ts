@@ -25,8 +25,8 @@
 // games per cell. Three hundred and sixty per target role is that, with room
 // for the cells that diverge less.
 
-import { createGame } from '../engine/game.ts'
-import type { Role, TalkConfig } from '../engine/types.ts'
+import { createGame } from '../../engine/game.ts'
+import type { Role, TalkConfig } from '../../engine/types.ts'
 import type { ArchitectureBankCase } from './architecture-bank.ts'
 
 export const WIDE_GOOD_BANK_ID = 'phase4-good-wide-v1'
