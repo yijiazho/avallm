@@ -15,6 +15,7 @@ import type {
   LanguageEvidenceCursor,
 } from '../communication/language-types.ts'
 import type { AppliedDecisionResolution } from '../applied-decision.ts'
+import type { StrategicIntent } from '../policy/plan.ts'
 import { COHERENCE_MODEL_VERSION } from './coherence.ts'
 import type { CoherenceAssessment } from './coherence.ts'
 import type {
@@ -202,7 +203,7 @@ export type PublicEvidence = Exclude<Evidence, { kind: PrivateEvidenceKind }>
 export const isPublicEvidence = (record: Evidence): record is PublicEvidence =>
   EVIDENCE_SCOPE[record.kind] === 'public'
 
-export const PLAN_MEMORY_VERSION = 'private-plan-memory-v2'
+export const PLAN_MEMORY_VERSION = 'private-plan-memory-v3'
 
 export interface SelectedPlanSummary {
   decision: Decision
@@ -212,6 +213,7 @@ export interface SelectedPlanSummary {
     candidateId: string
     policyId: string
     beliefThroughSeq: number
+    strategicIntent?: StrategicIntent
   }>
 }
 

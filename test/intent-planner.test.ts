@@ -70,9 +70,11 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   let expectedReasonCodes: readonly string[] = []
   let offeredCandidateIds: readonly string[] = []
   let voicePayload = ''
+  const plannerContexts: PlannerInput['context'][] = []
   const client = fakeClient((call) => {
     if (call.opts?.tag === 'phase4c/planner') {
       const input = plannerInput(call)
+      plannerContexts.push(structuredClone(input.context))
       offeredCandidateIds = input.context.viableCandidates.map(
         (candidate) => candidate.id,
       )
@@ -82,6 +84,15 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
       return JSON.stringify({
         candidateId: selected.id,
         reasonCodes: selected.reasonCodes,
+        strategicIntent: {
+          version: 'strategic-intent-v1',
+          objective: 'BUILD_TRUST',
+          targetSeats: selected.decision.kind === 'propose'
+            ? selected.decision.team.slice(0, 1)
+            : [],
+          horizon: 'NEXT_QUEST',
+          evidenceRefs: [],
+        },
         communication: {
           version: 'communication-intent-v3',
           channel: 'proposal-pitch',
@@ -110,6 +121,7 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   const agent = createComposedAgent({
     seed: source.source.seed,
     scorer: goodProposalScorer,
+    planMemory: true,
     ...adapters,
   })
 
@@ -160,6 +172,8 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   )
   assert.equal(renderedVoice.viableCandidates, undefined)
   assert.equal(renderedVoice.privateInfo, undefined)
+  assert.equal(renderedVoice.plannerCognition, undefined)
+  assert.equal(renderedVoice.committedPlan.strategicIntent, undefined)
   assert.equal(renderedVoice.committedPlan.reasons, undefined)
   assert.equal(
     renderedVoice.committedPlan.communication.conceal,
@@ -187,6 +201,53 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
     )
   }
   assert.doesNotMatch(voicePayload, /roleBySeat|alignmentBySeat|topHypotheses/)
+
+  assert.equal(agent.planMemorySnapshot(), undefined)
+  agent.finalizeAppliedTrace!({
+    request: source.req,
+    view: source.view,
+    selectedDecision: output.decision,
+    appliedDecision: output.decision,
+    resolution: 'selected-applied',
+    provisionalTrace: output.trace!,
+  })
+  const remembered = agent.planMemorySnapshot()!.history.at(-1)!
+  assert.deepEqual(remembered.selected?.plan.strategicIntent, {
+    version: 'strategic-intent-v1',
+    objective: 'BUILD_TRUST',
+    targetSeats: expectedCandidateId.split(':').at(-1)!
+      .split(',').map(Number).slice(0, 1),
+    horizon: 'NEXT_QUEST',
+    evidenceRefs: [],
+  })
+
+  await agent.decide(source.req, source.view)
+  assert.equal(plannerContexts.length, 2)
+  assert.deepEqual(
+    plannerContexts[0].plannerCognition.privateKnowledge,
+    source.view.privateInfo,
+  )
+  assert.ok(
+    plannerContexts[0].plannerCognition.currentCommitments.every(
+      (commitment) =>
+        commitment.kind !== 'utterance'
+        || !Object.hasOwn(commitment.payload, 'text'),
+    ),
+  )
+  assert.equal(
+    plannerContexts[0].plannerCognition.recentAppliedPlans.length,
+    0,
+  )
+  assert.deepEqual(
+    plannerContexts[1].plannerCognition.recentAppliedPlans.at(-1)?.selected
+      ?.strategicIntent,
+    remembered.selected?.plan.strategicIntent,
+  )
+  assert.ok(
+    plannerContexts[1].plannerCognition.belief.players.every((player) =>
+      !Object.hasOwn(player, 'goodProbability')
+      && !Object.hasOwn(player, 'evilProbability')),
+  )
 })
 
 test('absent, malformed, and failed adapters degrade to the structured committed action', async () => {
@@ -513,6 +574,56 @@ test('direct planner communication rejects extra private-shaped fields', async (
   assert.doesNotMatch(renderedPlan, /privateInfo|knownEvil/)
 })
 
+test('invalid strategic intent is inert and cannot enter durable memory', async () => {
+  const source = fixture('merlin-opening-proposal')
+  let voicePlan = ''
+  const agent = createComposedAgent({
+    seed: source.source.seed,
+    scorer: goodProposalScorer,
+    planMemory: true,
+    planner: {
+      version: 'invalid-intent-planner-v1',
+      async choose(input) {
+        return {
+          candidateId: input.structuredCandidateId,
+          strategicIntent: {
+            version: 'strategic-intent-v1',
+            objective: 'BUILD_TRUST',
+            targetSeats: [999],
+            horizon: 'NEXT_QUEST',
+            evidenceRefs: [],
+          },
+        } as PlannerOutput
+      },
+    },
+    voice: {
+      version: 'intent-redaction-voice-v1',
+      async speak(input) {
+        voicePlan = input.renderedPlan
+        return { text: 'The committed team stands.' }
+      },
+    },
+  })
+  const output = await agent.decide(source.req, source.view)
+  assert.ok(
+    output.trace!.degradation.includes('planner-invalid-strategic-intent'),
+  )
+  assert.doesNotMatch(voicePlan, /strategicIntent|plannerCognition/)
+
+  agent.finalizeAppliedTrace!({
+    request: source.req,
+    view: source.view,
+    selectedDecision: output.decision,
+    appliedDecision: output.decision,
+    resolution: 'selected-applied',
+    provisionalTrace: output.trace!,
+  })
+  assert.equal(
+    agent.planMemorySnapshot()!.history.at(-1)!.selected?.plan.strategicIntent,
+    undefined,
+  )
+})
+
 test('structured intent and hybrid adapter replay deterministically', async () => {
   const source = fixture('merlin-opening-proposal')
   const decide = async () => {
@@ -608,7 +719,7 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         components: {
           ...baseComponents,
           scorer: 'good-proposal-vote-scorer-v1',
-          planner: 'bounded-llm-planner-v1',
+          planner: 'bounded-llm-planner-v2',
           voice: 'bounded-llm-voice-v1',
         },
         paid: false,

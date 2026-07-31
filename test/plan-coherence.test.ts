@@ -34,7 +34,10 @@ import {
   validateAppliedPlanOutcomeHostJoin,
   validatePrivatePlanMemory,
 } from '../server/agents/cognition/plan-memory-schema.ts'
-import type { DecisionPlan } from '../server/agents/policy/plan.ts'
+import {
+  DECISION_PLAN_VERSION,
+  type DecisionPlan,
+} from '../server/agents/policy/plan.ts'
 import {
   type AvalonAgent,
 } from '../server/agents/types.ts'
@@ -73,7 +76,7 @@ function selectedPlan(
   throughSeq: number,
 ): DecisionPlan {
   return {
-    version: 'decision-plan-v2',
+    version: DECISION_PLAN_VERSION,
     request: { ...req },
     decision: structuredClone(decision),
     candidateId: 'test-candidate',
@@ -471,6 +474,40 @@ test('serialized plan outcomes reject forged history, coherence, and host joins'
   assert.equal(validateAppliedPlanOutcomeHostJoin(
     outcome,
     { ...req, proposalNum: req.proposalNum + 1 },
+    outcome.appliedDecision,
+    view,
+  ), false)
+  const forgedEvidence = structuredClone(outcome)
+  assert.ok(forgedEvidence.selected)
+  ;(forgedEvidence.selected.plan as {
+    strategicIntent?: unknown
+  }).strategicIntent = {
+    version: 'strategic-intent-v1',
+    objective: 'TEST_PLAYER',
+    targetSeats: [view.players[0].seat],
+    horizon: 'CURRENT_PROPOSAL',
+    evidenceRefs: [{ kind: 'proposal', round: 99, proposalNum: 99 }],
+  }
+  assert.equal(validateAppliedPlanOutcomeHostJoin(
+    forgedEvidence,
+    req,
+    outcome.appliedDecision,
+    view,
+  ), false)
+  const forgedTarget = structuredClone(outcome)
+  assert.ok(forgedTarget.selected)
+  ;(forgedTarget.selected.plan as {
+    strategicIntent?: unknown
+  }).strategicIntent = {
+    version: 'strategic-intent-v1',
+    objective: 'TEST_PLAYER',
+    targetSeats: [999],
+    horizon: 'CURRENT_PROPOSAL',
+    evidenceRefs: [],
+  }
+  assert.equal(validateAppliedPlanOutcomeHostJoin(
+    forgedTarget,
+    req,
     outcome.appliedDecision,
     view,
   ), false)

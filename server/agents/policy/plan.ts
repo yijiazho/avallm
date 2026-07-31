@@ -16,9 +16,30 @@ import {
   type GoodVoteFeatures,
 } from './score.ts'
 
-export const DECISION_PLAN_VERSION = 'decision-plan-v2'
+export const DECISION_PLAN_VERSION = 'decision-plan-v3'
 export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v3'
 export const POSTERIOR_UNCERTAINTY_VERSION = 'posterior-uncertainty-v1'
+export const STRATEGIC_INTENT_VERSION = 'strategic-intent-v1'
+
+export const STRATEGIC_OBJECTIVE_CODES = [
+  'BUILD_TRUST',
+  'TEST_PLAYER',
+  'SUPPORT_TEAM',
+  'OPPOSE_TEAM',
+  'GATHER_INFORMATION',
+  'PRESERVE_COVER',
+  'REPAIR_COHERENCE',
+] as const
+export type StrategicObjectiveCode =
+  typeof STRATEGIC_OBJECTIVE_CODES[number]
+
+export const STRATEGIC_INTENT_HORIZONS = [
+  'THIS_ACTION',
+  'CURRENT_PROPOSAL',
+  'NEXT_QUEST',
+] as const
+export type StrategicIntentHorizon =
+  typeof STRATEGIC_INTENT_HORIZONS[number]
 
 export const COMMUNICATION_ACT_CODES = [
   'PASS',
@@ -158,6 +179,20 @@ export interface CommunicationIntent extends PlannerCommunicationDirection {
   uncertainty?: PosteriorUncertainty
 }
 
+/**
+ * Private, bounded continuity metadata chosen by the planner. It is persisted
+ * only after the associated mechanical decision has passed engine legality.
+ * The finite vocabulary and public evidence coordinates keep durable strategy
+ * auditable without storing free-form model reasoning.
+ */
+export interface StrategicIntent {
+  version: typeof STRATEGIC_INTENT_VERSION
+  objective: StrategicObjectiveCode
+  targetSeats: readonly Seat[]
+  horizon: StrategicIntentHorizon
+  evidenceRefs: readonly PublicEvidenceReference[]
+}
+
 export interface DecisionPlan {
   version: typeof DECISION_PLAN_VERSION
   request: DecisionRequest
@@ -167,6 +202,7 @@ export interface DecisionPlan {
   reasons: readonly (ForcedPlayReasonCode | string)[]
   beliefThroughSeq: number
   candidateScores: readonly CandidateScore[]
+  strategicIntent?: StrategicIntent
   communication?: CommunicationIntent
 }
 

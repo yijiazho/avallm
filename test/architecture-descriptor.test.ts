@@ -635,7 +635,7 @@ test('custom compatibility bridge preserves deterministic trace bytes and proper
     createHash('sha256')
       .update(JSON.stringify(output.trace))
       .digest('hex'),
-    'a6313343b7952f62e0026076f9a4c8855679518769eae179519e9cbba0ec49ee',
+    'de1bfc1e01468cbf8ea9fcdad696dddbad963a419ea68c5c2683060d7b21c33f',
   )
   assert.equal(output.trace!.scoreLayerRun, undefined)
   assert.deepEqual(output.trace!.decisionFrame, {

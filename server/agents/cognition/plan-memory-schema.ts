@@ -20,6 +20,11 @@ import {
   strictCanonicalArray,
 } from '../components/canonical-shape.ts'
 import { isAppliedDecisionResolution } from '../applied-decision.ts'
+import {
+  projectLanguageInterpreterInput,
+} from '../communication/language-contract.ts'
+import { publicEvidenceExists } from '../communication/direction-contract.ts'
+import { validStrategicIntent } from '../communication/strategic-intent-contract.ts'
 import { buildCommitments } from './commitments.ts'
 import {
   assessLiteralCoherence,
@@ -259,9 +264,11 @@ function validCommitmentBasis(
 function validSelectedPlan(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const plan = value as Record<string, unknown>
-  return Object.keys(plan).length === 4
+  return Object.keys(plan).length >= 4
+    && Object.keys(plan).length <= 5
     && Object.keys(plan).every((key) => [
       'version', 'candidateId', 'policyId', 'beliefThroughSeq',
+      'strategicIntent',
     ].includes(key))
     && typeof plan.version === 'string'
     && plan.version.length > 0
@@ -274,6 +281,12 @@ function validSelectedPlan(value: unknown): boolean {
     && plan.policyId.length <= 128
     && Number.isSafeInteger(plan.beliefThroughSeq)
     && Number(plan.beliefThroughSeq) >= -1
+    && (
+      plan.strategicIntent === undefined
+      || validStrategicIntent(plan.strategicIntent, {
+        seatExists: (seat) => seat <= 9,
+      })
+    )
 }
 
 function validSelectedSummary(value: unknown): value is SelectedPlanSummary {
@@ -489,12 +502,23 @@ export function validateAppliedPlanOutcomeHostJoin(
     const outcome = value as AppliedPlanHistoryEntry
     const commitments = buildCommitments(extractEvidence(view))
     const expectedBasis = coherenceBasisFromView(view, req, commitments)
+    const publicInput = projectLanguageInterpreterInput(view)
+    const intent = outcome.selected?.plan.strategicIntent
     return (
       isDeepStrictEqual(outcome.request, req)
       && outcome.viewThroughSeq === viewCursor(view)
       && isDeepStrictEqual(outcome.appliedDecision, appliedDecision)
       && isDeepStrictEqual(outcome.coherence.commitmentBasis, expectedBasis)
       && isDeepStrictEqual(outcome.coherence.currentTeam, view.currentTeam)
+      && (
+        intent === undefined
+        || validStrategicIntent(intent, {
+          seatExists: (seat) =>
+            view.players.some((player) => player.seat === seat),
+          evidenceExists: (reference) =>
+            publicEvidenceExists(reference, publicInput),
+        })
+      )
     )
   } catch {
     return false

@@ -142,6 +142,7 @@ import {
   validCommunicationDirection,
   type CommunicationDirectionContext,
 } from './communication/direction-contract.ts'
+import { validStrategicIntent } from './communication/strategic-intent-contract.ts'
 import {
   COMPOSED_RENDERER_VERSION,
   COMPOSED_PROMPT_VERSION,
@@ -866,16 +867,26 @@ async function resolvePlannerChoice(input: {
       )
       ? structuredClone(planned.communication)
       : undefined
+    const strategicIntent = planned.strategicIntent !== undefined
+      && validStrategicIntent(
+        planned.strategicIntent,
+        plannerCommunicationContext(plannedCandidate.decision, view),
+      )
+      ? structuredClone(planned.strategicIntent)
+      : undefined
     return {
       kind: 'accepted',
       candidateId: planned.candidateId,
       ...(planned.reasonCodes === undefined
         ? {}
         : { reasonCodes: [...planned.reasonCodes] }),
+      ...(strategicIntent ? { strategicIntent } : {}),
       ...(communication ? { communication } : {}),
-      ...(planned.communication !== undefined && !communication
-        ? { degradationCode: 'planner-invalid-communication' }
-        : {}),
+      ...(planned.strategicIntent !== undefined && !strategicIntent
+        ? { degradationCode: 'planner-invalid-strategic-intent' }
+        : planned.communication !== undefined && !communication
+          ? { degradationCode: 'planner-invalid-communication' }
+          : {}),
     }
   } catch {
     return { kind: 'rejected', degradationCode: 'planner-failed' }
@@ -2017,6 +2028,7 @@ export function createComposedAgent(
           compatibilityScored.structuredCandidateId,
           componentPayload(componentRun, PRIVATE_PIN_READ_COMPONENT),
           componentPayload(componentRun, EVIL_EXPOSURE_READ_COMPONENT),
+          cognition,
         )
         let plannerResolution: CompatibilityPlannerResolution = { kind: 'not-run' }
         if (
@@ -2052,6 +2064,10 @@ export function createComposedAgent(
           selectedFrame.planner.kind === 'accepted'
             ? selectedFrame.planner.reasonCodes
             : undefined
+        const plannerStrategicIntent =
+          selectedFrame.planner.kind === 'accepted'
+            ? selectedFrame.planner.strategicIntent
+            : undefined
         const chosenScore = compatibilityScored.scores.find(
           (score) => score.candidateId === chosenCandidateId,
         )
@@ -2086,6 +2102,9 @@ export function createComposedAgent(
           ],
           beliefThroughSeq: cognition.throughSeq,
           candidateScores: compatibilityScored.scores,
+          ...(plannerStrategicIntent
+            ? { strategicIntent: plannerStrategicIntent }
+            : {}),
           ...(communication ? { communication } : {}),
         }
         const committedFrame = commitDecision(selectedFrame, plan)

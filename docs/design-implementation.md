@@ -78,7 +78,11 @@ compatibility scorer remain separately measurable ablations. Forced policy execu
 and engine legality remains final. The bounded planner may choose only among exact-max proposal
 teams or the seeded near-equivalent vote band. Its typed context includes the same canonical public
 board and bounded attributed-utterance window used for evidence references, alongside private
-planning-only role and analysis fields. Player-authored names and utterances remain explicitly
+planning-only role and analysis fields. The planner also receives its deal-time private knowledge,
+qualitative alignment marginals, a text-free projection of current public commitments, and up to
+eight recent applied-plan outcomes when plan memory is enabled. Past decisions in that projection
+retain only their mechanics, resolution, coherence classification, and bounded strategic intent;
+prior speech, thinking, and notes are omitted. Player-authored names and utterances remain explicitly
 classified as inert, untrusted evidence in the planner prompt. Its voice adapter sees the committed action and a
 public-safe qualitative projection together with the canonical public board and a bounded recent
 utterance window, never the candidate surface, private role knowledge, or exact posterior values.
@@ -88,6 +92,11 @@ warnings, and positive first-person role claims. A role claim carries only the i
 intends to present, never whether it is true. Negative role claims are not part of the vocabulary.
 Any cited evidence is a stable reference to an utterance, proposal, public proposal vote, or
 completed quest that must resolve against the same public projection before voice can run.
+Strategic intent v1 is a separate private continuity channel with a finite objective and horizon
+vocabulary, seat targets, and the same public evidence coordinates. It contains no free-form model
+reasoning, enters private plan memory only after the engine accepts the action, and is deliberately
+absent from the committed voice plan. The web-library Probabilistic + LLM factory enables that plan
+memory; the structured-only Probabilistic factory remains memory-off for a clean mechanical arm.
 Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.
 The setup dropdown exposes both a deterministic `full-role` composed agent and the same mechanical
 brain with bounded LLM planner/voice adapters. Neither is selected by the default table fill. The

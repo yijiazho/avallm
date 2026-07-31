@@ -188,6 +188,27 @@ function evidenceKey(reference: PublicEvidenceReference): string {
   return `quest:${reference.questNum}`
 }
 
+/** Shared structural and optional host join for a bounded evidence-ref set. */
+export function validPublicEvidenceReferences(
+  value: unknown,
+  context: Pick<
+    CommunicationDirectionContext,
+    'seatExists' | 'evidenceExists'
+  > = {},
+): value is readonly PublicEvidenceReference[] {
+  if (!denseArray(value) || value.length > MAX_EVIDENCE_REFS) return false
+  if (!value.every((reference) => evidenceReferenceShaped(reference, {
+    allowedChannels: [],
+    ...context,
+  }))) return false
+  const references = value as readonly PublicEvidenceReference[]
+  if (new Set(references.map(evidenceKey)).size !== references.length) {
+    return false
+  }
+  return context.evidenceExists === undefined
+    || references.every(context.evidenceExists)
+}
+
 /**
  * Validate a communication direction, naming the first rule it breaks.
  *

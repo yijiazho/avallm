@@ -151,6 +151,7 @@ test('web-library probabilistic engines share mechanics while hybrid LLM only pl
   const pureOutput = await pure.decide(fixture.req, fixture.view)
   assert.equal(pureOutput.decision.kind, 'propose')
   assert.ok(pureOutput.trace)
+  assert.equal(pureOutput.trace.coherenceIntent, undefined)
 
   const calls: { model: string; tag: string | undefined }[] = []
   const systemPrompts: string[] = []
@@ -178,6 +179,7 @@ test('web-library probabilistic engines share mechanics while hybrid LLM only pl
     { client },
   )
   const hybridOutput = await hybrid.decide(fixture.req, fixture.view)
+  assert.equal(hybridOutput.trace?.coherenceIntent, 'maintain')
   assert.deepEqual(
     hybridOutput.decision.kind === 'propose'
       ? hybridOutput.decision.team

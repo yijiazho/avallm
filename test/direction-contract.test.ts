@@ -7,7 +7,11 @@ import {
   type CommunicationDirectionContext,
 } from '../server/agents/communication/direction-contract.ts'
 import {
+  validStrategicIntent,
+} from '../server/agents/communication/strategic-intent-contract.ts'
+import {
   COMMUNICATION_INTENT_VERSION,
+  STRATEGIC_INTENT_VERSION,
 } from '../server/agents/policy/plan.ts'
 import {
   CompositionInvariantError,
@@ -275,6 +279,32 @@ test('the trace boundary admits its own keys and no others', () => {
     }),
     undefined,
   )
+})
+
+test('strategic intent shares bounded evidence and optional host joins', () => {
+  const intent = {
+    version: STRATEGIC_INTENT_VERSION,
+    objective: 'TEST_PLAYER',
+    targetSeats: [1],
+    horizon: 'CURRENT_PROPOSAL',
+    evidenceRefs: [{ kind: 'quest', questNum: 1 }],
+  }
+  assert.ok(validStrategicIntent(intent))
+  assert.ok(validStrategicIntent(intent, KNOWS_EVERYTHING))
+  assert.equal(validStrategicIntent({ ...intent, targetSeats: [9] }, {
+    seatExists: KNOWS_EVERYTHING.seatExists,
+  }), false)
+  assert.equal(validStrategicIntent({
+    ...intent,
+    evidenceRefs: [{ kind: 'quest', questNum: 3 }],
+  }, KNOWS_EVERYTHING), false)
+  assert.equal(validStrategicIntent({
+    ...intent,
+    evidenceRefs: [
+      { kind: 'proposal', round: 1, proposalNum: 2 },
+      { proposalNum: 2, kind: 'proposal', round: 1 },
+    ],
+  }), false)
 })
 
 /*

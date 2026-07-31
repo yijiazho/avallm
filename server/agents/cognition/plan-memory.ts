@@ -50,6 +50,9 @@ function planSummary(
       candidateId: plan.candidateId,
       policyId: plan.policyId,
       beliefThroughSeq: plan.beliefThroughSeq,
+      ...(plan.strategicIntent
+        ? { strategicIntent: structuredClone(plan.strategicIntent) }
+        : {}),
     },
   }
 }

@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "49b973d484d635e156753f6520521d058f09457fdd1e743ae98c899a8154f133",
+      "sha256": "b8c740593041e0e10ccb7d66d502c17f092fdfc7f12c67e8472a089e12ef5b97",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "bfdf0ab61512624c456f5cf6dd69b589462afefe227356607e709ea829f071c5",
+      "sha256": "74a584df0ca5dc5bddeaaec0a5e200eb8f0f99aa5993dc7aecf4b6ad66f0cc2f",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -103,12 +103,12 @@
     },
     {
       "path": "test/hostile-artifact.test.ts",
-      "sha256": "3084ee00bd6f85bd919465031b063c17bf2b13dc7a17efa321864ccdc7068eca",
+      "sha256": "a71505795c973445f251793e2edce027db3d2ac4030669ae20cef42943e40924",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/intent-planner.test.ts",
-      "sha256": "25d5aec58f6c58de3a150fec8b49e79faf17cb59992963e6d82b4964482e4404",
+      "sha256": "4edd8b152716ea22c28b8a1aa16335e4b97e0c72301ae1dcfb4e1332a8c7abc1",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
@@ -128,7 +128,7 @@
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "e1f4486a4c43c2a020f9a243b7ffaaaddcf08a92265bde36cfa64252aa193e57",
+      "sha256": "62e73a4005d6b89498a862ead61cf9bf73df6334ee873004d95f3d38dfaf9d25",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
@@ -143,7 +143,7 @@
     },
     {
       "path": "test/plan-coherence.test.ts",
-      "sha256": "d8419ef1aa7499d7a4403f60c4d8ad40d613fa04ffda042cecda7fbcad3d2820",
+      "sha256": "efa927c6823abfd8771e8452e2ce9a3f5fbe461545c23fe96be6cc38ef7be231",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {

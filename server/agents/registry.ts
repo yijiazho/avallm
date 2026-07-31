@@ -102,6 +102,9 @@ export function createAgentFromDef(
         seed: ctx.seed,
         onDecisionTrace: ctx.onDecisionTrace,
         ...composedBrainOptions(def.engine.brain),
+        ...(def.engine.adapter === 'bounded-llm'
+          ? { planMemory: true }
+          : {}),
         ...adapters,
         // A seated planner reads the private pin summary from its
         // planning-only context; a planner-less composed agent would only pay

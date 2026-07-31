@@ -32,7 +32,7 @@ import type { ArchitectureBankCase } from './architecture-bank.ts'
 import type { CallOpts, Msg } from '../llm/openrouter.ts'
 
 export const PHASE4_POLICY_EVAL_VERSION = 'phase4-policy-eval-v1'
-export const PHASE4_FAKE_PLANNER_VERSION = 'bounded-llm-planner-v1'
+export const PHASE4_FAKE_PLANNER_VERSION = 'bounded-llm-planner-v2'
 export const PHASE4_FAKE_VOICE_VERSION = 'bounded-llm-voice-v1'
 
 const scorer = createGoodProposalVoteScorer({

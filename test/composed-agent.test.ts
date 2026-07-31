@@ -82,14 +82,14 @@ test('composed engine runs in ownership order and attributes every component', a
     policy: 'composed-policy-v1',
     scorer: 'compatibility-scorer-v1',
     planner: 'fake-planner-v1',
-    prompt: 'composed-typed-context-v3',
-    renderer: 'composed-policy-renderer-v3',
+    prompt: 'composed-typed-context-v4',
+    renderer: 'composed-policy-renderer-v4',
     voice: 'fake-voice-v1',
     decisionComponents: DECISION_COMPONENT_RUN_VERSION,
   })
   assert.ok(output.trace!.candidateScores?.length)
   assert.ok(output.trace!.chosenCandidateId)
-  assert.equal(output.trace!.decisionPlanVersion, 'decision-plan-v2')
+  assert.equal(output.trace!.decisionPlanVersion, 'decision-plan-v3')
   assert.equal(output.trace!.forcedPolicyResult?.version, 'forced-policy-v1')
   assert.ok(output.trace!.forcedPolicyResult?.allowedCandidateIds.length)
   assert.deepEqual(

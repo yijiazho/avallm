@@ -56,6 +56,7 @@ import {
   DECISION_PLAN_VERSION,
   type PlannerCommunicationDirection,
   type DecisionPlan,
+  type StrategicIntent,
 } from './plan.ts'
 import {
   selectTopViableScore,
@@ -203,6 +204,7 @@ export type CompatibilityPlannerResolution =
       kind: 'accepted'
       candidateId: string
       reasonCodes?: readonly string[]
+      strategicIntent?: StrategicIntent
       communication?: PlannerCommunicationDirection
       degradationCode?: string
     }>
