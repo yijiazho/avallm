@@ -121,7 +121,7 @@ import {
 import { buildCommitments } from './cognition/commitments.ts'
 import { extractEvidence } from './cognition/evidence.ts'
 import {
-  languageInterpreterVersionIdentity,
+  normalizeInterpreterVersion,
   orchestrateLanguageEvidence,
   type LanguageTraceAttribution,
 } from './communication/language-orchestration.ts'
@@ -1019,7 +1019,7 @@ async function advanceDecisionCognition(input: {
       `belief model ${beliefModel.version} returned snapshot ${mechanicalBelief.modelVersion}`,
     )
   }
-  const resolvedBelief = language.applyEvidence && language.inferenceContext
+  const resolvedBelief = language.applyLanguageWeighting && language.inferenceContext
     ? applyBoundedLanguageEvidence(
         view,
         mechanicalBelief,
@@ -1464,7 +1464,7 @@ export function createComposedAgent(
         model: beliefModel.version,
         factors: beliefModel.factorsVersion,
         languageInterpreter: configuredLanguageInterpreter
-          ? languageInterpreterVersionIdentity(configuredLanguageVersion)
+          ? normalizeInterpreterVersion(configuredLanguageVersion)
           : 'off',
         languageFactor: languageFactor.version,
       },

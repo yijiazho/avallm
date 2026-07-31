@@ -30,7 +30,7 @@ function validInterpreterVersion(value: unknown): value is string {
     && INTERPRETER_VERSION_PATTERN.test(value)
 }
 
-export function languageInterpreterVersionIdentity(
+export function normalizeInterpreterVersion(
   value: unknown,
 ): string {
   return validInterpreterVersion(value)
@@ -66,9 +66,23 @@ export interface LanguageOrchestrationResult {
   input?: LanguageInterpreterInput
   inferenceContext?: LanguageInferenceContext
   trace: LanguageTraceAttribution
+  /** Convenience mirror of trace.degradation; the trace is authoritative. */
   degradation: readonly LanguageOrchestrationDegradation[]
-  /** Input projection failure omits language weighting for this decision. */
-  applyEvidence: boolean
+  /**
+   * True when language weighting (inferenceContext) should be applied for this
+   * decision. False whenever inferenceContext is omitted, which happens on an
+   * input projection failure or an invalid interpreter version.
+   */
+  applyLanguageWeighting: boolean
+}
+
+/** Advance past a validated batch without admitting evidence, keeping only the
+ * resulting cursor (the evidence on this path is always empty). */
+function cursorOnly(
+  input: LanguageInterpreterInput,
+  cursor: LanguageEvidenceCursor,
+): LanguageEvidenceCursor {
+  return advanceLanguageEvidenceCursorWithoutEvidence(input, cursor).cursor
 }
 
 function appendCanonicalReads(
@@ -118,10 +132,13 @@ export async function orchestrateLanguageEvidence(
 ): Promise<LanguageOrchestrationResult> {
   const reads = prior?.languageReads ?? []
   const cursor = prior?.languageCursor ?? initialLanguageEvidenceCursor()
+  // The interpreter reports its own version; the caller pins the version it
+  // expects (defaulting to the reported one). We admit evidence only when both
+  // are well-formed and they agree, so the mismatch check below is dormant
+  // unless a caller overrides expectedInterpreterVersion to detect drift.
   const interpreterVersion: unknown = interpreter.interpreterVersion
-  const effectiveVersion = expectedInterpreterVersion
   const traceInterpreterVersion =
-    languageInterpreterVersionIdentity(effectiveVersion)
+    normalizeInterpreterVersion(expectedInterpreterVersion)
   let input: LanguageInterpreterInput
   try {
     input = projectLanguageInterpreterInput(view, cursor)
@@ -138,7 +155,7 @@ export async function orchestrateLanguageEvidence(
         degradation,
       ),
       degradation,
-      applyEvidence: false,
+      applyLanguageWeighting: false,
     }
   }
 
@@ -147,20 +164,20 @@ export async function orchestrateLanguageEvidence(
   const degradation: LanguageOrchestrationDegradation[] = []
   if (
     !validInterpreterVersion(interpreterVersion)
-    || !validInterpreterVersion(effectiveVersion)
+    || !validInterpreterVersion(expectedInterpreterVersion)
     || interpreterVersion !== expectedInterpreterVersion
   ) {
     degradation.push('language-interpreter-invalid-version')
-    nextCursor = advanceLanguageEvidenceCursorWithoutEvidence(input, cursor).cursor
+    nextCursor = cursorOnly(input, cursor)
   } else if (input.newUtterances.length === 0) {
-    nextCursor = advanceLanguageEvidenceCursorWithoutEvidence(input, cursor).cursor
+    nextCursor = cursorOnly(input, cursor)
   } else {
     let raw: unknown
     try {
       raw = await interpreter.interpret(structuredClone(input))
     } catch {
       degradation.push('language-interpreter-failed')
-      nextCursor = advanceLanguageEvidenceCursorWithoutEvidence(input, cursor).cursor
+      nextCursor = cursorOnly(input, cursor)
       const nextReads = appendCanonicalReads(reads, admitted)
       return {
         reads: nextReads,
@@ -169,7 +186,7 @@ export async function orchestrateLanguageEvidence(
         inferenceContext: projectLanguageInferenceContext(
           view.seat,
           input,
-          effectiveVersion,
+          expectedInterpreterVersion,
         ),
         trace: attribution(
           traceInterpreterVersion,
@@ -179,7 +196,7 @@ export async function orchestrateLanguageEvidence(
           degradation,
         ),
         degradation,
-        applyEvidence: true,
+        applyLanguageWeighting: true,
       }
     }
     try {
@@ -193,7 +210,7 @@ export async function orchestrateLanguageEvidence(
       nextCursor = admission.cursor
     } catch {
       degradation.push('language-evidence-invalid-output')
-      nextCursor = advanceLanguageEvidenceCursorWithoutEvidence(input, cursor).cursor
+      nextCursor = cursorOnly(input, cursor)
     }
   }
 
@@ -202,12 +219,12 @@ export async function orchestrateLanguageEvidence(
     reads: nextReads,
     cursor: nextCursor,
     input,
-    ...(validInterpreterVersion(effectiveVersion)
+    ...(validInterpreterVersion(expectedInterpreterVersion)
       ? {
           inferenceContext: projectLanguageInferenceContext(
             view.seat,
             input,
-            effectiveVersion,
+            expectedInterpreterVersion,
           ),
         }
       : {}),
@@ -219,6 +236,6 @@ export async function orchestrateLanguageEvidence(
       degradation,
     ),
     degradation,
-    applyEvidence: validInterpreterVersion(effectiveVersion),
+    applyLanguageWeighting: validInterpreterVersion(expectedInterpreterVersion),
   }
 }
