@@ -20,10 +20,10 @@ import {
 } from '../server/agents/components/native-role-components.ts'
 import {
   assassinScoreLayerDefinitions,
-} from '../server/agents/score-layers/assassin.ts'
+} from '../server/agents/role-score-layers/assassin.ts'
 import {
   EVIL_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/evil.ts'
+} from '../server/agents/role-score-layers/evil.ts'
 import type {
   ScoreLayerTransformContext,
 } from '../server/agents/policy/score-layer/types.ts'

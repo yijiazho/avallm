@@ -381,7 +381,7 @@ assemble that input differently and falsely reject each other. `ARCH008` forbids
 directly.
 
 Third, the fields above are the target sketch, not the landed type. `SituationAnalysis` in
-`analysis/types.ts` extends a `BoardSituation` that carries hammer proximity and rejection runway,
+`analysis/situation-types.ts` extends a `BoardSituation` that carries hammer proximity and rejection runway,
 names proven alignments `provenGood`/`provenEvil` with typed `deductions` recording their
 provenance, and carries declared leans, vote leverage, fact codes, and forced-play reason
 codes. `publicObserver`
@@ -893,9 +893,9 @@ server/agents/                        # about 41.9k lines in ten owners
     evil-quest-card.ts *-score-contract.ts
     score-layer/                      #  1.8k  generic score-layer kernel
     decision-layer/                   #  1.3k  generic strategic decision-layer kernel
-  score-layers/                       #  1.9k  concrete score families
+  role-score-layers/                       #  1.9k  concrete score families
     good.ts evil.ts mordred.ts morgana.ts assassin.ts full-role.ts configured.ts
-  decision-layers/                    #  0.1k  concrete strategic layers
+  role-decision-layers/                    #  0.1k  concrete strategic layers
     robust-evil-quest-card.ts configured.ts
   components/                         #  5.6k  the generic decision-component substrate
     kernel.ts resolved-brain.ts registry.ts production-registry.ts
@@ -916,7 +916,7 @@ Four owners postdate the original map and had no place in it. `components/` hold
 decision-component substrate from §5.7: the kernel, the resolved brain, the registries, and the
 canonical JSON and architecture-identity surfaces. `admission/` owns hostile-trace canonicalization
 and host admission, which §9 names as the shared component admission owner but the map never gave a
-home. `score-layers/` and `decision-layers/` hold the concrete families that the generic
+home. `role-score-layers/` and `role-decision-layers/` hold the concrete families that the generic
 `policy/score-layer/` and `policy/decision-layer/` kernels execute; splitting concrete from generic
 is what lets the kernels stay role-free.
 
@@ -943,7 +943,7 @@ policy.
 Naming a preference and holding authority are different things, and one module shows the gap.
 `analysis/morgana-role-utility.ts` does put `selectedCandidateId` and `selectedDecision` on its
 private projection, so an analysis payload can carry a fully formed `Decision`. It still commits
-nothing. `score-layers/morgana.ts` checks that id against the legal candidate set and against the
+nothing. `role-score-layers/morgana.ts` checks that id against the legal candidate set and against the
 forced boundary and declines the projection outright when either rejects it, and the commit itself
 happens later in `policy/decision-frame.ts`. A role objective that could apply its own action would
 violate the first boundary rule below wherever it lived, so moving the directory would not buy that
@@ -951,19 +951,19 @@ guarantee.
 
 The placement is also already depended on by the fitness checks. `tools/architecture-fitness.mjs`
 `ARCH005` forbids generic score-layer code from importing anything under `server/agents/analysis/`
-except `analysis/types.ts`, and separately rejects role-named identifiers in that code; `ARCH011`
+except `analysis/situation-types.ts`, and separately rejects role-named identifiers in that code; `ARCH011`
 applies the same rule to the generic decision layer. Those rules key on the `analysis/` prefix.
 Moving objectives into `policy/objectives/` would place role semantics inside the prefix the rules
 protect and cost the repo its cheapest structural guard against a role-shaped generic kernel.
 
-Role specialization already has a policy home, so nothing is homeless: `score-layers/` and
-`decision-layers/` hold the concrete families that carry authority, and `analysis/` holds the reads
+Role specialization already has a policy home, so nothing is homeless: `role-score-layers/` and
+`role-decision-layers/` hold the concrete families that carry authority, and `analysis/` holds the reads
 they consume.
 
 The cost of this call is that `analysis/` keeps growing with each new role. The rule that keeps it
 honest: a module belongs in `analysis/` only while every layer remains free to decline it. As soon
-as a role read decides the action, that deciding code belongs in `score-layers/` or
-`decision-layers/`, whatever it reads.
+as a role read decides the action, that deciding code belongs in `role-score-layers/` or
+`role-decision-layers/`, whatever it reads.
 
 ### 11.2 Boundaries
 

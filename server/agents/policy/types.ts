@@ -2,7 +2,7 @@ import type {
   Decision,
   DecisionKind,
 } from '../../engine/types.ts'
-import type { ForcedPlayReasonCode } from '../analysis/types.ts'
+import type { ForcedPlayReasonCode } from '../analysis/situation-types.ts'
 
 export const LEGAL_CANDIDATE_VERSION = 'legal-candidates-v2'
 export const FORCED_POLICY_VERSION = 'forced-policy-v1'

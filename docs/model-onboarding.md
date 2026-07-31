@@ -204,7 +204,7 @@ every run, per agent. Two arms of 8 games each on independent seeds, 940 spoken 
 Two things follow. First, a table-wide norm violation rate is close to meaningless on
 its own: check the per-agent split before concluding the prompt is at fault, because
 one model can carry almost all of it. Second, if a tendency ever does need fixing,
-the cheap lever is that model's own `agents/*.json` guidance or a roster decision,
+the cheap lever is that model's own `agent-cards/*.json` guidance or a roster decision,
 not `TABLE_TALK_NORMS`, which every seat pays for.
 
 The counter is deliberately measurement-only. Rewriting a bot's sentence would

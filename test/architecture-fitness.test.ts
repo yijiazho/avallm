@@ -1181,12 +1181,12 @@ test('generic score-layer kernel cannot grow role-specific dependencies or branc
   assert.deepEqual(
     auditArchitectureSources([
       [
-        'server/agents/score-layers/morgana.ts',
+        'server/agents/role-score-layers/morgana.ts',
         'import type { ScoreLayerDefinition } from "../policy/score-layer/types.ts"',
       ],
       [
         'server/agents/policy/score-layer/types.ts',
-        'import type { SituationAnalysis } from "../../analysis/types.ts"',
+        'import type { SituationAnalysis } from "../../analysis/situation-types.ts"',
       ],
     ]),
     [],
@@ -1206,7 +1206,7 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
       ],
       [
         'server/agents/policy/decision-layer/concrete-import.ts',
-        'import { POLICY } from "../../decision-layers/evil-quest-card.ts"',
+        'import { POLICY } from "../../role-decision-layers/evil-quest-card.ts"',
       ],
       [
         'server/agents/policy/decision-layer/trace-import.ts',
@@ -1246,7 +1246,7 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
         'import { replayDecisionLayersForAdmission } from "../policy/decision-layer/admission-replay.ts"',
       ],
       [
-        'server/agents/decision-layers/configured.ts',
+        'server/agents/role-decision-layers/configured.ts',
         'import type { DecisionLayerDefinition } from "../policy/decision-layer/types.ts"',
       ],
       [
@@ -1274,7 +1274,7 @@ test('shared layer registry skeleton stays confined and role-blind', () => {
         'import { layerToken } from "./layer-registry-common.ts"',
       ],
       [
-        'server/agents/score-layers/good.ts',
+        'server/agents/role-score-layers/good.ts',
         'import { indexLayerDefinitions } from "../policy/layer-registry-common.ts"',
       ],
       [
@@ -1319,23 +1319,23 @@ test('concrete score families stay separate from observability and composition I
   assert.deepEqual(
     rules([
       [
-        'server/agents/score-layers/trace-coupled.ts',
+        'server/agents/role-score-layers/trace-coupled.ts',
         'import type { DecisionTrace } from "../trace.ts"',
       ],
       [
-        'server/agents/score-layers/report-coupled.ts',
+        'server/agents/role-score-layers/report-coupled.ts',
         'import { architectureReport } from "../../eval/architecture-report.ts"',
       ],
       [
-        'server/agents/score-layers/transport-coupled.ts',
+        'server/agents/role-score-layers/transport-coupled.ts',
         'import { parseExternalDecisionReply } from "../external-reply.ts"',
       ],
       [
-        'server/agents/score-layers/legacy-row.ts',
+        'server/agents/role-score-layers/legacy-row.ts',
         'import type { CandidateScore } from "../policy/types.ts"',
       ],
       [
-        'server/agents/score-layers/legacy-namespace.ts',
+        'server/agents/role-score-layers/legacy-namespace.ts',
         `import type * as Legacy from "../policy/types.ts"
          type Row = Legacy.CandidateScore`,
       ],
@@ -1362,34 +1362,34 @@ test('configured score seam exclusively aggregates concrete families', () => {
     rules([
       [
         'server/agents/composed.ts',
-        'import { createGoodScoreLayerRegistry } from "./score-layers/good.ts"',
+        'import { createGoodScoreLayerRegistry } from "./role-score-layers/good.ts"',
       ],
       [
         'server/agents/policy/decision-frame.ts',
-        'import { family as selected } from "../score-layers/good.ts"',
+        'import { family as selected } from "../role-score-layers/good.ts"',
       ],
       [
         'server/agents/components/family.ts',
-        'import * as family from "../score-layers/good.ts"',
+        'import * as family from "../role-score-layers/good.ts"',
       ],
       [
         'server/agents/policy/family.ts',
-        'export { family } from "../score-layers/good.ts"',
+        'export { family } from "../role-score-layers/good.ts"',
       ],
       [
         'server/agents/composed-dynamic.ts',
-        'const family = await import("./score-layers/good.ts")',
+        'const family = await import("./role-score-layers/good.ts")',
       ],
       [
         'server/agents/composed-require.ts',
-        'const family = require("./score-layers/good.ts")',
+        'const family = require("./role-score-layers/good.ts")',
       ],
       [
-        'server/agents/score-layers/evil.ts',
+        'server/agents/role-score-layers/evil.ts',
         'import { GOOD } from "./good.ts"',
       ],
       [
-        'server/agents/score-layers/good.ts',
+        'server/agents/role-score-layers/good.ts',
         'export * from "./configured.ts"',
       ],
     ]),
@@ -1407,13 +1407,13 @@ test('configured score seam exclusively aggregates concrete families', () => {
   assert.deepEqual(
     auditArchitectureSources([
       [
-        'server/agents/score-layers/configured.ts',
+        'server/agents/role-score-layers/configured.ts',
         `import { GOOD } from "./good.ts"
          import * as equality from "./legacy-equality.ts"`,
       ],
       [
         'server/agents/composed.ts',
-        'import { registry } from "./score-layers/configured.ts"',
+        'import { registry } from "./role-score-layers/configured.ts"',
       ],
     ]),
     [],
@@ -1491,8 +1491,8 @@ test('score admission replay uses only the configured family catalog', () => {
     rules([
       [
         'server/agents/policy/score-layer/admission-replay.ts',
-        `import { GOOD_ROLE_SCORE_LAYER } from "../../score-layers/good.ts"
-         import * as evil from "../../score-layers/evil.ts"`,
+        `import { GOOD_ROLE_SCORE_LAYER } from "../../role-score-layers/good.ts"
+         import * as evil from "../../role-score-layers/evil.ts"`,
       ],
     ]),
     ['ARCH007', 'ARCH007'],
@@ -1500,7 +1500,7 @@ test('score admission replay uses only the configured family catalog', () => {
   assert.deepEqual(
     auditArchitectureSources([[
       'server/agents/admission/composed-trace.ts',
-      'import { configuredScoreLayerChainForVersion } from "../score-layers/configured.ts"',
+      'import { configuredScoreLayerChainForVersion } from "../role-score-layers/configured.ts"',
     ]]),
     [],
   )

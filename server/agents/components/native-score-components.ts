@@ -13,7 +13,7 @@ import type {
 import {
   SITUATION_ANALYSIS_VERSION,
   type SituationAnalysis,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 import {
   buildEvilRoleObjectiveSnapshot,
   decodeCanonicalPrivateEvilRoleObjectiveSnapshot,

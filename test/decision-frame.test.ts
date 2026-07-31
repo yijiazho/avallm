@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
-import type { SituationAnalysis } from '../server/agents/analysis/types.ts'
+import type { SituationAnalysis } from '../server/agents/analysis/situation-types.ts'
 import {
   createComposedAgent,
 } from '../server/agents/composed.ts'

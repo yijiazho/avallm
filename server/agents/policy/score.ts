@@ -1,5 +1,5 @@
 import type { DecisionRequest, PlayerView } from '../../engine/types.ts'
-import type { SituationAnalysis } from '../analysis/types.ts'
+import type { SituationAnalysis } from '../analysis/situation-types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from './types.ts'
 import type {
   DecisionCandidateBoundary,
@@ -93,7 +93,7 @@ export {
  * full-role terminal that composes the whole stack. These live here beside the
  * descriptors that carry them rather than in per-family contract modules: a
  * concrete family already imports this module for its descriptor, and this
- * module imports nothing from `score-layers/`, so there is no cycle for a
+ * module imports nothing from `role-score-layers/`, so there is no cycle for a
  * separate constants module to break.
  */
 export const MORDRED_BLINDNESS_ROLE_SCORER_VERSION =

@@ -3,7 +3,7 @@ import type {
   ObjectiveRequest,
   ObjectiveSource,
 } from './role-objective-types.ts'
-import type { ObservationFraction } from './types.ts'
+import type { ObservationFraction } from './situation-types.ts'
 
 export type { ObservationFraction }
 

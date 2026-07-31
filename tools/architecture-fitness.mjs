@@ -12,9 +12,9 @@ const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/
 const ENGINE_TYPES = 'server/engine/types'
 const COMPONENT_KERNEL = 'server/agents/components/kernel'
 const GENERIC_SCORE_LAYER_PREFIX = 'server/agents/policy/score-layer/'
-const CONCRETE_SCORE_LAYER_PREFIX = 'server/agents/score-layers/'
+const CONCRETE_SCORE_LAYER_PREFIX = 'server/agents/role-score-layers/'
 const CONFIGURED_SCORE_LAYER_SEAM =
-  'server/agents/score-layers/configured'
+  'server/agents/role-score-layers/configured'
 const SCORE_LAYER_RUNNER = 'server/agents/policy/score-layer/runner'
 const SCORE_LAYER_ADMISSION_REPLAY =
   'server/agents/policy/score-layer/admission-replay'
@@ -1061,7 +1061,7 @@ export function auditArchitectureSources(sourceEntries) {
           'ARCH007',
           sourcePath,
           edge,
-          'concrete score-family selection and equality aggregation are confined to score-layers/configured.ts',
+          'concrete score-family selection and equality aggregation are confined to role-score-layers/configured.ts',
         ))
         continue
       }
@@ -1159,7 +1159,7 @@ export function auditArchitectureSources(sourceEntries) {
         sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
         && (
           target.startsWith('server/agents/analysis/')
-          && target !== 'server/agents/analysis/types'
+          && target !== 'server/agents/analysis/situation-types'
         )
       ) {
         violations.push(violation(
@@ -1175,10 +1175,10 @@ export function auditArchitectureSources(sourceEntries) {
         && (
           (
             target.startsWith('server/agents/analysis/')
-            && target !== 'server/agents/analysis/types'
+            && target !== 'server/agents/analysis/situation-types'
           )
           || target === 'server/agents/components/native-role-components'
-          || target.startsWith('server/agents/decision-layers/')
+          || target.startsWith('server/agents/role-decision-layers/')
           || target === 'server/agents/policy/evil-quest-card'
           || target === 'server/agents/trace'
           || target.startsWith('server/eval/')
@@ -1196,7 +1196,7 @@ export function auditArchitectureSources(sourceEntries) {
         sourcePath.startsWith(GENERIC_SCORE_LAYER_PREFIX)
         && (
           target === 'server/agents/components/native-role-components'
-          || target.startsWith('server/agents/score-layers/')
+          || target.startsWith('server/agents/role-score-layers/')
           || target === 'server/agents/policy/score'
           || target === 'server/agents/policy/legacy-scoring'
         )
@@ -1845,7 +1845,7 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'createMorganaRoleScorer',
     'createRoleObjectiveScorer',
   ])],
-  ['server/agents/score-layers/configured.ts', new Set([
+  ['server/agents/role-score-layers/configured.ts', new Set([
     'configuredScoreFamilyWiring',
   ])],
   // createGoodScoreLayerRegistry is deliberately absent: the census that built
@@ -1853,7 +1853,7 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   // string in the fitness suite as a reference. It has no consumer at all, in
   // production or in a test, which is a different rule's territory than this
   // one and is why the staleness check flagged the entry on its first run.
-  ['server/agents/score-layers/good.ts', new Set([
+  ['server/agents/role-score-layers/good.ts', new Set([
     'calculateGoodProposalCandidateScores',
     'calculateGoodProposalVoteCandidateScores',
   ])],

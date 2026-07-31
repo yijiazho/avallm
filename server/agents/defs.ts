@@ -11,7 +11,7 @@
 // Three tiers, earlier wins on id collision (collisions are surfaced, not
 // silent — see loadAgentLibrary):
 //   builtin — roster models plus the local rule-based and composed agents
-//   curated — checked-in agents/*.json, version with the repo, read-only
+//   curated — checked-in agent-cards/*.json, version with the repo, read-only
 //   user    — data/agents/*.json, created via POST/PUT /api/agents (llm
 //             engines only) or dropped in by hand
 
@@ -112,7 +112,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Curated agents ship WITH the repo — read-only, always baked into the deploy
 // image, so their home is fixed at the repo-relative path.
-export const CURATED_AGENTS_DIR = path.join(__dirname, '..', '..', 'agents')
+export const CURATED_AGENTS_DIR = path.join(__dirname, '..', '..', 'agent-cards')
 
 // User agents are LIVE STATE created at runtime. On a PaaS the container
 // filesystem is ephemeral (wiped every redeploy), so the store can be pointed

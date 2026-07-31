@@ -55,10 +55,10 @@ import type {
 } from '../server/engine/types.ts'
 import type {
   SituationAnalysis,
-} from '../server/agents/analysis/types.ts'
+} from '../server/agents/analysis/situation-types.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
-} from '../server/agents/analysis/types.ts'
+} from '../server/agents/analysis/situation-types.ts'
 import { reconstructCognition } from '../server/agents/cognition/state.ts'
 import {
   canonicalDecisionFrame,

@@ -11,7 +11,7 @@ import {
   projectLanguageInterpreterInput,
   recentPublicUtterances,
 } from './language-contract.ts'
-import type { SituationAnalysis } from '../analysis/types.ts'
+import type { SituationAnalysis } from '../analysis/situation-types.ts'
 import type {
   CognitionState,
   PublicCommitment,

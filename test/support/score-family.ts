@@ -35,7 +35,7 @@ import {
 import { exactBelief } from '../../server/agents/belief/exact.ts'
 import {
   configuredScoreLayerChainForVersion,
-} from '../../server/agents/score-layers/configured.ts'
+} from '../../server/agents/role-score-layers/configured.ts'
 import type {
   DecisionComponentRun,
 } from '../../server/agents/components/kernel.ts'

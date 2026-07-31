@@ -7,7 +7,7 @@ import type {
 } from '../../engine/types.ts'
 import { rolePossibilities } from '../belief/worlds.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
-import type { SituationAnalysis } from '../analysis/types.ts'
+import type { SituationAnalysis } from '../analysis/situation-types.ts'
 
 export interface SeatCertainty {
   seat: Seat

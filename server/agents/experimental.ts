@@ -8,7 +8,7 @@
 
 import type { PlayerView, Seat } from '../engine/types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
-import type { SituationAnalysis } from './analysis/types.ts'
+import type { SituationAnalysis } from './analysis/situation-types.ts'
 import {
   advanceCognition,
   reconstructCognition,

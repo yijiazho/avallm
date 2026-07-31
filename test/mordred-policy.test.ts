@@ -20,10 +20,10 @@ import {
 import {
   EVIL_ROLE_SCORE_LAYER,
   SEEDED_EVIL_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/evil.ts'
+} from '../server/agents/role-score-layers/evil.ts'
 import {
   mordredScoreLayerDefinitions,
-} from '../server/agents/score-layers/mordred.ts'
+} from '../server/agents/role-score-layers/mordred.ts'
 import type {
   ScoreLayerTransformContext,
 } from '../server/agents/policy/score-layer/types.ts'

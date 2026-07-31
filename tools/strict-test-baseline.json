@@ -18,7 +18,7 @@
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "05698d29eef86efe44b5f4ee965d0fe1c9d44f8d3e04fbf642f9db5c445fcd08",
+      "sha256": "8aa3b9eba5c547c9b009477c2c5a0fcf26dddf2638c0fcdcd5a88ee34d2ce2e5",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "test/decision-frame.test.ts",
-      "sha256": "24d81fb10309423f680ca58f1ff76fc861f11aceaa7efe4dba262465cc17f5dc",
+      "sha256": "89d3dd0cdc5208f9ffcb58efb5e4da0fb8f50861181e3a35bdae327931b03c0b",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {
@@ -93,12 +93,12 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "be6cc788d95811fd833725d9f3e8922a5386ebc5014540dc6349eaa9c41570a2",
+      "sha256": "2ee7156d27864ffa474407cad75997c6b2c0a8c6b7aadf411bfd653493e1811d",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "9b494eadb073ffb1bca92798312599eb835cfd7eb2dbb9d678c15e6622c80405",
+      "sha256": "93b9e950c0b790e6616aed328e30c160b4477b56e4dd66764f822ea6cd1cdfe3",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "98a86cac4fc9e254fa71a5d8515c4d6f20082524b21eb75fd51bcec3e030a7d9",
+      "sha256": "f880c039b61f6f44f28d7b0e0ca99321f4ffbba0a5d161286b8c7ce691fd0865",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

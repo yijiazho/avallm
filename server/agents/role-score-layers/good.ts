@@ -4,7 +4,7 @@ import {
 } from '../analysis/situation-plan.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
   type PrivateRoleUtilityProjection,

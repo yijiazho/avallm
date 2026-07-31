@@ -12,7 +12,7 @@ import { proposalApproved, proposalVotes } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
-import type { SituationAnalysis } from './analysis/types.ts'
+import type { SituationAnalysis } from './analysis/situation-types.ts'
 import { reconstructCognition } from './cognition/state.ts'
 import {
   candidateIdForDecision,

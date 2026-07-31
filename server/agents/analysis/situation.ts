@@ -32,7 +32,7 @@ import {
   type PolicyCandidateTeamAssessment,
   type SituationAnalysis,
   type SituationTeamAssessment,
-} from './types.ts'
+} from './situation-types.ts'
 
 export function boardSituation(
   view: {

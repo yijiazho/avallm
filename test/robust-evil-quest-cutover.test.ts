@@ -8,7 +8,7 @@ import { pendingQuest, resolveQuest } from './support/quests.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
-} from '../server/agents/decision-layers/robust-evil-quest-card.ts'
+} from '../server/agents/role-decision-layers/robust-evil-quest-card.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../server/agents/components/robust-evil-quest-card.ts'
@@ -259,7 +259,7 @@ test('robust concrete authority stays outside universal and frame kernels', () =
   )
   const concrete = readFileSync(
     new URL(
-      '../server/agents/decision-layers/robust-evil-quest-card.ts',
+      '../server/agents/role-decision-layers/robust-evil-quest-card.ts',
       import.meta.url,
     ),
     'utf8',

@@ -14,7 +14,7 @@ import {
   SELECTION_ADJUSTMENT_REPLAY_TOLERANCE,
 } from '../components/probability-arithmetic.ts'
 import { canonicalTeam } from '../../engine/seatset.ts'
-import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/types.ts'
+import { GOOD_VOTE_SITUATION_VERSION } from '../analysis/situation-types.ts'
 import type { PolicyCandidate } from './types.ts'
 import {
   GOOD_PROPOSAL_FEATURE_VERSION,

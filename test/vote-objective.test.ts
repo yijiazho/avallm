@@ -20,10 +20,10 @@ import {
 } from '../server/agents/policy/score.ts'
 import {
   GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
-} from '../server/agents/score-layers/good.ts'
+} from '../server/agents/role-score-layers/good.ts'
 import {
   configuredScoreLayerTerminalFor,
-} from '../server/agents/score-layers/configured.ts'
+} from '../server/agents/role-score-layers/configured.ts'
 import {
   nb013VoteObjectiveVariants,
   NB013_VOTE_OBJECTIVE_VARIANTS,

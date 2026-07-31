@@ -2,7 +2,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../../../engine/types.ts'
-import type { SituationAnalysis } from '../../analysis/types.ts'
+import type { SituationAnalysis } from '../../analysis/situation-types.ts'
 import type {
   ComponentRef,
   ComponentToken,

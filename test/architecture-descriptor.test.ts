@@ -35,7 +35,7 @@ import {
 } from '../server/agents/belief/language-factor.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
-} from '../server/agents/analysis/types.ts'
+} from '../server/agents/analysis/situation-types.ts'
 import {
   LEGAL_CANDIDATE_VERSION,
   FORCED_POLICY_VERSION,

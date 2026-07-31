@@ -4,7 +4,7 @@ import type {
   PlayerView,
 } from '../engine/types.ts'
 import { isDeepStrictEqual } from 'node:util'
-import { SITUATION_ANALYSIS_VERSION } from './analysis/types.ts'
+import { SITUATION_ANALYSIS_VERSION } from './analysis/situation-types.ts'
 import { analyzeSituation } from './analysis/situation.ts'
 import {
   combineSituationAnalysisRequirements,
@@ -219,14 +219,14 @@ import {
   configuredNativeFallbackTerminalFor,
   configuredScoreLayersApplyToDecision,
   createConfiguredScoreLayerRegistry,
-} from './score-layers/configured.ts'
+} from './role-score-layers/configured.ts'
 import {
   createConfiguredDecisionLayerRegistry,
-} from './decision-layers/configured.ts'
+} from './role-decision-layers/configured.ts'
 import {
   ROBUST_EVIL_QUEST_CARD_DECISION_DEGRADATION,
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
-} from './decision-layers/robust-evil-quest-card.ts'
+} from './role-decision-layers/robust-evil-quest-card.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from './policy/project-score-diagnostics.ts'

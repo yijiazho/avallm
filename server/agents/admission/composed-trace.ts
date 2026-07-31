@@ -20,7 +20,7 @@ import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
   type SituationAnalysis,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 import {
   combineSituationAnalysisRequirements,
 } from '../analysis/situation-plan.ts'
@@ -76,7 +76,7 @@ import {
 } from '../policy/project-score-diagnostics.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 import {
   APPLIED_OUTCOME_DEGRADATION,
   COMPONENT_DECISION_TRACE_VERSION,
@@ -224,7 +224,7 @@ import {
   configuredScoreLayerChainForVersion,
   configuredScoreLayerTerminalForVersion,
   createConfiguredScoreLayerRegistry,
-} from '../score-layers/configured.ts'
+} from '../role-score-layers/configured.ts'
 import type {
   ResolvedScoreLayerChain,
   ScoreLayerTrace,
@@ -249,13 +249,13 @@ import type {
 } from '../policy/decision-layer/types.ts'
 import {
   createConfiguredDecisionLayerRegistry,
-} from '../decision-layers/configured.ts'
+} from '../role-decision-layers/configured.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
 } from '../components/robust-evil-quest-card.ts'
 import {
   ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
-} from '../decision-layers/robust-evil-quest-card.ts'
+} from '../role-decision-layers/robust-evil-quest-card.ts'
 import {
   EVIL_ROLE_UTILITY_COMPONENT,
   GOOD_ROLE_UTILITY_COMPONENT,

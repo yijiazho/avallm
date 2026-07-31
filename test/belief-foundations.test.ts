@@ -31,7 +31,7 @@ import {
 } from '../server/agents/policy/candidate-score-validation.ts'
 import {
   calculateGoodProposalCandidateScores,
-} from '../server/agents/score-layers/good.ts'
+} from '../server/agents/role-score-layers/good.ts'
 import { heuristicDecide } from '../server/agents/heuristic.ts'
 import { runGame } from '../server/sim/runner.ts'
 import { createGame } from '../server/engine/game.ts'

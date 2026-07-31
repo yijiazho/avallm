@@ -5,13 +5,13 @@ import type {
   PlayerView,
   Seat,
 } from '../engine/types.ts'
-import type { SituationAnalysis, SituationTeamAssessment } from './analysis/types.ts'
+import type { SituationAnalysis, SituationTeamAssessment } from './analysis/situation-types.ts'
 import type {
   BeliefSnapshot,
   EvidenceContribution,
   PlayerMarginal,
 } from './belief/types.ts'
-import type { PolicyCandidateTeamAssessment } from './analysis/types.ts'
+import type { PolicyCandidateTeamAssessment } from './analysis/situation-types.ts'
 import type { CandidateScore } from './policy/score.ts'
 import type { ForcedPolicyResult } from './policy/types.ts'
 import type { CommunicationIntent } from './policy/plan.ts'

@@ -23,7 +23,7 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
    rates, and reasoning-leak counters — the observability that keeps a shared deployment honest.
 4. **Custom agents on deployments** (explicitly deferred): attach a volume at `/app/data`; add
    gated `DELETE /api/agents/:id`; surface (rather than silently skip) custom agents whose roster
-   model id disappeared. Optional third tier: checked-in `agents/*.json` — curated agents that
+   model id disappeared. Optional third tier: checked-in `agent-cards/*.json` — curated agents that
    version with the repo and appear on every deployment. **Design fleshed out (including
    author-controlled system prompts for smarter agents) in
    [design-custom-agents.md](design-custom-agents.md).**

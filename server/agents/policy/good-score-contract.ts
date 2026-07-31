@@ -2,7 +2,7 @@
 import {
   GOOD_VOTE_SITUATION_VERSION,
   type JointProbabilitySemantics,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 
 export { stablePolicyBucket } from './deterministic-policy.ts'
 

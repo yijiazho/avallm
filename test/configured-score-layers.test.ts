@@ -5,7 +5,7 @@ import {
   configuredScoreLayerTerminalFor,
   configuredScoreLayersApplyToDecision,
   createConfiguredScoreLayerRegistry,
-} from '../server/agents/score-layers/configured.ts'
+} from '../server/agents/role-score-layers/configured.ts'
 import {
   ScoreLayerFamilyError,
   resolveScoreLayerFamilyTree,
@@ -21,25 +21,25 @@ import {
   GOOD_ROLE_SCORE_LAYER,
   SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   SEEDED_GOOD_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/good.ts'
+} from '../server/agents/role-score-layers/good.ts'
 import {
   EVIL_ROLE_SCORE_LAYER,
   SEEDED_EVIL_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/evil.ts'
+} from '../server/agents/role-score-layers/evil.ts'
 import {
   MORGANA_ROLE_SCORE_LAYER,
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/morgana.ts'
+} from '../server/agents/role-score-layers/morgana.ts'
 import {
   MORDRED_ROLE_SCORE_LAYER,
   SEEDED_MORDRED_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/mordred.ts'
+} from '../server/agents/role-score-layers/mordred.ts'
 import {
   ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
-} from '../server/agents/score-layers/assassin.ts'
+} from '../server/agents/role-score-layers/assassin.ts'
 import {
   FULL_ROLE_POLICY_SCORE_LAYER,
-} from '../server/agents/score-layers/full-role.ts'
+} from '../server/agents/role-score-layers/full-role.ts'
 import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'

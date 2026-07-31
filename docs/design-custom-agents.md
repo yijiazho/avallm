@@ -216,7 +216,7 @@ Per roadmap #4, the library becomes three sources merged in precedence order:
 
 1. **Built-ins** — generated from the roster plus Rule-based and the two composed
    probabilistic choices (code).
-2. **Curated** — NEW: checked-in `agents/*.json`, versioned with the repo, present on every
+2. **Curated** — NEW: checked-in `agent-cards/*.json`, versioned with the repo, present on every
    deployment. Same schema, loaded read-only, `author: 'curated'`.
 3. **User** — `data/agents/*.json` on the Railway volume at `/app/data` (survives redeploys once
    the volume from roadmap #1 exists).

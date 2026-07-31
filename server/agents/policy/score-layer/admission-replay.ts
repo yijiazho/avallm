@@ -1,5 +1,5 @@
 import type { DecisionRequest, PlayerView } from '../../../engine/types.ts'
-import type { SituationAnalysis } from '../../analysis/types.ts'
+import type { SituationAnalysis } from '../../analysis/situation-types.ts'
 import type { DecisionComponentRun } from '../../components/kernel.ts'
 import type { DecisionComponentDefinition } from '../../components/types.ts'
 import { detachTrustedPolicyData } from '../trusted-data.ts'

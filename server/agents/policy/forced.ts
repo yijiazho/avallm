@@ -7,7 +7,7 @@ import { teamsEqual } from '../../engine/seatset.ts'
 import type {
   ForcedPlayReasonCode,
   SituationAnalysis,
-} from '../analysis/types.ts'
+} from '../analysis/situation-types.ts'
 import {
   candidateIdForDecision,
   teamForCandidate,

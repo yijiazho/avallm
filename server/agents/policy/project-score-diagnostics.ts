@@ -10,7 +10,7 @@ import {
 } from '../analysis/evil-role-utility.ts'
 import {
   calculateConfiguredDeterministicGoodBase,
-} from '../score-layers/configured.ts'
+} from '../role-score-layers/configured.ts'
 import {
   ROLE_UTILITY_PROJECTION_VERSION,
 } from '../analysis/role-utility.ts'

@@ -7,12 +7,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import path from 'node:path'
 import { createGame, applyDecision, expectedDecisions } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import {
   buildMessages, PLAYER_REFERENCE_NORMS, TABLE_TALK_NORMS,
 } from '../server/agents/prompts.ts'
 import { SPEECH_NORMS } from '../server/eval/norms.ts'
+import { CURATED_AGENTS_DIR } from '../server/agents/defs.ts'
 import type { LlmCallKind } from '../server/llm/call-params.ts'
 
 test('TABLE_TALK_NORMS carries the anti-house-style rules', () => {
@@ -157,11 +159,15 @@ test('no rendered prompt shows the model a construction the norms ban', () => {
 // a distinctive voice should get that voice back. The line is authorship, not
 // file format: we hold OUR text to the style, never theirs.
 test('curated agent prompt text follows the same house style', () => {
-  const dir = new URL('../agents/', import.meta.url)
+  // Resolved through the loader's own constant, not a second hardcoded path.
+  // A private copy here is how this test came to point at a directory that no
+  // longer existed after the curated cards were renamed: the loader moved and
+  // the test did not. One owner for the location means that cannot recur.
+  const dir = CURATED_AGENTS_DIR
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
   assert.ok(files.length > 0, 'expected curated agents to exist')
   for (const file of files) {
-    const def = JSON.parse(fs.readFileSync(new URL(file, dir), 'utf8'))
+    const def = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'))
     const e = def.engine ?? {}
     // Deliberately NOT gated on engine.type. Only llm engines consume these
     // fields today, but gating on that means a composed def carrying persona

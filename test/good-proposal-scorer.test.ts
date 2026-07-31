@@ -24,7 +24,7 @@ import {
 } from '../server/agents/policy/candidate-score-validation.ts'
 import {
   calculateGoodProposalCandidateScores as scoreGoodProposalCandidates,
-} from '../server/agents/score-layers/good.ts'
+} from '../server/agents/role-score-layers/good.ts'
 import type { ForcedPolicyResult } from '../server/agents/policy/types.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'

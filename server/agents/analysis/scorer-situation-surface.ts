@@ -8,7 +8,7 @@ import {
 import type { PolicyCandidate } from '../policy/types.ts'
 import { analyzeSituation } from './situation.ts'
 import type { SituationAnalysisPlan } from './situation-plan.ts'
-import type { SituationAnalysis } from './types.ts'
+import type { SituationAnalysis } from './situation-types.ts'
 
 export interface ScorerSituationSurface {
   readonly analysis: SituationAnalysis

@@ -64,7 +64,7 @@ import {
 } from '../server/agents/policy/score-layer/admission-replay.ts'
 import {
   configuredScoreLayerChainForVersion,
-} from '../server/agents/score-layers/configured.ts'
+} from '../server/agents/role-score-layers/configured.ts'
 import {
   projectConfiguredScoreDiagnostics,
 } from '../server/agents/policy/project-score-diagnostics.ts'

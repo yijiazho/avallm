@@ -16,13 +16,13 @@ import {
   COMPATIBILITY_SCORE_LAYER,
   SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   SEEDED_GOOD_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/good.ts'
+} from '../server/agents/role-score-layers/good.ts'
 import {
   SEEDED_EVIL_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/evil.ts'
+} from '../server/agents/role-score-layers/evil.ts'
 import {
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
-} from '../server/agents/score-layers/morgana.ts'
+} from '../server/agents/role-score-layers/morgana.ts'
 import { readDecisionFixtures } from '../server/eval/decision-fixtures.ts'
 import {
   legalCandidates,
@@ -33,7 +33,7 @@ import {
 import { exactBelief } from '../server/agents/belief/exact.ts'
 import {
   configuredScoreLayerChainForVersion,
-} from '../server/agents/score-layers/configured.ts'
+} from '../server/agents/role-score-layers/configured.ts'
 import {
   replayNativeScoresForAdmission,
 } from '../server/agents/policy/score-layer/admission-replay.ts'

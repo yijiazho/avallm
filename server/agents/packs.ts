@@ -2,7 +2,7 @@
 // ("all the detectives", "all the philosophers"). A pack is pure metadata over
 // defs that already exist: no engine surface, no new prompt layer. Packs are
 // curation, so they live in code next to DEFAULT_TABLE (roster.ts) rather than
-// in a JSON manifest; the member ids reference agents/*.json files, and
+// in a JSON manifest; the member ids reference agent-cards/*.json files, and
 // resolvePacks surfaces any that don't resolve instead of silently shrinking
 // the pack.
 //

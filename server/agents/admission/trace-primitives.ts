@@ -5,7 +5,7 @@
 import type { DecisionTrace } from '../trace.ts'
 import type { ForcedPolicyResult } from '../policy/types.ts'
 import { FORCED_POLICY_VERSION } from '../policy/types.ts'
-import { FORCED_PLAY_REASON_CODES } from '../analysis/types.ts'
+import { FORCED_PLAY_REASON_CODES } from '../analysis/situation-types.ts'
 import { EXACT_BELIEF_MODEL_VERSION } from '../belief/types.ts'
 
 /**

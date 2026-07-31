@@ -20,7 +20,7 @@ import type {
   Role,
   Seat,
 } from '../../engine/types.ts'
-import type { SituationAnalysis } from '../analysis/types.ts'
+import type { SituationAnalysis } from '../analysis/situation-types.ts'
 import {
   denseOwnDataArrayValues,
   exactOwnDataRecord,
