@@ -78,25 +78,33 @@ The role modules end in host-join validators that assert
 **byte-identical** while sharing only the computation — no version bumps, all
 pinned tests stay green.
 
-1. **Extract the pure core** `perception-asymmetry.ts` + focused unit tests
-   (private mass, public baseline, asymmetry index) against hand-built worlds.
-2. **Pilot: mordred-blindness** — refactor `buildPrivateMordredBlindnessObjective`
-   internals to call the core; output unchanged; run `node --test
-   test/mordred-*.test.ts` to confirm byte-identity.
-3. **assassin-posterior** onto the core; retire its bespoke behavioral proxy in
-   favor of `actor-target-treatment` (this one *may* need a version bump if the
-   overlay numbers change — measure with `server/eval/*` first).
-4. **morgana-counterfeit** onto the core; same overlay retirement.
+1. **Extract the pure core** `perception-asymmetry.ts` + focused unit tests.
+   **DONE.** `accumulateSubjectMass` (naive fold + overlay) and
+   `partitionBySubject` (buckets + compensated `stableProbabilitySum` mass).
+2. **Pilot: mordred-blindness.** **DONE, byte-identical.** `merlinHypotheses`
+   builds through `accumulateSubjectMass`; host-join + `mordred-native` pin it.
+3. **assassin-posterior.** **DONE (mass), overlay fold REJECTED by eval.** The
+   per-Merlin-candidate prior routes through `partitionBySubject` (compensated,
+   byte-identical). The overlay could *not* fold onto `actor-target-treatment`:
+   on a 1,200-prediction held-out set the matrix-sourced steelman regressed to
+   0.28 hit-rate vs the bespoke overlay's 0.33 (prior-only floor 0.19), because
+   the bespoke overlay's hypothesis-conditioned vote signal ("Merlin approves
+   iff clean") has no counterpart in the raw `voteApproval` matrix. The bespoke
+   overlay stays. Lesson: the summation discipline consolidates; the overlay is
+   genuinely role-specific and does not.
+4. **morgana-counterfeit** onto the core — next. Expect the same split: mass/
+   partition consolidates byte-identically; its counterfeit overlay likely stays
+   bespoke (measure before folding).
 5. **New: `quest-coparticipation` channel** + a thin servant/minion consumer
-   (evil exposure read; good leverage read). This is now a small module, not a
-   fourth 700-line one.
-6. **Optional later**: unify the three payloads behind one version (larger,
-   requires version bumps + validator/test rewrites). Only if step 5 shows the
-   shared payload is genuinely cleaner than three byte-frozen ones.
+   (evil exposure read; good leverage read). A small module, not a fourth big one.
+6. **Optional later**: unify the payloads behind one version. Only if it proves
+   genuinely cleaner than the byte-frozen ones.
 
-Gate steps 3–5 on the eval benches the repo already trusts (Brier/log-loss on
-held-out casts) before granting any scoring authority — matching how the
-quest-card factor is pinned.
+Gate every overlay change on the eval benches the repo trusts (Brier/log-loss on
+held-out casts) before granting scoring authority — as step 3 did, and matching
+how the quest-card factor is pinned. The step-3 harness lives in the session
+scratchpad (`assassin-cal.ts`, `assassin-steelman.ts`); formalize it under
+`server/eval/` if the overlay question is ever reopened.
 
 ## Experiment: does surfacing the perception read help? (hybrid vs pure-LLM)
 
