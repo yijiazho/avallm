@@ -1,3 +1,13 @@
+/**
+ * The public actor-target treatment read. For each ordered (actor, target) pair
+ * it counts how often the actor put the target on an executed proposal and, when
+ * the actor voted on such a proposal, how often they approved a team carrying the
+ * target, as fractions over a dense playerCount^2 matrix. It reads the public
+ * record only: names, prose, private state, and raw event ordering never enter
+ * it. Mordred blindness is the consumer, reading the Merlin row to weigh
+ * anomalous treatment of a hypothesized Merlin.
+ */
+
 import { isDeepStrictEqual } from 'node:util'
 import { proposalApproved, proposalVotes } from '../../engine/rules.ts'
 import type { Seat } from '../../engine/types.ts'
@@ -249,6 +259,14 @@ export function decodeCanonicalPrivateActorTargetTreatmentRead(
     : undefined
 }
 
+/**
+ * The untyped-entry host join: shape-validate an unknown value at the hostile
+ * boundary, then rebuild and compare. Retained deliberately though only tests
+ * reach it today (recorded in TEST_ONLY_EXPORT_EXEMPTIONS in
+ * tools/architecture-fitness.mjs); it is the second door for a caller holding an
+ * unnarrowed value. Production enters through the Admitted variant below, which
+ * assumes the kernel already admitted the shape.
+ */
 export function validatePrivateActorTargetTreatmentHostJoin(
   value: unknown,
   input: {

@@ -141,6 +141,12 @@ export function buildPublicCounterfeitMerlinRead(
   record: PublicRecord,
   observer: PublicObserverSnapshot = observePublicRecord(record),
 ): PublicCounterfeitMerlinReadSnapshot {
+  // The rebuild-and-compare is a deliberate self-consistency guard for callers
+  // that pass their own observer (public-self-read, and the objective builder).
+  // When the parameter is defaulted it recomputes the same value, so the check
+  // is trivially satisfied there; it is kept rather than folded into the default
+  // because dropping the parameter would remove the guard the explicit-observer
+  // callers rely on.
   const authoritative = observePublicRecord(record)
   if (!isDeepStrictEqual(observer, authoritative)) {
     throw new Error('counterfeit public read received inconsistent observer')

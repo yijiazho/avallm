@@ -17,6 +17,12 @@
 // inline. Each role module supplies its own channel (which world maps to which
 // subject) and its own exploit value; those are the genuinely role-specific
 // pieces and stay put.
+//
+// Two further shared folds live here beside the accumulators.
+// certaintyDifferential is the private-vs-public certainty comparison behind
+// the private-pin read, and teamEvilCountDistribution is the per-team evil-count
+// fold that the counterfeit and blindness objectives share. Both reuse the same
+// compensated sum so their totals match an inline loop bit for bit.
 
 import { stableProbabilitySum } from '../components/probability-arithmetic.ts'
 

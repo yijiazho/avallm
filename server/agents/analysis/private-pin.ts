@@ -11,6 +11,11 @@
  * Inert substrate: this projects a read and holds no scoring authority. It
  * composes with public-self-read rather than replacing it (that is public-in,
  * public-out; this adds the private operand).
+ *
+ * buildEvilExposureRead is the level-2 mirror in the same file: which good seats
+ * are certain the acting evil seat is evil, via the exact quest-collapse channel
+ * (a failed quest whose failCount is teamSize - 1 leaves one good member who pins
+ * every teammate). Same substrate contract, opposite direction.
  */
 
 import type { PlayerView } from '../../engine/types.ts'

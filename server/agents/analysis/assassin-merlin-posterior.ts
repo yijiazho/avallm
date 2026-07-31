@@ -1,3 +1,15 @@
+/**
+ * The Assassin's posterior over which seat is Merlin. The seat's feasible worlds
+ * are grouped by their Merlin coordinate, and each candidate's prior mass is
+ * reweighted by how well that seat's proposals and votes tracked the clean/evil
+ * split a real Merlin would have known, with the behavioral log-weight span
+ * capped so behavior nudges rather than overturns the prior. The production
+ * entry (buildPrivateAssassinMerlinPosterior) is assassination-only;
+ * buildPrivateEvilSeatMerlinPosterior exposes the same core to evaluation for
+ * any evil seat, and decodeCanonicalPrivateAssassinMerlinPosterior is the
+ * stored/external reader.
+ */
+
 import { isDeepStrictEqual } from 'node:util'
 import type {
   DecisionRequest,
@@ -100,7 +112,7 @@ export function buildPrivateAssassinMerlinPosterior(input: {
 }
 
 /**
- * PlayerView-only E3A predictor core. Evaluation may ask any evil seat for an
+ * PlayerView-only Merlin-predictor core. Evaluation may ask any evil seat for an
  * unlabelled Merlin prediction, while the production wrapper above retains
  * strict Assassin request and phase applicability.
  */
