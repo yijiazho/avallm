@@ -3,12 +3,14 @@ import assert from 'node:assert/strict'
 import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import {
-  assessTeam,
-  assessTeams,
   beliefFromWeightedWorlds,
   exactBelief,
   feasibleWorlds,
 } from '../server/agents/belief/exact.ts'
+import {
+  assessTeam,
+  assessTeams,
+} from '../server/agents/belief/team-assessment.ts'
 import {
   assertDistribution,
   BeliefInvariantError,

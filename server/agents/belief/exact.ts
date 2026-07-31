@@ -14,7 +14,6 @@ import {
   type HiddenWorld,
   type PlayerMarginal,
   type RoleMarginal,
-  type TeamAssessment,
   type WeightedWorld,
 } from './types.ts'
 import {
@@ -24,10 +23,14 @@ import {
 } from './worlds.ts'
 import { projectUniformJointWorlds } from './projection.ts'
 import { assertDistribution } from './invariants.ts'
+import { LruMap } from './lru.ts'
 import { clampProbability } from '../components/probability-arithmetic.ts'
 
+// Keyed on the per-seat private view (role, alignment, and private knowledge),
+// not just the public cast, so this space is far wider than worlds.ts's
+// CACHE_LIMIT=4 assignment cache and holds proportionally more entries.
 const DEAL_CACHE_LIMIT = 32
-const dealWorldCache = new Map<string, readonly HiddenWorld[]>()
+const dealWorldCache = new LruMap<string, readonly HiddenWorld[]>(DEAL_CACHE_LIMIT)
 
 // View-generic (the max event seq of any PlayerView), not belief-specific. It
 // lives here because belief is its earliest consumer and the analysis, policy,
@@ -56,11 +59,7 @@ function dealCacheKey(view: PlayerView): string {
 function dealWorlds(view: PlayerView): readonly HiddenWorld[] {
   const key = dealCacheKey(view)
   const found = dealWorldCache.get(key)
-  if (found) {
-    dealWorldCache.delete(key)
-    dealWorldCache.set(key, found)
-    return found
-  }
+  if (found) return found
   const candidates = enumerateCanonicalWorlds(
     { playerCount: view.playerCount, rolesInPlay: view.rolesInPlay },
     { seat: view.seat, role: view.role },
@@ -69,10 +68,6 @@ function dealWorlds(view: PlayerView): readonly HiddenWorld[] {
     worldSatisfiesView(view, world, { questRecord: 'none' }))
   if (worlds.length === 0) failNoWorlds(view, 'none')
   dealWorldCache.set(key, worlds)
-  while (dealWorldCache.size > DEAL_CACHE_LIMIT) {
-    const oldest = dealWorldCache.keys().next().value
-    if (oldest !== undefined) dealWorldCache.delete(oldest)
-  }
   return worlds
 }
 
@@ -107,9 +102,26 @@ function uniformWeights(worlds: readonly HiddenWorld[]): readonly WeightedWorld[
  * least one positive world) or from validateBelief in identity.ts (which
  * rejects an empty world list at the host-input boundary).
  */
-function weightsAreUniform(worlds: readonly WeightedWorld[]): boolean {
+export function weightsAreUniform(worlds: readonly WeightedWorld[]): boolean {
   const first = worlds[0]?.probability
   return worlds.every((weightedWorld) => weightedWorld.probability === first)
+}
+
+/**
+ * Reduce an accumulated marginal to a probability, snapping certainty to exactly
+ * 1. Summing normalized non-uniform weights lands a few ULPs short, and
+ * consumers read certainty by strict equality: the calibration bench
+ * (server/eval/quest-factor-bench.ts) drops degenerate rows with
+ * `evilProbability === 1`, and its uniform counterpart divides counts in
+ * projection.ts, so dropping this snap would leave the paired uniform/weighted
+ * variants silently filtering different row sets.
+ */
+function snapProbability(
+  sum: number,
+  matchingWorlds: number,
+  totalWorlds: number,
+): number {
+  return matchingWorlds === totalWorlds ? 1 : clampProbability(sum)
 }
 
 function playerMarginals(
@@ -125,14 +137,7 @@ function playerMarginals(
         evilProbability += weightedWorld.probability
       }
     }
-    // Snap certainty to exactly 1: summing normalized non-uniform weights lands
-    // a few ULPs short, and consumers read certainty by strict equality. The
-    // calibration bench (server/eval/quest-factor-bench.ts) drops degenerate
-    // rows with `evilProbability === 1`, and its uniform counterpart divides
-    // counts in projection.ts, so dropping this snap would leave the paired
-    // uniform/weighted variants silently filtering different row sets.
-    if (evilWorlds === worlds.length) evilProbability = 1
-    else evilProbability = clampProbability(evilProbability)
+    evilProbability = snapProbability(evilProbability, evilWorlds, worlds.length)
     return {
       seat,
       goodProbability: 1 - evilProbability,
@@ -158,9 +163,7 @@ function roleMarginals(
           probability += weightedWorld.probability
         }
       }
-      // Snap to exactly 1, for the reason spelled out in playerMarginals.
-      if (matchingWorlds === worlds.length) probability = 1
-      else probability = clampProbability(probability)
+      probability = snapProbability(probability, matchingWorlds, worlds.length)
       out.push({ seat, role, probability })
     }
   }
@@ -302,101 +305,3 @@ export const exactWorldBeliefModel: BeliefModel = Object.freeze({
   factorsVersion: 'off',
   infer: exactBelief,
 })
-
-function validateTeam(snapshot: BeliefSnapshot, team: readonly Seat[]): readonly Seat[] {
-  const unique = new Set(team)
-  if (unique.size !== team.length) throw new Error('team assessment requires distinct seats')
-  const playerCount = snapshot.playerMarginals.length
-  for (const seat of team) {
-    if (!Number.isInteger(seat) || seat < 0 || seat >= playerCount) {
-      throw new Error(`invalid team seat ${seat} for ${playerCount} players`)
-    }
-  }
-  return [...team].sort((a, b) => a - b)
-}
-
-export function assessTeam(
-  snapshot: BeliefSnapshot,
-  proposedTeam: readonly Seat[],
-): TeamAssessment {
-  return assessTeams(snapshot, [proposedTeam])[0]
-}
-
-const countBits = (value: number): number => {
-  let remaining = value
-  let count = 0
-  while (remaining) {
-    remaining &= remaining - 1
-    count++
-  }
-  return count
-}
-
-/**
- * Batch the joint team projection so exhaustive 10-player proposal surfaces
- * scan each world's compact alignment mask rather than allocating a filtered
- * team for every world/candidate pair. The returned order matches the input;
- * decision-facing callers attach and validate stable candidate IDs.
- */
-export function assessTeams(
-  snapshot: BeliefSnapshot,
-  proposedTeams: readonly (readonly Seat[])[],
-): readonly TeamAssessment[] {
-  if (!proposedTeams.length) return []
-  const teams = proposedTeams.map((team) => validateTeam(snapshot, team))
-  const uniform = weightsAreUniform(snapshot.worlds)
-  const maskWeights = new Map<number, number>()
-  for (const weightedWorld of snapshot.worlds) {
-    let evilMask = 0
-    for (
-      let seat = 0;
-      seat < weightedWorld.world.alignmentBySeat.length;
-      seat++
-    ) {
-      if (weightedWorld.world.alignmentBySeat[seat] === 'evil') {
-        evilMask |= 1 << seat
-      }
-    }
-    maskWeights.set(
-      evilMask,
-      (maskWeights.get(evilMask) ?? 0)
-        + (uniform ? 1 : weightedWorld.probability),
-    )
-  }
-  return teams.map((team): TeamAssessment => {
-    let teamMask = 0
-    for (const seat of team) teamMask |= 1 << seat
-    const evilWorldCounts = Array<number>(team.length + 1).fill(0)
-    for (const [evilMask, weight] of maskWeights) {
-      evilWorldCounts[countBits(teamMask & evilMask)] += weight
-    }
-    const totalWeight = evilWorldCounts.reduce(
-      (sum, weight) => sum + weight,
-      0,
-    )
-    const evilCountDistribution = uniform
-      ? evilWorldCounts.map((count) => count / snapshot.worlds.length)
-      : evilWorldCounts.map((weight) => weight / totalWeight)
-    // Postcondition guarding the two-denominator split above: the uniform branch
-    // divides by the world count, the weighted branch by the accumulated weight.
-    // If either denominator is wrong the masses stop summing to 1, and clean
-    // probability (index 0) silently misreports how safe the team is.
-    assertDistribution(
-      evilCountDistribution,
-      `team ${team.join('-')} evil-count distribution`,
-    )
-    return {
-      team,
-      cleanProbability: evilCountDistribution[0],
-      evilCountDistribution,
-    }
-  })
-}
-
-export function rolePossibilities(
-  worlds: readonly HiddenWorld[],
-  seat: Seat,
-): readonly Role[] {
-  const roles = new Set(worlds.map((world) => world.roleBySeat[seat]))
-  return canonicalRoleMultiset([...roles])
-}

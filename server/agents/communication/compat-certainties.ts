@@ -5,7 +5,7 @@ import type {
   Seat,
   SeatSet,
 } from '../../engine/types.ts'
-import { rolePossibilities } from '../belief/exact.ts'
+import { rolePossibilities } from '../belief/worlds.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
 

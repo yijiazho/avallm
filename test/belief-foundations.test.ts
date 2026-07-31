@@ -4,10 +4,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
 import {
-  assessTeam,
   beliefFromWeightedWorlds,
   exactBelief,
 } from '../server/agents/belief/exact.ts'
+import { assessTeam } from '../server/agents/belief/team-assessment.ts'
 import type {
   BeliefModel,
   WeightedWorld,

@@ -5,10 +5,8 @@ import { createGame } from '../server/engine/game.ts'
 import { viewFor } from '../server/engine/view.ts'
 import { DEFAULT_ROLES } from '../server/engine/rules.ts'
 import { evilPartnersOf, knownEvilOf, merlinCandidatesOf } from '../server/engine/knowledge.ts'
-import {
-  assessTeam,
-  exactBelief,
-} from '../server/agents/belief/exact.ts'
+import { exactBelief } from '../server/agents/belief/exact.ts'
+import { assessTeam } from '../server/agents/belief/team-assessment.ts'
 import {
   EXACT_BELIEF_MODEL_VERSION,
 } from '../server/agents/belief/types.ts'
@@ -446,6 +444,8 @@ test('runtime belief modules have no raw Game dependency', () => {
     'server/agents/belief/worlds.ts',
     'server/agents/belief/constraints.ts',
     'server/agents/belief/exact.ts',
+    'server/agents/belief/team-assessment.ts',
+    'server/agents/belief/lru.ts',
   ]
   for (const file of files) {
     const source = fs.readFileSync(file, 'utf8')

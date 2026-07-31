@@ -18,7 +18,7 @@
     },
     {
       "path": "test/belief-foundations.test.ts",
-      "sha256": "7307af85e518709c7d2c63158779ed1d9411d5889cc5489b36cf28f0e2a1cb90",
+      "sha256": "727d146c9d2da1bf54d2ee27cdd44de13afad779be1f7337b8253d53a392dd0a",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "284a6b9785d577fca679645a33e4df32fd251332013fc1479dd51f192e634bf4",
+      "sha256": "93f719aba8bc41ebc08801888e3e61627ba4b847d4c9905beff8e442a6a11a85",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {

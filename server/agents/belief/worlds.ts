@@ -4,14 +4,51 @@ import {
   compareCanonicalRoles,
   type HiddenWorld,
 } from './types.ts'
+import { LruMap } from './lru.ts'
 
 export interface RoleMultisetEvidence {
   playerCount: number
   rolesInPlay: readonly Role[]
 }
 
+// Only a handful of distinct casts are ever in play in one process, so a small
+// bound retains every live enumeration while capping a pathological churn.
+// (exact.ts keeps a larger DEAL_CACHE_LIMIT because it keys on the far wider
+// space of per-seat private views, not just the public cast.)
 const CACHE_LIMIT = 4
-const assignmentCache = new Map<string, Map<Role, readonly (readonly Role[])[]>>()
+const assignmentCache =
+  new LruMap<string, Map<Role, readonly (readonly Role[])[]>>(CACHE_LIMIT)
+
+/**
+ * The multiset-backtracking core both enumerators share. It walks the sorted
+ * distinct roles, consuming each role's remaining count, and calls onComplete
+ * once `current` names a full assignment. The caller owns `current` (its seed
+ * and its materialization) and `counts` (its starting multiset); this only
+ * mutates them in the recurse-and-restore pattern and leaves them as it found
+ * them. Iteration order is fixed by `roles`, so both callers enumerate worlds
+ * in the identical canonical order.
+ */
+function backtrackMultisetAssignments(
+  counts: Map<Role, number>,
+  roles: readonly Role[],
+  playerCount: number,
+  current: Role[],
+  onComplete: () => void,
+): void {
+  if (current.length === playerCount) {
+    onComplete()
+    return
+  }
+  for (const role of roles) {
+    const remaining = counts.get(role) ?? 0
+    if (remaining === 0) continue
+    counts.set(role, remaining - 1)
+    current.push(role)
+    backtrackMultisetAssignments(counts, roles, playerCount, current, onComplete)
+    current.pop()
+    counts.set(role, remaining)
+  }
+}
 
 export function canonicalRoleMultiset(roles: readonly Role[]): readonly Role[] {
   return [...roles].sort(compareCanonicalRoles)
@@ -33,17 +70,9 @@ function cacheEntry(evidence: RoleMultisetEvidence): Map<Role, readonly (readonl
   }
   const key = canonicalRoleMultiset(evidence.rolesInPlay).join('|')
   const found = assignmentCache.get(key)
-  if (found) {
-    assignmentCache.delete(key)
-    assignmentCache.set(key, found)
-    return found
-  }
+  if (found) return found
   const created = new Map<Role, readonly (readonly Role[])[]>()
   assignmentCache.set(key, created)
-  while (assignmentCache.size > CACHE_LIMIT) {
-    const oldest = assignmentCache.keys().next().value
-    if (oldest !== undefined) assignmentCache.delete(oldest)
-  }
   return created
 }
 
@@ -72,23 +101,13 @@ function canonicalPinnedAssignments(
   const roles = [...counts.keys()].sort(compareCanonicalRoles)
   const current: Role[] = [pinnedRole]
   const assignments: Role[][] = []
-
-  const visit = (): void => {
-    if (current.length === evidence.playerCount) {
-      assignments.push(current.slice())
-      return
-    }
-    for (const role of roles) {
-      const remaining = counts.get(role) ?? 0
-      if (remaining === 0) continue
-      counts.set(role, remaining - 1)
-      current.push(role)
-      visit()
-      current.pop()
-      counts.set(role, remaining)
-    }
-  }
-  visit()
+  backtrackMultisetAssignments(
+    counts,
+    roles,
+    evidence.playerCount,
+    current,
+    () => assignments.push(current.slice()),
+  )
   entry.set(pinnedRole, assignments)
   return assignments
 }
@@ -149,8 +168,12 @@ export function visitCanonicalWorlds(
   const roles = [...counts.keys()].sort(compareCanonicalRoles)
   const roleBySeat: Role[] = []
   let visited = 0
-  const visit = (): void => {
-    if (roleBySeat.length === evidence.playerCount) {
+  backtrackMultisetAssignments(
+    counts,
+    roles,
+    evidence.playerCount,
+    roleBySeat,
+    () => {
       const rolesForWorld = roleBySeat.slice()
       visitor({
         roleBySeat: rolesForWorld,
@@ -158,18 +181,21 @@ export function visitCanonicalWorlds(
         key: canonicalWorldKey(rolesForWorld),
       })
       visited++
-      return
-    }
-    for (const role of roles) {
-      const remaining = counts.get(role) ?? 0
-      if (remaining === 0) continue
-      counts.set(role, remaining - 1)
-      roleBySeat.push(role)
-      visit()
-      roleBySeat.pop()
-      counts.set(role, remaining)
-    }
-  }
-  visit()
+    },
+  )
   return visited
+}
+
+/**
+ * The canonical set of roles a seat holds across a raw world list. Operates on
+ * HiddenWorld[] directly (the enumeration currency), not on a projected
+ * snapshot, so it lives beside the enumerator rather than in the snapshot
+ * layer.
+ */
+export function rolePossibilities(
+  worlds: readonly HiddenWorld[],
+  seat: Seat,
+): readonly Role[] {
+  const roles = new Set(worlds.map((world) => world.roleBySeat[seat]))
+  return canonicalRoleMultiset([...roles])
 }

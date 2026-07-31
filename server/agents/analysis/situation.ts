@@ -6,11 +6,13 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import {
-  assessTeam,
-  assessTeams,
   exactBelief,
   feasibleWorlds,
 } from '../belief/exact.ts'
+import {
+  assessTeam,
+  assessTeams,
+} from '../belief/team-assessment.ts'
 import {
   questFailEvidence,
   type QuestFailEvidence,

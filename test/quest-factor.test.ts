@@ -18,7 +18,8 @@ import {
   type QuestCardEvidence,
   type QuestCardLikelihoodFactor,
 } from '../server/agents/belief/quest-card-factor.ts'
-import { assessTeam, exactBelief } from '../server/agents/belief/exact.ts'
+import { exactBelief } from '../server/agents/belief/exact.ts'
+import { assessTeam } from '../server/agents/belief/team-assessment.ts'
 import type { HiddenWorld } from '../server/agents/belief/types.ts'
 import { parseExternalDecisionReply } from '../server/agents/external-reply.ts'
 import {

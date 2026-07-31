@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { performance } from 'node:perf_hooks'
 import { assertWallClockBelow } from './helpers/performance-gate.ts'
 import { analyzeSituation } from '../server/agents/analysis/situation.ts'
-import { assessTeams } from '../server/agents/belief/exact.ts'
+import { assessTeams } from '../server/agents/belief/team-assessment.ts'
 import type { BeliefSnapshot, HiddenWorld } from '../server/agents/belief/types.ts'
 import { createComposedAgent } from '../server/agents/composed.ts'
 import {
