@@ -17,8 +17,10 @@ import { createAgent } from '../server/agents/registry.ts'
 import { toArtifact } from '../server/eval/artifact.ts'
 import {
   MERLIN_EXPOSURE_VERSION,
+  compareMerlinExposure,
   measureMerlinExposure,
   scoreMerlinExposure,
+  seedIndex,
   summarizeMerlinExposure,
 } from '../server/eval/merlin-exposure.ts'
 import type { GameArtifact } from '../server/eval/artifact.ts'
@@ -208,6 +210,47 @@ test('skipped readings are counted, not silently dropped', async () => {
   // is truthful, so a future regression shows up as a number rather than as
   // silence.
   assert.equal(summary.skippedReadings, 0)
+})
+
+// The comparison pairs on the DEAL, which is the dominant variance source, and
+// matches depth within each pair, because two arms diverge and one can outlive
+// the other by a quest.
+test('a comparison pairs on the seed and matches depth within each pair', async () => {
+  // The same deal played twice is what a bench produces for two arms: identical
+  // seed, different artifact id.
+  const left = await play(7, 'pairing')
+  const right = { ...structuredClone(left), id: `${left.id}-arm2` }
+  const index = seedIndex([left, right])
+  const a = scoreMerlinExposure(left)!
+  const b = scoreMerlinExposure(right)!
+  const same = compareMerlinExposure([a], [b], index)
+  assert.equal(same.pairs, 1)
+  assert.equal(same.unpaired, 0)
+  assert.equal(same.liftDelta.mean, 0, 'a game against itself must differ by 0')
+
+  // Depth matching: truncating one arm must not charge the other for readings
+  // its partner never took. Exposure rises with rounds, so an unmatched compare
+  // would report a spurious positive here.
+  const shortened = { ...b, samples: b.samples.slice(0, 3) }
+  const matched = compareMerlinExposure([a], [shortened], index)
+  assert.equal(matched.pairs, 1)
+  assert.equal(
+    matched.liftDelta.mean,
+    0,
+    'the same readings truncated to a common depth must still differ by 0',
+  )
+
+  // A candidate whose deal the baseline never played is dropped, not joined to
+  // whatever happened to sit at the same index.
+  const orphan = await play(7, 'orphan')
+  const wider = seedIndex([left, right, orphan])
+  const dropped = compareMerlinExposure(
+    [a],
+    [b, scoreMerlinExposure(orphan)!],
+    wider,
+  )
+  assert.equal(dropped.pairs, 1)
+  assert.equal(dropped.unpaired, 1)
 })
 
 // Retroactivity is the point of reading artifacts rather than replaying policy:

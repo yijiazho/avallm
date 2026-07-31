@@ -319,6 +319,75 @@ export function measureMerlinExposure(
   return { scored, summary: summarizeMerlinExposure(scored) }
 }
 
+export interface MerlinExposureComparison {
+  /** Games present in both arms, paired by the deal they were played on. */
+  readonly pairs: number
+  /** Games dropped because the other arm has no game on that deal. */
+  readonly unpaired: number
+  /**
+   * Candidate minus baseline in exposure lift, paired per deal and depth
+   * matched WITHIN each pair.
+   *
+   * Both corrections matter and they are not the same one. Pairing removes the
+   * deal, which is the dominant variance source: the same seats, the same
+   * Merlin, the same opening. Depth matching per pair removes game length,
+   * because the two arms diverge and one may run a quest longer than the other,
+   * and exposure rises with rounds, so an arm that survived further would
+   * otherwise be charged for readings its partner never took.
+   */
+  readonly liftDelta: MeanEstimate
+}
+
+/**
+ * Compare two arms of the same bank on exposure.
+ *
+ * Paired on the artifact SEED, not on an id or an index, because the seed is
+ * what names the deal: two arms of one bank case play the identical opening and
+ * that is the whole reason the pairing is worth having. An id would couple this
+ * to one bench's naming, and a positional join would silently mispair the first
+ * time an arm skipped a case.
+ */
+export function compareMerlinExposure(
+  baseline: readonly MerlinExposureGame[],
+  candidate: readonly MerlinExposureGame[],
+  seedOf: ReadonlyMap<string, string>,
+): MerlinExposureComparison {
+  const bySeed = new Map<string, MerlinExposureGame>()
+  for (const game of baseline) {
+    const seed = seedOf.get(game.artifactId)
+    if (seed !== undefined) bySeed.set(seed, game)
+  }
+  const deltas: number[] = []
+  let unpaired = 0
+  for (const game of candidate) {
+    const seed = seedOf.get(game.artifactId)
+    const partner = seed === undefined ? undefined : bySeed.get(seed)
+    if (!partner) {
+      unpaired += 1
+      continue
+    }
+    const depth = Math.min(partner.samples.length, game.samples.length)
+    const meanLift = (scored: MerlinExposureGame): number =>
+      scored.samples.slice(0, depth).reduce(
+        (sum, sample) => sum + sample.lift,
+        0,
+      ) / depth
+    deltas.push(meanLift(game) - meanLift(partner))
+  }
+  return Object.freeze({
+    pairs: deltas.length,
+    unpaired,
+    liftDelta: meanEstimate(deltas),
+  })
+}
+
+/** Index an artifact set by id so a comparison can pair its games on the deal. */
+export function seedIndex(
+  artifacts: readonly GameArtifact[],
+): ReadonlyMap<string, string> {
+  return new Map(artifacts.map((artifact) => [artifact.id, artifact.seed]))
+}
+
 const signed = (value: number | null): string =>
   value === null ? '    n/a' : `${value >= 0 ? '+' : ''}${value.toFixed(4)}`
 
@@ -387,22 +456,114 @@ export function renderMerlinExposure(
   return lines.join('\n')
 }
 
+/**
+ * Group a bench's artifacts by the arm that produced them, using the variant
+ * the run metadata already records rather than a substring of the id.
+ */
+function byVariant(
+  artifacts: readonly GameArtifact[],
+): ReadonlyMap<string, GameArtifact[]> {
+  const grouped = new Map<string, GameArtifact[]>()
+  for (const artifact of artifacts) {
+    const variant = artifact.architecture?.variant
+    if (variant === undefined) continue
+    const existing = grouped.get(variant)
+    if (existing) existing.push(artifact)
+    else grouped.set(variant, [artifact])
+  }
+  return grouped
+}
+
+export function renderMerlinExposureComparison(
+  baselineVariant: string,
+  candidateVariant: string,
+  comparison: MerlinExposureComparison,
+): string {
+  const delta = comparison.liftDelta
+  return [
+    `  ${candidateVariant} minus ${baselineVariant}`,
+    `    exposure lift ${signed(delta.mean)}${bounds(delta.interval95)}`
+    + `   ${comparison.pairs} paired deals`
+    + (comparison.unpaired ? `, ${comparison.unpaired} unpaired` : ''),
+  ].join('\n')
+}
+
 function main(): void {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
-    options: { json: { type: 'boolean', default: false } },
+    options: {
+      json: { type: 'boolean', default: false },
+      baseline: { type: 'string' },
+    },
   })
   if (positionals.length !== 1) {
     throw new Error(
-      'usage: node server/eval/merlin-exposure.ts <artifacts.jsonl> [--json]',
+      'usage: node server/eval/merlin-exposure.ts <artifacts.jsonl> '
+      + '[--baseline <variant>] [--json]',
     )
   }
-  const { summary } = measureMerlinExposure(readArtifacts(positionals[0]))
-  process.stdout.write(
-    values.json
-      ? `${JSON.stringify(summary, null, 2)}\n`
-      : `${renderMerlinExposure(summary)}\n`,
-  )
+  const artifacts = readArtifacts(positionals[0])
+  if (values.baseline === undefined) {
+    const { summary } = measureMerlinExposure(artifacts)
+    process.stdout.write(
+      values.json
+        ? `${JSON.stringify(summary, null, 2)}\n`
+        : `${renderMerlinExposure(summary)}\n`,
+    )
+    return
+  }
+  // Comparison mode: one arm named as the baseline, every other arm measured
+  // against it on the deals they share.
+  const grouped = byVariant(artifacts)
+  const baseline = grouped.get(values.baseline)
+  if (!baseline) {
+    throw new Error(
+      `no artifacts for baseline variant ${values.baseline}; found `
+      + `${[...grouped.keys()].join(', ') || 'none'}`,
+    )
+  }
+  const index = seedIndex(artifacts)
+  const baselineScored = measureMerlinExposure(baseline)
+  const comparisons = [...grouped.entries()]
+    .filter(([variant]) => variant !== values.baseline)
+    .map(([variant, rows]) => {
+      const scored = measureMerlinExposure(rows)
+      return {
+        variant,
+        summary: scored.summary,
+        comparison: compareMerlinExposure(
+          baselineScored.scored,
+          scored.scored,
+          index,
+        ),
+      }
+    })
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify({
+      baseline: { variant: values.baseline, summary: baselineScored.summary },
+      candidates: comparisons,
+    }, null, 2)}\n`)
+    return
+  }
+  const lines = [
+    `${MERLIN_EXPOSURE_VERSION}: ${values.baseline} as baseline`,
+    '',
+    renderMerlinExposure(baselineScored.summary),
+    '',
+    '  paired on the deal, depth matched within each pair, so neither the deal',
+    '  nor a game that outlived its partner can masquerade as concealment.',
+  ]
+  for (const entry of comparisons) {
+    lines.push(
+      '',
+      renderMerlinExposureComparison(
+        values.baseline,
+        entry.variant,
+        entry.comparison,
+      ),
+    )
+  }
+  process.stdout.write(`${lines.join('\n')}\n`)
 }
 
 if (
