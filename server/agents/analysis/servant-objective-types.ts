@@ -5,6 +5,14 @@ export const SERVANT_OBJECTIVE_MODEL_VERSION =
   'servant-standing-decoy-objectives-v1'
 
 /**
+ * Native-only, so it lives on the component run entry and never on
+ * trace.degradation. Admission derives the forbidden set from the registry, so
+ * putting it there instead would be rejected rather than merely wrong.
+ */
+export const SERVANT_OBJECTIVE_DEGRADATION =
+  'servant-objective-assessment-failed'
+
+/**
  * The servant's weight pair over the shared public read.
  *
  * A servant is the one role with nothing to conceal, so the concealment term

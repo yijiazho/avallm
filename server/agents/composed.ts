@@ -89,6 +89,7 @@ import {
   PRIVATE_IDENTITY_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
   PRIVATE_SITUATION_INPUT,
+  SERVANT_OBJECTIVE_COMPONENT,
 } from './components/native-score-components.ts'
 import {
   createProductionComponentRegistry,
@@ -290,6 +291,19 @@ export interface ComposedAgentOptions {
    * objective model but grants no scoring or quest-card policy authority.
    */
   roleObjectiveRouter?: boolean
+  /**
+   * Opt-in servant standing/decoy substrate. It is mechanically inert and
+   * resolves only for actual servant seats.
+   *
+   * Deliberately NOT routed through roleObjectiveRouter. That router answers
+   * the good/evil objective question, and its 'off' for a servant is read by
+   * joint identity and by eval attribution as "no objective here". Widening it
+   * would also refuse every legacy v1 servant trace that omits the
+   * declaration, since validRoleObjectiveRoute compares the two for equality.
+   * A servant needs none of that: the objective is public-record-only and
+   * rides the generic component run.
+   */
+  servantObjectives?: boolean
   /**
    * Opt-in Phase 7E1A Morgana counterfeit-read substrate. It is mechanically
    * inert and resolves only for Morgana proposal and vote decisions.
@@ -1237,6 +1251,7 @@ const ROLE_FEATURE_COMPONENT_ORDER: readonly string[] = [
   GOOD_ROLE_UTILITY_COMPONENT,
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
+  SERVANT_OBJECTIVE_COMPONENT,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
@@ -1293,6 +1308,7 @@ export function createComposedAgent(
   const roleObjectivesConfigured = options.roleObjectives === true
   const roleObjectiveRouterConfigured =
     options.roleObjectiveRouter === true
+  const servantObjectivesConfigured = options.servantObjectives === true
   const morganaCounterfeitConfigured =
     options.morganaCounterfeitObjectives === true
   let cognition: CognitionState | undefined
@@ -1398,6 +1414,14 @@ export function createComposedAgent(
               ? [EVIL_ROLE_UTILITY_COMPONENT]
               : []),
           ]
+        : [],
+    },
+    {
+      // No observer forcing: the servant objective reaches the public record
+      // through the acting seat's own view, so it needs nothing hoisted here.
+      forcesPublicObserver: false,
+      components: servantObjectivesConfigured
+        ? [SERVANT_OBJECTIVE_COMPONENT]
         : [],
     },
     {

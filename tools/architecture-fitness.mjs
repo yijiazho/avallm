@@ -1769,8 +1769,12 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'buildRoleUtilityProjection',
     'validatePrivateRoleUtilityProjection',
   ])],
+  // The host join came off this list the moment the component registered it,
+  // reported by the staleness check rather than remembered. What is left is
+  // the strict-JSON validator, which the kernel does not call: it decodes an
+  // already-canonical payload instead. That one goes if an ingress or artifact
+  // reader ever needs it.
   ['server/agents/analysis/servant-objective.ts', new Set([
-    'validateAdmittedServantObjectiveHostJoin',
     'validateServantObjectiveSnapshot',
   ])],
   ['server/agents/board.ts', new Set(['roleCertainties'])],

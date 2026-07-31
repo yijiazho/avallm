@@ -137,5 +137,9 @@ const servantObjectiveCodec =
 
 export const validateServantObjectiveSnapshot = servantObjectiveCodec.validate
 
+/** The kernel's decoder: its input is already canonical, so it re-checks only. */
+export const decodeCanonicalServantObjectiveSnapshot =
+  servantObjectiveCodec.decode
+
 export const validateAdmittedServantObjectiveHostJoin =
   exactHostJoin(buildServantObjective)

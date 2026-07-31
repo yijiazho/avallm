@@ -33,6 +33,7 @@ import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
+  SERVANT_OBJECTIVE_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
@@ -156,6 +157,8 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
     { proof: 'morgana-native-family' },
   'morgana-role-utility':
     { proof: 'morgana-native-family' },
+  'servant-objective':
+    { proof: 'servant-native-family' },
 })
 
 const NATIVE_PROOF_OWNERS = new Map([
@@ -170,6 +173,7 @@ const NATIVE_PROOF_OWNERS = new Map([
   [MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT.id, 'morgana-native-family'],
   [MORGANA_ROLE_UTILITY_COMPONENT.id, 'morgana-native-family'],
   [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id, 'morgana-native-family'],
+  [SERVANT_OBJECTIVE_COMPONENT.id, 'servant-native-family'],
   [
     EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
     'robust-quest-native-family',
@@ -884,6 +888,49 @@ test('native good-role family conforms through execution and host join', async (
       { input: PRIVATE_IDENTITY_INPUT, value: good.identity },
       { input: PRIVATE_PUBLIC_OBSERVER_INPUT, value: good.observer },
     ],
+    entries,
+  })
+})
+
+// The servant family is the one that needs no roots. Every other native
+// component degrades to host-input-unavailable or dependency-unavailable when
+// run bare, because each depends on a belief, an identity, or an observer the
+// host must supply. The servant objective reaches the public record through
+// the acting seat's own view, so running it with NO host inputs still admits.
+// That is the registration proving the structural claim from the module: a new
+// role costs its weights, not a new substrate.
+test('native servant family conforms with no host inputs at all', async () => {
+  const fixture = readDecisionFixtures().find(
+    (candidate) => candidate.view.role === 'servant',
+  )
+  assert.ok(fixture, 'a servant decision fixture must exist')
+  const registry = createProductionComponentRegistry({
+    goodObjectiveAllDecisionKinds: true,
+  })
+  const brain = resolveComposedBrain({
+    requestedComponents: [SERVANT_OBJECTIVE_COMPONENT],
+    configuredPipeline: testConfiguredPipeline(),
+  }, registry)
+  const entries = [
+    {
+      token: SERVANT_OBJECTIVE_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
+      // Not a failure code: with no roots to miss, the bare run still admits.
+      missingRootFailure: 'admitted',
+    },
+  ]
+  assertProofCoverage(
+    'servant-native-family',
+    entries.map((entry) => entry.token),
+  )
+  await assertNativeExecutionContract({
+    label: 'servant native family',
+    registry,
+    request: fixture.req,
+    view: fixture.view,
+    brain,
+    hostInputs: [],
     entries,
   })
 })

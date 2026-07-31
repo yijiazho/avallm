@@ -85,6 +85,17 @@ import {
   validateAdmittedPrivateMorganaRoleUtilityHostJoin,
 } from '../analysis/morgana-role-utility.ts'
 import {
+  buildServantObjective,
+  decodeCanonicalServantObjectiveSnapshot,
+  validateAdmittedServantObjectiveHostJoin,
+} from '../analysis/servant-objective.ts'
+import {
+  SERVANT_OBJECTIVE_DEGRADATION,
+  SERVANT_OBJECTIVE_MODEL_VERSION,
+  type ServantObjectiveSnapshot,
+} from '../analysis/servant-objective-types.ts'
+import { projectPublicRecord } from '../communication/public-record.ts'
+import {
   hypotheticalProposalCandidates,
   legalCandidates,
 } from '../policy/candidates.ts'
@@ -137,6 +148,21 @@ ComponentToken<PrivateEvilRoleUtilityProjection> = Object.freeze({
   id: 'evil-role-utility',
   version: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
   kind: 'projection',
+  privacy: 'private',
+})
+/**
+ * Private despite being built from public inputs alone.
+ *
+ * Nothing in the payload is secret, but the component only APPLIES to a
+ * servant seat, so its presence on a decision is itself the private fact. A
+ * public token would publish "this seat is a servant" to every spectator
+ * through the run entry, without a single secret field.
+ */
+export const SERVANT_OBJECTIVE_COMPONENT:
+ComponentToken<ServantObjectiveSnapshot> = Object.freeze({
+  id: 'servant-objective',
+  version: SERVANT_OBJECTIVE_MODEL_VERSION,
+  kind: 'objective',
   privacy: 'private',
 })
 export const MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT:
@@ -372,6 +398,32 @@ export function nativeScoreComponentDefinitions(
     hostExact: (_payload, input) => exactQuality(input.objective),
   })
 
+  // No dependencies, no host inputs, no belief. The whole objective is a
+  // function of the public record and the acting seat, which is what made a
+  // servant cheap to add: the two-axis read it consumes is already shared.
+  const servantObjective = roleProjection({
+    token: SERVANT_OBJECTIVE_COMPONENT,
+    degradationCode: SERVANT_OBJECTIVE_DEGRADATION,
+    // Both halves of the read have to exist for the objective to mean
+    // anything. The servant half is implied by the role check, but the Merlin
+    // half is not: validateRoles accepts a cast with no Merlin at all (it is
+    // only required when Percival or Mordred is present), and the Merlin
+    // likeness axis is undefined there. Without this clause such a game
+    // reports 'degraded' with execution-failed on every servant decision,
+    // which claims something broke when nothing did.
+    applies(context) {
+      return context.view.role === 'servant'
+        && context.view.rolesInPlay.includes('merlin')
+    },
+    join: (context) => ({
+      record: projectPublicRecord(context.view),
+      seat: context.view.seat,
+    }),
+    build: buildServantObjective,
+    decode: decodeCanonicalServantObjectiveSnapshot,
+    hostJoin: validateAdmittedServantObjectiveHostJoin,
+  })
+
   const morganaPublicRead = publicRoleProjection({
     token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
     degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
@@ -478,6 +530,7 @@ export function nativeScoreComponentDefinitions(
     goodUtility,
     evilObjective,
     evilUtility,
+    servantObjective,
     morganaPublicRead,
     morganaObjective,
     morganaUtility(
