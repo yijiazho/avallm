@@ -16,7 +16,7 @@ import type {
 import type { QuestFailEvidence } from '../belief/constraints.ts'
 import type { HiddenWorld } from '../belief/types.ts'
 import { isPublicEvidence, type Evidence } from '../record/evidence.ts'
-import type { DeductionProvenance } from './types.ts'
+import type { DeductionProvenance } from './situation-types.ts'
 
 export function alignmentOf(
   worlds: readonly HiddenWorld[],

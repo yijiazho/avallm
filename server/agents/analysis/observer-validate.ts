@@ -13,7 +13,7 @@
 
 import type { Role } from '../../engine/types.ts'
 import { ROLE_ALIGNMENT, validateRoles } from '../../engine/rules.ts'
-import { CANONICAL_ROLE_ORDER } from '../belief/types.ts'
+import { CANONICAL_ROLE_ORDER } from '../canonical/canonical-shape.ts'
 import {
   PUBLIC_BEHAVIOR_READING_VERSION,
   PUBLIC_OBSERVER_MODEL_VERSION,
