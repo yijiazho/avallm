@@ -24,6 +24,32 @@ function supersede(
   }
 }
 
+function teamCommitment(
+  evidence: AttributedEvidence,
+  action: 'proposed' | 'revised',
+  team: readonly number[],
+  ctx: { round: number; proposalNum: number },
+): PublicCommitment {
+  return {
+    id: commitmentId(evidence.id, 'team'),
+    sourceId: evidence.id,
+    sourceSeq: evidence.sourceSeq,
+    actor: evidence.actor,
+    kind: 'team',
+    visibility: 'public',
+    context: {
+      round: ctx.round,
+      proposalNum: ctx.proposalNum,
+      // questNum deliberately mirrors round on every path (a quest is its round);
+      // kept as its own field because a downstream consumer may key on it.
+      questNum: ctx.round,
+      team: team.slice(),
+    },
+    payload: { type: 'team', action, team: team.slice() },
+    status: 'current',
+  }
+}
+
 function utterance(
   evidence: AttributedEvidence,
   text: string,
@@ -61,22 +87,12 @@ export function buildCommitments(
           (commitment) => commitment.kind === 'team',
           sourceId,
         )
-        commitments.push({
-          id: sourceId,
-          sourceId: evidence.id,
-          sourceSeq: evidence.sourceSeq,
-          actor: evidence.actor,
-          kind: 'team',
-          visibility: 'public',
-          context: {
+        commitments.push(
+          teamCommitment(evidence, 'proposed', evidence.payload.team, {
             round: evidence.payload.round,
             proposalNum: evidence.payload.proposalNum,
-            questNum: evidence.payload.round,
-            team: evidence.payload.team.slice(),
-          },
-          payload: { type: 'team', action: 'proposed', team: evidence.payload.team.slice() },
-          status: 'current',
-        })
+          }),
+        )
         if (evidence.payload.pitch) {
           const spoken = utterance(
             evidence,
@@ -100,22 +116,12 @@ export function buildCommitments(
             && contextKey(commitment.context.round, commitment.context.proposalNum) === key,
           sourceId,
         )
-        commitments.push({
-          id: sourceId,
-          sourceId: evidence.id,
-          sourceSeq: evidence.sourceSeq,
-          actor: evidence.actor,
-          kind: 'team',
-          visibility: 'public',
-          context: {
+        commitments.push(
+          teamCommitment(evidence, 'revised', evidence.payload.to, {
             round: evidence.payload.round,
             proposalNum: evidence.payload.proposalNum,
-            questNum: evidence.payload.round,
-            team: evidence.payload.to.slice(),
-          },
-          payload: { type: 'team', action: 'revised', team: evidence.payload.to.slice() },
-          status: 'current',
-        })
+          }),
+        )
         if (evidence.payload.reason) {
           const spoken = utterance(
             evidence,
@@ -154,6 +160,7 @@ export function buildCommitments(
             context: {
               round: evidence.payload.round,
               proposalNum: evidence.payload.proposalNum,
+              // questNum deliberately mirrors round (see teamCommitment).
               questNum: evidence.payload.round,
               team: evidence.payload.team.slice(),
             },

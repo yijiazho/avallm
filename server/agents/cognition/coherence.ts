@@ -31,6 +31,9 @@ export type CoherenceIntent = typeof COHERENCE_INTENTS[number]
  * the set out again: a type-only union has nothing to check at runtime, so
  * each validator was forced to restate it and the compiler could not tie the
  * copies back to the type.
+ *
+ * Exported for external intent-admission consumers (e.g. plan-memory schema
+ * validation); it has no in-file caller.
  */
 export function isCoherenceIntent(value: unknown): value is CoherenceIntent {
   return (COHERENCE_INTENTS as readonly unknown[]).includes(value)
@@ -148,7 +151,7 @@ export function assessLiteralCoherence(
 }
 
 export function coherenceBasisFromView(
-  view: Pick<PlayerView, 'seat' | 'events'>,
+  view: Pick<PlayerView, 'seat'>,
   req: DecisionRequest,
   commitments: readonly PublicCommitment[],
 ): readonly LiteralCommitmentBasis[] {

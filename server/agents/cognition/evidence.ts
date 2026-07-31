@@ -5,16 +5,24 @@ import type { Evidence } from './types.ts'
 const eventId = (seq: number, kind: Evidence['kind']): string =>
   `event:${seq}:${kind}`
 
+// Returns [] for a quest that is not yet complete by design: the finished team
+// is only settled once the quest resolves.
 const teamAt = (view: PlayerView, round: number): readonly Seat[] => {
   const quest = view.quests[round - 1]
   return quest?.status === 'complete' ? quest.team.slice() : []
 }
 
+interface ProposalContext {
+  round: number
+  proposalNum: number
+  team: readonly Seat[]
+}
+
 function publicProposalContext(
   view: PlayerView,
   throughSeq: number,
-): { round: number; proposalNum: number; team: readonly Seat[] } | undefined {
-  let context: { round: number; proposalNum: number; team: readonly Seat[] } | undefined
+): ProposalContext | undefined {
+  let context: ProposalContext | undefined
   for (const event of view.events) {
     if (event.seq >= throughSeq) break
     if (event.type === 'proposal') {

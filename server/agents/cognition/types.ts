@@ -10,17 +10,6 @@ import type { BeliefSnapshot } from '../belief/types.ts'
 import type { PrivateIdentitySnapshot } from '../belief/identity.ts'
 import type { PrivateRoleObjectiveSnapshot } from '../analysis/role-objective-types.ts'
 import type { PrivateEvilRoleObjectiveSnapshot } from '../analysis/evil-objective-types.ts'
-
-/**
- * The private objective substrate a seat carries, discriminated on `team`. A
- * seat gets the Merlin/Percival objective, the visible-evil/Oberon objective,
- * or neither: a Servant gets none, and the good and evil roles are disjoint.
- * Modelling it as one union rather than two optional fields makes "both at
- * once" unrepresentable.
- */
-export type PrivateObjectiveSnapshot =
-  | PrivateRoleObjectiveSnapshot
-  | PrivateEvilRoleObjectiveSnapshot
 import type {
   LanguageEvidence,
   LanguageEvidenceCursor,
@@ -42,6 +31,17 @@ export type {
   PublicCommitment,
   SupersessionState,
 } from './commitment-types.ts'
+
+/**
+ * The private objective substrate a seat carries, discriminated on `team`. A
+ * seat gets the Merlin/Percival objective, the visible-evil/Oberon objective,
+ * or neither: a Servant gets none, and the good and evil roles are disjoint.
+ * Modelling it as one union rather than two optional fields makes "both at
+ * once" unrepresentable.
+ */
+export type PrivateObjectiveSnapshot =
+  | PrivateRoleObjectiveSnapshot
+  | PrivateEvilRoleObjectiveSnapshot
 
 export const COGNITION_SCHEMA_VERSION = 1
 export const EVIDENCE_MODEL_VERSION = 'mechanical-evidence-v3'
