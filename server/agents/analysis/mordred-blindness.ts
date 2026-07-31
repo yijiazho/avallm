@@ -488,7 +488,7 @@ function validDistribution(
     )
 }
 
-function validatePrivateMordredBlindnessObjectiveShape(
+function validatePrivateMordredBlindnessSemantics(
   value: unknown,
   detached: boolean,
 ): value is PrivateMordredBlindnessObjective {
@@ -707,7 +707,7 @@ function validatePrivateMordredBlindnessObjectiveShape(
 export function validatePrivateMordredBlindnessObjective(
   value: unknown,
 ): value is PrivateMordredBlindnessObjective {
-  return validatePrivateMordredBlindnessObjectiveShape(value, true)
+  return validatePrivateMordredBlindnessSemantics(value, true)
 }
 
 /**
@@ -717,7 +717,7 @@ export function validatePrivateMordredBlindnessObjective(
 export function decodeCanonicalPrivateMordredBlindnessObjective(
   value: CanonicalJsonValue,
 ): PrivateMordredBlindnessObjective | undefined {
-  return validatePrivateMordredBlindnessObjectiveShape(value, false)
+  return validatePrivateMordredBlindnessSemantics(value, false)
     ? value
     : undefined
 }
