@@ -4,7 +4,6 @@ import {
   plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
   type CommittedVoicePlan,
-  type DecisionPlan,
 } from '../policy/plan.ts'
 import type { CandidateScore } from '../policy/score.ts'
 import type {
@@ -41,8 +40,11 @@ export interface ComposedPolicyContext {
 
 /**
  * Typed renderer for composed planning and voice. Forced rules are rendered
- * from their executable result, so no strategic trigger is re-derived here.
- * The raw-LLM ASKS renderer remains untouched as a frozen baseline.
+ * from their executable result rather than re-deriving the strategic triggers
+ * that produced them. The viable-candidate list is the exception: it is
+ * filtered here from the scored candidates, the planner-override reason codes,
+ * and the decision boundary's survivors. The raw-LLM ASKS renderer remains
+ * untouched as a frozen baseline.
  */
 export function composedPolicyContext(
   view: PlayerView,
@@ -98,22 +100,8 @@ export function composedPolicyContext(
 
 export function renderComposedPolicyContext(
   context: ComposedPolicyContext,
-  plan?: DecisionPlan,
 ): string {
-  const committedPlan = plan
-    ? {
-        version: plan.version,
-        candidateId: plan.candidateId,
-        decision: plan.decision,
-        reasons: plan.reasons,
-        beliefThroughSeq: plan.beliefThroughSeq,
-        communication: plan.communication,
-      }
-    : undefined
-  return JSON.stringify({
-    ...context,
-    ...(committedPlan ? { committedPlan } : {}),
-  })
+  return JSON.stringify(context)
 }
 
 export function renderCommittedVoicePlan(
