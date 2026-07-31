@@ -28,6 +28,7 @@ import {
   type ScoreLayerTransformContext,
   type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
+import { REMOVED_VALUE } from '../policy/score-layer/definition.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
@@ -127,8 +128,6 @@ export function goodScoreLayersApplyToDecision(
   return true
 }
 
-const REMOVED_VALUE = -Number.MAX_SAFE_INTEGER
-
 function requirementFor(
   context: {
     readonly request: { readonly kind: string }
@@ -184,7 +183,7 @@ type VoteContext = Pick<
   'request' | 'view' | 'analysis' | 'hypotheticalTeamCandidates'
 >
 
-interface GoodVoteUtilityInputs {
+interface GoodVoteUtility {
   readonly currentTeam: readonly number[]
   readonly currentCleanProbability: number
   readonly currentEvilCountDistribution: readonly number[]
@@ -205,7 +204,7 @@ interface GoodVoteUtilityInputs {
 function voteUtility(
   context: VoteContext | DeterministicGoodBaseContext,
   utilityVersion: GoodVoteUtilityVersion,
-): GoodVoteUtilityInputs {
+): GoodVoteUtility {
   const projection = context.analysis.goodVote
   const surface = context.hypotheticalTeamCandidates
   if (
@@ -376,6 +375,9 @@ function goodDefinition(
     analysisRequirements: (context) =>
       requirementFor(context, supportsVote),
     admitAnalysis: (context) => admitsGood(context, supportsVote),
+    // Always applies: unlike the role layers, this compatibility layer runs
+    // even out of scope, where it passes the prior surface through with an
+    // out-of-scope reason appended rather than reporting itself inapplicable.
     applies: () => true,
     execute(context) {
       const inScope =
@@ -404,18 +406,8 @@ function goodDefinition(
       const deterministicRows =
         calculateGoodPolicyRows(context, mode, utilityVersion)
           .map((row) => row.score)
-      if (context.request.kind === 'propose') {
-        return {
-          status: 'applied',
-          surface: context.surface.create({
-            scores: deterministicRows,
-            survivorCandidateIds: context.prior.survivorCandidateIds,
-          }),
-        }
-      }
-      if (!supportsVote || context.request.kind !== 'vote') {
-        throw new Error('good score layer executed outside applicability')
-      }
+      // In scope by the guard above, so the request is a proposal or a
+      // supported vote; both emit the same deterministic surface.
       return {
         status: 'applied',
         surface: context.surface.create({
