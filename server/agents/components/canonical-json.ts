@@ -312,12 +312,35 @@ function freezeJsonValue(
         allowUndefined,
         omitUndefinedObjectProperties,
       )
-      Object.defineProperty(clone, key, {
-        value: child.value,
-        enumerable: true,
-        writable: false,
-        configurable: false,
-      })
+      // Assign, then check the assignment landed, and fall back to the explicit
+      // definition when it did not. Plain assignment is several times cheaper
+      // and this is the canonicalizer's per-property inner loop, but assignment
+      // consults the prototype chain, and this boundary's promise is that
+      // building a payload runs no code of anyone else's choosing. Two shapes
+      // can defeat it. An inherited setter swallows the write, which the
+      // own-property-and-exact-value check catches afterwards. A '__proto__'
+      // key retargets the prototype instead of creating a property, which no
+      // check can catch afterwards because the damage is done by then, so that
+      // key is tested BEFORE the write and never assigned at all.
+      //
+      // The fallback keeps the fast path unobservable rather than trusted, and
+      // leaves a payload admissible in a process whose Object.prototype
+      // somebody else has already polluted: that is not this payload's fault.
+      // The trailing Object.freeze supplies the non-writable,
+      // non-configurable half of the descriptor this replaces.
+      let landed = false
+      if (key !== '__proto__') {
+        clone[key] = child.value
+        landed = Object.hasOwn(clone, key) && clone[key] === child.value
+      }
+      if (!landed) {
+        Object.defineProperty(clone, key, {
+          value: child.value,
+          enumerable: true,
+          writable: false,
+          configurable: false,
+        })
+      }
       bytes = addBytes(
         budget,
         bytes,

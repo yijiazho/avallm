@@ -745,6 +745,78 @@ test('canonical byte accounting equals the serialized payload it measures', () =
   })
 })
 
+test('canonical property writes land as own data whatever the prototype does', () => {
+  // The canonicalizer assigns properties and then checks the assignment landed,
+  // because plain assignment consults the prototype chain and this boundary
+  // promises that reading a payload executes nothing. Both escapes are pinned.
+
+  // A '__proto__' key is data here, not a prototype instruction.
+  const carrier = JSON.parse('{"__proto__": {"polluted": true}, "kept": 1}')
+  assert.ok(Object.hasOwn(carrier, '__proto__'))
+  const result = canonicalizeJson(carrier, 1_000)
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  const payload = result.payload as Record<string, unknown>
+  assert.ok(
+    Object.hasOwn(payload, '__proto__'),
+    'the key survives as an own property',
+  )
+  assert.equal(Object.getPrototypeOf(payload), Object.prototype)
+  assert.equal(
+    (payload as { polluted?: unknown }).polluted,
+    undefined,
+    'nothing was retargeted onto the prototype',
+  )
+  assert.equal(
+    ({} as { polluted?: unknown }).polluted,
+    undefined,
+    'Object.prototype is untouched',
+  )
+  assert.equal(
+    result.bytes,
+    Buffer.byteLength(JSON.stringify(result.payload), 'utf8'),
+  )
+
+  // An inherited setter must not swallow a property write. The payload is still
+  // canonicalized exactly, because the fast path is checked rather than trusted:
+  // pollution somebody else installed is not this payload's fault.
+  let intercepted = 0
+  Object.defineProperty(Object.prototype, 'swallowed', {
+    configurable: true,
+    enumerable: false,
+    set() { intercepted++ },
+    get() { return undefined },
+  })
+  try {
+    for (const source of [
+      { swallowed: 1 },
+      { a: { swallowed: 'deep' } },
+      { swallowed: [1, { swallowed: true }] },
+    ]) {
+      const polluted = canonicalizeJson(source, 1_000)
+      assert.equal(polluted.ok, true)
+      if (!polluted.ok) continue
+      assert.equal(
+        JSON.stringify(polluted.payload),
+        JSON.stringify(source),
+        'the intercepted property is present and exact',
+      )
+      assert.equal(
+        polluted.bytes,
+        Buffer.byteLength(JSON.stringify(polluted.payload), 'utf8'),
+      )
+    }
+    assert.ok(intercepted > 0, 'the setter really was on the chain')
+  } finally {
+    delete (Object.prototype as { swallowed?: unknown }).swallowed
+  }
+  assert.equal(
+    Object.hasOwn(Object.prototype, 'swallowed'),
+    false,
+    'the test cleaned up after itself',
+  )
+})
+
 test('transport canonicalization omits object undefined without weakening arrays', () => {
   const transported = canonicalizeTransportJson(
     {
