@@ -41,7 +41,7 @@ const exactProjectionCache = new Map<string, {
     roleMarginals: readonly { role: Role; probability: number }[]
   }[]
   /** Compact public-only alignment histogram; never serialized. */
-  evilMaskCounts: readonly { mask: number; count: number }[]
+  evilMaskCounts: readonly PublicAlignmentMaskCount[]
 }>()
 
 function exactCacheKey(record: PublicRecord): string {

@@ -1,4 +1,5 @@
 import type { Seat } from '../../engine/types.ts'
+import type { ObservationFraction } from './types.ts'
 
 export const ACTOR_TARGET_TREATMENT_READ_VERSION =
   'public-actor-target-treatment-read-v1'
@@ -6,11 +7,7 @@ export const ACTOR_TARGET_TREATMENT_DEGRADATION =
   'actor-target-treatment-read-failed'
 export const MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES = 131_072
 
-export interface ActorTargetTreatmentFraction {
-  numerator: number
-  denominator: number
-  index: number | null
-}
+export type ActorTargetTreatmentFraction = ObservationFraction
 
 export interface ActorTargetTreatmentRow {
   actor: Seat

@@ -4,6 +4,7 @@ import type {
   Seat,
 } from '../../engine/types.ts'
 import type { BeliefSnapshot } from '../belief/types.ts'
+import type { ObservationFraction } from './types.ts'
 
 export const MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION =
   'morgana-counterfeit-public-read-v1'
@@ -13,11 +14,7 @@ export const MORGANA_COUNTERFEIT_DEGRADATION =
   'morgana-objective-assessment-failed'
 export const MAX_MORGANA_COUNTERFEIT_ASSESSMENTS = 252
 
-export interface CounterfeitObservationFraction {
-  numerator: number
-  denominator: number
-  index: number | null
-}
+export type CounterfeitObservationFraction = ObservationFraction
 
 export interface PublicCounterfeitMerlinRead {
   seat: Seat

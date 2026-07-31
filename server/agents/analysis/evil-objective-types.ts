@@ -3,6 +3,9 @@ import type {
   ObjectiveRequest,
   ObjectiveSource,
 } from './role-objective-types.ts'
+import type { ObservationFraction } from './types.ts'
+
+export type { ObservationFraction }
 
 export const EVIL_ROLE_OBJECTIVE_MODEL_VERSION =
   'evil-oberon-objectives-v1'
@@ -38,13 +41,6 @@ export type EvilRolePosture =
 // are retained for callers that imported them before the good/evil unification.
 export type EvilObjectiveSource = ObjectiveSource
 export type EvilObjectiveRequest = ObjectiveRequest
-
-export interface ObservationFraction {
-  numerator: number
-  denominator: number
-  /** Missing means no public observations, never an innocent default. */
-  index: number | null
-}
 
 export interface PublicEvilStanding {
   seat: Seat

@@ -7,6 +7,20 @@ export type JointProbabilitySemantics =
   | 'uniform-feasible-joint'
   | 'weighted-joint'
 
+/**
+ * A public-observation ratio kept as its own integer numerator and denominator
+ * beside the precomputed index. The role reads that surface these (evil
+ * standing, counterfeit truth-tracking, actor-target treatment) each spelled
+ * this shape privately; it is declared once here so a widened observation count
+ * reaches every reader at once.
+ */
+export interface ObservationFraction {
+  numerator: number
+  denominator: number
+  /** Missing means no public observations, never an innocent default. */
+  index: number | null
+}
+
 export interface BoardScore {
   good: number
   evil: number
