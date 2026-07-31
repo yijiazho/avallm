@@ -293,6 +293,183 @@ interface EvilRoleUtilityProjectionInput {
   alternativeObjective?: PrivateEvilRoleObjectiveSnapshot
 }
 
+/**
+ * Build one candidate's utility assessment. This is the per-candidate map body
+ * of buildEvilRoleUtilityProjectionInternal, extracted verbatim; it takes
+ * exactly the operands the closure read, so the produced object is identical
+ * field for field (host-join reconstruction still compares byte for byte).
+ */
+function buildAssessment(args: {
+  candidate: PolicyCandidate
+  req: DecisionRequest
+  view: PlayerView
+  objective: PrivateEvilRoleObjectiveSnapshot
+  objectives: ReadonlyMap<string, EvilCandidateObjective>
+  bestAlternative: EvilCandidateObjective | undefined
+  alternativeRealization: number
+  requestKind: 'propose' | 'vote'
+}): EvilRoleUtilityAssessment {
+  const {
+    candidate,
+    req,
+    view,
+    objective,
+    objectives,
+    bestAlternative,
+    alternativeRealization,
+    requestKind,
+  } = args
+  const source = objectives.get(candidate.id)
+  const team = [...candidateTeam(req, view, candidate)]
+    .sort((left, right) => left - right)
+  if (
+    !source
+    || source.kind !== req.kind
+    || source.team.length !== team.length
+    || source.team.some((seat, index) => seat !== team[index])
+  ) {
+    throw new Error(`evil role utility objective join mismatch for ${candidate.id}`)
+  }
+  const support = source.direction === 'support'
+  const failureCapacityValue = support
+    ? source.teamFailureCapabilityProbability
+    : bestAlternative!.teamFailureCapabilityProbability
+      * alternativeRealization
+  const participant = participantCover(objective, team)
+  const publicActionPlausibility = publicActionPlausibilityFrom(
+    support,
+    source.publicTeamFailureCapabilityProbability,
+  )
+  const publicCoverValue = publicCoverValueFrom(
+    publicActionPlausibility,
+    participant.value,
+  )
+  const completedGood = view.quests.filter(
+    (quest) => quest.status === 'complete' && quest.result === 'success',
+  ).length
+  const completedEvil = view.quests.filter(
+    (quest) => quest.status === 'complete' && quest.result === 'fail',
+  ).length
+  const futureQuestsRemain = view.round < view.quests.length
+  const decisiveBoard = completedGood >= 2 || completedEvil >= 2
+  let futureOpportunityValue = 0
+  let futureOpportunityAvailable = false
+  let futureOpportunitySource:
+    EvilRoleUtilityAssessment['futureOpportunitySource'] = {
+      kind: 'terminal-none',
+    }
+  if (futureQuestsRemain && !decisiveBoard) {
+    if (!support) {
+      const rejectionsBeforeHammer =
+        Math.max(0, MAX_PROPOSALS - view.proposalNum)
+      futureOpportunityValue =
+        rejectionsBeforeHammer / 4
+      futureOpportunityAvailable = true
+      futureOpportunitySource = {
+        kind: 'rejection-runway',
+        rejectionsBeforeHammer,
+        runwayDenominator: 4,
+      }
+    } else if (source.coordination.kind === 'visible-coordination') {
+      const totalVisible = objective.coordination.kind === 'visible-partners'
+        ? objective.coordination.seats.length
+        : 0
+      const reservedVisibleEvil =
+        totalVisible - source.coordination.coordinatedEvilAboard
+      futureOpportunityValue = totalVisible
+        ? reservedVisibleEvil / totalVisible
+        : 0
+      futureOpportunityAvailable = totalVisible > 0
+      futureOpportunitySource = {
+        kind: 'visible-coordination-reserve',
+        reservedVisibleEvil,
+        totalVisibleEvil: totalVisible,
+      }
+    } else {
+      const unseenEvilOnTeamProbability =
+        source.unseenEvilOnTeamProbability ?? 0
+      futureOpportunityValue =
+        1 - unseenEvilOnTeamProbability
+      futureOpportunityAvailable =
+        source.unseenEvilOnTeamProbability !== undefined
+      futureOpportunitySource = {
+        kind: 'oberon-unseen-placement-reserve',
+        unseenEvilOnTeamProbability,
+      }
+    }
+  } else if (futureQuestsRemain && decisiveBoard) {
+    futureOpportunitySource = { kind: 'decisive-board-none' }
+  }
+  const failureCapacityContribution =
+    failureCapacityContributionFrom(failureCapacityValue)
+  const publicCoverContribution =
+    publicCoverContributionFrom(publicCoverValue)
+  const futureOpportunityContribution =
+    futureOpportunityContributionFrom(futureOpportunityValue)
+  const roleValue = clamp01(roleValueSumFrom(
+    failureCapacityContribution,
+    publicCoverContribution,
+    futureOpportunityContribution,
+  ))
+  return {
+    candidateId: candidate.id,
+    kind: requestKind,
+    role: objective.role,
+    posture: objective.posture.kind,
+    direction: source.direction,
+    team,
+    valueSemantics: EVIL_ROLE_UTILITY_VALUE_SEMANTICS,
+    probabilitySemantics: source.probabilitySemantics,
+    teamFailureCapabilityProbability:
+      source.teamFailureCapabilityProbability,
+    publicProbabilitySemantics: source.publicProbabilitySemantics,
+    publicTeamFailureCapabilityProbability:
+      source.publicTeamFailureCapabilityProbability,
+    ...(support || !bestAlternative
+      ? {}
+      : {
+          bestAlternativeCandidateId: bestAlternative.candidateId,
+          bestAlternativeTeam: [...bestAlternative.team],
+          bestAlternativeFailureCapabilityProbability:
+            bestAlternative.teamFailureCapabilityProbability,
+        }),
+    alternativeRealization: support ? 1 : alternativeRealization,
+    failureCapacityValue,
+    publicActionPlausibilityValue: publicActionPlausibility,
+    participantCoverProxyIndex: participant.value,
+    participantCoverAvailable: participant.available,
+    publicCoverValue,
+    publicCoverAvailable: participant.available,
+    publicCoverSemantics:
+      'bounded-action-plausibility-plus-participant-cover-proxy',
+    futureOpportunityValue,
+    futureOpportunityAvailable,
+    futureOpportunitySemantics:
+      'bounded-reserve-or-runway-proxy-not-win-probability',
+    futureOpportunitySource,
+    failureCapacityContribution,
+    publicCoverContribution,
+    futureOpportunityContribution,
+    roleValue,
+    coordination: source.coordination.kind === 'visible-coordination'
+      ? {
+          kind: 'visible-coordination',
+          coordinatedEvilAboard:
+            source.coordination.coordinatedEvilAboard,
+          totalVisibleEvil:
+            objective.coordination.kind === 'visible-partners'
+              ? objective.coordination.seats.length
+              : 0,
+        }
+      : {
+          kind: 'self-only-uncoordinated',
+          selfAboard: source.coordination.selfAboard,
+          unseenEvilOnTeamProbability:
+            source.unseenEvilOnTeamProbability ?? 0,
+        },
+  }
+}
+
 function buildEvilRoleUtilityProjectionInternal(
   input: EvilRoleUtilityProjectionInput,
   admittedObjective: boolean,
@@ -350,157 +527,17 @@ function buildEvilRoleUtilityProjectionInternal(
     ? alternativeRealizationFrom(Math.max(0, MAX_PROPOSALS - view.proposalNum))
     : 1
   const assessments = candidates.map(
-    (candidate): EvilRoleUtilityAssessment => {
-      const source = objectives.get(candidate.id)
-      const team = [...candidateTeam(req, view, candidate)]
-        .sort((left, right) => left - right)
-      if (
-        !source
-        || source.kind !== req.kind
-        || source.team.length !== team.length
-        || source.team.some((seat, index) => seat !== team[index])
-      ) {
-        throw new Error(`evil role utility objective join mismatch for ${candidate.id}`)
-      }
-      const support = source.direction === 'support'
-      const failureCapacityValue = support
-        ? source.teamFailureCapabilityProbability
-        : bestAlternative!.teamFailureCapabilityProbability
-          * alternativeRealization
-      const participant = participantCover(objective, team)
-      const publicActionPlausibility = publicActionPlausibilityFrom(
-        support,
-        source.publicTeamFailureCapabilityProbability,
-      )
-      const publicCoverValue = publicCoverValueFrom(
-        publicActionPlausibility,
-        participant.value,
-      )
-      const completedGood = view.quests.filter(
-        (quest) => quest.status === 'complete' && quest.result === 'success',
-      ).length
-      const completedEvil = view.quests.filter(
-        (quest) => quest.status === 'complete' && quest.result === 'fail',
-      ).length
-      const futureQuestsRemain = view.round < view.quests.length
-      const decisiveBoard = completedGood >= 2 || completedEvil >= 2
-      let futureOpportunityValue = 0
-      let futureOpportunityAvailable = false
-      let futureOpportunitySource:
-        EvilRoleUtilityAssessment['futureOpportunitySource'] = {
-          kind: 'terminal-none',
-        }
-      if (futureQuestsRemain && !decisiveBoard) {
-        if (!support) {
-          const rejectionsBeforeHammer =
-            Math.max(0, MAX_PROPOSALS - view.proposalNum)
-          futureOpportunityValue =
-            rejectionsBeforeHammer / 4
-          futureOpportunityAvailable = true
-          futureOpportunitySource = {
-            kind: 'rejection-runway',
-            rejectionsBeforeHammer,
-            runwayDenominator: 4,
-          }
-        } else if (source.coordination.kind === 'visible-coordination') {
-          const totalVisible = objective.coordination.kind === 'visible-partners'
-            ? objective.coordination.seats.length
-            : 0
-          const reservedVisibleEvil =
-            totalVisible - source.coordination.coordinatedEvilAboard
-          futureOpportunityValue = totalVisible
-            ? reservedVisibleEvil / totalVisible
-            : 0
-          futureOpportunityAvailable = totalVisible > 0
-          futureOpportunitySource = {
-            kind: 'visible-coordination-reserve',
-            reservedVisibleEvil,
-            totalVisibleEvil: totalVisible,
-          }
-        } else {
-          const unseenEvilOnTeamProbability =
-            source.unseenEvilOnTeamProbability ?? 0
-          futureOpportunityValue =
-            1 - unseenEvilOnTeamProbability
-          futureOpportunityAvailable =
-            source.unseenEvilOnTeamProbability !== undefined
-          futureOpportunitySource = {
-            kind: 'oberon-unseen-placement-reserve',
-            unseenEvilOnTeamProbability,
-          }
-        }
-      } else if (futureQuestsRemain && decisiveBoard) {
-        futureOpportunitySource = { kind: 'decisive-board-none' }
-      }
-      const failureCapacityContribution =
-        failureCapacityContributionFrom(failureCapacityValue)
-      const publicCoverContribution =
-        publicCoverContributionFrom(publicCoverValue)
-      const futureOpportunityContribution =
-        futureOpportunityContributionFrom(futureOpportunityValue)
-      const roleValue = clamp01(roleValueSumFrom(
-        failureCapacityContribution,
-        publicCoverContribution,
-        futureOpportunityContribution,
-      ))
-      return {
-        candidateId: candidate.id,
-        kind: requestKind,
-        role: objective.role,
-        posture: objective.posture.kind,
-        direction: source.direction,
-        team,
-        valueSemantics: EVIL_ROLE_UTILITY_VALUE_SEMANTICS,
-        probabilitySemantics: source.probabilitySemantics,
-        teamFailureCapabilityProbability:
-          source.teamFailureCapabilityProbability,
-        publicProbabilitySemantics: source.publicProbabilitySemantics,
-        publicTeamFailureCapabilityProbability:
-          source.publicTeamFailureCapabilityProbability,
-        ...(support || !bestAlternative
-          ? {}
-          : {
-              bestAlternativeCandidateId: bestAlternative.candidateId,
-              bestAlternativeTeam: [...bestAlternative.team],
-              bestAlternativeFailureCapabilityProbability:
-                bestAlternative.teamFailureCapabilityProbability,
-            }),
-        alternativeRealization: support ? 1 : alternativeRealization,
-        failureCapacityValue,
-        publicActionPlausibilityValue: publicActionPlausibility,
-        participantCoverProxyIndex: participant.value,
-        participantCoverAvailable: participant.available,
-        publicCoverValue,
-        publicCoverAvailable: participant.available,
-        publicCoverSemantics:
-          'bounded-action-plausibility-plus-participant-cover-proxy',
-        futureOpportunityValue,
-        futureOpportunityAvailable,
-        futureOpportunitySemantics:
-          'bounded-reserve-or-runway-proxy-not-win-probability',
-        futureOpportunitySource,
-        failureCapacityContribution,
-        publicCoverContribution,
-        futureOpportunityContribution,
-        roleValue,
-        coordination: source.coordination.kind === 'visible-coordination'
-          ? {
-              kind: 'visible-coordination',
-              coordinatedEvilAboard:
-                source.coordination.coordinatedEvilAboard,
-              totalVisibleEvil:
-                objective.coordination.kind === 'visible-partners'
-                  ? objective.coordination.seats.length
-                  : 0,
-            }
-          : {
-              kind: 'self-only-uncoordinated',
-              selfAboard: source.coordination.selfAboard,
-              unseenEvilOnTeamProbability:
-                source.unseenEvilOnTeamProbability ?? 0,
-            },
-      }
-    },
+    (candidate): EvilRoleUtilityAssessment =>
+      buildAssessment({
+        candidate,
+        req,
+        view,
+        objective,
+        objectives,
+        bestAlternative,
+        alternativeRealization,
+        requestKind,
+      }),
   )
   const projection: PrivateEvilRoleUtilityProjection = {
     version: EVIL_ROLE_UTILITY_PROJECTION_VERSION,
