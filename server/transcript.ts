@@ -161,59 +161,96 @@ function fenceBar(body: string): string {
 // events (thinking/notes/individual votes/secret cards/knowledge) are indented
 // so they read as annotations under the public flow.
 function renderLine(ev: GameEvent, who: (s: Seat) => string): string | null {
-  const p = ev.payload as Record<string, any>
   const seq = String(ev.seq).padStart(3, ' ')
   const tag = (body: string) => `${seq}  ${body}`
   const sub = (body: string) => `${seq}      ${body}`
+  const names = (seats: readonly Seat[], join = ', ') => seats.map(who).join(join)
   switch (ev.type) {
-    case 'gameCreated':
-      return tag(`=== ${p.playerCount} players; roles: ${(p.rolesInPlay as string[]).join(', ')}; first leader ${who(p.firstLeader)} ===`)
-    case 'roleDealt':
-      return sub(`deal: ${who(p.seat)} = ${p.role} (${p.alignment})`)
-    case 'knowledge': {
-      const bits: string[] = []
-      if (p.evilPartners) bits.push(`evil partners ${(p.evilPartners as Seat[]).map(who).join(', ') || '(none)'}`)
-      if (p.knownEvil) bits.push(`sees evil ${(p.knownEvil as Seat[]).map(who).join(', ')}`)
-      if (p.merlinCandidates) bits.push(`Merlin/Morgana ${(p.merlinCandidates as Seat[]).map(who).join(' or ')}`)
-      return bits.length ? sub(`knows: ${who(p.seat)} — ${bits.join('; ')}`) : null
+    case 'gameCreated': {
+      const p = ev.payload
+      return tag(`=== ${p.playerCount} players; roles: ${p.rolesInPlay.join(', ')}; first leader ${who(p.firstLeader)} ===`)
     }
-    case 'leadChange':
+    case 'roleDealt': {
+      const p = ev.payload
+      return sub(`deal: ${who(p.seat)} = ${p.role} (${p.alignment})`)
+    }
+    // Switching on the payload's own `kind` rather than probing for whichever
+    // seat list happens to be defined: PrivateInfo is a discriminated union, so
+    // exactly one list exists and the probe was reconstructing that fact at
+    // runtime. A knowledge kind added later stops the build here.
+    case 'knowledge': {
+      const p = ev.payload
+      const known = (body: string) => sub(`knows: ${who(p.seat)} — ${body}`)
+      switch (p.kind) {
+        case 'evil':
+          return known(`evil partners ${names(p.evilPartners) || '(none)'}`)
+        case 'merlin':
+          return known(`sees evil ${names(p.knownEvil)}`)
+        case 'percival':
+          return known(`Merlin/Morgana ${names(p.merlinCandidates, ' or ')}`)
+        case 'none':
+          return null
+      }
+    }
+    case 'leadChange': {
+      const p = ev.payload
       return tag(`— leader → ${who(p.seat)} (Q${p.round}.${p.proposalNum}) —`)
+    }
     case 'utterance': {
+      const p = ev.payload
       if (!p.text) return null
       return tag(`${who(p.seat)}: "${p.text}"`)
     }
     case 'proposal': {
+      const p = ev.payload
       const pitch = p.pitch ? ` — "${p.pitch}"` : ''
-      return tag(`[Q${p.round}.${p.proposalNum}] ${who(p.leader)} proposes: ${(p.team as Seat[]).map(who).join(', ')}${pitch}`)
+      return tag(`[Q${p.round}.${p.proposalNum}] ${who(p.leader)} proposes: ${names(p.team)}${pitch}`)
     }
     case 'proposalLocked':
-      return tag(`${who(p.leader)} locks in the team`)
+      return tag(`${who(ev.payload.leader)} locks in the team`)
     case 'proposalRevised': {
+      const p = ev.payload
       const reason = p.reason ? ` — "${p.reason}"` : ''
-      return tag(`${who(p.leader)} revises the team: ${(p.to as Seat[]).map(who).join(', ')}${reason}`)
+      return tag(`${who(p.leader)} revises the team: ${names(p.to)}${reason}`)
     }
-    case 'voteCast':
+    case 'voteCast': {
+      const p = ev.payload
       return sub(`vote: ${who(p.seat)} → ${p.vote}`)
+    }
     case 'voteReveal': {
-      const votes = (p.votes as { seat: Seat; vote: string }[])
+      const p = ev.payload
+      const votes = p.votes
         .map((v) => `${who(v.seat)}:${v.vote === 'approve' ? 'Y' : 'N'}`).join('  ')
       return tag(`votes: ${votes}  →  ${p.approved ? 'APPROVED' : 'rejected'}`)
     }
-    case 'questCard':
-      return sub(`card: ${who(p.seat)} plays ${String(p.card).toUpperCase()}`)
-    case 'questResult':
-      return tag(`Quest ${p.round}: ${String(p.result).toUpperCase()} (${p.failCount} fail${p.failCount === 1 ? '' : 's'}, needed ${p.failsRequired})`)
-    case 'thinking':
+    case 'questCard': {
+      const p = ev.payload
+      return sub(`card: ${who(p.seat)} plays ${p.card.toUpperCase()}`)
+    }
+    case 'questResult': {
+      const p = ev.payload
+      return tag(`Quest ${p.round}: ${p.result.toUpperCase()} (${p.failCount} fail${p.failCount === 1 ? '' : 's'}, needed ${p.failsRequired})`)
+    }
+    case 'thinking': {
+      const p = ev.payload
       return sub(`[${who(p.seat)} · ${p.kind} thinking] ${p.text}`)
-    case 'scratchpad':
+    }
+    case 'scratchpad': {
+      const p = ev.payload
       return sub(`[${who(p.seat)} · notes] ${p.text}`)
-    case 'assassination':
+    }
+    case 'assassination': {
+      const p = ev.payload
       return tag(`assassin ${who(p.assassin)} targets ${who(p.target)} — ${p.wasMerlin ? 'MERLIN! evil wins' : 'not Merlin'}`)
-    case 'gameOver':
-      return tag(`*** ${String(p.winner).toUpperCase()} wins (${p.reason}) ***`)
-    case 'rename':
+    }
+    case 'gameOver': {
+      const p = ev.payload
+      return tag(`*** ${p.winner.toUpperCase()} wins (${p.reason}) ***`)
+    }
+    case 'rename': {
+      const p = ev.payload
       return sub(`rename: seat ${p.seat} "${p.from}" → "${p.to}"`)
+    }
     // No default arm on purpose. This transcript is the debugging artifact of
     // last resort, so an event it does not know how to render must be a compile
     // error rather than a line nobody notices is missing. Adding an event type
