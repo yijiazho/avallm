@@ -26,11 +26,13 @@ interface ArchitectureViolation {
 }
 
 const {
+  AGENT_DIRECTORY_TIERS,
   auditArchitectureSources,
   checkRepositoryArchitecture,
   checkStrictTestRatchetOwnership,
   inspectSource,
 } = architectureModule as {
+  AGENT_DIRECTORY_TIERS: ReadonlyMap<string, number>
   auditArchitectureSources(
     sources: ReadonlyArray<readonly [string, unknown]>,
   ): readonly ArchitectureViolation[]
@@ -1554,13 +1556,17 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
       'server/agents/analysis/new-owner.ts',
       'runDecisionComponents(brain, request, view)',
     ],
+    // These two sit in admission/ rather than analysis/ so the case isolates
+    // ARCH004. analysis/ ranks BELOW components/, so an analysis file importing
+    // the kernel is also an ARCH020 order violation, and the fixture would then
+    // be asserting two rules at once while claiming to be about one.
     [
-      'server/agents/analysis/namespace-bypass.ts',
+      'server/agents/admission/namespace-bypass.ts',
       `import * as kernel from "../components/kernel.ts"
        kernel["runDecisionComponents"](brain, request, view, invocation, trusted)`,
     ],
     [
-      'server/agents/analysis/dynamic-namespace-bypass.ts',
+      'server/agents/admission/dynamic-namespace-bypass.ts',
       `const kernel = await import("../components/kernel.ts")
        kernel["runDecisionComponents"](brain, request, view, invocation, trusted)`,
     ],
@@ -1576,8 +1582,8 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
       ['ARCH004', 'server/eval/architecture-report.ts'],
       ['ARCH004', 'server/server.ts'],
       ['ARCH004', 'server/agents/analysis/new-owner.ts'],
-      ['ARCH004', 'server/agents/analysis/namespace-bypass.ts'],
-      ['ARCH004', 'server/agents/analysis/dynamic-namespace-bypass.ts'],
+      ['ARCH004', 'server/agents/admission/namespace-bypass.ts'],
+      ['ARCH004', 'server/agents/admission/dynamic-namespace-bypass.ts'],
     ],
   )
 })
@@ -1754,5 +1760,101 @@ test('an exemption that suppresses nothing is reported as stale', () => {
     violations.filter((item) => item.message.includes('is stale')),
     [],
     'a pinned exemption stopped matching; drop the entry',
+  )
+})
+
+// ARCH020. The subdirectories under server/agents/ carry a rank, and an import
+// may only point at a rank at or below its own. These cases pin the three ways
+// the rule can answer: it fires, it deliberately allows the peer tier both
+// ways, and it stays out of the way of the unranked root.
+test('agent directories may only import at or below their own tier', () => {
+  const violations = auditArchitectureSources([
+    [
+      'server/agents/belief/exact.ts',
+      'import { analyzeSituation } from "../analysis/situation.ts"',
+    ],
+    [
+      'server/agents/canonical/canonical-shape.ts',
+      'import { compareCanonicalRoles } from "../belief/types.ts"',
+    ],
+    [
+      'server/agents/record/intent.ts',
+      'export * from "../communication/direction-contract.ts"',
+    ],
+  ])
+
+  assert.deepEqual(
+    violations.map(({ rule, importer, specifier }) => [rule, importer, specifier]),
+    [
+      ['ARCH020', 'server/agents/belief/exact.ts', '../analysis/situation.ts'],
+      [
+        'ARCH020',
+        'server/agents/canonical/canonical-shape.ts',
+        '../belief/types.ts',
+      ],
+      [
+        'ARCH020',
+        'server/agents/record/intent.ts',
+        '../communication/direction-contract.ts',
+      ],
+    ],
+  )
+})
+
+test('the composition kernel peer tier imports both ways', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/policy/decision-frame.ts',
+        'import type { X } from "../components/resolved-brain.ts"',
+      ],
+      [
+        'server/agents/components/registry.ts',
+        'import type { Y } from "../policy/score-layer/types.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
+test('agent root files are outside the directory order in both roles', () => {
+  assert.deepEqual(
+    rules([
+      [
+        'server/agents/admission/trace-primitives.ts',
+        'import type { DecisionTrace } from "../trace.ts"',
+      ],
+      [
+        'server/agents/heuristic.ts',
+        'import type { Z } from "./admission/composed-trace.ts"',
+      ],
+    ]),
+    [],
+  )
+})
+
+// The table is only an order if it covers everything. A subdirectory missing
+// from it is not rejected by ARCH020, it is SKIPPED, so an unranked folder
+// would be silently ungoverned rather than loudly wrong. That failure mode is
+// invisible by construction, which is exactly the kind this repository pins
+// with a derived-from-disk check rather than trusting a hand-kept list.
+test('every agent subdirectory carries a tier', () => {
+  const directories = readdirSync('server/agents', { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => `${entry.name}/`)
+    .sort()
+
+  assert.ok(directories.length > 0, 'expected agent subdirectories to exist')
+  assert.deepEqual(
+    directories.filter((name) => !AGENT_DIRECTORY_TIERS.has(name)),
+    [],
+    'an unranked agent subdirectory is skipped by ARCH020, not governed by it',
+  )
+  assert.deepEqual(
+    [...AGENT_DIRECTORY_TIERS.keys()].filter(
+      (name) => !directories.includes(name),
+    ),
+    [],
+    'the tier table names a directory that no longer exists',
   )
 })

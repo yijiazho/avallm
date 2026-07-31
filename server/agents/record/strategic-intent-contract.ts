@@ -13,8 +13,8 @@ import {
   type StrategicIntent,
   type StrategicIntentHorizon,
   type StrategicObjectiveCode,
-} from '../policy/plan.ts'
-import { validPublicEvidenceReferences } from '../communication/direction-contract.ts'
+} from './intent.ts'
+import { validPublicEvidenceReferences } from './evidence-reference.ts'
 
 export interface StrategicIntentContext {
   readonly seatExists?: (seat: Seat) => boolean

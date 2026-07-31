@@ -782,9 +782,118 @@ function isShared(sourcePath) {
   return sourcePath.startsWith('server/shared/')
 }
 
+const AGENT_PREFIX = 'server/agents/'
+
 function isAgent(sourcePath) {
-  return sourcePath.startsWith('server/agents/')
+  return sourcePath.startsWith(AGENT_PREFIX)
 }
+
+/**
+ * The tier each server/agents/ subdirectory occupies, low to high.
+ *
+ * When this table was written the folders under server/agents/ were importing
+ * and being imported by almost every other one: about eighty percent of a
+ * complete mesh over nine folders. The file graph was a DAG throughout, so
+ * nothing was broken; what was missing was any order the folder names could
+ * carry. A folder that predicts nothing about what may depend on it is a filing
+ * cabinet, not a boundary.
+ *
+ * The mesh turned out not to be made of mutual dependencies. It was made of
+ * single imports pointing the wrong way, and each one made a whole folder
+ * unplaceable. canonical-shape.ts held the domain-free shape guards that
+ * analysis, belief, policy and communication all consume, and reached back up
+ * into belief/types.ts for one role comparator. policy/types.ts held
+ * PolicyCandidate, which fourteen analysis modules need, and reached up into
+ * analysis for one string-literal union. Nothing was looking for edges of that
+ * shape, so they accumulated.
+ *
+ * A rank rather than an adjacency list, because the question asked at review is
+ * "may this file import that one", and a rank answers it without holding a
+ * dozen sets in your head. Equal ranks are legal in both directions and are how
+ * the one genuine mutual dependency is stated: see components and policy.
+ *
+ * The numbers are meaningless in themselves and only the comparison matters, so
+ * inserting a tier means renumbering. That is deliberate: a new tier is a claim
+ * about the whole order and should be read as one.
+ */
+const AGENT_DIRECTORY_TIERS = new Map([
+  // Domain-free canonical shape guards and fixed-point probability arithmetic.
+  // Imports nothing else in agents/ at all. Nothing here may know what a
+  // belief, a candidate or a seat's role means.
+  ['canonical/', 0],
+  // The vocabulary of a legal move: PolicyCandidate, the candidate-id order,
+  // role applicability, and why a play was forced. Named for the noun rather
+  // than for policy, because analysis needs it and analysis is below policy.
+  ['candidate/', 1],
+  // What the table saw, what was said at it, and what a seat means to do about
+  // it: the public record projection, the utterance schema, the mechanical
+  // evidence transcript, and the strategic-intent vocabulary with its
+  // validators. An input to belief, analysis and cognition rather than a
+  // rendering of them, which is why it does not live under communication/.
+  ['record/', 1],
+  ['belief/', 2],
+  ['analysis/', 3],
+  ['cognition/', 4],
+  // One tier, two directories. resolveComposedBrain turns a brain spec into a
+  // component registry and a pair of layer chains at once; components/kernel.ts
+  // imports it and policy/decision-frame.ts imports it, and the layer
+  // registries and the component registry share layer-registry-common.
+  // Ordering these two would mean either merging them, which costs the
+  // score-layer/ and decision-layer/ prefixes that ARCH005 and ARCH011 are
+  // written against, or inverting resolved-brain.ts through a callback across
+  // forty consumers. Equal rank states the fact instead of asserting an order
+  // that is not there, and every other tier is still ordered against both.
+  ['components/', 5],
+  ['policy/', 5],
+  // The role tier. A concrete role may reach down into the kernel and the
+  // analysis it specializes; nothing below may reach up into a role.
+  ['role-score-layers/', 6],
+  ['role-decision-layers/', 6],
+  // Diagnostic projections OVER the configured role families, which is why
+  // this is not itself a family: put it under role-score-layers/ and ARCH006
+  // and ARCH007 correctly start treating it as one.
+  ['score-diagnostics/', 7],
+  // Rendering. It consumes belief, analysis, plans and the record, and produces
+  // prose. Once the record vocabulary and its validators moved down to record/
+  // it had no inbound edge from below at all.
+  ['communication/', 8],
+  // Trace admission, the last thing before the composition spine.
+  ['admission/', 9],
+])
+
+/**
+ * Files sitting directly in server/agents/ are outside the order, and return
+ * undefined here in both roles.
+ *
+ * The root is not a tier, it is two things filed together. Half of it is the
+ * composition spine that runs last (composed.ts, registry.ts, llm.ts,
+ * external-reply.ts) and half is vocabulary the subdirectories legitimately
+ * reach up for. trace.ts is why this cannot simply be ranked at the top: it
+ * imports most of the subdirectories, and several admission modules import it
+ * back, so it is at once the top of the order and a shape vocabulary near the
+ * bottom.
+ *
+ * Bringing the root in means splitting trace.ts into the trace shapes and the
+ * trace builder and ranking them separately. That is real work and it is not
+ * this rule's. Until it happens the cost is that the admission-to-root and
+ * components-to-root edges stay invisible here; they are the remaining debt,
+ * and nothing else under agents/ is unordered except the components/policy peer
+ * tier above.
+ *
+ * A nested directory keys on its FIRST segment, so every file under
+ * policy/score-layer/ or admission/composed-trace/ carries its parent's rank.
+ * The tiers describe the folders someone chose to separate concerns between,
+ * not every directory that exists.
+ */
+function agentDirectoryTier(modulePath) {
+  if (!modulePath.startsWith(AGENT_PREFIX)) return undefined
+  const rest = modulePath.slice(AGENT_PREFIX.length)
+  const boundary = rest.indexOf('/')
+  if (boundary < 0) return undefined
+  return AGENT_DIRECTORY_TIERS.get(rest.slice(0, boundary + 1))
+}
+
+export { AGENT_DIRECTORY_TIERS }
 
 function isGenericPolicyOrComponent(sourcePath) {
   return sourcePath.startsWith('server/agents/policy/')
@@ -1318,6 +1427,39 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           edge,
           'component-kernel namespace access is confined to the in-process composition/kernel boundary',
+        ))
+      }
+      // ARCH020. An agent subdirectory importing one that is above it.
+      //
+      // Last among the edge rules on purpose. Every narrower rule above
+      // describes a specific seam and says something a reader can act on; this
+      // one only says the folders are in the wrong order, which is the less
+      // useful message when both apply. Each of those rules already continues,
+      // so an edge reaching here is one no narrower rule claimed.
+      //
+      // Both ends must be ranked. An unranked end is a root file or a directory
+      // nobody has placed yet, and failing open there is deliberate: a new
+      // subdirectory should be ranked by the person who knows where it belongs,
+      // not rejected by default at whatever rank the rule happened to guess.
+      // test/architecture-fitness.test.ts asserts that every directory on disk
+      // is ranked, so "nobody has placed it yet" cannot outlive the commit that
+      // creates it.
+      const importerTier = agentDirectoryTier(sourcePath)
+      const targetTier = agentDirectoryTier(target)
+      if (
+        importerTier !== undefined
+        && targetTier !== undefined
+        && targetTier > importerTier
+      ) {
+        violations.push(violation(
+          'ARCH020',
+          sourcePath,
+          edge,
+          'agent directory layering is a partial order, and this edge points '
+            + 'up it, so neither directory is below the other and the folder '
+            + 'names stop predicting what may depend on what. Move the '
+            + 'imported symbol down to the tier that needs it rather than '
+            + 'widening the tier that has it',
         ))
       }
     }

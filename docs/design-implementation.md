@@ -43,12 +43,69 @@ server/
                      depends on it.
   engine/          ← PURE deterministic game logic. Pinned by ARCH001 + ARCH014.
                      Runs headless under node:test. This is where all rules live.
-  agents/          ← PlayerView-only cognition, analysis, policy, prompts, parsers, and fallbacks
+  agents/          ← PlayerView-only cognition, analysis, policy, prompts, parsers, and fallbacks.
+                     Internally ordered; see "Inside agents/" below.
   llm/             ← the OpenRouter chokepoint, call-kind param table,
                      model roster config, reasoning policy
   server.js        ← http glue: game session store, POST /api/game/*, SSE stream to client
 client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts human actions.
 ```
+
+#### Inside `agents/`
+
+The subdirectories of `server/agents/` carry a **rank**, and an import may only point at a
+rank at or below its own. ARCH020 enforces it; `AGENT_DIRECTORY_TIERS` in
+`tools/architecture-fitness.mjs` is the table, and `test/architecture-fitness.test.ts`
+asserts every directory on disk appears in it, so a new folder cannot be created unranked.
+
+```
+0  canonical/             domain-free shape guards + fixed-point probability arithmetic.
+                          Imports nothing else in agents/.
+1  candidate/             the vocabulary of a legal move: PolicyCandidate, candidate-id
+                          order, applicability, forced-play reason codes
+1  record/                what the table saw, what was said, and what a seat means to do:
+                          public-record projection, utterance schema, evidence transcript,
+                          strategic-intent vocabulary and its validators
+2  belief/
+3  analysis/
+4  cognition/
+5  components/ + policy/  ONE tier, two directories: peer, mutual imports legal
+6  role-score-layers/ + role-decision-layers/
+7  score-diagnostics/     diagnostic projections OVER the role families
+8  communication/         rendering; no inbound edge from below
+9  admission/             trace admission, last before the composition spine
+```
+
+A nested directory keys on its **first** segment, so `policy/score-layer/` and
+`admission/composed-trace/` carry their parent's rank. The tiers describe the folders
+someone chose to separate concerns between, not every directory that exists.
+
+Two deliberate exceptions, both recorded in the table's comments:
+
+- **`components/` and `policy/` are a peer tier, not an order.** `resolveComposedBrain`
+  turns a brain spec into a component registry *and* a pair of layer chains at once;
+  `components/kernel.ts` imports it and `policy/decision-frame.ts` imports it, and the two
+  registries share `layer-registry-common`. Separating them would mean merging the folders
+  (costing the `score-layer/` and `decision-layer/` prefixes ARCH005 and ARCH011 are written
+  against) or inverting `resolved-brain.ts` through a callback across forty consumers. Equal
+  rank states the fact rather than asserting an order that is not there.
+- **Files directly in `server/agents/` are outside the order** and are skipped in both roles.
+  The root is the composition spine (`composed.ts`, `registry.ts`, `llm.ts`,
+  `external-reply.ts`) filed together with vocabulary the subdirectories legitimately reach
+  up for. `trace.ts` is why: it imports most of the subdirectories and several `admission/`
+  modules import it back, so it is at once the top of the order and a shape vocabulary near
+  the bottom. Ranking the root means first splitting `trace.ts` into the trace shapes and
+  the trace builder. Until then the admission-to-root and components-to-root edges are the
+  known remaining debt.
+
+The rule exists because this folder was, before it, about eighty percent of a complete mesh:
+nearly every pair of folders pointing both ways. The file graph was a DAG throughout
+(`tools/import-cycles.mjs`), so nothing was broken; what was missing was any order the folder
+names could carry. The mesh was not made of mutual dependencies but of **single imports
+pointing the wrong way**: `canonical-shape.ts` reaching up into `belief/types.ts` for one
+role comparator, `policy/types.ts` reaching up into `analysis/` for one string-literal union.
+Each made a whole folder unplaceable, and nothing was looking for edges of that shape, so
+they accumulated.
 
 The engine ⟷ LLM boundary is a **decision interface**: the engine reaches a decision point
 (e.g. "player 3 must vote"), emits a typed `DecisionRequest`, and something answers it with a typed
