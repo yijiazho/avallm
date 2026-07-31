@@ -15,16 +15,16 @@ import {
 } from '../policy/score-layer/families.ts'
 import type { ScoreLayerToken } from '../policy/score-layer/types.ts'
 import type { ResolvedScoreLayerChain } from '../policy/score-layer/types.ts'
+import type {
+  ScoreLayerTerminalIdentity,
+} from '../policy/score-layer/definition.ts'
 import {
   COMPATIBILITY_SCORE_LAYER,
-  GOOD_PROPOSAL_SCORE_LAYER,
-  GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
-  GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   GOOD_ROLE_SCORE_LAYER,
-  SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
   SEEDED_GOOD_ROLE_SCORE_LAYER,
   goodScoreLayerDefinitions,
   goodScoreLayerTerminalFor,
+  goodScoreLayerTerminals,
   goodScoreLayersApplyToDecision,
   calculateDeterministicGoodBase,
 } from './good.ts'
@@ -33,28 +33,33 @@ import {
   SEEDED_EVIL_ROLE_SCORE_LAYER,
   evilScoreLayerDefinitions,
   evilScoreLayerTerminalFor,
+  evilScoreLayerTerminals,
 } from './evil.ts'
 import {
   MORGANA_ROLE_SCORE_LAYER,
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
   morganaScoreLayerDefinitions,
   morganaScoreLayerTerminalFor,
+  morganaScoreLayerTerminals,
 } from './morgana.ts'
 import {
   MORDRED_ROLE_SCORE_LAYER,
   SEEDED_MORDRED_ROLE_SCORE_LAYER,
   mordredScoreLayerDefinitions,
   mordredScoreLayerTerminalFor,
+  mordredScoreLayerTerminals,
 } from './mordred.ts'
 import {
   ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
   assassinScoreLayerDefinitions,
   assassinScoreLayerTerminalFor,
+  assassinScoreLayerTerminals,
 } from './assassin.ts'
 import {
   FULL_ROLE_POLICY_SCORE_LAYER,
   fullRoleScoreLayerDefinitions,
   fullRoleScoreLayerTerminalFor,
+  fullRoleScoreLayerTerminals,
 } from './full-role.ts'
 
 /**
@@ -103,9 +108,14 @@ readonly ScoreLayerLaneDeclaration<ConfiguredScoreLane>[] = Object.freeze([
  */
 interface ConfiguredScoreFamily
 extends ScoreLayerFamilyDeclaration<ConfiguredScoreLane> {
-  /** Every scorer version selectable as a terminal for this family. */
-  readonly terminals: readonly ScoreLayerToken[]
-  /** Exact built-in identity mapping owned by the family module. */
+  /**
+   * The family's canonical terminal identities, owned by the family module.
+   * The seam derives its terminal token set from these, and the family's own
+   * terminalFor derives its lookup from the same list, so a scorer the family
+   * registers cannot be present in one and missing from the other.
+   */
+  readonly identities: readonly ScoreLayerTerminalIdentity<CandidateScorer>[]
+  /** Exact built-in identity mapping, derived from the identities above. */
   terminalFor(scorer: CandidateScorer | undefined): ScoreLayerToken | undefined
 }
 
@@ -130,15 +140,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       [DETERMINISTIC_LANE]: GOOD_ROLE_SCORE_LAYER,
       [SEEDED_LANE]: SEEDED_GOOD_ROLE_SCORE_LAYER,
     },
-    terminals: [
-      COMPATIBILITY_SCORE_LAYER,
-      GOOD_PROPOSAL_SCORE_LAYER,
-      GOOD_PROPOSAL_VOTE_SCORE_LAYER,
-      SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
-      GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
-      GOOD_ROLE_SCORE_LAYER,
-      SEEDED_GOOD_ROLE_SCORE_LAYER,
-    ],
+    identities: goodScoreLayerTerminals,
     terminalFor: goodScoreLayerTerminalFor,
     register: () => goodScoreLayerDefinitions(),
   },
@@ -155,7 +157,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       [DETERMINISTIC_LANE]: EVIL_ROLE_SCORE_LAYER,
       [SEEDED_LANE]: SEEDED_EVIL_ROLE_SCORE_LAYER,
     },
-    terminals: [EVIL_ROLE_SCORE_LAYER, SEEDED_EVIL_ROLE_SCORE_LAYER],
+    identities: evilScoreLayerTerminals,
     terminalFor: evilScoreLayerTerminalFor,
     register: (predecessor) => evilScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
@@ -174,7 +176,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       [DETERMINISTIC_LANE]: MORGANA_ROLE_SCORE_LAYER,
       [SEEDED_LANE]: SEEDED_MORGANA_ROLE_SCORE_LAYER,
     },
-    terminals: [MORGANA_ROLE_SCORE_LAYER, SEEDED_MORGANA_ROLE_SCORE_LAYER],
+    identities: morganaScoreLayerTerminals,
     terminalFor: morganaScoreLayerTerminalFor,
     register: (predecessor) => morganaScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
@@ -198,7 +200,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       [DETERMINISTIC_LANE]: MORDRED_ROLE_SCORE_LAYER,
       [SEEDED_LANE]: SEEDED_MORDRED_ROLE_SCORE_LAYER,
     },
-    terminals: [MORDRED_ROLE_SCORE_LAYER, SEEDED_MORDRED_ROLE_SCORE_LAYER],
+    identities: mordredScoreLayerTerminals,
     terminalFor: mordredScoreLayerTerminalFor,
     register: (predecessor) => mordredScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
@@ -215,7 +217,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       + 'so its truthful fallback is the shared evil objective. It registers '
       + 'no seeded variant, so it never enters the isolated lane.',
     lanes: { [DETERMINISTIC_LANE]: ASSASSIN_MERLIN_TARGET_SCORE_LAYER },
-    terminals: [ASSASSIN_MERLIN_TARGET_SCORE_LAYER],
+    identities: assassinScoreLayerTerminals,
     terminalFor: assassinScoreLayerTerminalFor,
     register: (predecessor) =>
       assassinScoreLayerDefinitions(predecessor(DETERMINISTIC_LANE)),
@@ -236,7 +238,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
       + 'an intervening sibling finds it inapplicable and the prior surface '
       + 'passes through untouched.',
     lanes: { [DETERMINISTIC_LANE]: FULL_ROLE_POLICY_SCORE_LAYER },
-    terminals: [FULL_ROLE_POLICY_SCORE_LAYER],
+    identities: fullRoleScoreLayerTerminals,
     terminalFor: fullRoleScoreLayerTerminalFor,
     register: (predecessor) =>
       fullRoleScoreLayerDefinitions(predecessor(DETERMINISTIC_LANE)),
@@ -276,7 +278,7 @@ const CONFIGURED_TERMINAL_BY_VERSION: ReadonlyMap<string, ScoreLayerToken> =
   (() => {
     const byVersion = new Map<string, ScoreLayerToken>()
     for (const family of SCORE_FAMILY_TREE) {
-      for (const token of family.terminals) {
+      for (const { token } of family.identities) {
         if (byVersion.has(token.version)) {
           throw new Error(`duplicate configured scorer ${token.version}`)
         }

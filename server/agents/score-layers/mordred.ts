@@ -29,7 +29,9 @@ import {
 import {
   noAnalysisTransformLayer,
   REMOVED_VALUE,
+  terminalForIdentities,
   type RoleScoreLayerPredecessors,
+  type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
 
 export const MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
@@ -41,18 +43,24 @@ export const SEEDED_MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
   MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
 )
 
+/** The family's terminal identities; terminalFor and the seam both derive from it. */
+export const mordredScoreLayerTerminals:
+readonly ScoreLayerTerminalIdentity<CandidateScorer>[] =
+  Object.freeze([
+    Object.freeze({
+      scorer: mordredBlindnessRoleScorer,
+      token: MORDRED_ROLE_SCORE_LAYER,
+    }),
+    Object.freeze({
+      scorer: seededMordredBlindnessRoleScorer,
+      token: SEEDED_MORDRED_ROLE_SCORE_LAYER,
+    }),
+  ])
+
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
-export function mordredScoreLayerTerminalFor(
-  scorer: CandidateScorer | undefined,
-): ScoreLayerToken | undefined {
-  if (scorer === mordredBlindnessRoleScorer) {
-    return MORDRED_ROLE_SCORE_LAYER
-  }
-  if (scorer === seededMordredBlindnessRoleScorer) {
-    return SEEDED_MORDRED_ROLE_SCORE_LAYER
-  }
-  return undefined
-}
+export const mordredScoreLayerTerminalFor = terminalForIdentities(
+  mordredScoreLayerTerminals,
+)
 
 function teamId(team: readonly number[]): string {
   return `team:${[...team].sort((left, right) => left - right).join(',')}`

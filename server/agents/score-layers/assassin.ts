@@ -16,6 +16,8 @@ import {
 import {
   noAnalysisTransformLayer,
   REMOVED_VALUE,
+  terminalForIdentities,
+  type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
 
 export const ASSASSIN_MERLIN_TARGET_SCORE_LAYER = scoreLayerToken(
@@ -23,14 +25,20 @@ export const ASSASSIN_MERLIN_TARGET_SCORE_LAYER = scoreLayerToken(
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
 )
 
+/** The family's terminal identities; terminalFor and the seam both derive from it. */
+export const assassinScoreLayerTerminals:
+readonly ScoreLayerTerminalIdentity<CandidateScorer>[] =
+  Object.freeze([
+    Object.freeze({
+      scorer: assassinMerlinTargetScorer,
+      token: ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
+    }),
+  ])
+
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
-export function assassinScoreLayerTerminalFor(
-  scorer: CandidateScorer | undefined,
-): ScoreLayerToken | undefined {
-  return scorer === assassinMerlinTargetScorer
-    ? ASSASSIN_MERLIN_TARGET_SCORE_LAYER
-    : undefined
-}
+export const assassinScoreLayerTerminalFor = terminalForIdentities(
+  assassinScoreLayerTerminals,
+)
 
 export function assassinScoreLayerDefinitions(
   predecessor: ScoreLayerToken,

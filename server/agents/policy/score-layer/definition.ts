@@ -12,6 +12,38 @@ export interface RoleScoreLayerPredecessors {
   readonly seeded: ScoreLayerToken
 }
 
+/**
+ * One built-in scorer identity: the scorer object a family answers to and the
+ * score-layer token that owns it. A family states its terminal identities once
+ * as a list of these, and both its terminalFor lookup and the configured seam's
+ * terminal token set derive from that single list, so a scorer the family knows
+ * about cannot be missing from either.
+ *
+ * The scorer is generic so this stays role-blind: the concrete scorer type
+ * lives with the concrete families, not with the generic score-layer skeleton.
+ */
+export interface ScoreLayerTerminalIdentity<Scorer> {
+  readonly scorer: Scorer | undefined
+  readonly token: ScoreLayerToken
+}
+
+/**
+ * Derive a family's exact built-in identity lookup from its terminal list.
+ * Matches on scorer object identity, so a same-version custom writer, which is
+ * a distinct object, stays legacy and resolves to undefined. An identity whose
+ * scorer is undefined (the compatibility root) answers an undefined scorer.
+ */
+export function terminalForIdentities<Scorer>(
+  identities: readonly ScoreLayerTerminalIdentity<Scorer>[],
+): (scorer: Scorer | undefined) => ScoreLayerToken | undefined {
+  return (scorer) => {
+    for (const identity of identities) {
+      if (identity.scorer === scorer) return identity.token
+    }
+    return undefined
+  }
+}
+
 type NoAnalysisTransformSpec = Pick<
   ScoreLayerTransformDefinition,
   | 'token'

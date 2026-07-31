@@ -28,7 +28,11 @@ import {
   type ScoreLayerTransformContext,
   type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
-import { REMOVED_VALUE } from '../policy/score-layer/definition.ts'
+import {
+  REMOVED_VALUE,
+  terminalForIdentities,
+  type ScoreLayerTerminalIdentity,
+} from '../policy/score-layer/definition.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
@@ -99,27 +103,93 @@ export const SEEDED_GOOD_ROLE_SCORE_LAYER = scoreLayerToken(
   ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 )
 
-/** Exact built-in identity mapping; custom same-version writers stay legacy. */
-export function goodScoreLayerTerminalFor(
-  scorer: CandidateScorer | undefined,
-): ScoreLayerToken | undefined {
-  if (scorer === undefined) return COMPATIBILITY_SCORE_LAYER
-  if (scorer === goodProposalScorer) return GOOD_PROPOSAL_SCORE_LAYER
-  if (scorer === goodProposalVoteScorer) {
-    return GOOD_PROPOSAL_VOTE_SCORE_LAYER
-  }
-  if (scorer === seededGoodProposalVoteScorer) {
-    return SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER
-  }
-  if (scorer === boardSwingGoodProposalVoteScorer) {
-    return GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER
-  }
-  if (scorer === roleObjectiveScorer) return GOOD_ROLE_SCORE_LAYER
-  if (scorer === seededRoleObjectiveScorer) {
-    return SEEDED_GOOD_ROLE_SCORE_LAYER
-  }
-  return undefined
+type GoodMode = 'proposal-only' | 'top-utility' | 'seeded-band'
+
+/**
+ * The single source of good-family scorer identity. Every correlated fact
+ * about a good scorer lives here once: the scorer object it answers to, the
+ * score-layer token that owns it, and, for the four proposal and vote policies,
+ * the deterministic mode and vote-utility version that produce its rows. The
+ * compatibility root (an undefined scorer) and the two role-objective scorers
+ * carry a token but no mode, because dedicated builders wire them rather than
+ * the shared goodDefinition factory.
+ *
+ * goodScoreLayerTerminalFor, the proposal and vote mode-and-utility lookup, and
+ * the goodDefinition wiring in the definitions array all derive from this
+ * table, so a new or renamed good scorer is stated in one place and the three
+ * cannot drift apart.
+ */
+interface GoodScorerIdentity
+extends ScoreLayerTerminalIdentity<CandidateScorer> {
+  readonly mode?: GoodMode
+  readonly utilityVersion?: GoodVoteUtilityVersion
 }
+
+export const goodScoreLayerTerminals: readonly GoodScorerIdentity[] =
+  Object.freeze([
+    Object.freeze({ scorer: undefined, token: COMPATIBILITY_SCORE_LAYER }),
+    Object.freeze({
+      scorer: goodProposalScorer,
+      token: GOOD_PROPOSAL_SCORE_LAYER,
+      mode: 'proposal-only',
+      utilityVersion: GOOD_VOTE_UTILITY_VERSION,
+    }),
+    Object.freeze({
+      scorer: goodProposalVoteScorer,
+      token: GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      mode: 'top-utility',
+      utilityVersion: GOOD_VOTE_UTILITY_VERSION,
+    }),
+    Object.freeze({
+      scorer: seededGoodProposalVoteScorer,
+      token: SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
+      mode: 'seeded-band',
+      utilityVersion: GOOD_VOTE_UTILITY_VERSION,
+    }),
+    Object.freeze({
+      scorer: boardSwingGoodProposalVoteScorer,
+      token: GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
+      mode: 'top-utility',
+      utilityVersion: GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
+    }),
+    Object.freeze({
+      scorer: roleObjectiveScorer,
+      token: GOOD_ROLE_SCORE_LAYER,
+    }),
+    Object.freeze({
+      scorer: seededRoleObjectiveScorer,
+      token: SEEDED_GOOD_ROLE_SCORE_LAYER,
+    }),
+  ])
+
+/** The good scorers built by the shared goodDefinition factory, in order. */
+interface GoodPolicyScorerIdentity extends GoodScorerIdentity {
+  readonly scorer: CandidateScorer
+  readonly mode: GoodMode
+  readonly utilityVersion: GoodVoteUtilityVersion
+}
+
+function isGoodPolicyScorer(
+  identity: GoodScorerIdentity,
+): identity is GoodPolicyScorerIdentity {
+  return identity.scorer !== undefined
+    && identity.mode !== undefined
+    && identity.utilityVersion !== undefined
+}
+
+const goodPolicyScorerIdentities: readonly GoodPolicyScorerIdentity[] =
+  Object.freeze(goodScoreLayerTerminals.filter(isGoodPolicyScorer))
+
+const goodPolicyByVersion: ReadonlyMap<string, GoodPolicyScorerIdentity> =
+  new Map(goodPolicyScorerIdentities.map((identity) => [
+    identity.scorer.version,
+    identity,
+  ]))
+
+/** Exact built-in identity mapping; custom same-version writers stay legacy. */
+export const goodScoreLayerTerminalFor = terminalForIdentities(
+  goodScoreLayerTerminals,
+)
 
 /** The total compatibility root owns every decision kind. */
 export function goodScoreLayersApplyToDecision(
@@ -357,8 +427,6 @@ const compatibilityRootDefinition: ScoreLayerRootDefinition = {
   },
 }
 const compatibilityRoot = Object.freeze(compatibilityRootDefinition)
-
-type GoodMode = 'proposal-only' | 'top-utility' | 'seeded-band'
 
 function goodDefinition(
   token: ScoreLayerToken,
@@ -732,24 +800,12 @@ export function calculateGoodProposalVoteCandidateScores(
   context: GoodPolicyCalculationContext,
   scorer: CandidateScorer,
 ) {
-  const mode: GoodMode =
-    scorer.version === GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
-      ? 'seeded-band'
-      : (
-          scorer.version === GOOD_PROPOSAL_VOTE_SCORER_VERSION
-          || scorer.version === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
-        )
-        ? 'top-utility'
-        : scorer.version === GOOD_PROPOSAL_SCORER_VERSION
-          ? 'proposal-only'
-          : (() => {
-              throw new Error(`unsupported good scorer ${scorer.version}`)
-            })()
-  const utilityVersion: GoodVoteUtilityVersion =
-    scorer.version === GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION
-      ? GOOD_VOTE_BOARD_SWING_UTILITY_VERSION
-      : GOOD_VOTE_UTILITY_VERSION
-  return calculateGoodPolicyRows(context, mode, utilityVersion).map((row) => ({
+  const policy = goodPolicyByVersion.get(scorer.version)
+  if (!policy) {
+    throw new Error(`unsupported good scorer ${scorer.version}`)
+  }
+  return calculateGoodPolicyRows(context, policy.mode, policy.utilityVersion)
+    .map((row) => ({
     version: scorer.version,
     ...row.score,
     features: structuredClone(row.features),
@@ -912,17 +968,8 @@ function roleDefinition(
 
 const definitions: readonly ScoreLayerDefinition[] = Object.freeze([
   compatibilityRoot,
-  goodDefinition(GOOD_PROPOSAL_SCORE_LAYER, 'proposal-only'),
-  goodDefinition(GOOD_PROPOSAL_VOTE_SCORE_LAYER, 'top-utility'),
-  goodDefinition(
-    SEEDED_GOOD_PROPOSAL_VOTE_SCORE_LAYER,
-    'seeded-band',
-  ),
-  goodDefinition(
-    GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORE_LAYER,
-    'top-utility',
-    GOOD_VOTE_BOARD_SWING_UTILITY_VERSION,
-  ),
+  ...goodPolicyScorerIdentities.map((identity) =>
+    goodDefinition(identity.token, identity.mode, identity.utilityVersion)),
   roleDefinition(
     GOOD_ROLE_SCORE_LAYER,
     GOOD_PROPOSAL_VOTE_SCORE_LAYER,

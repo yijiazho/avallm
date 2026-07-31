@@ -28,7 +28,9 @@ import {
 import {
   noAnalysisTransformLayer,
   REMOVED_VALUE,
+  terminalForIdentities,
   type RoleScoreLayerPredecessors,
+  type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
 
 export const EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
@@ -40,16 +42,24 @@ export const SEEDED_EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 )
 
+/** The family's terminal identities; terminalFor and the seam both derive from it. */
+export const evilScoreLayerTerminals:
+readonly ScoreLayerTerminalIdentity<CandidateScorer>[] =
+  Object.freeze([
+    Object.freeze({
+      scorer: evilRoleObjectiveScorer,
+      token: EVIL_ROLE_SCORE_LAYER,
+    }),
+    Object.freeze({
+      scorer: seededEvilRoleObjectiveScorer,
+      token: SEEDED_EVIL_ROLE_SCORE_LAYER,
+    }),
+  ])
+
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
-export function evilScoreLayerTerminalFor(
-  scorer: CandidateScorer | undefined,
-): ScoreLayerToken | undefined {
-  if (scorer === evilRoleObjectiveScorer) return EVIL_ROLE_SCORE_LAYER
-  if (scorer === seededEvilRoleObjectiveScorer) {
-    return SEEDED_EVIL_ROLE_SCORE_LAYER
-  }
-  return undefined
-}
+export const evilScoreLayerTerminalFor = terminalForIdentities(
+  evilScoreLayerTerminals,
+)
 
 function evilDefinition(
   token: ScoreLayerToken,

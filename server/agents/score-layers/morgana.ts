@@ -22,7 +22,9 @@ import {
 import {
   noAnalysisTransformLayer,
   REMOVED_VALUE,
+  terminalForIdentities,
   type RoleScoreLayerPredecessors,
+  type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
 
 export const MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
@@ -34,16 +36,24 @@ export const SEEDED_MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
 )
 
+/** The family's terminal identities; terminalFor and the seam both derive from it. */
+export const morganaScoreLayerTerminals:
+readonly ScoreLayerTerminalIdentity<CandidateScorer>[] =
+  Object.freeze([
+    Object.freeze({
+      scorer: morganaRoleScorer,
+      token: MORGANA_ROLE_SCORE_LAYER,
+    }),
+    Object.freeze({
+      scorer: seededMorganaRoleScorer,
+      token: SEEDED_MORGANA_ROLE_SCORE_LAYER,
+    }),
+  ])
+
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
-export function morganaScoreLayerTerminalFor(
-  scorer: CandidateScorer | undefined,
-): ScoreLayerToken | undefined {
-  if (scorer === morganaRoleScorer) return MORGANA_ROLE_SCORE_LAYER
-  if (scorer === seededMorganaRoleScorer) {
-    return SEEDED_MORGANA_ROLE_SCORE_LAYER
-  }
-  return undefined
-}
+export const morganaScoreLayerTerminalFor = terminalForIdentities(
+  morganaScoreLayerTerminals,
+)
 
 function morganaDefinition(
   token: ScoreLayerToken,
