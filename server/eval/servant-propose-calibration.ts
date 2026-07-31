@@ -39,7 +39,7 @@ import {
 } from '../engine/game.ts'
 import { viewFor } from '../engine/view.ts'
 import { ROLE_ALIGNMENT } from '../engine/rules.ts'
-import { createHeuristicAgent } from '../agents/heuristic.ts'
+import { createHeuristicAgent, heuristicDecide } from '../agents/heuristic.ts'
 import { createComposedAgent } from '../agents/composed.ts'
 import {
   roleObjectiveScorer,
@@ -413,6 +413,80 @@ export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
   }
 }
 
+/**
+ * The compatibility policy itself, as a proposal picker.
+ *
+ * Present because the wide bank measured it proposing CLEANER teams than the
+ * exact-posterior policy (`28.2%` against `21.4%` clean at a servant seat), and
+ * a per-decision paired comparison is the only way to see how it does that. It
+ * is not a candidate for promotion; it is the thing to explain.
+ */
+export const compatibilityProposalPicker: ProposalPicker = async (input) => {
+  const decision = heuristicDecide(input.req, input.view, caseSeed(input))
+  if (decision.kind !== 'propose') {
+    throw new Error('compatibility picker produced a non-proposal')
+  }
+  return decision.team
+}
+
+/**
+ * NB-016's hypothesis, scored per decision instead of per game.
+ *
+ * NB-014 measured that the good proposal value TIES across the top of the
+ * surface on 144 of 147 servant proposals, and that the compatibility team was
+ * already inside that argmax 92.6% of the time: the value function does not
+ * disagree with the heuristic there, it cannot see the difference. So NB-016
+ * asks whether preferring the compatibility choice INSIDE the argmax produces
+ * cleaner teams, taking the heuristic as an oracle for a distinction the
+ * posterior is blind to.
+ *
+ * The first attempt at this was a score layer, gated on win rate over sixty
+ * games, and was withheld for a two-game move in one population. Scored here it
+ * costs a few minutes and answers on thousands of decisions. Nothing is
+ * displaced outside the argmax: a team the posterior actually ranks lower is
+ * never chosen, so this cannot trade clean probability for imitation.
+ */
+export function compatibilityTieOrderPicker(): ProposalPicker {
+  return async (input) => {
+    const candidates = legalCandidates(input.req, input.view)
+    const output = await createComposedAgent({
+      seed: caseSeed(input),
+      scorer: roleObjectiveScorer,
+    }).decide(input.req, input.view)
+    const rows = output.trace?.candidateScores
+    const basePick = output.decision
+    if (!rows?.length || basePick.kind !== 'propose') {
+      throw new Error('tie-order picker got no base proposal')
+    }
+    const survivors = rows.filter((row) =>
+      row.reasonCodes.includes('FORCED_POLICY_ALLOWED'))
+    if (!survivors.length) throw new Error('tie-order picker got no survivors')
+    // Exact equality, not a band: NB-014's finding is that these values are
+    // EQUAL, the same joint probability arrived at by different teams, and a
+    // tolerance would quietly widen the set the heuristic is allowed to pick
+    // from into teams the posterior genuinely ranks lower.
+    const best = Math.max(...survivors.map((row) => row.value))
+    const argmax = new Set(
+      survivors.filter((row) => row.value === best).map((row) => row.candidateId),
+    )
+    const compatibility = heuristicDecide(
+      input.req,
+      input.view,
+      caseSeed(input),
+    )
+    if (compatibility.kind !== 'propose') return basePick.team
+    const wanted = candidates.find((candidate) =>
+      candidate.decision.kind === 'propose'
+      && candidate.decision.team.length === compatibility.team.length
+      && candidate.decision.team.every(
+        (seat, index) => seat === compatibility.team[index],
+      ))
+    return wanted && argmax.has(wanted.id) && wanted.decision.kind === 'propose'
+      ? wanted.decision.team
+      : basePick.team
+  }
+}
+
 /** The base the refinement sits on: the good proposal value plus its tie-break. */
 export const baseProposalPicker = scorerPicker(roleObjectiveScorer)
 
@@ -471,6 +545,27 @@ export function projectionAdjustedPicker(
 /** The refinement under test, as the withdrawn layer computed it. */
 export const servantProposalPicker = projectionAdjustedPicker()
 
+/**
+ * The proposal hypotheses this harness can score, by name.
+ *
+ * Every one of them is a HYPOTHESIS, not a shipped policy: each answers "would
+ * choosing this way seat fewer evil players", and each is scored against the
+ * same held-out cases so the answers are comparable. Keeping them here rather
+ * than in the policy registry is the rule the servant weight pair earned: a
+ * candidate that has not passed a gate belongs where an evaluation can call it,
+ * not where every game runs it.
+ */
+export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
+  Record<string, ProposalPicker>
+> = Object.freeze({
+  /** The withdrawn public-read refinement. Measured inert, p = 0.63. */
+  'public-read': servantProposalPicker,
+  /** NB-016: prefer the compatibility team when it is inside the argmax. */
+  'compatibility-tie-order': compatibilityTieOrderPicker(),
+  /** The compatibility policy itself, which is the thing to explain. */
+  'compatibility': compatibilityProposalPicker,
+})
+
 export interface ServantProposeCalibration {
   readonly version: typeof SERVANT_PROPOSE_CALIBRATION_VERSION
   readonly cases: number
@@ -484,13 +579,21 @@ export interface ServantProposeCalibration {
 export async function runServantProposeCalibration(
   seedsPer: number = SERVANT_CALIBRATION_SEEDS_PER,
   onProgress?: (line: string) => void,
+  hypothesis: string = 'public-read',
 ): Promise<ServantProposeCalibration> {
+  const picker = SERVANT_PROPOSE_HYPOTHESES[hypothesis]
+  if (!picker) {
+    throw new Error(
+      `unknown hypothesis ${hypothesis}; known: `
+      + `${Object.keys(SERVANT_PROPOSE_HYPOTHESES).join(', ')}`,
+    )
+  }
   onProgress?.(`generating cases (${seedsPer} seeds per cast)`)
   const cases = await generateServantProposeCases(seedsPer)
   onProgress?.(`scoring base over ${cases.length} decisions`)
   const base = await scoreProposalPicker(cases, baseProposalPicker)
-  onProgress?.(`scoring candidate over ${cases.length} decisions`)
-  const candidate = await scoreProposalPicker(cases, servantProposalPicker)
+  onProgress?.(`scoring ${hypothesis} over ${cases.length} decisions`)
+  const candidate = await scoreProposalPicker(cases, picker)
   const separating = cases
     .map((input, index) => ({ input, index }))
     .filter((entry) => entry.input.readSeparates)
@@ -577,6 +680,7 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       seeds: { type: 'string' },
+      hypothesis: { type: 'string', default: 'public-read' },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false },
     },
@@ -590,6 +694,7 @@ async function main(): Promise<void> {
   const report = await runServantProposeCalibration(
     seedsPer,
     values.quiet ? undefined : (line) => console.log(line),
+    values.hypothesis,
   )
   process.stdout.write(
     values.json

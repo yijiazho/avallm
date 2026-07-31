@@ -19,6 +19,7 @@ import {
   scoreProposalPicker,
   servantProposalPicker,
   projectionAdjustedPicker,
+  SERVANT_PROPOSE_HYPOTHESES,
 } from '../server/eval/servant-propose-calibration.ts'
 import { ROLE_ALIGNMENT } from '../server/engine/rules.ts'
 
@@ -201,5 +202,41 @@ test('the alignment table is what defines a dirty team', async () => {
     Object.entries(ROLE_ALIGNMENT)
       .filter(([, alignment]) => alignment === 'evil')
       .length >= 4,
+  )
+})
+
+// Every hypothesis is scored against the same held-out cases, which is the only
+// thing that makes their answers comparable. A hypothesis that quietly scored a
+// different set would look better or worse for a reason nobody could see.
+test('every named hypothesis scores the same cases as the base', async () => {
+  const names = Object.keys(SERVANT_PROPOSE_HYPOTHESES)
+  assert.ok(names.includes('public-read'))
+  assert.ok(names.includes('compatibility-tie-order'))
+  assert.ok(names.includes('compatibility'))
+  const cases = (await generateServantProposeCases(SEEDS)).slice(0, 8)
+  const base = await scoreProposalPicker(cases, baseProposalPicker)
+  for (const name of names) {
+    const scored = await scoreProposalPicker(
+      cases,
+      SERVANT_PROPOSE_HYPOTHESES[name],
+    )
+    assert.equal(scored.metrics.decisions, base.metrics.decisions, name)
+    assert.equal(scored.picks.length, cases.length, name)
+    // A picker must return a team that was actually legal for the case, or it
+    // is being scored on something the seat could not have proposed.
+    for (const [index, team] of scored.picks.entries()) {
+      assert.equal(
+        team.length,
+        cases[index].view.quests[cases[index].round - 1].teamSize,
+        `${name} produced a wrong-sized team`,
+      )
+    }
+  }
+})
+
+test('an unknown hypothesis is refused by name', async () => {
+  await assert.rejects(
+    () => runServantProposeCalibration(SEEDS, undefined, 'not-a-hypothesis'),
+    /unknown hypothesis not-a-hypothesis/,
   )
 })

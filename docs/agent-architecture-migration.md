@@ -94,7 +94,7 @@ Status values are `ready`, `review`, `human-checkpoint`, `permission-gated`, `da
 | BELIEF-001 | Conservative proposal and vote likelihood factors | Current proposal and vote behavior affects policy but not the hidden-world posterior | Versioned bounded likelihoods, leakage-safe calibration, uniform-versus-weighted ablation, and held-out population evidence | `data-gated` |
 | CAL-001 / NB-003 | Target-model or human population calibration | Quest-card calibration currently covers synthetic heuristic and seeded-random populations rather than a production population | Whole-game train/evaluation split, named population, shrinkage for sparse players, calibration report, and provenance in traces | `data-gated` |
 | POLICY-001 / NB-012 | Reduce Merlin exposure without sacrificing quest play | The new continuous metric confirms the defect: on the frozen Merlin bank, structured-only and hybrid play leak `+0.0086` and `+0.0105` more posterior lift than compatibility, respectively. The original concealment arm was removed, so this measures the problem rather than endorsing that attempted fix. | A revised bounded objective reduces paired exposure lift while preserving quest, vote, and cross-population decision quality, with causal attribution to the new component | `review` |
-| POLICY-002 / NB-016 | Break information-poor good proposal ties | Exact clean probability leaves broad top ties; a compatibility tie-order helped heuristic games and regressed random games | A tie feature or controlled variation improves both frozen populations or earns an explicit population-specific configuration | `review` |
+| POLICY-002 / NB-016 | Break information-poor good proposal ties | Reframed by measurement, and the framing matters more than the candidate. The `92.6%` in-argmax figure that motivated a tie-order rule is about FIRST proposals; across the channel it is `10.8%`, and the rule can act on `1.5%` of decisions. Meanwhile the compatibility heuristic seats `0.923` evil per team against the exact-posterior policy's `1.181` (`p = 7.7e-4`, 625 decisions), identical at q1 and diverging from q2, which is soft evidence the `constraints-only` belief does not use. The defect is in the posterior, not the ordering over it. | A behavioural likelihood factor under BELIEF-001 that improves proposal cleanliness in both frozen populations; a tie-order rule is no longer the expected shape | `review` |
 | SOCIAL-001 | Finish typed social memory ownership | Composed cognition owns actionable beliefs and commitments, but raw-LLM compatibility still owns a free-form scratchpad; lossy private voice notes and role-specific social models remain optional | Any new social model has a typed owner and ablation; scratchpad-only authority is retired only with a promoted replacement | `deferred` |
 | ASSASSIN-001 | Evaluate trajectory, deliberate noise, and trusted role-claim evidence | The current Assassin posterior is intentionally small and interpretable | Add a feature only after a typed trusted extractor and held-out ablation; never parse raw prose with regex as role truth | `deferred` |
 | PHASE8-001 | Counterfactual value and optional learned inference | Static policy and evaluation must mature before search complexity is justified | Entry criteria in section 6 and a cost-matched ablation against the strongest static policy | `deferred` |
@@ -125,6 +125,15 @@ true:
 
 A policy that wins one synthetic population and regresses another is not a universal promotion.
 It may remain an attributable population-specific experiment if its scope is explicit.
+
+Gate arithmetic, added after a wider bank overturned three numbers this tracker had steered by.
+`phase4-good-v1` carries `60` games per cell, where a net four-game paired shift cannot reach
+`p < 0.05` under any split of its discordant pairs. Re-run on `phase4-good-wide-v1` at `360`
+games, the servant cell that had read `full-role` as adverse (`-15.0%`, 95% `-25.0%` to `-5.0%`)
+reads `-1.9%` (95% `-5.6%` to `+1.7%`) against heuristic opponents and `-0.6%` (95% `-6.4%` to
+`+5.3%`) against random. The evidentiary half of that block did not survive; the block is a human
+decision. Any future cell quoted against this gate should state which bank it came from, because
+a sixty-game cell does not merely fail to resolve small effects, it manufactures large ones.
 
 ---
 

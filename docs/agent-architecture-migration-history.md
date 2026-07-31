@@ -4108,3 +4108,63 @@ here.
   dedicated bench were removed after evaluation, leaving `full-role-policy-scorer-v1` and every
   production preset unchanged. The result remains `review` evidence for a future tie policy that
   can retain the heuristic-population gain without reproducing its random-population loss.
+
+- Wide good bank, and three numbers this tracker had been steering by that did not survive it.
+  `phase4-good-v1` stays frozen because every recorded measurement is against it;
+  `phase4-good-wide-v1` is the same experiment at six times the deals (identical casts, identical
+  disabled-discussion profile, identical three good target roles, distinct seeds, `1,080` cases at
+  `360` per target role). Its target seats are derived by dealing each seed rather than hand
+  listed, with the drift guard surviving as one digest over the whole mapping, `e3043271`, pinned
+  by `test/wide-good-bank.test.ts`, emitted by every run as provenance, and separately proved to
+  pin the truth by re-dealing all 1,080. `server/eval/wide-good-gate.ts --role --population` runs
+  one cell and writes artifacts; reading them stays with the shared readers.
+
+  The sizing came from a power calculation the frozen bank cannot meet. At `60` games a cell, a
+  net four-game paired shift cannot reach `p < 0.05` under ANY split of its discordant pairs: four
+  discordant all one way is an exact sign-test `p = 0.125`, and realistic splits land between
+  `0.29` and `0.50`. NB-016 was withheld for moving heuristic wins `7/60` to `11/60` against a
+  two-game move the other way, and NB-013's vote objective moved `7/60` to `10/60`.
+
+  **The servant win-rate gap does not replicate.** At `360` paired games per cell, `full-role`
+  against compatibility reads `-1.9%` (95% `-5.6%` to `+1.7%`) against heuristic opponents and
+  `-0.6%` (95% `-6.4%` to `+5.3%`) against random. `base-composed` and `structured-only` read the
+  same way. The frozen bank's `-15.0%` (95% `-25.0%` to `-5.0%`) sits outside the new interval;
+  both wide estimates sit INSIDE the old ones, so nothing contradicts anything. The sixty-game
+  cell drew high for compatibility and low for the composed policy and the gap compounded both
+  errors. A small cell does not merely fail to resolve small effects, it manufactures large ones,
+  and this one had been carried as settled fact and used to rank work.
+
+  The indistinguishability claim is confirmed exactly rather than approximately: `full-role` and
+  `base-composed` return identical wins (`68/360`) and identical deltas on every reported metric,
+  to the tenth of a point, in both populations. The role layers cost and add nothing measurable at
+  a servant seat.
+
+  **NB-016's premise is narrower than recorded.** The `92.6%` in-argmax figure for the
+  compatibility team is about matched FIRST proposals. Across the whole propose channel it is
+  `10.8%` (14 of 130), against a mean argmax of `22.7` teams among `114.2` survivors, so a random
+  survivor lands in the argmax about `20%` of the time and the heuristic lands there LESS often
+  than chance. Removing the cases where the base already agrees, the tie-order rule can act on
+  `1.5%` of decisions, which cannot move a win rate and is the likeliest reading of its first
+  attempt.
+
+  **What survives is proposal quality, and the defect is in the belief.** Every composed arm
+  proposes fewer clean teams than compatibility in both populations (`-7.0%`, 95% `-11.6%` to
+  `-2.3%` for full-role against heuristic), clear of zero in five of six cells. Scored per
+  decision over `625` held-out servant proposals, the compatibility heuristic seats `0.923` evil
+  players per team against the exact-posterior policy's `1.181`, with `73` discordant pairs
+  favouring it against `37`, exact two-sided sign test `p = 7.7e-4`. The round profile is the
+  mechanism: at q1 the two are IDENTICAL (`62.5%` dirty each) because no behavioural record exists
+  yet, and from q2 the heuristic pulls away and stays away (q3 `71.3%` against `80.9%`, q5 `68.0%`
+  against `78.0%`). The belief runs `constraints-only`, exact over the hard constraints the public
+  record implies and blind to behaviour; the heuristic is not. So the propose channel does not
+  want a better ordering over a blind posterior, which is what NB-016 and the withdrawn servant
+  public-read refinement both attempted. It wants the posterior to stop being blind, which is
+  BELIEF-001's territory and the existing `LikelihoodFactor` mechanism.
+
+  One incidental finding bearing on NB-013: the two composed vote policies differ by fourteen
+  points on dirty-team approval. `structured-only`, on the SEEDED vote band, reads `-7.6%` against
+  compatibility (better); `base-composed` and `full-role`, on the deterministic
+  `goodProposalVoteScorer`, read `+6.7%` (worse). The permissiveness NB-010 named is a property of
+  the deterministic vote policy and the seeded band already removes most of it, so a board-swing
+  objective must be measured against the seeded arm or be credited with a gain shipping code
+  already delivers.

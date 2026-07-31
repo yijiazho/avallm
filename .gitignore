@@ -6,3 +6,4 @@ playtest-logs/
 .env.*
 *.local
 .DS_Store
+*.log
