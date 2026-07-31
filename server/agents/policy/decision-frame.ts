@@ -58,7 +58,7 @@ import {
   type DecisionPlan,
 } from './plan.ts'
 import {
-  structuredChoice,
+  selectTopViableScore,
   validateCandidateScores,
   type CandidateScore,
   type CandidateScorer,
@@ -586,7 +586,7 @@ function customStructuredChoice(
   scores: readonly CandidateScore[],
 ): string {
   return candidateBoundary.selectedCandidateId
-    ?? structuredChoice(scores).candidateId
+    ?? selectTopViableScore(scores).candidateId
 }
 
 /** Run the C4B scorer/fallback owner synchronously against one exact frame. */

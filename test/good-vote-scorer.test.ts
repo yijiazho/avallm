@@ -24,7 +24,7 @@ import {
   createGoodProposalVoteScorer,
   goodProposalScorer,
   goodProposalVoteScorer,
-  structuredChoice,
+  selectTopViableScore,
   validateCandidateScores,
   type CandidateScore,
   type CandidateScoringContext,
@@ -270,7 +270,7 @@ test('board stakes, future information, runway, and hammer risk are explicit', (
   assert.equal(early.informationBonus, 0.018)
   assert.equal(early.alternativeRealization, 1)
   assert.equal(early.hammerPenalty, 0)
-  assert.equal(structuredChoice(
+  assert.equal(selectTopViableScore(
     scoreWith(
       goodProposalVoteScorer,
       voteContext(goodVoteView([0, 1]), belief),
@@ -280,7 +280,7 @@ test('board stakes, future information, runway, and hammer risk are explicit', (
   assert.equal(nearHammer.rejectionsBeforeHammer, 1)
   assert.equal(nearHammer.alternativeRealization, 0.79)
   assert.equal(nearHammer.hammerPenalty, 0.255)
-  assert.equal(structuredChoice(
+  assert.equal(selectTopViableScore(
     scoreWith(
       goodProposalVoteScorer,
       voteContext(goodVoteView([0, 1], { proposalNum: 4 }), belief),
@@ -316,7 +316,7 @@ test('forced selection dominates vote utility and disables variation', () => {
   })
   const scores = scoreWith(scorer, context)
   validateCandidateScores(context, scores, scorer.version)
-  assert.equal(structuredChoice(scores).candidateId, approveId)
+  assert.equal(selectTopViableScore(scores).candidateId, approveId)
   assert.ok(scores.every(
     (score) =>
       (score.features as GoodVoteFeatures).seedBucket === undefined,
@@ -340,7 +340,7 @@ test('seeded variation is replayable and changes only an in-band selection', () 
     }
     const scores = scoreWith(scorer, seededContext)
     validateCandidateScores(seededContext, scores, scorer.version)
-    choices.set(structuredChoice(scores).candidateId, scores)
+    choices.set(selectTopViableScore(scores).candidateId, scores)
   }
   assert.equal(choices.size, 2)
   const [first, second] = [...choices.values()]
@@ -383,7 +383,7 @@ test('seeded variation is replayable and changes only an in-band selection', () 
       deterministicSeed: `outside-${index}`,
     })
     const voteFeatures = features(scores)
-    outsideChoices.add(structuredChoice(scores).candidateId)
+    outsideChoices.add(selectTopViableScore(scores).candidateId)
     outsideBase ??= [
       voteFeatures.approveUtility,
       voteFeatures.rejectUtility,

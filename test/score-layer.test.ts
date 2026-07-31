@@ -1863,10 +1863,10 @@ test('custom scoring source remains isolated from native score-layer types', () 
 
   assert.match(customSource, /finalizeScoredDecisionFrame\(/)
   assert.match(customSource, /authority: 'custom'/)
-  assert.doesNotMatch(customSource, /structuredChoice\(/)
+  assert.doesNotMatch(customSource, /selectTopViableScore\(/)
   assert.doesNotMatch(customSource, /NativeViableCandidate|ScoreLayerRow/)
   assert.match(nativeSource, /Immutable<NativeViableCandidate>/)
-  assert.doesNotMatch(nativeSource, /structuredChoice\(/)
+  assert.doesNotMatch(nativeSource, /selectTopViableScore\(/)
 
   const runAccessSource = readFileSync(
     new URL('../server/agents/components/run-access.ts', import.meta.url),

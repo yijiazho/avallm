@@ -93,12 +93,12 @@
     },
     {
       "path": "test/good-proposal-scorer.test.ts",
-      "sha256": "93f719aba8bc41ebc08801888e3e61627ba4b847d4c9905beff8e442a6a11a85",
+      "sha256": "ef7d49bdd54d9c486d832dbe31fb84acee06524d72648ff7a5f232663f7589f0",
       "rationale": "Legacy scorer fixtures need current belief fields and union narrowing."
     },
     {
       "path": "test/good-vote-scorer.test.ts",
-      "sha256": "3331b3fe83cd9294bf54d98b43049623cede8c9514d4657f58f916ed14861ede",
+      "sha256": "bac45d017ac05c24bb7cc083635d940af6264df43bfff4e6fad8a6d0e5d6820b",
       "rationale": "Legacy vote fixtures need current belief fields and quest nullability."
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "path": "test/score-layer.test.ts",
-      "sha256": "f32310ecfcce92bdc673a9219a0bd80a3bfbd1ac0bc87973e04c5042d49d38fd",
+      "sha256": "98a86cac4fc9e254fa71a5d8515c4d6f20082524b21eb75fd51bcec3e030a7d9",
       "rationale": "Legacy kernel fixtures intentionally construct hostile unbranded surfaces."
     },
     {

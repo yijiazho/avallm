@@ -16,7 +16,7 @@ import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_SCORER_VERSION,
   goodProposalScorer,
-  structuredChoice,
+  selectTopViableScore,
   validateCandidateScores,
   type CandidateScoringContext,
 } from '../server/agents/policy/score.ts'
@@ -230,10 +230,10 @@ test('best joint value and canonical tie-breaking are deterministic', () => {
   assert.deepEqual(first, second)
   assert.deepEqual(JSON.parse(JSON.stringify(first)), first)
   assert.equal(
-    structuredChoice(first).candidateId,
-    structuredChoice([...first].reverse()).candidateId,
+    selectTopViableScore(first).candidateId,
+    selectTopViableScore([...first].reverse()).candidateId,
   )
-  const chosen = structuredChoice(first)
+  const chosen = selectTopViableScore(first)
   assert.ok(chosen.reasonCodes.includes('GOOD_PROPOSAL_MAX_TEAM_CLEAN'))
   assert.ok(chosen.reasonCodes.includes('GOOD_PROPOSAL_CANONICAL_TIE_BREAK'))
   validateCandidateScores(context, first, GOOD_PROPOSAL_SCORER_VERSION)
@@ -268,7 +268,7 @@ test('forced policy remains authoritative over higher posterior value', () => {
   validateCandidateScores(context, scores, GOOD_PROPOSAL_SCORER_VERSION)
   assert.equal(scoreForTeam(context, [0, 1]).value, -Number.MAX_SAFE_INTEGER)
   assert.equal(scoreForTeam(context, [0, 1]).viable, false)
-  assert.equal(structuredChoice(scores).candidateId, forcedId)
+  assert.equal(selectTopViableScore(scores).candidateId, forcedId)
 })
 
 test('candidate assessments require a complete ID and team join', () => {

@@ -349,6 +349,13 @@ interface GoodVoteUtility {
   rejectUtility: number
 }
 
+/**
+ * Recompute the good-side vote projection from the situation analysis and
+ * cross-check every recorded join (team surface, current team, best
+ * alternative, distributions). Any inconsistency throws rather than returning a
+ * partial value, and validGoodVoteFeatures relies on that throw to reject a
+ * feature set whose numbers do not restate.
+ */
 function goodVoteUtility(
   context: CandidateScoringContext,
   utilityVersion: GoodVoteUtilityVersion,
@@ -846,7 +853,11 @@ export function compatibilityCandidateScores(
   }))
 }
 
-export function structuredChoice(
+/**
+ * The single viable candidate a scorer surface elects: highest value, ties
+ * broken by the lower candidate id.
+ */
+export function selectTopViableScore(
   scores: readonly CandidateScore[],
 ): CandidateScore {
   const viable = scores.filter((score) => score.viable)
@@ -955,6 +966,20 @@ export const seededGoodProposalVoteScorer =
 export const boardSwingGoodProposalVoteScorer =
   BOARD_SWING_GOOD_PROPOSAL_VOTE_SCORER_DESCRIPTOR
 
+/**
+ * Resolve a role-scorer factory's two-mode dispatch: the seeded descriptor when
+ * the requested mode is the seeded one, otherwise the deterministic descriptor.
+ * The generic keeps `seededMode` bound to the option's own mode union.
+ */
+function pickBySelectionMode<M extends string>(
+  selectionMode: M,
+  seededMode: M,
+  deterministic: CandidateScorer,
+  seeded: CandidateScorer,
+): CandidateScorer {
+  return selectionMode === seededMode ? seeded : deterministic
+}
+
 export interface RoleObjectiveScorerOptions {
   selectionMode: RoleObjectiveSelectionMode
 }
@@ -978,9 +1003,12 @@ const SEEDED_ROLE_OBJECTIVE_SCORER_DESCRIPTOR: CandidateScorer =
 export function createRoleObjectiveScorer(
   options: RoleObjectiveScorerOptions,
 ): CandidateScorer {
-  return options.selectionMode === 'seeded-composite-band'
-    ? SEEDED_ROLE_OBJECTIVE_SCORER_DESCRIPTOR
-    : ROLE_OBJECTIVE_SCORER_DESCRIPTOR
+  return pickBySelectionMode(
+    options.selectionMode,
+    'seeded-composite-band',
+    ROLE_OBJECTIVE_SCORER_DESCRIPTOR,
+    SEEDED_ROLE_OBJECTIVE_SCORER_DESCRIPTOR,
+  )
 }
 
 /** Deterministic role-policy ablation. */
@@ -1011,9 +1039,12 @@ const SEEDED_EVIL_ROLE_OBJECTIVE_SCORER_DESCRIPTOR: CandidateScorer =
 export function createEvilRoleObjectiveScorer(
   options: EvilRoleObjectiveScorerOptions,
 ): CandidateScorer {
-  return options.selectionMode === 'seeded-role-utility-band'
-    ? SEEDED_EVIL_ROLE_OBJECTIVE_SCORER_DESCRIPTOR
-    : EVIL_ROLE_OBJECTIVE_SCORER_DESCRIPTOR
+  return pickBySelectionMode(
+    options.selectionMode,
+    'seeded-role-utility-band',
+    EVIL_ROLE_OBJECTIVE_SCORER_DESCRIPTOR,
+    SEEDED_EVIL_ROLE_OBJECTIVE_SCORER_DESCRIPTOR,
+  )
 }
 
 export const evilRoleObjectiveScorer =
@@ -1039,10 +1070,12 @@ const SEEDED_MORGANA_ROLE_SCORER_DESCRIPTOR: CandidateScorer = Object.freeze({
 export function createMorganaRoleScorer(options: {
   selectionMode: MorganaRoleSelectionMode
 }): CandidateScorer {
-  return options.selectionMode
-      === 'seeded-near-equal-vote-within-d2-band'
-    ? SEEDED_MORGANA_ROLE_SCORER_DESCRIPTOR
-    : MORGANA_ROLE_SCORER_DESCRIPTOR
+  return pickBySelectionMode(
+    options.selectionMode,
+    'seeded-near-equal-vote-within-d2-band',
+    MORGANA_ROLE_SCORER_DESCRIPTOR,
+    SEEDED_MORGANA_ROLE_SCORER_DESCRIPTOR,
+  )
 }
 
 export const morganaRoleScorer = MORGANA_ROLE_SCORER_DESCRIPTOR
@@ -1065,10 +1098,12 @@ const SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR: CandidateScorer =
 export function createMordredBlindnessRoleScorer(options: {
   selectionMode: MordredBlindnessRoleSelectionMode
 }): CandidateScorer {
-  return options.selectionMode
-      === 'seeded-near-equal-vote-within-d2-band'
-    ? SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
-    : MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR
+  return pickBySelectionMode(
+    options.selectionMode,
+    'seeded-near-equal-vote-within-d2-band',
+    MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR,
+    SEEDED_MORDRED_BLINDNESS_ROLE_SCORER_DESCRIPTOR,
+  )
 }
 
 export const mordredBlindnessRoleScorer =

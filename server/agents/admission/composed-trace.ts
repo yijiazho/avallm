@@ -55,7 +55,7 @@ import {
   ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   ROLE_OBJECTIVE_UTILITY_VERSION,
   stablePolicyBucket,
-  structuredChoice,
+  selectTopViableScore,
   type CandidateScore,
   type CandidateScoringContext,
 } from '../policy/score.ts'
@@ -3807,7 +3807,7 @@ function validateExactNativeScoreSurface(
         === expectedConfiguredAttribution
       && trace.structuredCandidateId === (
         candidateBoundary.selectedCandidateId
-        ?? structuredChoice(expected.scores).candidateId
+        ?? selectTopViableScore(expected.scores).candidateId
       )
       && validNativeScoreAttribution(trace, expected.componentRun)
   } catch {
