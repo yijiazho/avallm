@@ -121,6 +121,36 @@ export function partitionBySubject<Item, Key>(
   return { buckets, mass }
 }
 
+/**
+ * The distribution of "how many of `team` are evil" over the given worlds,
+ * accumulated with the naive fold in input order.
+ *
+ * Returns the raw (unnormalized) mass per count, indices 0..team.length; the
+ * caller normalizes with whatever discipline its payload pins. `isEvilOnTeam`
+ * is the channel: it decides, per world and seat, which alignment/role counts
+ * (Merlin-visible evil, total evil, quest-fail-implied evil, ...). This is the
+ * per-team counterpart to accumulateSubjectMass. The counterfeit read calls it;
+ * the blind-window assessments compute the same shape inline (kept fused there
+ * because their loop also needs the per-world counts for the window predicate),
+ * and the quest-coparticipation channel will need it. Naive summation matches
+ * those consumers bit-for-bit; the counts per team are small, so compensation
+ * is unnecessary here.
+ */
+export function teamEvilCountDistribution<Item>(
+  items: Iterable<Item>,
+  team: readonly number[],
+  isEvilOnTeam: (item: Item, seat: number) => boolean,
+  probabilityOf: (item: Item) => number,
+): number[] {
+  const out = Array<number>(team.length + 1).fill(0)
+  for (const item of items) {
+    let count = 0
+    for (const seat of team) if (isEvilOnTeam(item, seat)) count += 1
+    out[count] += probabilityOf(item)
+  }
+  return out
+}
+
 /** The zero accumulation a subject with no matching item reads as. */
 export const EMPTY_SUBJECT_MASS: Readonly<SubjectMassAccumulation> =
   Object.freeze({

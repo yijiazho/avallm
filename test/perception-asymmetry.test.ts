@@ -13,6 +13,7 @@ import {
   conditionalOverlayIndex,
   EMPTY_SUBJECT_MASS,
   partitionBySubject,
+  teamEvilCountDistribution,
   type PerceptionOverlaySample,
 } from '../server/agents/analysis/perception-asymmetry.ts'
 import { stableProbabilitySum } from '../server/agents/components/probability-arithmetic.ts'
@@ -156,6 +157,30 @@ test('partitionBySubject lets keyOf reject an illegal item by throwing', () => {
     }, (i) => i.p),
     /illegal/,
   )
+})
+
+test('teamEvilCountDistribution buckets team evil counts by mass, index 0..len', () => {
+  const worlds = [
+    { evil: new Set([1]), p: 0.5 },
+    { evil: new Set([1, 2]), p: 0.3 },
+    { evil: new Set<number>(), p: 0.2 },
+  ]
+  const dist = teamEvilCountDistribution(
+    worlds,
+    [1, 2],
+    (w, seat) => w.evil.has(seat),
+    (w) => w.p,
+  )
+  // Zero evil on team -> 0.2; one -> 0.5; both -> 0.3.
+  assert.equal(dist.length, 3)
+  assert.deepEqual(dist, [0.2, 0.5, 0.3])
+})
+
+test('teamEvilCountDistribution counts only team seats and preserves raw mass', () => {
+  // An evil seat off-team must not raise the count; the fold stays unnormalized.
+  const worlds = [{ evil: new Set([9]), p: 0.4 }, { evil: new Set([0]), p: 0.1 }]
+  const dist = teamEvilCountDistribution(worlds, [0, 1], (w, s) => w.evil.has(s), (w) => w.p)
+  assert.deepEqual(dist, [0.4, 0.1, 0])
 })
 
 test('EMPTY_SUBJECT_MASS reads as an all-zero accumulation', () => {

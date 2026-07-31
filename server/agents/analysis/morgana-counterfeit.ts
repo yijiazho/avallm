@@ -64,6 +64,7 @@ import {
   PROBABILITY_TOLERANCE,
   stableProbabilitySum,
 } from '../components/probability-arithmetic.ts'
+import { teamEvilCountDistribution } from './perception-asymmetry.ts'
 
 function fraction(
   numerator: number,
@@ -242,15 +243,17 @@ function merlinVisibleDistribution(
   belief: BeliefSnapshot,
   team: readonly Seat[],
 ): readonly number[] {
-  const out = Array<number>(team.length + 1).fill(0)
-  for (const weighted of belief.worlds) {
-    let count = 0
-    for (const seat of team) {
+  // Merlin-visible evil is everyone evil except Mordred; the shared per-team
+  // count fold matches the inline loop this replaced bit-for-bit.
+  const out = teamEvilCountDistribution(
+    belief.worlds,
+    team,
+    (weighted, seat) => {
       const role = weighted.world.roleBySeat[seat]
-      if (ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred') count += 1
-    }
-    out[count] += weighted.probability
-  }
+      return ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred'
+    },
+    (weighted) => weighted.probability,
+  )
   return normalizedDistribution(out)
 }
 
