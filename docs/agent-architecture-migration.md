@@ -4049,6 +4049,36 @@ here.
   be cheaper with runway to spare, and the hammer is the one place rejecting buys nothing because the
   team is auto-approved. A signed value needs a discount toward the status quo, not toward zero. Full suite 1207 correctness tests plus the isolated
   performance tests.
+- NB-016 second attempt, and a power finding that applies to the whole NB-01x
+  queue. A servant score layer ranked the tied top of the proposal surface by the shared public
+  read (`analysis/public-self-read.ts`) instead of by the compatibility choice. It was granted
+  propose authority, gated, and **withdrawn**. Per decision, over 1,552 held-out servant proposals
+  from 600 seeded games (`server/eval/servant-propose-calibration.ts`), it reshuffles `36.7%` of
+  picks and the reshuffle carries no information about whether the team is actually clean: 58
+  base-clean/candidate-dirty against 52 the other way, exact two-sided sign test `p = 0.63`. It was
+  always going to be inert: `evilReadIndex` is `0.70` times the public evil marginal plus `0.30`
+  times a failed-quest exposure index, so it is a lossy re-encoding of what the exact posterior
+  already holds plus a documented double count, and its only real content is the private-versus-
+  public knowledge gap, which at a servant seat is close to zero. The layer is deleted; the
+  hypothesis survives as `projectionAdjustedPicker`, verified 130 of 130 picks identical to the
+  layer before deletion.
+
+  **The power finding.** The first NB-016 attempt was withheld for moving heuristic wins `7/60` to
+  `11/60` while moving random `29/60` to `27/60`. At `n = 60` a net four-game paired shift cannot
+  reach `p < 0.05` under any split of the discordant pairs: the most favourable possible
+  arrangement, four discordant pairs all one way, is an exact sign-test `p = 0.125`, and realistic
+  splits land between `0.29` and `0.50`. The two-game "regression" that blocked it is further from
+  resolvable still (`45.0%`, 95% `33.1%` to `57.5%`, against `48.3%`, 95% `36.2%` to `60.7%`). The
+  same holds for NB-013's `7/60` to `10/60`. So all three withheld fixes (NB-012, NB-013, NB-016)
+  were gated on differences the bank cannot resolve, while NB-013's per-decision metric, which the
+  bank CAN resolve, moved `54.5%` to `37.4%` with a 95% interval of `-21.4%` to `-12.7%`.
+
+  There is a structural reason this keeps happening in one direction. NB-010 named the defect as
+  Merlin legibility: near-oracle votes that an exploiting opponent punishes. A random population
+  cannot exploit it, so any genuine fix is neutral-to-slightly-negative there by construction.
+  Requiring no regression in the population that cannot exhibit the defect systematically blocks
+  every fix for it. The gate wants a power threshold on the regression arm, or a bank large enough
+  to distinguish four games from noise, before any further policy work is worth doing.
 - NB-016 compatibility tie-order experiment evaluated and withheld. The tested
   `full-role-compatibility-tie-scorer-v1` terminal applied only to Servant proposals. It retained
   the exact `good-proposal-features-v1` clean probability and used one `Number.EPSILON` mechanical
