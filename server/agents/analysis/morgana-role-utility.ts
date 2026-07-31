@@ -507,7 +507,162 @@ export type _MorganaRequestKeysSound =
   | AssertNever<MissingKeys<MorganaRoleRequest, MorganaRequestAllKeys>>
   | AssertNever<DuplicateKeys<MorganaRequestAllKeys>>
 
-function morganaRoleUtilitySchema(value: unknown): boolean {
+/**
+ * One projected candidate row, joined against the decoded D2 and counterfeit
+ * dependencies. Verbatim body of the original per-candidate loop, so the exact
+ * clause set and short-circuit order are preserved (each later clause still
+ * runs only once an earlier one proved its field). Mutates `ids` for the
+ * cross-row duplicate guard, exactly as the loop did.
+ */
+function verifyCandidateJoin(
+  rawCandidate: unknown,
+  requestKind: unknown,
+  d2ById: Map<
+    string,
+    PrivateEvilRoleUtilityProjection['assessments'][number]
+  >,
+  counterfeitById: Map<
+    string,
+    PrivateMorganaCounterfeitObjective['assessments'][number]
+  >,
+  requestTeam: readonly Seat[] | undefined,
+  d2BandFloor: number,
+  ids: Set<string>,
+): boolean {
+  if (!plainRecord(rawCandidate)) return false
+  const candidate = rawCandidate
+  if (typeof candidate.candidateId !== 'string') return false
+  const candidateId = candidate.candidateId
+  const d2Utility = d2ById.get(candidateId)
+  const counterfeitAssessment =
+    counterfeitById.get(candidateId)
+  if (
+    !exactKeys(candidate, [
+      'candidateId', 'kind', 'decision', 'forcedAllowed',
+      'd2RoleValue', 'd2BandFloor', 'inD2ViableBand',
+      'counterfeitValue', 'counterfeitRank',
+    ])
+    || ids.has(candidateId)
+    || candidate.kind !== requestKind
+    || typeof candidate.forcedAllowed !== 'boolean'
+    || typeof candidate.d2RoleValue !== 'number'
+    || candidate.d2BandFloor !== d2BandFloor
+    || typeof candidate.inD2ViableBand !== 'boolean'
+    || candidate.inD2ViableBand !== (
+      candidate.forcedAllowed
+      && withinD2Band(candidate.d2RoleValue, d2BandFloor)
+    )
+    || typeof candidate.counterfeitValue !== 'number'
+    || !safeInteger(candidate.counterfeitRank)
+    || candidate.counterfeitRank < 0
+    || !d2Utility
+    || !counterfeitAssessment
+    || d2Utility.roleValue !== candidate.d2RoleValue
+    || counterfeitAssessment.counterfeitValue
+      !== candidate.counterfeitValue
+    || candidateIdForDecision(candidate.decision as Decision)
+      !== candidateId
+    || !teamsEqual(
+      d2Utility.team,
+      (candidate.decision as Decision).kind === 'propose'
+        ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
+        : requestTeam,
+    )
+    || !teamsEqual(
+      counterfeitAssessment.candidate.team,
+      (candidate.decision as Decision).kind === 'propose'
+        ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
+        : requestTeam,
+    )
+  ) return false
+  ids.add(candidateId)
+  return true
+}
+
+/**
+ * The D2 viable-band, counterfeit ranking, seeded-vote eligibility, and final
+ * selection cross-check. Verbatim tail of the original schema. Its candidate
+ * rows have already passed verifyCandidateJoin, so they are typed as the
+ * validated row shape; every numeric operand it reads was narrowed to a number
+ * by the leading schema guard before it is handed in here.
+ */
+function verifyBandAndSelection(args: {
+  candidates: readonly MorganaRoleCandidateUtility[]
+  d2BandFloor: number
+  maxD2RoleValue: number
+  seededVoteCounterfeitBand: number
+  selectionMode: unknown
+  requestKind: unknown
+  forcedSelectedCandidateId: unknown
+  seedBucket: unknown
+  selectedCandidateId: unknown
+  selectedDecision: unknown
+}): boolean {
+  const survivors = args.candidates.filter(
+    (candidate) => candidate.forcedAllowed,
+  )
+  if (!survivors.length) return false
+  const maxD2 = Math.max(
+    ...survivors.map((candidate) => candidate.d2RoleValue),
+  )
+  const bandRows = survivors.filter(
+    (candidate) => withinD2Band(candidate.d2RoleValue, args.d2BandFloor),
+  )
+  const ranks = rankByCounterfeit(
+    bandRows.map((candidate) => ({
+      candidateId: candidate.candidateId,
+      counterfeitValue: candidate.counterfeitValue,
+    })),
+  )
+  // rankByCounterfeit inserts in descending-counterfeit order, so the rank-1
+  // entry is the top of the band; this reproduces the old sorted ranked[0].
+  const topBandCandidateId = [...ranks].find(
+    ([, rank]) => rank === 1,
+  )?.[0]
+  if (
+    Math.abs(args.maxD2RoleValue - maxD2) > PROBABILITY_TOLERANCE
+    || args.candidates.some(
+      (candidate) =>
+        candidate.counterfeitRank
+          !== (ranks.get(candidate.candidateId) ?? 0),
+    )
+  ) return false
+  const seededEligible =
+    args.selectionMode
+      === 'seeded-near-equal-vote-within-d2-band'
+    && args.requestKind === 'vote'
+    && args.forcedSelectedCandidateId === undefined
+    && bandRows.length === 2
+    && bandRows.every(
+      (candidate) => (candidate.decision as Decision).kind === 'vote',
+    )
+    && Math.abs(
+      bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
+    ) <= args.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
+  if ((args.seedBucket !== undefined) !== seededEligible) return false
+  const expectedSelected = args.forcedSelectedCandidateId
+    ?? (
+      args.seedBucket === undefined
+        ? topBandCandidateId
+        : `${LEGAL_CANDIDATE_VERSION}:vote:${
+            args.seedBucket === 0 ? 'approve' : 'reject'
+          }`
+    )
+  const selectedCandidateId = args.selectedCandidateId
+  const selected = args.candidates.find(
+    (candidate) => candidate.candidateId === selectedCandidateId,
+  )
+  return !!selected
+    && selected.inD2ViableBand
+    && args.selectedCandidateId === expectedSelected
+    && isDeepStrictEqual(selected.decision, args.selectedDecision)
+    && (
+      args.forcedSelectedCandidateId === undefined
+      || args.forcedSelectedCandidateId === args.selectedCandidateId
+    )
+}
+
+function morganaRoleUtilitySemantics(value: unknown): boolean {
   if (
     !plainRecord(value)
     || !exactKeys(value, [
@@ -635,121 +790,35 @@ function morganaRoleUtilitySchema(value: unknown): boolean {
   const d2BandFloor = value.d2BandFloor
   const ids = new Set<string>()
   for (const rawCandidate of value.candidates) {
-    if (!plainRecord(rawCandidate)) return false
-    const candidate = rawCandidate
-    if (typeof candidate.candidateId !== 'string') return false
-    const candidateId = candidate.candidateId
-    const d2Utility = d2ById.get(candidateId)
-    const counterfeitAssessment =
-      counterfeitById.get(candidateId)
     if (
-      !exactKeys(candidate, [
-        'candidateId', 'kind', 'decision', 'forcedAllowed',
-        'd2RoleValue', 'd2BandFloor', 'inD2ViableBand',
-        'counterfeitValue', 'counterfeitRank',
-      ])
-      || ids.has(candidateId)
-      || candidate.kind !== value.request.kind
-      || typeof candidate.forcedAllowed !== 'boolean'
-      || typeof candidate.d2RoleValue !== 'number'
-      || candidate.d2BandFloor !== d2BandFloor
-      || typeof candidate.inD2ViableBand !== 'boolean'
-      || candidate.inD2ViableBand !== (
-        candidate.forcedAllowed
-        && withinD2Band(candidate.d2RoleValue, d2BandFloor)
-      )
-      || typeof candidate.counterfeitValue !== 'number'
-      || !safeInteger(candidate.counterfeitRank)
-      || candidate.counterfeitRank < 0
-      || !d2Utility
-      || !counterfeitAssessment
-      || d2Utility.roleValue !== candidate.d2RoleValue
-      || counterfeitAssessment.counterfeitValue
-        !== candidate.counterfeitValue
-      || candidateIdForDecision(candidate.decision as Decision)
-        !== candidateId
-      || !teamsEqual(
-        d2Utility.team,
-        (candidate.decision as Decision).kind === 'propose'
-          ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-          : requestTeam,
-      )
-      || !teamsEqual(
-        counterfeitAssessment.candidate.team,
-        (candidate.decision as Decision).kind === 'propose'
-          ? (candidate.decision as Extract<Decision, { kind: 'propose' }>).team
-          : requestTeam,
+      !verifyCandidateJoin(
+        rawCandidate,
+        value.request.kind,
+        d2ById,
+        counterfeitById,
+        requestTeam,
+        d2BandFloor,
+        ids,
       )
     ) return false
-    ids.add(candidateId)
   }
-  const survivors = value.candidates.filter(
-    (candidate) => candidate.forcedAllowed,
-  )
-  if (!survivors.length) return false
-  const maxD2 = Math.max(
-    ...survivors.map((candidate) => candidate.d2RoleValue),
-  )
-  const bandRows = survivors.filter(
-    (candidate) => withinD2Band(candidate.d2RoleValue, d2BandFloor),
-  )
-  const ranks = rankByCounterfeit(
-    bandRows.map((candidate) => ({
-      candidateId: candidate.candidateId,
-      counterfeitValue: candidate.counterfeitValue,
-    })),
-  )
-  // rankByCounterfeit inserts in descending-counterfeit order, so the rank-1
-  // entry is the top of the band; this reproduces the old sorted ranked[0].
-  const topBandCandidateId = [...ranks].find(
-    ([, rank]) => rank === 1,
-  )?.[0]
-  if (
-    Math.abs(value.maxD2RoleValue - maxD2) > PROBABILITY_TOLERANCE
-    || value.candidates.some(
-      (candidate) =>
-        candidate.counterfeitRank
-          !== (ranks.get(candidate.candidateId) ?? 0),
-    )
-  ) return false
-  const seededEligible =
-    value.selectionMode
-      === 'seeded-near-equal-vote-within-d2-band'
-    && value.request.kind === 'vote'
-    && value.forcedSelectedCandidateId === undefined
-    && bandRows.length === 2
-    && bandRows.every(
-      (candidate) => (candidate.decision as Decision).kind === 'vote',
-    )
-    && Math.abs(
-      bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
-    ) <= value.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
-  if ((value.seedBucket !== undefined) !== seededEligible) return false
-  const expectedSelected = value.forcedSelectedCandidateId
-    ?? (
-      value.seedBucket === undefined
-        ? topBandCandidateId
-        : `${LEGAL_CANDIDATE_VERSION}:vote:${
-            value.seedBucket === 0 ? 'approve' : 'reject'
-          }`
-    )
-  const selectedCandidateId = value.selectedCandidateId
-  const selected = value.candidates.find(
-    (candidate) => candidate.candidateId === selectedCandidateId,
-  )
-  return !!selected
-    && selected.inD2ViableBand
-    && value.selectedCandidateId === expectedSelected
-    && isDeepStrictEqual(selected.decision, value.selectedDecision)
-    && (
-      value.forcedSelectedCandidateId === undefined
-      || value.forcedSelectedCandidateId === value.selectedCandidateId
-    )
+  return verifyBandAndSelection({
+    candidates: value.candidates as readonly MorganaRoleCandidateUtility[],
+    d2BandFloor,
+    maxD2RoleValue: value.maxD2RoleValue,
+    seededVoteCounterfeitBand: value.seededVoteCounterfeitBand,
+    selectionMode: value.selectionMode,
+    requestKind: value.request.kind,
+    forcedSelectedCandidateId: value.forcedSelectedCandidateId,
+    seedBucket: value.seedBucket,
+    selectedCandidateId: value.selectedCandidateId,
+    selectedDecision: value.selectedDecision,
+  })
 }
 
 const morganaRoleUtilityCodec =
   projectionCodec<PrivateMorganaRoleUtilityProjection>(
-    morganaRoleUtilitySchema,
+    morganaRoleUtilitySemantics,
   )
 
 export const validatePrivateMorganaRoleUtilityProjection =
