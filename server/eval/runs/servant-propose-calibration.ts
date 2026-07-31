@@ -49,7 +49,7 @@ import { compareCandidateIds } from '../../agents/candidate/candidates.ts'
 import { legalCandidates } from '../../agents/candidate/candidates.ts'
 import {
   questWeightedBeliefModel,
-} from '../agents/belief/quest-card-factor.ts'
+} from '../../agents/belief/quest-card-factor.ts'
 import {
   buildServantRoleUtilityProjection,
 } from '../../agents/analysis/servant-role-utility.ts'

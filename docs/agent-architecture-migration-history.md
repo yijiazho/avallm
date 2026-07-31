@@ -4249,3 +4249,30 @@ here.
   downstream consumer at an enumeration cost that has not been profiled. A tooling limit also
   surfaced: `readArtifacts` threw `ERR_STRING_TOO_LONG` on the random cell's artifact file, so the
   calibration reading above covers the heuristic population only.
+
+- Quest-card promotion attempted and reverted, on a blocker neither the per-decision harness nor
+  the wide-bank gate could see. Seating `questWeightedBeliefModel` on the `full-role` preset (the
+  one place a preset becomes wiring, and the arm that was gated) reddens
+  `seat-decision-inspector`: the agent's own trace comes back `rejected` with
+  `trusted-identity-host-join-failed` instead of `trusted-exact`.
+
+  The cause is one line. `exactPolicyHostSurface` builds its host-owned scoring surface from
+  `exactBelief(view)` unconditionally, so the host recomputes against a uniform posterior whatever
+  the trace was actually produced on. It fails even on `merlin-opening-proposal`, where no quest
+  has completed and the weighted belief is numerically IDENTICAL to the uniform one, because the
+  recomputed `beliefModelVersion` still disagrees with the trace's. With real quest evidence the
+  numbers would diverge too.
+
+  This is not a test to update. Trace admission is the trust boundary: seating the factor would
+  mean every production decision's trace fails exact admission, taking the artifact pipeline and
+  the external-agent ingress with it. The gate measured the policy and could not have caught this,
+  because it never asked whether the resulting traces admit.
+
+  The fix is shaped and symmetric rather than novel. The validation layer already models weighted
+  beliefs (`quality === 'weighted'`, belief provenance, a `factors` component version), so only the
+  exact replay is behind. The identity already carries `configuredPipeline.belief.model`, and the
+  score chain is ALREADY resolved from that same identity via `trustedNativeScoreChain`, so
+  resolving the belief model the same way follows an established precedent at the same boundary.
+  What does not exist yet is any version-to-model resolver, and adding one at this boundary needs
+  hostile-artifact coverage proving a forged belief claim cannot make a bad trace admit. Tracked as
+  ADMIT-001; BELIEF-002 is blocked on it.
