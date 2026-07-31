@@ -48,6 +48,9 @@ import {
 import { compareCandidateIds } from '../../agents/candidate/candidates.ts'
 import { legalCandidates } from '../../agents/candidate/candidates.ts'
 import {
+  questWeightedBeliefModel,
+} from '../agents/belief/quest-card-factor.ts'
+import {
   buildServantRoleUtilityProjection,
 } from '../../agents/analysis/servant-role-utility.ts'
 import { diagnosisPercent } from '../core/report-format.ts'
@@ -414,6 +417,36 @@ export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
 }
 
 /**
+ * The same policy on a belief that reads quest CARDS rather than only quest
+ * constraints.
+ *
+ * This is the first hypothesis here that changes what the posterior knows
+ * instead of how a scorer ranks it, and it needed no new model: Phase 5 shipped
+ * `analytical-quest-card-v1`, and `questCardEvidence` already builds a record
+ * for every completed quest including the successful ones. Hard feasibility
+ * still decides which worlds exist; the factor only reweights inside that set,
+ * under a capped log-likelihood.
+ *
+ * Why it is the first thing to try. A successful quest eliminates no world, so
+ * the constraints-only belief learns nothing from one: evil may always choose
+ * to play success. The heuristic scores it anyway, `-0.5` per seat aboard, and
+ * that is not a claim about what is possible but about what evil usually does,
+ * which is precisely a likelihood. This factor prices exactly that, from a
+ * fail-count distribution rather than a hand-weight.
+ */
+export const questWeightedPicker: ProposalPicker = async (input) => {
+  const decision = (await createComposedAgent({
+    seed: caseSeed(input),
+    scorer: roleObjectiveScorer,
+    beliefModel: questWeightedBeliefModel,
+  }).decide(input.req, input.view)).decision
+  if (decision.kind !== 'propose') {
+    throw new Error('quest-weighted picker produced a non-proposal')
+  }
+  return decision.team
+}
+
+/**
  * The compatibility policy itself, as a proposal picker.
  *
  * Present because the wide bank measured it proposing CLEANER teams than the
@@ -564,6 +597,8 @@ export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
   'compatibility-tie-order': compatibilityTieOrderPicker(),
   /** The compatibility policy itself, which is the thing to explain. */
   'compatibility': compatibilityProposalPicker,
+  /** The shipped-but-disabled quest-card factor, on the same policy. */
+  'quest-weighted': questWeightedPicker,
 })
 
 export interface ServantProposeCalibration {

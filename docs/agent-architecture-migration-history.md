@@ -4168,3 +4168,37 @@ here.
   the deterministic vote policy and the seeded band already removes most of it, so a board-swing
   objective must be measured against the seeded arm or be credited with a gain shipping code
   already delivers.
+
+- The propose-channel fix already exists in the tree and is switched off. Following the finding
+  that the `constraints-only` belief is blind to behaviour, the obvious next build was a
+  behavioural likelihood. Checking first showed there was nothing to build: Phase 5 shipped
+  `analytical-quest-card-v1`, `questCardEvidence` builds a record for EVERY completed quest
+  including the successful ones, and `questWeightedBeliefModel` is exported. Every bench and
+  preset runs `factors: 'off'`.
+
+  Scored on the same `625` held-out servant proposals, same policy, only the belief model changed:
+
+  | proposal policy | dirty teams | evil per team | vs base, discordant | p |
+  | --- | --- | --- | --- | --- |
+  | `constraints-only` base | `81.1%` | `1.181` | | |
+  | compatibility heuristic | `75.4%` | `0.923` | `73` for, `37` against | `7.7e-4` |
+  | **quest-weighted belief** | **`71.4%`** | `0.968` | `79` for, `18` against | **`2.7e-10`** |
+
+  The weighted belief beats the heuristic head to head as well, `61` discordant pairs to `36`,
+  `p = 0.0144`. It reaches the lowest dirty-team rate of the three while the heuristic keeps a
+  slight edge on evil seats per team.
+
+  The round profile is the anchor and it lands exactly where the mechanism predicts. At q1 all
+  THREE policies are identical (`62.5%` dirty): no quest has completed, so the factor has no
+  evidence and reweights nothing. From q2 the weighted belief separates and the gap widens with
+  the record: q3 `69.9%` against the base's `80.9%`, q4 `81.9%` against `93.5%`, q5 `62.0%`
+  against `78.0%`.
+
+  So the propose-channel defect is not a missing model, a missing selection rule, or a missing
+  weight table. It is a shipped, tested, capped likelihood factor that no configuration turns on.
+  Promoting it is a real decision rather than a flag flip, because it moves belief `quality` from
+  `constraints-only` to `weighted` for every downstream consumer and pays an enumeration cost, so
+  it wants the wide-bank gate on win rate in both populations plus a `belief-calibration.ts`
+  reading. BELIEF-001 remains open and is now the SECOND step: the two vote-matrix signals the
+  heuristic reads (`+1.5` for leading a proposal whose quest failed, `+0.4` for approving one from
+  off the team) still have no factor, and they are what the quest-card model cannot express.
