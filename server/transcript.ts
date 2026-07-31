@@ -214,10 +214,10 @@ function renderLine(ev: GameEvent, who: (s: Seat) => string): string | null {
       return tag(`*** ${String(p.winner).toUpperCase()} wins (${p.reason}) ***`)
     case 'rename':
       return sub(`rename: seat ${p.seat} "${p.from}" → "${p.to}"`)
-    default:
-      // Unreachable while the switch stays exhaustive over EventType; kept as a
-      // defensive fallback for any future event kind. `ev` is `never` here, so
-      // the widening cast just recovers its runtime `type` tag.
-      return sub(`${(ev as GameEvent).type}: ${JSON.stringify(p)}`)
+    // No default arm on purpose. This transcript is the debugging artifact of
+    // last resort, so an event it does not know how to render must be a compile
+    // error rather than a line nobody notices is missing. Adding an event type
+    // leaves this function able to fall off the end, which its return type
+    // forbids, and the build stops here until the new kind gets a line.
   }
 }

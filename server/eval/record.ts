@@ -62,8 +62,14 @@ function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null
       return full ? `${tag} [private] ${nameOf(a, ev.payload.seat)} votes ${ev.payload.vote}` : null
     case 'questCard':
       return full ? `${tag} [private] ${nameOf(a, ev.payload.seat)} plays ${ev.payload.card}` : null
-    default:
-      return null // gameCreated/roleDealt/knowledge: covered by the headers
+    // Named rather than defaulted: the header already states the cast, the
+    // roles and the deal-time knowledge, so these three would only repeat it.
+    // Every kind is listed so a new engine event fails to compile here instead
+    // of silently vanishing from a record fullRecord advertises as complete.
+    case 'gameCreated':
+    case 'roleDealt':
+    case 'knowledge':
+      return null
   }
 }
 
