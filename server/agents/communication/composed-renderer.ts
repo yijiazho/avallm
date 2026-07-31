@@ -1,4 +1,10 @@
 import type { PlayerView } from '../../engine/types.ts'
+import type { PublicAttributedUtterance } from './language-types.ts'
+import type { PublicRecord } from './public-record.ts'
+import {
+  projectLanguageInterpreterInput,
+  recentPublicUtterances,
+} from './language-contract.ts'
 import type { SituationAnalysis } from '../analysis/types.ts'
 import {
   plannerOverrideReasonCodes,
@@ -11,14 +17,18 @@ import type {
 } from '../policy/decision-layer/types.ts'
 import type { ForcedPolicyResult, PolicyCandidate } from '../policy/types.ts'
 
-export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v2'
-export const COMPOSED_PROMPT_VERSION = 'composed-typed-context-v2'
+export const COMPOSED_RENDERER_VERSION = 'composed-policy-renderer-v3'
+export const COMPOSED_PROMPT_VERSION = 'composed-typed-context-v3'
 
 export interface ComposedPolicyContext {
   version: typeof COMPOSED_RENDERER_VERSION
   seat: number
   role: PlayerView['role']
   phase: PlayerView['phase']
+  publicContext: {
+    record: PublicRecord
+    recentUtterances: readonly PublicAttributedUtterance[]
+  }
   analysisFacts: {
     visibility: 'private-planning-only'
     codes: SituationAnalysis['factCodes']
@@ -56,11 +66,16 @@ export function composedPolicyContext(
   structuredCandidateId?: string,
 ): ComposedPolicyContext {
   const byScore = new Map(scores.map((score) => [score.candidateId, score]))
+  const publicInput = projectLanguageInterpreterInput(view)
   return {
     version: COMPOSED_RENDERER_VERSION,
     seat: view.seat,
     role: view.role,
     phase: view.phase,
+    publicContext: {
+      record: publicInput.publicContext,
+      recentUtterances: recentPublicUtterances(publicInput),
+    },
     analysisFacts: {
       visibility: 'private-planning-only',
       codes: analysis.factCodes,

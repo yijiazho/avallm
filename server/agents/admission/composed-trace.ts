@@ -14,8 +14,10 @@ import type {
   Decision,
   DecisionRequest,
   PlayerView,
+  Role,
   Seat,
 } from '../../engine/types.ts'
+import { isRole } from '../../engine/types.ts'
 import {
   ANALYSIS_FACT_CODES,
   FORCED_PLAY_REASON_CODES,
@@ -106,10 +108,14 @@ import {
   LANGUAGE_INTERPRETER_INPUT_VERSION,
 } from '../communication/language-types.ts'
 import {
-  COMMUNICATION_CLAIM_CODES,
+  projectLanguageInterpreterInput,
+  recentPublicUtterances,
+} from '../communication/language-contract.ts'
+import {
   COMMUNICATION_INTENT_VERSION,
   DECISION_PLAN_VERSION,
   POSTERIOR_UNCERTAINTY_VERSION,
+  communicationActAllowed,
   communicationFactProjection,
   plannerOverrideReasonCodes,
   selectedStrategicReasonCodes,
@@ -514,7 +520,10 @@ const COMMUNICATION_INTENT_KEYS = [
   'version',
   'channel',
   'targetSeats',
-  'claimCodes',
+  'actCodes',
+  'evidenceRefs',
+  'claimedRole',
+  'roleTopic',
   'safeFactCodes',
   'conceal',
   'strategicReasonCodes',
@@ -1393,6 +1402,10 @@ interface ComposedTraceContext {
   readonly trace: TraceValidationInput
   /** Host table size for seat bounds, undefined when no host view was given. */
   readonly playerCount: number | undefined
+  /** Exact public evidence host, present at live and finalized host joins. */
+  readonly hostView?: PlayerView
+  /** Public cast, available from either a partial or full host view. */
+  readonly hostRolesInPlay?: readonly Role[]
   readonly scores: Array<Record<string, unknown>>
   readonly ids: string[]
   readonly components: Record<string, unknown> | undefined
@@ -1602,7 +1615,7 @@ function validPlannerRelations(ctx: ComposedTraceContext): boolean {
 function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
   const {
     trace, scores, chosen, chosenScore, chosenFeatures, action, intent,
-    playerCount,
+    playerCount, hostView, hostRolesInPlay,
   } = ctx
   if (intent !== undefined) {
     if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
@@ -1617,7 +1630,38 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
     const facts = trace.factCodes as string[]
     const projection = communicationFactProjection(facts)
     const strategicReasons = intent.strategicReasonCodes
-    const claimCodes = intent.claimCodes
+    const actCodes = intent.actCodes
+    const evidenceRefs = intent.evidenceRefs
+    const publicInput = hostView
+      ? projectLanguageInterpreterInput(hostView)
+      : undefined
+    const evidenceExists = (reference: Record<string, unknown>): boolean => {
+      if (!publicInput) return true
+      if (reference.kind === 'utterance') {
+        return recentPublicUtterances(publicInput).some(
+          (utterance) => utterance.sourceSeq === reference.sourceSeq,
+        )
+      }
+      if (reference.kind === 'proposal') {
+        return publicInput.publicContext.proposals.some(
+          (proposal) => proposal.round === reference.round
+            && proposal.proposalNum === reference.proposalNum,
+        )
+      }
+      if (reference.kind === 'proposal-vote') {
+        return publicInput.publicContext.proposals.some(
+          (proposal) => proposal.outcome === 'voted'
+            && proposal.round === reference.round
+            && proposal.proposalNum === reference.proposalNum
+            && proposal.votes.some((vote) => vote.seat === reference.seat),
+        )
+      }
+      return reference.kind === 'quest'
+        && publicInput.publicContext.quests.some(
+          (quest) => quest.num === reference.questNum
+            && quest.result !== undefined,
+        )
+    }
     const decisionLayerRun =
       trace.decisionLayerRun as Record<string, unknown> | undefined
     const decisionLayerSurface =
@@ -1657,11 +1701,97 @@ function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
           && (playerCount === undefined || (seat as number) < playerCount),
       )
       || !hasDistinctSeats(intent.targetSeats as readonly Seat[])
-      || !Array.isArray(claimCodes)
-      || new Set(claimCodes).size !== claimCodes.length
-      || !claimCodes.every((code) =>
+      || !Array.isArray(actCodes)
+      || actCodes.length === 0
+      || new Set(actCodes).size !== actCodes.length
+      || !actCodes.every((code) =>
         typeof code === 'string'
-        && COMMUNICATION_CLAIM_CODES.includes(code as never))
+        && expectedChannel !== undefined
+        && communicationActAllowed(expectedChannel, code))
+      || !Array.isArray(evidenceRefs)
+      || evidenceRefs.length > 8
+      || evidenceRefs.some((reference) => {
+        if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+          return true
+        }
+        const raw = reference as Record<string, unknown>
+        if (raw.kind === 'utterance') {
+          return !onlyAllowedKeys(raw, ['kind', 'sourceSeq'])
+            || !Number.isSafeInteger(raw.sourceSeq)
+            || (raw.sourceSeq as number) < 0
+        }
+        if (raw.kind === 'proposal') {
+          return !onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum'])
+            || !Number.isSafeInteger(raw.round)
+            || (raw.round as number) < 1
+            || !Number.isSafeInteger(raw.proposalNum)
+            || (raw.proposalNum as number) < 1
+            || (raw.proposalNum as number) > MAX_PROPOSALS
+        }
+        if (raw.kind === 'proposal-vote') {
+          return !onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum', 'seat'])
+            || !Number.isSafeInteger(raw.round)
+            || (raw.round as number) < 1
+            || !Number.isSafeInteger(raw.proposalNum)
+            || (raw.proposalNum as number) < 1
+            || (raw.proposalNum as number) > MAX_PROPOSALS
+            || !Number.isSafeInteger(raw.seat)
+            || (raw.seat as number) < 0
+            || (
+              playerCount !== undefined
+              && (raw.seat as number) >= playerCount
+            )
+        }
+        if (raw.kind === 'quest') {
+          return !onlyAllowedKeys(raw, ['kind', 'questNum'])
+            || !Number.isSafeInteger(raw.questNum)
+            || (raw.questNum as number) < 1
+            || (raw.questNum as number) > 5
+        }
+        return true
+      })
+      || evidenceRefs.some((reference) =>
+        !evidenceExists(reference as Record<string, unknown>))
+      || new Set(evidenceRefs.map((reference) => JSON.stringify(reference))).size
+        !== evidenceRefs.length
+      || (
+        actCodes.includes('PASS')
+        && (
+          actCodes.length !== 1
+          || intent.targetSeats.length !== 0
+          || evidenceRefs.length !== 0
+        )
+      )
+      || (
+        actCodes.some((code) =>
+          code === 'EXPRESS_SUSPICION'
+          || code === 'EXPRESS_TRUST'
+          || code === 'RESPOND_TO_PLAYER')
+        && intent.targetSeats.length === 0
+      )
+      || (actCodes.includes('CLAIM_ROLE') !== (intent.claimedRole !== undefined))
+      || (intent.claimedRole !== undefined && !isRole(intent.claimedRole))
+      || (
+        intent.claimedRole !== undefined
+        && hostRolesInPlay !== undefined
+        && !hostRolesInPlay.includes(intent.claimedRole as Role)
+      )
+      || (
+        (
+          actCodes.includes('WARN_ROLE_EXPOSURE')
+          || actCodes.includes('DISCUSS_ROLE_STRATEGY')
+        ) !== (intent.roleTopic !== undefined)
+      )
+      || (intent.roleTopic !== undefined && !isRole(intent.roleTopic))
+      || (
+        intent.roleTopic !== undefined
+        && hostRolesInPlay !== undefined
+        && !hostRolesInPlay.includes(intent.roleTopic as Role)
+      )
+      || (
+        actCodes.includes('WARN_ROLE_EXPOSURE')
+        && intent.roleTopic !== 'merlin'
+      )
       || !stringArray(intent.safeFactCodes)
       || new Set(intent.safeFactCodes as string[]).size
         !== (intent.safeFactCodes as string[]).length
@@ -2412,6 +2542,7 @@ function validForcedPolicyRelation(ctx: ComposedTraceContext): boolean {
 function validComposedTraceRelations(
   trace: TraceValidationInput,
   playerCount: number | undefined,
+  hostView?: PlayerView | Pick<PlayerView, 'rolesInPlay'>,
 ): boolean {
   if (trace.candidateScores === undefined) {
     return validAbsentCandidateScores(trace)
@@ -2452,9 +2583,12 @@ function validComposedTraceRelations(
     action.kind === 'discuss'
     || action.kind === 'propose'
     || (action.kind === 'finalize' && action.stick === false)
+  const fullHostView = isFullPlayerView(hostView) ? hostView : undefined
   const ctx: ComposedTraceContext = {
     trace,
     playerCount,
+    ...(fullHostView ? { hostView: fullHostView } : {}),
+    ...(hostView ? { hostRolesInPlay: hostView.rolesInPlay } : {}),
     scores,
     ids,
     components,
@@ -3092,7 +3226,7 @@ function validDecisionTrace(
     )
     && validForcedPolicyResult(trace.forcedPolicyResult)
     && validDecisionFrameTrace(trace.decisionFrame)
-    && validComposedTraceRelations(trace, playerCount)
+    && validComposedTraceRelations(trace, playerCount, hostView)
   )
 }
 
@@ -3514,7 +3648,11 @@ function validExactComposedTraceHostJoin(
 
     const relationTrace: DecisionTrace = structuredClone(trace)
     relationTrace.action = structuredClone(selectedDecision)
-    return validComposedTraceRelations(relationTrace, view.playerCount)
+    return validComposedTraceRelations(
+      relationTrace,
+      view.playerCount,
+      view,
+    )
   } catch {
     return false
   }

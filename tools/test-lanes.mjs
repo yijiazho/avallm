@@ -62,6 +62,7 @@ const LANES = Object.freeze({
     'transcript.test.ts',
     'user-copy.test.ts',
     'verify-funnel.test.ts',
+    'voice-roster.test.ts',
   ]),
   contract: Object.freeze([
     'admission-boundary.test.ts',

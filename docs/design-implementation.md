@@ -71,8 +71,18 @@ bounded planner, committed plan, and plan-driven voice. Its optional
 good-side vote situation values from `SituationAnalysis`; the Phase 4A proposal-only scorer and
 compatibility scorer remain separately measurable ablations. Forced policy executes before scoring,
 and engine legality remains final. The bounded planner may choose only among exact-max proposal
-teams or the seeded near-equivalent vote band. Its voice adapter sees the committed action and a
-public-safe qualitative projection, never the candidate surface or exact posterior values.
+teams or the seeded near-equivalent vote band. Its typed context includes the same canonical public
+board and bounded attributed-utterance window used for evidence references, alongside private
+planning-only role and analysis fields. Player-authored names and utterances remain explicitly
+classified as inert, untrusted evidence in the planner prompt. Its voice adapter sees the committed action and a
+public-safe qualitative projection together with the canonical public board and a bounded recent
+utterance window, never the candidate surface, private role knowledge, or exact posterior values.
+The public roster is explicit. Communication intent v3 admits a finite set of acts, including an
+explicit silent `PASS`, response, suspicion, trust, defense, role-strategy talk, Merlin-exposure
+warnings, and positive first-person role claims. A role claim carries only the identity the planner
+intends to present, never whether it is true. Negative role claims are not part of the vocabulary.
+Any cited evidence is a stable reference to an utterance, proposal, public proposal vote, or
+completed quest that must resolve against the same public projection before voice can run.
 Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.
 The setup dropdown exposes both a deterministic `full-role` composed agent and the same mechanical
 brain with bounded LLM planner/voice adapters. Neither is selected by the default table fill. The
@@ -369,9 +379,17 @@ central forced result; candidate scores; chosen ID; selected communication inten
 action; and degradation. It separately records the structured scorer choice, the planner attempt,
 and the feature-derived reason subset admitted for an override, including non-speech votes. Exact
 posterior uncertainty remains private trace data. A voice adapter
-receives only the committed action, public-safe fact and strategic reason codes, and qualitative
-uncertainty, so it cannot change mechanics or recover hidden numeric state. Traces live only in the
-opt-in full-reveal artifact path. They never enter the engine event log, `PlayerView`, SSE, or any
+receives only the committed action, canonical public record, bounded recent public utterances,
+public-safe fact and strategic reason codes, and qualitative uncertainty, so it cannot change
+mechanics or recover hidden numeric state. Its public context comes through the same explicit
+allow-list used by language interpretation. Role talk is admitted only when the committed plan
+contains `CLAIM_ROLE`, `WARN_ROLE_EXPOSURE`, or `DISCUSS_ROLE_STRATEGY`; the bounded output
+backstop rejects unplanned role talk and every negative first-person role claim. Evidence pointers
+must name facts present in that exact bounded projection. Mentioned roles must equal the plan's
+claimed role or role topic, and a roster-aware proper-name check rejects unsupported mid-sentence
+referents before speech is committed. Trace admission also joins role fields to the public cast.
+Traces live only in the opt-in full-reveal artifact
+path. They never enter the engine event log, `PlayerView`, SSE, or any
 client response. Auxiliary parse failures are recorded even when the provider call itself
 succeeded. A trace-bearing envelope remains pending until `applyDecision` accepts its action; an
 illegal attempt is discarded before the heuristic fallback runs. When the runner substitutes a

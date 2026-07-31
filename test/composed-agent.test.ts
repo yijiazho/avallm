@@ -82,8 +82,8 @@ test('composed engine runs in ownership order and attributes every component', a
     policy: 'composed-policy-v1',
     scorer: 'compatibility-scorer-v1',
     planner: 'fake-planner-v1',
-    prompt: 'composed-typed-context-v2',
-    renderer: 'composed-policy-renderer-v2',
+    prompt: 'composed-typed-context-v3',
+    renderer: 'composed-policy-renderer-v3',
     voice: 'fake-voice-v1',
     decisionComponents: DECISION_COMPONENT_RUN_VERSION,
   })
@@ -270,10 +270,11 @@ test('planner communication must match the committed action channel', async () =
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v2',
+            version: 'communication-intent-v3',
             channel: 'discussion',
             targetSeats: [],
-            claimCodes: [],
+            actCodes: ['PASS'],
+            evidenceRefs: [],
             tone: 'natural',
           },
         }
@@ -300,10 +301,11 @@ test('planner cannot publish private analysis fact codes', async () => {
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v2',
+            version: 'communication-intent-v3',
             channel: 'proposal-pitch',
             targetSeats: [],
-            claimCodes: privateFacts,
+            actCodes: privateFacts,
+            evidenceRefs: [],
             tone: 'natural',
           },
         }
@@ -410,6 +412,22 @@ test('revision reason and discussion speech are plan-driven without changing mec
   const discuss = fixture('percival-opening-discussion')
   const talker = createComposedAgent({
     seed: discuss.source.seed,
+    planner: {
+      version: 'discussion-planner-v1',
+      async choose(input) {
+        return {
+          candidateId: input.structuredCandidateId,
+          communication: {
+            version: 'communication-intent-v3',
+            channel: 'discussion',
+            targetSeats: [],
+            actCodes: ['ADVOCATE_SELECTED_ACTION'],
+            evidenceRefs: [],
+            tone: 'natural',
+          },
+        }
+      },
+    },
     voice: {
       version: 'fake-voice-v1',
       async speak(input) {
@@ -435,6 +453,26 @@ test('voice failure keeps the committed action and becomes silent degradation', 
     const source = fixture(id)
     const agent = createComposedAgent({
       seed: source.source.seed,
+      ...(id === 'percival-opening-discussion'
+        ? {
+            planner: {
+              version: 'discussion-planner-v1',
+              async choose(input) {
+                return {
+                  candidateId: input.structuredCandidateId,
+                  communication: {
+                    version: 'communication-intent-v3' as const,
+                    channel: 'discussion' as const,
+                    targetSeats: [],
+                    actCodes: ['ADVOCATE_SELECTED_ACTION'] as const,
+                    evidenceRefs: [],
+                    tone: 'natural' as const,
+                  },
+                }
+              },
+            },
+          }
+        : {}),
       voice: {
         version: 'broken-voice-v1',
         async speak() {

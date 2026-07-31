@@ -1,10 +1,15 @@
 import type {
   Decision,
   DecisionRequest,
+  Role,
   Seat,
 } from '../../engine/types.ts'
 import type { ForcedPlayReasonCode } from '../analysis/types.ts'
-import type { LanguageUtteranceChannel } from '../communication/language-types.ts'
+import type {
+  LanguageUtteranceChannel,
+  PublicAttributedUtterance,
+} from '../communication/language-types.ts'
+import type { PublicRecord } from '../communication/public-record.ts'
 import {
   type CandidateScore,
   type GoodProposalFeatures,
@@ -17,17 +22,96 @@ import {
 } from '../components/probability-arithmetic.ts'
 
 export const DECISION_PLAN_VERSION = 'decision-plan-v2'
-export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v2'
+export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v3'
 export const POSTERIOR_UNCERTAINTY_VERSION = 'posterior-uncertainty-v1'
 
-export const COMMUNICATION_CLAIM_CODES = [
+export const COMMUNICATION_ACT_CODES = [
+  'PASS',
   'EXPLAIN_COMMITTED_TEAM',
   'EXPLAIN_COMMITTED_REVISION',
   'ADVOCATE_SELECTED_ACTION',
   'ACKNOWLEDGE_UNCERTAINTY',
+  'EXPRESS_SUSPICION',
+  'EXPRESS_TRUST',
+  'DEFEND_SELF',
+  'RESPOND_TO_PLAYER',
+  'WARN_ROLE_EXPOSURE',
+  'DISCUSS_ROLE_STRATEGY',
+  'CLAIM_ROLE',
 ] as const
-export type CommunicationClaimCode =
-  typeof COMMUNICATION_CLAIM_CODES[number]
+export type CommunicationActCode =
+  typeof COMMUNICATION_ACT_CODES[number]
+
+export const COMMUNICATION_ACTS_BY_CHANNEL = {
+  discussion: [
+    'PASS',
+    'ADVOCATE_SELECTED_ACTION',
+    'ACKNOWLEDGE_UNCERTAINTY',
+    'EXPRESS_SUSPICION',
+    'EXPRESS_TRUST',
+    'DEFEND_SELF',
+    'RESPOND_TO_PLAYER',
+    'WARN_ROLE_EXPOSURE',
+    'DISCUSS_ROLE_STRATEGY',
+    'CLAIM_ROLE',
+  ],
+  'proposal-pitch': [
+    'EXPLAIN_COMMITTED_TEAM',
+    'ADVOCATE_SELECTED_ACTION',
+    'ACKNOWLEDGE_UNCERTAINTY',
+    'EXPRESS_TRUST',
+    'CLAIM_ROLE',
+  ],
+  'revision-reason': [
+    'EXPLAIN_COMMITTED_REVISION',
+    'ADVOCATE_SELECTED_ACTION',
+    'ACKNOWLEDGE_UNCERTAINTY',
+    'EXPRESS_TRUST',
+    'CLAIM_ROLE',
+  ],
+} as const satisfies Record<
+  LanguageUtteranceChannel,
+  readonly CommunicationActCode[]
+>
+
+export function communicationActAllowed(
+  channel: LanguageUtteranceChannel,
+  code: unknown,
+): code is CommunicationActCode {
+  if (typeof code !== 'string') return false
+  return (COMMUNICATION_ACTS_BY_CHANNEL[channel] as readonly CommunicationActCode[])
+    .includes(code as CommunicationActCode)
+}
+
+export const PUBLIC_EVIDENCE_KINDS = [
+  'utterance',
+  'proposal',
+  'proposal-vote',
+  'quest',
+] as const
+export type PublicEvidenceKind = typeof PUBLIC_EVIDENCE_KINDS[number]
+
+/** Stable coordinates into facts every player can observe. */
+export type PublicEvidenceReference =
+  | {
+      kind: 'utterance'
+      sourceSeq: number
+    }
+  | {
+      kind: 'proposal'
+      round: number
+      proposalNum: number
+    }
+  | {
+      kind: 'proposal-vote'
+      round: number
+      proposalNum: number
+      seat: Seat
+    }
+  | {
+      kind: 'quest'
+      questNum: number
+    }
 
 export type PosteriorUncertainty =
   | {
@@ -63,7 +147,12 @@ export interface PlannerCommunicationDirection {
   version: typeof COMMUNICATION_INTENT_VERSION
   channel: LanguageUtteranceChannel
   targetSeats: readonly Seat[]
-  claimCodes: readonly CommunicationClaimCode[]
+  actCodes: readonly CommunicationActCode[]
+  evidenceRefs: readonly PublicEvidenceReference[]
+  /** The public identity to present; deliberately says nothing about truth. */
+  claimedRole?: Role
+  /** Role under discussion, separate from any player-to-role assertion. */
+  roleTopic?: Role
   tone: 'natural'
 }
 
@@ -88,6 +177,14 @@ export interface DecisionPlan {
 
 export interface CommittedVoicePlan {
   version: typeof DECISION_PLAN_VERSION
+  players: readonly {
+    seat: Seat
+    name: string
+  }[]
+  publicContext: {
+    record: PublicRecord
+    recentUtterances: readonly PublicAttributedUtterance[]
+  }
   decision: Decision
   candidateId: string
   communication?: Omit<
@@ -390,9 +487,9 @@ export function defaultCommunicationIntent(
     const acknowledge = materialPosteriorUncertainty(uncertainty)
     return {
       ...base,
-      claimCodes: acknowledge
-        ? base.claimCodes
-        : base.claimCodes.filter(
+      actCodes: acknowledge
+        ? base.actCodes
+        : base.actCodes.filter(
             (code) => code !== 'ACKNOWLEDGE_UNCERTAINTY',
           ),
       safeFactCodes,
@@ -407,7 +504,8 @@ export function defaultCommunicationIntent(
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'discussion',
       targetSeats: [],
-      claimCodes: [],
+      actCodes: ['PASS'],
+      evidenceRefs: [],
       tone: 'natural',
     })
   }
@@ -416,13 +514,14 @@ export function defaultCommunicationIntent(
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'proposal-pitch',
       targetSeats: [...decision.team],
-      claimCodes: [
+      actCodes: [
         'EXPLAIN_COMMITTED_TEAM',
         'ADVOCATE_SELECTED_ACTION',
         ...(materialPosteriorUncertainty(uncertainty)
           ? ['ACKNOWLEDGE_UNCERTAINTY' as const]
           : []),
       ],
+      evidenceRefs: [],
       tone: 'natural',
     })
   }
@@ -431,10 +530,11 @@ export function defaultCommunicationIntent(
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'revision-reason',
       targetSeats: [...decision.team],
-      claimCodes: [
+      actCodes: [
         'EXPLAIN_COMMITTED_REVISION',
         'ADVOCATE_SELECTED_ACTION',
       ],
+      evidenceRefs: [],
       tone: 'natural',
     })
   }

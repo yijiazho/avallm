@@ -149,7 +149,7 @@ test('one full-role scorer preserves every isolated role policy', async () => {
     .every((entry) => !entry.used && entry.stages.length === 0))
   const communicationSignature = (intent: typeof good.full.communicationIntent) =>
     [intent?.strategicReasonCodes, intent?.uncertainty, intent,
-      intent?.claimCodes.includes('ACKNOWLEDGE_UNCERTAINTY')]
+      intent?.actCodes.includes('ACKNOWLEDGE_UNCERTAINTY')]
   assert.deepEqual(
     communicationSignature(good.full.communicationIntent),
     communicationSignature(good.isolated.communicationIntent),

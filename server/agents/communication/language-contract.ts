@@ -14,6 +14,7 @@ import {
   LANGUAGE_EVIDENCE_DIRECTIONS,
   LANGUAGE_EVIDENCE_VERSION,
   LANGUAGE_INTERPRETER_INPUT_VERSION,
+  RECENT_PUBLIC_UTTERANCE_LIMIT,
   type LanguageEvidence,
   type LanguageEvidenceAdmission,
   type LanguageEvidenceClass,
@@ -180,6 +181,13 @@ export function projectLanguageInterpreterInput(
   }
   validateLanguageInterpreterInput(input)
   return input
+}
+
+/** The exact public speech window shared by planner, voice, and admission. */
+export function recentPublicUtterances(
+  input: Pick<LanguageInterpreterInput, 'utteranceHistory'>,
+): readonly PublicAttributedUtterance[] {
+  return input.utteranceHistory.slice(-RECENT_PUBLIC_UTTERANCE_LIMIT)
 }
 
 /*

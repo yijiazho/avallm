@@ -127,6 +127,10 @@ import {
   orchestrateLanguageEvidence,
   type LanguageTraceAttribution,
 } from './communication/language-orchestration.ts'
+import {
+  projectLanguageInterpreterInput,
+  recentPublicUtterances,
+} from './communication/language-contract.ts'
 import type {
   LanguageInterpreter,
   LanguageInterpreterInput,
@@ -148,8 +152,8 @@ import {
   type EvilQuestCardPolicyMode,
 } from './policy/evil-quest-card.ts'
 import {
-  COMMUNICATION_CLAIM_CODES,
   COMMUNICATION_INTENT_VERSION,
+  communicationActAllowed,
   DECISION_PLAN_VERSION,
   defaultCommunicationIntent,
   plannerOverrideReasonCodes,
@@ -158,6 +162,7 @@ import {
   type CommittedVoicePlan,
   type DecisionPlan,
   type PlannerCommunicationDirection,
+  type PublicEvidenceReference,
 } from './policy/plan.ts'
 import {
   CANDIDATE_SCORER_VERSION,
@@ -619,26 +624,55 @@ function validPlannerCommunication(
         : decision.kind === 'finalize' && !decision.stick
           ? 'revision-reason'
           : undefined
-  const claimCodes = new Set<string>(COMMUNICATION_CLAIM_CODES)
-  const claimsByChannel: Record<
-    NonNullable<typeof expectedChannel>,
-    ReadonlySet<string>
-  > = {
-    discussion: new Set([
-      'ADVOCATE_SELECTED_ACTION',
-      'ACKNOWLEDGE_UNCERTAINTY',
-    ]),
-    'proposal-pitch': new Set([
-      'EXPLAIN_COMMITTED_TEAM',
-      'ADVOCATE_SELECTED_ACTION',
-      'ACKNOWLEDGE_UNCERTAINTY',
-    ]),
-    'revision-reason': new Set([
-      'EXPLAIN_COMMITTED_REVISION',
-      'ADVOCATE_SELECTED_ACTION',
-      'ACKNOWLEDGE_UNCERTAINTY',
-    ]),
+  const publicInput = projectLanguageInterpreterInput(view)
+  const evidenceKey = (reference: PublicEvidenceReference): string =>
+    JSON.stringify(reference)
+  const validEvidenceReference = (reference: unknown): boolean => {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+      return false
+    }
+    const raw = reference as Record<string, unknown>
+    if (raw.kind === 'utterance') {
+      return onlyAllowedKeys(raw, ['kind', 'sourceSeq'])
+        && Number.isSafeInteger(raw.sourceSeq)
+        && recentPublicUtterances(publicInput).some(
+          (utterance) => utterance.sourceSeq === raw.sourceSeq,
+        )
+    }
+    if (raw.kind === 'proposal') {
+      return onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum'])
+        && publicInput.publicContext.proposals.some(
+          (proposal) => proposal.round === raw.round
+            && proposal.proposalNum === raw.proposalNum,
+        )
+    }
+    if (raw.kind === 'proposal-vote') {
+      return onlyAllowedKeys(raw, ['kind', 'round', 'proposalNum', 'seat'])
+        && publicInput.publicContext.proposals.some(
+          (proposal) => proposal.outcome === 'voted'
+            && proposal.round === raw.round
+            && proposal.proposalNum === raw.proposalNum
+            && proposal.votes.some((vote) => vote.seat === raw.seat),
+        )
+    }
+    if (raw.kind === 'quest') {
+      return onlyAllowedKeys(raw, ['kind', 'questNum'])
+        && publicInput.publicContext.quests.some(
+          (quest) => quest.num === raw.questNum && quest.result !== undefined,
+        )
+    }
+    return false
   }
+  const acts = value?.actCodes ?? []
+  const hasAct = (code: string): boolean => acts.includes(code as never)
+  const pass = hasAct('PASS')
+  const needsTargets = acts.some((code) =>
+    code === 'EXPRESS_SUSPICION'
+    || code === 'EXPRESS_TRUST'
+    || code === 'RESPOND_TO_PLAYER')
+  const needsClaimedRole = hasAct('CLAIM_ROLE')
+  const needsRoleTopic = hasAct('WARN_ROLE_EXPOSURE')
+    || hasAct('DISCUSS_ROLE_STRATEGY')
   return (
     expectedChannel !== undefined
     &&
@@ -647,7 +681,10 @@ function validPlannerCommunication(
       'version',
       'channel',
       'targetSeats',
-      'claimCodes',
+      'actCodes',
+      'evidenceRefs',
+      'claimedRole',
+      'roleTopic',
       'tone',
     ])
     && value.version === COMMUNICATION_INTENT_VERSION
@@ -658,14 +695,37 @@ function validPlannerCommunication(
       (seat) => Number.isInteger(seat)
         && view.players.some((player) => player.seat === seat),
     )
-    && Array.isArray(value.claimCodes)
-    && new Set(value.claimCodes).size === value.claimCodes.length
-    && value.claimCodes.every(
+    && Array.isArray(value.actCodes)
+    && value.actCodes.length > 0
+    && new Set(value.actCodes).size === value.actCodes.length
+    && value.actCodes.every(
       (code) =>
         typeof code === 'string'
-        && claimCodes.has(code)
-        && claimsByChannel[expectedChannel].has(code),
+        && communicationActAllowed(expectedChannel, code),
     )
+    && (!pass || value.actCodes.length === 1)
+    && (!pass || value.targetSeats.length === 0)
+    && (!needsTargets || value.targetSeats.length > 0)
+    && Array.isArray(value.evidenceRefs)
+    && value.evidenceRefs.length <= 8
+    && value.evidenceRefs.every(validEvidenceReference)
+    && new Set(value.evidenceRefs.map(evidenceKey)).size
+      === value.evidenceRefs.length
+    && (needsClaimedRole === (value.claimedRole !== undefined))
+    && (
+      value.claimedRole === undefined
+      || view.rolesInPlay.includes(value.claimedRole)
+    )
+    && (needsRoleTopic === (value.roleTopic !== undefined))
+    && (
+      value.roleTopic === undefined
+      || view.rolesInPlay.includes(value.roleTopic)
+    )
+    && (
+      !hasAct('WARN_ROLE_EXPOSURE')
+      || value.roleTopic === 'merlin'
+    )
+    && (!pass || value.evidenceRefs.length === 0)
     && value.tone === 'natural'
   )
 }
@@ -708,7 +768,9 @@ function withVoice(decision: Decision, output: VoiceOutput | undefined): Decisio
 
 function committedVoicePlan(
   plan: DecisionPlan,
+  view: PlayerView,
 ): CommittedVoicePlan {
+  const publicInput = projectLanguageInterpreterInput(view)
   const communication = plan.communication
     ? (() => {
         const {
@@ -729,6 +791,17 @@ function committedVoicePlan(
     : undefined
   return {
     version: plan.version,
+    // Voice has to translate the committed seat-number action into table
+    // speech. Names are public, and supplying the whole public roster keeps it
+    // from inventing referents for otherwise anonymous numbers.
+    players: view.players.map(({ seat, name }) => ({ seat, name })),
+    // Reuse the language interpreter's public-only projection instead of
+    // handing voice a PlayerView, which also carries this seat's private role
+    // and knowledge. The rolling window matches the raw-LLM speech context.
+    publicContext: {
+      record: publicInput.publicContext,
+      recentUtterances: recentPublicUtterances(publicInput),
+    },
     decision: structuredClone(plan.decision),
     candidateId: plan.candidateId,
     ...(communication ? { communication } : {}),
@@ -748,16 +821,21 @@ function committedVoicePlan(
 async function speakCommittedPlan(input: {
   voice: PlanVoice | undefined
   plan: DecisionPlan
+  view: PlayerView
   mechanicalDecision: Decision
   onSpeak: () => void
 }): Promise<Readonly<{ action: Decision; degradationCode?: string }>> {
-  const { voice, plan, mechanicalDecision } = input
-  if (!voice || !plan.communication) {
+  const { voice, plan, view, mechanicalDecision } = input
+  if (
+    !voice
+    || !plan.communication
+    || plan.communication.actCodes.includes('PASS')
+  ) {
     return { action: structuredClone(mechanicalDecision) }
   }
   input.onSpeak()
   try {
-    const voicePlan = committedVoicePlan(plan)
+    const voicePlan = committedVoicePlan(plan, view)
     const output = await voice.speak({
       plan: structuredClone(voicePlan),
       renderedPlan: renderCommittedVoicePlan(voicePlan),
@@ -2174,6 +2252,7 @@ export function createComposedAgent(
         const spoken = await speakCommittedPlan({
           voice: activeVoice,
           plan,
+          view,
           mechanicalDecision,
           onSpeak: () => stage('voice'),
         })

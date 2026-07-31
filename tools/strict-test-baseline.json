@@ -48,7 +48,7 @@
     },
     {
       "path": "test/composed-agent.test.ts",
-      "sha256": "03f3199f9619a965360575eef4b0f39ac5340ccb7dd555d9eda34badc0d5a1a6",
+      "sha256": "49b973d484d635e156753f6520521d058f09457fdd1e743ae98c899a8154f133",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "path": "test/evil-objectives.test.ts",
-      "sha256": "c2e2a7d56beb0442a45d03fe54a8ba95999ac0b5cff4c78310ce8ed7885e1f09",
+      "sha256": "bfdf0ab61512624c456f5cf6dd69b589462afefe227356607e709ea829f071c5",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
@@ -103,12 +103,12 @@
     },
     {
       "path": "test/hostile-artifact.test.ts",
-      "sha256": "7b8a8711fc74e675b2192b39d9287688bde20fbde7be484587dedfbfab5c2753",
+      "sha256": "3084ee00bd6f85bd919465031b063c17bf2b13dc7a17efa321864ccdc7068eca",
       "rationale": "Legacy hostile artifact fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/intent-planner.test.ts",
-      "sha256": "9c0f1525bcc142da6f848642c66065ca5501bcf310f06be265b3e74b96ad67fc",
+      "sha256": "25d5aec58f6c58de3a150fec8b49e79faf17cb59992963e6d82b4964482e4404",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
@@ -128,7 +128,7 @@
     },
     {
       "path": "test/morgana-counterfeit.test.ts",
-      "sha256": "da60ea34a45a47589932817b15df094feb3de8b0488bf6866dd98e3c837c8f58",
+      "sha256": "e1f4486a4c43c2a020f9a243b7ffaaaddcf08a92265bde36cfa64252aa193e57",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {

@@ -83,15 +83,16 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
         candidateId: selected.id,
         reasonCodes: selected.reasonCodes,
         communication: {
-          version: 'communication-intent-v2',
+          version: 'communication-intent-v3',
           channel: 'proposal-pitch',
           targetSeats: selected.decision.kind === 'propose'
             ? selected.decision.team
             : [],
-          claimCodes: [
+          actCodes: [
             'EXPLAIN_COMMITTED_TEAM',
             'ACKNOWLEDGE_UNCERTAINTY',
           ],
+          evidenceRefs: [],
           tone: 'natural',
         },
       })
@@ -180,7 +181,7 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
     && output.trace.communicationIntent.uncertainty.residualProbability === 0
   ) {
     assert.ok(
-      !renderedVoice.committedPlan.communication.claimCodes.includes(
+      !renderedVoice.committedPlan.communication.actCodes.includes(
         'ACKNOWLEDGE_UNCERTAINTY',
       ),
     )
@@ -487,10 +488,11 @@ test('direct planner communication rejects extra private-shaped fields', async (
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v2',
+            version: 'communication-intent-v3',
             channel: 'proposal-pitch',
             targetSeats: [],
-            claimCodes: ['EXPLAIN_COMMITTED_TEAM'],
+            actCodes: ['EXPLAIN_COMMITTED_TEAM'],
+            evidenceRefs: [],
             tone: 'natural',
             privateInfo: { kind: 'merlin', knownEvil: [2, 3] },
           },

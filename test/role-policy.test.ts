@@ -838,7 +838,10 @@ test('private role utility is external-ingress-safe, host-joined, and absent fro
     merlin.view,
   )
   assert.deepEqual(parsed, output)
-  assert.doesNotMatch(JSON.stringify(voiceInputs), /PRIVATE_ROLE|roleValue|merlin/)
+  assert.doesNotMatch(
+    JSON.stringify(voiceInputs),
+    /PRIVATE_ROLE|roleValue|"role":"merlin"|privateInfo|knownEvil|roleBySeat/,
+  )
   assert.doesNotMatch(JSON.stringify(voiceInputs), /role-composite-decision/)
   assert.doesNotMatch(
     output.decision.kind === 'propose' ? output.decision.pitch ?? '' : '',
@@ -984,8 +987,8 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
       policy: 'composed-policy-v1',
       scorer: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
       planner: 'planner-off',
-      prompt: 'composed-typed-context-v2',
-      renderer: 'composed-policy-renderer-v2',
+      prompt: 'composed-typed-context-v3',
+      renderer: 'composed-policy-renderer-v3',
       communication: 'plan-voice-v2',
       voice: 'voice-off',
     },

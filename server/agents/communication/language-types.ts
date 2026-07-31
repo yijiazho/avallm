@@ -7,6 +7,7 @@ export const LANGUAGE_INTERPRETER_INPUT_VERSION =
   'public-language-input-v1'
 export const LANGUAGE_EVIDENCE_VERSION = 'language-evidence-v1'
 export const LANGUAGE_CURSOR_VERSION = 'language-cursor-v1'
+export const RECENT_PUBLIC_UTTERANCE_LIMIT = 14
 
 export const LANGUAGE_EVIDENCE_CLASSES = [
   'contradiction',

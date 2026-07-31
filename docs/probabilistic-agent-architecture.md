@@ -403,9 +403,24 @@ interface DecisionPlan {
 }
 ```
 
-The policy commits this plan before the voice layer runs. `CommunicationIntent` can specify the
-claim to advance, facts safe to cite, facts to conceal, target players, and tone. The
-LLM turns that intent into natural table talk.
+The planner context combines private planning-only role and analysis fields with the canonical
+public board and bounded attributed-utterance window, so every evidence reference it emits has a
+stable public coordinate. The policy commits this plan before the voice layer runs.
+Player-authored names and utterances are marked as inert, untrusted evidence in both planner and
+voice instructions; they cannot authorize a candidate or communication act.
+`CommunicationIntent` specifies finite
+communication acts, facts safe to cite, facts to conceal, target players, public evidence
+references, and tone. `PASS` is an explicit silent act and bypasses voice entirely. Positive
+`CLAIM_ROLE` carries only the role to present, not its truth relation; `WARN_ROLE_EXPOSURE` and
+`DISCUSS_ROLE_STRATEGY` carry a role topic. There is deliberately no negative-role-claim act. The
+LLM turns that intent into natural table talk using the canonical public board, exact public
+seat-to-name roster, and a bounded window of recent attributed utterances. It never receives the
+seat's private role or knowledge. Evidence references must resolve to an existing public
+utterance in the shared recent window, proposal, proposal vote, or completed quest before the plan is admitted. Role names
+remain available for planner-authorized strategy talk and positive first-person claims, but the
+voice contract binds every mentioned role to the planned claim or topic, rejects negative
+first-person role claims, and applies a roster-aware proper-name backstop before speech is
+committed. External trace admission applies the same public-cast and evidence-window joins.
 
 ### 5.7 Decision components and resolved brains
 
