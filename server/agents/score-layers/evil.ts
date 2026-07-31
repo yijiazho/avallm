@@ -25,6 +25,11 @@ import {
   type ScoreLayerTransformContext,
   type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
+import {
+  noAnalysisTransformLayer,
+  REMOVED_VALUE,
+  type RoleScoreLayerPredecessors,
+} from '../policy/score-layer/definition.ts'
 
 export const EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
   'evil-role-score',
@@ -34,11 +39,6 @@ export const SEEDED_EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
   'seeded-evil-role-score',
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
 )
-
-export interface EvilScoreLayerPredecessors {
-  readonly deterministic: ScoreLayerToken
-  readonly seeded: ScoreLayerToken
-}
 
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
 export function evilScoreLayerTerminalFor(
@@ -51,21 +51,15 @@ export function evilScoreLayerTerminalFor(
   return undefined
 }
 
-const REMOVED_VALUE = -Number.MAX_SAFE_INTEGER
-
 function evilDefinition(
   token: ScoreLayerToken,
   predecessor: ScoreLayerToken,
   seeded: boolean,
 ): ScoreLayerTransformDefinition {
-  const definition: ScoreLayerTransformDefinition = {
-    kind: 'transform',
+  return noAnalysisTransformLayer({
     token,
     predecessor,
     requiredComponents: Object.freeze([EVIL_ROLE_UTILITY_COMPONENT]),
-    degradationCode: `${token.id}-failed`,
-    analysisRequirements: () => Object.freeze([]),
-    admitAnalysis: ({ requirements }) => requirements.length === 0,
     applies: (context) =>
       context.view.alignment === 'evil'
       && (
@@ -185,12 +179,11 @@ function evilDefinition(
         }),
       }
     },
-  }
-  return Object.freeze(definition)
+  })
 }
 
 export function evilScoreLayerDefinitions(
-  predecessors: EvilScoreLayerPredecessors,
+  predecessors: RoleScoreLayerPredecessors,
 ): readonly ScoreLayerDefinition[] {
   return Object.freeze([
     evilDefinition(

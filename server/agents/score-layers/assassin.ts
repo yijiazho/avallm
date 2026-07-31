@@ -11,14 +11,19 @@ import {
   scoreLayerToken,
   type ScoreLayerDefinition,
   type ScoreLayerToken,
-  type ScoreLayerTransformDefinition,
+  type ScoreLayerTransformContext,
 } from '../policy/score-layer/types.ts'
+import {
+  noAnalysisTransformLayer,
+  REMOVED_VALUE,
+} from '../policy/score-layer/definition.ts'
 
 export const ASSASSIN_MERLIN_TARGET_SCORE_LAYER = scoreLayerToken(
   'assassin-merlin-target-score',
   ASSASSIN_MERLIN_TARGET_SCORER_VERSION,
 )
 
+/** Exact built-in identity mapping; custom same-version writers stay legacy. */
 export function assassinScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
@@ -30,21 +35,17 @@ export function assassinScoreLayerTerminalFor(
 export function assassinScoreLayerDefinitions(
   predecessor: ScoreLayerToken,
 ): readonly ScoreLayerDefinition[] {
-  const definition: ScoreLayerTransformDefinition = {
-    kind: 'transform',
+  const definition = noAnalysisTransformLayer({
     token: ASSASSIN_MERLIN_TARGET_SCORE_LAYER,
     predecessor,
     requiredComponents: Object.freeze([
       ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
     ]),
-    degradationCode: 'assassin-merlin-target-score-failed',
-    analysisRequirements: () => Object.freeze([]),
-    admitAnalysis: ({ requirements }) => requirements.length === 0,
     applies: (context) =>
       context.view.role === 'assassin'
       && context.view.rolesInPlay.includes('merlin')
       && context.request.kind === 'assassinate',
-    execute(context) {
+    execute(context: ScoreLayerTransformContext) {
       const posterior = context.components.require(
         ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
       )
@@ -100,7 +101,7 @@ export function assassinScoreLayerDefinitions(
               candidateId: candidate.id,
               value: forcedAllowed
                 ? target.posteriorProbability
-                : -Number.MAX_SAFE_INTEGER,
+                : REMOVED_VALUE,
               viable: forcedAllowed && selected,
               reasonCodes: [
                 forcedAllowed
@@ -119,6 +120,6 @@ export function assassinScoreLayerDefinitions(
         }),
       }
     },
-  }
-  return Object.freeze([Object.freeze(definition)])
+  })
+  return Object.freeze([definition])
 }

@@ -26,6 +26,11 @@ import {
   type ScoreLayerTransformContext,
   type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
+import {
+  noAnalysisTransformLayer,
+  REMOVED_VALUE,
+  type RoleScoreLayerPredecessors,
+} from '../policy/score-layer/definition.ts'
 
 export const MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
   'mordred-role-score',
@@ -35,11 +40,6 @@ export const SEEDED_MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
   'seeded-mordred-role-score',
   MORDRED_BLINDNESS_ROLE_SEEDED_SCORER_VERSION,
 )
-
-export interface MordredScoreLayerPredecessors {
-  readonly deterministic: ScoreLayerToken
-  readonly seeded: ScoreLayerToken
-}
 
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
 export function mordredScoreLayerTerminalFor(
@@ -54,8 +54,6 @@ export function mordredScoreLayerTerminalFor(
   return undefined
 }
 
-const REMOVED_VALUE = -Number.MAX_SAFE_INTEGER
-
 function teamId(team: readonly number[]): string {
   return `team:${[...team].sort((left, right) => left - right).join(',')}`
 }
@@ -67,14 +65,10 @@ function mordredDefinition(
 ): ScoreLayerTransformDefinition {
   const seeded = selectionMode
     === 'seeded-near-equal-vote-within-d2-band'
-  const definition: ScoreLayerTransformDefinition = {
-    kind: 'transform',
+  return noAnalysisTransformLayer({
     token,
     predecessor,
     requiredComponents: Object.freeze([MORDRED_BLINDNESS_COMPONENT]),
-    degradationCode: `${token.id}-failed`,
-    analysisRequirements: () => Object.freeze([]),
-    admitAnalysis: ({ requirements }) => requirements.length === 0,
     applies: (context) =>
       context.view.role === 'mordred'
       && context.view.rolesInPlay.includes('merlin')
@@ -229,12 +223,11 @@ function mordredDefinition(
         }),
       }
     },
-  }
-  return Object.freeze(definition)
+  })
 }
 
 export function mordredScoreLayerDefinitions(
-  predecessors: MordredScoreLayerPredecessors,
+  predecessors: RoleScoreLayerPredecessors,
 ): readonly ScoreLayerDefinition[] {
   return Object.freeze([
     mordredDefinition(

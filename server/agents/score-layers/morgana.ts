@@ -19,6 +19,11 @@ import {
   type ScoreLayerTransformContext,
   type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
+import {
+  noAnalysisTransformLayer,
+  REMOVED_VALUE,
+  type RoleScoreLayerPredecessors,
+} from '../policy/score-layer/definition.ts'
 
 export const MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
   'morgana-role-score',
@@ -28,11 +33,6 @@ export const SEEDED_MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
   'seeded-morgana-role-score',
   MORGANA_ROLE_SEEDED_SCORER_VERSION,
 )
-
-export interface MorganaScoreLayerPredecessors {
-  readonly deterministic: ScoreLayerToken
-  readonly seeded: ScoreLayerToken
-}
 
 /** Exact built-in identity mapping; custom same-version writers stay legacy. */
 export function morganaScoreLayerTerminalFor(
@@ -45,26 +45,21 @@ export function morganaScoreLayerTerminalFor(
   return undefined
 }
 
-const REMOVED_VALUE = -Number.MAX_SAFE_INTEGER
-
 function morganaDefinition(
   token: ScoreLayerToken,
   predecessor: ScoreLayerToken,
-  utilityToken:
-    | typeof MORGANA_ROLE_UTILITY_COMPONENT
-    | typeof MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-  selectionMode:
-    | 'top-counterfeit-within-d2-band'
-    | 'seeded-near-equal-vote-within-d2-band',
+  seeded: boolean,
 ): ScoreLayerTransformDefinition {
-  const definition: ScoreLayerTransformDefinition = {
-    kind: 'transform',
+  const utilityToken = seeded
+    ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
+    : MORGANA_ROLE_UTILITY_COMPONENT
+  const selectionMode = seeded
+    ? 'seeded-near-equal-vote-within-d2-band'
+    : 'top-counterfeit-within-d2-band'
+  return noAnalysisTransformLayer({
     token,
     predecessor,
     requiredComponents: Object.freeze([utilityToken]),
-    degradationCode: `${token.id}-failed`,
-    analysisRequirements: () => Object.freeze([]),
-    admitAnalysis: ({ requirements }) => requirements.length === 0,
     applies: (context) =>
       context.view.role === 'morgana'
       && (
@@ -139,25 +134,22 @@ function morganaDefinition(
         }),
       }
     },
-  }
-  return Object.freeze(definition)
+  })
 }
 
 export function morganaScoreLayerDefinitions(
-  predecessors: MorganaScoreLayerPredecessors,
+  predecessors: RoleScoreLayerPredecessors,
 ): readonly ScoreLayerDefinition[] {
   return Object.freeze([
     morganaDefinition(
       MORGANA_ROLE_SCORE_LAYER,
       predecessors.deterministic,
-      MORGANA_ROLE_UTILITY_COMPONENT,
-      'top-counterfeit-within-d2-band',
+      false,
     ),
     morganaDefinition(
       SEEDED_MORGANA_ROLE_SCORE_LAYER,
       predecessors.seeded,
-      MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
-      'seeded-near-equal-vote-within-d2-band',
+      true,
     ),
   ])
 }

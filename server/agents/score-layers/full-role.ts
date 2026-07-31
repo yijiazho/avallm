@@ -8,14 +8,15 @@ import {
   scoreLayerToken,
   type ScoreLayerDefinition,
   type ScoreLayerToken,
-  type ScoreLayerTransformDefinition,
 } from '../policy/score-layer/types.ts'
+import { noAnalysisTransformLayer } from '../policy/score-layer/definition.ts'
 
 export const FULL_ROLE_POLICY_SCORE_LAYER = scoreLayerToken(
   'full-role-policy-score',
   FULL_ROLE_POLICY_SCORER_VERSION,
 )
 
+/** Exact built-in identity mapping; custom same-version writers stay legacy. */
 export function fullRoleScoreLayerTerminalFor(
   scorer: CandidateScorer | undefined,
 ): ScoreLayerToken | undefined {
@@ -31,15 +32,11 @@ export function fullRoleScoreLayerTerminalFor(
 export function fullRoleScoreLayerDefinitions(
   predecessor: ScoreLayerToken,
 ): readonly ScoreLayerDefinition[] {
-  const definition: ScoreLayerTransformDefinition = {
-    kind: 'transform',
+  const definition = noAnalysisTransformLayer({
     token: FULL_ROLE_POLICY_SCORE_LAYER,
     predecessor,
     requiredComponents: Object.freeze([]),
-    degradationCode: 'full-role-policy-score-failed',
     diagnosticOwner: 'predecessor',
-    analysisRequirements: () => Object.freeze([]),
-    admitAnalysis: ({ requirements }) => requirements.length === 0,
     applies: () => true,
     execute: (context) => ({
       status: 'applied',
@@ -53,6 +50,6 @@ export function fullRoleScoreLayerDefinitions(
         survivorCandidateIds: context.prior.survivorCandidateIds,
       }),
     }),
-  }
-  return Object.freeze([Object.freeze(definition)])
+  })
+  return Object.freeze([definition])
 }
