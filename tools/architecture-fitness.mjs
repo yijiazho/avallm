@@ -359,6 +359,54 @@ const TRUSTED_RUNTIME_OWNERS = new Set([
   'server/agents/policy/decision-frame.ts',
 ])
 
+/**
+ * Every hand-maintained list that decides which SOURCE FILES a rule applies to.
+ *
+ * These lists are the scope of the rules above, and a stale one fails silently
+ * in the worst direction: a path that no longer exists means the rule quietly
+ * stopped covering a file, and nothing reddens, because a rule with nothing to
+ * check passes. The two lists that already had this problem solved,
+ * SHARED_SHAPE_GUARD_NAMES and SHARED_ARITHMETIC_HELPER_NAMES, each got a test
+ * that derives the truth from the tree and compares. Both of their test files
+ * say why in as many words: a helper added to the module without being added to
+ * the list is a helper nobody scans for. The same sentence was true of these ten
+ * and none of them had it, so the guard is generalized here rather than written
+ * an eleventh time.
+ *
+ * Exported as one manifest rather than ten constants so that adding a list is
+ * the same edit as classifying it. `kind` records what the entries are, because
+ * the liveness question is only meaningful for some of them:
+ *
+ *   'source'      paths to files the rule scopes itself to. Must exist. A stale
+ *                 entry is lost enforcement.
+ *   'identifier'  bare names, not paths. Nothing to resolve.
+ *
+ * Deliberately NOT covered: a forbidden import TARGET, such as ARCH005's ban on
+ * `server/agents/policy/legacy-scoring`. That module was deleted in 5479bb1f and
+ * the ban is kept on purpose, so that re-adding legacy scoring cannot quietly
+ * re-open the import. Requiring those to exist would delete a working guard.
+ * Those are written inline in their rule's condition, not in a Set here, which
+ * is the line this manifest draws.
+ */
+export const ARCHITECTURE_SCOPE_LISTS = Object.freeze([
+  ['SCORE_LAYER_ADMISSION_REPLAY_OWNERS', 'source', SCORE_LAYER_ADMISSION_REPLAY_OWNERS],
+  ['DECISION_LAYER_ADMISSION_REPLAY_OWNERS', 'source', DECISION_LAYER_ADMISSION_REPLAY_OWNERS],
+  ['LAYER_REGISTRY_COMMON_OWNERS', 'source', LAYER_REGISTRY_COMMON_OWNERS],
+  ['POLICY_COMPONENT_RUNTIME_OWNERS', 'source', POLICY_COMPONENT_RUNTIME_OWNERS],
+  ['DECISION_LAYER_EXECUTION_OWNERS', 'source', DECISION_LAYER_EXECUTION_OWNERS],
+  ['SCORER_SITUATION_SURFACE_CONSUMERS', 'source', SCORER_SITUATION_SURFACE_CONSUMERS],
+  // Found by the manifest's own meta-guard, not by reading the file: the hand
+  // enumeration used the pattern `[A-Z_]*OWNERS`, which the `V1` defeats. That
+  // is the failure mode this whole manifest exists for, arriving before the
+  // first commit.
+  ['ROLE_TRACE_V1_OWNERS', 'source', ROLE_TRACE_V1_OWNERS],
+  ['PROMPT_BUILDERS', 'source', PROMPT_BUILDERS],
+  ['SCORE_LAYER_EXECUTION_OWNERS', 'source', SCORE_LAYER_EXECUTION_OWNERS],
+  ['TRUSTED_RUNTIME_OWNERS', 'source', TRUSTED_RUNTIME_OWNERS],
+  ['TRUSTED_RUNTIME_IDENTIFIERS', 'identifier', TRUSTED_RUNTIME_IDENTIFIERS],
+].map(([name, kind, members]) =>
+  Object.freeze({ name, kind, members: Object.freeze([...members]) })))
+
 function normalizeRepoPath(value) {
   if (typeof value !== 'string') {
     throw new Error('repository path must be a string')
