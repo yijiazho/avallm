@@ -2,7 +2,6 @@ import type {
   Decision,
   DecisionRequest,
   PlayerView,
-  Seat,
 } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/seatset.ts'
 import type {
@@ -11,6 +10,7 @@ import type {
 } from '../analysis/types.ts'
 import {
   candidateIdForDecision,
+  teamForCandidate,
 } from './candidates.ts'
 import {
   FORCED_POLICY_VERSION,
@@ -21,16 +21,18 @@ import {
 const ids = (candidates: readonly PolicyCandidate[]): readonly string[] =>
   candidates.map((candidate) => candidate.id)
 
-function teamForCandidate(
-  candidate: PolicyCandidate,
-  view: PlayerView,
-): readonly Seat[] | undefined {
-  const decision = candidate.decision
-  if (decision.kind === 'propose') return decision.team
-  if (decision.kind === 'finalize') {
-    return decision.stick ? view.currentTeam : decision.team
+/**
+ * Guard that the situation analysis already declared the forced reason a play
+ * demands. Every forced arm below picks its play from the analysis facts, then
+ * routes through here so the analysis and the applied reason cannot disagree.
+ */
+function assertForcedReasonDeclared(
+  analysis: SituationAnalysis,
+  code: ForcedPlayReasonCode,
+): void {
+  if (!analysis.forcedPlayReasonCodes.includes(code)) {
+    throw new Error(`analysis omitted ${code}`)
   }
-  return undefined
 }
 
 function constrained(
@@ -80,9 +82,9 @@ export function forcedVoteChoice(
   const canSink = analysis.factCodes.includes(
     'CURRENT_TEAM_CAN_MEET_FAIL_REQUIREMENT',
   )
-  // Neither arm stands down any more. Both used to require that the declared
-  // leans left this ballot able to change the outcome; leans are gone, and a
-  // seat voting live cannot know the tally in advance anyway.
+  // Both arms decide from canSink and match point alone, never from a predicted
+  // tally: a seat voting live cannot know the ballot outcome in advance, so the
+  // forced choice cannot depend on this vote being pivotal.
   if (
     canSink
     && (analysis.matchPoint.good || analysis.matchPoint.evil)
@@ -130,9 +132,7 @@ export function applyForcedPolicy(
     const need = analysis.failsRequired
     const canSink = (current?.knownFailsAboard.length ?? 0) >= need
     if (!canSink && view.role !== 'oberon') {
-      if (!analysis.forcedPlayReasonCodes.includes('EVIL_QUEST_CARD_CANNOT_SINK')) {
-        throw new Error('analysis omitted EVIL_QUEST_CARD_CANNOT_SINK')
-      }
+      assertForcedReasonDeclared(analysis, 'EVIL_QUEST_CARD_CANNOT_SINK')
       return select(
         candidates,
         { kind: 'quest', card: 'success' },
@@ -153,13 +153,7 @@ export function applyForcedPolicy(
   if (req.kind === 'vote') {
     const forcedVote = forcedVoteChoice(view, analysis)
     if (forcedVote?.reasonCodes.includes('EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED')) {
-      if (
-        !analysis.forcedPlayReasonCodes.includes(
-          'EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED',
-        )
-      ) {
-        throw new Error('analysis omitted EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED')
-      }
+      assertForcedReasonDeclared(analysis, 'EVIL_DECISIVE_TEAM_APPROVAL_REQUIRED')
       return select(
         candidates,
         forcedVote.decision,
@@ -208,15 +202,10 @@ export function applyForcedPolicy(
     const sinkable = teamCandidates.filter((candidate) =>
       candidateFacts.get(candidate.id)!.knownFailsAboard.length >= need)
     if (sinkable.length) {
-      if (
-        !analysis.forcedPlayReasonCodes.includes(
-          'EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED',
-        )
-      ) {
-        throw new Error(
-          'analysis omitted EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED',
-        )
-      }
+      assertForcedReasonDeclared(
+        analysis,
+        'EVIL_GOOD_MATCH_POINT_SINKABLE_PROPOSAL_REQUIRED',
+      )
       return constrained(
         candidates,
         sinkable.map((candidate) => candidate.id),
