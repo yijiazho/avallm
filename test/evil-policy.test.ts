@@ -34,7 +34,7 @@ import {
 } from '../server/agents/role-score-layers/configured.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from '../server/agents/policy/project-score-diagnostics.ts'
+} from '../server/agents/score-diagnostics/project-score-diagnostics.ts'
 import {
   EVIL_ROLE_UTILITY_CONSTANTS,
   EVIL_ROLE_UTILITY_PROJECTION_VERSION,

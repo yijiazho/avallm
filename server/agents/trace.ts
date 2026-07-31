@@ -27,7 +27,7 @@ import {
   type CoherenceIntent,
   isCoherenceIntent,
 } from './cognition/coherence.ts'
-import type { AppliedDecisionResolution } from './applied-decision.ts'
+import type { AppliedDecisionResolution } from './cognition/applied-decision.ts'
 import type {
   DecisionComponentPlan,
   DecisionComponentRun,

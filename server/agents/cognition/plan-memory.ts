@@ -5,7 +5,7 @@ import type {
   PlayerView,
 } from '../../engine/types.ts'
 import type { DecisionPlan } from '../policy/plan.ts'
-import type { AppliedDecisionResolution } from '../applied-decision.ts'
+import type { AppliedDecisionResolution } from './applied-decision.ts'
 import {
   assessLiteralCoherence,
   COHERENCE_MODEL_VERSION,

@@ -31,7 +31,7 @@ import {
 import {
   DECISION_COMPONENT_KINDS,
 } from '../server/agents/components/types.ts'
-import { APPLIED_DECISION_RESOLUTIONS } from '../server/agents/applied-decision.ts'
+import { APPLIED_DECISION_RESOLUTIONS } from '../server/agents/cognition/applied-decision.ts'
 import {
   DECISION_KINDS,
   EVENT_TYPES,
@@ -96,7 +96,7 @@ const CLOSED_SETS: readonly ClosedSet[] = [
   },
   {
     name: 'APPLIED_DECISION_RESOLUTIONS',
-    owner: 'server/agents/applied-decision.ts',
+    owner: 'server/agents/cognition/applied-decision.ts',
     members: APPLIED_DECISION_RESOLUTIONS,
   },
   {

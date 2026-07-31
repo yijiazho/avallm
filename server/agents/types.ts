@@ -12,8 +12,8 @@ import type { AppliedDecisionOutcome, DecisionTrace } from './trace.ts'
 export {
   APPLIED_DECISION_RESOLUTIONS,
   isAppliedDecisionResolution,
-} from './applied-decision.ts'
-export type { AppliedDecisionResolution } from './applied-decision.ts'
+} from './cognition/applied-decision.ts'
+export type { AppliedDecisionResolution } from './cognition/applied-decision.ts'
 export type { AppliedDecisionOutcome } from './trace.ts'
 
 export interface AvalonAgent {

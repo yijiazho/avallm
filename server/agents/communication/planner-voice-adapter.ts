@@ -23,7 +23,7 @@ import { onlyAllowedKeys } from '../components/canonical-shape.ts'
 import {
   PLAYER_REFERENCE_NORMS,
   TABLE_TALK_NORMS,
-} from '../prompts.ts'
+} from './voice-norms.ts'
 
 /*
  * Four version axes travel with these adapters, kept as separate constants

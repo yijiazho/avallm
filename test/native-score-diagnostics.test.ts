@@ -33,7 +33,7 @@ import {
 } from '../server/agents/policy/candidates.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from '../server/agents/policy/project-score-diagnostics.ts'
+} from '../server/agents/score-diagnostics/project-score-diagnostics.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   ROLE_OBJECTIVE_SCORER_VERSION,

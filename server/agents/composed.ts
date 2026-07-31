@@ -229,7 +229,7 @@ import {
 } from './role-decision-layers/robust-evil-quest-card.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from './policy/project-score-diagnostics.ts'
+} from './score-diagnostics/project-score-diagnostics.ts'
 import {
   FORCED_POLICY_VERSION,
   LEGAL_CANDIDATE_VERSION,

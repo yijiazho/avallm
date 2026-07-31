@@ -73,7 +73,7 @@ import {
 } from '../components/probability-arithmetic.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from '../policy/project-score-diagnostics.ts'
+} from '../score-diagnostics/project-score-diagnostics.ts'
 import {
   GOOD_VOTE_SITUATION_VERSION,
 } from '../analysis/situation-types.ts'

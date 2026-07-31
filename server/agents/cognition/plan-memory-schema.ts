@@ -19,7 +19,7 @@ import {
   plainDetachedData,
   strictCanonicalArray,
 } from '../components/canonical-shape.ts'
-import { isAppliedDecisionResolution } from '../applied-decision.ts'
+import { isAppliedDecisionResolution } from './applied-decision.ts'
 import {
   projectLanguageInterpreterInput,
 } from '../communication/language-contract.ts'

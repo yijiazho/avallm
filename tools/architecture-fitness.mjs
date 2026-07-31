@@ -241,6 +241,12 @@ const PROMPT_BUILDERS = new Set([
   'server/agents/prompts.ts',
   'server/agents/facts.ts',
   'server/agents/board.ts',
+  // The voice norms moved out of prompts.ts to let communication/ stop
+  // importing the agents root. They are still text a model is shown, so the
+  // purity obligation follows the text rather than the filename it used to
+  // sit behind: a prompt string assembled from an ambient read is the defect
+  // this set exists to catch, and it does not care which module wrote it.
+  'server/agents/communication/voice-norms.ts',
 ])
 // The one deliberate exception, documented at its call site: an eval-only
 // global A/B lever for the facts dossier, read at call time so a harness can

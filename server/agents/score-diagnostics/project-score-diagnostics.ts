@@ -15,7 +15,7 @@ import {
   ROLE_UTILITY_PROJECTION_VERSION,
 } from '../analysis/role-utility.ts'
 import { SEEDED_SELECTION_MARGIN } from '../components/probability-arithmetic.ts'
-import type { ScoreLayerRow } from './score-layer/types.ts'
+import type { ScoreLayerRow } from '../policy/score-layer/types.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   GOOD_PROPOSAL_FEATURE_VERSION,
@@ -33,21 +33,21 @@ import {
   ROLE_OBJECTIVE_UTILITY_VERSION,
   stablePolicyBucket,
   type GoodVoteUtilityVersion,
-} from './good-score-contract.ts'
+} from '../policy/good-score-contract.ts'
 import {
   EVIL_ROLE_OBJECTIVE_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_SCORE_FEATURE_VERSION,
   EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
   EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS,
   EVIL_ROLE_OBJECTIVE_UTILITY_VERSION,
-} from './evil-score-contract.ts'
+} from '../policy/evil-score-contract.ts'
 import type {
   CandidateScore,
   CandidateScoringContext,
   EvilRoleObjectiveScoreFeatures,
   MorganaRoleObjectiveScoreFeatures,
   RoleObjectiveScoreFeatures,
-} from './score.ts'
+} from '../policy/score.ts'
 
 const GOOD_NATIVE_VERSIONS = new Set([
   CANDIDATE_SCORER_VERSION,
