@@ -1,7 +1,6 @@
 import { MAX_PROPOSALS, QUESTS_TO_WIN } from '../../engine/rules.ts'
-import { evilPartnersOf, knownEvilOf } from '../../engine/knowledge.ts'
+import { evilPartnersOf } from '../../engine/knowledge.ts'
 import type {
-  Alignment,
   PlayerView,
   Seat,
 } from '../../engine/types.ts'
@@ -13,23 +12,20 @@ import {
   assessTeam,
   assessTeams,
 } from '../belief/team-assessment.ts'
-import {
-  questFailEvidence,
-  type QuestFailEvidence,
-} from '../belief/constraints.ts'
+import { questFailEvidence } from '../belief/constraints.ts'
 import type {
   BeliefSnapshot,
   HiddenWorld,
 } from '../belief/types.ts'
-import { isPublicEvidence, type Evidence } from '../cognition/types.ts'
+import type { Evidence } from '../cognition/types.ts'
 import { compareCandidateIds } from '../policy/candidates.ts'
+import { alignmentOf, provenanceFor } from './deduction-provenance.ts'
 import {
   SITUATION_ANALYSIS_VERSION,
   GOOD_VOTE_SITUATION_VERSION,
   type AnalysisFactCode,
   type BoardSituation,
   type CandidateTeamFacts,
-  type DeductionProvenance,
   type ForcedPlayReasonCode,
   type GoodVoteSituation,
   type HardDeduction,
@@ -85,140 +81,6 @@ export function knownFailsAboard(
     ...evilPartnersOf(view.privateInfo),
   ])
   return team.filter((seat) => legallyKnown.has(seat)).sort((a, b) => a - b)
-}
-
-function alignmentOf(
-  worlds: readonly HiddenWorld[],
-  seat: Seat,
-): Alignment | undefined {
-  const first = worlds[0]?.alignmentBySeat[seat]
-  return first && worlds.every((world) => world.alignmentBySeat[seat] === first)
-    ? first
-    : undefined
-}
-
-/**
- * Every private record this seat holds, not only the dealt role. A new private
- * kind joins the cited provenance automatically, which is the intent: a
- * deduction that leans on private knowledge should name all of it.
- */
-const privateEvidenceIds = (evidence: readonly Evidence[]): readonly string[] =>
-  evidence
-    .filter((record) => !isPublicEvidence(record))
-    .map((record) => record.id)
-
-const questEvidenceId = (
-  evidence: readonly Evidence[],
-  questNum: number,
-): string | undefined =>
-  evidence.find(
-    (record) =>
-      record.kind === 'quest-result' && record.payload.questNum === questNum,
-  )?.id
-
-function worldMatchesQuest(
-  world: HiddenWorld,
-  record: QuestFailEvidence,
-): boolean {
-  return record.team.filter(
-    (seat) => world.alignmentBySeat[seat] === 'evil',
-  ).length >= record.minimumEvil
-}
-
-function combinations<T>(items: readonly T[], size: number): readonly T[][] {
-  const output: T[][] = []
-  const current: T[] = []
-  const visit = (start: number): void => {
-    if (current.length === size) {
-      output.push(current.slice())
-      return
-    }
-    for (let index = start; index < items.length; index++) {
-      current.push(items[index])
-      visit(index + 1)
-      current.pop()
-    }
-  }
-  visit(0)
-  return output
-}
-
-function minimalQuestProof(
-  dealWorlds: readonly HiddenWorld[],
-  records: readonly QuestFailEvidence[],
-  seat: Seat,
-  alignment: Alignment,
-): readonly QuestFailEvidence[] {
-  for (let size = 1; size <= records.length; size++) {
-    for (const selected of combinations(records, size)) {
-      const worlds = dealWorlds.filter((world) =>
-        selected.every((record) => worldMatchesQuest(world, record)))
-      if (
-        worlds.length
-        && worlds.every((world) => world.alignmentBySeat[seat] === alignment)
-      ) {
-        return selected
-      }
-    }
-  }
-  return []
-}
-
-function directPrivateSeat(view: PlayerView, seat: Seat): boolean {
-  return seat === view.seat
-    || knownEvilOf(view.privateInfo).includes(seat)
-    || evilPartnersOf(view.privateInfo).includes(seat)
-}
-
-function directSingleQuestProof(
-  record: QuestFailEvidence,
-  seat: Seat,
-  alignment: Alignment,
-): boolean {
-  if (alignment !== 'evil' || !record.team.includes(seat)) return false
-  // The quest record alone identifies a seat only when every team member
-  // supplied a Fail. Any narrower candidate set comes from private deal
-  // knowledge or role-cardinality closure and therefore needs joint provenance.
-  return record.minimumEvil === record.team.length
-}
-
-function provenanceFor(
-  view: PlayerView,
-  evidence: readonly Evidence[],
-  dealWorlds: readonly HiddenWorld[],
-  questRecords: readonly QuestFailEvidence[],
-  seat: Seat,
-  alignment: Alignment,
-): DeductionProvenance {
-  const privateIds = privateEvidenceIds(evidence)
-  if (directPrivateSeat(view, seat)) {
-    return { kind: 'private-deal', evidenceIds: privateIds }
-  }
-  if (alignmentOf(dealWorlds, seat) === alignment) {
-    return { kind: 'role-cardinality-closure', evidenceIds: privateIds }
-  }
-
-  const proof = minimalQuestProof(dealWorlds, questRecords, seat, alignment)
-  const questNums = proof.map((record) => record.questNum)
-  const questIds = questNums
-    .map((questNum) => questEvidenceId(evidence, questNum))
-    .filter((id): id is string => id !== undefined)
-  if (
-    proof.length === 1
-    && directSingleQuestProof(proof[0], seat, alignment)
-  ) {
-    return { kind: 'quest-record', evidenceIds: questIds, questNums }
-  }
-  return {
-    kind: 'joint-constraints',
-    evidenceIds: [...privateIds, ...questIds],
-    questNums,
-    components: [
-      ...(privateIds.length ? ['private-knowledge' as const] : []),
-      'role-cardinality',
-      'quest-record',
-    ],
-  }
 }
 
 function teamAssessment(
@@ -326,6 +188,11 @@ export interface AnalyzeSituationOptions {
   belief?: BeliefSnapshot
   evidence?: readonly Evidence[]
   candidateTeams?: readonly (readonly Seat[])[]
+  // policyCandidateTeams and policyCandidateAssessments share this shape but are
+  // NOT interchangeable. policyCandidateTeams drives the facts-only path
+  // (knownFailsAboard per candidate, no belief batch); policyCandidateAssessments
+  // drives the full per-candidate belief assessment (assessTeams). Passing one
+  // where the other is expected silently drops the work the other would do.
   policyCandidateTeams?: readonly {
     candidateId: string
     team: readonly Seat[]
@@ -362,19 +229,17 @@ export function analyzeSituation(
     }
     if (alignment === 'good') provenGood.push(player.seat)
     else provenEvil.push(player.seat)
-    const provenance = directPrivateSeat(view, player.seat)
-      ? {
-          kind: 'private-deal' as const,
-          evidenceIds: privateEvidenceIds(evidence),
-        }
-      : provenanceFor(
-          view,
-          evidence,
-          dealWorlds(),
-          questRecords,
-          player.seat,
-          alignment,
-        )
+    // provenanceFor returns before touching dealWorlds for a directly known
+    // seat, so the thunk keeps the deal-world computation lazy without the
+    // separate inline pre-check this branch used to carry.
+    const provenance = provenanceFor(
+      view,
+      evidence,
+      dealWorlds,
+      questRecords,
+      player.seat,
+      alignment,
+    )
     deductions.push({
       seat: player.seat,
       alignment,
