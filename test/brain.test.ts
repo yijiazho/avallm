@@ -196,16 +196,20 @@ test('Phase 2 prompt bytes remain frozen across every decision fixture', () => {
       )),
     )).digest('hex')
 
-  // Generated from the Phase 2 master tree before introducing BrainSpec.
+  // First generated from the Phase 2 master tree before introducing BrainSpec.
   // Together the fixtures cover every agent-boundary decision kind and every
-  // private-knowledge shape in the architecture bank.
+  // private-knowledge shape in the architecture bank. Re-baseline these only in
+  // the same commit as a deliberate prompt-copy change, and say which one here.
+  // Last moved when the finalize ASK stopped claiming discussion had "wound
+  // down": leans are gone, so table talk now just runs out its configured
+  // rounds rather than settling.
   assert.equal(
     digest(),
-    '9344cb6fd193569a1c507215cc0e14f56bfafe966f2effa0265abd7910f64f21',
+    '36868ab196ea84eb493a6c9b20ef418ec2bca2104358d4db569eb6a591027c3b',
   )
   assert.equal(
     digest(BELIEF_RENDERER_VERSION),
-    '6b6e66c4149ac83dd0274f75909e02ccdae43f745023cd159ddb565bd2e800f6',
+    '6b04d74ce58e158dbc00c1cd2ec7acd14f12fbe7cac3bf76eb13e34ccfa957d8',
   )
 })
 

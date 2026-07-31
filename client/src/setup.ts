@@ -67,7 +67,7 @@ export const winReasonText = (reason: string): string => WIN_REASONS[reason] ?? 
 
 export const RULES_SUMMARY = [
   'Good wins by succeeding 3 of 5 quests. Evil wins by failing 3 quests, or by assassinating Merlin after good wins.',
-  'Each round the leader proposes a quest team with a pitch, the table discusses it, and once talk winds down the leader may revise the team once before everyone votes. A strict majority approves; a tie rejects. Only 4 proposals per round can be rejected; the 5th (the "hammer") is locked in automatically, with no vote.',
+  'Each round the leader proposes a quest team with a pitch, the table discusses it for a set number of rounds, and once those are spent the leader may revise the team once before everyone votes. A strict majority approves; a tie rejects. Only 4 proposals per round can be rejected; the 5th (the "hammer") is locked in automatically, with no vote.',
   'Approved teams play quest cards in secret: good must play Success, evil may play Fail. Only the number of Fail cards is revealed.',
   'Roles are secret, but some players know things (see the role list). Discussion is free and anyone may lie. The public vote record is the best evidence in the game.',
   'Say what you think of the team in your own words. Nothing you say binds your vote, and the leader is listening: talk is what moves them to revise or lock the team in.',

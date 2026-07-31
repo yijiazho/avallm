@@ -178,7 +178,7 @@ function SetupTab({ view }: { view: PlayerView }) {
             : '—'}
         </span></div>
       <div className="ref-row"><span className="role-toggle-name">Revision</span>
-        <span className="role-toggle-desc">when discussion winds down, the leader locks the team in or revises it (once) before the vote</span></div>
+        <span className="role-toggle-desc">once those rounds are spent, the leader locks the team in or revises it (once) before the vote</span></div>
       <div className="ref-row"><span className="role-toggle-name">Proposals</span>
         <span className="role-toggle-desc">up to 5 per quest; after 4 rejections the 5th ("hammer") team is locked in automatically, no vote</span></div>
     </div>

@@ -117,7 +117,7 @@ function Propose({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<st
   )
 }
 
-// The leader's one-time stick-or-change turn after discussion winds down.
+// The leader's one-time stick-or-change turn once table talk is spent.
 // A revision requires a spoken reason — a silent team swap reads as evasive
 // and the engine announces the reason to the table.
 function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
@@ -140,7 +140,7 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
       <div className="action-bar your-turn" data-kind="finalize">
         <TurnTag>Lock it in?</TurnTag>
         <span className="action-label">
-          Discussion has wound down on <b className="team-gold">{teamNames}</b>
+          The table has had its say on <b className="team-gold">{teamNames}</b>
           {hammer ? '. The hammer: your locked team goes straight on the quest.' : '.'}
         </span>
         <span className="bar-spacer" />

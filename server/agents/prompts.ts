@@ -522,7 +522,7 @@ function finalizeAsk(v: PlayerView): string {
         ? ` And there is no vote left to lose: nothing the table declared can stop this team, so revising your side off it gives the quest away for free.`
         : ` Nothing said in discussion binds a vote, and a contested team often still passes, while even a rejection is cheap, since the proposal just moves to the next leader and you keep the look of someone who stood behind their own read. Folding the moment the table frowns is its own tell. If an objection genuinely must be answered, trade one good player for another and keep your side aboard.`}`
       : ` No evil you know of is on this team, so unless a teammate you cannot see is aboard it is a quest your side cannot fail. That makes revising cheap for you: if the discussion handed you a reason you can say out loud for seating yourself instead, this is the moment to use it.`
-  return `Discussion has wound down. Your proposed team for quest ${v.round}: ${team}. Weigh what the table actually said about it above.${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
+  return `Table talk is over. Your proposed team for quest ${v.round}: ${team}. Weigh what the table actually said about it above.${hammer} Decide: stick with this team, or revise it ONCE. Sticking is the normal move. Revise only if the discussion surfaced a real objection you believe, and tell the table why.${foldNote}`
 }
 
 function voteAsk(v: PlayerView): string {

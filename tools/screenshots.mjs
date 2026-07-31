@@ -218,7 +218,7 @@ async function soloRun(browser, viewportName, viewport) {
       if (!seen.has('propose')) { seen.add('propose'); await shot('propose') }
       await clickT(page, 'propose')
     } else if (st.kind === 'finalize') {
-      // The leader's one-time stick-or-change turn after discussion winds down.
+      // The leader's one-time stick-or-change turn once table talk is spent.
       // Keep the team so the run stays on rails; the revise picker itself is
       // covered deterministically by the fixture gallery (act-finalize).
       if (!seen.has('finalize')) { seen.add('finalize'); await shot('finalize') }
