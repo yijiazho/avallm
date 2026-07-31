@@ -54,7 +54,7 @@ import {
 } from '../server/agents/policy/applicability.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from '../server/agents/policy/score-compatibility.ts'
+} from '../server/agents/policy/project-score-diagnostics.ts'
 import {
   combineSituationAnalysisRequirements,
   GOOD_PROPOSAL_ANALYSIS,

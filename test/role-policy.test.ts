@@ -67,7 +67,7 @@ import {
 } from '../server/agents/score-layers/configured.ts'
 import {
   projectConfiguredScoreDiagnostics,
-} from '../server/agents/policy/score-compatibility.ts'
+} from '../server/agents/policy/project-score-diagnostics.ts'
 import {
   parseExternalDecisionReply,
 } from '../server/agents/external-reply.ts'

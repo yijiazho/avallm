@@ -888,7 +888,7 @@ server/agents/                        # about 41.9k lines in ten owners
   policy/                             #  7.6k  action authority and the generic layer kernels
     candidates.ts forced.ts plan.ts types.ts
     decision-frame.ts                 #   the staged spine every decision walks
-    score.ts score-compatibility.ts compatibility-score.ts custom-scoring.ts
+    score.ts project-score-diagnostics.ts compatibility-score.ts custom-scoring.ts
     component-runtime.ts trusted-data.ts deterministic-policy.ts
     evil-quest-card.ts *-score-contract.ts
     score-layer/                      #  1.8k  generic score-layer kernel

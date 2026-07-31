@@ -81,6 +81,61 @@ const mechanical = (
   reasonCodes: [...row.reasonCodes],
 }))
 
+interface SeededViableBand {
+  readonly bandActive: boolean
+  readonly seedBucket: 0 | 1 | undefined
+  readonly seededVote: 'approve' | 'reject'
+  /**
+   * The tie-break lift a candidate earns for matching the seeded vote: it lands
+   * exactly `SEEDED_SELECTION_MARGIN` above the band's best value. Zero for any
+   * non-vote candidate or when the band is inactive.
+   */
+  adjustmentFor(candidateId: string, value: number): number
+}
+
+/**
+ * The seed bucket, seeded vote, and per-candidate tie-break shared by every
+ * seeded diagnostic arm. Callers decide when the band is active and what value
+ * scale it rides on; this owns the seed key and the adjustment formula so the
+ * arms cannot drift.
+ *
+ * `seedSalt` is appended to the seed key when present, which is how the evil arm
+ * salts its bucket with its scorer version while the good arms do not. `maxValue`
+ * is the band's best value on the caller's scale (base, combined, or role
+ * value); the tie-break lifts the seeded vote to `maxValue + margin`.
+ */
+function seededViableBand(
+  context: CandidateScoringContext,
+  bandActive: boolean,
+  maxValue: number,
+  seedSalt?: string,
+): SeededViableBand {
+  const seedBucket = bandActive
+    ? stablePolicyBucket([
+        context.deterministicSeed,
+        context.request.seat,
+        context.request.kind,
+        context.request.round,
+        context.request.proposalNum,
+        context.analysis.throughSeq,
+        ...(seedSalt === undefined ? [] : [seedSalt]),
+      ].join(':'))
+    : undefined
+  const seededVote: 'approve' | 'reject' =
+    seedBucket === 0 ? 'approve' : 'reject'
+  const adjustmentFor = (candidateId: string, value: number): number => {
+    const found = context.candidates.find(
+      (candidate) => candidate.id === candidateId,
+    )
+    return bandActive
+      && found?.decision.kind === 'vote'
+      && found.decision.vote === seededVote
+      ? maxValue - value + SEEDED_SELECTION_MARGIN
+      : 0
+  }
+  return { bandActive, seedBucket, seededVote, adjustmentFor }
+}
+
 function projectGood(
   context: CandidateScoringContext,
   rows: readonly ScoreLayerRow[],
@@ -127,22 +182,12 @@ function projectGood(
       : undefined
     const bandActive =
       seeded && voteFeatures?.inViableBand === true && allowed.size > 1
-    const seedBucket = bandActive
-      ? stablePolicyBucket([
-          context.deterministicSeed,
-          context.request.seat,
-          context.request.kind,
-          context.request.round,
-          context.request.proposalNum,
-          context.analysis.throughSeq,
-        ].join(':'))
-      : undefined
     const maxBase = Math.max(
       ...base.rows
         .filter((entry) => allowed.has(entry.score.candidateId))
         .map((entry) => entry.baseValue),
     )
-    const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+    const band = seededViableBand(context, bandActive, maxBase)
     return plain.map((score) => {
       const baseRow = baseById.get(score.candidateId)
       if (!baseRow) throw new Error('good diagnostic row join mismatch')
@@ -153,20 +198,14 @@ function projectGood(
         ...score,
         features: {
           ...structuredClone(baseRow.features),
-          selectionAdjustment:
-            bandActive
-            && context.candidates.find(
-              (candidate) => candidate.id === score.candidateId,
-            )?.decision.kind === 'vote'
-            && (
-              context.candidates.find(
-                (candidate) => candidate.id === score.candidateId,
-              )!.decision as { kind: 'vote'; vote: string }
-            ).vote === seededVote
-              ? maxBase - baseRow.baseValue + SEEDED_SELECTION_MARGIN
-              : 0,
+          selectionAdjustment: band.adjustmentFor(
+            score.candidateId,
+            baseRow.baseValue,
+          ),
           selectionMode: seeded ? 'seeded-band' as const : 'top-utility' as const,
-          ...(seedBucket === undefined ? {} : { seedBucket }),
+          ...(band.seedBucket === undefined
+            ? {}
+            : { seedBucket: band.seedBucket }),
         },
       }
     })
@@ -221,22 +260,12 @@ function projectGood(
     !context.candidateBoundary.selectedCandidateId
       && seeded
       && inViableBand
-  const seedBucket = bandActive
-    ? stablePolicyBucket([
-        context.deterministicSeed,
-        context.request.seat,
-        context.request.kind,
-        context.request.round,
-        context.request.proposalNum,
-        context.analysis.throughSeq,
-      ].join(':'))
-    : undefined
   const maxCombined = Math.max(
     ...preliminary
       .filter(({ candidate }) => allowed.has(candidate.id))
       .map((entry) => entry.combinedValue),
   )
-  const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+  const band = seededViableBand(context, bandActive, maxCombined)
   const byId = new Map(preliminary.map((entry) => [entry.candidate.id, entry]))
   return plain.map((score): CandidateScore => {
     const row = byId.get(score.candidateId)
@@ -261,13 +290,11 @@ function projectGood(
         : 'top-composite',
       viableBand: ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,
       inViableBand,
-      selectionAdjustment:
-        bandActive
-        && row.candidate.decision.kind === 'vote'
-        && row.candidate.decision.vote === seededVote
-          ? maxCombined - row.combinedValue + SEEDED_SELECTION_MARGIN
-          : 0,
-      ...(seedBucket === undefined ? {} : { seedBucket }),
+      selectionAdjustment: band.adjustmentFor(
+        score.candidateId,
+        row.combinedValue,
+      ),
+      ...(band.seedBucket === undefined ? {} : { seedBucket: band.seedBucket }),
       utility: structuredClone(row.utility),
     }
     return {
@@ -319,19 +346,13 @@ function projectEvil(
     !context.candidateBoundary.selectedCandidateId
       && seeded
       && inViableBand
-  const seedBucket = bandActive
-    ? stablePolicyBucket([
-        context.deterministicSeed,
-        context.request.seat,
-        context.request.kind,
-        context.request.round,
-        context.request.proposalNum,
-        context.analysis.throughSeq,
-        EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
-      ].join(':'))
-    : undefined
   const maxValue = Math.max(...voteRows.map((entry) => entry.roleValue))
-  const seededVote = seedBucket === 0 ? 'approve' : 'reject'
+  const band = seededViableBand(
+    context,
+    bandActive,
+    maxValue,
+    EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
+  )
   return rows.map((row): CandidateScore => {
     const utility = utilityById.get(row.candidateId)
     if (!utility) throw new Error('evil diagnostic utility missing')
@@ -349,19 +370,11 @@ function projectEvil(
         : 'top-role-utility',
       viableBand: EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand,
       inViableBand,
-      selectionAdjustment:
-        bandActive
-        && context.candidates.find(
-          (candidate) => candidate.id === row.candidateId,
-        )?.decision.kind === 'vote'
-        && (
-          context.candidates.find(
-            (candidate) => candidate.id === row.candidateId,
-          )!.decision as { kind: 'vote'; vote: string }
-        ).vote === seededVote
-          ? maxValue - utility.roleValue + SEEDED_SELECTION_MARGIN
-          : 0,
-      ...(seedBucket === undefined ? {} : { seedBucket }),
+      selectionAdjustment: band.adjustmentFor(
+        row.candidateId,
+        utility.roleValue,
+      ),
+      ...(band.seedBucket === undefined ? {} : { seedBucket: band.seedBucket }),
       utility: structuredClone(utility),
     }
     return {
