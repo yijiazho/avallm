@@ -9,7 +9,9 @@ Companion: [research-strategy.md](research-strategy.md) covers human strategy an
 heuristics; this brief focuses on the machinery agents use to represent uncertainty and choose
 actions. [probabilistic-agent-architecture.md](probabilistic-agent-architecture.md) turns the
 findings into a target architecture, and
-[agent-architecture-migration.md](agent-architecture-migration.md) tracks the implementation path.
+[agent-architecture-migration.md](agent-architecture-migration.md) tracks remaining work and
+[agent-architecture-migration-history.md](agent-architecture-migration-history.md) preserves the
+completed implementation path.
 
 **Scope.** This is a research brief, not an implementation specification. It records what the
 published systems do, what their experiments support, where their claims stop, and the design

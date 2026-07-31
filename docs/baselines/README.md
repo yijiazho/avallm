@@ -1,6 +1,8 @@
 # Agent architecture baselines
 
-These compact records anchor Phase 0 of
+These compact records anchor Phase 0 of the archived
+[`agent-architecture-migration-history.md`](../agent-architecture-migration-history.md). The
+concise current tracker remains in
 [`agent-architecture-migration.md`](../agent-architecture-migration.md).
 
 ## `phase0-heuristic-standard-v1.json`

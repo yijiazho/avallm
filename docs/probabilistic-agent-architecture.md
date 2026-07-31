@@ -1,14 +1,18 @@
 # Probabilistic agent architecture
 
-**Status:** target design. This document defines where AvaLLM's agent architecture should go. It is
-not a description of what every current code path already does.
+**Status:** implemented architecture contract with open product and research extensions. Phases
+0 through 7 established the composed cognition pipeline described here. This document now defines
+the invariants that implementation must preserve, the production north star, and the remaining
+frontier. It does not imply that the composed agent has earned promotion to the default.
 
 Companions:
 
 - [research-probabilistic-agents.md](research-probabilistic-agents.md) records the external
   research and its evidentiary limits.
-- [agent-architecture-migration.md](agent-architecture-migration.md) tracks the work from the
-  current implementation to this design.
+- [agent-architecture-migration.md](agent-architecture-migration.md) is the concise active tracker
+  for evaluation, remaining migration debt, and future phase entry gates.
+- [agent-architecture-migration-history.md](agent-architecture-migration-history.md) preserves the
+  complete Phase 0 through 7 implementation and validation record.
 - [design-bot-guidance.md](design-bot-guidance.md) remains the reference for current prompt
   guidance and forced-play rules.
 - [design-implementation.md](design-implementation.md) remains the reference for the engine,
@@ -18,8 +22,10 @@ Companions:
 
 ## 1. Decision
 
-AvaLLM should make the production bot a composed **hybrid agent**, not an LLM with an increasingly
-large strategy prompt.
+AvaLLM's production north star is a composed **hybrid agent**, not an LLM with an increasingly
+large strategy prompt. The composed architecture is implemented and available as explicit
+`Probabilistic` and `Probabilistic + LLM` agents. Promotion into normal table fill remains an
+evidence and human-evaluation decision, not an architectural assumption.
 
 The hybrid agent has six distinct responsibilities:
 
@@ -36,8 +42,21 @@ hidden state is small enough to enumerate, and exact enumeration preserves the c
 team decisions depend on.
 
 The existing pure engine, `viewFor` hidden-information boundary, event log, and pluggable
-`AvalonAgent` concept remain. The internals of the LLM and heuristic agents are expected to change
-substantially.
+`AvalonAgent` concept remain. Raw-LLM, rule-based, random, compatibility, and isolated composed
+variants remain independently attributable baselines rather than being folded into the north-star
+agent.
+
+### 1.1 Implementation status
+
+| Responsibility | Implemented contract | Remaining frontier |
+|---|---|---|
+| Observation | Seat-filtered views become typed, deduplicated evidence and a shared public record | Add new evidence classes only through typed, provenance-preserving extractors |
+| Constraint | Exact complete role worlds enforce private knowledge and public quest facts | Retain exact inference as the correctness oracle |
+| Belief | Normalized joint worlds support exact projections plus bounded quest-card and language factors | Proposal and vote likelihoods, target-population calibration, and eventual backend scaling remain open |
+| Analysis | Decision-ready situation, observer, identity, and role-objective surfaces are explicit | Improve features only when a policy or evaluation consumes them |
+| Policy | Forced policy, legal candidates, native score layers, role policies, and committed plans are implemented | The full-role policy has not cleared the strength, predictability, and fun gates for default promotion |
+| Voice | Structured-only and bounded planner/voice paths cannot reopen a committed action | Human evaluation must establish whether hybrid speech is coherent, persuasive, and enjoyable |
+| Attribution | Brain descriptors, traces, artifacts, replay, inspectors, and free evaluation banks identify causal components | Paid and human comparisons must remain tied to frozen versions and populations |
 
 ---
 
@@ -158,7 +177,7 @@ but not for sound inference, safe operation, or a coherent playable fallback.
 
 ---
 
-## 4. Target flow
+## 4. Architecture flow
 
 ```mermaid
 flowchart LR
@@ -179,9 +198,11 @@ flowchart LR
     R --> V
 ```
 
-The arrows describe data ownership, not necessarily one model call per box. Mechanical layers
-should be cheap and deterministic. Language interpretation should run only when new table talk
-justifies it. Voice runs only when a public utterance is needed.
+The arrows describe implemented ownership boundaries, not necessarily one model call per box.
+Optional factors, planners, or role layers may be absent in a configured brain, but no configured
+path may bypass the ordering shown here. Mechanical layers should be cheap and deterministic.
+Language interpretation should run only when new table talk justifies it. Voice runs only when a
+public utterance is needed.
 
 ---
 
