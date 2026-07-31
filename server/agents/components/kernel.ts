@@ -44,6 +44,7 @@ import type {
   DecisionComponentEntry,
   DecisionComponentEntryBase,
   DecisionComponentPlan,
+  DecisionComponentPolicyUse,
   DecisionComponentRun,
   PublicDecisionComponentEntry,
   PublicDecisionComponentRun,
@@ -252,6 +253,26 @@ function degradation(
 
 function canonicalCode(value: unknown): value is string {
   return typeof value === 'string' && CODE_PATTERN.test(value)
+}
+
+/**
+ * The one admitted-payload lookup: an entry yields its payload only when it is
+ * the same component as the token by identity, kind, and privacy, and it was
+ * admitted. Every reader (dependency reads, the payload index, and the
+ * single-token accessor) resolves the entry however it likes and then routes
+ * the match through here so the tag and status rule lives once.
+ */
+function admittedPayload<Payload>(
+  entry: DecisionComponentEntry | undefined,
+  token: ComponentToken<Payload>,
+): Payload | undefined {
+  return entry
+    && componentIdentityKey(entry.component) === componentIdentityKey(token)
+    && entry.kind === token.kind
+    && entry.privacy === token.privacy
+    && entry.status === 'admitted'
+    ? entry.envelope.payload as Payload
+    : undefined
 }
 
 function parseHostInputValidation<Value>(
@@ -768,10 +789,7 @@ function executionContextFor(
     ) {
       return undefined
     }
-    const entry = admitted.get(key)
-    return entry?.status === 'admitted'
-      ? entry.envelope.payload as Payload
-      : undefined
+    return admittedPayload(admitted.get(key), token)
   }
   const dependencies: ComponentDependencyReader = Object.freeze({
     get,
@@ -1393,12 +1411,7 @@ export function indexDecisionComponentPayloads(
     payload<Payload>(
       token: ComponentToken<Payload>,
     ): Payload | undefined {
-      const entry = entries.get(componentIdentityKey(token))
-      return entry?.kind === token.kind
-        && entry.privacy === token.privacy
-        && entry.status === 'admitted'
-        ? entry.envelope.payload as Payload
-        : undefined
+      return admittedPayload(entries.get(componentIdentityKey(token)), token)
     },
   })
 }
@@ -1407,16 +1420,14 @@ export function componentPayload<Payload>(
   run: DecisionComponentRun,
   token: ComponentToken<Payload>,
 ): Payload | undefined {
-  const entry = run.entries.find(
-    (candidate) =>
-      componentIdentityKey(candidate.component)
-        === componentIdentityKey(token)
-      && candidate.kind === token.kind
-      && candidate.privacy === token.privacy,
+  return admittedPayload(
+    run.entries.find(
+      (candidate) =>
+        componentIdentityKey(candidate.component)
+          === componentIdentityKey(token),
+    ),
+    token,
   )
-  return entry?.status === 'admitted'
-    ? entry.envelope.payload as Payload
-    : undefined
 }
 
 export interface DecisionComponentPolicyAttributionWork {
@@ -1428,6 +1439,24 @@ export interface DecisionComponentPolicyAttributionWork {
 export interface DecisionComponentPolicyAttributionBatch {
   readonly run: DecisionComponentRun
   readonly work: DecisionComponentPolicyAttributionWork
+}
+
+/**
+ * Project one policy-use row into its used form with the stage appended. The
+ * stage dedup and append-order rule lives here so the single-token and batch
+ * attributions cannot drift apart.
+ */
+function appendPolicyStage(
+  attribution: DecisionComponentPolicyUse,
+  stage: string,
+): DecisionComponentPolicyUse {
+  return Object.freeze({
+    component: frozenRef(attribution.component),
+    used: true,
+    stages: attribution.stages.includes(stage)
+      ? attribution.stages
+      : Object.freeze([...attribution.stages, stage]),
+  })
 }
 
 /**
@@ -1499,13 +1528,7 @@ export function attributeComponentPolicyUseBatch(
     const key = componentIdentityKey(attribution.component)
     if (!requested.has(key)) return attribution
     projected.add(key)
-    return Object.freeze({
-      component: frozenRef(attribution.component),
-      used: true,
-      stages: attribution.stages.includes(stage)
-        ? attribution.stages
-        : Object.freeze([...attribution.stages, stage]),
-    })
+    return appendPolicyStage(attribution, stage)
   })
   if (projected.size !== requested.size) {
     throw new Error('component run policy-use projection is incomplete')
@@ -1547,13 +1570,7 @@ export function attributeComponentPolicyUse(
     ...run,
     policyUse: Object.freeze(run.policyUse.map((attribution) =>
       componentIdentityKey(attribution.component) === key
-        ? Object.freeze({
-            component: frozenRef(attribution.component),
-            used: true,
-            stages: attribution.stages.includes(stage)
-              ? attribution.stages
-              : Object.freeze([...attribution.stages, stage]),
-          })
+        ? appendPolicyStage(attribution, stage)
         : attribution)),
   })
 }
