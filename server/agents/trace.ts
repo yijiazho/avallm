@@ -65,8 +65,11 @@ export const APPLIED_OUTCOME_DEGRADATION =
 
 /**
  * What the host knows once the engine has accepted an action, handed to
- * finalizeAppliedTrace as a detached copy: mutating it cannot move the join the
- * host validates the returned trace against. `selectedDecision` is absent when
+ * finalizeAppliedTrace as a detached and deeply FROZEN copy: a hook cannot
+ * reach back into host state through it, and cannot move the join the host
+ * validates the returned trace against. A hook that needs to edit any of this
+ * copies what it needs; writing through this one throws, which the lifecycle
+ * records as a failed acknowledgment. `selectedDecision` is absent when
  * decide() failed, and `appliedDecision` can differ from it after a coercion or
  * a fallback.
  *
@@ -549,8 +552,13 @@ export function validateFinalizedAppliedTraceHostJoin(
     // Everything except the canonical action, post-apply payload/component
     // declarations, and resolution markers remains byte-for-byte structural
     // telemetry from the provisional trace.
-    const expected = structuredClone(provisional)
-    expected.action = structuredClone(outcome.appliedDecision)
+    //
+    // A shallow copy is the whole requirement: every field rewritten below is
+    // an own property of the top-level object, and `expected` is never returned
+    // or retained, only read by the deep comparison. What it shares with the
+    // frozen outcome cannot change underneath that comparison.
+    const expected: DecisionTrace = { ...provisional }
+    expected.action = outcome.appliedDecision
     if (
       outcome.resolution !== 'selected-applied'
       && !expected.degradation.includes('decision-fallback')
@@ -578,7 +586,7 @@ export function validateFinalizedAppliedTraceHostJoin(
       return isDeepStrictEqual(trace, expected)
     }
     if (!planEnabled) return false
-    expected.privatePlanOutcome = structuredClone(recorded)
+    expected.privatePlanOutcome = recorded
     if (!isDeepStrictEqual(trace, expected)) return false
 
     // A recorded summary always carries its plan, so plan presence is exactly
@@ -624,8 +632,11 @@ export function finalizeProvisionalAppliedTrace(
   outcome: AppliedDecisionOutcome,
 ): DecisionTrace | undefined {
   if (!outcome.provisionalTrace) return undefined
-  const finalized = structuredClone(outcome.provisionalTrace)
-  finalized.action = structuredClone(outcome.appliedDecision)
+  // Shallow, for the same reason the host join above is: the outcome is frozen,
+  // only top-level fields are rewritten here, and recordAppliedDecision detaches
+  // whatever a hook returns before anything persists it.
+  const finalized: DecisionTrace = { ...outcome.provisionalTrace }
+  finalized.action = outcome.appliedDecision
   if (
     outcome.resolution !== 'selected-applied'
     && !finalized.degradation.includes('decision-fallback')

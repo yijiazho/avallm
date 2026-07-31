@@ -1556,14 +1556,19 @@ export function createComposedAgent(
         }
       }
       if (!outcome.provisionalTrace) return undefined
-      const finalized = structuredClone(outcome.provisionalTrace)
+      // Shallow: the outcome is frozen, every field written below is an own
+      // property of this object, and the lifecycle detaches whatever a hook
+      // returns. The plan entry stays cloned because that one is not about host
+      // mutation: it copies this agent's own long-lived private memory out of
+      // reach before a record of it leaves the agent.
+      const finalized: DecisionTrace = { ...outcome.provisionalTrace }
       finalized.privatePlanOutcome = structuredClone(memory.history.at(-1)!)
       finalized.componentVersions = {
         ...finalized.componentVersions!,
         planMemory: PLAN_MEMORY_VERSION,
         coherence: COHERENCE_MODEL_VERSION,
       }
-      finalized.action = structuredClone(outcome.appliedDecision)
+      finalized.action = outcome.appliedDecision
       if (outcome.resolution !== 'selected-applied') {
         if (!finalized.degradation.includes('decision-fallback')) {
           finalized.degradation = [

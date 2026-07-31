@@ -681,6 +681,66 @@ test('runtime host outcome is immutable against hook mutation and forgery degrad
   ))
 })
 
+test('the outcome handed to a hook is deeply frozen, not a second full clone', async () => {
+  // The lifecycle detaches the host's request, view, and decisions once and
+  // then FREEZES that copy, rather than cloning the whole graph a second time
+  // for the hook. Freezing is what the boundary actually needs, and the second
+  // clone was the single most expensive operation in an API-free game. What the
+  // hook must never be able to do is reach host state or move the join, so this
+  // pins depth: a shallow freeze would leave every nested array writable.
+  const game = createGame({
+    seed: 'frozen-host-outcome',
+    playerCount: 5,
+    talk: false,
+  })
+  const target = game.leaderSeat
+  const depths: boolean[] = []
+  const writeRejected: boolean[] = []
+  const inner = createComposedAgent({ seed: game.seed, planMemory: true })
+  const agents = new Map<Seat, AvalonAgent>(game.players.map((player) => [
+    player.seat,
+    player.seat === target
+      ? {
+          decide: inner.decide.bind(inner),
+          finalizeAppliedTrace(outcome) {
+            depths.push(
+              Object.isFrozen(outcome)
+              && Object.isFrozen(outcome.view)
+              && Object.isFrozen(outcome.view.players)
+              && Object.isFrozen(outcome.view.players[0])
+              && Object.isFrozen(outcome.view.quests)
+              && Object.isFrozen(outcome.appliedDecision)
+              && (
+                outcome.provisionalTrace === undefined
+                || Object.isFrozen(outcome.provisionalTrace.degradation)
+              ),
+            )
+            let rejected = false
+            try {
+              ;(outcome.view.players as { name: string }[])[0].name = 'forged'
+            } catch {
+              rejected = true
+            }
+            writeRejected.push(
+              rejected && outcome.view.players[0].name !== 'forged',
+            )
+            return inner.finalizeAppliedTrace!(outcome)
+          },
+        }
+      : createAgent(
+          { type: 'heuristic' },
+          { seed: game.seed, seat: player.seat },
+        ),
+  ]))
+  await runGame({ game, agents })
+  assert.ok(depths.length > 0)
+  assert.ok(depths.every(Boolean), 'every hook outcome is frozen all the way down')
+  assert.ok(
+    writeRejected.every(Boolean),
+    'a write through the hook copy throws and changes nothing',
+  )
+})
+
 test('finalized traces cannot mutate provisional stable telemetry', async () => {
   const mutations: Array<{
     name: string

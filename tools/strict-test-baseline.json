@@ -143,7 +143,7 @@
     },
     {
       "path": "test/plan-coherence.test.ts",
-      "sha256": "935da15b4911d6ef3489ff7e2125372102351012eefb54e75150fbe319f633c6",
+      "sha256": "d8419ef1aa7499d7a4403f60c4d8ad40d613fa04ffda042cecda7fbcad3d2820",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {

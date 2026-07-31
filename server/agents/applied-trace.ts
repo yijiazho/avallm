@@ -20,6 +20,7 @@ import type {
   AppliedDecisionResolution,
   AvalonAgent,
 } from './types.ts'
+import { freezeDeep } from '../shared/deep-freeze.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 
 export interface AppliedDecisionInput {
@@ -49,7 +50,12 @@ function finalize(input: AppliedDecisionInput): DecisionTrace | undefined {
   }
   try {
     const hostOutcome: AppliedDecisionOutcome = {
-      request: { ...input.req },
+      // Cloned like every sibling, not spread. A spread detaches a request
+      // whose fields are all primitives, which today's is, but this outcome is
+      // frozen below: the day someone gives DecisionRequest a nested field, a
+      // shallow copy would carry the host's own object into the freeze and
+      // strand it immutable. Detachment here is unconditional instead.
+      request: structuredClone(input.req),
       view: structuredClone(input.view),
       ...(input.selectedDecision
         ? { selectedDecision: structuredClone(input.selectedDecision) }
@@ -60,8 +66,12 @@ function finalize(input: AppliedDecisionInput): DecisionTrace | undefined {
         ? { provisionalTrace: structuredClone(input.provisionalTrace) }
         : {}),
     }
-    // The hook gets its own copy, so mutating it cannot move the host's join.
-    const supplied = hook.call(input.agent, structuredClone(hostOutcome))
+    // Detached above, frozen here: the hook cannot reach back into the host's
+    // request, view, or action, and cannot move the join validated below
+    // either. Freezing buys both, so the hook reads this copy rather than a
+    // second full clone of everything already cloned one line up.
+    freezeDeep(hostOutcome)
+    const supplied = hook.call(input.agent, hostOutcome)
     const returned = supplied ? structuredClone(supplied) : undefined
     if (input.provisionalTrace) {
       return returned

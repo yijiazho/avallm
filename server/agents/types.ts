@@ -31,7 +31,9 @@ export interface AvalonAgent {
    * action, so no trace can describe a rejected one. What it returns is the
    * finalized record and may differ from the provisional envelope trace;
    * undefined declines to acknowledge, which the host records as degraded
-   * rather than trusting the provisional trace.
+   * rather than trusting the provisional trace. The outcome it receives is
+   * deeply frozen, so a hook builds its answer rather than editing the host's
+   * copy in place.
    */
   finalizeAppliedTrace?(
     outcome: AppliedDecisionOutcome,
