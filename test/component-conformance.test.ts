@@ -34,6 +34,7 @@ import {
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
   SERVANT_OBJECTIVE_COMPONENT,
+  SERVANT_ROLE_UTILITY_COMPONENT,
 } from '../server/agents/components/native-score-components.ts'
 import {
   EVIL_QUEST_CARD_ROBUST_COMPONENT,
@@ -159,6 +160,8 @@ const PRODUCTION_COMPONENT_INVENTORY = Object.freeze({
     { proof: 'morgana-native-family' },
   'servant-objective':
     { proof: 'servant-native-family' },
+  'servant-role-utility':
+    { proof: 'servant-native-family' },
 })
 
 const NATIVE_PROOF_OWNERS = new Map([
@@ -174,6 +177,7 @@ const NATIVE_PROOF_OWNERS = new Map([
   [MORGANA_ROLE_UTILITY_COMPONENT.id, 'morgana-native-family'],
   [MORGANA_ROLE_UTILITY_SEEDED_COMPONENT.id, 'morgana-native-family'],
   [SERVANT_OBJECTIVE_COMPONENT.id, 'servant-native-family'],
+  [SERVANT_ROLE_UTILITY_COMPONENT.id, 'servant-native-family'],
   [
     EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
     'robust-quest-native-family',
@@ -899,16 +903,45 @@ test('native good-role family conforms through execution and host join', async (
 // the acting seat's own view, so running it with NO host inputs still admits.
 // That is the registration proving the structural claim from the module: a new
 // role costs its weights, not a new substrate.
+// A servant PROPOSE seat, because the utility is propose-only and the sole
+// servant decision fixture is a vote. Built the way the Morgana fixture above
+// is, by seeking a seed that seats the role in the chair.
+function servantProposeFixture() {
+  let game: ReturnType<typeof createGame> | undefined
+  for (let attempt = 0; attempt < 1_000; attempt++) {
+    const candidate = createGame({
+      seed: `servant-conformance-${attempt}`,
+      playerCount: 7,
+    })
+    if (candidate.players[candidate.leaderSeat].role === 'servant') {
+      game = candidate
+      break
+    }
+  }
+  assert.ok(game, 'a servant must reach the chair within the seed budget')
+  const view = viewFor(game, game.leaderSeat)
+  assert.equal(view.role, 'servant')
+  return {
+    view,
+    req: {
+      kind: 'propose' as const,
+      seat: view.seat,
+      round: view.round,
+      proposalNum: view.proposalNum,
+    },
+  }
+}
+
 test('native servant family conforms with no host inputs at all', async () => {
-  const fixture = readDecisionFixtures().find(
-    (candidate) => candidate.view.role === 'servant',
-  )
-  assert.ok(fixture, 'a servant decision fixture must exist')
+  const fixture = servantProposeFixture()
   const registry = createProductionComponentRegistry({
     goodObjectiveAllDecisionKinds: true,
   })
   const brain = resolveComposedBrain({
-    requestedComponents: [SERVANT_OBJECTIVE_COMPONENT],
+    requestedComponents: [
+      SERVANT_OBJECTIVE_COMPONENT,
+      SERVANT_ROLE_UTILITY_COMPONENT,
+    ],
     configuredPipeline: testConfiguredPipeline(),
   }, registry)
   const entries = [
@@ -917,6 +950,12 @@ test('native servant family conforms with no host inputs at all', async () => {
       verification: 'exact' as const,
       promotionEligible: true,
       // Not a failure code: with no roots to miss, the bare run still admits.
+      missingRootFailure: 'admitted',
+    },
+    {
+      token: SERVANT_ROLE_UTILITY_COMPONENT,
+      verification: 'exact' as const,
+      promotionEligible: true,
       missingRootFailure: 'admitted',
     },
   ]

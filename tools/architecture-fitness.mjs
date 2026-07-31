@@ -1777,6 +1777,12 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ['server/agents/analysis/servant-objective.ts', new Set([
     'validateServantObjectiveSnapshot',
   ])],
+  // Same shape as its sibling above: the kernel decodes an already-canonical
+  // payload, so the strict-JSON validator waits for an ingress or artifact
+  // reader. Its host join and decoder are both live in the component.
+  ['server/agents/analysis/servant-role-utility.ts', new Set([
+    'validateServantRoleUtilityProjection',
+  ])],
   ['server/agents/board.ts', new Set(['roleCertainties'])],
   ['server/agents/components/kernel.ts', new Set([
     'publicDecisionComponentRun',

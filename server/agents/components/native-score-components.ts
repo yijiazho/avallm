@@ -94,6 +94,14 @@ import {
   SERVANT_OBJECTIVE_MODEL_VERSION,
   type ServantObjectiveSnapshot,
 } from '../analysis/servant-objective-types.ts'
+import {
+  buildServantRoleUtilityProjection,
+  decodeCanonicalServantRoleUtilityProjection,
+  SERVANT_ROLE_UTILITY_DEGRADATION,
+  SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
+  type PrivateServantRoleUtilityProjection,
+  validateAdmittedServantRoleUtilityHostJoin,
+} from '../analysis/servant-role-utility.ts'
 import { projectPublicRecord } from '../communication/public-record.ts'
 import {
   hypotheticalProposalCandidates,
@@ -168,6 +176,13 @@ ComponentToken<ServantObjectiveSnapshot> = Object.freeze({
   id: 'servant-objective',
   version: SERVANT_OBJECTIVE_MODEL_VERSION,
   kind: 'objective',
+  privacy: 'private',
+})
+export const SERVANT_ROLE_UTILITY_COMPONENT:
+ComponentToken<PrivateServantRoleUtilityProjection> = Object.freeze({
+  id: 'servant-role-utility',
+  version: SERVANT_ROLE_UTILITY_PROJECTION_VERSION,
+  kind: 'projection',
   privacy: 'private',
 })
 export const MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT:
@@ -429,6 +444,27 @@ export function nativeScoreComponentDefinitions(
     hostJoin: validateAdmittedServantObjectiveHostJoin,
   })
 
+  // Propose only, because that is where the measurement found room. Servant
+  // VOTES separate (no exact ties) and the seeded band is already exploring
+  // there, so displacing it would be a behavioral claim with nothing behind
+  // it. Proposals need no such argument: they are tied 75 times in 76.
+  const servantUtility = roleProjection({
+    token: SERVANT_ROLE_UTILITY_COMPONENT,
+    degradationCode: SERVANT_ROLE_UTILITY_DEGRADATION,
+    applies(context) {
+      return context.view.role === 'servant'
+        && context.view.rolesInPlay.includes('merlin')
+        && context.request.kind === 'propose'
+    },
+    join: (context) => ({
+      view: context.view,
+      candidates: legalCandidates(context.request, context.view),
+    }),
+    build: buildServantRoleUtilityProjection,
+    decode: decodeCanonicalServantRoleUtilityProjection,
+    hostJoin: validateAdmittedServantRoleUtilityHostJoin,
+  })
+
   const morganaPublicRead = publicRoleProjection({
     token: MORGANA_COUNTERFEIT_PUBLIC_READ_COMPONENT,
     degradationCode: MORGANA_COUNTERFEIT_DEGRADATION,
@@ -524,6 +560,7 @@ export function nativeScoreComponentDefinitions(
     evilObjective,
     evilUtility,
     servantObjective,
+    servantUtility,
     morganaPublicRead,
     morganaObjective,
     morganaUtility(

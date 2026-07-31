@@ -90,6 +90,7 @@ import {
   PRIVATE_PUBLIC_OBSERVER_INPUT,
   PRIVATE_SITUATION_INPUT,
   SERVANT_OBJECTIVE_COMPONENT,
+  SERVANT_ROLE_UTILITY_COMPONENT,
 } from './components/native-score-components.ts'
 import {
   createProductionComponentRegistry,
@@ -1252,6 +1253,7 @@ const ROLE_FEATURE_COMPONENT_ORDER: readonly string[] = [
   EVIL_ROLE_OBJECTIVE_COMPONENT,
   EVIL_ROLE_UTILITY_COMPONENT,
   SERVANT_OBJECTIVE_COMPONENT,
+  SERVANT_ROLE_UTILITY_COMPONENT,
   MORGANA_COUNTERFEIT_OBJECTIVE_COMPONENT,
   MORGANA_ROLE_UTILITY_COMPONENT,
   MORGANA_ROLE_UTILITY_SEEDED_COMPONENT,
@@ -1421,7 +1423,7 @@ export function createComposedAgent(
       // through the acting seat's own view, so it needs nothing hoisted here.
       forcesPublicObserver: false,
       components: servantObjectivesConfigured
-        ? [SERVANT_OBJECTIVE_COMPONENT]
+        ? [SERVANT_OBJECTIVE_COMPONENT, SERVANT_ROLE_UTILITY_COMPONENT]
         : [],
     },
     {
