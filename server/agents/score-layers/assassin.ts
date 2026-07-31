@@ -19,6 +19,7 @@ import {
   terminalForIdentities,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
+import { appliesFrom, ASSASSIN_CLAIM } from '../policy/applicability.ts'
 
 export const ASSASSIN_MERLIN_TARGET_SCORE_LAYER = scoreLayerToken(
   'assassin-merlin-target-score',
@@ -49,12 +50,7 @@ export function assassinScoreLayerDefinitions(
     requiredComponents: Object.freeze([
       ASSASSIN_MERLIN_POSTERIOR_COMPONENT,
     ]),
-    // No Merlin check: validateRoles adds Merlin and the Assassin together, and
-    // the engine only issues an assassinate decision with Merlin seated, so an
-    // assassinate request already guarantees it.
-    applies: (context) =>
-      context.view.role === 'assassin'
-      && context.request.kind === 'assassinate',
+    applies: appliesFrom(ASSASSIN_CLAIM),
     execute(context: ScoreLayerTransformContext) {
       const posterior = context.components.require(
         ASSASSIN_MERLIN_POSTERIOR_COMPONENT,

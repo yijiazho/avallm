@@ -32,6 +32,11 @@ import {
 } from '../analysis/assassin-merlin-posterior-types.ts'
 import { legalCandidates } from '../policy/candidates.ts'
 import {
+  appliesFrom,
+  ASSASSIN_CLAIM,
+  MORDRED_CLAIM,
+} from '../policy/applicability.ts'
+import {
   PRIVATE_BELIEF_INPUT,
   PRIVATE_PUBLIC_OBSERVER_INPUT,
 } from './native-score-components.ts'
@@ -108,15 +113,7 @@ readonly DecisionComponentDefinition<any>[] {
     degradationCode: MORDRED_BLINDNESS_DEGRADATION,
     dependencies: [ACTOR_TARGET_TREATMENT_COMPONENT],
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
-    applies(context) {
-      // No Merlin check: validateRoles guarantees Merlin wherever Mordred is
-      // seated, so a merlin-less Mordred host is corrupt upstream state.
-      return context.view.role === 'mordred'
-        && (
-          context.request.kind === 'propose'
-          || context.request.kind === 'vote'
-        )
-    },
+    applies: appliesFrom(MORDRED_CLAIM),
     join(context) {
       return {
         req: context.request,
@@ -141,12 +138,7 @@ readonly DecisionComponentDefinition<any>[] {
     degradationCode: ASSASSIN_MERLIN_POSTERIOR_DEGRADATION,
     requiredHostInputs: [PRIVATE_BELIEF_INPUT],
     maxPayloadBytes: MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
-    applies(context) {
-      // No Merlin check: the engine only issues an assassinate decision with
-      // Merlin seated (validateRoles pairs Merlin and the Assassin).
-      return context.view.role === 'assassin'
-        && context.request.kind === 'assassinate'
-    },
+    applies: appliesFrom(ASSASSIN_CLAIM),
     join(context) {
       return {
         req: context.request,

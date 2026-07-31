@@ -19,6 +19,14 @@ import type {
   ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
 import {
+  ASSASSIN_CLAIM,
+  EVIL_CLAIM,
+  MORDRED_CLAIM,
+  MORGANA_CLAIM,
+  assertRoleClaimsPartition,
+  type Applicability,
+} from '../policy/applicability.ts'
+import {
   COMPATIBILITY_SCORE_LAYER,
   GOOD_ROLE_SCORE_LAYER,
   SEEDED_GOOD_ROLE_SCORE_LAYER,
@@ -117,6 +125,12 @@ extends ScoreLayerFamilyDeclaration<ConfiguredScoreLane> {
   readonly identities: readonly ScoreLayerTerminalIdentity<CandidateScorer>[]
   /** Exact built-in identity mapping, derived from the identities above. */
   terminalFor(scorer: CandidateScorer | undefined): ScoreLayerToken | undefined
+  /**
+   * How this family claims the decision space, when it gates on alignment or
+   * role. Role claims must partition; the alignment base is exempt. Families
+   * that gate inside their own execute body (good, full-role) declare none.
+   */
+  readonly claim?: Applicability
 }
 
 /**
@@ -159,6 +173,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     },
     identities: evilScoreLayerTerminals,
     terminalFor: evilScoreLayerTerminalFor,
+    claim: EVIL_CLAIM,
     register: (predecessor) => evilScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
       seeded: predecessor(SEEDED_LANE),
@@ -178,6 +193,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     },
     identities: morganaScoreLayerTerminals,
     terminalFor: morganaScoreLayerTerminalFor,
+    claim: MORGANA_CLAIM,
     register: (predecessor) => morganaScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
       seeded: predecessor(SEEDED_LANE),
@@ -202,6 +218,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     },
     identities: mordredScoreLayerTerminals,
     terminalFor: mordredScoreLayerTerminalFor,
+    claim: MORDRED_CLAIM,
     register: (predecessor) => mordredScoreLayerDefinitions({
       deterministic: predecessor(DETERMINISTIC_LANE),
       seeded: predecessor(SEEDED_LANE),
@@ -219,6 +236,7 @@ const SCORE_FAMILY_TREE: readonly ConfiguredScoreFamily[] = Object.freeze([
     lanes: { [DETERMINISTIC_LANE]: ASSASSIN_MERLIN_TARGET_SCORE_LAYER },
     identities: assassinScoreLayerTerminals,
     terminalFor: assassinScoreLayerTerminalFor,
+    claim: ASSASSIN_CLAIM,
     register: (predecessor) =>
       assassinScoreLayerDefinitions(predecessor(DETERMINISTIC_LANE)),
   },
@@ -318,6 +336,13 @@ export function configuredScoreLayersApplyToDecision(
 }
 
 export function createConfiguredScoreLayerRegistry(): ScoreLayerRegistry {
+  // The composed lane threads every role specialization onto one chain and
+  // relies on each passing through the seats it does not claim. Reject a tree
+  // whose role claims overlap before it can register a chain that would silently
+  // run two specializations for one seat.
+  assertRoleClaimsPartition(
+    SCORE_FAMILY_TREE.flatMap((family) => family.claim ? [family.claim] : []),
+  )
   const registry = createScoreLayerRegistry(resolveScoreLayerFamilyTree({
     lanes: SCORE_FAMILY_LANES,
     families: SCORE_FAMILY_TREE,

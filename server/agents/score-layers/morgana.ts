@@ -26,6 +26,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
+import { appliesFrom, MORGANA_CLAIM } from '../policy/applicability.ts'
 
 export const MORGANA_ROLE_SCORE_LAYER = scoreLayerToken(
   'morgana-role-score',
@@ -70,12 +71,7 @@ function morganaDefinition(
     token,
     predecessor,
     requiredComponents: Object.freeze([utilityToken]),
-    applies: (context) =>
-      context.view.role === 'morgana'
-      && (
-        context.request.kind === 'propose'
-        || context.request.kind === 'vote'
-      ),
+    applies: appliesFrom(MORGANA_CLAIM),
     execute(context: ScoreLayerTransformContext) {
       const projection = context.components.require(utilityToken)
       if (

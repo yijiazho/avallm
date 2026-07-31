@@ -33,6 +33,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
+import { appliesFrom, MORDRED_CLAIM } from '../policy/applicability.ts'
 
 export const MORDRED_ROLE_SCORE_LAYER = scoreLayerToken(
   'mordred-role-score',
@@ -77,15 +78,7 @@ function mordredDefinition(
     token,
     predecessor,
     requiredComponents: Object.freeze([MORDRED_BLINDNESS_COMPONENT]),
-    // No Merlin check: validateRoles enforces that Mordred requires Merlin, so
-    // a Mordred seat guarantees it; a view that violated it would be corrupt
-    // upstream state, not an input this layer is responsible for excluding.
-    applies: (context) =>
-      context.view.role === 'mordred'
-      && (
-        context.request.kind === 'propose'
-        || context.request.kind === 'vote'
-      ),
+    applies: appliesFrom(MORDRED_CLAIM),
     execute(context: ScoreLayerTransformContext) {
       const objective = context.components.require(
         MORDRED_BLINDNESS_COMPONENT,

@@ -32,6 +32,7 @@ import {
   type RoleScoreLayerPredecessors,
   type ScoreLayerTerminalIdentity,
 } from '../policy/score-layer/definition.ts'
+import { appliesFrom, EVIL_CLAIM } from '../policy/applicability.ts'
 
 export const EVIL_ROLE_SCORE_LAYER = scoreLayerToken(
   'evil-role-score',
@@ -70,12 +71,7 @@ function evilDefinition(
     token,
     predecessor,
     requiredComponents: Object.freeze([EVIL_ROLE_UTILITY_COMPONENT]),
-    applies: (context) =>
-      context.view.alignment === 'evil'
-      && (
-        context.request.kind === 'propose'
-        || context.request.kind === 'vote'
-      ),
+    applies: appliesFrom(EVIL_CLAIM),
     execute(context: ScoreLayerTransformContext) {
       const projection: PrivateEvilRoleUtilityProjection =
         context.components.require(EVIL_ROLE_UTILITY_COMPONENT)

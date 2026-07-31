@@ -100,6 +100,11 @@ import {
   legalCandidates,
 } from '../policy/candidates.ts'
 import {
+  appliesFrom,
+  EVIL_CLAIM,
+  MORGANA_CLAIM,
+} from '../policy/applicability.ts'
+import {
   FORCED_POLICY_VERSION,
   type ForcedPolicyResult,
 } from '../policy/types.ts'
@@ -337,6 +342,9 @@ export function nativeScoreComponentDefinitions(
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
     applies(context) {
+      // Deliberately NOT appliesFrom(EVIL_CLAIM): the evil base objective is
+      // computed for every evil seat on every decision kind, whereas EVIL_CLAIM
+      // (and evilUtility below) narrows to propose/vote. Do not unify these.
       return context.view.alignment === 'evil'
     },
     join(context) {
@@ -363,10 +371,7 @@ export function nativeScoreComponentDefinitions(
       PRIVATE_IDENTITY_INPUT,
       PRIVATE_PUBLIC_OBSERVER_INPUT,
     ],
-    applies(context) {
-      return context.view.alignment === 'evil'
-        && (context.request.kind === 'propose' || context.request.kind === 'vote')
-    },
+    applies: appliesFrom(EVIL_CLAIM),
     join(context) {
       const { req, view, identity, observer } = identityContext(context)
       // A vote is scored against the proposals this seat could have made
@@ -444,13 +449,7 @@ export function nativeScoreComponentDefinitions(
     requiredHostInputs: [
       PRIVATE_BELIEF_INPUT,
     ],
-    applies(context) {
-      return context.view.role === 'morgana'
-        && (
-          context.request.kind === 'propose'
-          || context.request.kind === 'vote'
-        )
-    },
+    applies: appliesFrom(MORGANA_CLAIM),
     join(context) {
       return {
         req: context.request,
@@ -489,13 +488,7 @@ export function nativeScoreComponentDefinitions(
       ...(selectionMode === 'seeded-near-equal-vote-within-d2-band'
         ? { deterministicSeedDomain: MORGANA_ROLE_UTILITY_PROJECTION_VERSION }
         : {}),
-      applies(context) {
-        return context.view.role === 'morgana'
-          && (
-            context.request.kind === 'propose'
-            || context.request.kind === 'vote'
-          )
-      },
+      applies: appliesFrom(MORGANA_CLAIM),
       join(context) {
         return {
           req: context.request,

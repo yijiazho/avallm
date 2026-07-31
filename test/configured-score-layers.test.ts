@@ -44,6 +44,15 @@ import {
   compareCandidateIds,
 } from '../server/agents/policy/candidates.ts'
 import {
+  ASSASSIN_CLAIM,
+  EVIL_CLAIM,
+  MORDRED_CLAIM,
+  MORGANA_CLAIM,
+  appliesFrom,
+  assertRoleClaimsPartition,
+  type Applicability,
+} from '../server/agents/policy/applicability.ts'
+import {
   projectConfiguredScoreDiagnostics,
 } from '../server/agents/policy/score-compatibility.ts'
 import {
@@ -301,6 +310,57 @@ test('family bases stay separate from the derived linear predecessors', () => {
         false,
       ],
     ],
+  )
+})
+
+test('role claims derive applies and are enforced to partition', () => {
+  const context = (
+    fields: {
+      role?: string
+      alignment?: string
+      kind: string
+    },
+  ) => ({
+    view: {
+      role: fields.role ?? 'servant',
+      alignment: fields.alignment ?? 'good',
+    },
+    request: { kind: fields.kind },
+  }) as never
+
+  // Derived predicates gate on role/alignment and kind only.
+  const evil = appliesFrom(EVIL_CLAIM)
+  const morgana = appliesFrom(MORGANA_CLAIM)
+  const assassin = appliesFrom(ASSASSIN_CLAIM)
+  assert.equal(evil(context({ alignment: 'evil', kind: 'vote' })), true)
+  assert.equal(evil(context({ alignment: 'good', kind: 'vote' })), false)
+  assert.equal(evil(context({ alignment: 'evil', kind: 'assassinate' })), false)
+  assert.equal(morgana(context({ role: 'morgana', kind: 'propose' })), true)
+  assert.equal(morgana(context({ role: 'mordred', kind: 'propose' })), false)
+  assert.equal(
+    assassin(context({ role: 'assassin', kind: 'assassinate' })),
+    true,
+  )
+  assert.equal(assassin(context({ role: 'assassin', kind: 'vote' })), false)
+
+  // The real tree partitions, and the alignment base co-applies without
+  // tripping the check.
+  assert.doesNotThrow(() => assertRoleClaimsPartition([
+    EVIL_CLAIM,
+    MORGANA_CLAIM,
+    MORDRED_CLAIM,
+    ASSASSIN_CLAIM,
+  ]))
+  // A second layer claiming an already-claimed role is rejected, even when it
+  // narrows to a different kind: a seat has one role and both would run.
+  const shadowMorgana: Applicability = {
+    by: 'role',
+    role: 'morgana',
+    kinds: ['assassinate'],
+  }
+  assert.throws(
+    () => assertRoleClaimsPartition([MORGANA_CLAIM, shadowMorgana]),
+    /both claim role morgana/,
   )
 })
 
