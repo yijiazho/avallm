@@ -90,7 +90,8 @@ export function createAgentFromDef(
   switch (def.engine.type) {
     case 'heuristic': return createHeuristicAgent(ctx)
     case 'composed': {
-      const adapters = def.engine.adapter === 'bounded-llm'
+      const boundedLlm = def.engine.adapter === 'bounded-llm'
+      const adapters = boundedLlm
         ? createBoundedPlannerVoice({
             client: dependencies.client ?? getClient(),
             model: rosterById(resolveModel(def, modelOverride)).slug,
@@ -102,6 +103,10 @@ export function createAgentFromDef(
         onDecisionTrace: ctx.onDecisionTrace,
         ...composedBrainOptions(def.engine.brain),
         ...adapters,
+        // A seated planner reads the private pin summary from its
+        // planning-only context; a planner-less composed agent would only pay
+        // to resolve reads nothing consumes, so pins ride the bounded-llm path.
+        ...(boundedLlm ? { pinReads: true } : {}),
       })
     }
     case 'llm':
