@@ -105,7 +105,7 @@ held-out casts) before granting scoring authority — as step 3 did, and matchin
 how the quest-card factor is pinned. The step-3 harness is now formalized as
 `server/eval/assassin-calibration.ts`.
 
-## Measured: the servant weight pair does not earn scoring authority
+## Measured: the servant weight pair shows no effect, on an instrument too blunt to say more
 
 The servant is the first role whose objective was written as a weight pair over
 the shared public read rather than as its own model, and the only one whose
@@ -117,36 +117,78 @@ servant-target cases of the frozen phase-4 bank, two arms differing by exactly
 one layer and one component, both free populations, plus compatibility as a
 reference.
 
-**The refinement did not earn it.**
+### What the run supports
 
-| delta vs its own base | heuristic | random |
-| --- | --- | --- |
-| win | +0.0% (7/60 both arms) | -1.7% (95% -6.7 to +3.3) |
-| clean proposal | -3.1% (95% -10.0 to +3.6) | -1.3% (95% -7.9 to +4.6) |
-| dirty-team approve | -0.5% (95% -2.2 to +0.9) | **+1.7% (95% +0.2 to +3.6)** |
+**The layer behaves as designed.** Of the target proposals reachable from an
+identical prefix, the pick changed 26.8% (19/71) against heuristic opponents and
+26.0% (20/77) against random ones, and the changes land where the read has
+signal: **0 of 12 and 0 of 22 at round one**, rising through q3-q5. The measured
+round profile of the projection (0% separation at r1, 100% at r4-r5) reproduces
+end to end.
 
-Nothing improved. The only interval that excludes zero moved the wrong way, and
-against heuristic opponents the win rate was not merely flat in expectation but
-*identical*, case for case.
+**No large effect exists.** Win rate moved +0.0% (heuristic, 7/60 in both arms)
+and -1.7% (random). Whatever this layer does, it is not worth ten points.
 
-The mechanism is the interesting part, and it indicts the weight pair rather
-than the arithmetic. `proposal-value-diagnosis.ts` pairs each arm's first target
-proposal with the baseline's from an identical prefix, so the two are the same
-decision. The refinement changed 23% of them (heuristic), and of the changes
-that moved cleanliness at all, **every one made the team dirtier** (2 to 0;
-21.4% to 11.5% clean over the changed pairs). By round, the clean rate falls
-exactly where the layer has signal: q3 20.0% to 10.0%, q4 13.6% to 4.5% — the
-rounds where the public read was measured to separate 50% and 100% of proposals.
+### Why the bench cannot say more than that
 
-So `evilReadIndex` is anti-correlated with actual cleanliness precisely where it
-discriminates. That is coherent with how it is built: it deliberately double
-counts failed-quest exposure on top of the exact marginal (see
-`PUBLIC_SELF_READ_CONSTANTS`), which measures how evil a seat *looks* to the
-table, not how evil it *is*. Optimizing the look is the decoy half of the
-servant objective, and on this bank it trades against the standing half rather
-than being free, which is what the servant module's own comment assumed.
+**The effective sample is ~20, not 60.** Only 19/60 and 20/60 games diverged
+from the baseline at all; the rest are byte-identical. Each diverged game
+carried about one changed proposal. So the experiment is really "about twenty
+single-proposal changes per population, does the win rate move," and the answer
+at that sample size could only ever be "cannot tell." Reporting "60 matched
+cases" overstates it by a factor of three.
 
-Two further findings from the same run, both already fixed:
+**Floor effect.** The target servant wins 11.7% against heuristic opponents, and
+44 of 60 games end in `threeFails` before anyone reaches the assassination
+phase. A single seat's proposal tie-break has almost no leverage on a
+distribution that lopsided.
+
+**One refined seat in an unrefined table.** `runArchitectureBench` gives the
+variant agent to the target seat only; every other seat is the free population.
+On 8-to-10-player tables that is one refined servant among three or four, so the
+bench measures a lone refined seat rather than the policy as deployed, which
+runs at every servant seat through `fullRolePolicyScorer`.
+
+**The decoy half is close to untestable here.** Half the servant objective is to
+look Merlin-like so the assassin spends its shot wrongly, which can only pay off
+through `assassinMissed`, and only 16 of 60 heuristic games reach assassination
+at all. The bank also runs with discussion disabled, removing the main channel
+through which a table forms the perception this half is trying to manipulate.
+Assassination outcomes were unchanged (`merlinAssassinated` 9 to 9, missed 7 to
+7) on a sample that could not have shown a change.
+
+### A claim to retract
+
+An earlier draft of this section said the mechanism was established: that
+`evilReadIndex` is anti-correlated with actual cleanliness where it
+discriminates, on the strength of "every cleanliness-moving change went the
+wrong way, 2 to 0," plus per-round clean rates falling at q3 and q4.
+
+**Those are differences of two to four proposals.** 2-to-0 is a coin landing
+heads twice; q4's "13.6% to 4.5%" is 3 of 22 becoming 1 of 22. The direction is
+consistent across cells, which is worth remembering, but it is a hypothesis, not
+a measurement. Likewise the one interval that excluded zero (`dirty-approve`
++1.7% against random) is one of roughly a dozen intervals reported across two
+populations, which is where one such interval is expected by chance. The register
+already warns about exactly this reading, and this section was doing it.
+
+### The instrument was the wrong shape
+
+The question is per-decision: given this proposal, does the refinement pick a
+better team? The bench answers it through game outcomes, which costs three
+orders of magnitude of sample and adds every source of variance in the game
+between the decision and the result.
+
+The right pattern is already in the repo. `assassin-calibration.ts` scores a
+1,200-prediction held-out set directly, and that is what made step 3's verdict
+binding. A servant equivalent would sweep many seeded games, and for **every**
+servant propose decision record whether the base pick and the refined pick each
+seated evil, giving a paired binary comparison with n in the thousands from the
+same play. `servant-propose-bench.ts` should keep its job (it caught the
+component-closure defect below, and it bounds the size of any outcome effect),
+but it should not be the gate.
+
+### Two defects the run did establish
 
 - The score family was first declared last among the specializations, which made
   its terminal inherit the whole evil subtree's component closure: the candidate
@@ -159,22 +201,24 @@ Two further findings from the same run, both already fixed:
 - `proposal-value-diagnosis.ts` cannot read a surface from any layer that
   narrows viability to a single row: its value-structure and posterior columns
   key on the good proposal features and go blank. The matched-pair section still
-  works, which is where the finding above came from.
+  works.
 
-**The wider lesson, alongside step 3's.** Two roles have now been tested against
-the shared-measurement claim and both split the same way. Summation discipline
-and the measurement itself consolidate. The *preference* does not: the assassin's
-overlay beat a shared-matrix steelman by 5 hit-rate points, and the servant's
-weight pair failed to beat the base it refines. One success would have been
-suggestive; two failures in the same direction say the per-role weight table is
-the wrong shape for the preference layer, not merely unfinished.
+### What still stands, and the open question
 
-**Open question this raises, and it is the bigger one.** Compatibility beats the
-composed good policy at a servant seat by **+15.0% win (95% +5.0 to +25.0)**
-against heuristic opponents on these same games. The refinement was polishing
-tie-breaks on a policy that is fifteen points behind the checked-in behavior at
-the seat it was refining. NB-010 localized that gap to the vote channel; this
-run restates it on the propose side of the same bank. Closing it is worth more
+Two roles have now been tested against the shared-measurement claim. Summation
+discipline and the measurement itself consolidate, twice. On the *preference*,
+step 3 has a real negative (the assassin overlay beat a shared-matrix steelman
+by 5 hit-rate points on 1,200 held-out predictions) and the servant has **no
+result at all**, not a negative one. One negative is not a pattern; the weight
+table is open, and testing it needs the calibration-shaped harness above.
+
+The larger finding from this run is not about the weight pair. Compatibility
+beats the composed good policy at a servant seat by **+15.0% win (95% +5.0 to
++25.0)** against heuristic opponents on these games, which is a big effect on
+the same thin sample everything else here was too thin to show. The refinement
+was polishing tie-breaks on a policy fifteen points behind the checked-in
+behavior at the seat it refines. NB-010 localized that gap to the vote channel;
+this restates it on the propose side of the same bank. Closing it is worth more
 than any weight pair.
 
 ## Experiment: does surfacing the perception read help? (hybrid vs pure-LLM)

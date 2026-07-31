@@ -1,8 +1,12 @@
 // The gate for the servant propose refinement, and the properties that make a
 // run of it readable as evidence rather than as a number.
 //
-// The measured verdict is recorded in docs/design-perception-primitive.md; this
-// suite pins the harness, not the result. What it has to protect is the thing
+// The measured verdict is recorded in docs/design-perception-primitive.md,
+// along with why this bench cannot be the gate: only about a third of its games
+// diverge at all, so roughly twenty changed proposals per population have to
+// carry any win-rate claim. It bounds the size of an outcome effect and it
+// catches wiring defects; the per-decision question needs a calibration-shaped
+// harness. This suite pins the harness, not the result. What it has to protect is the thing
 // that makes the comparison mean anything: the two scoring arms must differ by
 // exactly one layer and one component. When the family was first declared last
 // in the score tree, the candidate arm configured eleven components (the whole

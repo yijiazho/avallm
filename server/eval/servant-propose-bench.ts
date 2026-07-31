@@ -24,6 +24,18 @@
 // Both free populations run, because NB-010's central lesson is that this
 // channel's sign is set by whether the opponents can exploit it. Everything here
 // is API-free and makes no provider call.
+//
+// KNOWN LIMIT, measured on the first full run and written up in
+// docs/design-perception-primitive.md: this bench cannot settle whether the
+// refinement helps. Only 19 of 60 games diverge from the baseline at all, each
+// carrying about one changed proposal, so a win-rate claim rests on roughly
+// twenty single-decision changes; the target servant also wins only 11.7%
+// against heuristic opponents, and is the one refined seat among up to four. It
+// is still worth running: it bounds the size of any outcome effect, and it is
+// what caught the score-family placement defect that had made the two arms
+// configure eleven components against two. The per-decision question wants the
+// shape of assassin-calibration.ts instead: score every servant propose
+// decision across many seeded games and compare the two picks directly.
 
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
