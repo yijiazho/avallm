@@ -138,6 +138,9 @@ function merlinlessServantProposal(): ServantFixture {
 
 const opening = openingServantProposal()
 const merlinless = merlinlessServantProposal()
+// Hoisted, not called per test: the search replays whole heuristic games and
+// is deterministic, so two callers would pay for the identical work twice.
+const late = await lateServantProposal()
 
 const roleValues = (fixture: ServantFixture): ReadonlyMap<string, number> =>
   new Map(buildServantRoleUtilityProjection({
@@ -213,7 +216,6 @@ assertScoreFamilyConformance({
 // a layer that moved the pick to a WORSE-reading team would satisfy the first
 // assertion alone.
 test('a board with evidence moves the pick to a cleaner-reading team', async () => {
-  const late = await lateServantProposal()
   const values = roleValues(late)
   const base = await createComposedAgent({
     seed: late.seed,
@@ -287,7 +289,6 @@ test('an opening board reports its own flatness and keeps the base pick', async 
 // The magnitude claim, asserted rather than argued. The adjustment is a
 // tie-breaker: it decides a base gap of 0.0000 and cannot overturn a wider one.
 test('the centered adjustment is bounded by the scale it declares', async () => {
-  const late = await lateServantProposal()
   const values = roleValues(late)
   const base = await createComposedAgent({
     seed: late.seed,
@@ -301,8 +302,13 @@ test('the centered adjustment is bounded by the scale it declares', async () => 
   const baseById = new Map(
     base.trace!.candidateScores!.map((score) => [score.candidateId, score]),
   )
+  // By the forced-policy verdict the row already carries, not by a threshold
+  // standing in for the REMOVED_VALUE sentinel: a base that ever scored a
+  // survivor negative would silently empty this filter.
   const survivors = refined.trace!.candidateScores!.filter((score) =>
-    baseById.get(score.candidateId)!.value > -1)
+    baseById.get(score.candidateId)!.reasonCodes.includes(
+      'FORCED_POLICY_ALLOWED',
+    ))
   assert.ok(survivors.length > 1, 'a single survivor proves nothing here')
   const mean = survivors.reduce(
     (sum, score) => sum + values.get(score.candidateId)!,

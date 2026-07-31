@@ -193,11 +193,25 @@ function servantDefinition(
                 forcedAllowed
                   ? 'FORCED_POLICY_ALLOWED'
                   : 'FORCED_POLICY_REMOVED',
-                // The base's own tie-break loses its claim on the pick the
-                // moment this layer moves the values, so it stops being
-                // reported. Everything else the base said still holds.
+                // Two kinds of code are dropped from the prior row rather than
+                // carried through.
+                //
+                // The forced-policy verdict, because it is restated above and
+                // the prior row already opens with it: keeping both stamped it
+                // twice on every row, which is a trace that reports one fact as
+                // two and spends two of the 32 codes a row is allowed.
+                //
+                // The base's own selection statements, because this layer has
+                // taken the pick over. Its maximal-clean set and its
+                // lexicographic tie-break both describe a choice that no longer
+                // stands, and leaving them on would have ten rows claiming to
+                // be chosen beside the one that actually was. Everything the
+                // base said about the candidates themselves still holds.
                 ...row.base.reasonCodes.filter((reason) =>
-                  reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK'),
+                  reason !== 'FORCED_POLICY_ALLOWED'
+                  && reason !== 'FORCED_POLICY_REMOVED'
+                  && reason !== 'GOOD_PROPOSAL_MAX_TEAM_CLEAN'
+                  && reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK'),
                 'SERVANT_ROLE_PUBLIC_READ_COMPOSITE',
                 separated
                   ? 'SERVANT_ROLE_PUBLIC_READ_SEPARATED'

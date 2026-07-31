@@ -290,6 +290,14 @@ export interface NativeScoreComponentConfiguration {
   readonly goodObjectiveAllDecisionKinds: boolean
 }
 
+/**
+ * Derived once, like every sibling's `applies: appliesFrom(...)`. The servant
+ * predicate is the one that has to be combined with a second condition, so it
+ * needs a name rather than sitting inline; building it inside the callback
+ * would rebuild the claim's kind set on every applicability evaluation.
+ */
+const servantClaimApplies = appliesFrom(SERVANT_CLAIM)
+
 export function nativeScoreComponentDefinitions(
   configuration: NativeScoreComponentConfiguration,
 ): readonly DecisionComponentDefinition<any>[] {
@@ -461,7 +469,7 @@ export function nativeScoreComponentDefinitions(
     // component declines but that layer accepts reaches a required-component
     // read with nothing to read.
     applies: (context) =>
-      appliesFrom(SERVANT_CLAIM)(context) && merlinSeated(context),
+      servantClaimApplies(context) && merlinSeated(context),
     join: (context) => ({
       view: context.view,
       candidates: legalCandidates(context.request, context.view),
