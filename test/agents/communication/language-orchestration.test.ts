@@ -41,7 +41,7 @@ import type {
   Seat,
 } from '../../../server/engine/types.ts'
 import { parseExternalDecisionReply } from '../../../server/agents/external-reply.ts'
-import { runArchitectureBench } from '../../../server/eval/architecture-bench.ts'
+import { runArchitectureBench } from '../../../server/eval/harness/architecture-bench.ts'
 
 const INTERPRETER_VERSION = 'fake-phase6c-v1'
 

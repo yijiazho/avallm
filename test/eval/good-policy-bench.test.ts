@@ -5,20 +5,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../../server/engine/game.ts'
 import { parseExternalDecisionReply } from '../../server/agents/external-reply.ts'
-import { runArchitectureBench } from '../../server/eval/architecture-bench.ts'
+import { runArchitectureBench } from '../../server/eval/harness/architecture-bench.ts'
 import {
   architectureReport,
   renderArchitectureReport,
 } from '../../server/eval/architecture-report.ts'
-import { validateArchitectureBank } from '../../server/eval/architecture-bank.ts'
+import { validateArchitectureBank } from '../../server/eval/banks/architecture-bank.ts'
 import {
   PHASE4_POLICY_BANK,
   PHASE4_POLICY_BANK_ID,
-} from '../../server/eval/good-policy-bank.ts'
+} from '../../server/eval/banks/good-policy-bank.ts'
 import {
   phase4PolicyVariants,
   PHASE4_POLICY_EVAL_VERSION,
-} from '../../server/eval/good-policy-bench.ts'
+} from '../../server/eval/runs/good-policy-bench.ts'
 
 test('Phase 4 policy bank freezes 180 good-side deals across every table size', () => {
   assert.equal(PHASE4_POLICY_BANK_ID, 'phase4-good-v1')

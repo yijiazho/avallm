@@ -49,11 +49,11 @@ import { publicCognition, reconstructCognition } from '../../../server/agents/co
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
-import { toArtifact } from '../../../server/eval/artifact.ts'
-import { snapshotAt } from '../../../server/eval/replay.ts'
+import { toArtifact } from '../../../server/eval/core/artifact.ts'
+import { snapshotAt } from '../../../server/eval/replay/replay.ts'
 import {
   PLAN_MEMORY_VERSION,
 } from '../../../server/agents/cognition/plan-memory.ts'

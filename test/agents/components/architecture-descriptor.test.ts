@@ -59,7 +59,7 @@ import {
 import {
   COHERENCE_MODEL_VERSION,
 } from '../../../server/agents/cognition/coherence.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import {
   projectBaseTraceComponentVersions,
 } from '../../../server/agents/trace.ts'

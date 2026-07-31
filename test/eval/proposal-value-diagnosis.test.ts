@@ -6,8 +6,8 @@ import assert from 'node:assert/strict'
 import {
   diagnoseProposalValue,
   renderProposalValueDiagnosis,
-} from '../../server/eval/proposal-value-diagnosis.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+} from '../../server/eval/runs/proposal-value-diagnosis.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 
 /**
  * The reader consumes a narrow projection of a bench artifact: the deal, the

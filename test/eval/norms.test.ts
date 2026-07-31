@@ -5,8 +5,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SPEECH_NORMS, speechNorms, mergeSpeechNorms, newSpeechNormReport } from '../../server/eval/norms.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+import { SPEECH_NORMS, speechNorms, mergeSpeechNorms, newSpeechNormReport } from '../../server/eval/harness/norms.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 import type { GameEvent, Role, Seat } from '../../server/engine/types.ts'
 
 const ROLES: Role[] = ['merlin', 'percival', 'servant', 'morgana', 'assassin']

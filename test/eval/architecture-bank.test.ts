@@ -10,7 +10,7 @@ import {
   ARCHITECTURE_BANK_ID,
   STANDARD_ROLES,
   validateArchitectureBank,
-} from '../../server/eval/architecture-bank.ts'
+} from '../../server/eval/banks/architecture-bank.ts'
 
 test('architecture bank covers 5-10 players and every standard role', () => {
   assert.doesNotThrow(() => validateArchitectureBank())

@@ -27,7 +27,7 @@ import {
   evilRoleObjectiveScorer,
 } from '../../../server/agents/policy/score.ts'
 import { exactBelief } from '../../../server/agents/belief/exact.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { resolveQuest } from '../../support/quests.ts'
 import { parseExternalDecisionReply } from '../../../server/agents/external-reply.ts'
 import {

@@ -8,11 +8,11 @@ import path from 'node:path'
 import {
   createSeatViewInspectorUiServer,
   startSeatViewInspectorUi,
-} from '../../server/eval/seat-view-inspector-ui.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+} from '../../server/eval/inspect/seat-view-inspector-ui.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 import {
   SEAT_DECISION_INSPECTION_SCHEMA,
-} from '../../server/eval/seat-decision-inspector.ts'
+} from '../../server/eval/inspect/seat-decision-inspector.ts'
 
 async function textAt(url: string): Promise<{
   status: number

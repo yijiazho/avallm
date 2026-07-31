@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { exactBelief } from '../../../server/agents/belief/exact.ts'
 import { assessTeam } from '../../../server/agents/belief/team-assessment.ts'
 import { PROBABILITY_TOLERANCE } from '../../../server/agents/canonical/probability-arithmetic.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { Decision, PlayerView, Seat } from '../../../server/engine/types.ts'
 
 interface ExpectedFixtureBelief {

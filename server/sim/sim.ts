@@ -12,14 +12,14 @@ import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame, type RunResult } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import { renderTranscript } from '../transcript.ts'
-import { appendArtifact, toArtifact } from '../eval/artifact.ts'
+import { appendArtifact, toArtifact } from '../eval/core/artifact.ts'
 import {
   FORCED_PLAY_RULES, forcedPlayViolations,
   type ForcedPlayRule, type ForcedPlayViolation,
-} from '../eval/forced.ts'
+} from '../eval/harness/forced.ts'
 import {
   SPEECH_NORMS, SPEECH_NORM_IDS, mergeSpeechNorms, newSpeechNormReport, speechNorms,
-} from '../eval/norms.ts'
+} from '../eval/harness/norms.ts'
 import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import {
   COMPOSED_BRAIN_PRESETS,

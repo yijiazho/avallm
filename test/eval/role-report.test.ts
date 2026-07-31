@@ -12,7 +12,7 @@ import {
   PHASE7_ROLE_REPORT_BASELINE,
   PHASE7_VIRTUAL_ASSASSIN_BASELINE,
   serializePhase7RoleReport,
-} from '../../server/eval/role-report.ts'
+} from '../../server/eval/reports/role-report.ts'
 
 const roleText = readFileSync(PHASE7_ROLE_EVIDENCE_BASELINE, 'utf8')
 const virtualText = readFileSync(

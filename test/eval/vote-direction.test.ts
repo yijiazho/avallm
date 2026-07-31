@@ -3,7 +3,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { runArchitectureBench } from '../../server/eval/architecture-bench.ts'
+import { runArchitectureBench } from '../../server/eval/harness/architecture-bench.ts'
 import {
   architectureReport,
   renderArchitectureReport,
@@ -16,10 +16,10 @@ import {
   teamIsDirty,
   totalVotes,
   voteRateCount,
-} from '../../server/eval/vote-direction.ts'
-import type { VoteConfusionCounts } from '../../server/eval/vote-direction.ts'
+} from '../../server/eval/runs/vote-direction.ts'
+import type { VoteConfusionCounts } from '../../server/eval/runs/vote-direction.ts'
 import type { AgentDef } from '../../server/agents/defs.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 import type { GameEvent, Seat } from '../../server/engine/types.ts'
 
 function tally(

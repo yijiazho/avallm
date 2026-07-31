@@ -17,8 +17,8 @@ import {
 import { createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
 import { runGame } from '../../server/sim/runner.ts'
-import { appendArtifact, readArtifacts, toArtifact } from '../../server/eval/artifact.ts'
-import { snapshotAt } from '../../server/eval/replay.ts'
+import { appendArtifact, readArtifacts, toArtifact } from '../../server/eval/core/artifact.ts'
+import { snapshotAt } from '../../server/eval/replay/replay.ts'
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Seat } from '../../server/engine/types.ts'
 

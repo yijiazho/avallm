@@ -73,7 +73,7 @@ import {
   withUniversalForcedPolicy,
 } from '../../../../server/agents/policy/decision-frame.ts'
 import { detachTrustedPolicyData } from '../../../../server/agents/policy/trusted-data.ts'
-import { readDecisionFixtures } from '../../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../../server/eval/replay/decision-fixtures.ts'
 import { testConfiguredPipeline } from '../../../support/configured-pipeline.ts'
 import { assertScoreLayerRunContract } from '../../../support/score-layer-contract.ts'
 import {

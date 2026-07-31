@@ -46,22 +46,22 @@ import type {
   Seat,
 } from '../../../server/engine/types.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import {
   phase4PolicyVariants,
-} from '../../../server/eval/good-policy-bench.ts'
+} from '../../../server/eval/runs/good-policy-bench.ts'
 import {
   PHASE4_POLICY_BANK,
-} from '../../../server/eval/good-policy-bank.ts'
+} from '../../../server/eval/banks/good-policy-bank.ts'
 import {
   authoritativeDecisionReplay,
-} from '../../../server/eval/trace-replay.ts'
+} from '../../../server/eval/replay/trace-replay.ts'
 
 const ROLES: readonly Role[] = [
   'merlin',

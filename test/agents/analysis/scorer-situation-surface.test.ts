@@ -34,7 +34,7 @@ import type {
 } from '../../../server/engine/types.ts'
 import { evilPartnersOf } from '../../../server/engine/knowledge.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 const jsonBytes = (value: unknown): Buffer =>
   Buffer.from(JSON.stringify(value), 'utf8')

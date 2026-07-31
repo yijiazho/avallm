@@ -9,8 +9,8 @@ import {
   renderSeatViewInspection,
   SEAT_VIEW_INSPECTION_SCHEMA,
   SEAT_VIEW_INSPECTOR_USAGE,
-} from '../../server/eval/seat-view-inspector.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+} from '../../server/eval/inspect/seat-view-inspector.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 import type {
   DecisionRequest,
   GameEvent,

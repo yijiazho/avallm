@@ -54,13 +54,13 @@ import type {
   Role,
 } from '../../../server/engine/types.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { projectPublicRecord } from '../../../server/agents/record/public-record.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'
 import type { AvalonAgent } from '../../../server/agents/types.ts'

@@ -70,7 +70,7 @@ import {
 import {
   detachTrustedPolicyData,
 } from '../../../server/agents/policy/trusted-data.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type {
   Decision,
   DecisionRequest,

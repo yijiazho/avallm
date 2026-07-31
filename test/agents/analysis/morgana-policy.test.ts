@@ -39,12 +39,12 @@ import {
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
 import {
   authoritativeDecisionSnapshots,
-} from '../../../server/eval/trace-replay.ts'
+} from '../../../server/eval/replay/trace-replay.ts'
 import { JOINT_IDENTITY_MODEL_VERSION } from '../../../server/agents/belief/identity.ts'
 import { PUBLIC_OBSERVER_MODEL_VERSION } from '../../../server/agents/analysis/observer-types.ts'
 import { ROLE_OBJECTIVE_ROUTER_VERSION } from '../../../server/agents/analysis/evil-objective-types.ts'

@@ -19,7 +19,7 @@ import type {
   GameEvent,
   PlayerView,
 } from '../../../server/engine/types.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 test('prompt facts and language context import the same public-record owner', () => {
   const factsSource = readFileSync(

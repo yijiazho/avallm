@@ -9,11 +9,11 @@ import {
   PHASE5_VOTE_CONVERSION_BANK_ID,
   PHASE5_VOTE_CONVERSION_EVAL_VERSION,
   PHASE5_VOTE_CONVERSION_VARIANTS,
-} from '../../server/eval/vote-conversion-bench.ts'
+} from '../../server/eval/runs/vote-conversion-bench.ts'
 import {
   phase5VoteConversionReport,
   renderPhase5VoteConversionReport,
-} from '../../server/eval/vote-conversion-report.ts'
+} from '../../server/eval/reports/vote-conversion-report.ts'
 import {
   GOOD_PROPOSAL_SCORER_VERSION,
   GOOD_PROPOSAL_VOTE_SCORER_VERSION,
@@ -21,11 +21,11 @@ import {
 } from '../../server/agents/policy/score.ts'
 import {
   PHASE4_POLICY_BANK,
-} from '../../server/eval/good-policy-bank.ts'
+} from '../../server/eval/banks/good-policy-bank.ts'
 import {
   runArchitectureBench,
-} from '../../server/eval/architecture-bench.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 import type { GameEvent } from '../../server/engine/types.ts'
 
 const ROLES = [

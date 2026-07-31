@@ -30,7 +30,7 @@ import {
 import {
   type AgentDecision,
 } from '../../../server/agents/types.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { MAX_PROPOSALS } from '../../../server/engine/rules.ts'
 import type {
   DecisionRequest,

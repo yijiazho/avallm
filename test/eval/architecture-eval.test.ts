@@ -8,7 +8,7 @@ import {
   assertFreshArchitectureOutput,
   runArchitectureBench,
   spendDelta,
-} from '../../server/eval/architecture-bench.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
 import {
   architectureReport,
   renderArchitectureReport,

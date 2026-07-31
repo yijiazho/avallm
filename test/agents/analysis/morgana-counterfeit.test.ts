@@ -59,8 +59,8 @@ import { viewFor } from '../../../server/engine/view.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'
 import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../../../server/agents/canonical/canonical-json.ts'

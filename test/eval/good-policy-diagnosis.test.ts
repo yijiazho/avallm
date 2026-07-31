@@ -4,8 +4,8 @@ import test from 'node:test'
 import {
   diagnoseGoodPolicy,
   renderGoodPolicyDiagnosis,
-} from '../../server/eval/good-policy-diagnosis.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+} from '../../server/eval/runs/good-policy-diagnosis.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 
 /**
  * The reader consumes a narrow public projection of a bench artifact, so these

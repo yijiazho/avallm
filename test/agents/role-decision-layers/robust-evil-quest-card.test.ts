@@ -34,7 +34,7 @@ import {
 } from '../../../server/agents/candidate/candidates.ts'
 import {
   readDecisionFixtures,
-} from '../../../server/eval/decision-fixtures.ts'
+} from '../../../server/eval/replay/decision-fixtures.ts'
 import type {
   DecisionRequest,
   PlayerView,

@@ -6,7 +6,7 @@ import {
   collectHeuristicCorpus,
   countDistinctViewKeys,
   DEFAULT_GAMES_PER_PLAYER_COUNT,
-} from '../../server/eval/cognition-performance.ts'
+} from '../../server/eval/runs/cognition-performance.ts'
 import {
   advanceCognition,
   reconstructCognition,

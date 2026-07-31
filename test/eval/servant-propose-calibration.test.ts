@@ -21,7 +21,7 @@ import {
   servantProposalPicker,
   projectionAdjustedPicker,
   SERVANT_PROPOSE_HYPOTHESES,
-} from '../../server/eval/servant-propose-calibration.ts'
+} from '../../server/eval/runs/servant-propose-calibration.ts'
 import { ROLE_ALIGNMENT } from '../../server/engine/rules.ts'
 
 const SEEDS = 2

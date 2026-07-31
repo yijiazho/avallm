@@ -17,7 +17,7 @@ import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
 } from '../../server/agents/components/native-role-components.ts'
 import { heuristicDecide } from '../../server/agents/heuristic.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 import { createGame } from '../../server/engine/game.ts'
 import type {
   Decision,

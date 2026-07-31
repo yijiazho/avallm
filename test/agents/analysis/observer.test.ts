@@ -39,12 +39,12 @@ import type {
   Role,
 } from '../../../server/engine/types.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
 import { legalCasts } from '../../support/casts.ts'
 

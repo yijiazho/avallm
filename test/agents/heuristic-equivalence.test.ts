@@ -6,11 +6,11 @@ import { loadAgentLibrary } from '../../server/agents/defs.ts'
 import {
   defaultComponents,
   runArchitectureBench,
-} from '../../server/eval/architecture-bench.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
 import {
   heuristicDecide,
 } from '../../server/agents/heuristic.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 
 const PHASE3A_HEURISTIC_BANK_HASH =
   'f1248c779f9b515f8ac201c6ee4a3f8635c2c6af1a8335e0a587c306da66e76c'

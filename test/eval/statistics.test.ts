@@ -25,14 +25,14 @@ import {
   rate,
   seededRandom,
   sumOf,
-} from '../../server/eval/statistics.ts'
+} from '../../server/eval/core/statistics.ts'
 import {
   diagnosisPer,
   diagnosisPercent,
   overviewPercent,
   renderDelta,
   renderRate,
-} from '../../server/eval/report-format.ts'
+} from '../../server/eval/core/report-format.ts'
 
 /**
  * Every TypeScript source under server/eval, recursively, minus the module that
@@ -276,7 +276,7 @@ test('no eval module hand-rolls a published formatter', () => {
       String.raw`^\s*(?:export\s+)?(?:const|let|function)\s+${name}\b`,
       'm',
     ).test(source)
-  const offenders = evalSources('report-format.ts')
+  const offenders = evalSources('core/report-format.ts')
     .flatMap(({ label, source }) =>
       names
         .filter((name) => declares(source, name))
@@ -378,7 +378,7 @@ test('no eval module carries a second copy of the estimator', () => {
   // this estimator, and statistics.ts no longer spells them at all now that it
   // shares the engine's fnv1a.
   const marks = ['1.959963984540054', 'state << 13', 'state >>> 17']
-  const offenders = evalSources('statistics.ts')
+  const offenders = evalSources('core/statistics.ts')
     .filter(({ source }) => marks.some((mark) => source.includes(mark)))
     .map(({ label }) => label)
   assert.deepEqual(offenders, [])
@@ -394,7 +394,7 @@ test('no eval module re-declares the estimator input shape', () => {
   //
   // The estimator's input shape therefore has exactly one declaration. A module
   // that needs it imports RateCount rather than spelling it again.
-  const offenders = evalSources('statistics.ts')
+  const offenders = evalSources('core/statistics.ts')
     .filter(({ source }) => /^\s*successes\s*:\s*number\b/m.test(source))
     .map(({ label }) => label)
   assert.deepEqual(offenders, [])

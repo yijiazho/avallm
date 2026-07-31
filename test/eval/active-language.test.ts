@@ -18,21 +18,21 @@ import {
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_ID,
   ACTIVE_LANGUAGE_ARCHITECTURE_BANK_PROFILE,
   ARCHITECTURE_BANK,
-} from '../../server/eval/architecture-bank.ts'
+} from '../../server/eval/banks/architecture-bank.ts'
 import {
   activeLanguageEvaluationVariant,
   ACTIVE_LANGUAGE_EVALUATION_PIPELINE,
   ACTIVE_LANGUAGE_EVALUATION_INTERPRETER_VERSION,
   type ActiveLanguageEvaluationStats,
-} from '../../server/eval/active-language-bank.ts'
+} from '../../server/eval/banks/active-language-bank.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../server/eval/architecture-bench.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
 import {
   architectureReport,
 } from '../../server/eval/architecture-report.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 
 async function activeRun(stats?: ActiveLanguageEvaluationStats) {
   return runArchitectureBench({

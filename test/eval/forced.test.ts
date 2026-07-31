@@ -6,9 +6,9 @@
 // read a transcript to find them again.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { forcedPlayViolations } from '../../server/eval/forced.ts'
-import { computeMetrics } from '../../server/eval/metrics.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+import { forcedPlayViolations } from '../../server/eval/harness/forced.ts'
+import { computeMetrics } from '../../server/eval/core/metrics.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 import type { GameEvent, Role, Seat } from '../../server/engine/types.ts'
 
 type Ev = Omit<GameEvent, 'seq' | 'visibility'> & { visibility?: GameEvent['visibility'] }

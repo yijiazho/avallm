@@ -12,7 +12,7 @@ import {
 } from '../../server/agents/policy/evil-quest-card.ts'
 import {
   ARCHITECTURE_BANK,
-} from '../../server/eval/architecture-bank.ts'
+} from '../../server/eval/banks/architecture-bank.ts'
 import {
   phase7RoleEvidenceRow,
   phase7RoleVariantsFor,
@@ -20,11 +20,11 @@ import {
   runPhase7RoleEval,
   serializePhase7RoleEvidence,
   serializeVirtualAssassinEvidence,
-} from '../../server/eval/role-eval.ts'
+} from '../../server/eval/runs/role-eval.ts'
 import {
   joinVirtualAssassinTruth,
   prepareVirtualAssassinEvaluation,
-} from '../../server/eval/virtual-assassin.ts'
+} from '../../server/eval/harness/virtual-assassin.ts'
 
 test('Phase 7 CLI resolves distinct output files before freshness checks', () => {
   const paths = resolvePhase7RoleOutputPaths(

@@ -23,10 +23,10 @@ import {
 import {
   defaultComponents,
   runArchitectureBench,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import { composedBrainOptions } from '../../../server/agents/registry.ts'
 import { architectureReport } from '../../../server/eval/architecture-report.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { AgentDef } from '../../../server/agents/defs.ts'
 import type { Msg, CallOpts } from '../../../server/llm/openrouter.ts'
 

@@ -28,7 +28,7 @@ import {
 import {
   nb013VoteObjectiveVariants,
   NB013_VOTE_OBJECTIVE_VARIANTS,
-} from '../../server/eval/vote-objective-bench.ts'
+} from '../../server/eval/runs/vote-objective-bench.ts'
 import {
   admitDecisionTrace,
 } from '../../server/agents/admission/composed-trace.ts'
@@ -36,7 +36,7 @@ import { createComposedAgent } from '../../server/agents/composed.ts'
 import {
   revalidatedArchitectureIdentity,
 } from '../../server/agents/components/resolved-brain.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 import type { GoodVoteFeatures } from '../../server/agents/policy/good-score-contract.ts'
 import type { DecisionTrace } from '../../server/agents/trace.ts'
 

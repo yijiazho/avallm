@@ -5,20 +5,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../../server/engine/game.ts'
 import { DEFAULT_ROLES } from '../../server/engine/rules.ts'
-import { validateArchitectureBank } from '../../server/eval/architecture-bank.ts'
+import { validateArchitectureBank } from '../../server/eval/banks/architecture-bank.ts'
 import {
   PHASE7_EVIL_DEALS_PER_TARGET_ROLE,
   PHASE7_EVIL_POLICY_BANK,
   PHASE7_EVIL_POLICY_BANK_ID,
   PHASE7_EVIL_TARGET_ROLES,
-} from '../../server/eval/evil-policy-bank.ts'
-import { PHASE4_POLICY_BANK } from '../../server/eval/good-policy-bank.ts'
+} from '../../server/eval/banks/evil-policy-bank.ts'
+import { PHASE4_POLICY_BANK } from '../../server/eval/banks/good-policy-bank.ts'
 import {
   PHASE7_FULL_ROLE_BANKS,
   PHASE7_FULL_ROLE_EVAL_VERSION,
   phase7FullRoleVariantsFor,
   runPhase7FullRoleBench,
-} from '../../server/eval/full-role-bench.ts'
+} from '../../server/eval/runs/full-role-bench.ts'
 import {
   EVIL_ROLE_OBJECTIVE_MODEL_VERSION,
   ROLE_OBJECTIVE_ROUTER_VERSION,

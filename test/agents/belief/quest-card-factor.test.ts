@@ -33,9 +33,9 @@ import {
   PHASE5_QUEST_BANK_ID,
   runPhase5QuestBench,
   phase5QuestVariants,
-} from '../../../server/eval/quest-factor-bench.ts'
-import { PHASE4_POLICY_BANK } from '../../../server/eval/good-policy-bank.ts'
-import { runArchitectureBench } from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/runs/quest-factor-bench.ts'
+import { PHASE4_POLICY_BANK } from '../../../server/eval/banks/good-policy-bank.ts'
+import { runArchitectureBench } from '../../../server/eval/harness/architecture-bench.ts'
 
 function world(roles: readonly Role[]): HiddenWorld {
   return {

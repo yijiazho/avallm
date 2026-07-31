@@ -8,7 +8,7 @@ import { buildMessages } from '../../../server/agents/prompts.ts'
 import {
   experimentalBeliefContext,
 } from '../../../server/agents/experimental.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { OpenRouterClient } from '../../../server/llm/openrouter.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'
 import { BELIEF_RENDERER_VERSION } from '../../../server/agents/communication/belief-summary.ts'

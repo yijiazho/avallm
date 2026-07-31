@@ -15,10 +15,25 @@ test('trace admission consumers use the agent-owned closed boundary', () => {
     'utf8',
   )
   const externalReply = readFileSync('server/agents/external-reply.ts', 'utf8')
+  // Each consumer carries its OWN expected specifier rather than sharing one
+  // pattern: they now sit at different depths under server/eval/, and a single
+  // relaxed regex would stop pinning the exact path, which is the whole value
+  // of the assertion.
   const admissionConsumers = [
-    'server/eval/architecture-bench.ts',
-    'server/eval/architecture-report.ts',
-  ].map((path) => readFileSync(path, 'utf8'))
+    {
+      path: 'server/eval/harness/architecture-bench.ts',
+      toAgents: '../../agents',
+    },
+    {
+      path: 'server/eval/architecture-report.ts',
+      toAgents: '../agents',
+    },
+  ].map(({ path, toAgents }) => ({
+    source: readFileSync(path, 'utf8'),
+    importer: new RegExp(
+      `from '${toAgents.replace(/\./g, '\.')}/admission/composed-trace\.ts'`,
+    ),
+  }))
 
   assert.match(externalReply, /admitDecisionTrace/)
   assert.doesNotMatch(
@@ -26,16 +41,13 @@ test('trace admission consumers use the agent-owned closed boundary', () => {
     /validate(?:Composed|External|Finalized|Suppressed).*Trace/,
   )
   assert.doesNotMatch(owner, /from ['"].*(?:external-reply|server\/eval)/)
-  for (const source of admissionConsumers) {
+  for (const { source, importer } of admissionConsumers) {
     assert.match(source, /admit(?:Canonical)?DecisionTrace/)
     assert.doesNotMatch(
       source,
       /validate(?:Composed|Finalized|Suppressed).*Trace/,
     )
-    assert.match(
-      source,
-      /from '\.\.\/agents\/admission\/composed-trace\.ts'/,
-    )
+    assert.match(source, importer)
   }
 })
 

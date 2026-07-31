@@ -29,7 +29,7 @@ import {
   compatibilityCandidateScores,
   type CandidateScorer,
 } from '../../../server/agents/policy/score.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { testConfiguredPipeline } from '../../support/configured-pipeline.ts'
 
 test('registry rejects a single unsupported observer-model contribution', () => {

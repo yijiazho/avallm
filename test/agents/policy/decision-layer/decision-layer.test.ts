@@ -68,7 +68,7 @@ import type {
 } from '../../../../server/engine/types.ts'
 import {
   readDecisionFixtures,
-} from '../../../../server/eval/decision-fixtures.ts'
+} from '../../../../server/eval/replay/decision-fixtures.ts'
 import { testConfiguredPipeline } from '../../../support/configured-pipeline.ts'
 
 interface NativeFixturePayload {

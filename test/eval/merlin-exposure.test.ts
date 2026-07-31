@@ -15,7 +15,7 @@ import test from 'node:test'
 import { createGame } from '../../server/engine/game.ts'
 import { runGame } from '../../server/sim/runner.ts'
 import { createAgent } from '../../server/agents/registry.ts'
-import { toArtifact } from '../../server/eval/artifact.ts'
+import { toArtifact } from '../../server/eval/core/artifact.ts'
 import {
   MERLIN_EXPOSURE_VERSION,
   compareMerlinExposure,
@@ -23,8 +23,8 @@ import {
   scoreMerlinExposure,
   seedIndex,
   summarizeMerlinExposure,
-} from '../../server/eval/merlin-exposure.ts'
-import type { GameArtifact } from '../../server/eval/artifact.ts'
+} from '../../server/eval/runs/merlin-exposure.ts'
+import type { GameArtifact } from '../../server/eval/core/artifact.ts'
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Role, Seat } from '../../server/engine/types.ts'
 

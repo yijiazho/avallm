@@ -32,18 +32,18 @@ import {
 } from '../../server/agents/policy/score.ts'
 import {
   ARCHITECTURE_BANK,
-} from '../../server/eval/architecture-bank.ts'
+} from '../../server/eval/banks/architecture-bank.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../server/eval/architecture-bench.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
 import {
   architectureReport,
   renderArchitectureReport,
 } from '../../server/eval/architecture-report.ts'
 import type {
   GameArtifact,
-} from '../../server/eval/artifact.ts'
+} from '../../server/eval/core/artifact.ts'
 
 const merlinCase = ARCHITECTURE_BANK.find(
   (candidate) => candidate.targetRole === 'merlin',

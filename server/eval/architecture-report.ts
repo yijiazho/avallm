@@ -20,21 +20,21 @@ import {
 import {
   MAX_ARTIFACT_DECISION_COMPONENT_MANIFEST_JSON_BYTES,
   readArtifacts,
-} from './artifact.ts'
+} from './core/artifact.ts'
 import {
   computeMetrics,
-} from './metrics.ts'
+} from './core/metrics.ts'
 import {
   addVoteConfusion,
   countVoteByDirection,
   emptyVoteConfusion,
   teamIsDirty,
   voteRateCount,
-} from './vote-direction.ts'
+} from './runs/vote-direction.ts'
 import type {
   VoteConfusionCounts,
   VoteConfusionRate,
-} from './vote-direction.ts'
+} from './runs/vote-direction.ts'
 import {
   mean,
   median,
@@ -43,21 +43,21 @@ import {
   rate,
   seededRandom,
   sumOf,
-} from './statistics.ts'
+} from './core/statistics.ts'
 import type {
   RateDeltaEstimate,
   RateEstimate,
-} from './statistics.ts'
+} from './core/statistics.ts'
 import {
   fixed,
   renderDelta,
   renderMilliseconds,
   renderRate,
-} from './report-format.ts'
+} from './core/report-format.ts'
 import type {
   ArchitectureRunMetadata,
   GameArtifact,
-} from './artifact.ts'
+} from './core/artifact.ts'
 import type {
   DecisionKind,
   GameEvent,
@@ -132,14 +132,14 @@ import {
 } from '../agents/candidate/candidates.ts'
 import type {
   DecisionSnapshot,
-} from './replay.ts'
+} from './replay/replay.ts'
 import {
   authoritativeDecisionReplay,
   decisionTraceReplayJoin,
   exactTargetTraceCoverage,
   selectedDecisionReplayJoin,
   type AuthoritativeDecisionReplay,
-} from './trace-replay.ts'
+} from './replay/trace-replay.ts'
 import {
   admitCanonicalDecisionTrace,
   snapshotDecisionTraceInput,

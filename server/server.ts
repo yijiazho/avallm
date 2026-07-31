@@ -32,7 +32,7 @@ import {
   expectedDecisions,
   renamePlayer,
 } from './engine/game.ts'
-import { appendArtifact, toArtifact } from './eval/artifact.ts'
+import { appendArtifact, toArtifact } from './eval/core/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
 import { createAgentFromDef } from './agents/registry.ts'

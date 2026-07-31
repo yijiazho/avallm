@@ -7,7 +7,7 @@ import { analyzeSituation } from '../../../server/agents/analysis/situation.ts'
 import { reconstructCognition } from '../../../server/agents/cognition/state.ts'
 import { renderBeliefSummary } from '../../../server/agents/communication/belief-summary.ts'
 import { createDecisionTrace } from '../../../server/agents/trace.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 test('every frozen Phase 0 decision view deterministically reconstructs Phase 2 state', () => {
   for (const fixture of readDecisionFixtures()) {

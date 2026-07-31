@@ -10,7 +10,7 @@ import {
 } from '../../../server/agents/candidate/candidates.ts'
 import { applyForcedPolicy } from '../../../server/agents/policy/forced.ts'
 import { FORCED_POLICY_VERSION } from '../../../server/agents/candidate/types.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type {
   DecisionKind,
   DecisionRequest,

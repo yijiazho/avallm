@@ -14,7 +14,7 @@ import {
 import {
   projectPublicRecord,
 } from '../../../server/agents/record/public-record.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { Msg, CallOpts } from '../../../server/llm/openrouter.ts'
 import type {
   CommittedVoicePlan,

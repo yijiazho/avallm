@@ -42,14 +42,14 @@ import {
 } from '../../../server/agents/admission/composed-trace.ts'
 import {
   readDecisionFixtures,
-} from '../../../server/eval/decision-fixtures.ts'
+} from '../../../server/eval/replay/decision-fixtures.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import {
   ARCHITECTURE_BANK,
-} from '../../../server/eval/architecture-bank.ts'
+} from '../../../server/eval/banks/architecture-bank.ts'
 import {
   exactBelief,
 } from '../../../server/agents/belief/exact.ts'

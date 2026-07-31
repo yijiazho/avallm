@@ -15,8 +15,8 @@ import {
   inspectAdmittedPolicyRun,
   inspectSeatDecision,
   SEAT_DECISION_INSPECTION_SCHEMA,
-} from '../../server/eval/seat-decision-inspector.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+} from '../../server/eval/inspect/seat-decision-inspector.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 
 type Trusted = Extract<
   DecisionTraceAdmissionResult,

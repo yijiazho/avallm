@@ -60,7 +60,7 @@ flag name.** The traps already recorded in `reasoning-policy.ts` show why:
 Run the probe against the raw slug (spends a few cents; needs `OPENROUTER_API_KEY`):
 
 ```bash
-node server/eval/reasoning-probe.ts --model <vendor/slug> --samples 5
+node server/eval/harness/reasoning-probe.ts --model <vendor/slug> --samples 5
 ```
 
 It sweeps `{none-sent, effort:none, effort:minimal, effort:low, enabled:false}` and
@@ -75,7 +75,7 @@ recommends the entry to add. Read the recommendation, but read the table too:
 
 The winner maps 1:1 to a `POLICIES` row in `reasoning-policy.ts` (`suppress: null`
 or `suppress: { effort: '…' }`). The probe's logic lives in
-[`server/eval/reasoning-probe.ts`](../server/eval/reasoning-probe.ts); its decision
+[`server/eval/harness/reasoning-probe.ts`](../server/eval/harness/reasoning-probe.ts); its decision
 rules are pinned offline by [`test/eval/reasoning-probe.test.ts`](../test/eval/reasoning-probe.test.ts).
 
 ## Step 2 — Cost
@@ -124,7 +124,7 @@ assassin probe on saved games:
 
 ```bash
 npm run sim -- --agents llm --players 7 --talk 2,1 --out playtest-logs/candidate.jsonl
-node server/eval/probe.ts playtest-logs/candidate.jsonl
+node server/eval/harness/probe.ts playtest-logs/candidate.jsonl
 ```
 
 Known failure shapes worth grading against (each has bitten a real seat):

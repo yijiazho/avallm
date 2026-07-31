@@ -1,7 +1,7 @@
 // test-lane: perf
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { summarizeWarmTimings } from '../../server/eval/belief-performance.ts'
+import { summarizeWarmTimings } from '../../server/eval/runs/belief-performance.ts'
 
 test('warm timing summary uses an averaged median and nearest-rank p95', () => {
   const summary = summarizeWarmTimings(

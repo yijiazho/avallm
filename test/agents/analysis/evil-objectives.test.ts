@@ -64,19 +64,19 @@ import {
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../../server/eval/architecture-bench.ts'
+} from '../../../server/eval/harness/architecture-bench.ts'
 import {
   ARCHITECTURE_BANK,
-} from '../../../server/eval/architecture-bank.ts'
+} from '../../../server/eval/banks/architecture-bank.ts'
 import {
   architectureReport,
 } from '../../../server/eval/architecture-report.ts'
 import {
   readDecisionFixtures,
-} from '../../../server/eval/decision-fixtures.ts'
+} from '../../../server/eval/replay/decision-fixtures.ts'
 import {
   authoritativeDecisionSnapshots,
-} from '../../../server/eval/trace-replay.ts'
+} from '../../../server/eval/replay/trace-replay.ts'
 import { DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES } from '../../../server/agents/canonical/canonical-json.ts'
 
 const fixtures = readDecisionFixtures()

@@ -11,7 +11,7 @@ import {
   productionMerlinPosterior,
   scoreMerlinPosterior,
   type MerlinPosteriorBuilder,
-} from '../../server/eval/assassin-calibration.ts'
+} from '../../server/eval/runs/assassin-calibration.ts'
 import { buildPrivateEvilSeatMerlinPosterior } from '../../server/agents/analysis/assassin-merlin-posterior.ts'
 import { exactBelief } from '../../server/agents/belief/exact.ts'
 

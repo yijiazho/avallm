@@ -19,7 +19,7 @@ import {
 import {
   decisionTraceIdForRequest,
 } from '../../../server/agents/trace.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 function resultKind(result: DecisionTraceAdmissionResult): string {
   switch (result.kind) {

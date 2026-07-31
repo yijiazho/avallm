@@ -129,7 +129,7 @@ import { createGame } from '../../../server/engine/game.ts'
 import { DEFAULT_ROLES } from '../../../server/engine/rules.ts'
 import type { Role } from '../../../server/engine/types.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { testConfiguredPipeline } from '../../support/configured-pipeline.ts'
 import {
   assertNativeCodecContract,

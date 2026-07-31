@@ -2010,17 +2010,17 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'calculateGoodProposalCandidateScores',
     'calculateGoodProposalVoteCandidateScores',
   ])],
-  ['server/eval/active-language-bank.ts', new Set([
+  ['server/eval/banks/active-language-bank.ts', new Set([
     'activeLanguageEvaluationVariant',
   ])],
-  ['server/eval/evil-policy-bank.ts', new Set([
+  ['server/eval/banks/evil-policy-bank.ts', new Set([
     'PHASE7_EVIL_DEALS_PER_TARGET_ROLE',
   ])],
-  ['server/eval/mechanical-data.ts', new Set(['mechanicalDataset'])],
-  ['server/eval/seat-view-inspector-ui.ts', new Set([
+  ['server/eval/core/mechanical-data.ts', new Set(['mechanicalDataset'])],
+  ['server/eval/inspect/seat-view-inspector-ui.ts', new Set([
     'createSeatViewInspectorUiServer',
   ])],
-  ['server/eval/trace-replay.ts', new Set([
+  ['server/eval/replay/trace-replay.ts', new Set([
     'authoritativeDecisionSnapshots',
   ])],
 ])

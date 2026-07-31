@@ -40,7 +40,7 @@ import type {
   DecisionRequest,
   PlayerView,
 } from '../../../server/engine/types.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 interface SignalPayload {
   readonly seat: number

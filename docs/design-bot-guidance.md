@@ -400,7 +400,7 @@ given the leans declared during discussion. That stand-down is gone with leans (
 was reading a signal nothing bound a seat to, so evil could switch the rule off by declaring a
 reject it never intended to cast, and a seat voting live cannot see the tally in advance anyway.
 The eval-side blunder detector keeps an equivalent guard, but reads it off the revealed tally
-instead (`server/eval/forced.ts`); the two deliberately no longer mirror each other.
+instead (`server/eval/harness/forced.ts`); the two deliberately no longer mirror each other.
 
 "Known Fails aboard" is deliberately narrow: `knownEvilAboard` in `server/agents/board.ts` counts
 the seat plus partners the deal lets it see. Oberon is invisible to the rest of evil, so a count
@@ -470,7 +470,7 @@ speech are generated only after the mechanical action is committed. Analysis
 facts are private planning inputs by default; only an explicit public-safe projection may be cited
 by voice, and private deductions are carried in the communication intent's concealment set.
 
-So T1 is **measured**: `server/eval/forced.ts` detects violations from a game artifact,
+So T1 is **measured**: `server/eval/harness/forced.ts` detects violations from a game artifact,
 `computeMetrics` exposes them per seat (`forcedPlayViolations`) and in full (`forcedPlays`), and
 `npm run report` prints a per-rule breakdown. This is ground truth like the vote scores, not an
 opinion like the judge's incident families — which is why forced plays get their own detector

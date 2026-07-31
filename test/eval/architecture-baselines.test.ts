@@ -9,8 +9,8 @@ import {
   HEURISTIC_BASELINE_FILE,
   OBSERVED_LLM_BASELINE_FILE,
   OBSERVED_LLM_BASELINE_SCHEMA,
-} from '../../server/eval/architecture-baselines.ts'
-import type { ObservedPromptBaseline } from '../../server/eval/architecture-baselines.ts'
+} from '../../server/eval/banks/architecture-baselines.ts'
+import type { ObservedPromptBaseline } from '../../server/eval/banks/architecture-baselines.ts'
 
 test('committed Phase 0 heuristic baseline matches the fixed bank', async () => {
   const committed = JSON.parse(fs.readFileSync(HEURISTIC_BASELINE_FILE, 'utf8'))

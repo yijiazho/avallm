@@ -103,7 +103,7 @@ pinned tests stay green.
 Gate every overlay change on the eval benches the repo trusts (Brier/log-loss on
 held-out casts) before granting scoring authority — as step 3 did, and matching
 how the quest-card factor is pinned. The step-3 harness is now formalized as
-`server/eval/assassin-calibration.ts`.
+`server/eval/runs/assassin-calibration.ts`.
 
 ## Measured: the servant weight pair carries no information about cleanliness
 
@@ -174,7 +174,7 @@ already warns about exactly this reading, and this section was doing it.
 
 ### Measured properly: the reshuffle is a coin flip
 
-`server/eval/servant-propose-calibration.ts` asks the question the policy
+`server/eval/runs/servant-propose-calibration.ts` asks the question the policy
 actually answers. Every servant proposal in every game is one held-out case: the
 seat's view, and the true evil seats from the deal it cannot see. Both policies
 are scored on the **same** cases, so the comparison is paired per decision

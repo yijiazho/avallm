@@ -38,7 +38,7 @@ import {
   PHASES,
   ROLES,
 } from '../../server/engine/types.ts'
-import { PHASE7_ROLE_EVAL_ARMS } from '../../server/eval/role-eval.ts'
+import { PHASE7_ROLE_EVAL_ARMS } from '../../server/eval/runs/role-eval.ts'
 
 interface ClosedSet {
   readonly name: string
@@ -111,7 +111,7 @@ const CLOSED_SETS: readonly ClosedSet[] = [
   },
   {
     name: 'PHASE7_ROLE_EVAL_ARMS',
-    owner: 'server/eval/role-eval.ts',
+    owner: 'server/eval/runs/role-eval.ts',
     members: PHASE7_ROLE_EVAL_ARMS,
   },
 ]

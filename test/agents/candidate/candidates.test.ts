@@ -16,8 +16,8 @@ import {
 } from '../../../server/agents/candidate/candidates.ts'
 import { LEGAL_CANDIDATE_VERSION } from '../../../server/agents/candidate/types.ts'
 import { TEAM_SIZES } from '../../../server/engine/rules.ts'
-import { ARCHITECTURE_BANK } from '../../../server/eval/architecture-bank.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { ARCHITECTURE_BANK } from '../../../server/eval/banks/architecture-bank.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type {
   Decision,
   DecisionKind,

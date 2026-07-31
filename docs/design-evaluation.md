@@ -127,7 +127,7 @@ LLM cost:
   good player. Catches "no trust Allen" instantly.
 - **Reactivity / silence-after-contradiction** (§4) — passed while holding a freshly-contradicted
   public commitment.
-- **Forced-play violations** (`server/eval/forced.ts`) — declined a move that was deterministically
+- **Forced-play violations** (`server/eval/harness/forced.ts`) — declined a move that was deterministically
   correct given the public board plus the seat's own knowledge: playing Success into good's third
   quest, burning a lone Fail on a quest needing two, rejecting a team your side could sink with the
   game on the line. The tier is defined in design-bot-guidance.md §7, which also explains why these

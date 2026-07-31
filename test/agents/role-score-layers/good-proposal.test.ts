@@ -28,7 +28,7 @@ import {
 } from '../../../server/agents/role-score-layers/good.ts'
 import type { ForcedPolicyResult } from '../../../server/agents/candidate/types.ts'
 import { parseExternalDecisionReply } from '../../../server/agents/external-reply.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { createGame } from '../../../server/engine/game.ts'
 import type {
   DecisionRequest,

@@ -13,10 +13,10 @@ import {
 import {
   runArchitectureBench,
   type ArchitectureVariant,
-} from '../../server/eval/architecture-bench.ts'
+} from '../../server/eval/harness/architecture-bench.ts'
 import {
   ARCHITECTURE_BANK,
-} from '../../server/eval/architecture-bank.ts'
+} from '../../server/eval/banks/architecture-bank.ts'
 import {
   architectureReport,
   renderArchitectureReport,
@@ -24,10 +24,10 @@ import {
 import {
   toArtifact,
   type GameArtifact,
-} from '../../server/eval/artifact.ts'
+} from '../../server/eval/core/artifact.ts'
 import {
   replayGame,
-} from '../../server/eval/replay.ts'
+} from '../../server/eval/replay/replay.ts'
 import {
   resolvedArchitectureIdentityDigest,
 } from '../../server/agents/components/resolved-brain.ts'

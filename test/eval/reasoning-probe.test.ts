@@ -5,7 +5,7 @@
 // recorded in reasoning-policy.ts.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { reasoningProbe, recommendPolicy, type VariantResult } from '../../server/eval/reasoning-probe.ts'
+import { reasoningProbe, recommendPolicy, type VariantResult } from '../../server/eval/harness/reasoning-probe.ts'
 import type { OpenRouterClient, SpendEntry } from '../../server/llm/openrouter.ts'
 
 // Build a full 5-variant sweep, overriding only the interesting cells.

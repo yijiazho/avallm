@@ -6,7 +6,7 @@ import {
   DECISION_FIXTURE_SCHEMA,
   fixtureTextMatches,
   readDecisionFixtures,
-} from '../../server/eval/decision-fixtures.ts'
+} from '../../server/eval/replay/decision-fixtures.ts'
 import type { DeepReadonly, Visibility } from '../../server/engine/types.ts'
 
 const visibleTo = (

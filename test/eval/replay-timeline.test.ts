@@ -24,17 +24,17 @@ import { runGame } from '../../server/sim/runner.ts'
 import {
   toArtifact,
   type GameArtifact,
-} from '../../server/eval/artifact.ts'
+} from '../../server/eval/core/artifact.ts'
 import {
   decisionReplayTimeline,
   snapshotAt,
   type DecisionSnapshot,
   type ReplayOperationKind,
-} from '../../server/eval/replay.ts'
+} from '../../server/eval/replay/replay.ts'
 import {
   authoritativeDecisionReplay,
   selectedDecisionReplayJoin,
-} from '../../server/eval/trace-replay.ts'
+} from '../../server/eval/replay/trace-replay.ts'
 
 const DECISION_EVENTS = new Set([
   'utterance',

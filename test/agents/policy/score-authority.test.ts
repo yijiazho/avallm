@@ -24,7 +24,7 @@ import {
 import {
   SEEDED_MORGANA_ROLE_SCORE_LAYER,
 } from '../../../server/agents/role-score-layers/morgana.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import {
   legalCandidates,
 } from '../../../server/agents/candidate/candidates.ts'

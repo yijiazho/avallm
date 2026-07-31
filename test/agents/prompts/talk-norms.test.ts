@@ -14,7 +14,7 @@ import { viewFor } from '../../../server/engine/view.ts'
 import {
   buildMessages, PLAYER_REFERENCE_NORMS, TABLE_TALK_NORMS,
 } from '../../../server/agents/prompts.ts'
-import { SPEECH_NORMS } from '../../../server/eval/norms.ts'
+import { SPEECH_NORMS } from '../../../server/eval/harness/norms.ts'
 import { CURATED_AGENTS_DIR } from '../../../server/agents/defs.ts'
 import type { LlmCallKind } from '../../../server/llm/call-params.ts'
 import { repoUrl } from '../../support/repo-root.ts'

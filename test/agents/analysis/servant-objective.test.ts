@@ -26,7 +26,7 @@ import {
 import { SERVANT_OBJECTIVE_COMPONENT } from '../../../server/agents/components/native-score-components.ts'
 import { admitDecisionTrace } from '../../../server/agents/admission/composed-trace.ts'
 import { revalidatedArchitectureIdentity } from '../../../server/agents/components/resolved-brain.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'
 import { createGame, expectedDecisions } from '../../../server/engine/game.ts'
 import { validateRoles } from '../../../server/engine/rules.ts'

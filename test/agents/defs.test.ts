@@ -19,7 +19,7 @@ import {
 import { createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
 import { ROLE_ALIGNMENT } from '../../server/engine/rules.ts'
-import { readDecisionFixtures } from '../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 
 test('built-in library exposes roster, rule-based, and both probabilistic agents', () => {
   const defs = builtinDefs()

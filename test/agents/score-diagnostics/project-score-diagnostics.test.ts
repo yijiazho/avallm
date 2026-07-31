@@ -51,7 +51,7 @@ import type {
 import {
   MORGANA_ROLE_SCORER_VERSION,
 } from '../../../server/agents/analysis/morgana-role-utility.ts'
-import { readDecisionFixtures } from '../../../server/eval/decision-fixtures.ts'
+import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
 import type {

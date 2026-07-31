@@ -37,23 +37,23 @@ import { heuristicDecide } from '../../../server/agents/heuristic.ts'
 import { runGame } from '../../../server/sim/runner.ts'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { toArtifact } from '../../../server/eval/artifact.ts'
+import { toArtifact } from '../../../server/eval/core/artifact.ts'
 import {
   beliefCalibrationReport,
   pairedCalibrationDelta,
   scoreCalibration,
   type BeliefPredictionRow,
-} from '../../../server/eval/belief-calibration.ts'
+} from '../../../server/eval/runs/belief-calibration.ts'
 import {
   datasetSplitFor,
   mechanicalDataset,
-} from '../../../server/eval/mechanical-data.ts'
-import type { GameArtifact } from '../../../server/eval/artifact.ts'
+} from '../../../server/eval/core/mechanical-data.ts'
+import type { GameArtifact } from '../../../server/eval/core/artifact.ts'
 import type { Seat } from '../../../server/engine/types.ts'
 import type { AvalonAgent } from '../../../server/agents/types.ts'
-import { runArchitectureBench } from '../../../server/eval/architecture-bench.ts'
-import { PHASE4_POLICY_BANK } from '../../../server/eval/good-policy-bank.ts'
-import { phase4PolicyVariants } from '../../../server/eval/good-policy-bench.ts'
+import { runArchitectureBench } from '../../../server/eval/harness/architecture-bench.ts'
+import { PHASE4_POLICY_BANK } from '../../../server/eval/banks/good-policy-bank.ts'
+import { phase4PolicyVariants } from '../../../server/eval/runs/good-policy-bench.ts'
 
 async function heuristicArtifact(seed: string): Promise<GameArtifact> {
   const game = createGame({
