@@ -1,5 +1,5 @@
 import type { Role, Seat } from '../../engine/types.ts'
-import { ROLE_ALIGNMENT, proposalVotes, validateRoles } from '../../engine/rules.ts'
+import { proposalVotes } from '../../engine/rules.ts'
 import { hasDistinctSeats } from '../../engine/seatset.ts'
 import {
   questFailEvidenceFromQuests,
@@ -9,7 +9,6 @@ import {
   canonicalRoleMultiset,
   visitCanonicalWorlds,
 } from '../belief/worlds.ts'
-import { CANONICAL_ROLE_ORDER } from '../belief/types.ts'
 import { projectUniformJointWorlds } from '../belief/projection.ts'
 import type { PublicRecord } from '../communication/public-record.ts'
 import {
@@ -20,16 +19,7 @@ import {
   type PublicAlignmentMaskCount,
   type PublicObserverSnapshot,
 } from './observer-types.ts'
-import {
-  LEGAL_TEAM_CANDIDATE_BOUND,
-  onlyAllowedKeys,
-  probability,
-  tableSize,
-} from '../components/canonical-shape.ts'
-import {
-  latticeCount,
-  PROBABILITY_TOLERANCE,
-} from '../components/probability-arithmetic.ts'
+import { LEGAL_TEAM_CANDIDATE_BOUND } from '../components/canonical-shape.ts'
 
 const PUBLIC_OBSERVER_CACHE_LIMIT = 16
 const exactProjectionCache = new Map<string, {
@@ -246,225 +236,7 @@ export function observePublicRecord(
   }
 }
 
-// The count-space argument this module used to make privately now lives with
-// latticeCount in components/probability-arithmetic.ts, where the other sites
-// checking a uniform marginal against an integer world count can reach it. The
-// tolerance beside it was a second spelling of PROBABILITY_TOLERANCE and is
-// gone with it.
-
-function factorial(value: number): number {
-  let result = 1
-  for (let factor = 2; factor <= value; factor++) result *= factor
-  return result
-}
-
-/** Strict JSON boundary used by external and persisted-artifact readers. */
-export function validatePublicObserverSnapshot(
-  value: unknown,
-): value is PublicObserverSnapshot {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const snapshot = value as Record<string, unknown>
-  if (
-    !onlyAllowedKeys(snapshot, [
-      'version',
-      'probabilitySemantics',
-      'behavioralSemantics',
-      'playerCount',
-      'feasibleWorldCount',
-      'entropy',
-      'seats',
-    ])
-    || snapshot.version !== PUBLIC_OBSERVER_MODEL_VERSION
-    || snapshot.probabilitySemantics !== 'uniform-public-feasible-joint'
-    || snapshot.behavioralSemantics
-      !== 'bounded-deterministic-indices-not-probabilities'
-    || !tableSize(snapshot.playerCount)
-    || !Number.isSafeInteger(snapshot.feasibleWorldCount)
-    || (snapshot.feasibleWorldCount as number) <= 0
-    || typeof snapshot.entropy !== 'number'
-    || !Number.isFinite(snapshot.entropy)
-    || Math.abs(
-      snapshot.entropy
-      - Math.log2(snapshot.feasibleWorldCount as number),
-    ) > PROBABILITY_TOLERANCE
-    || !Array.isArray(snapshot.seats)
-    || snapshot.seats.length !== snapshot.playerCount
-  ) {
-    return false
-  }
-
-  const playerCount = snapshot.playerCount as number
-  const feasibleWorldCount = snapshot.feasibleWorldCount as number
-  // No role multiset can produce more distinct assignments than n!; reject
-  // impossible or unsafe denominators before multiplying any marginal by it.
-  if (feasibleWorldCount > factorial(playerCount)) return false
-  let sharedRoles: readonly Role[] | undefined
-  const roleWorldOccurrences = new Map<Role, number>()
-  let goodWorldOccurrences = 0
-  let evilWorldOccurrences = 0
-
-  for (let seat = 0; seat < playerCount; seat++) {
-    const seatValue = snapshot.seats[seat]
-    if (
-      !seatValue
-      || typeof seatValue !== 'object'
-      || Array.isArray(seatValue)
-    ) return false
-    const assessment = seatValue as Record<string, unknown>
-    const roles = assessment.roleMarginals
-    const behavior = assessment.behavior as Record<string, unknown>
-    const goodProbability = assessment.goodProbability
-    const evilProbability = assessment.evilProbability
-    const goodCount = latticeCount(
-      goodProbability,
-      feasibleWorldCount,
-    )
-    const evilCount = latticeCount(
-      evilProbability,
-      feasibleWorldCount,
-    )
-    if (
-      !onlyAllowedKeys(assessment, [
-        'seat',
-        'goodProbability',
-        'evilProbability',
-        'roleMarginals',
-        'behavior',
-      ])
-      || assessment.seat !== seat
-      || !probability(goodProbability)
-      || !probability(evilProbability)
-      || goodCount === undefined
-      || evilCount === undefined
-      || Math.abs(
-        goodProbability + evilProbability - 1,
-      ) > PROBABILITY_TOLERANCE
-      || !Array.isArray(roles)
-      || !behavior
-      || typeof behavior !== 'object'
-      || Array.isArray(behavior)
-      || !onlyAllowedKeys(behavior, [
-        'version',
-        'semantics',
-        'proposalLeadershipCount',
-        'proposalSelectionIndex',
-        'approvalIndex',
-        'failedQuestExposureIndex',
-      ])
-      || behavior.version !== PUBLIC_BEHAVIOR_READING_VERSION
-      || behavior.semantics
-        !== 'bounded-deterministic-indices-not-probabilities'
-      || !Number.isSafeInteger(behavior.proposalLeadershipCount)
-      || (behavior.proposalLeadershipCount as number) < 0
-      || !probability(behavior.proposalSelectionIndex)
-      || !probability(behavior.approvalIndex)
-      || !probability(behavior.failedQuestExposureIndex)
-    ) {
-      return false
-    }
-
-    if (roles.length === 0) return false
-    const seatRoles: Role[] = []
-    let seatWorldOccurrences = 0
-    let seatGoodWorldOccurrences = 0
-    let seatEvilWorldOccurrences = 0
-    let previousRoleRank = -1
-    for (let roleIndex = 0; roleIndex < roles.length; roleIndex++) {
-      const roleValue = roles[roleIndex]
-      if (
-        !roleValue
-        || typeof roleValue !== 'object'
-        || Array.isArray(roleValue)
-      ) return false
-      const marginal = roleValue as Record<string, unknown>
-      const role = marginal.role as Role
-      const canonicalRank = CANONICAL_ROLE_ORDER.indexOf(role)
-      const count = latticeCount(marginal.probability, feasibleWorldCount)
-      if (
-        !onlyAllowedKeys(marginal, ['role', 'probability'])
-        || typeof marginal.role !== 'string'
-        || canonicalRank < 0
-        || canonicalRank <= previousRoleRank
-        || count === undefined
-      ) return false
-      previousRoleRank = canonicalRank
-      seatRoles.push(role)
-      seatWorldOccurrences += count
-      const aggregateRoleOccurrences =
-        (roleWorldOccurrences.get(role) ?? 0) + count
-      if (!Number.isSafeInteger(aggregateRoleOccurrences)) return false
-      roleWorldOccurrences.set(role, aggregateRoleOccurrences)
-      if (ROLE_ALIGNMENT[role] === 'good') {
-        seatGoodWorldOccurrences += count
-      } else {
-        seatEvilWorldOccurrences += count
-      }
-    }
-    // Integer equalities only. This seat's role marginals, its goodProbability
-    // and its evilProbability all came back from latticeCount, so each is
-    // within COUNT_LATTICE_ULP_MULTIPLIER machine epsilons of its k/N, and
-    // there are at most CANONICAL_ROLE_ORDER.length of them. The three float
-    // sums that used to stand here (roles total 1, good roles total
-    // goodProbability, evil roles total evilProbability) are therefore implied
-    // by the three integer equalities below with more than an order of
-    // magnitude to spare, at any world count. They could reject nothing these
-    // cannot, so they are gone rather than compensated;
-    // test/probability-arithmetic.test.ts pins the bound that makes that true.
-    if (
-      !Number.isSafeInteger(seatWorldOccurrences)
-      || !Number.isSafeInteger(seatGoodWorldOccurrences)
-      || !Number.isSafeInteger(seatEvilWorldOccurrences)
-      || seatWorldOccurrences !== feasibleWorldCount
-      || seatGoodWorldOccurrences !== goodCount
-      || seatEvilWorldOccurrences !== evilCount
-    ) return false
-    if (sharedRoles === undefined) {
-      sharedRoles = seatRoles
-    } else if (
-      seatRoles.length !== sharedRoles.length
-      || seatRoles.some((role, index) => role !== sharedRoles![index])
-    ) return false
-    goodWorldOccurrences += goodCount
-    evilWorldOccurrences += evilCount
-    if (
-      !Number.isSafeInteger(goodWorldOccurrences)
-      || !Number.isSafeInteger(evilWorldOccurrences)
-    ) return false
-  }
-
-  if (!sharedRoles) return false
-  const reconstructedRoles: Role[] = []
-  const reconstructedRoleCounts = new Map<Role, number>()
-  for (const role of sharedRoles) {
-    const occurrences = roleWorldOccurrences.get(role) ?? 0
-    if (occurrences % feasibleWorldCount !== 0) return false
-    const roleCount = occurrences / feasibleWorldCount
-    if (!Number.isSafeInteger(roleCount) || roleCount <= 0) return false
-    reconstructedRoleCounts.set(role, roleCount)
-    reconstructedRoles.push(...Array<Role>(roleCount).fill(role))
-  }
-  if (reconstructedRoles.length !== playerCount) return false
-  try {
-    validateRoles(playerCount, reconstructedRoles)
-  } catch {
-    return false
-  }
-
-  const repeatedRoleDivisor = [...reconstructedRoleCounts.values()].reduce(
-    (product, roleCount) => product * factorial(roleCount),
-    1,
-  )
-  const maximumDistinctWorlds =
-    factorial(playerCount) / repeatedRoleDivisor
-  if (
-    !Number.isSafeInteger(maximumDistinctWorlds)
-    || feasibleWorldCount > maximumDistinctWorlds
-  ) return false
-
-  const reconstructedGood = reconstructedRoles.filter(
-    (role) => ROLE_ALIGNMENT[role] === 'good',
-  ).length
-  const reconstructedEvil = playerCount - reconstructedGood
-  return goodWorldOccurrences === reconstructedGood * feasibleWorldCount
-    && evilWorldOccurrences === reconstructedEvil * feasibleWorldCount
-}
+// The strict JSON boundary (validatePublicObserverSnapshot and its section
+// validators) lives in observer-validate.ts. It depends on nothing here, so it
+// is re-exported below rather than imported back.
+export { validatePublicObserverSnapshot } from './observer-validate.ts'
