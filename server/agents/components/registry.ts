@@ -94,7 +94,8 @@ function assertHostInputRef(
   }
 }
 
-function freezeHostInputDefinition(
+/** Validate a host input definition against the registry contract, then freeze it. */
+function validateAndFreezeHostInputDefinition(
   definition: AnyHostInputDefinition,
 ): AnyHostInputDefinition {
   if (!definition || typeof definition !== 'object') {
@@ -140,7 +141,8 @@ function freezeHostInputDefinition(
   })
 }
 
-function freezeDefinition(definition: AnyDefinition): AnyDefinition {
+/** Validate a component definition against the registry contract, then freeze it. */
+function validateAndFreezeDefinition(definition: AnyDefinition): AnyDefinition {
   if (!definition || typeof definition !== 'object') {
     throw new ComponentRegistryError(
       'invalid-definition',
@@ -443,7 +445,7 @@ export function createDecisionComponentRegistry(
     )
   }
   const hostInputDefinitions = (options.hostInputs ?? [])
-    .map(freezeHostInputDefinition)
+    .map(validateAndFreezeHostInputDefinition)
   const hostInputByKey = new Map<string, AnyHostInputDefinition>()
   const hostInputVersionById = new Map<string, string>()
   for (const definition of hostInputDefinitions) {
@@ -475,7 +477,7 @@ export function createDecisionComponentRegistry(
     [...hostInputDefinitions].sort((left, right) =>
       compareRefs(left.token, right.token)),
   )
-  const definitions = sourceDefinitions.map(freezeDefinition)
+  const definitions = sourceDefinitions.map(validateAndFreezeDefinition)
   const byKey = new Map<string, AnyDefinition>()
   const versionById = new Map<string, string>()
   for (const definition of definitions) {

@@ -17,6 +17,15 @@ import {
   resolvedArchitectureIdentityVersions,
 } from './resolved-brain.ts'
 
+/**
+ * The exact configured-identity gate between a resolved architecture identity
+ * and a decision trace. resolvedArchitectureIdentityTraceJoin is the point of
+ * this module: it proves the configured half of the descriptor/run join, while
+ * host admission proves the runtime payloads separately. The plan builder and
+ * the versions passthrough exist to support that predicate and its report
+ * consumers.
+ */
+
 export function architectureIdentityDecisionPlan(
   identity: ResolvedArchitectureIdentity,
 ): DecisionComponentPlan {
@@ -95,7 +104,7 @@ export function resolvedArchitectureIdentityTraceJoin(
     trace.version === COMPONENT_DECISION_TRACE_VERSION
     && trace.architectureIdentityDigest
       === resolvedArchitectureIdentityDigest(identity)
-    && versions?.decisionComponents === DECISION_COMPONENT_RUN_VERSION
+    && versions.decisionComponents === DECISION_COMPONENT_RUN_VERSION
     && isDeepStrictEqual(trace.componentPlan, expectedPlan)
     && trace.components?.version === DECISION_COMPONENT_RUN_VERSION
     && isDeepStrictEqual(

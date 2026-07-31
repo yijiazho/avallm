@@ -13,9 +13,9 @@ import {
 } from './registry.ts'
 
 /**
- * The composed agent's production registry. Compatibility adapters and native
- * components share one dependency graph, admission kernel, and generic trace
- * surface; requesting nothing native preserves the legacy resolved plan.
+ * The composed agent's production component registry: the native score
+ * components, the robust evil-quest-card decision rule, and the native role
+ * components, composed into one dependency graph with the score host inputs.
  */
 export function createProductionComponentRegistry(
   configuration: NativeScoreComponentConfiguration,
