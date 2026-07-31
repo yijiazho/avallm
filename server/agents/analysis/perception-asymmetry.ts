@@ -151,6 +151,58 @@ export function teamEvilCountDistribution<Item>(
   return out
 }
 
+/**
+ * What a seat's private belief is certain of about another seat that the public
+ * posterior is not. `'evil'`/`'good'` mean the private belief pins that seat's
+ * alignment (probability exactly 1 or 0) while the public posterior still leaves
+ * it open; `null` means no private advantage over the table.
+ */
+export type PrivatePin = 'evil' | 'good' | null
+
+export interface CertaintyDifferentialRow {
+  readonly seat: number
+  readonly privateEvilProbability: number
+  readonly publicEvilProbability: number
+  readonly privatePin: PrivatePin
+}
+
+/**
+ * The certainty differential between a seat's own belief and the public read:
+ * per seat, whether the private posterior pins an alignment the table still
+ * treats as open.
+ *
+ * This is the quest-coparticipation channel's substrate, and the shape behind
+ * the original question: a good player who failed a small quest alongside an
+ * evil one has that evil pinned privately (its private evil probability is 1)
+ * while the table only suspects (public evil probability strictly between 0 and
+ * 1), so the row reads `privatePin: 'evil'`. It needs no new fold: a seat's
+ * feasible-world belief already integrates the quest record, so the pin is just
+ * where the two marginals disagree at a certainty boundary.
+ *
+ * A pin requires the PRIVATE side to be exactly certain (the belief snapshots
+ * snap certainty to exactly 1, and the public observer's marginals are exact
+ * count ratios) AND the PUBLIC side to be strictly uncertain. A seat the public
+ * has already pinned carries no private advantage and reads `null`.
+ */
+export function certaintyDifferential(
+  privateEvilProbability: readonly number[],
+  publicEvilProbability: readonly number[],
+): CertaintyDifferentialRow[] {
+  if (privateEvilProbability.length !== publicEvilProbability.length) {
+    throw new Error('certainty differential requires aligned marginals')
+  }
+  return privateEvilProbability.map((privateEvil, seat) => {
+    const publicEvil = publicEvilProbability[seat]
+    const publicUncertain = publicEvil > 0 && publicEvil < 1
+    const privatePin: PrivatePin =
+      !publicUncertain ? null
+        : privateEvil === 1 ? 'evil'
+          : privateEvil === 0 ? 'good'
+            : null
+    return { seat, privateEvilProbability: privateEvil, publicEvilProbability: publicEvil, privatePin }
+  })
+}
+
 /** The zero accumulation a subject with no matching item reads as. */
 export const EMPTY_SUBJECT_MASS: Readonly<SubjectMassAccumulation> =
   Object.freeze({

@@ -10,6 +10,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   accumulateSubjectMass,
+  certaintyDifferential,
   conditionalOverlayIndex,
   EMPTY_SUBJECT_MASS,
   partitionBySubject,
@@ -181,6 +182,28 @@ test('teamEvilCountDistribution counts only team seats and preserves raw mass', 
   const worlds = [{ evil: new Set([9]), p: 0.4 }, { evil: new Set([0]), p: 0.1 }]
   const dist = teamEvilCountDistribution(worlds, [0, 1], (w, s) => w.evil.has(s), (w) => w.p)
   assert.deepEqual(dist, [0.4, 0.1, 0])
+})
+
+test('certaintyDifferential pins alignments the private belief knows and the table does not', () => {
+  // seat0: privately certain-evil, publicly open -> evil pin (the servant-pins-
+  // minion case). seat1: privately certain-good, publicly open -> good pin.
+  // seat2: privately uncertain -> no pin. seat3: publicly certain already -> no
+  // private advantage even though private agrees.
+  const rows = certaintyDifferential(
+    [1, 0, 0.5, 1],
+    [0.4, 0.4, 0.4, 1],
+  )
+  assert.deepEqual(rows.map((row) => row.privatePin), ['evil', 'good', null, null])
+})
+
+test('certaintyDifferential gives no pin when the public read is already certain', () => {
+  // Public 0 and public 1 are both certainty boundaries: nothing to add.
+  const rows = certaintyDifferential([1, 0], [0, 1])
+  assert.deepEqual(rows.map((row) => row.privatePin), [null, null])
+})
+
+test('certaintyDifferential rejects misaligned marginals', () => {
+  assert.throws(() => certaintyDifferential([1, 0], [0.5]), /aligned marginals/)
 })
 
 test('EMPTY_SUBJECT_MASS reads as an all-zero accumulation', () => {

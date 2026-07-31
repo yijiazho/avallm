@@ -1765,6 +1765,20 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'validateAdmittedPublicSelfReadHostJoin',
     'validatePublicSelfReadSnapshot',
   ])],
+  // The private pin read, landed as inert substrate ahead of the scoring that
+  // will reach it, the same way public-self-read above was. It composes with
+  // that public read (public-in) by adding the private operand: where a seat's
+  // own belief pins an alignment the table still leaves open. buildPrivatePinRead
+  // is live (the host join wraps it same-file, and it gives certaintyDifferential
+  // in perception-asymmetry.ts a production consumer); only the boundary
+  // validators wait here. Both go when a policy phase routes the read, and the
+  // staleness check is what will say so.
+  ['server/agents/analysis/private-pin.ts', new Set([
+    'validatePrivatePinReadSnapshot',
+    'validateAdmittedPrivatePinReadHostJoin',
+    'validateEvilExposureReadSnapshot',
+    'validateAdmittedEvilExposureReadHostJoin',
+  ])],
   ['server/agents/analysis/role-utility.ts', new Set([
     'buildRoleUtilityProjection',
     'validatePrivateRoleUtilityProjection',

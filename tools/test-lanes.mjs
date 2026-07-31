@@ -95,6 +95,7 @@ const LANES = Object.freeze({
     'native-score-diagnostics.test.ts',
     'perception-asymmetry.test.ts',
     'plan-coherence.test.ts',
+    'private-pin.test.ts',
     'probability-arithmetic.test.ts',
     'public-observer.test.ts',
     'public-self-read.test.ts',
