@@ -118,12 +118,12 @@
     },
     {
       "path": "test/mordred-hostile.test.ts",
-      "sha256": "f21d9720973d4e7e3c8d5bd3661cf91a3d07a6c1599b42841469efb5dcafd092",
+      "sha256": "80037cbaffbe2ef6eedc1cab10d756e8b8c2859f622c9471eae9dcb340263893",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/mordred-native.test.ts",
-      "sha256": "34f79c0ad57652922be688854c60c60bfbfaab4cf7c9d51398900f9db4f993d2",
+      "sha256": "12e1750f3a54410c29a56f3491eb7472eb63d72ebc974b437d0543b81a5c9a24",
       "rationale": "Legacy Mordred native fixtures need current decision union narrowing."
     },
     {
