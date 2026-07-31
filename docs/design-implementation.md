@@ -36,6 +36,11 @@ resume/undo/replay.
 
 ```
 server/
+  shared/          ← domain-free primitives every layer may import: seeded PRNG,
+                     DeepReadonly, LRU map, key-list type guards. Pinned by
+                     ARCH019: may import no repository module but its own, and
+                     carries the engine's purity obligation because the engine
+                     depends on it.
   engine/          ← PURE deterministic game logic. Pinned by ARCH001 + ARCH014.
                      Runs headless under node:test. This is where all rules live.
   agents/          ← PlayerView-only cognition, analysis, policy, prompts, parsers, and fallbacks

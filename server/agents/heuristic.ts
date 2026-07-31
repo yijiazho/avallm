@@ -5,8 +5,8 @@
 // Stateless by design: every decision is derived fresh from the view. Seeded:
 // same seed + same view => same decision (replay determinism).
 
-import { makeRng, fnv1a } from '../engine/prng.ts'
-import type { Rng } from '../engine/prng.ts'
+import { makeRng, fnv1a } from '../shared/prng.ts'
+import type { Rng } from '../shared/prng.ts'
 import { evilPartnersOf, knownEvilOf } from '../engine/knowledge.ts'
 import { proposalApproved, proposalVotes } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'

@@ -1,7 +1,7 @@
 // Uniform-legal-random agent. Exists for fuzzing: if random play can crash or
 // stall the engine, the engine is wrong.
 
-import { makeRng, fnv1a } from '../engine/prng.ts'
+import { makeRng, fnv1a } from '../shared/prng.ts'
 import { teamsEqual } from '../engine/seatset.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { AgentContext, AvalonAgent } from './types.ts'

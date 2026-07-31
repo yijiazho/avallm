@@ -1,22 +1,13 @@
 // Core engine types. Engine purity is enforced by ARCH014, not by convention.
 
-/**
- * Deep-readonly mapped type: recursively marks every property and array element
- * `readonly`. Compile-time only (erased at runtime) and structural — it encodes
- * an immutability contract in the type, while the engine still enforces the same
- * invariant at runtime via Object.freeze. Functions and primitives pass through
- * untouched; arrays (mutable or already-readonly) become ReadonlyArray.
- *
- * Scoped to JSON-shaped data (the wire/view types it is used on). It does NOT
- * special-case built-in collections — applied to a type containing a Map, Set,
- * Date, or Promise it would map over the instance's own keys instead of
- * preserving it, so keep those out of the shapes it wraps.
- */
-export type DeepReadonly<T> =
-  T extends (...args: never[]) => unknown ? T
-  : T extends readonly (infer E)[] ? readonly DeepReadonly<E>[]
-  : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-  : T
+// The engine's immutability contract in the type system. The definition lives in
+// server/shared/, because the policy layer had grown a byte-identical copy of it
+// under the name `Immutable` (ARCH002 keeps agents out of this module wholesale,
+// so it could not share the engine's). Re-exported here because `PlayerView` is
+// defined as a DeepReadonly of its shape and every consumer of that projection
+// already imports from this module.
+export type { DeepReadonly } from '../shared/deep-readonly.ts'
+import type { DeepReadonly } from '../shared/deep-readonly.ts'
 
 export const ROLES = Object.freeze([
   'merlin', 'percival', 'servant',

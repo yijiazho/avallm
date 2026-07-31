@@ -766,6 +766,10 @@ function isEngine(sourcePath) {
   return sourcePath.startsWith('server/engine/')
 }
 
+function isShared(sourcePath) {
+  return sourcePath.startsWith('server/shared/')
+}
+
 function isAgent(sourcePath) {
   return sourcePath.startsWith('server/agents/')
 }
@@ -1219,6 +1223,32 @@ export function auditArchitectureSources(sourceEntries) {
         ))
         continue
       }
+      // ARCH019. server/shared/ holds the primitives with no domain in them:
+      // a seeded PRNG, DeepReadonly, an LRU map, key-list type guards. The
+      // folder is only worth having while that stays true, and the failure
+      // mode is gradual. One helper reaches into engine/types.ts for a Seat,
+      // the next imports a policy shape, and within a year "shared" names
+      // wherever something was put down rather than a layer anything may
+      // depend on. A one-way door is cheaper than the judgement call at each
+      // future addition.
+      //
+      // Every in-repo target counts, not just the ones under server/.
+      // `resolveModule` has already returned undefined for bare specifiers, so
+      // reaching here means a real path in this repository, and a shared
+      // primitive importing `../../client/src/types.ts` has acquired a domain
+      // exactly as surely as one importing the engine. Restricting this to
+      // server/ targets would leave client/, tools/, and data/ as a way around
+      // it that the purity half cannot see either, since a relative specifier
+      // is never bare.
+      if (isShared(sourcePath) && !isShared(target)) {
+        violations.push(violation(
+          'ARCH019',
+          sourcePath,
+          edge,
+          'shared primitives cannot depend on any layer that has a domain in it',
+        ))
+        continue
+      }
       if (
         isGenericPolicyOrComponent(sourcePath)
         && isArtifactOrArchitectureReport(target, edge.names)
@@ -1450,6 +1480,20 @@ export function auditArchitectureSources(sourceEntries) {
         ambientWhy:
           'so a game stops being a pure function of its seed and log',
         module: 'engine code can only import pure standard-library modules',
+      })
+    }
+    // The engine imports shared primitives, so a clock or an I/O import here
+    // would be engine impurity that ARCH014 cannot see: it inspects engine
+    // files only, and an import edge into server/shared/ is not a bare
+    // specifier. Shared code carries the engine's purity obligation because
+    // the engine depends on it.
+    if (isShared(sourcePath)) {
+      collectPurityViolations(violations, 'ARCH019', sourcePath, inspected, {
+        ambient: 'shared code reads ambient',
+        ambientWhy:
+          'so every engine result that flows through it stops being a pure'
+          + ' function of the seed and log',
+        module: 'shared code can only import pure standard-library modules',
       })
     }
     if (PROMPT_BUILDERS.has(sourcePath)) {

@@ -23,7 +23,7 @@ import {
 } from './worlds.ts'
 import { projectUniformJointWorlds } from './projection.ts'
 import { assertDistribution } from './invariants.ts'
-import { LruMap } from './lru.ts'
+import { LruMap } from '../../shared/lru.ts'
 import { clampProbability } from '../components/probability-arithmetic.ts'
 
 // Keyed on the per-seat private view (role, alignment, and private knowledge),

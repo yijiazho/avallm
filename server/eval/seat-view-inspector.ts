@@ -24,7 +24,7 @@ import {
   PHASES,
   ROLES,
 } from '../engine/types.ts'
-import type { ExactKeyList } from '../agents/key-list-guards.ts'
+import type { ExactKeyList } from '../shared/key-list-guards.ts'
 
 // 3: the merlin-candidates variant dropped its single-valued `ordering` field.
 export const SEAT_VIEW_INSPECTION_SCHEMA = 3

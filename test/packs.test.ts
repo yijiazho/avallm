@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { PACKS, randomModels, resolvePacks, seatPack } from '../server/agents/packs.ts'
 import { loadAgentLibrary, validateDef } from '../server/agents/defs.ts'
 import { DEFAULT_TABLE, ROSTER } from '../server/llm/roster.ts'
-import { makeRng } from '../server/engine/prng.ts'
+import { makeRng } from '../server/shared/prng.ts'
 import type { AgentDef } from '../server/agents/defs.ts'
 
 const rng = () => makeRng('packs-test')

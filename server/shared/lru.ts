@@ -1,7 +1,7 @@
 // A minimal insertion-ordered LRU map. Both belief caches (enumerated
-// assignments in worlds.ts, feasible deal worlds in exact.ts) had open-coded
-// the same touch-on-read and evict-oldest-on-write dance over a plain Map; this
-// owns it once.
+// assignments in agents/belief/worlds.ts, feasible deal worlds in
+// agents/belief/exact.ts) had open-coded the same touch-on-read and
+// evict-oldest-on-write dance over a plain Map; this owns it once.
 //
 // It leans on the Map contract that iteration follows insertion order: get()
 // deletes and re-inserts a hit so it becomes the most recent, and set() drops

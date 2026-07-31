@@ -445,7 +445,6 @@ test('runtime belief modules have no raw Game dependency', () => {
     'server/agents/belief/constraints.ts',
     'server/agents/belief/exact.ts',
     'server/agents/belief/team-assessment.ts',
-    'server/agents/belief/lru.ts',
   ]
   for (const file of files) {
     const source = fs.readFileSync(file, 'utf8')

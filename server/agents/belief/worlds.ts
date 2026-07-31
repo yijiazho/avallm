@@ -4,7 +4,7 @@ import {
   compareCanonicalRoles,
   type HiddenWorld,
 } from './types.ts'
-import { LruMap } from './lru.ts'
+import { LruMap } from '../../shared/lru.ts'
 
 export interface RoleMultisetEvidence {
   playerCount: number

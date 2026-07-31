@@ -14,7 +14,7 @@
 // four-member pack at a 9-player table never has to seat "Sherlock 2".
 
 import { ROSTER } from '../llm/roster.ts'
-import type { Rng } from '../engine/prng.ts'
+import type { Rng } from '../shared/prng.ts'
 import type { AgentDef, LibraryProblem, TableSeat } from './def-types.ts'
 
 export interface AgentPack {

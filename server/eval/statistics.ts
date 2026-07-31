@@ -13,7 +13,7 @@
 // The bootstrap takes its uniform stream as an argument rather than reaching
 // for Math.random, so a report's intervals are a function of its seed alone.
 
-import { fnv1a } from '../engine/prng.ts'
+import { fnv1a } from '../shared/prng.ts'
 
 /** Two-sided 95 percent standard normal quantile, z(0.975). */
 export const NORMAL_QUANTILE_95 = 1.959963984540054

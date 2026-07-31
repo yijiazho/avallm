@@ -11,7 +11,7 @@ import {
 import { capSpeech, nameIsReserved, stripSeatRefs } from './names.ts'
 import { canonicalTeam, teamsEqual } from './seatset.ts'
 import { computeKnowledge } from './knowledge.ts'
-import { makeRng } from './prng.ts'
+import { makeRng } from '../shared/prng.ts'
 import type {
   Decision, DecisionRequest, EventPayloadMap, EventType, Game, GameEvent, Player,
   Quest, Role, Seat, TalkConfig, Visibility,

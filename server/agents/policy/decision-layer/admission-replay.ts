@@ -31,7 +31,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../../key-list-guards.ts'
+} from '../../../shared/key-list-guards.ts'
 
 /*
  * Every key list in this module reaches `exactOwnDataRecord` one hop away, through

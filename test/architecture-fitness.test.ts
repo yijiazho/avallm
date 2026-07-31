@@ -328,6 +328,59 @@ test('the engine cannot read a clock, a random, or the filesystem', () => {
   )
 })
 
+test('shared primitives cannot acquire a domain or an ambient read', () => {
+  const shared = (body: string) =>
+    rules([['server/shared/lru.ts', body]])
+      .filter((rule) => rule === 'ARCH019')
+
+  // The domain half. Every one of these is the first step of the same slide:
+  // the folder keeps its name and quietly stops being importable by anything.
+  assert.deepEqual(
+    shared("import type { Seat } from '../engine/types.ts'"),
+    ['ARCH019'],
+    'the engine is a domain, even for one type',
+  )
+  assert.deepEqual(
+    shared("import { x } from '../agents/policy/decision-frame.ts'"),
+    ['ARCH019'],
+  )
+  assert.deepEqual(shared("import { x } from '../eval/report.ts'"), ['ARCH019'])
+  assert.deepEqual(shared("import { x } from '../llm/roster.ts'"), ['ARCH019'])
+  assert.deepEqual(shared("import { x } from 'server/sim/sim.ts'"), ['ARCH019'])
+
+  // Every in-repo target, not only the ones under server/. A relative
+  // specifier is never bare, so the purity half cannot see these either: if
+  // the domain half skipped them, client/ and tools/ would be an unguarded
+  // way into the folder.
+  assert.deepEqual(
+    shared("export type { Foo } from '../../client/src/types.ts'"),
+    ['ARCH019'],
+    'sharing a type with the client is still acquiring a domain',
+  )
+  assert.deepEqual(shared("import { x } from '../../tools/hotspots.mjs'"), ['ARCH019'])
+
+  // The purity half. The engine imports this folder, so an ambient read here
+  // is engine impurity ARCH014 never sees: it inspects engine files only, and
+  // the edge into server/shared/ is not a bare specifier.
+  assert.deepEqual(shared('export const t = () => Date.now()'), ['ARCH019'])
+  assert.deepEqual(shared('export const t = () => Math.random()'), ['ARCH019'])
+  assert.deepEqual(shared('export const t = process.env.SEED'), ['ARCH019'])
+  assert.deepEqual(shared("import { readFileSync } from 'node:fs'"), ['ARCH019'])
+
+  // What the folder is for stays legal: siblings, pure standard library, and
+  // the type-level and arithmetic work the four current modules actually do.
+  assert.deepEqual(shared("import { LruMap } from './lru.ts'"), [])
+  assert.deepEqual(shared("import { isDeepStrictEqual } from 'node:util'"), [])
+  assert.deepEqual(shared('export const t = (seed: number) => Math.imul(seed, 3)'), [])
+
+  // The rule is scoped to the folder. Every layer above it may import freely.
+  assert.deepEqual(
+    rules([['server/agents/heuristic.ts', "import { x } from '../engine/types.ts'"]])
+      .filter((rule) => rule === 'ARCH019'),
+    [],
+  )
+})
+
 test('prompt builders cannot read ambient state into the cacheable prefix', () => {
   const at = (file: string, body: string) =>
     rules([[file, body]]).filter((rule) => rule === 'ARCH015')

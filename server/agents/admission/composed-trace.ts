@@ -176,7 +176,7 @@ import type {
   MissingKeys,
   MissingRequiredKeys,
   RequiredKeys,
-} from '../key-list-guards.ts'
+} from '../../shared/key-list-guards.ts'
 import {
   componentVersionsOf,
   enumStringArray,

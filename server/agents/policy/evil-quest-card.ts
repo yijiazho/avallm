@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import { fnv1a } from '../../engine/prng.ts'
+import { fnv1a } from '../../shared/prng.ts'
 import {
   failsRequired as boardFailsRequired,
   isCompletedQuest,
@@ -32,7 +32,7 @@ import type {
   DuplicateKeys,
   ExactKeyList,
   MissingKeys,
-} from '../key-list-guards.ts'
+} from '../../shared/key-list-guards.ts'
 
 export const EVIL_QUEST_CARD_POLICY_VERSION =
   'evil-quest-card-policy-v1'
