@@ -162,31 +162,47 @@ function engineFrom(
   }
   const pick = <T>(key: string, parse: (v: unknown) => T | undefined, prior: T | undefined) =>
     (Object.hasOwn(body, key) ? parse(body[key]) : prior)
-  return {
-    type: 'llm',
-    model: pick('model', text('model'), base?.model),
-    personality: pick('personality', text('personality'), base?.personality),
-    strategy: pick('strategy', text('strategy'), base?.strategy),
-    roleGuidance: pick('roleGuidance', guidanceMap('roleGuidance'), base?.roleGuidance) as LlmEngine['roleGuidance'],
-    roleGuidanceMode: pick('roleGuidanceMode', (v) => {
-      if (v === null || v === undefined || v === '') return undefined
-      if (v === 'append' || v === 'replace') return v
-      throw new Error('roleGuidanceMode must be "replace" or "append"')
-    }, base?.roleGuidanceMode),
-    kindGuidance: pick('kindGuidance', guidanceMap('kindGuidance'), base?.kindGuidance) as LlmEngine['kindGuidance'],
-    temperature: pick('temperature', (v) => {
-      if (v === null || v === undefined) return undefined
-      if (typeof v !== 'number') throw new Error('temperature must be a number (or null to clear)')
-      return v
-    }, base?.temperature),
-    brain: pick('brain', (v) => {
-      if (v === null || v === undefined) return undefined
-      if (typeof v !== 'object' || Array.isArray(v)) {
-        throw new Error('brain must be an object (or null to clear)')
-      }
-      return structuredClone(v) as LlmBrainConfig
-    }, base?.brain),
-  }
+  const engine: LlmEngine = { type: 'llm' }
+  const model = pick('model', text('model'), base?.model)
+  const personality = pick('personality', text('personality'), base?.personality)
+  const strategy = pick('strategy', text('strategy'), base?.strategy)
+  const roleGuidance = pick(
+    'roleGuidance',
+    guidanceMap('roleGuidance'),
+    base?.roleGuidance,
+  ) as LlmEngine['roleGuidance']
+  const roleGuidanceMode = pick('roleGuidanceMode', (v) => {
+    if (v === null || v === undefined || v === '') return undefined
+    if (v === 'append' || v === 'replace') return v
+    throw new Error('roleGuidanceMode must be "replace" or "append"')
+  }, base?.roleGuidanceMode)
+  const kindGuidance = pick(
+    'kindGuidance',
+    guidanceMap('kindGuidance'),
+    base?.kindGuidance,
+  ) as LlmEngine['kindGuidance']
+  const temperature = pick('temperature', (v) => {
+    if (v === null || v === undefined) return undefined
+    if (typeof v !== 'number') throw new Error('temperature must be a number (or null to clear)')
+    return v
+  }, base?.temperature)
+  const brain = pick('brain', (v) => {
+    if (v === null || v === undefined) return undefined
+    if (typeof v !== 'object' || Array.isArray(v)) {
+      throw new Error('brain must be an object (or null to clear)')
+    }
+    return structuredClone(v) as LlmBrainConfig
+  }, base?.brain)
+
+  if (model !== undefined) engine.model = model
+  if (personality !== undefined) engine.personality = personality
+  if (strategy !== undefined) engine.strategy = strategy
+  if (roleGuidance !== undefined) engine.roleGuidance = roleGuidance
+  if (roleGuidanceMode !== undefined) engine.roleGuidanceMode = roleGuidanceMode
+  if (kindGuidance !== undefined) engine.kindGuidance = kindGuidance
+  if (temperature !== undefined) engine.temperature = temperature
+  if (brain !== undefined) engine.brain = brain
+  return engine
 }
 
 // Preview fixture: a real engine-generated mid-game state — createGame with a
@@ -347,7 +363,12 @@ function createLobby(
   const token = newToken()
   const lobby: Lobby = {
     id: newId(),
-    config: { playerCount, humanSeats, table, roles },
+    config: {
+      playerCount,
+      humanSeats,
+      table,
+      ...(roles === undefined ? {} : { roles }),
+    },
     members: [{ token, name: cleanName(body.name, 'Host') }],
     spectators: [],
     status: 'open',
@@ -423,7 +444,10 @@ function startLobby(l: Lobby): void {
   // pacing lived in two files that had to be edited together and nothing checked
   // that they matched. createGame owns it now (engine/game.ts).
   const game = createGame({
-    seed, playerCount, names, roles: l.config.roles,
+    seed,
+    playerCount,
+    names,
+    ...(l.config.roles === undefined ? {} : { roles: l.config.roles }),
   })
   for (const { seat, identity } of botPlans) {
     agents.set(seat, createAgentFromDef(
@@ -939,6 +963,7 @@ const server = http.createServer(async (req, res) => {
             ...(full ? { role: p.role, alignment: p.alignment } : {}),
           }
         })
+        const outcome = s.game.outcome
         const text = renderTranscript({
           id: s.game.id, seed: s.game.seed, playerCount: s.game.config.playerCount,
           phase: s.game.phase, round: s.game.round, proposalNum: s.game.proposalNum,
@@ -947,13 +972,18 @@ const server = http.createServer(async (req, res) => {
           // raw error text). A scoped transcript omits them — payloadFor hands a
           // live client only a bare count — so a co-player in a multi-human game
           // gets no bot error detail the UI otherwise withholds.
-          degraded: full ? s.degraded : undefined,
-          traceDegraded: full
-            ? summarizeTraceDegradations(s.decisionTraces)
-            : undefined,
-          winner: s.game.outcome?.winner, winReason: s.game.outcome?.reason,
+          ...(full
+            ? {
+                degraded: s.degraded,
+                traceDegraded: summarizeTraceDegradations(s.decisionTraces),
+              }
+            : {
+                scopedTo: typeof who === 'number' ? who : 'spectator',
+              }),
+          ...(outcome === undefined
+            ? {}
+            : { winner: outcome.winner, winReason: outcome.reason }),
           revealed: full,
-          scopedTo: full ? undefined : (typeof who === 'number' ? who : 'spectator'),
           capturedAt: new Date().toISOString(),
           includeRaw: url.searchParams.get('raw') !== '0',
         })
