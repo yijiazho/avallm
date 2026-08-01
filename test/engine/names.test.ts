@@ -8,7 +8,11 @@ import { applyDecision, createGame, expectedDecisions } from '../../server/engin
 import type { Player } from '../../server/engine/types.ts'
 
 test('nameIsReserved catches pronouns and game terms, case/space-insensitively', () => {
-  for (const bad of ['You', 'you', ' ME ', 'i', 'Myself', 'us', 'Leader', 'SYSTEM', 'assistant']) {
+  for (const bad of [
+    'You', 'you', ' ME ', 'i', 'Myself', 'us', 'Leader', 'SYSTEM', 'assistant',
+    'Merlin', 'Percival', 'SERVANT', 'Assassin', 'Morgana', 'Mordred', 'Oberon',
+    'Minion',
+  ]) {
     assert.equal(nameIsReserved(bad), true, `${bad} should be reserved`)
   }
   for (const ok of ['Allen', 'Gemini', 'Human', 'Ursula', 'Mimi', 'Wesley', 'Iris']) {

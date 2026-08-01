@@ -46,7 +46,7 @@ import type { LlmCallKind } from './llm/call-params.ts'
 import { getClient } from './llm/client.ts'
 import { ROSTER, DEFAULT_TABLE, DEFAULT_MODEL } from './llm/roster.ts'
 import { ROLE_ALIGNMENT, validateRoles } from './engine/rules.ts'
-import { nameIsReserved } from './engine/names.ts'
+import { nameIsReserved, normalizeName } from './engine/names.ts'
 import type { AvalonAgent } from './agents/types.ts'
 import { recordAppliedDecision } from './agents/applied-trace.ts'
 import {
@@ -59,6 +59,7 @@ import {
 } from './agents/brain.ts'
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
 import { renderTranscript, type TranscriptSeat } from './transcript.ts'
+import { tableAliases } from './table-aliases.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'client', 'dist')
@@ -359,14 +360,20 @@ function startLobby(l: Lobby): void {
   const humanSeatList = seats.slice(0, l.members.length).sort((a, b) => a - b)
   const botSeatList = seats.slice(l.members.length).sort((a, b) => a - b)
 
-  // Names, seat-indexed; bot names reserved first, then humans deduped around
-  // them (so a name collision suffixes the human, protecting the bot's identity).
+  // Seat-indexed conversational identities. Human names are established first;
+  // bots then draw unique safe aliases around them.
   const names = new Array<string>(playerCount)
-  const nameCount = new Map<string, number>()
+  const usedNames = new Set<string>()
   const reserve = (want: string): string => {
-    const n = (nameCount.get(want) ?? 0) + 1
-    nameCount.set(want, n)
-    return n === 1 ? want : `${want} ${n}`
+    if (!usedNames.has(normalizeName(want))) {
+      usedNames.add(normalizeName(want))
+      return want
+    }
+    let suffix = 2
+    while (usedNames.has(normalizeName(`${want} ${suffix}`))) suffix++
+    const chosen = `${want} ${suffix}`
+    usedNames.add(normalizeName(chosen))
+    return chosen
   }
   const botInfo: Record<number, AgentPublicInfo> = {}
   const agents = new Map<Seat, AvalonAgent>()
@@ -378,25 +385,23 @@ function startLobby(l: Lobby): void {
   // between "def suggested X" and "host overrode to X".
   const agentDefs: Record<number, { def: AgentDef; model?: string }> = {}
   const seed = `web-${newId()}`
-  // Reserve bot (roster) names FIRST, so a human who picks an in-play bot's
-  // name is the one demoted to "<name> 2" — never the bot. Names are injected
-  // verbatim into every player's prompt, so an unsuffixed impostor could
-  // otherwise pose as the model to the humans and the other bots alike.
-  botSeatList.forEach((seat, i) => {
-    const def = defs[i]
-    names[seat] = reserve(def.name)
-    // publicInfo gets the seat's model override so the in-game badge shows
-    // the model that actually answers, never just the def's suggestion.
-    botInfo[seat] = { ...publicInfo(def, table[i].model), name: names[seat] }
-    agentDefs[seat] = { def: structuredClone(def), model: table[i].model }
-  })
   const humans = new Map<Seat, { token: string; name: string }>()
   l.members.forEach((m, i) => {
     const seat = humanSeatList[i]
     names[seat] = reserve(m.name)
     humans.set(seat, { token: m.token, name: names[seat] })
   })
-
+  const aliases = tableAliases(seed, botSeatList.length, [...humans.values()].map((h) => h.name))
+  // Agent-card names and model labels remain metadata. Only these aliases enter
+  // PlayerView and therefore natural-language prompts and table talk.
+  botSeatList.forEach((seat, i) => {
+    const def = defs[i]
+    names[seat] = reserve(aliases[i])
+    // publicInfo gets the seat's model override so the in-game badge shows the
+    // model that actually answers. Its name remains the agent definition name.
+    botInfo[seat] = publicInfo(def, table[i].model)
+    agentDefs[seat] = { def: structuredClone(def), model: table[i].model }
+  })
   // No talk override: this restated the engine default verbatim, so the shipped
   // pacing lived in two files that had to be edited together and nothing checked
   // that they matched. createGame owns it now (engine/game.ts).
@@ -891,7 +896,10 @@ const server = http.createServer(async (req, res) => {
         const seats: TranscriptSeat[] = s.game.players.map((p) => ({
           seat: p.seat,
           name: p.name,
-          agent: seatAgentLabel(s, p.seat),
+          agent: s.humans.has(p.seat) ? 'human' : (s.botInfo[p.seat]?.name ?? 'bot'),
+          ...(!s.humans.has(p.seat) && s.botInfo[p.seat]
+            ? { model: s.botInfo[p.seat].model }
+            : {}),
           ...(full ? { role: p.role, alignment: p.alignment } : {}),
         }))
         const text = renderTranscript({

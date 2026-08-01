@@ -252,8 +252,13 @@ stable `autopilot` id, **Probabilistic**, and **Probabilistic + LLM**) + user ag
 `data/agents/` (gitignored). Server API: `GET /api/agents` (browse), `POST /api/agents` (create —
 **llm engines only**). Table setup maps each bot seat to a library id with an
 optional per-seat model override — `table` entries are either a bare agent id (legacy) or
-`{agent, model?}`; the same agent may play multiple seats (on the same or different models), names
-deduped. The override applies to raw-LLM agents and the bounded-LLM composed agent, never to
+`{agent, model?}`; the same agent may play multiple seats (on the same or different models). At
+game start each bot receives a unique, seed-derived medieval table alias. That alias is the name
+in `PlayerView`, prompts, speech and the play-by-play; the agent definition name and resolved model
+remain separate public metadata in the seat tooltip, Reference panel, reveal and debug transcript.
+The alias pool excludes formal roles and familiar Arthurian characters, and human names are
+removed case-insensitively before aliases are drawn. The override applies to raw-LLM agents and
+the bounded-LLM composed agent, never to
 model-free engines. Bad seats (unknown agent/model, a model override on a model-free engine) are rejected at
 lobby creation, never at game start. The client's
 setup screen has the library browser + create-agent form, and the in-game Reference panel (Rules /
@@ -560,9 +565,10 @@ provider pin — all handled at the chokepoint, invisible to prompts.
 
 ### UI treatment
 
-Every seat carries the model's display name plus a per-model celestial glyph in a brand-ish color
-(no real logos — the glyph + name dodge trademark questions; see the visuals research doc). The old
-two-letter monogram badge has been retired in favor of the name. Post-game
+Every bot seat carries three intentionally separate identities: a table alias used in conversation,
+an agent-card name describing its behavior, and the resolved model or model-free engine label.
+The alias is the prominent seat name; the agent and model remain visible in details alongside a
+per-agent celestial glyph in a brand-ish color (no real logos; see the visuals research doc). Post-game
 stats screen per model: decisions made, fallbacks, tokens/cost, and the private `thinking` reveal
 — "watch DeepSeek realize you were Merlin on quest 3" is the shareable moment. A per-model
 career record across games (localStorage): win rate as good/evil vs. you.
@@ -645,12 +651,13 @@ format/authority escape, not persuasion:
 
 ## 6. UI sketch (text only)
 
-- **Table view (main screen):** an oval table, seats around it. Each seat card: name, model badge,
+- **Table view (main screen):** an oval table, seats around it. Each seat card: table alias, with
+  agent name and model in its detail tooltip,
   leader crown when leading, shield chip when on the proposed team, vote chip (hidden until
   reveal), "thinking…" shimmer while that bot's call is in flight (dramatizes latency instead of
   hiding it). Human's seat visually anchored bottom-center.
 - **Role card:** a drawer/flip card, bottom corner — your role, your private knowledge ("You see
-  evil: Kimi, Qwen"), always re-checkable, never on screen by default (streamer-safe mode).
+  evil: Alden, Tamsin"), always re-checkable, never on screen by default (streamer-safe mode).
 - **Quest board:** 5 quest discs across the top (team size on each, success/fail fill as resolved,
   the 2-fails-required disc marked), plus the 5-step vote-rejection track ticking toward evil.
 - **Discussion feed:** right-hand chat column. Messages carry seat name + model badge. Human input

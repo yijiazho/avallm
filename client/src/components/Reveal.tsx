@@ -72,27 +72,30 @@ export function Reveal({ view, reveal, onNewGame, onCopyLog, copyLabel }: {
         <button className="secondary" onClick={onNewGame}>New game</button>
       </div>
       {showThinking && reveal && <ThinkingTimeline reveal={reveal} />}
-      {reveal && <AgentConfigCards reveal={reveal} />}
+      {reveal && <AgentCards reveal={reveal} />}
     </div>
   )
 }
 
-// The configs that actually played (def snapshots from game start) — full
-// transparency once the game is over, including custom prompt layers.
-function AgentConfigCards({ reveal }: { reveal: RevealPayload }) {
-  const tuned = Object.entries(reveal.agents ?? {})
-    .filter(([, a]) => a.custom || a.tunedChars > 0)
-  if (!tuned.length) return null
+// The identities that actually played (def snapshots from game start), with
+// expandable prompt details for custom agents.
+function AgentCards({ reveal }: { reveal: RevealPayload }) {
+  const agents = Object.entries(reveal.agents ?? {})
+  if (!agents.length) return null
   return (
     <div className="reveal-agent-configs">
-      <p className="roles-preview">Custom agents, as configured for this game:</p>
-      {tuned.map(([seat, a]) => {
+      <p className="roles-preview">Agents at the table:</p>
+      {agents.map(([seat, a]) => {
         const player = reveal.players.find((p) => p.seat === Number(seat))
+        const label = `${player?.name ?? `seat ${seat}`} · ${a.name} · ${a.model}`
+        if (!a.custom && a.tunedChars === 0) {
+          return <div key={seat} className="roles-preview">{label}</div>
+        }
         return (
           <details key={seat} className="prompt-details">
             <summary>
-              {player?.name ?? a.name} · {a.name} v{a.version ?? 1} ({a.model},
-              ~{tokenEstimate(a.tunedChars)} tokens of custom prompt)
+              {label}{a.version ? ` · v${a.version}` : ''} ·
+              {' '}~{tokenEstimate(a.tunedChars)} tokens of custom prompt
             </summary>
             <pre>{agentConfigText(a)}</pre>
           </details>

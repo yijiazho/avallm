@@ -8,6 +8,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { server } from '../../server/server.ts'
+import { TABLE_ALIAS_POOL } from '../../server/table-aliases.ts'
 
 let base: string
 
@@ -44,6 +45,75 @@ test('/valid returns 200 for the seat token that started the game', async () => 
   const r = await fetch(`${base}/api/game/${id}/valid?token=${token}`)
   assert.equal(r.status, 200)
   assert.deepEqual(await r.json(), { ok: true })
+})
+
+test('live DTO separates table aliases from agent and model identity', async () => {
+  const { id, token } = await newSoloGame()
+  const controller = new AbortController()
+  const response = await fetch(`${base}/api/game/${id}/events?token=${token}`, {
+    signal: controller.signal,
+  })
+  assert.equal(response.status, 200)
+  const reader = response.body!.getReader()
+  const { value } = await reader.read()
+  controller.abort()
+  const text = new TextDecoder().decode(value)
+  const line = text.split('\n').find((entry) => entry.startsWith('data: '))
+  assert.ok(line, 'SSE sends an initial game payload')
+  const payload = JSON.parse(line.slice(6)) as {
+    view: { seat: number; players: { seat: number; name: string }[] }
+    bots: Record<number, { name: string; model: string }>
+  }
+  const aliasPool = new Set<string>(TABLE_ALIAS_POOL)
+  const botSeats = Object.keys(payload.bots).map(Number)
+  assert.equal(botSeats.length, 4)
+  for (const seat of botSeats) {
+    assert.equal(payload.bots[seat].name, 'Rule-based', 'agent-card name is retained')
+    assert.equal(payload.bots[seat].model, 'rule-based', 'model identity is retained')
+    assert.ok(aliasPool.has(payload.view.players[seat].name), 'PlayerView uses a table alias')
+  }
+  assert.equal(new Set(payload.view.players.map((player) => player.name.toLowerCase())).size, 5)
+})
+
+test('game-start name allocation cannot collide with an existing numeric suffix', async () => {
+  const created = await fetch(`${base}/api/lobby`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Alice', playerCount: 5, humanSeats: 3,
+      table: ['autopilot', 'autopilot'],
+    }),
+  })
+  assert.equal(created.status, 200)
+  const lobby = await created.json() as { lobbyId: string }
+  const join = async (name: string) => {
+    const response = await fetch(`${base}/api/lobby/${lobby.lobbyId}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mode: 'play' }),
+    })
+    assert.equal(response.status, 200)
+    return response.json() as Promise<{ token: string; gameId?: string }>
+  }
+  await join('Alice 2')
+  const started = await join('alice')
+  assert.ok(started.gameId)
+
+  const controller = new AbortController()
+  const events = await fetch(`${base}/api/game/${started.gameId}/events?token=${started.token}`, {
+    signal: controller.signal,
+  })
+  const { value } = await events.body!.getReader().read()
+  controller.abort()
+  const line = new TextDecoder().decode(value).split('\n')
+    .find((entry) => entry.startsWith('data: '))
+  assert.ok(line)
+  const payload = JSON.parse(line.slice(6)) as { view: { players: { name: string }[] } }
+  const normalized = payload.view.players.map((player) => player.name.toLowerCase())
+  assert.equal(new Set(normalized).size, 5)
+  assert.ok(normalized.includes('alice'))
+  assert.ok(normalized.includes('alice 2'))
+  assert.ok(normalized.includes('alice 3'))
 })
 
 test('/valid returns 403 for a wrong token on a live game', async () => {

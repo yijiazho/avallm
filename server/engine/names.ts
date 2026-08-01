@@ -2,9 +2,9 @@
 // injected verbatim into every OTHER player's LLM prompt, so it is sanitized and
 // vetted here before it reaches any prompt. Model-authored speech is capped and
 // its stray seat references rewritten here too. Pure: this module imports only
-// types.
+// engine types.
 
-import type { Player } from './types.ts'
+import { ROLES, type Player } from './types.ts'
 
 // ---- name policy ----
 // A display name is injected verbatim into every OTHER player's LLM prompt
@@ -16,7 +16,12 @@ import type { Player } from './types.ts'
 // human's own view renders "You" client-side instead of storing it as a name.
 export const RESERVED_NAMES: ReadonlySet<string> = new Set([
   'you', 'u', 'me', 'i', 'myself', 'self', 'we', 'us',
-  'system', 'assistant', 'narrator', 'leader',
+  'system', 'assistant', 'narrator',
+  // Public game identities and hidden roles are not safe player names. Aside
+  // from confusing ordinary prose, allowing a player called "Merlin" makes a
+  // grounded role claim indistinguishable from addressing that player.
+  'leader',
+  ...ROLES,
 ])
 
 export function normalizeName(name: string): string {

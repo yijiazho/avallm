@@ -13,6 +13,7 @@ import { runGame } from './runner.ts'
 import { renderEvent, revealRoles } from './render.ts'
 import type { AvalonAgent } from '../agents/types.ts'
 import type { Decision, DecisionRequest, PlayerView, Seat } from '../engine/types.ts'
+import { tableAliases } from '../table-aliases.ts'
 
 const { values } = parseArgs({
   options: {
@@ -51,8 +52,7 @@ function ask(prompt: string): Promise<string> {
   return new Promise((resolve) => waiters.push(resolve))
 }
 
-const names = ['Human', 'DeepSeek', 'Gemini', 'Haiku', 'Kimi', 'Qwen', 'GLM', 'Mistral', 'GPT', 'Llama']
-  .slice(0, playerCount)
+const names = ['Human', ...tableAliases(values.seed!, playerCount - 1, ['Human'])]
 
 const game = createGame({
   seed: values.seed!, playerCount, names,

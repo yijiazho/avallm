@@ -25,7 +25,7 @@ async function finishedGame(seed = 'transcript', playerCount = 5) {
 
 function seatsFor(game: Awaited<ReturnType<typeof finishedGame>>, revealed: boolean): TranscriptSeat[] {
   return game.players.map((p) => ({
-    seat: p.seat, name: p.name, agent: 'rule-based',
+    seat: p.seat, name: p.name, agent: 'Rule-based', model: 'rule-based',
     ...(revealed ? { role: p.role, alignment: p.alignment } : {}),
   }))
 }
@@ -122,6 +122,8 @@ test('a lone human gets a mid-game FULL REVEAL transcript', async () => {
   const text = await r.text()
   assert.match(text, /FULL REVEAL/) // solo table: nobody to cheat
   assert.match(text, /# Avalon debug transcript/)
+  assert.match(text, /\| name \| agent \| model \| role \|/)
+  assert.match(text, /\| Rule-based \| rule-based \|/)
 })
 
 test('/transcript rejects a wrong token mid-game', async () => {

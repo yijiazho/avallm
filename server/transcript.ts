@@ -18,7 +18,8 @@ import type { Alignment, GameEvent, Phase, Quest, Role, Seat } from './engine/ty
 export interface TranscriptSeat {
   seat: Seat
   name: string
-  agent: string          // 'human' | model display name | 'rule-based'
+  agent: string          // 'human' or the agent-card/implementation identity
+  model?: string         // resolved model slug, 'rule-based', or 'probabilistic'
   role?: Role            // present only when the transcript is a full reveal
   alignment?: Alignment
 }
@@ -100,15 +101,15 @@ export function renderTranscript(input: TranscriptInput): string {
   out.push('## Seats')
   out.push('')
   if (input.revealed) {
-    out.push('| # | name | agent | role | align |')
-    out.push('| - | ---- | ----- | ---- | ----- |')
+    out.push('| # | name | agent | model | role | align |')
+    out.push('| - | ---- | ----- | ----- | ---- | ----- |')
     for (const s of input.seats) {
-      out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.role ?? '?'} | ${s.alignment ?? '?'} |`)
+      out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.model ?? '—'} | ${s.role ?? '?'} | ${s.alignment ?? '?'} |`)
     }
   } else {
-    out.push('| # | name | agent |')
-    out.push('| - | ---- | ----- |')
-    for (const s of input.seats) out.push(`| ${s.seat} | ${s.name} | ${s.agent} |`)
+    out.push('| # | name | agent | model |')
+    out.push('| - | ---- | ----- | ----- |')
+    for (const s of input.seats) out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.model ?? '—'} |`)
   }
   out.push('')
 

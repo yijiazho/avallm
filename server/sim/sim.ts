@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { makeRng } from '../shared/prng.ts'
 import { createAgent, createAgentFromDef } from '../agents/registry.ts'
-import { engineUsesModel, loadAgentLibrary } from '../agents/defs.ts'
+import { engineUsesModel, loadAgentLibrary, publicInfo } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame, type RunResult } from './runner.ts'
@@ -33,6 +33,7 @@ import {
   type DecisionTrace,
 } from '../agents/trace.ts'
 import type { Game, Seat } from '../engine/types.ts'
+import { tableAliases } from '../table-aliases.ts'
 
 const USAGE = `npm run sim -- [flags]        headless Avalon simulator
 
@@ -242,25 +243,14 @@ const agentsLabel = packTable ? `pack:${values.pack}${forcedModel ? ` on llm:${f
   : composedBrain ? `composed:${composedBrain}`
   : values.agents!
 
-// Repeated display names get a numeric suffix (Kimi, Kimi 2, Kimi 3). One helper
-// so the --tier and --pack casts, which both draw names that can collide, dedupe
-// the same way instead of each carrying its own copy of the loop.
-function dedupeNames(displays: string[]): string[] {
-  const used = new Map<string, number>()
-  return displays.map((display) => {
-    const n = (used.get(display) ?? 0) + 1
-    used.set(display, n)
-    return n === 1 ? display : `${display} ${n}`
-  })
-}
-
-// The resolved "who sits where" for one game: specs, agents, display names, and
+// The resolved "who sits where" for one game: specs, agents, table aliases, and
 // per-seat descriptors, all reading from a SINGLE decision instead of each
 // consumer re-running the same flag ladder in its own precedence order.
 interface TablePlan {
   agent(seat: Seat, ctx: AgentContext): AvalonAgent
-  names(count: number): string[] | undefined
+  names(count: number): string[]
   descriptor(seat: Seat): string
+  transcriptIdentity(seat: Seat): { agent: string; model?: string }
   readonly label: string
 }
 
@@ -286,28 +276,11 @@ function resolveTablePlan(seed: string): TablePlan {
     return createAgent(spec(seat), ctx)
   }
 
-  // LLM tables are named after their models — the premise of the game. A --tier
-  // cast repeats models freely (4 mid models over 7 seats) and a pack table is
-  // named after its characters (the models still show in the spend breakdown),
-  // so both dedupe by display name. A homogeneous table numbers every seat
-  // (Kimi 1..Kimi 7) so the transcript can still tell them apart.
-  const names = (count: number): string[] | undefined => {
-    if (!isLlm) return undefined
-    if (tierTable) return dedupeNames(Array.from({ length: count }, (_, seat) => rosterById(tierTable[seat]).displayName))
-    if (packDefs) return dedupeNames(packDefs.slice(0, count).map((def) => def.name))
-    if (forcedModel) {
-      const entry = rosterById(forcedModel)
-      return Array.from({ length: count }, (_, seat) => `${entry.displayName} ${seat + 1}`)
-    }
-    return Array.from({ length: count }, (_, seat) => {
-      const entry = ROSTER[seat % ROSTER.length]
-      const dup = Math.floor(seat / ROSTER.length)
-      return dup ? `${entry.displayName} ${dup + 1}` : entry.displayName
-    })
-  }
+  // All headless tables use the same conversational aliases as web games. The
+  // exact agent and model remain visible through descriptors and transcripts.
+  const names = (count: number): string[] => tableAliases(seed, count)
 
-  // What actually sat in a seat, for the artifact AND the transcript header, so a
-  // transcript can never disagree with the artifact beside it.
+  // What actually sat in a seat for the replayable evaluation artifact.
   const descriptor = (seat: Seat): string => {
     if (packTable && packDefs) {
       const engine = packDefs[seat].engine
@@ -321,7 +294,19 @@ function resolveTablePlan(seed: string): TablePlan {
     return s.type
   }
 
-  return { agent, names, descriptor, label: agentsLabel }
+  const transcriptIdentity = (seat: Seat): { agent: string; model?: string } => {
+    if (packTable && packDefs) {
+      const info = publicInfo(packDefs[seat], packTable[seat].model)
+      return { agent: info.name, model: info.model }
+    }
+    const s = spec(seat)
+    if (s.type === 'llm') return { agent: 'Pure LLM', model: rosterById(s.model).slug }
+    if (s.type === 'composed') return { agent: `Composed (${s.brain})`, model: 'probabilistic' }
+    if (s.type === 'heuristic') return { agent: 'Rule-based', model: 'rule-based' }
+    return { agent: 'Random', model: 'random' }
+  }
+
+  return { agent, names, descriptor, transcriptIdentity, label: agentsLabel }
 }
 
 const tally = {
@@ -399,7 +384,7 @@ function writeTranscript(
     seats: game.players.map((p) => ({
       seat: p.seat,
       name: p.name,
-      agent: plan.descriptor(p.seat),
+      ...plan.transcriptIdentity(p.seat),
       role: p.role,
       alignment: p.alignment,
     })),

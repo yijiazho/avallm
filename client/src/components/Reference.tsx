@@ -88,10 +88,10 @@ function TableTab({ view, bots }: { view: PlayerView; bots: Record<number, Agent
         return (
           <div key={p.seat} className="ref-row">
             <span className="role-toggle-name agent-name">
-              {info.name}
+              {p.name}
             </span>
             <span className="role-toggle-desc">
-              {info.model}{info.version ? ` · v${info.version}` : ''}{info.author ? ` · by ${info.author}` : ''}
+              {info.name} · {info.model}{info.version ? ` · v${info.version}` : ''}{info.author ? ` · by ${info.author}` : ''}
               {info.about ? ` · ${info.about}` : ''}
               {info.personality ? ` Persona: ${info.personality}` : ''}
               {info.tunedChars > 0 && ` · tuned (~${tokenEstimate(info.tunedChars)} tokens of custom strategy)`}

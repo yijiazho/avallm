@@ -58,8 +58,11 @@ export function TableSeats({ view, bots, acting }: {
               )}
               <span className={`tooltip ${tipSide}`} role="tooltip">
                 <span className="t-title">{isLeader && <span className="t-num">♛ </span>}{p.name}</span>
-                <span className="t-sub">{body.body} · {bot ? bot.model : 'human player'}</span>
+                <span className="t-sub">
+                  {bot ? `${bot.name} · ${bot.model}` : 'human player'}
+                </span>
                 <span className="t-rows">
+                  {bot && <span className="t-row"><span className="k">sign</span><span className="v">{body.body}</span></span>}
                   <span className="t-row"><span className="k">status</span><span className="v gold">
                     {[isLeader ? 'leader' : '', onTeam ? 'on quest' : '', isActing ? 'deciding…' : '']
                       .filter(Boolean).join(' · ') || 'at the table'}

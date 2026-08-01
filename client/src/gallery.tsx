@@ -24,7 +24,7 @@ import { Reveal } from './components/Reveal.tsx'
 import { ArcanaDefs } from './components/Arcana.tsx'
 import './styles.css'
 
-const names = ['You', 'Gemini', 'DeepSeek', 'Claude', 'GPT-OSS', 'Kimi', 'GLM']
+const names = ['You', 'Alden', 'Beatrix', 'Corin', 'Edith', 'Oswin', 'Tamsin']
 const players = names.map((name, seat) => ({ seat, name }))
 const rolesInPlay: Role[] = ['merlin', 'percival', 'servant', 'servant', 'assassin', 'morgana', 'oberon']
 
@@ -104,17 +104,18 @@ const questView = v({
 // target are what this fixture exists to show.
 const revealPlayers: RevealPayload['players'] = [
   { seat: 0, name: 'You', role: 'merlin', alignment: 'good' },
-  { seat: 1, name: 'Gemini', role: 'servant', alignment: 'good' },
-  { seat: 2, name: 'DeepSeek', role: 'morgana', alignment: 'evil' },
-  { seat: 3, name: 'Claude', role: 'percival', alignment: 'good' },
-  { seat: 4, name: 'GPT-OSS', role: 'assassin', alignment: 'evil' },
-  { seat: 5, name: 'Kimi', role: 'oberon', alignment: 'evil' },
-  { seat: 6, name: 'GLM', role: 'servant', alignment: 'good' },
+  { seat: 1, name: 'Alden', role: 'servant', alignment: 'good' },
+  { seat: 2, name: 'Beatrix', role: 'morgana', alignment: 'evil' },
+  { seat: 3, name: 'Corin', role: 'percival', alignment: 'good' },
+  { seat: 4, name: 'Edith', role: 'assassin', alignment: 'evil' },
+  { seat: 5, name: 'Oswin', role: 'oberon', alignment: 'evil' },
+  { seat: 6, name: 'Tamsin', role: 'servant', alignment: 'good' },
 ]
 const revealData: RevealPayload = {
   players: revealPlayers,
   log: [{ seq: 1, type: 'assassination', payload: { assassin: 4, target: 3, wasMerlin: false }, visibility: 'public' }],
   degraded: [],
+  agents: bots,
 }
 const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameOver', outcome: { winner: 'good', reason: 'assassinMissed' } })
 
