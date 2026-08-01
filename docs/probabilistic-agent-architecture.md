@@ -865,18 +865,31 @@ TypeScript lines at the time of writing and will drift, but the owners and their
 not drift silently.
 
 ```text
-server/agents/                        # about 41.9k lines in ten owners
-  *.ts                                #  6.4k  agent boundary and the raw-LLM baseline
+server/agents/                        # about 51.5k lines in fourteen owners
+  *.ts                                #  6.0k  agent boundary and the raw-LLM baseline
     types.ts registry.ts defs.ts packs.ts board.ts experimental.ts
     heuristic.ts random.ts llm.ts external-reply.ts composed.ts brain.ts
     prompts.ts facts.ts parse.ts trace.ts
-  cognition/                          #  1.9k  observation to typed private memory
-    evidence.ts state.ts commitments.ts coherence.ts plan-memory.ts types.ts
-  belief/                             #  2.6k  hidden worlds and the posterior
+  canonical/                          #  1.4k  domain-free shape and probability guards
+    canonical-code.ts canonical-json.ts canonical-shape.ts
+    probability-arithmetic.ts
+  candidate/                          #  0.4k  the vocabulary of a legal move
+    applicability.ts candidates.ts types.ts
+  record/                             #  1.4k  what the table saw, said, and means to do
+    evidence.ts evidence-reference.ts public-record.ts
+    intent.ts strategic-intent-contract.ts
+    language-contract.ts language-types.ts
+  cognition/                          #  1.8k  observation to typed private memory
+    evidence.ts state.ts commitments.ts commitment-types.ts coherence.ts
+    plan-memory.ts plan-memory-schema.ts applied-decision.ts types.ts
+  belief/                             #  4.1k  hidden worlds and the posterior
     worlds.ts constraints.ts quest-constraints.ts exact.ts
-    projection.ts weighting.ts identity.ts
-    quest-card-factor.ts language-factor.ts types.ts
-  analysis/                           #  9.0k  decision-ready reads, including role semantics
+    projection.ts log-weights.ts identity.ts identity-project.ts
+    identity-validate.ts invariants.ts team-assessment.ts
+    host-reconstructible.ts factor-manifest.ts
+    quest-card-factor.ts vote-matrix-factor.ts proposal-factor.ts
+    language-factor.ts types.ts
+  analysis/                           # 10.6k  decision-ready reads, including role semantics
     situation.ts situation-plan.ts scorer-situation-surface.ts types.ts
     observer.ts
     role-objectives.ts role-objective-router.ts role-utility.ts
@@ -885,48 +898,64 @@ server/agents/                        # about 41.9k lines in ten owners
     mordred-blindness.ts assassin-merlin-posterior.ts
     actor-target-treatment.ts
     (seven of the above carry a sibling *-types.ts)
-  policy/                             #  7.6k  action authority and the generic layer kernels
+  policy/                             #  8.1k  action authority and the generic layer kernels
     candidates.ts forced.ts plan.ts types.ts
     decision-frame.ts                 #   the staged spine every decision walks
-    score.ts project-score-diagnostics.ts compatibility-score.ts custom-scoring.ts
+    score.ts compatibility-score.ts custom-scoring.ts
     component-runtime.ts trusted-data.ts deterministic-policy.ts
     evil-quest-card.ts *-score-contract.ts
-    score-layer/                      #  1.8k  generic score-layer kernel
-    decision-layer/                   #  1.3k  generic strategic decision-layer kernel
-  role-score-layers/                       #  1.9k  concrete score families
+    score-layer/                      #   generic score-layer kernel
+    decision-layer/                   #   generic strategic decision-layer kernel
+  score-diagnostics/                  #  0.5k  the score-diagnostics projection
+    project-score-diagnostics.ts
+  role-score-layers/                  #  2.2k  concrete score families
     good.ts evil.ts mordred.ts morgana.ts assassin.ts full-role.ts configured.ts
-  role-decision-layers/                    #  0.1k  concrete strategic layers
+  role-decision-layers/               #  0.1k  concrete strategic layers
     robust-evil-quest-card.ts configured.ts
-  components/                         #  5.6k  the generic decision-component substrate
+  components/                         #  5.3k  the generic decision-component substrate
     kernel.ts resolved-brain.ts registry.ts production-registry.ts
     native-score-components.ts native-role-components.ts
-    robust-evil-quest-card.ts
-    canonical-json.ts canonical-shape.ts probability-arithmetic.ts
+    robust-evil-quest-card.ts architecture-identity.ts
     architecture-metadata.ts types.ts
-  admission/                          #  5.1k  trace canonicalization and host admission
+  composed/                           #  1.3k  the composed host, split from composed.ts
+    decision-cognition.ts options.ts snapshots.ts voice.ts
+    planner-admission.ts policy-use-attribution.ts native-diagnostics.ts
+    role-features.ts role-scope.ts
+  admission/                          #  6.2k  trace canonicalization and host admission
     composed-trace.ts role-trace-v1.ts
     component-host-inputs.ts trace-primitives.ts
-  communication/                      #  1.8k  language in and voice out
-    language-contract.ts language-orchestration.ts language-types.ts
-    planner-voice-adapter.ts composed-renderer.ts belief-summary.ts
-    public-record.ts compat-certainties.ts
+  communication/                      #  2.0k  language in and voice out
+    language-orchestration.ts planner-voice-adapter.ts composed-renderer.ts
+    belief-summary.ts compat-certainties.ts
+    direction-contract.ts voice-norms.ts
 ```
 
-Four owners postdate the original map and had no place in it. `components/` holds the generic
+Nine owners postdate the original map and had no place in it. `components/` holds the generic
 decision-component substrate from §5.7: the kernel, the resolved brain, the registries, and the
-canonical JSON and architecture-identity surfaces. `admission/` owns hostile-trace canonicalization
+architecture-identity surfaces. `admission/` owns hostile-trace canonicalization
 and host admission, which §9 names as the shared component admission owner but the map never gave a
 home. `role-score-layers/` and `role-decision-layers/` hold the concrete families that the generic
 `policy/score-layer/` and `policy/decision-layer/` kernels execute; splitting concrete from generic
-is what lets the kernels stay role-free.
+is what lets the kernels stay role-free. The remaining five are the tiering from `CLAUDE.md` made
+into directories: `canonical/` (domain-free shape and probability guards, importing nothing else in
+`agents/`), `candidate/` (the vocabulary of a legal move), `record/` (what the table saw and said,
+an input to belief rather than a rendering of it, which is why it is not under `communication/`),
+`composed/` (the host's own internals, split out of `composed.ts`), and `score-diagnostics/` (the
+one projection that both `policy/` and the trace need).
 
-Three entries in the earlier map never landed as written. `belief/factors/` stayed flat, because
-only two soft factors exist: `quest-card-factor.ts` and `language-factor.ts`. Proposal and vote
-likelihoods were never parameterized, so there is nothing for a subdirectory to hold (§13).
-`policy/structured.ts` and `policy/hybrid.ts` never became files; that work is split across
-`decision-frame.ts`, `score.ts`, and the two layer kernels. The `agents/` subdirectory never
-existed either, and the agents themselves sit flat at the top level as `llm.ts`, `heuristic.ts`,
-`random.ts`, and `composed.ts`.
+Two entries in the earlier map never landed as written. `policy/structured.ts` and
+`policy/hybrid.ts` never became files; that work is split across `decision-frame.ts`, `score.ts`,
+and the two layer kernels. The `agents/` subdirectory never existed either, and the agents
+themselves sit flat at the top level as `llm.ts`, `heuristic.ts`, `random.ts`, and `composed.ts`.
+
+`belief/factors/` also stayed flat, but no longer for the original reason. Four soft factors now
+exist: `quest-card-factor.ts`, `vote-matrix-factor.ts`, `proposal-factor.ts`, and
+`language-factor.ts`. A subdirectory would still buy nothing, because a factor here IS a whole
+`BeliefModel` rather than a term inside one, so the three mechanical factors are mutually exclusive
+alternatives rather than a bundle. What the count does change is which of them runs: exactly one,
+and `belief/factor-manifest.ts` is the authority. `composedBrainOptions` obtains its model from that
+table, so seating a factor in a shipped agent means adding it there, and §13.1's open question is
+about promotion evidence rather than about missing code.
 
 ### 11.1 `analysis/` owns role semantics
 
@@ -1028,10 +1057,21 @@ can see what was chosen and why.
 
 ### 13.1 Still open
 
-- **The first parameterization of proposal and vote likelihoods.** `belief/` still has exactly two
-  soft factors, `quest-card-factor.ts` and `language-factor.ts`. Nothing scores a proposal or a vote
-  as evidence about the proposer or voter. Phase 5C's vote work diagnosed the vote *policy* channel
-  and does not close this.
+- **The first parameterization of proposal and vote likelihoods.** Both halves are now BUILT and
+  measured, and both are seated nowhere, so what remains open is the evidence rather than the code.
+  `belief/` holds four soft factors: `quest-card-factor.ts` (the only one a shipped agent runs),
+  `vote-matrix-factor.ts`, `proposal-factor.ts`, and `language-factor.ts`. The two behavioural
+  additions land in the same place for the same reason. The vote factor's verdict is a property of
+  the opponent rather than of the game (BELIEF-001). The proposal factor is null on the random
+  corpus, does not move the POLICY-002 quantity it was aimed at, and its heuristic-corpus gain is
+  circular, because `heuristic.ts` `decidePropose` implements the same camouflage rule the model
+  prices, citing the same brief sections. A bot-versus-bot bank cannot settle either, which makes
+  this item blocked on EVAL-002 or human games rather than on another factor.
+- **A combined mechanical belief model.** Not previously listed, and it is now the binding
+  constraint rather than a detail. A factor is a whole `BeliefModel`, so seating any second
+  mechanical factor requires a model that applies both sets of log-weights before normalizing.
+  Until that exists, "seat the vote factor" and "seat the proposal factor" are not configuration
+  changes and cannot be evaluated alongside the quest factor at all.
 - **When exact enumeration becomes expensive enough to justify variable elimination, sampling, or a
   factor graph.** Still open, and the pressure points are known: the legal maximum-special 10-player
   cast has 151,200 complete worlds for the public observer, and the 10-player `phase4-good-v1` vote
