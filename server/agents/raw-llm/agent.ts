@@ -63,7 +63,7 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   const { client } = opts
   const brain = resolveBrain({
     type: 'llm',
-    brain: opts.brain,
+    ...(opts.brain === undefined ? {} : { brain: opts.brain }),
   })
   const compactBeliefSummary = usesCompactBeliefSummary(brain)
   const tagId = opts.agentId ?? entry.id
@@ -120,8 +120,12 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       extra,
       {
         beliefVisibility: brain.beliefVisibility,
-        beliefBlock: context?.rendered,
-        belief: context?.cognition.belief,
+        ...(context === undefined
+          ? {}
+          : {
+              beliefBlock: context.rendered,
+              belief: context.cognition.belief,
+            }),
       },
     )
     if (correction) {
@@ -134,7 +138,9 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
       tag: `${tagId}/${kind}`,
       temperature: opts.temperature ?? params.temperature,
       max_tokens: params.max_tokens,
-      response_format: params.json ? { type: 'json_object' } : undefined,
+      ...(params.json
+        ? { response_format: { type: 'json_object' } }
+        : {}),
     })
   }
 

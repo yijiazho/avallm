@@ -98,11 +98,13 @@ export function agentDescriptor(def: AgentDef, modelOverride?: string): string {
 // verdicts). Adding a layer here updates all callers at once.
 export function promptOverridesOf(engine: LlmEngine): PromptOverrides {
   return {
-    personality: engine.personality,
-    strategy: engine.strategy,
-    roleGuidance: engine.roleGuidance,
-    roleGuidanceMode: engine.roleGuidanceMode,
-    kindGuidance: engine.kindGuidance,
+    ...(engine.personality === undefined ? {} : { personality: engine.personality }),
+    ...(engine.strategy === undefined ? {} : { strategy: engine.strategy }),
+    ...(engine.roleGuidance === undefined ? {} : { roleGuidance: engine.roleGuidance }),
+    ...(engine.roleGuidanceMode === undefined
+      ? {}
+      : { roleGuidanceMode: engine.roleGuidanceMode }),
+    ...(engine.kindGuidance === undefined ? {} : { kindGuidance: engine.kindGuidance }),
   }
 }
 
@@ -448,23 +450,19 @@ export function publicInfo(def: AgentDef, modelOverride?: string): AgentPublicIn
   return {
     id: def.id,
     name: def.name,
-    version: def.version,
-    author: def.author,
-    about: def.about,
+    ...(def.version === undefined ? {} : { version: def.version }),
+    ...(def.author === undefined ? {} : { author: def.author }),
+    ...(def.about === undefined ? {} : { about: def.about }),
     model,
     usesModel,
     color: def.badge?.color ?? hashColor(def.id),
-    personality: llm?.personality,
-    strategy: llm?.strategy,
-    roleGuidance: llm?.roleGuidance,
-    roleGuidanceMode: llm?.roleGuidanceMode,
-    kindGuidance: llm?.kindGuidance,
-    temperature: llm?.temperature,
-    suggestedModel: usesModel ? e.model : undefined,
+    ...(llm === undefined ? {} : promptOverridesOf(llm)),
+    ...(llm?.temperature === undefined ? {} : { temperature: llm.temperature }),
+    ...(usesModel && e.model !== undefined ? { suggestedModel: e.model } : {}),
     tunedChars: customChars(e),
     custom: def.tier === 'user',
     tier: def.tier ?? 'user',
-    unavailable: def.unavailable,
+    ...(def.unavailable === undefined ? {} : { unavailable: def.unavailable }),
     // resolveBrain is engine-agnostic (it accepts the heuristic source too), so
     // calling it unconditionally here cannot throw for a non-llm engine.
     brain: resolveBrain(e),

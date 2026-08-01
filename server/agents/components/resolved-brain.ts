@@ -340,12 +340,12 @@ export function resolveComposedBrain(
   const decisionLayerOrder = Object.freeze(
     resolvedDecisionLayers.order.map(freezeRef),
   )
-  const source: BrainSource = {
-    type: 'composed',
-    languageEvidence: config.languageEvidenceEnabled
-      ? LANGUAGE_FACTOR_BUNDLE_VERSION
-      : undefined,
-    observerModel: resolvedObserverModel,
+  const source: BrainSource = { type: 'composed' }
+  if (config.languageEvidenceEnabled) {
+    source.languageEvidence = LANGUAGE_FACTOR_BUNDLE_VERSION
+  }
+  if (resolvedObserverModel !== undefined) {
+    source.observerModel = resolvedObserverModel
   }
   if (
     requiredObserverModels[0] !== undefined

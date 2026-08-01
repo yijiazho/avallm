@@ -118,9 +118,11 @@ test('seatPack: personality-only agents get a rolled model, prescribed ones keep
     if (def.engine.type !== 'llm') continue
     if (def.engine.model === undefined) {
       assert.ok(seat.model, `${seat.agent} should have been dealt a model`)
+      assert.equal(Object.hasOwn(seat, 'model'), true)
       assert.ok(ROSTER.some((r) => r.id === seat.model))
     } else {
       assert.equal(seat.model, undefined, `${seat.agent} prescribes a model; the seat must not override it`)
+      assert.equal(Object.hasOwn(seat, 'model'), false)
     }
   }
 })

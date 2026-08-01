@@ -3,7 +3,7 @@
 // layers reach the system prompt, and the engine-owned parts stay fixed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agentDescriptor, builtinDefs, loadAgentLibrary, parseTableSeat, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
+import { agentDescriptor, builtinDefs, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
 import { createAgentFromDef } from '../../server/agents/registry.ts'
 import { DEFAULT_MODEL, ROSTER, rosterById } from '../../server/llm/roster.ts'
 import type { OpenRouterClient } from '../../server/llm/openrouter.ts'
@@ -59,6 +59,9 @@ test('publicInfo fills badges and maps engine to a display model', () => {
   const auto = publicInfo(builtinDefs().find((d) => d.id === 'autopilot')!)
   assert.equal(auto.model, 'rule-based')
   assert.equal(auto.usesModel, false)
+  for (const key of ['personality', 'strategy', 'roleGuidance', 'roleGuidanceMode', 'kindGuidance', 'suggestedModel', 'unavailable']) {
+    assert.equal(Object.hasOwn(auto, key), false, `rule-based info must omit ${key}`)
+  }
   const probabilistic = publicInfo(
     builtinDefs().find((d) => d.id === 'probabilistic')!,
   )
@@ -78,6 +81,15 @@ test('publicInfo fills badges and maps engine to a display model', () => {
   }))
   assert.ok(custom.color.length > 0)
   assert.equal(custom.personality, 'be chaotic')
+  assert.equal(Object.hasOwn(custom, 'personality'), true)
+})
+
+test('prompt overrides own only configured layers', () => {
+  assert.deepEqual(promptOverridesOf({ type: 'llm' }), {})
+  assert.deepEqual(
+    promptOverridesOf({ type: 'llm', personality: 'quietly skeptical' }),
+    { personality: 'quietly skeptical' },
+  )
 })
 
 test('validateDef rejects bad defs', () => {
@@ -111,7 +123,9 @@ test('llm model is optional — a personality-only agent validates and rides the
   })
   assert.equal(def.engine.type === 'llm' && def.engine.model, undefined)
   // publicInfo shows the resolved slug, never "unset".
-  assert.equal(publicInfo(def).model, rosterById(DEFAULT_MODEL).slug)
+  const info = publicInfo(def)
+  assert.equal(info.model, rosterById(DEFAULT_MODEL).slug)
+  assert.equal(Object.hasOwn(info, 'suggestedModel'), false)
 })
 
 test('resolveModel precedence: seat override > def suggestion > DEFAULT_MODEL', () => {

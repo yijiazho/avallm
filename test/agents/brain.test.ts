@@ -39,6 +39,7 @@ const llmDef = (engine: Record<string, unknown> = {}): AgentDef => validateDef({
 
 test('resolved LLM brains separate exact inference from compatibility and compact visibility', () => {
   const normal = resolveBrain({ type: 'llm' })
+  assert.deepEqual(resolveBrain({}), normal)
   assert.deepEqual(normal, {
     version: 'brain-spec-v1',
     belief: EXACT_BELIEF_MODEL_VERSION,
@@ -54,6 +55,10 @@ test('resolved LLM brains separate exact inference from compatibility and compac
   })
   assert.equal(withBeliefSummary.belief, EXACT_BELIEF_MODEL_VERSION)
   assert.equal(withBeliefSummary.beliefVisibility, BELIEF_RENDERER_VERSION)
+  assert.throws(
+    () => resolveBrain({ type: 'hostile' } as never),
+    /unsupported brain source hostile/,
+  )
 })
 
 test('new architecture metadata is derived from the resolved runtime brain', () => {

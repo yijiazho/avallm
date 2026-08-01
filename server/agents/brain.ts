@@ -137,10 +137,10 @@ function resolveLlmBrain(source: LlmBrainSource): BrainSpec {
 }
 
 export function resolveBrain(source: BrainSource): BrainSpec {
+  if (source.type === undefined || source.type === 'llm') {
+    return resolveLlmBrain(source)
+  }
   switch (source.type) {
-    case undefined:
-    case 'llm':
-      return resolveLlmBrain(source)
     case 'heuristic':
       return {
         version: BRAIN_SPEC_VERSION,
@@ -168,6 +168,10 @@ export function resolveBrain(source: BrainSource): BrainSpec {
         languageEvidence: source.languageEvidence ?? 'off',
         observerModel: source.observerModel ?? 'off',
       }
+    default: {
+      const unhandled: never = source.type
+      throw new Error(`unsupported brain source ${String(unhandled)}`)
+    }
   }
 }
 

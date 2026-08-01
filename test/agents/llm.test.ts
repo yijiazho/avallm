@@ -34,6 +34,7 @@ test('clean decision carries thinking into the Decision', async () => {
   assert.deepEqual(d, { kind: 'vote', vote: 'approve', thinking: 'seat 2 is loud' })
   assert.equal(client.calls.length, 1)
   assert.equal(client.calls[0]!.tag, 'deepseek-flash/vote')
+  assert.deepEqual(client.calls[0]!.response_format, { type: 'json_object' })
 })
 
 test('good quest cards skip the LLM call entirely; evil still decides', async () => {

@@ -65,15 +65,19 @@ export function createAgent(spec: AgentSpec, ctx: AgentContext): AvalonAgent {
     case 'composed':
       return createComposedAgent({
         seed: ctx.seed,
-        onDecisionTrace: ctx.onDecisionTrace,
+        ...(ctx.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: ctx.onDecisionTrace }),
         ...composedBrainOptions(spec.brain),
       })
     case 'llm':
       return createLlmAgent({
         modelId: spec.model,
         client: getClient(),
-        brain: spec.brain,
-        onDecisionTrace: ctx.onDecisionTrace,
+        ...(spec.brain === undefined ? {} : { brain: spec.brain }),
+        ...(ctx.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: ctx.onDecisionTrace }),
       })
     default: {
       // Assigning to `never` keeps the switch exhaustive at build time: a new
@@ -110,7 +114,9 @@ export function createAgentFromDef(
         : {}
       return createComposedAgent({
         seed: ctx.seed,
-        onDecisionTrace: ctx.onDecisionTrace,
+        ...(ctx.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: ctx.onDecisionTrace }),
         ...composedBrainOptions(def.engine.brain),
         ...(def.engine.adapter === 'bounded-llm'
           ? { planMemory: true }
@@ -129,9 +135,13 @@ export function createAgentFromDef(
         agentId: def.id,
         label: `${def.name}${def.version ? ` v${def.version}` : ''}`,
         prompts: promptOverridesOf(def.engine),
-        temperature: def.engine.temperature,
-        brain: def.engine.brain,
-        onDecisionTrace: ctx.onDecisionTrace,
+        ...(def.engine.temperature === undefined
+          ? {}
+          : { temperature: def.engine.temperature }),
+        ...(def.engine.brain === undefined ? {} : { brain: def.engine.brain }),
+        ...(ctx.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: ctx.onDecisionTrace }),
       })
     default: {
       // Assigning to `never` keeps the switch exhaustive at build time: a new

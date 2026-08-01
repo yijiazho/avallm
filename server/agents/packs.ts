@@ -142,6 +142,13 @@ export function seatPack(pack: ResolvedPack, botCount: number, agents: AgentDef[
   let next = 0
   return ids.map((id) => {
     const e = byId.get(id)?.engine
-    return e?.type === 'llm' && e.model === undefined ? { agent: id, model: dealt[next++] } : { agent: id }
+    if (e?.type === 'llm' && e.model === undefined) {
+      const model = dealt[next++]
+      if (model === undefined) {
+        throw new Error('missing dealt model for model-less LLM pack seat')
+      }
+      return { agent: id, model }
+    }
+    return { agent: id }
   })
 }
