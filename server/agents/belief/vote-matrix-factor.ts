@@ -33,6 +33,17 @@
 // What matters is not how many evils are aboard but how many the VOTER can see:
 // Oberon sees no partners and is seen by none, so a team's failability looks
 // different to different evil seats in the same world.
+//
+// THE VIEWER'S OWN BALLOT IS EXCLUDED.
+//
+// `docs/probabilistic-agent-architecture.md` §3.4: an agent's own prior actions
+// are not evidence for its own private hidden-world posterior. This factor
+// originally had no viewer concept at all, and the omission was invisible from
+// the good side, where the alignment test already skips the viewer in every
+// feasible world. From the evil side it was live: an evil seat priced its own
+// vote through `visibleFailPower`, which varies across worlds with how many
+// partners it could see, so the seat read its own ballot back as evidence about
+// a deal it already knows its own place in. See `voteMatrixEvidence`.
 
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import type { PlayerView, Seat } from '../../engine/types.ts'
@@ -147,14 +158,34 @@ function voteRevealSeq(
 }
 
 /**
- * Every resolved ballot in the public record.
+ * Every resolved ballot in the public record, minus the viewer's own vote.
  *
  * The hammer is excluded because the engine auto-approves it with no vote: a
  * ballot nobody cast carries no information about anybody, and pricing the
  * absence would invent evidence.
+ *
+ * `viewerSeat` is required rather than read off the view, matching
+ * proposal-factor.ts, so a caller cannot omit the exclusion by accident.
+ * `docs/probabilistic-agent-architecture.md` §3.4: an agent's own prior actions
+ * are not evidence for its own private hidden-world posterior.
+ *
+ * The exclusion is per BALLOT, not per record. A vote reveal is a table-level
+ * event carrying everyone's vote, so dropping the whole record because the
+ * viewer is in it would discard every other seat's ballot too.
+ *
+ * It changes nothing for a GOOD viewer, and the asymmetry is worth stating
+ * because it is why this went unnoticed. `logLikelihood` prices a seat only in
+ * worlds where that seat is evil, and a good viewer knows its own role, so the
+ * viewer is good in every feasible world and its ballot was already skipped by
+ * the alignment test. An EVIL viewer is evil in every feasible world, so its
+ * own ballot was priced, and `visibleFailPower` varies across worlds with how
+ * many partners it could see: the seat read its own vote back as evidence about
+ * a deal it is a part of. The measured servant results this factor records were
+ * taken from a good seat and are therefore unaffected.
  */
 export function voteMatrixEvidence(
   view: PlayerView,
+  viewerSeat: Seat,
 ): readonly VoteMatrixEvidence[] {
   const evidence: VoteMatrixEvidence[] = []
   const score = { good: 0, evil: 0 }
@@ -187,10 +218,12 @@ export function voteMatrixEvidence(
       proposalNum: proposal.proposalNum,
       team: [...proposal.team].sort((left, right) => left - right),
       failsRequired,
-      votes: proposal.votes.map((vote) => Object.freeze({
-        seat: vote.seat,
-        approve: vote.vote === 'approve',
-      })),
+      votes: proposal.votes
+        .filter((vote) => vote.seat !== viewerSeat)
+        .map((vote) => Object.freeze({
+          seat: vote.seat,
+          approve: vote.vote === 'approve',
+        })),
       decisiveBoard: score.good >= 2 || score.evil >= 2,
     })
   }
@@ -271,7 +304,7 @@ function weightedSnapshot(
   factor: VoteMatrixLikelihoodFactor,
 ): BeliefSnapshot {
   const worlds = feasibleWorlds(view)
-  const evidence = voteMatrixEvidence(view)
+  const evidence = voteMatrixEvidence(view, view.seat)
   if (!evidence.length) {
     // No ballot has been cast, so there is nothing to weigh and the honest
     // answer is the uniform posterior under this model's name.

@@ -9,8 +9,13 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createGame } from '../../../server/engine/game.ts'
+import {
+  applyDecision,
+  createGame,
+  expectedDecisions,
+} from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
+import { createHeuristicAgent } from '../../../server/agents/heuristic.ts'
 import type { Role } from '../../../server/engine/types.ts'
 import {
   analyticalVoteMatrixFactor,
@@ -168,7 +173,80 @@ test('the hammer is not evidence, because nobody cast it', () => {
   const view = viewFor(game, 0)
   // An opening board has no resolved ballots at all, which is the anchor: with
   // nothing cast there is nothing to weigh.
-  assert.deepEqual(voteMatrixEvidence(view), [])
+  assert.deepEqual(voteMatrixEvidence(view, 0), [])
+})
+
+// §3.4, and the asymmetry that let it go unnoticed here for a whole factor.
+test('the viewer\'s own ballot is excluded, per ballot and not per record', async () => {
+  const game = createGame({
+    seed: 'vote-matrix-viewer',
+    playerCount: 7,
+    roles: [...SEVEN],
+    talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
+  })
+  // Drive far enough to resolve at least one ballot, which is all this needs:
+  // a vote reveal carries every seat's vote, so one record exercises both the
+  // exclusion and the survival of everyone else.
+  const agents = game.players.map((player) =>
+    createHeuristicAgent({ seed: 'vote-matrix-viewer', seat: player.seat }))
+  for (let step = 0; step < 200; step++) {
+    const pending = expectedDecisions(game)
+    if (!pending.length) break
+    for (const req of pending) {
+      applyDecision(
+        game,
+        req.seat,
+        (await agents[req.seat].decide(req, viewFor(game, req.seat))).decision,
+      )
+    }
+    if (viewFor(game, 0).proposals.some((p) => p.outcome === 'voted')) break
+  }
+  const anyResolved = viewFor(game, 0).proposals.filter(
+    (proposal) => proposal.outcome === 'voted',
+  )
+  assert.ok(anyResolved.length > 0, 'the fixture must resolve a ballot')
+
+  for (let viewer = 0; viewer < 7; viewer++) {
+    const view = viewFor(game, viewer)
+    for (const record of voteMatrixEvidence(view, viewer)) {
+      // Not down-weighted: absent.
+      assert.ok(
+        !record.votes.some((vote) => vote.seat === viewer),
+        `seat ${viewer} priced its own ballot`,
+      )
+      // And the record itself survives, carrying everyone else. Dropping the
+      // whole reveal would discard six other seats' votes to hide one.
+      assert.equal(record.votes.length, view.playerCount - 1)
+    }
+  }
+})
+
+test('excluding the viewer changes nothing for good and something for evil', () => {
+  // The reason the omission was invisible. `logLikelihood` prices a seat only
+  // in worlds where that seat is evil, and a viewer knows its own role, so a
+  // good viewer's ballot was already skipped in every feasible world.
+  const world = worldOf(SEVEN)
+  const team = [0, 1, 4]
+  const others: readonly (readonly [number, boolean])[] = [[5, true], [6, false]]
+
+  const withServant = ballot(team, [...others, [2, true]])
+  const withoutServant = ballot(team, others)
+  assert.equal(
+    analyticalVoteMatrixFactor.logLikelihood(world, withServant),
+    analyticalVoteMatrixFactor.logLikelihood(world, withoutServant),
+    'a good seat\'s ballot was never priced, so removing it is a no-op',
+  )
+
+  // From the evil side it was live. Morgana's own approval is priced through
+  // visibleFailPower, which varies with how many partners that world lets it
+  // see, so the seat was reading its own vote back as evidence about a deal it
+  // already knows its own place in.
+  const withMorgana = ballot(team, [...others, [4, true]])
+  const withoutMorgana = ballot(team, others)
+  assert.notEqual(
+    analyticalVoteMatrixFactor.logLikelihood(world, withMorgana),
+    analyticalVoteMatrixFactor.logLikelihood(world, withoutMorgana),
+  )
 })
 
 test('an opening board reads exactly the uniform posterior', () => {
