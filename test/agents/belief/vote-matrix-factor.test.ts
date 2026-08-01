@@ -23,6 +23,11 @@ import {
   visibleFailPower,
   voteMatrixEvidence,
   voteMatrixWeightedBeliefModel,
+  voteMatrixGoodWeightedBeliefModel,
+  goodApproveProbability,
+  analyticalVoteMatrixFactorV2,
+  VOTE_MATRIX_FACTOR_V2_VERSION,
+  VOTE_MATRIX_GOOD_PARAMETERS,
   VOTE_MATRIX_BUNDLE_VERSION,
   VOTE_MATRIX_FACTOR_VERSION,
   VOTE_MATRIX_LOG_LIKELIHOOD_CAP,
@@ -30,6 +35,8 @@ import {
   VOTE_MATRIX_WEIGHTED_BELIEF_VERSION,
 } from '../../../server/agents/belief/vote-matrix-factor.ts'
 import { exactBelief } from '../../../server/agents/belief/exact.ts'
+import { BELIEF_FACTORS } from '../../../server/agents/belief/factor-manifest.ts'
+import type { ParameterSource } from '../../../server/agents/belief/factor-manifest.ts'
 import type {
   VoteMatrixEvidence,
 } from '../../../server/agents/belief/vote-matrix-factor.ts'
@@ -65,6 +72,9 @@ const ballot = (
   failsRequired: 1,
   votes: votes.map(([seat, approve]) => ({ seat, approve })),
   decisiveBoard: false,
+  // Coherent with `round: 2` above: reaching round two means quest one
+  // resolved. v1 ignores this field, so every v1 assertion is unaffected.
+  resolvedQuests: 1,
   ...overrides,
 })
 
@@ -302,6 +312,143 @@ test('the mixture keeps every priced vote away from certainty', () => {
           `approve ${approve} escaped the mixture floor ${floor}`,
         )
       }
+    }
+  }
+})
+
+// ---------------------------------------------------------------------------
+// v2: the good half.
+
+test('v2 parameters are pinned, and are weaker than what was observed', () => {
+  assert.equal(VOTE_MATRIX_FACTOR_V2_VERSION, 'analytical-vote-matrix-good-v2')
+  assert.deepEqual(VOTE_MATRIX_GOOD_PARAMETERS, {
+    cleanTeam: 0.92,
+    dirtyTeamByResolvedQuests: [0.92, 0.78, 0.62, 0.52],
+  })
+  // Conservatism is a claim about the ODDS RATIO, not about the raw
+  // probability: the ratio against clean approval is what the factor actually
+  // asserts, and it is what the corpus measured. Observed, by resolved-quest
+  // count: 0.65, 0.23, 0.13, and about 0.04 once the last two quests are
+  // pooled. Every entry here must assert LESS than that, because 20 games
+  // licenses the shape and not the magnitude.
+  // Read from the parameter-source table rather than retyped here, so the
+  // corpus figure and the conservatism check cannot drift apart.
+  // Read through the declared ParameterSource shape rather than the `as const`
+  // literal, so the optional member is visible and the corpus figure and the
+  // conservatism check cannot drift apart.
+  const sources: Readonly<Record<string, ParameterSource>> =
+    BELIEF_FACTORS['vote-matrix-factor'].parameterSources
+  const observed = sources['good.dirtyTeamByResolvedQuests']!.observedOddsRatio!
+  const clean = VOTE_MATRIX_GOOD_PARAMETERS.cleanTeam
+  const odds = (p: number) => p / (1 - p)
+  VOTE_MATRIX_GOOD_PARAMETERS.dirtyTeamByResolvedQuests.forEach((value, i) => {
+    const ratio = odds(value) / odds(clean)
+    assert.ok(
+      ratio > observed[i]!,
+      `entry ${i} asserts odds ratio ${ratio.toFixed(3)}, stronger than the `
+      + `observed ${observed[i]}`,
+    )
+  })
+  // And the opening cell asserts nothing at all, which no shrinkage rule would
+  // have produced on its own.
+  assert.equal(VOTE_MATRIX_GOOD_PARAMETERS.dirtyTeamByResolvedQuests[0], clean)
+})
+
+test('v2 discrimination grows with resolved quests, and clean stays flat', () => {
+  const world = worldOf(SEVEN)
+  const dirty = (resolved: number) =>
+    goodApproveProbability(world, ballot([0, 1, 4], [[2, true]], {
+      resolvedQuests: resolved,
+    }))
+  // Monotone: a good seat cannot tell at the opening and can by the end.
+  assert.ok(dirty(0) > dirty(1))
+  assert.ok(dirty(1) > dirty(2))
+  assert.ok(dirty(2) > dirty(3))
+  // And saturates rather than running off the end of the table.
+  assert.equal(dirty(3), dirty(9))
+  // Clean approval does not move: good players do not get more reluctant in
+  // general, they get better at spotting dirt.
+  const clean = (resolved: number) =>
+    goodApproveProbability(world, ballot([0, 1, 2], [[3, true]], {
+      resolvedQuests: resolved,
+    }))
+  assert.equal(clean(0), clean(3))
+  assert.ok(clean(3) > dirty(3))
+})
+
+test('v2 prices good votes where v1 prices nothing', () => {
+  const world = worldOf(SEVEN)
+  // Seat 2 is a servant. A late-game approval of a team seating Morgana is
+  // poorly explained by that seat being good.
+  const late = ballot([0, 1, 4], [[2, true]], { resolvedQuests: 3 })
+  assert.equal(
+    analyticalVoteMatrixFactor.logLikelihood(world, late),
+    0,
+    'v1 must ignore a good-only ballot entirely',
+  )
+  assert.ok(
+    analyticalVoteMatrixFactorV2.logLikelihood(world, late) < 0,
+    'v2 must price it',
+  )
+})
+
+test('the v2 belief model reports its own versions and degrades cleanly', () => {
+  // Keeps the exported model under test now that the cap guard is gone: a
+  // version pair that disagreed with the factory would break admission's host
+  // join without any equation being wrong.
+  assert.equal(
+    voteMatrixGoodWeightedBeliefModel.version,
+    'exact-constraints+vote-matrix-good-v2',
+  )
+  assert.equal(
+    voteMatrixGoodWeightedBeliefModel.factorsVersion,
+    'vote-matrix-good-only-v2',
+  )
+  assert.notEqual(
+    voteMatrixGoodWeightedBeliefModel.version,
+    voteMatrixWeightedBeliefModel.version,
+    'v1 and v2 must be separately attributable in a trace',
+  )
+})
+
+test('v2 keeps every world priceable, so none is annihilated', () => {
+  const world = worldOf(SEVEN)
+  for (const resolved of [0, 1, 2, 3]) {
+    for (const approve of [true, false]) {
+      const value = analyticalVoteMatrixFactorV2.logLikelihood(
+        world,
+        ballot([0, 1, 4], [[2, approve], [4, approve]], {
+          resolvedQuests: resolved,
+        }),
+      )
+      assert.ok(Number.isFinite(value), `resolved ${resolved} approve ${approve}`)
+    }
+  }
+})
+
+test('every tunable parameter names where its value came from', () => {
+  // Prose lets "the brief says so" and "we measured it" read identically. The
+  // table forces the distinction, and this asserts it covers every group a
+  // reader could ask about rather than the ones that were easy to justify.
+  const covered = Object.keys(
+    BELIEF_FACTORS['vote-matrix-factor'].parameterSources)
+  for (const key of Object.keys(VOTE_MATRIX_MODEL_PARAMETERS)) {
+    assert.ok(covered.includes(key), `no source recorded for ${key}`)
+  }
+  for (const key of Object.keys(VOTE_MATRIX_GOOD_PARAMETERS)) {
+    assert.ok(covered.includes(`good.${key}`), `no source recorded for good.${key}`)
+  }
+  const declared: Readonly<Record<string, ParameterSource>> =
+    BELIEF_FACTORS['vote-matrix-factor'].parameterSources
+  for (const [key, entry] of Object.entries(declared)) {
+    assert.ok(entry.source.length > 40, `${key} has a stub source`)
+    // An observed entry without its corpus figure is the one shape that would
+    // let a fitted value masquerade as a conservative one.
+    if (entry.kind === 'observed') {
+      assert.ok(
+        entry.observedOddsRatio !== undefined || key.endsWith('cleanTeam'),
+        `${key} claims observation but records no observed value`,
+      )
     }
   }
 })

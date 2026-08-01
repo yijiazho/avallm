@@ -435,6 +435,7 @@ export const analyticalProposalFactor: ProposalLikelihoodFactor =
  * planted. If a detail channel is wanted for all three, it should be one shared
  * helper rather than a copy per factor.
  */
+
 export const PROPOSAL_FACTOR_DEGRADATION = 'proposal-factor-failed'
 
 function weightedSnapshot(

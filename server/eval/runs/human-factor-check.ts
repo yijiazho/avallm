@@ -189,7 +189,10 @@ export function voteDiagnostic(games: readonly HumanGame[]): VoteDiagnostic {
         bucket[cell].approvals += vote.approve ? 1 : 0
         bucket[cell].ballots += 1
         if (evil.has(vote.seat)) continue
-        const role = game.roleBySeat[vote.seat]
+        // Seat indices come from the fixture's own vote records, so the
+        // lookup is total; the assertion matches how master's checked-index
+        // pass handled the same shape in the factors.
+        const role = game.roleBySeat[vote.seat]!
         const byRole = result.goodByRole[role] ?? emptySplit()
         byRole[cell].approvals += vote.approve ? 1 : 0
         byRole[cell].ballots += 1

@@ -99,6 +99,15 @@ import { normalizeLogWeights } from './log-weights.ts'
 
 export const VOTE_MATRIX_FACTOR_VERSION = 'analytical-vote-matrix-v1'
 export const VOTE_MATRIX_BUNDLE_VERSION = 'vote-matrix-only-v1'
+/**
+ * v2 adds good-vote pricing. Named `-good-v2` rather than `-v2` on purpose: an
+ * earlier, different v2 built on the off-team feature was reverted, and a bare
+ * `v2` in a trace would be ambiguous with it forever.
+ */
+export const VOTE_MATRIX_FACTOR_V2_VERSION = 'analytical-vote-matrix-good-v2'
+export const VOTE_MATRIX_BUNDLE_V2_VERSION = 'vote-matrix-good-only-v2'
+export const VOTE_MATRIX_WEIGHTED_BELIEF_V2_VERSION =
+  'exact-constraints+vote-matrix-good-v2'
 export const VOTE_MATRIX_WEIGHTED_BELIEF_VERSION =
   'exact-constraints+vote-matrix-v1'
 /**
@@ -159,6 +168,43 @@ export const VOTE_MATRIX_MODEL_PARAMETERS = Object.freeze({
   uniformMixtureWeight: 0.08,
 })
 
+/**
+ * v2 only: how a GOOD seat votes, which v1 leaves unpriced.
+ *
+ * Conditioned on how many quests have resolved, because a good player's
+ * discrimination is not a constant, it is bought with information. On the human
+ * corpus the odds ratio between approving a dirty team and a clean one runs
+ * `0.65`, `0.23`, `0.13`, `0.05`, `0.03` across quests one to five: at the
+ * opening a good seat cannot tell and approves nearly everything, and by the
+ * last quest it is refusing dirty teams three times in four. A flat parameter
+ * would credit an opening ballot nobody could have informed.
+ *
+ * Approval of a CLEAN team is flat by contrast, `89%` to `95%` across the whole
+ * game, so it is one number. Good players do not become reluctant in general,
+ * they become better at spotting dirt.
+ *
+ * These are deliberately WEAKER than observed. The corpus is 20 games, which
+ * licenses a direction and a rough shape, not a magnitude, so each dirty-team
+ * entry is shrunk toward the clean rate. Under-crediting a real signal costs
+ * accuracy; over-crediting a signal fitted to 20 games costs correctness.
+ */
+export const VOTE_MATRIX_GOOD_PARAMETERS = Object.freeze({
+  /** Approving a team that is clean in this world. Flat across the game. */
+  cleanTeam: 0.92,
+  /**
+   * Approving a team that is dirty IN THIS WORLD, by resolved-quest count.
+   * Index 3 covers three or more.
+   *
+   * Index 0 equals `cleanTeam` exactly, so an opening ballot contributes
+   * nothing. That is the honest reading of a seat with no information rather
+   * than a rounding choice: the corpus shows a `0.65` odds ratio there, which
+   * is the weakest cell and the one most likely to be noise, and a factor that
+   * claims to read a vote nobody could have informed is claiming to read the
+   * dealer.
+   */
+  dirtyTeamByResolvedQuests: Object.freeze([0.92, 0.78, 0.62, 0.52]),
+})
+
 export interface VoteMatrixEvidence {
   evidenceId: string
   sourceSeq: number
@@ -168,6 +214,12 @@ export interface VoteMatrixEvidence {
   failsRequired: number
   votes: readonly Readonly<{ seat: Seat; approve: boolean }>[]
   decisiveBoard: boolean
+  /**
+   * Quests resolved before this ballot. Public, so world-invariant, and it is
+   * how much a good seat could possibly know when it voted. v2 reads it; v1
+   * ignores it, which is why adding it does not change v1's output.
+   */
+  resolvedQuests: number
 }
 
 export type VoteMatrixLikelihoodFactor =
@@ -260,6 +312,7 @@ export function voteMatrixEvidence(
           approve: vote.vote === 'approve',
         })),
       decisiveBoard: score.good >= 2 || score.evil >= 2,
+      resolvedQuests: score.good + score.evil,
     })
   }
   return evidence
@@ -332,11 +385,117 @@ export const analyticalVoteMatrixFactor: VoteMatrixLikelihoodFactor =
     },
   })
 
+/**
+ * Probability a GOOD voter approves, under v2, given the world.
+ *
+ * World-dependent because whether the team is dirty is a property of the world,
+ * which is the whole reason this term does not cancel the way v1 assumed.
+ * Nothing here models the voter's REASONING, which was v1's stated objection
+ * and remains a good objection: this is an observed behavioural regularity
+ * conditioned on public context, exactly the shape the evil half already uses.
+ */
+export function goodApproveProbability(
+  world: HiddenWorld,
+  evidence: VoteMatrixEvidence,
+): number {
+  const parameters = VOTE_MATRIX_GOOD_PARAMETERS
+  const dirty = evidence.team.some(
+    (seat) => ROLE_ALIGNMENT[world.roleBySeat[seat]!] === 'evil',
+  )
+  const table = parameters.dirtyTeamByResolvedQuests
+  const raw = dirty
+    ? table[Math.min(evidence.resolvedQuests, table.length - 1)]!
+    : parameters.cleanTeam
+  const mixture = VOTE_MATRIX_MODEL_PARAMETERS.uniformMixtureWeight
+  return (1 - mixture) * raw + mixture * 0.5
+}
+
+/**
+ * v2: the same evil asymmetry, plus the good votes v1 discards.
+ *
+ * NOT the earlier reverted v2, and the distinction matters enough to state
+ * here. That one priced the brief's OFF-TEAM feature, approval of teams the
+ * voter is not on, and it lost to v1 on the heuristic corpus. Its revert was
+ * then corrected on the argument that our heuristic does not follow the
+ * round-one rejection convention, so v2 had been penalized for modelling humans
+ * correctly. Human games say otherwise on both counts: off-team approval runs
+ * `62.4%` for good against `51.7%` for evil, an odds ratio of `0.64` where that
+ * feature needs it well above one, and good approves the first proposal `93.8%`
+ * of the time, which is what `decideVote` already hard-codes. The off-team
+ * feature is not supported by the only human population we have, and this
+ * version does not use it.
+ *
+ * What this prices instead is the one asymmetry that corpus does support, and
+ * supports strongly: a good seat's approval discriminates on whether the team
+ * is actually dirty, weakly at the opening and sharply once quests resolve.
+ *
+ * MEASURED, AND IT DOES NOT BEAT v1 ON EITHER BOT POPULATION.
+ *
+ * Held-out servant proposals, only the belief changed, 200 seeds per cast.
+ *
+ *   heuristic corpus, 2039 decisions
+ *     base   81.1% dirty   1.126 evil per team
+ *     v1     50.9%         0.737
+ *     v2     52.1%         0.682
+ *
+ *   random corpus, 2297 decisions
+ *     base   74.2% dirty   0.996 evil per team
+ *     v1     73.7%         0.998   (paired -0.57 points, p = 0.59, null)
+ *     v2     75.6%         1.003   (paired +1.35 points, p = 0.16, null)
+ *
+ * The heuristic result splits: v2 is `1.2` points worse on dirty rate and
+ * `0.055` better on evil per team, which is the POLICY-002 target quantity and
+ * the one where both versions already beat the compatibility heuristic's
+ * `0.923`. Those two metrics disagree because they measure different things, a
+ * team holding ANY evil against the COUNT of evil aboard, and nothing here
+ * decides which matters more. The v1-versus-v2 difference is also not tested:
+ * each arm is paired against the base, not against the other, so `50.9` against
+ * `52.1` is a comparison of two effects and not a measured contrast.
+ *
+ * On the random corpus v2 is directionally worse than doing nothing. That is
+ * the expected shape rather than a surprise: random seats do not vote
+ * purposefully, so good approval carries no cleanliness signal there and this
+ * model prices one that is not present. It is a population mismatch of exactly
+ * the kind §3.3 anticipates, and it is why the model degrades to noise rather
+ * than to harm.
+ *
+ * Cap saturation was the hazard I expected from tripling the priced ballots,
+ * and it is not one. Measured over 152 decisions on eight seeded seven-player
+ * games, v1 clamps `0.833` of worlds at the cap and v2 `0.821`, so the added
+ * evidence is not being spent flattening the posterior. That was measured once
+ * rather than left as a standing test: a capped factor moves ENTROPY by about
+ * `0.0016` bits out of `9.27` while moving dirty-team rate by thirty points, so
+ * no entropy-shaped assertion can express the invariant, and the honest guard
+ * is the decision-quality measurement above.
+ *
+ * So the honest position is that the good half is real in humans, partially
+ * present in a heuristic that avoids suspected evil through `suspicion()`, and
+ * absent in random play, and that no bot population we can simulate separates
+ * it from v1. v2 stays built and unseated beside v1 rather than replacing it.
+ */
+export const analyticalVoteMatrixFactorV2: VoteMatrixLikelihoodFactor =
+  Object.freeze({
+    id: 'vote-matrix',
+    version: VOTE_MATRIX_FACTOR_V2_VERSION,
+    logLikelihood(world: HiddenWorld, evidence: VoteMatrixEvidence) {
+      let total = 0
+      for (const vote of evidence.votes) {
+        const evil = ROLE_ALIGNMENT[world.roleBySeat[vote.seat]!] === 'evil'
+        const approve = evil
+          ? evilApproveProbability(world, evidence, vote.seat)
+          : goodApproveProbability(world, evidence)
+        total += Math.log(vote.approve ? approve : 1 - approve)
+      }
+      return total
+    },
+  })
+
 export const VOTE_MATRIX_FACTOR_DEGRADATION = 'vote-matrix-factor-failed'
 
 function weightedSnapshot(
   view: PlayerView,
   factor: VoteMatrixLikelihoodFactor,
+  beliefVersion: string,
 ): BeliefSnapshot {
   const worlds = feasibleWorlds(view)
   const evidence = voteMatrixEvidence(view, view.seat)
@@ -344,7 +503,7 @@ function weightedSnapshot(
     // No ballot has been cast, so there is nothing to weigh and the honest
     // answer is the uniform posterior under this model's name.
     const uniform = exactBelief(view)
-    return { ...uniform, modelVersion: VOTE_MATRIX_WEIGHTED_BELIEF_VERSION }
+    return { ...uniform, modelVersion: beliefVersion }
   }
   const raw = worlds.map((world) =>
     evidence.reduce(
@@ -360,7 +519,7 @@ function weightedSnapshot(
     view,
     normalizeLogWeights(worlds, capped),
     {
-      modelVersion: VOTE_MATRIX_WEIGHTED_BELIEF_VERSION,
+      modelVersion: beliefVersion,
       quality: 'weighted',
       provenance: [
         buildFactorProvenance(
@@ -376,18 +535,22 @@ function weightedSnapshot(
 
 export function createVoteMatrixWeightedBeliefModel(
   factor: VoteMatrixLikelihoodFactor = analyticalVoteMatrixFactor,
+  versions: { belief: string; bundle: string } = {
+    belief: VOTE_MATRIX_WEIGHTED_BELIEF_VERSION,
+    bundle: VOTE_MATRIX_BUNDLE_VERSION,
+  },
 ): BeliefModel {
   return Object.freeze({
-    version: VOTE_MATRIX_WEIGHTED_BELIEF_VERSION,
-    factorsVersion: VOTE_MATRIX_BUNDLE_VERSION,
+    version: versions.belief,
+    factorsVersion: versions.bundle,
     infer(view: PlayerView): BeliefSnapshot {
       try {
-        return weightedSnapshot(view, factor)
+        return weightedSnapshot(view, factor, versions.belief)
       } catch (error) {
         const fallback = exactBelief(view)
         return {
           ...fallback,
-          modelVersion: VOTE_MATRIX_WEIGHTED_BELIEF_VERSION,
+          modelVersion: versions.belief,
           quality: 'degraded',
           degradation: [
             VOTE_MATRIX_FACTOR_DEGRADATION,
@@ -401,3 +564,10 @@ export function createVoteMatrixWeightedBeliefModel(
 
 export const voteMatrixWeightedBeliefModel =
   createVoteMatrixWeightedBeliefModel()
+
+/** v2, kept beside v1 so the two remain independently measurable arms. */
+export const voteMatrixGoodWeightedBeliefModel =
+  createVoteMatrixWeightedBeliefModel(analyticalVoteMatrixFactorV2, {
+    belief: VOTE_MATRIX_WEIGHTED_BELIEF_V2_VERSION,
+    bundle: VOTE_MATRIX_BUNDLE_V2_VERSION,
+  })

@@ -121,6 +121,32 @@ export interface BeliefFactorEntry {
    * non-bot corpus" is.
    */
   readonly revisit: string
+  /**
+   * Where each tunable parameter GROUP's value came from. Kept here rather than
+   * beside the parameters because this table is the one export the registry
+   * already consumes, and a per-factor source constant is otherwise a surface
+   * only the suite reads (ARCH018).
+   *
+   * Three genuinely different claims that prose lets blur together, which is
+   * how "the brief says so" and "we measured it" end up reading identically
+   * two years later:
+   *
+   * - `derived`: computed from the public shape of the game. Not a claim about
+   *   behaviour and not tunable.
+   * - `authored`: a judgement, justified by a cited brief section. No
+   *   measurement stands behind the magnitude.
+   * - `observed`: informed by a named corpus. `observedOddsRatio` carries what
+   *   that corpus actually showed, so the model's own assertion can be checked
+   *   against it, and the model is expected to assert LESS.
+   */
+  readonly parameterSources: Readonly<Record<string, ParameterSource>>
+}
+
+export interface ParameterSource {
+  readonly kind: 'derived' | 'authored' | 'observed'
+  readonly source: string
+  /** Only for `observed`: the corpus value, as an odds ratio against baseline. */
+  readonly observedOddsRatio?: readonly number[]
 }
 
 /**
@@ -168,6 +194,46 @@ export const BELIEF_FACTORS = {
       + 'considered for good-base. Separately, any human or LLM corpus that '
       + 'reaches two-Fail quests would be the first real test of the '
       + 'twoFailsRequired parameters, which no measurement has yet touched.',
+    parameterSources: {
+      oberonAboard: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §2.3, Oberon plays its own account because it '
+          + 'has no partners to coordinate with. Magnitudes are judgement.',
+      },
+      twoFailsRequired: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §5.4, the two-Fail rule. NEVER MEASURED: the '
+          + 'bot banks do not isolate it and the human corpus is six-player, '
+          + 'which has no two-Fail quest, so these three values in the SEATED '
+          + 'factor rest on judgement alone.',
+      },
+      loneEvilAboard: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §5.4 and §1.2, cover bought cheaply at quest '
+          + 'one. Magnitudes are judgement.',
+      },
+      multipleEvilAboard: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §5.4, the double-Fail coordination problem. '
+          + 'Magnitudes are judgement.',
+      },
+      coordinatedSingleFailBoost: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §5.4, coordinated evil converting a one-Fail '
+          + 'quest. Magnitude is judgement.',
+      },
+      uniformMixtureWeight: {
+        kind: 'authored',
+        source:
+          'Shared convention across the three mechanical factors: a floor that '
+          + 'keeps every priced event away from certainty.',
+      },
+    },
   },
   'language-factor': {
     factorVersion: LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
@@ -191,6 +257,15 @@ export const BELIEF_FACTORS = {
       + 'the open question is whether it helps, not how much. Note this is the '
       + 'one factor that layers over a mechanical base rather than replacing '
       + 'it, so it does not need the combined model the other two do.',
+    parameterSources: {
+      caps: {
+        kind: 'authored',
+        source:
+          'The 1.25 relative-odds cap is a judgement about how far bounded '
+          + 'language evidence may move a mechanical posterior. Never exercised '
+          + 'against play, because no shipped agent injects an interpreter.',
+      },
+    },
   },
   'vote-matrix-factor': {
     factorVersion: VOTE_MATRIX_FACTOR_VERSION,
@@ -198,9 +273,9 @@ export const BELIEF_FACTORS = {
     seating: {
       kind: 'unseated',
       why:
-        'BELIEF-001. Its evil half is confirmed on human games, but its good '
-        + 'half is measurably wrong and is the larger signal, so what ships '
-        + 'today would be the weaker of two available models. See BELIEF-003.',
+        'BELIEF-001. Two versions now exist and neither is promotable: v1 is '
+        + 'missing the larger of the two signals, and v2 supplies it without '
+        + 'beating v1 on any population we can simulate. See BELIEF-003.',
     },
     evidence: [
       'Bot banks, v1 versus v2: v1 (evil-only) beat v2 (both sides) on the '
@@ -220,12 +295,67 @@ export const BELIEF_FACTORS = {
       'Untested dimensions: no Oberon or Mordred visibility asymmetry and no '
       + 'two-Fail quest in that corpus, which is exactly what visibleFailPower '
       + 'exists to handle.',
+      // BELIEF-003, the good half, built and measured.
+      'BELIEF-003 built the good half as analytical-vote-matrix-good-v2, '
+      + 'conditioned on resolved-quest count because the corpus shows good '
+      + 'discrimination is bought with information rather than constant.',
+      'Heuristic corpus, 2039 held-out servant proposals: base 81.1% dirty and '
+      + '1.126 evil per team, v1 50.9% and 0.737, v2 52.1% and 0.682. The two '
+      + 'metrics disagree, v2 being 1.2 points worse on dirty rate and 0.055 '
+      + 'better on the POLICY-002 evil-count quantity, and the v1-versus-v2 '
+      + 'contrast is untested because each arm is paired against the base.',
+      'Random corpus, 2297 decisions: v1 paired -0.57 points (p = 0.59), v2 '
+      + '+1.35 points (p = 0.16). Both null, v2 directionally worse than doing '
+      + 'nothing, which is the expected shape because random seats do not vote '
+      + 'purposefully and the good signal this prices is simply absent.',
+      'Cap pressure checked, since tripling the priced ballots could have '
+      + 'flattened the posterior: v1 clamps 0.833 of worlds and v2 0.821, so '
+      + 'the added evidence is not being spent on saturation.',
     ],
     revisit:
-      'BELIEF-003, a good-vote likelihood measured on a non-bot corpus, is the '
-      + 'change worth making before this is seated at all. Seating it also '
-      + 'requires the combined mechanical belief model, because a factor is a '
-      + 'whole BeliefModel and the quest factor already holds that slot.',
+      'The good half is now BUILT, so the open question moved. It is real in '
+      + 'humans, partially present in a heuristic that avoids suspected evil '
+      + 'via suspicion(), and absent in random play, and no bot population we '
+      + 'can simulate separates v2 from v1. What would settle it is a corpus '
+      + 'where good voting is purposeful and not hard-coded, meaning EVAL-002 '
+      + 'or human games. Seating either version additionally requires the '
+      + 'combined mechanical belief model, because a factor is a whole '
+      + 'BeliefModel and the quest factor already holds that slot.',
+    parameterSources: {
+      canFail: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §3.1, evil vote discipline as the biggest '
+          + 'systematic leak. Magnitudes are judgement, and the human corpus '
+          + 'later put the observed odds ratio at 4.19 against the implied 5.6.',
+      },
+      cannotFail: {
+        kind: 'authored',
+        source:
+          'research-strategy.md §3.1 read in the other direction. Magnitudes '
+          + 'are judgement.',
+      },
+      uniformMixtureWeight: {
+        kind: 'authored',
+        source:
+          'Shared convention across the three mechanical factors: a floor that '
+          + 'keeps every priced event away from certainty.',
+      },
+      'good.cleanTeam': {
+        kind: 'observed',
+        source:
+          'v2 only. Avalon-NLU, 20 six-player human games, 464 good ballots. '
+          + 'Approval of a clean team runs 89% to 95% across all five quests, '
+          + 'so it is one flat number.',
+      },
+      'good.dirtyTeamByResolvedQuests': {
+        kind: 'observed',
+        source:
+          'v2 only. Same corpus, split by resolved-quest count. Good approval '
+          + 'of a dirty team falls 93/72/50/52/25 across quests one to five.',
+        observedOddsRatio: [0.65, 0.23, 0.13, 0.04],
+      },
+    },
   },
   'proposal-factor': {
     factorVersion: PROPOSAL_FACTOR_VERSION,
@@ -265,6 +395,25 @@ export const BELIEF_FACTORS = {
       + 'diagnostic ratio near 1 rather than a wrong magnitude. If that '
       + 'reframing is not attempted, the right end state is deletion, keeping '
       + 'the sign finding and the confound in the migration history.',
+    parameterSources: {
+      partnerOddsLift: {
+        kind: 'observed',
+        source:
+          'Direction from research-strategy.md §1, §5.4 and §5.5 (camouflage, '
+          + 'not the AvalonBench naive-minion baseline). Avalon-NLU CONFIRMED '
+          + 'the direction at an odds lift of 0.55, close to the authored '
+          + '0.5/0.6, and separately showed the feature is non-diagnostic: good '
+          + 'leaders sit at 0.49, so the ratio is 1.12 where this model needs '
+          + 'about 0.55. The magnitudes are right and the factor is unusable.',
+        observedOddsRatio: [0.55],
+      },
+      uniformMixtureWeight: {
+        kind: 'authored',
+        source:
+          'Shared convention across the three mechanical factors: a floor that '
+          + 'keeps every priced event away from certainty.',
+      },
+    },
   },
 } as const satisfies Record<BeliefFactorModule, BeliefFactorEntry>
 

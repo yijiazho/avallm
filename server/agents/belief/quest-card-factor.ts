@@ -317,6 +317,7 @@ function weightedSnapshot(
  * it, and admission and eval paths look for exactly this token, so it stays the
  * first entry of `degradation` no matter what else is appended.
  */
+
 export const QUEST_CARD_FACTOR_DEGRADATION = 'quest-card-factor-failed'
 
 /** Prefix of the optional second entry carrying the failure detail. */

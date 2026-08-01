@@ -4439,6 +4439,40 @@ here.
   opponent, which is a different and much weaker claim, and it makes the retest trigger below
   binding rather than optional.
 
+- Retest trigger fired, and it went against the correction above rather than for it.
+
+  That entry demanded "a population that did not generate the numbers it is tuned against" before
+  a v3. Avalon-NLU supplies one: 20 annotated six-player human games with ground-truth roles,
+  distilled into `server/eval/fixtures/human-games.json`. Both premises of the correction fail on
+  it.
+
+  The off-team FEATURE does not discriminate in the claimed direction. Good approves teams it is
+  not on `62.4%` of the time (108/173) against evil's `51.7%` (75/145), an odds ratio of `0.64`
+  where v2's model needs it well above one. Good is MORE willing to approve an off-team proposal
+  than evil is, not less, so §3.1's evil-finder does not reproduce on this population.
+
+  The round-one convention does not hold either. Good approves the first proposal `93.8%` of the
+  time (75/80). The correction argued that `decideVote`'s hard-coded round-one approve is
+  unrepresentative and that v2 was therefore penalized for modelling humans correctly; this
+  population approves round one at essentially the same rate the heuristic does. Whatever §1.3's
+  "always reject mission 1" describes, it is not what these players did.
+
+  So the ORIGINAL revert stands on its outcome, and both explanations offered for it were wrong.
+  v2 did not lose because it modelled the exception badly, and it did not lose because it modelled
+  humans correctly against a bot that does not. It lost because its feature does not carry the
+  signal it was believed to carry. The correction was right that the bot corpus alone could not
+  settle it, and wrong about which way settling it would go.
+
+  What survives is the general lesson, restated more strongly: a feature named in the brief is a
+  hypothesis about a population, not a property of the game. §3.1 may well describe strong online
+  play; it does not describe this table, and it did not describe ours.
+
+  This is also the reason BELIEF-003's good-vote model is built on TEAM CLEANLINESS rather than
+  off-team membership. Different feature, opposite evidentiary position: cleanliness
+  discrimination is the strongest signal in the corpus (odds ratio `0.11` overall, `0.18` for
+  servants alone) where off-team is inverted. `analytical-vote-matrix-good-v2` is deliberately
+  named `-good-v2` so it can never be mistaken in a trace for the off-team v2 recorded here.
+
   A second correction, smaller. That entry also said four rejections let "evil's leader" seat an
   unrefusable team. Leadership rotates deterministically, so the hammer's holder is fixed by the
   seating, but whether that seat is evil is unknown to good. A rejection costs the RISK that the

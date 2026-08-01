@@ -52,6 +52,7 @@ import {
   questWeightedBeliefModel,
 } from '../../agents/belief/quest-card-factor.ts'
 import {
+  voteMatrixGoodWeightedBeliefModel,
   voteMatrixWeightedBeliefModel,
 } from '../../agents/belief/vote-matrix-factor.ts'
 import {
@@ -648,6 +649,8 @@ export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
   'quest-weighted': questWeightedPicker,
   /** BELIEF-001's vote-matrix factor, on the same policy. */
   'vote-weighted': beliefModelPicker(voteMatrixWeightedBeliefModel),
+  /** BELIEF-003: the same factor with good votes priced. */
+  'vote-good-weighted': beliefModelPicker(voteMatrixGoodWeightedBeliefModel),
   /** BELIEF-001's other half: the proposal factor, on the same policy. */
   'proposal-weighted': beliefModelPicker(proposalWeightedBeliefModel),
 })
