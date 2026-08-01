@@ -413,7 +413,7 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
   switch (ev.type) {
     case 'leadChange': {
       const seat = ev.payload.seat
-      return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the crown' : 'takes the crown', text: `· quest ${ev.payload.round}` }
+      return { key: ev.seq, kind: 'deed', glyph: '♛ ', seat, verb: you(seat) ? 'take the lead' : 'takes the lead', text: `· quest ${ev.payload.round}` }
     }
     case 'utterance': {
       if (ev.payload.text) return { key: ev.seq, kind: 'talk', seat: ev.payload.seat, text: ev.payload.text }
