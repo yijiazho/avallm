@@ -691,7 +691,7 @@ test('evil objective remains private from public cognition, prompts, and client'
     /evilRoleObjective|unseenEvil|failureCapability/,
   )
   for (const owner of [
-    'server/agents/prompts.ts',
+    'server/agents/raw-llm/prompts.ts',
     'server/agents/communication/composed-renderer.ts',
     'client/src/App.tsx',
   ]) {

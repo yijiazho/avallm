@@ -31,7 +31,7 @@ New sections here continue at §8.
 ## 6. Prompt-slot placement map (implementation)
 
 research-strategy.md §1–§5 are the strategy. This section maps it onto the concrete **prompt slots**
-the bots actually assemble in `server/agents/prompts.ts`, so guidance placement becomes a
+the bots actually assemble in `server/agents/raw-llm/prompts.ts`, so guidance placement becomes a
 rule instead of a per-role blob written from scratch. The organizing question for every
 heuristic is: **which slot's scope exactly matches the set of situations this advice applies
 to?** Put it there, once, and no wider.

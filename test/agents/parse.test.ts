@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyDecision, createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
-import { parseDecision, legalityError } from '../../server/agents/parse.ts'
+import { parseDecision, legalityError } from '../../server/agents/raw-llm/decision-parser.ts'
 
 const game = createGame({ seed: 'parse', playerCount: 7, talk: { maxRounds: 0, maxRoundsAfterChange: 0 } })
 const view = viewFor(game, 0)

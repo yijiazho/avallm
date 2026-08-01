@@ -7,7 +7,7 @@ import { createGame, applyDecision, expectedDecisions } from '../../../server/en
 import { viewFor } from '../../../server/engine/view.ts'
 import {
   buildMessages, directAddresses, knowledgeText, publicStateText, sanitizeSpeech, transcriptText,
-} from '../../../server/agents/prompts.ts'
+} from '../../../server/agents/raw-llm/prompts.ts'
 import type { Game, Player, PlayerView } from '../../../server/engine/types.ts'
 
 function playersByRole(g: Game): Record<string, Player> {

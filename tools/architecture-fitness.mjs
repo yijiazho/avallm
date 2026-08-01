@@ -336,8 +336,8 @@ const PURE_MODULES = new Set(['node:util', 'node:assert'])
 // prefix busts the cache for every call of every process, costs real money,
 // and reddens nothing, because no assertion compares two processes.
 const PROMPT_BUILDERS = new Set([
-  'server/agents/prompts.ts',
-  'server/agents/facts.ts',
+  'server/agents/raw-llm/prompts.ts',
+  'server/agents/raw-llm/facts.ts',
   'server/agents/board.ts',
   // The voice norms moved out of prompts.ts to let communication/ stop
   // importing the agents root. They are still text a model is shown, so the
@@ -352,7 +352,7 @@ const PROMPT_BUILDERS = new Set([
 // ambient read cannot join it silently, and so deleting the lever leaves a
 // stale entry rather than a quiet re-opening.
 const PROMPT_BUILDER_AMBIENT_ALLOWED = new Map([
-  ['server/agents/facts.ts', new Set(['process.env.AVALON_NO_DOSSIER'])],
+  ['server/agents/raw-llm/facts.ts', new Set(['process.env.AVALON_NO_DOSSIER'])],
 ])
 const TRANSPORT_CANONICALIZER_EXPORT = 'canonicalizeTransportJson'
 const LEGACY_TRACE_ADMISSION_EXPORTS = new Set([
@@ -1367,8 +1367,10 @@ const AGENT_DIRECTORY_TIERS = new Map([
   ['communication/', 8],
   // Trace admission, the last thing before the composition spine.
   ['admission/', 9],
-  // The composition spine's own machinery, split out of composed.ts. Only
-  // composed.ts imports it, so it ranks above everything it wires together.
+  // Terminal selectable-agent lanes. They consume the shared stages above but
+  // may not import one another; ARCH022 enforces that stronger peer boundary.
+  ['heuristic/', 10],
+  ['raw-llm/', 10],
   ['composed/', 10],
 ])
 
@@ -1376,20 +1378,18 @@ const AGENT_DIRECTORY_TIERS = new Map([
  * Files sitting directly in server/agents/ are outside the order, and return
  * undefined here in both roles.
  *
- * The root is not a tier, it is two things filed together. Half of it is the
- * composition spine that runs last (composed.ts, registry.ts, llm.ts,
- * external-reply.ts) and half is vocabulary the subdirectories legitimately
- * reach up for. trace.ts is why this cannot simply be ranked at the top: it
- * imports most of the subdirectories, and several admission modules import it
- * back, so it is at once the top of the order and a shape vocabulary near the
- * bottom.
+ * The executable heuristic, raw-LLM, and composed implementations now live in
+ * ranked terminal directories. Their old root paths are compatibility facades;
+ * registry.ts imports the real lane entry points directly, and ARCH022 prevents
+ * other root modules or peer lanes from laundering dependencies through them.
  *
- * Bringing the root in means splitting trace.ts into the trace shapes and the
- * trace builder and ranking them separately. That is real work and it is not
- * this rule's. Until it happens the cost is that the admission-to-root and
- * components-to-root edges stay invisible here; they are the remaining debt,
- * and nothing else under agents/ is unordered except the components/policy peer
- * tier above.
+ * The remaining root is shared vocabulary plus construction and transport
+ * boundaries. trace.ts is why it cannot simply be ranked at the top: it imports
+ * most of the subdirectories, and several admission modules import it back, so
+ * it is at once the top of the order and a shape vocabulary near the bottom.
+ * Bringing that vocabulary into the order still requires splitting trace shapes
+ * from their builder. Until then, admission-to-root and components-to-root edges
+ * remain the known debt.
  *
  * A nested directory keys on its FIRST segment, so every file under
  * policy/score-layer/ or admission/composed-trace/ carries its parent's rank.
@@ -1405,6 +1405,42 @@ function agentDirectoryTier(modulePath) {
 }
 
 export { AGENT_DIRECTORY_TIERS }
+
+const AGENT_LANE_PREFIXES = Object.freeze([
+  'server/agents/heuristic/',
+  'server/agents/raw-llm/',
+  'server/agents/composed/',
+])
+
+const AGENT_LANE_COMPATIBILITY_FACADES = new Map([
+  ['server/agents/heuristic.ts', 'server/agents/heuristic/'],
+  ['server/agents/llm.ts', 'server/agents/raw-llm/'],
+  ['server/agents/composed.ts', 'server/agents/composed/'],
+  ['server/agents/prompts.ts', 'server/agents/raw-llm/'],
+  ['server/agents/facts.ts', 'server/agents/raw-llm/'],
+  ['server/agents/knowledge-text.ts', 'server/agents/raw-llm/'],
+  ['server/agents/prompt-format.ts', 'server/agents/raw-llm/'],
+  ['server/agents/belief-summary-context.ts', 'server/agents/raw-llm/'],
+  ['server/agents/parse.ts', 'server/agents/raw-llm/'],
+])
+
+const AGENT_LANE_COMPATIBILITY_FACADE_IDENTITIES = new Set(
+  [...AGENT_LANE_COMPATIBILITY_FACADES.keys()].map(moduleIdentity),
+)
+const AGENT_LANE_COMPATIBILITY_FACADE_SOURCES = new Map([
+  ['server/agents/heuristic.ts', "// Compatibility facade. New production imports should name the lane module.\nexport { createHeuristicAgent } from './heuristic/agent.ts'\nexport { heuristicDecide } from './policy/heuristic-fallback.ts'\n"],
+  ['server/agents/llm.ts', "// Compatibility facade. New production imports should name the raw-LLM lane.\nexport { createLlmAgent, type LlmAgentOpts } from './raw-llm/agent.ts'\n"],
+  ['server/agents/composed.ts', "// Compatibility facade. New production imports should name the lane module.\nexport {\n  createComposedAgent,\n  type ComposedAgentOptions,\n  type ComposedAvalonAgent,\n  type ComposedStage,\n} from './composed/agent.ts'\n"],
+  ['server/agents/prompts.ts', "// Compatibility facade for raw-LLM prompt construction.\nexport * from './raw-llm/prompts.ts'\n"],
+  ['server/agents/facts.ts', "// Compatibility facade for raw-LLM prompt facts.\nexport * from './raw-llm/facts.ts'\n"],
+  ['server/agents/knowledge-text.ts', "// Compatibility facade for raw-LLM private-knowledge rendering.\nexport * from './raw-llm/knowledge-text.ts'\n"],
+  ['server/agents/prompt-format.ts', "// Compatibility facade for raw-LLM prompt formatting.\nexport * from './raw-llm/prompt-format.ts'\n"],
+  ['server/agents/belief-summary-context.ts', "// Compatibility facade for the raw-LLM belief-context adapter.\nexport * from './raw-llm/belief-context.ts'\n"],
+  ['server/agents/parse.ts', "// Compatibility facade for the raw-LLM decision parser.\nexport * from './raw-llm/decision-parser.ts'\n"],
+])
+function agentLane(modulePath) {
+  return AGENT_LANE_PREFIXES.find((prefix) => modulePath.startsWith(prefix))
+}
 
 function isGenericPolicyOrComponent(sourcePath) {
   return sourcePath.startsWith('server/agents/policy/')
@@ -1786,6 +1822,23 @@ export function auditArchitectureSources(sourceEntries) {
       continue
     }
 
+    const expectedFacadeSource =
+      AGENT_LANE_COMPATIBILITY_FACADE_SOURCES.get(sourcePath)
+    if (
+      expectedFacadeSource !== undefined
+      && source
+        .replaceAll(String.fromCharCode(13, 10), String.fromCharCode(10))
+        .replaceAll(String.fromCharCode(13), String.fromCharCode(10))
+        !== expectedFacadeSource
+    ) {
+      violations.push(violation(
+        'ARCH022',
+        sourcePath,
+        undefined,
+        'agent compatibility facades must remain exact re-exports of their '
+          + 'ranked implementation owners',
+      ))
+    }
     // Which shared guards this module has in scope, by their exported names, so
     // ARCH016 below can tell a wrapper around the shared predicate from a second
     // definition of it.
@@ -2198,6 +2251,36 @@ export function auditArchitectureSources(sourceEntries) {
           'component-kernel namespace access is confined to the in-process composition/kernel boundary',
         ))
       }
+      // ARCH022. Terminal agent lanes are selectable siblings, not extension
+      // layers. Cross-lane imports make one implementation a hidden fallback or
+      // adapter of another and turn the registry's explicit construction into a
+      // polite fiction. Shared mechanics belong in a ranked lower tier.
+      const importerLane = agentLane(sourcePath)
+      const targetLane = agentLane(target)
+      const expectedFacadeLane = AGENT_LANE_COMPATIBILITY_FACADES.get(sourcePath)
+      const targetsAgentFacade =
+        AGENT_LANE_COMPATIBILITY_FACADE_IDENTITIES.has(target)
+      if (
+        (importerLane && targetLane && importerLane !== targetLane)
+        || (importerLane && targetsAgentFacade)
+        || (
+          targetLane
+          && !importerLane
+          && sourcePath !== 'server/agents/registry.ts'
+          && expectedFacadeLane !== targetLane
+        )
+      ) {
+        violations.push(violation(
+          'ARCH022',
+          sourcePath,
+          edge,
+          'selectable agent lanes cannot import one another or be reached '
+            + 'through an unapproved root module. Move shared behavior to a '
+            + 'ranked lower tier and keep cross-lane construction in registry.ts',
+        ))
+        continue
+      }
+
       // ARCH020. An agent subdirectory importing one that is above it.
       //
       // Last among the edge rules on purpose. Every narrower rule above
@@ -2482,7 +2565,7 @@ export function auditArchitectureSources(sourceEntries) {
         'concrete score-layer families cannot use the legacy CandidateScore shape',
       ))
     }
-    if (sourcePath === 'server/agents/composed.ts') {
+    if (sourcePath === 'server/agents/composed/agent.ts') {
       for (const literal of inspected.stringLiterals) {
         if (
           literal === 'good-proposal-analysis'

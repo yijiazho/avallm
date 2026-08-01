@@ -16,7 +16,7 @@ import {
 } from '../../../server/agents/belief/exact.ts'
 import { roleCertainties } from '../../../server/agents/board.ts'
 import { compatibilityCertainties } from '../../../server/agents/communication/compat-certainties.ts'
-import { knowledgeText } from '../../../server/agents/prompts.ts'
+import { knowledgeText } from '../../../server/agents/raw-llm/prompts.ts'
 import { legalCasts } from '../../support/casts.ts'
 
 function explicitCertainties(view: PlayerView) {

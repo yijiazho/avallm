@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../../server/engine/game.ts'
 import { nameIsReserved, normalizeName } from '../../server/engine/names.ts'
 import { viewFor } from '../../server/engine/view.ts'
-import { buildMessages } from '../../server/agents/prompts.ts'
+import { buildMessages } from '../../server/agents/raw-llm/prompts.ts'
 import {
   FORBIDDEN_TABLE_ALIAS_NAMES,
   TABLE_ALIAS_POOL,

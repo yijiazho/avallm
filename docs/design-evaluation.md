@@ -316,7 +316,7 @@ The first application of this framework: general-play low-hanging fruit drawn fr
 data (20 judged games) and the LLM-Avalon literature (research-strategy.md §4). Four experiments,
 each targeting a specific judge-incident family, all committed with unit tests:
 
-1. **Facts dossier** (`server/agents/facts.ts`) — engine-owned, PlayerView-only, public-derivable
+1. **Facts dossier** (`server/agents/raw-llm/facts.ts`) — engine-owned, PlayerView-only, public-derivable
    neutral facts (board stakes, fail exposure, vote/lead signals, own contradicted positions,
    hammer proximity) the heuristic already computed but LLM bots were denied. Targets the
    deduction-action gap. Has an `AVALON_NO_DOSSIER=1` A/B toggle.

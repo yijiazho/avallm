@@ -74,7 +74,8 @@ asserts every directory on disk appears in it, so a new folder cannot be created
 7  score-diagnostics/     diagnostic projections OVER the role families
 8  communication/         rendering; no inbound edge from below
 9  admission/             trace admission, last before the composition spine
-10 composed/              composition-spine machinery; only composed.ts imports it
+10 heuristic/ + raw-llm/ + composed/
+                          terminal selectable-agent lanes over the shared stages
 ```
 
 A nested directory keys on its **first** segment, so `policy/score-layer/` and
@@ -90,14 +91,17 @@ Two deliberate exceptions, both recorded in the table's comments:
   (costing the `score-layer/` and `decision-layer/` prefixes ARCH005 and ARCH011 are written
   against) or inverting `resolved-brain.ts` through a callback across forty consumers. Equal
   rank states the fact rather than asserting an order that is not there.
-- **Files directly in `server/agents/` are outside the order** and are skipped in both roles.
-  The root is the composition spine (`composed.ts`, `registry.ts`, `llm.ts`,
-  `external-reply.ts`) filed together with vocabulary the subdirectories legitimately reach
-  up for. `trace.ts` is why: it imports most of the subdirectories and several `admission/`
-  modules import it back, so it is at once the top of the order and a shape vocabulary near
-  the bottom. Ranking the root means first splitting `trace.ts` into the trace shapes and
-  the trace builder. Until then the admission-to-root and components-to-root edges are the
-  known remaining debt.
+- **The selectable implementations are terminal sibling lanes.** `heuristic/agent.ts`,
+  `raw-llm/agent.ts`, and `composed/agent.ts` consume the shared stages below
+  them but may not import one another. ARCH022 enforces that boundary and keeps cross-lane
+  construction in `registry.ts`. The deterministic policy used by both the heuristic
+  seat and runtime fallback lives below the lanes in `policy/heuristic-fallback.ts`.
+- **Files directly in `server/agents/` remain outside the order.** The old agent
+  entry points and raw-LLM helper paths are
+  compatibility facades only; production construction imports the ranked lane entry points.
+  The remaining root holds shared vocabulary and construction or transport boundaries.
+  `trace.ts` still imports much of the tree while admission modules import its
+  shapes, so splitting trace shapes from trace construction is the known remaining root-order debt.
 
 The rule exists because this folder was, before it, about eighty percent of a complete mesh:
 nearly every pair of folders pointing both ways. The file graph was a DAG throughout
@@ -112,9 +116,9 @@ The engine ⟷ LLM boundary is a **decision interface**: the engine reaches a de
 (e.g. "player 3 must vote"), emits a typed `DecisionRequest`, and something answers it with a typed
 `AgentDecision`. Four interchangeable answerers implement the same interface:
 
-- `heuristicAgent` — deterministic/scripted rules (Milestone 1, and the runtime fallback forever)
-- `llmAgent` — builds a prompt from the bot's view, calls OpenRouter, parses, validates
-- `composedAgent` — exact joint beliefs, typed policy, committed mechanics, and optional bounded
+- `heuristicAgent` — `heuristic/agent.ts`, wrapping the shared deterministic fallback policy
+- `llmAgent` — `raw-llm/agent.ts`, building prompts and using the separate `server/llm/` transport
+- `composedAgent` — `composed/agent.ts`, exact joint beliefs, typed policy, committed mechanics, and optional bounded
   LLM planning/voice
 - `humanAgent` — resolves when the human clicks/types in the client
 
@@ -250,7 +254,7 @@ per-role `roleGuidance` overrides (`roleGuidanceMode: 'replace'` (default) swaps
 baseline for that role; `'append'` layers the custom text under it, so the agent keeps riding
 baseline strategy improvements) — and may **suggest** a model, but does not own it. Each role's
 built-in guidance is `alignment-shared fragment + role-specific string` (`ALIGNMENT_SHARED` in
-`server/agents/prompts.ts`): advice common to a whole side (e.g. the double-fail coordination
+`server/agents/raw-llm/prompts.ts`): advice common to a whole side (e.g. the double-fail coordination
 warning) lives once in the shared fragment, which sits in front of every role of that alignment
 and is **not** overridable — `replace`/`append` act only on the role-specific layer. That makes
 it structurally impossible for one role string to miss shared safety advice. Which model actually plays is a

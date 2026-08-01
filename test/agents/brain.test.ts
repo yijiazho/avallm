@@ -23,7 +23,7 @@ import {
   type AgentDef,
 } from '../../server/agents/defs.ts'
 import { createLlmAgent } from '../../server/agents/llm.ts'
-import { buildMessages } from '../../server/agents/prompts.ts'
+import { buildMessages } from '../../server/agents/raw-llm/prompts.ts'
 import { defaultComponents } from '../../server/eval/harness/architecture-bench.ts'
 import { readDecisionFixtures } from '../../server/eval/replay/decision-fixtures.ts'
 import { createGame } from '../../server/engine/game.ts'

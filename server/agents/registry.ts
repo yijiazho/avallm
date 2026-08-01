@@ -1,8 +1,8 @@
 // AgentSpec -> AvalonAgent. The one place that knows how to construct agents.
 
-import { createComposedAgent } from './composed.ts'
-import { createHeuristicAgent } from './heuristic.ts'
-import { createLlmAgent } from './llm.ts'
+import { createComposedAgent } from './composed/agent.ts'
+import { createHeuristicAgent } from './heuristic/agent.ts'
+import { createLlmAgent } from './raw-llm/agent.ts'
 import { createRandomAgent } from './random.ts'
 import { getClient } from '../llm/client.ts'
 import { rosterById } from '../llm/roster.ts'
@@ -14,7 +14,7 @@ import { beliefModelFor } from './belief/factor-manifest.ts'
 import { promptOverridesOf, resolveModel } from './defs.ts'
 import { createBoundedPlannerVoice } from './communication/planner-voice-adapter.ts'
 import type { AgentDef } from './defs.ts'
-import type { ComposedAgentOptions } from './composed.ts'
+import type { ComposedAgentOptions } from './composed/agent.ts'
 import type { OpenRouterClient } from '../llm/openrouter.ts'
 import type {
   AgentContext,

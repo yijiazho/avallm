@@ -79,7 +79,7 @@ import {
 } from '../../../server/agents/candidate/candidates.ts'
 import {
   buildMessages,
-} from '../../../server/agents/prompts.ts'
+} from '../../../server/agents/raw-llm/prompts.ts'
 import {
   runArchitectureBench,
   type ArchitectureVariant,

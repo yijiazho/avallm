@@ -402,11 +402,11 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
   // call of every process and reddens nothing, because no assertion in the
   // suite compares two processes.
   assert.deepEqual(
-    at('server/agents/prompts.ts', 'export const t = `s ${Date.now()}`'),
+    at('server/agents/raw-llm/prompts.ts', 'export const t = `s ${Date.now()}`'),
     ['ARCH015'],
   )
   assert.deepEqual(
-    at('server/agents/prompts.ts', 'export const t = Math.random()'),
+    at('server/agents/raw-llm/prompts.ts', 'export const t = Math.random()'),
     ['ARCH015'],
   )
   assert.deepEqual(
@@ -414,7 +414,7 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
     ['ARCH015'],
   )
   assert.deepEqual(
-    at('server/agents/prompts.ts', "import { readFileSync } from 'node:fs'"),
+    at('server/agents/raw-llm/prompts.ts', "import { readFileSync } from 'node:fs'"),
     ['ARCH015'],
   )
 
@@ -423,19 +423,19 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
   // into a general exemption.
   assert.deepEqual(
     at(
-      'server/agents/facts.ts',
+      'server/agents/raw-llm/facts.ts',
       "export const on = () => process.env.AVALON_NO_DOSSIER !== '1'",
     ),
     [],
     'the documented eval A/B lever',
   )
   assert.deepEqual(
-    at('server/agents/facts.ts', 'export const t = () => Date.now()'),
+    at('server/agents/raw-llm/facts.ts', 'export const t = () => Date.now()'),
     ['ARCH015'],
     'a second ambient read in the same module',
   )
   assert.deepEqual(
-    at('server/agents/facts.ts', 'export const t = process.env.SOME_NEW_FLAG'),
+    at('server/agents/raw-llm/facts.ts', 'export const t = process.env.SOME_NEW_FLAG'),
     ['ARCH015'],
     'the allowlist names one variable, not the whole of process.env',
   )
@@ -443,11 +443,11 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
   // Scoped to the builders. The LLM adapter reads its own env lever and is
   // not assembling a cacheable prefix.
   assert.deepEqual(
-    at('server/agents/llm.ts', 'export const t = process.env.AVALON_REFLECT_CADENCE'),
+    at('server/agents/raw-llm/agent.ts', 'export const t = process.env.AVALON_REFLECT_CADENCE'),
     [],
   )
   assert.deepEqual(
-    at('server/agents/prompts.ts', "import { isDeepStrictEqual } from 'node:util'"),
+    at('server/agents/raw-llm/prompts.ts', "import { isDeepStrictEqual } from 'node:util'"),
     [],
   )
 })
@@ -578,13 +578,13 @@ test('the ambient ban follows prompt text through value imports', () => {
     rules(entries.map((entry) => [entry[0], entry[1]] as [string, string]))
       .filter((rule) => rule === 'ARCH015')
 
-  const ROOT = 'server/agents/prompts.ts'
+  const ROOT = 'server/agents/raw-llm/prompts.ts'
 
   // One hop: a root imports a helper for a value, and the helper reads a clock.
   assert.deepEqual(
     arch015([
       [ROOT, "import { stamp } from './helper.ts'\nexport const t = `s ${stamp}`"],
-      ['server/agents/helper.ts', 'export const stamp = Date.now()'],
+      ['server/agents/raw-llm/helper.ts', 'export const stamp = Date.now()'],
     ]),
     ['ARCH015'],
     'a helper reached by a value import is inside the ban',
@@ -594,8 +594,8 @@ test('the ambient ban follows prompt text through value imports', () => {
   assert.deepEqual(
     arch015([
       [ROOT, "import { a } from './one.ts'\nexport const t = `s ${a}`"],
-      ['server/agents/one.ts', "export { a } from './two.ts'"],
-      ['server/agents/two.ts', 'export const a = Math.random()'],
+      ['server/agents/raw-llm/one.ts', "export { a } from './two.ts'"],
+      ['server/agents/raw-llm/two.ts', 'export const a = Math.random()'],
     ]),
     ['ARCH015'],
     'the closure is transitive',
@@ -608,7 +608,7 @@ test('the ambient ban follows prompt text through value imports', () => {
   assert.deepEqual(
     arch015([
       [ROOT, "import type { T } from './types-only.ts'\nexport const t = 's'"],
-      ['server/agents/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
+      ['server/agents/raw-llm/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
     ]),
     [],
     'a type-only import does not extend the ban',
@@ -616,7 +616,7 @@ test('the ambient ban follows prompt text through value imports', () => {
   assert.deepEqual(
     arch015([
       [ROOT, "import type T = require('./types-only.ts')\nexport const t = 's'"],
-      ['server/agents/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
+      ['server/agents/raw-llm/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
     ]),
     [],
     'a type-only import-equals edge does not extend the ban',
@@ -640,7 +640,7 @@ test('the ambient ban follows prompt text through value imports', () => {
   assert.deepEqual(
     arch015([
       [ROOT, "import { a } from './helper.ts'\nexport const t = `s ${a}`"],
-      ['server/agents/helper.ts', "import { readFileSync } from 'node:fs'\nexport const a = 1"],
+      ['server/agents/raw-llm/helper.ts', "import { readFileSync } from 'node:fs'\nexport const a = 1"],
     ]),
     [],
     'a reached module may still import beyond the standard library',
@@ -1528,8 +1528,8 @@ test('generic decision-layer kernel cannot grow role or observability coupling',
         'import { canonicalizeJson } from "../../canonical/canonical-json.ts"',
       ],
       [
-        'server/agents/composed.ts',
-        'import { createPolicyComponentRuntime } from "./policy/component-runtime.ts"',
+        'server/agents/composed/agent.ts',
+        'import { createPolicyComponentRuntime } from "../policy/component-runtime.ts"',
       ],
     ]),
     Array(8).fill('ARCH011'),
@@ -1569,8 +1569,8 @@ test('shared layer registry skeleton stays confined and role-blind', () => {
   assert.deepEqual(
     rules([
       [
-        'server/agents/composed.ts',
-        'import { layerToken } from "./policy/layer-registry-common.ts"',
+        'server/agents/composed/agent.ts',
+        'import { layerToken } from "../policy/layer-registry-common.ts"',
       ],
       [
         // A policy file that is not one of the three owners. The specifier is
@@ -1646,7 +1646,7 @@ test('concrete score families stay separate from observability and composition I
          type Row = Legacy.CandidateScore`,
       ],
       [
-        'server/agents/composed.ts',
+        'server/agents/composed/agent.ts',
         `const proposal = "good-proposal-analysis"
          const vote = "good-vote-analysis"`,
       ],
@@ -1667,8 +1667,8 @@ test('configured score seam exclusively aggregates concrete families', () => {
   assert.deepEqual(
     rules([
       [
-        'server/agents/composed.ts',
-        'import { createGoodScoreLayerRegistry } from "./role-score-layers/good.ts"',
+        'server/agents/composed/agent.ts',
+        'import { createGoodScoreLayerRegistry } from "../role-score-layers/good.ts"',
       ],
       [
         'server/agents/policy/decision-frame.ts',
@@ -1718,8 +1718,8 @@ test('configured score seam exclusively aggregates concrete families', () => {
          import * as equality from "./legacy-equality.ts"`,
       ],
       [
-        'server/agents/composed.ts',
-        'import { registry } from "./role-score-layers/configured.ts"',
+        'server/agents/composed/agent.ts',
+        'import { registry } from "../role-score-layers/configured.ts"',
       ],
     ]),
     [],
@@ -1730,8 +1730,8 @@ test('native score-layer preparation and execution stay locally owned', () => {
   assert.deepEqual(
     rules([
       [
-        'server/agents/composed.ts',
-        'import { executePreparedScoreLayerRun } from "./policy/score-layer/runner.ts"',
+        'server/agents/composed/agent.ts',
+        'import { executePreparedScoreLayerRun } from "../policy/score-layer/runner.ts"',
       ],
       [
         'server/agents/composed-namespace.ts',
@@ -1829,7 +1829,7 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
 
   const violations = auditArchitectureSources([
     [
-      'server/agents/composed.ts',
+      'server/agents/composed/agent.ts',
       'const value: DecisionComponentTrustedHostInputProvider<unknown> = root',
     ],
     [
@@ -1875,7 +1875,7 @@ test('trusted provider capabilities remain inside composition and kernel', () =>
   assert.deepEqual(
     violations.map(({ rule, importer }) => [rule, importer]),
     [
-      ['ARCH004', 'server/agents/composed.ts'],
+      ['ARCH004', 'server/agents/composed/agent.ts'],
       ['ARCH004', 'server/agents/external-reply.ts'],
       ['ARCH004', 'server/agents/trace.ts'],
       ['ARCH004', 'server/eval/artifact.ts'],
@@ -2162,6 +2162,51 @@ test('the composition kernel peer tier imports both ways', () => {
   )
 })
 
+test('terminal agent lanes cannot import one another or bypass the registry', () => {
+  const violations = auditArchitectureSources([
+    [
+      'server/agents/composed/agent.ts',
+      'import { x } from "../heuristic/agent.ts"',
+    ],
+    [
+      'server/agents/raw-llm/agent.ts',
+      'import { x } from "../composed/options.ts"',
+    ],
+    [
+      'server/agents/heuristic/agent.ts',
+      'import { x } from "../llm.ts"',
+    ],
+    [
+      'server/agents/defs.ts',
+      'import { x } from "./raw-llm/agent.ts"',
+    ],
+    [
+      'server/agents/registry.ts',
+      'import { x } from "./raw-llm/agent.ts"',
+    ],
+    [
+      'server/agents/composed.ts',
+      "// Compatibility facade. New production imports should name the lane module.\nexport {\n  createComposedAgent,\n  type ComposedAgentOptions,\n  type ComposedAvalonAgent,\n  type ComposedStage,\n} from './composed/agent.ts'\n",
+    ],
+    [
+      'server/agents/prompts.ts',
+      'export * from "./raw-llm/facts.ts"',
+    ],
+  ])
+
+  assert.deepEqual(
+    violations
+      .filter(({ rule }) => rule === 'ARCH022')
+      .map(({ importer, specifier }) => [importer, specifier]),
+    [
+      ['server/agents/composed/agent.ts', '../heuristic/agent.ts'],
+      ['server/agents/raw-llm/agent.ts', '../composed/options.ts'],
+      ['server/agents/heuristic/agent.ts', '../llm.ts'],
+      ['server/agents/defs.ts', './raw-llm/agent.ts'],
+      ['server/agents/prompts.ts', undefined],
+    ],
+  )
+})
 test('agent root files are outside the directory order in both roles', () => {
   assert.deepEqual(
     rules([
@@ -2170,7 +2215,7 @@ test('agent root files are outside the directory order in both roles', () => {
         'import type { DecisionTrace } from "../trace.ts"',
       ],
       [
-        'server/agents/heuristic.ts',
+        'server/agents/brain.ts',
         'import type { Z } from "./admission/composed-trace.ts"',
       ],
     ]),

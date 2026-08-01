@@ -15,7 +15,7 @@ import {
   roleGuidanceFor,
   ROLE_GUIDANCE,
   TABLE_TALK_NORMS,
-} from '../../server/agents/prompts.ts'
+} from '../../server/agents/raw-llm/prompts.ts'
 import { createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
 import { ROLE_ALIGNMENT } from '../../server/engine/rules.ts'

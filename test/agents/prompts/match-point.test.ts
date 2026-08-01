@@ -12,7 +12,7 @@ import { createGame, applyDecision, expectedDecisions } from '../../../server/en
 import { asCompletedQuest, resolveQuest } from '../../support/quests.ts'
 import { viewFor } from '../../../server/engine/view.ts'
 import { evilPartnersOf } from '../../../server/engine/knowledge.ts'
-import { buildMessages } from '../../../server/agents/prompts.ts'
+import { buildMessages } from '../../../server/agents/raw-llm/prompts.ts'
 import type { Game, Seat } from '../../../server/engine/types.ts'
 
 // Eight, because the two-Fail quest exists at 8p too (and there without an Oberon).

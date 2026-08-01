@@ -3,12 +3,12 @@
   "exemptions": [
     {
       "path": "test/agents/analysis/evil-objectives.test.ts",
-      "sha256": "7e6d63539739d80f94dfceb0170486a9a4428c2d87766f769d6671c4c0e0851c",
+      "sha256": "eb92e4ea5b764dd0f1fef7298717ee0b2f95f5991a81529bfc9f9ef3f005c8ac",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {
       "path": "test/agents/analysis/mordred-blindness-hostile.test.ts",
-      "sha256": "1a3e19eb016c7e3632e45b5de3b8514e89cbcae45eb2b19058159a997f784fcf",
+      "sha256": "a3568216ff37edd4b15b1c4199e2337d21969bc572f692400cdd38f9f443cdee",
       "rationale": "Legacy Mordred hostile fixtures intentionally mutate readonly contracts."
     },
     {
@@ -18,7 +18,7 @@
     },
     {
       "path": "test/agents/analysis/morgana-counterfeit.test.ts",
-      "sha256": "23f4bce42e9a8e368e9dbb891c539f7caf1489a99499229b643251a9c77c7019",
+      "sha256": "5334c501edffc283f62f79f744ab1a566d7f7108d5045f3d8df445019897739b",
       "rationale": "Legacy counterfeit fixtures intentionally mutate readonly contracts."
     },
     {
@@ -33,7 +33,7 @@
     },
     {
       "path": "test/agents/belief/identity.test.ts",
-      "sha256": "45ab2cc5bb9a2a435185c69d5449cfd81ff9beac0c3955fb797ba8f44cb1de9d",
+      "sha256": "b1187c2e6eebe24f7932eee13109ea874de169fcdd68737c980af6ed85cee048",
       "rationale": "Legacy identity fixtures intentionally mutate readonly contracts."
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "test/agents/communication/compat-certainties.test.ts",
-      "sha256": "00c6fad75277d6ed931e95db03aca6a853f44e532812f269c3a04963657f6cac",
+      "sha256": "2b6463cb3164f0e3a61af6952c6e5b417f4740de9afa6bd61211475c0f91f3f8",
       "rationale": "Legacy compatibility fixture exercises a retired decision-kind spelling."
     },
     {
@@ -88,7 +88,7 @@
     },
     {
       "path": "test/agents/facts.test.ts",
-      "sha256": "39d1f4ecd99b971e24e7d0a83fb8b1c81e447a145b5765ec51a7ccc692bbf9a3",
+      "sha256": "1515a9e9568ed84290b3f40365bd3f66aafa255c8b3330b70cf65ae3194b2c38",
       "rationale": "Legacy fact fixture widens role literals to strings."
     },
     {
@@ -108,27 +108,27 @@
     },
     {
       "path": "test/agents/prompts/builders.test.ts",
-      "sha256": "54b3eedab965459d21c25fe7e4b2f486c0d0f38cc9b92837729dfbdfb516b7ed",
+      "sha256": "2505bec269d4a7dbc4c0eeef451ca0ee3792046199172904d8b89859dad08625",
       "rationale": "Legacy prompt fixture exercises a retired phase spelling."
     },
     {
       "path": "test/agents/prompts/discuss-stakes.test.ts",
-      "sha256": "b1210f2f2afa4a06a11f4968d61d238eb5b210db4f739ae0d05883d51e47ab7e",
+      "sha256": "f508e37952b8b0995e7c0ad03f8da75971841b4d69674ba17a9282aeb3faa3df",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/agents/prompts/endgame-norm.test.ts",
-      "sha256": "842db39b67aa262a244a09f5094d70740219bc929a04bd7a4a1a6cd174aa9361",
+      "sha256": "0f5e4dbc4f3bdc19e748341ab0603c9b41f97273b339fd4dd8f29d54e432b56c",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/agents/prompts/record-line.test.ts",
-      "sha256": "12a5e424db7be987125aff3eaf777d2288f2a0eee6d7258dd0c0f9c91ee98c01",
+      "sha256": "3cedf7b662fec717c5d3523fa95506756de002b75117ae3c06cd075d9b0f5434",
       "rationale": "Legacy fixture exercises a retired decision-kind spelling."
     },
     {
       "path": "test/agents/record/public-record.test.ts",
-      "sha256": "672fff8e659b09e9da8b3ef10af7d42bc73b8ea8e18d769516cf66b1082828b2",
+      "sha256": "72fd95616ce46d25ad3d72fdb4ce1edb38543bfa6418f4e34b1a5af37e35f4b6",
       "rationale": "Legacy record fixtures intentionally cast readonly histories as mutable."
     },
     {

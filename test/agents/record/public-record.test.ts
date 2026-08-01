@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import {
   factsDossier,
   factsDossierFromPublicRecord,
-} from '../../../server/agents/facts.ts'
+} from '../../../server/agents/raw-llm/facts.ts'
 import {
   projectLanguageInterpreterInput,
 } from '../../../server/agents/record/language-contract.ts'
@@ -23,7 +23,7 @@ import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtu
 
 test('prompt facts and language context import the same public-record owner', () => {
   const factsSource = readFileSync(
-    'server/agents/facts.ts',
+    'server/agents/raw-llm/facts.ts',
     'utf8',
   )
   const languageSource = readFileSync(

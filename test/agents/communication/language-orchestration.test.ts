@@ -5,7 +5,7 @@ import test from 'node:test'
 import { mutable } from '../../support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createComposedAgent } from '../../../server/agents/composed.ts'
+import { createComposedAgent } from '../../../server/agents/composed/agent.ts'
 import {
   INVALID_LANGUAGE_INTERPRETER_VERSION,
 } from '../../../server/agents/communication/language-orchestration.ts'
@@ -670,7 +670,7 @@ test('language-off source and trace contracts remain unchanged', async () => {
   assert.equal(output.trace!.languageEvidence, undefined)
 
   const source = [
-    readFileSync('server/agents/composed.ts', 'utf8'),
+    readFileSync('server/agents/composed/agent.ts', 'utf8'),
     readFileSync('server/agents/communication/language-orchestration.ts', 'utf8'),
   ].join('\n')
   assert.doesNotMatch(source, /from ['"].*llm\//)

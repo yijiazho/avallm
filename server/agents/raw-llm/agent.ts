@@ -1,0 +1,323 @@
+// The LLM-driven agent. Ladder per decision (design doc §3):
+//   1. call -> tolerant parse -> legality check
+//   2. on failure: ONE retry with the error appended
+//   3. on second failure: throw — the runner substitutes the heuristic and
+//      records the decision as degraded (never silent, never stalls).
+// Scratchpad: before deciding, if new hard public evidence has landed since
+// the last reflect, run a reflect call and fold the result into persistent
+// private notes. "Hard evidence" = a quest resolved OR a proposal was REJECTED
+// (see maybeReflect for the cadence rationale).
+
+import { CALL_PARAMS } from '../../llm/call-params.ts'
+import type { LlmCallKind } from '../../llm/call-params.ts'
+import { rosterById } from '../../llm/roster.ts'
+import type { OpenRouterClient, Msg } from '../../llm/openrouter.ts'
+import { buildMessages } from './prompts.ts'
+import type { AskExtra, PromptOverrides } from './prompts.ts'
+import { legalityError, parseDecision } from './decision-parser.ts'
+import { proposalRejected } from '../../engine/rules.ts'
+import type { Decision, DecisionRequest, PlayerView } from '../../engine/types.ts'
+import type { AgentDecision, AvalonAgent } from '../types.ts'
+import {
+  buildBeliefSummaryContext,
+  type BeliefSummaryContext,
+} from './belief-context.ts'
+import type { CognitionState } from '../cognition/types.ts'
+import {
+  createDecisionTrace,
+  finalizeProvisionalAppliedTrace,
+  type DecisionTrace,
+} from '../trace.ts'
+import {
+  resolveBrain,
+  usesCompactBeliefSummary,
+  type LlmBrainConfig,
+} from '../brain.ts'
+
+export interface LlmAgentOpts {
+  modelId: string           // roster id, e.g. 'deepseek-flash'
+  client: OpenRouterClient
+  agentId?: string          // library agent id, used for spend tags (defaults to modelId)
+  label?: string            // display label for degrade attribution, e.g. 'Merlin Hunter v2'
+                            // (two custom agents can share a model — the model name is ambiguous)
+  prompts?: PromptOverrides // agent-config prompt layers
+  temperature?: number      // agent-config override of the per-kind default, [0, 1]
+  brain?: LlmBrainConfig
+  /**
+   * Private sink of last resort. Traces ride the decide() envelope, so a host
+   * with its own store persists them itself and never reaches this.
+   */
+  onDecisionTrace?: (trace: DecisionTrace) => void
+}
+
+// A short, whitespace-collapsed, quoted view of a failed raw reply, for the
+// degrade record. Empty output is common on truncation, so name that case.
+function rawSnippet(raw: string): string {
+  const clean = raw.replace(/\s+/g, ' ').trim()
+  if (!clean) return '(empty)'
+  return JSON.stringify(clean.length > 200 ? `${clean.slice(0, 200)}…` : clean)
+}
+
+export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
+  const entry = rosterById(opts.modelId)
+  const { client } = opts
+  const brain = resolveBrain({
+    type: 'llm',
+    brain: opts.brain,
+  })
+  const compactBeliefSummary = usesCompactBeliefSummary(brain)
+  const tagId = opts.agentId ?? entry.id
+  const label = opts.label ?? entry.displayName
+  const overrides = opts.prompts ?? {}
+  let scratchpad = ''
+  let reflectedQuests = 0
+  let reflectedRejections = 0
+  let pendingNotes: string | null = null
+  let cognition: CognitionState | undefined
+
+  // Trace-degradation tags accumulate across the sub-steps of ONE decide() call
+  // (a failed reflect, a decision retry, a pitch failure, a policy fallback) and
+  // are consumed once when that decision's trace is built. The lifecycle is owned
+  // here so no call site has to remember the reset/drain protocol:
+  //   reset()      clears the tags at the very start of each decide()
+  //   push()       appends a tag as a sub-step degrades
+  //   pushUnique() appends only if the tag is not already present
+  //   drain()      returns the accumulated tags AND clears them, so the built
+  //                trace takes them exactly once and the next decision starts empty
+  const degradation = (() => {
+    let tags: string[] = []
+    return {
+      push: (tag: string): void => { tags.push(tag) },
+      pushUnique: (tag: string): void => { if (!tags.includes(tag)) tags.push(tag) },
+      reset: (): void => { tags = [] },
+      drain: (): string[] => { const out = tags; tags = []; return out },
+    }
+  })()
+
+  // NOTE: mutates the closed-over `cognition` cache as a side effect (the belief
+  // model advances one step per call), hence the imperative name.
+  function advanceBeliefContext(
+    view: PlayerView,
+    candidateTeams: readonly (readonly number[])[] = [],
+  ): BeliefSummaryContext | undefined {
+    if (!compactBeliefSummary) return undefined
+    const context = buildBeliefSummaryContext(view, candidateTeams, cognition)
+    cognition = context.cognition
+    return context
+  }
+
+  async function callKind(
+    kind: LlmCallKind, view: PlayerView,
+    correction?: { prior: string; error: string }, extra?: AskExtra,
+  ): Promise<string> {
+    const params = CALL_PARAMS[kind]
+    const context = advanceBeliefContext(view, extra?.chosenTeam ? [extra.chosenTeam] : [])
+    const messages: Msg[] = buildMessages(
+      kind,
+      view,
+      scratchpad,
+      overrides,
+      extra,
+      {
+        beliefVisibility: brain.beliefVisibility,
+        beliefBlock: context?.rendered,
+        belief: context?.cognition.belief,
+      },
+    )
+    if (correction) {
+      messages.push(
+        { role: 'assistant', content: correction.prior },
+        { role: 'user', content: `Your reply was not usable: ${correction.error}. Answer again with ONLY the required JSON object.` },
+      )
+    }
+    return client.call(entry.slug, messages, {
+      tag: `${tagId}/${kind}`,
+      temperature: opts.temperature ?? params.temperature,
+      max_tokens: params.max_tokens,
+      response_format: params.json ? { type: 'json_object' } : undefined,
+    })
+  }
+
+  // Scratchpad refresh cadence. The scratchpad is the bot's private JUDGMENT
+  // and costs an ~800-token call; the deterministic facts dossier (facts.ts)
+  // and the raw vote/quest record are already rendered free every turn, so we
+  // only pay for judgment when the public evidence base actually changes.
+  //   'evidence' (default): reflect when a quest resolved OR a proposal was
+  //     REJECTED. Both are discrete, bounded hard-evidence moments, and
+  //     multiple reveals between a bot's turns collapse into one reflect.
+  //     A rejection is real social evidence the dossier never aggregates (who
+  //     was willing to sink a team, and who fought to seat one) — and unlike an
+  //     approval it carries genuine signal, since an APPROVED team's real test
+  //     is the quest result that follows, which already triggers a reflect on
+  //     its own. So we deliberately skip approved/unanimous reveals: reflecting
+  //     on a first-round "everyone approved" vote spends a call to conclude
+  //     "nothing to conclude yet" (observed in live capture). Table-talk turns
+  //     (the frequent, low-signal calls) never trigger a reflect either: the
+  //     model re-reads the live transcript every turn, so banking judgment on
+  //     each utterance would multiply cost for little gain.
+  //   'resolve': the older resolve-only cadence — a cost lever for talk-heavy
+  //     or budget-capped runs. Read at call time so a harness can flip it.
+  // Future refinements (deferred, see docs/ROADMAP.md): reflect on non-unanimous
+  // approvals too (not just rejections), or gate all vote-triggered reflects to
+  // post-first-resolve so they always have a quest result to reason against.
+  function reflectOnRejections(): boolean {
+    return process.env.AVALON_REFLECT_CADENCE?.trim().toLowerCase() !== 'resolve'
+  }
+
+  async function maybeReflect(view: PlayerView): Promise<void> {
+    const resolved = view.quests.filter((q) => q.status === 'complete').length
+    // Only a voted-down proposal counts as a rejection; the hammer
+    // (auto-approved, no vote) and every approved team are excluded.
+    const rejections = reflectOnRejections()
+      ? view.proposals.filter(proposalRejected).length
+      : 0
+    const questAdvanced = resolved > reflectedQuests
+    const rejectionsAdvanced = rejections > reflectedRejections
+    if (!questAdvanced && !rejectionsAdvanced) return
+    reflectedQuests = resolved
+    reflectedRejections = rejections
+    try {
+      const content = await callKind('reflect', view)
+      const parsed = parseDecision('reflect', content, view)
+      if (!parsed.parseFailed && parsed.scratchpad) {
+        scratchpad = parsed.scratchpad
+        pendingNotes = parsed.scratchpad // ride the next decision into the log
+      } else if (compactBeliefSummary) {
+        degradation.push('reflection-failed')
+      }
+    } catch {
+      // Reflection is best-effort; a failed reflect never blocks a decision.
+      if (compactBeliefSummary) degradation.push('reflection-failed')
+    }
+  }
+
+  // The trace rides back on the decide() envelope, so the host persists it
+  // only after the engine has accepted the action (design doc §9).
+  function buildTrace(
+    req: DecisionRequest,
+    view: PlayerView,
+    decision: Decision,
+  ): DecisionTrace | undefined {
+    if (!compactBeliefSummary) return undefined
+    const candidateTeams =
+      decision.kind === 'propose' || (decision.kind === 'finalize' && !decision.stick)
+        ? [decision.team]
+        : []
+    const context = advanceBeliefContext(view, candidateTeams)
+    if (!context) return undefined
+    const trace: DecisionTrace = {
+      ...createDecisionTrace(
+      req,
+      view,
+      context.cognition.belief,
+      context.analysis,
+      decision,
+      degradation.drain(),
+      ),
+    }
+    return trace
+  }
+
+  /** The envelope's optional trace field, present only when there is one. */
+  function traceEnvelope(
+    req: DecisionRequest,
+    view: PlayerView,
+    decision: Decision,
+  ): Pick<AgentDecision, 'trace'> {
+    const trace = buildTrace(req, view, decision)
+    return trace ? { trace } : {}
+  }
+
+  return {
+    privateTraceSink(trace) {
+      opts.onDecisionTrace?.(trace)
+    },
+    /**
+     * Raw-LLM traces have nothing to add once an action is legal, so the only
+     * work here is the record for a fallback this agent never chose: decide()
+     * threw, so there is no envelope trace for the host to finalize.
+     */
+    finalizeAppliedTrace(outcome) {
+      if (outcome.provisionalTrace) {
+        return finalizeProvisionalAppliedTrace(outcome)
+      }
+      if (outcome.resolution === 'selected-applied') return undefined
+      degradation.pushUnique('decision-fallback')
+      return buildTrace(
+        outcome.request,
+        outcome.view,
+        outcome.appliedDecision,
+      )
+    },
+    async decide(
+      req: DecisionRequest,
+      view: PlayerView,
+    ): Promise<AgentDecision> {
+      degradation.reset()
+      await maybeReflect(view)
+      // Good's quest card is forced (the engine coerces fail -> success), so
+      // a call would buy nothing. Skipping it is unobservable at the table:
+      // bot decisions resolve as a batch behind one broadcast, so per-seat
+      // latency never shows.
+      if (req.kind === 'quest' && view.alignment === 'good') {
+        const decision: Decision = { kind: 'quest', card: 'success' }
+        if (pendingNotes) {
+          decision.notes = pendingNotes
+          pendingNotes = null
+        }
+        return { decision, ...traceEnvelope(req, view, decision) }
+      }
+      const kind = req.kind as LlmCallKind
+      const first = await callKind(kind, view)
+      let parsed = parseDecision(kind, first, view)
+      let error = parsed.parseFailed
+        ? parsed.error!
+        : parsed.decision && legalityError(parsed.decision, view)
+      if (error) {
+        if (compactBeliefSummary) degradation.push('decision-retry')
+        const second = await callKind(kind, view, { prior: first, error })
+        parsed = parseDecision(kind, second, view)
+        error = parsed.parseFailed
+          ? parsed.error!
+          : parsed.decision && legalityError(parsed.decision, view)
+        if (error) {
+          // Carry the actual model output into the degrade record so a
+          // truncated/malformed reply is diagnosable from the copy log, not
+          // guessed. The runner/server both surface err.message verbatim, and
+          // that text is already full-reveal-only, so the snippet leaks nothing
+          // the transcript doesn't. Whitespace-collapsed + clipped short.
+          throw new Error(
+            `${label} failed ${kind} twice: ${error}. Raw output` +
+            ` (1st: ${rawSnippet(first)}; 2nd: ${rawSnippet(second)})`,
+          )
+        }
+      }
+      const decision = parsed.decision!
+      if (pendingNotes) {
+        decision.notes = pendingNotes
+        pendingNotes = null
+      }
+      // Commit-then-explain: the team is locked before the pitch is written,
+      // so the speech can never contradict the action. Best-effort — a failed
+      // pitch call just means a silent proposal.
+      if (decision.kind === 'propose') {
+        try {
+          const content = await callKind('pitch', view, undefined, { chosenTeam: decision.team })
+          const pitchParsed = parseDecision('pitch', content, view)
+          if (!pitchParsed.parseFailed && pitchParsed.pitch) {
+            decision.pitch = pitchParsed.pitch
+            if (pitchParsed.thinking) {
+              decision.thinking = [decision.thinking, pitchParsed.thinking].filter(Boolean).join(' / ')
+            }
+          } else if (compactBeliefSummary) {
+            degradation.push('pitch-failed')
+          }
+        } catch {
+          if (compactBeliefSummary) degradation.push('pitch-failed')
+          // silent proposal — the table will notice
+        }
+      }
+      return { decision, ...traceEnvelope(req, view, decision) }
+    },
+  }
+}

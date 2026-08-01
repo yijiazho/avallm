@@ -14,8 +14,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseDecision } from '../../../server/agents/parse.ts'
-import { OUTPUT_CONTRACTS } from '../../../server/agents/prompts.ts'
+import { parseDecision } from '../../../server/agents/raw-llm/decision-parser.ts'
+import { OUTPUT_CONTRACTS } from '../../../server/agents/raw-llm/prompts.ts'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
 import { DEFAULT_ROLES } from '../../../server/engine/rules.ts'

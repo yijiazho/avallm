@@ -34,7 +34,7 @@ import type {
 } from '../../components/types.ts'
 import {
   heuristicDecide,
-} from '../../heuristic.ts'
+} from '../../policy/heuristic-fallback.ts'
 import {
   replayNativeScoresForAdmission,
 } from '../../policy/score-layer/admission-replay.ts'

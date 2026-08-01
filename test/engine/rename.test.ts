@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyDecision, createGame, expectedDecisions, renamePlayer } from '../../server/engine/game.ts'
 import { viewFor, viewForSpectator } from '../../server/engine/view.ts'
-import { transcriptText } from '../../server/agents/prompts.ts'
+import { transcriptText } from '../../server/agents/raw-llm/prompts.ts'
 
 test('rename updates the player, emits a public event, and re-labels history', () => {
   const g = createGame({ seed: 'rn', playerCount: 5, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })

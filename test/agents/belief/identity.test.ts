@@ -755,7 +755,7 @@ test('private identity does not enter public cognition, PlayerView, logs, prompt
   assert.doesNotMatch(observer, /belief\/identity|PrivateIdentity|identityModel/)
   for (const publicOwner of [
     'server/agents/record/public-record.ts',
-    'server/agents/prompts.ts',
+    'server/agents/raw-llm/prompts.ts',
     'server/agents/communication/composed-renderer.ts',
     'server/agents/communication/planner-voice-adapter.ts',
   ]) {

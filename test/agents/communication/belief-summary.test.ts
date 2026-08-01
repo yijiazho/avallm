@@ -4,10 +4,10 @@ import assert from 'node:assert/strict'
 import { applyDecision, createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
 import { createLlmAgent } from '../../../server/agents/llm.ts'
-import { buildMessages } from '../../../server/agents/prompts.ts'
+import { buildMessages } from '../../../server/agents/raw-llm/prompts.ts'
 import {
   buildBeliefSummaryContext,
-} from '../../../server/agents/belief-summary-context.ts'
+} from '../../../server/agents/raw-llm/belief-context.ts'
 import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { OpenRouterClient } from '../../../server/llm/openrouter.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'

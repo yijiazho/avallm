@@ -28,7 +28,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { knowledgeText, roleGuidanceFor } from '../../../server/agents/prompts.ts'
+import { knowledgeText, roleGuidanceFor } from '../../../server/agents/raw-llm/prompts.ts'
 import { legalCasts } from '../../support/casts.ts'
 
 // Function words carry no claim, so they would swamp the comparison.

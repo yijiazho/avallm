@@ -25,7 +25,7 @@ function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null
     case 'utterance': {
       // sanitize-at-boundary: player/agent free text is untrusted and enters an
       // LLM prompt here (probe/judge), so strip injection markup exactly like
-      // the live prompt path does (server/agents/prompts.ts).
+      // the live prompt path does (server/agents/raw-llm/prompts.ts).
       const text = sanitizeSpeech(ev.payload.text ?? '')
       return `${tag} ${nameOf(a, ev.payload.seat)}: ${text ? `"${text}"` : '(passes)'}`
     }

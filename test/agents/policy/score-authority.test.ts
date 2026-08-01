@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import test from 'node:test'
-import { createComposedAgent } from '../../../server/agents/composed.ts'
+import { createComposedAgent } from '../../../server/agents/composed/agent.ts'
 import {
   CANDIDATE_SCORER_VERSION,
   seededEvilRoleObjectiveScorer,
@@ -619,7 +619,7 @@ test('self-described passive graphs stay diagnostic while trusted plan joins fai
 })
 
 test('A4B source has one downstream writer and exact survivor admission', () => {
-  const composed = fs.readFileSync('server/agents/composed.ts', 'utf8')
+  const composed = fs.readFileSync('server/agents/composed/agent.ts', 'utf8')
   const frame = fs.readFileSync(
     'server/agents/policy/decision-frame.ts',
     'utf8',

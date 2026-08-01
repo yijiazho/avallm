@@ -6,7 +6,7 @@ import { mutable } from '../../support/mutable.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { pendingQuest, resolveQuest } from '../../support/quests.ts'
-import { createComposedAgent } from '../../../server/agents/composed.ts'
+import { createComposedAgent } from '../../../server/agents/composed/agent.ts'
 import { boardSituation } from '../../../server/agents/analysis/situation.ts'
 import type { SituationAnalysis } from '../../../server/agents/analysis/situation-types.ts'
 import {
@@ -122,7 +122,7 @@ test('exact quota is absent from executable configuration and authority', () => 
   )
 
   const composed = readFileSync(
-    new URL('../../../server/agents/composed.ts', import.meta.url),
+    new URL('../../../server/agents/composed/agent.ts', import.meta.url),
     'utf8',
   )
   const frame = readFileSync(
@@ -370,7 +370,7 @@ test('robust D3 private payload stays out of prompt, voice, client, and public s
     /privateEvilQuestCardPolicy|slowPlayBucket|localSlowPlayFail/,
   )
   for (const path of [
-    '../../../server/agents/prompts.ts',
+    '../../../server/agents/raw-llm/prompts.ts',
     '../../../server/agents/communication/composed-renderer.ts',
     '../../../client/src/App.tsx',
   ]) {

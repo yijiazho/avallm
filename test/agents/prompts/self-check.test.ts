@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { buildMessages, TABLE_TALK_NORMS } from '../../../server/agents/prompts.ts'
+import { buildMessages, TABLE_TALK_NORMS } from '../../../server/agents/raw-llm/prompts.ts'
 
 test('TABLE_TALK_NORMS carries the second-order self-check', () => {
   assert.match(TABLE_TALK_NORMS, /second-order check/)

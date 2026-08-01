@@ -785,7 +785,7 @@ test('external ingress and private/public boundaries preserve role objective att
     /roleObjective/,
   )
   for (const owner of [
-    'server/agents/prompts.ts',
+    'server/agents/raw-llm/prompts.ts',
     'server/agents/communication/composed-renderer.ts',
     'server/agents/communication/planner-voice-adapter.ts',
     'client/src/App.tsx',

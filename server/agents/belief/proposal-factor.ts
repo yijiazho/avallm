@@ -97,7 +97,7 @@
 // random one, against the seated quest factor's `-0.00526` and `-0.01114`.
 //
 // And the heuristic number is the circular one. `decidePropose` in
-// `server/agents/heuristic.ts` implements this camouflage rule directly, citing
+// `server/agents/policy/heuristic-fallback.ts` implements this camouflage rule directly, citing
 // the same brief sections this model is built from, so that population is close
 // to built to satisfy it. Read together, the honest summary is that this factor
 // finds a small amount of exactly what its opponent was told to do and nothing

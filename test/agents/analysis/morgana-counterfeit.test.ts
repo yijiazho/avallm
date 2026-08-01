@@ -1072,7 +1072,7 @@ test('Morgana dependency is legal-cast enforced and 5-10p payloads stay bounded'
 
 test('private counterfeit substrate does not enter prompts, voice, client, or public view', () => {
   for (const path of [
-    '../../../server/agents/prompts.ts',
+    '../../../server/agents/raw-llm/prompts.ts',
     '../../../server/agents/communication/composed-renderer.ts',
     '../../../client/src/App.tsx',
     '../../../server/engine/view.ts',

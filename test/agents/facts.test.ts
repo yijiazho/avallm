@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../../server/engine/game.ts'
 import { heuristicDecide } from '../../server/agents/heuristic.ts'
 import { runGame } from '../../server/sim/runner.ts'
-import { factsDossier } from '../../server/agents/facts.ts'
+import { factsDossier } from '../../server/agents/raw-llm/facts.ts'
 import type { PlayerView, ProposalRecord, Quest, Seat } from '../../server/engine/types.ts'
 
 // Minimal synthetic view — only the fields the dossier reads.

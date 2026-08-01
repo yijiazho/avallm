@@ -1,7 +1,7 @@
 # Prompt-Format Research: how to encode structured context for the bots
 
 Scope: how AvaLLM should encode the *structured context* it feeds LLM bots — chiefly
-the **facts dossier** (`server/agents/facts.ts`, prompt slot **S7**), but the same
+the **facts dossier** (`server/agents/raw-llm/facts.ts`, prompt slot **S7**), but the same
 reasoning applies to any computed data we put in a prompt (game state, vote records,
 per-player summaries). This is about the *encoding* of data the model reads, not the
 schema of what the model writes back (that is the JSON-out side; see §5).
@@ -131,7 +131,7 @@ that Kimi *approved* the team that failed — evidence the old aggregate format 
 
 ## 5. The conventions (authoritative copy in code)
 
-The rules a new fact must follow live in the header of `server/agents/facts.ts`
+The rules a new fact must follow live in the header of `server/agents/raw-llm/facts.ts`
 (kept next to the code so they can't drift from it). In brief:
 
 1. **Not JSON/YAML/XML** — markdown-in, JSON-out (§2.3, §3.2).

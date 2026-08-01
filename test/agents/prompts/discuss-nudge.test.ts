@@ -16,7 +16,7 @@ import { mutable } from '../../support/mutable.ts'
 import assert from 'node:assert/strict'
 import { createGame } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { buildMessages } from '../../../server/agents/prompts.ts'
+import { buildMessages } from '../../../server/agents/raw-llm/prompts.ts'
 
 // maxRounds 3 so every round asserted on below is one the engine can really
 // reach; discussionRound is still set directly, since driving a live game to

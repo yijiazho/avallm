@@ -15,7 +15,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createGame, applyDecision, expectedDecisions } from '../../../server/engine/game.ts'
 import { viewFor } from '../../../server/engine/view.ts'
-import { knowledgeText } from '../../../server/agents/prompts.ts'
+import { knowledgeText } from '../../../server/agents/raw-llm/prompts.ts'
 import { DEFAULT_ROLES } from '../../../server/engine/rules.ts'
 import type { Game, Role, Seat } from '../../../server/engine/types.ts'
 

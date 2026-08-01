@@ -49,7 +49,7 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 8. **Prompt iteration from real games.** The reveal logs (private thinking + actions) are a
    goldmine: recurring confusions (early-game state muddles, talk-vs-vote contradictions) become
    prompt or nudge fixes, like the direct-address and leader-defends-own-team nudges already did.
-   - **Scratchpad reflect cadence** (`server/agents/llm.ts` `maybeReflect`). The private
+   - **Scratchpad reflect cadence** (`server/agents/raw-llm/agent.ts` `maybeReflect`). The private
      scratchpad refreshes via an ~800-token `reflect` call; the cadence is `AVALON_REFLECT_CADENCE`
      (`evidence` default = reflect on a quest resolve OR a **rejected** proposal; `resolve` = the
      older resolve-only lever). Approved/unanimous vote reveals are deliberately skipped — a live
