@@ -32,6 +32,11 @@ test('propose: clean, fenced-in-prose, number salvage, legality', () => {
   const fenced = parseDecision('propose', 'Sure! Here you go: {"team": [1, 3]} hope that helps', view)
   assert.equal(fenced.parseFailed, false)
   assert.deepEqual((fenced.decision as any).team, [1, 3])
+  assert.equal(Object.hasOwn(fenced.decision!, 'pitch'), false)
+
+  const blankPitch = parseDecision('propose', '{"team":[0,2],"pitch":"   "}', view)
+  assert.equal(blankPitch.parseFailed, false)
+  assert.equal(Object.hasOwn(blankPitch.decision!, 'pitch'), false)
 
   const salvaged = parseDecision('propose', 'I pick seats 4 and 6 for this quest.', view)
   assert.equal(salvaged.parseFailed, false)
@@ -97,6 +102,14 @@ test('finalize: stick, revise, missing team fails, identical team is illegal', (
   assert.equal(revise.parseFailed, false)
   assert.deepEqual((revise.decision as any).team, [0, 3])
   assert.equal((revise.decision as any).reason, 'swapping in a cleaner pair')
+
+  const noReason = parseDecision('finalize', '{"stick":false,"team":[0,3]}', view)
+  assert.equal(noReason.parseFailed, false)
+  assert.equal(Object.hasOwn(noReason.decision!, 'reason'), false)
+
+  const blankReason = parseDecision('finalize', '{"stick":false,"team":[0,3],"reason":"   "}', view)
+  assert.equal(blankReason.parseFailed, false)
+  assert.equal(Object.hasOwn(blankReason.decision!, 'reason'), false)
 
   // Stringly-typed stick still parses.
   assert.equal((parseDecision('finalize', '{"stick":"true"}', view).decision as any).stick, true)

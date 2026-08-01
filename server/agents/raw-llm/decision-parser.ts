@@ -99,8 +99,15 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
       const team = Array.isArray(o?.team) ? o.team : null
       if (team && team.every((s) => Number.isInteger(s))) {
         // Tolerate models that still bundle a pitch with the team.
-        const pitch = typeof o?.pitch === 'string' ? o.pitch.trim().slice(0, SAY_MAX_CHARS) : undefined
-        return ok({ kind: 'propose', team: team as Seat[], pitch, thinking })
+        const pitch = typeof o?.pitch === 'string'
+          ? o.pitch.trim().slice(0, SAY_MAX_CHARS)
+          : ''
+        return ok({
+          kind: 'propose',
+          team: team as Seat[],
+          ...(pitch ? { pitch } : {}),
+          thinking,
+        })
       }
       // Salvage: pull seat numbers out of the text in order.
       const quest = view.quests[view.round - 1]
@@ -128,7 +135,13 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
         if (team && team.length > 0 && team.every((s) => Number.isInteger(s))) {
           const reason = typeof o?.reason === 'string' && o.reason.trim()
             ? o.reason.trim().slice(0, SAY_MAX_CHARS) : undefined
-          return ok({ kind: 'finalize', stick: false, team: team as Seat[], reason, thinking })
+          return ok({
+            kind: 'finalize',
+            stick: false,
+            team: team as Seat[],
+            ...(reason === undefined ? {} : { reason }),
+            thinking,
+          })
         }
         // stick:false with no usable team is closer to indecision than to a
         // revision — do not silently coerce to stick; ask again.
