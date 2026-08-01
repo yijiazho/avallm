@@ -3,7 +3,7 @@
   "exemptions": [
     {
       "path": "test/agents/analysis/evil-objectives.test.ts",
-      "sha256": "eb92e4ea5b764dd0f1fef7298717ee0b2f95f5991a81529bfc9f9ef3f005c8ac",
+      "sha256": "f61ab7bdd62c171db9aea62d4231f457f0b869ec90e8b4e5c78b626f05204f99",
       "rationale": "Legacy hostile-shape fixtures intentionally mutate readonly contracts."
     },
     {

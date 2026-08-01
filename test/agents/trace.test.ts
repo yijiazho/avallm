@@ -55,6 +55,7 @@ test('optional private traces round-trip in artifacts and replay to the same dec
     analysis,
     snapshot.original,
   )
+  assert.deepEqual(JSON.parse(JSON.stringify(trace)), trace)
   const artifact = toArtifact(game, {
     agents: game.players.map(() => 'heuristic'),
     degraded: result.degraded,

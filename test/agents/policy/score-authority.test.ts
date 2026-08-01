@@ -260,11 +260,12 @@ test('native family replays retain concrete journal and transitive component att
     },
   ] as const
   for (const entry of cases) {
-    const output = await createComposedAgent({
+    const agent = createComposedAgent({
       seed: entry.seed,
       roleObjectiveRouter: entry.id === 'd2' || entry.id === 'morgana',
       scorer: entry.scorer,
-    }).decide(entry.req, entry.view)
+    })
+    const output = await agent.decide(entry.req, entry.view)
     const candidates = legalCandidates(entry.req, entry.view)
     const {
       analysis,
@@ -347,6 +348,20 @@ test('native family replays retain concrete journal and transitive component att
       componentRun: output.trace!.components!,
     })
     assert.deepEqual(secondReplay, replay, `${entry.id} deterministic replay`)
+    assert.equal(admitDecisionTrace({
+      kind: 'finalized-artifact',
+      trace: output.trace!,
+      req: entry.req,
+      view: entry.view,
+      authoritativeAction: output.decision,
+      selectedDecision: output.decision,
+      deterministicSeed: entry.seed,
+      expectedComponentPlan: output.trace!.componentPlan!,
+      expectedArchitectureIdentity: revalidatedArchitectureIdentity(
+        agent.resolvedBrain().description,
+      ),
+      expectComponentTrace: true,
+    }).kind, 'trusted-exact', `${entry.id} trusted replay`)
   }
 })
 

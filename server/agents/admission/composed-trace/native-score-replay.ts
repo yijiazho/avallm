@@ -163,32 +163,23 @@ function expectedNativeDiagnostics(
     diagnosticOwnerVersion === MORGANA_ROLE_SEEDED_SCORER_VERSION
       ? MORGANA_ROLE_UTILITY_SEEDED_COMPONENT
       : MORGANA_ROLE_UTILITY_COMPONENT
+  const roleUtility = componentPayload(
+    trace.components,
+    GOOD_ROLE_UTILITY_COMPONENT,
+  )
+  const evilRoleUtility = componentPayload(
+    trace.components,
+    EVIL_ROLE_UTILITY_COMPONENT,
+  )
+  const morganaRoleUtility = componentPayload(
+    trace.components,
+    morganaToken,
+  )
   const diagnosticContext: CandidateScoringContext = {
     ...context,
-    ...(componentPayload(trace.components, GOOD_ROLE_UTILITY_COMPONENT)
-      ? {
-          roleUtility: componentPayload(
-            trace.components,
-            GOOD_ROLE_UTILITY_COMPONENT,
-          ),
-        }
-      : {}),
-    ...(componentPayload(trace.components, EVIL_ROLE_UTILITY_COMPONENT)
-      ? {
-          evilRoleUtility: componentPayload(
-            trace.components,
-            EVIL_ROLE_UTILITY_COMPONENT,
-          ),
-        }
-      : {}),
-    ...(componentPayload(trace.components, morganaToken)
-      ? {
-          morganaRoleUtility: componentPayload(
-            trace.components,
-            morganaToken,
-          ),
-        }
-      : {}),
+    ...(roleUtility === undefined ? {} : { roleUtility }),
+    ...(evilRoleUtility === undefined ? {} : { evilRoleUtility }),
+    ...(morganaRoleUtility === undefined ? {} : { morganaRoleUtility }),
   }
   return Object.freeze({
     scores: projectConfiguredScoreDiagnostics(

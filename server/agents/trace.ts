@@ -458,6 +458,7 @@ export function createDecisionTrace(
   degradation: readonly string[] = [],
 ): DecisionTrace {
   const recordedAction = structuredClone(action)
+  const assessedTeam = relevantTeam(action, analysis)
   if (
     recordedAction.kind === 'propose'
     || (recordedAction.kind === 'finalize' && !recordedAction.stick)
@@ -495,9 +496,9 @@ export function createDecisionTrace(
         .filter(({ alignment }) => alignment === 'evil')
         .map(({ seat }) => seat),
     })),
-    ...(relevantTeam(action, analysis)
-      ? { relevantTeam: relevantTeam(action, analysis) }
-      : {}),
+    ...(assessedTeam === undefined
+      ? {}
+      : { relevantTeam: assessedTeam }),
     factCodes: analysis.factCodes,
     reasonCodes: analysis.forcedPlayReasonCodes,
     action: recordedAction,

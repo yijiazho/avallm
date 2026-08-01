@@ -452,7 +452,7 @@ export function buildEvilRoleObjectiveSnapshot(input: {
       identity,
       candidates,
       coordination,
-      oberonPosterior,
+      ...(oberonPosterior === undefined ? {} : { oberonPosterior }),
     }),
   }
   return snapshot

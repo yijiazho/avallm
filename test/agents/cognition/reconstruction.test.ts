@@ -10,6 +10,8 @@ import { createDecisionTrace } from '../../../server/agents/trace.ts'
 import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 
 test('every frozen Phase 0 decision view deterministically reconstructs Phase 2 state', () => {
+  let sawRelevantTeam = false
+  let sawOmittedRelevantTeam = false
   for (const fixture of readDecisionFixtures()) {
     const first = reconstructCognition(fixture.view)
     const second = reconstructCognition(fixture.view)
@@ -38,6 +40,11 @@ test('every frozen Phase 0 decision view deterministically reconstructs Phase 2 
     assert.ok(first.throughSeq < fixture.source.seq, fixture.id)
     assert.equal(analysis.throughSeq, first.throughSeq, fixture.id)
     assert.equal(trace.beliefThroughSeq, first.throughSeq, fixture.id)
+    const ownsRelevantTeam = Object.hasOwn(trace, 'relevantTeam')
+    assert.equal(ownsRelevantTeam, trace.relevantTeam !== undefined, fixture.id)
+    sawRelevantTeam ||= ownsRelevantTeam
+    sawOmittedRelevantTeam ||= !ownsRelevantTeam
+    assert.deepEqual(JSON.parse(JSON.stringify(trace)), trace, fixture.id)
     assert.match(rendered, new RegExp(`visible event cursor ${first.throughSeq}`), fixture.id)
     assert.deepEqual(
       createDecisionTrace(
@@ -51,4 +58,6 @@ test('every frozen Phase 0 decision view deterministically reconstructs Phase 2 
       fixture.id,
     )
   }
+  assert.equal(sawRelevantTeam, true)
+  assert.equal(sawOmittedRelevantTeam, true)
 })

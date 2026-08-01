@@ -281,7 +281,9 @@ export function compatibilityCandidateScores(
   return calculateCompatibilityBase({
     candidates: context.candidates,
     allowedCandidateIds: context.candidateBoundary.survivorCandidateIds,
-    compatibilityCandidateId: context.compatibilityCandidateId,
+    ...(context.compatibilityCandidateId === undefined
+      ? {}
+      : { compatibilityCandidateId: context.compatibilityCandidateId }),
   }).map((row) => ({
     version: CANDIDATE_SCORER_VERSION,
     ...row,

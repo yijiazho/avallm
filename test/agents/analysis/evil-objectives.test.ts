@@ -347,12 +347,16 @@ test('visible evil and Oberon expose distinct exact joint knowledge', async () =
     assert.equal(assassin.coordination.excludesUnseenOberon, true)
     assert.equal(assassin.coordination.knowsPartnerSpecialRoles, false)
   }
-  assert.equal(assassin.oberonUnseenEvilPosterior, undefined)
+  assert.equal(
+    Object.hasOwn(assassin, 'oberonUnseenEvilPosterior'),
+    false,
+  )
 
   const oberon = evilRoleObjective(
     (await routedOutput('oberon')).trace!,
   )!
   assert.ok(validatePrivateEvilRoleObjectiveSnapshot(oberon))
+  assert.equal(Object.hasOwn(oberon, 'oberonUnseenEvilPosterior'), true)
   assert.equal(oberon.posture.kind, 'oberon-uncoordinated-disruption')
   assert.deepEqual(oberon.coordination, {
     kind: 'self-only-uncoordinated',
