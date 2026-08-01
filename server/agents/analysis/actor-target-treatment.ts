@@ -10,7 +10,6 @@
 
 import { isDeepStrictEqual } from 'node:util'
 import { proposalApproved, proposalVotes } from '../../engine/rules.ts'
-import type { Seat } from '../../engine/types.ts'
 import { teamsEqual } from '../../engine/seatset.ts'
 import type { PublicRecord } from '../record/public-record.ts'
 import {
@@ -40,14 +39,7 @@ import {
   observationFraction,
   validObservationFraction,
 } from './observation-fraction.ts'
-
-function matrixIndex(
-  playerCount: number,
-  actor: Seat,
-  target: Seat,
-): number {
-  return actor * playerCount + target
-}
+import { actorTargetMatrixIndex } from './actor-target-matrix.ts'
 
 /**
  * Conservatively join an approved proposal to the public quest whose team
@@ -98,7 +90,7 @@ export function buildPrivateActorTargetTreatmentRead(
   for (const proposal of executedProposals(record)) {
     const team = new Set(proposal.team)
     for (let target = 0; target < record.playerCount; target++) {
-      const row = counts[matrixIndex(
+      const row = counts[actorTargetMatrixIndex(
         record.playerCount,
         proposal.leader,
         target,
@@ -110,7 +102,7 @@ export function buildPrivateActorTargetTreatmentRead(
       (left, right) => left.seat - right.seat,
     )) {
       for (const target of [...team].sort((left, right) => left - right)) {
-        const row = counts[matrixIndex(
+        const row = counts[actorTargetMatrixIndex(
           record.playerCount,
           vote.seat,
           target,
@@ -123,7 +115,11 @@ export function buildPrivateActorTargetTreatmentRead(
   const rows: ActorTargetTreatmentRow[] = []
   for (let actor = 0; actor < record.playerCount; actor++) {
     for (let target = 0; target < record.playerCount; target++) {
-      const row = counts[matrixIndex(record.playerCount, actor, target)]!
+      const row = counts[actorTargetMatrixIndex(
+        record.playerCount,
+        actor,
+        target,
+      )]!
       rows.push({
         actor,
         target,

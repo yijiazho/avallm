@@ -49,6 +49,7 @@ import {
   conditionalOverlayIndex,
   EMPTY_SUBJECT_MASS,
 } from './perception-asymmetry.ts'
+import { actorTargetMatrixIndex } from './actor-target-matrix.ts'
 
 interface TreatmentAnomaly {
   available: boolean
@@ -78,14 +79,6 @@ export interface MordredBlindnessObjectiveInput {
   belief: BeliefSnapshot
   treatment: PrivateActorTargetTreatmentRead
   candidates: readonly PolicyCandidate[]
-}
-
-function matrixIndex(
-  playerCount: number,
-  actor: Seat,
-  target: Seat,
-): number {
-  return actor * playerCount + target
 }
 
 function channelAnomaly(
@@ -119,7 +112,7 @@ function worldAnomaly(
   visibleEvil: readonly Seat[],
 ): TreatmentAnomaly {
   const row = (target: Seat): ActorTargetTreatmentRow =>
-    read.rows[matrixIndex(read.playerCount, merlin, target)]!
+    read.rows[actorTargetMatrixIndex(read.playerCount, merlin, target)]!
   const proposal = channelAnomaly(
     row(mordred).proposalSelection,
     visibleEvil.map((seat) => row(seat).proposalSelection),
