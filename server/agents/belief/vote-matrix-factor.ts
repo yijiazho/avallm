@@ -20,6 +20,41 @@
 // is fixed, every world has the same number of good voters, so a constant for
 // them cancels in the normalization and leaving them unpriced costs nothing.
 //
+// THAT LAST SENTENCE IS MEASURABLY FALSE, and it is the largest known
+// improvement available to this factor.
+//
+// The cancellation argument needs good voters to behave the same way in every
+// world. Checked against Avalon-NLU (20 annotated six-player human games with
+// ground-truth roles, MIT licensed, github.com/sstepput/Avalon-NLU), 464 ballots,
+// as a one-off offline read:
+//
+//   evil voter, team it can fail   79.4% approve   |  odds ratio 4.19
+//   evil voter, team it cannot     47.9% approve   |  (this model prices ~5.6)
+//   good voter, team seating evil  59.2% approve   |  odds ratio 0.11
+//   good voter, clean team         92.7% approve   |  (this model assumes 1.00)
+//
+// The evil asymmetry is confirmed and the authored parameters land close to the
+// observed size, which is the good news. But a good voter's approval rate is
+// world-DEPENDENT: whether the team is clean is a property of the world, so a
+// good vote is not a constant and does not cancel. It is being discarded, not
+// cancelled, and it is the larger of the two signals.
+//
+// Not a Merlin artifact, which was the obvious objection. Splitting by role,
+// servants alone give 66.9% against 91.7% (odds ratio 0.18) and Percival the
+// same 0.18; Merlin is perfect, as it should be. Seats that genuinely do not
+// know still discriminate strongly.
+//
+// This also revisits BELIEF-001's v1-versus-v2 history directly. v2 modelled
+// both sides of the asymmetry and lost to v1 on the heuristic corpus, and the
+// tracker's standing note was that v2 had been penalized for modelling play
+// correctly against an opponent that does not play that way. The human data
+// supports that reading rather than the bot-corpus verdict.
+//
+// Caveats: 20 games, one research-study population, six players, so no Oberon
+// or Mordred visibility asymmetry and no two-Fail quest, which is exactly the
+// dimension `visibleFailPower` exists for. This is direction and rough
+// magnitude, not calibration.
+//
 // The evil model is one asymmetry: evil approves a team it can actually fail
 // and is more reluctant about one it cannot. That single claim reproduces both
 // heuristic signals rather than transcribing them. A seat that approved a team

@@ -110,6 +110,39 @@
 // factor should point, it is not the AvalonBench baseline direction, and that
 // holds across both populations.
 //
+// HUMAN GAMES SAY THE SIGN IS RIGHT AND THE FACTOR IS STILL WRONG.
+//
+// Checked against Avalon-NLU (20 annotated six-player human games with
+// ground-truth roles, MIT licensed, github.com/sstepput/Avalon-NLU), 148
+// proposals, as a one-off offline read. Evil leaders do camouflage: they seat
+// their partner on `35.1%` of proposals against a chance `49.7%`, an odds lift
+// of `0.55` sitting right on this model's authored `0.5`/`0.6`. So the direction
+// taken from the brief is the direction humans play.
+//
+// The factor is still not usable, because of what good leaders do. They seat
+// evil at `30.6%` against a chance `47.4%`, an odds lift of `0.49`, and unlike
+// the evil result that one is unambiguous (exact `p < 0.0001`, `n = 111`
+// proposals against `n = 37`). Both kinds of leader avoid seating evil, at the
+// same rate, for different reasons: evil for cover, good by deduction. The
+// diagnostic ratio is `0.55 / 0.49 = 1.12`.
+//
+// That ratio is the whole verdict. This model prices a good leader at `1.00`
+// and an evil one at `0.5`-`0.6`, so it assumes a ratio near `0.55`. At the
+// observed `1.12` a clean team says nothing about its proposer's alignment; it
+// says the proposer was trying, which every leader does. Pricing good leaders
+// at the baseline was justified above as "the host cannot reconstruct a good
+// leader's reasoning", and that is true, but it is a statement about our
+// modelling reach rather than about the player. Treating unmodellable as
+// chance is precisely what breaks here.
+//
+// The `firstRound` entry, this model's strongest claim, has `n = 4` in that
+// corpus and points the other way. It has no human support at all.
+//
+// Caveats, because 20 games is 20 games: one research-study population, six
+// players only, so no Oberon or Mordred visibility asymmetry and no two-Fail
+// quest. The evil-leader effect alone is `p = 0.089` and would not stand by
+// itself. What IS firmly established is the confound, not the effect.
+//
 // Cost is not the obstacle but is recorded: on 40 ten-player round-four-plus
 // proposals it runs `158.3` ms per decision against the seated quest factor's
 // `142.5` and a uniform belief's `79.4`. Those absolutes are not comparable to
