@@ -86,6 +86,22 @@ const EMPTY_BRAIN = resolveComposedBrain({
   configuredPipeline: testConfiguredPipeline(),
 }, createDecisionComponentRegistry([]))
 
+test('selected reasons distinguish an omitted filter from an empty filter', () => {
+  const input = {
+    decision: { kind: 'propose', team: [0, 1] } as Decision,
+    factCodes: [],
+    committedPolicyReasons: ['TEST_POLICY_REASON'],
+  }
+  const unfiltered = defaultCommunicationIntent(input)
+  const filtered = defaultCommunicationIntent({
+    ...input,
+    selectedReasons: [],
+  })
+
+  assert.deepEqual(unfiltered?.strategicReasonCodes, ['TEST_POLICY_REASON'])
+  assert.deepEqual(filtered?.strategicReasonCodes, [])
+})
+
 interface SnapshotProbe {
   readonly requestSeat: number
   readonly firstPlayerName: string

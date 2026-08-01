@@ -174,6 +174,7 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
     assert.equal(firstEntry.supersededBy, memory.history[1].id)
   }
   assert.equal(memory.history[1].status, 'current')
+  assert.equal(Object.hasOwn(memory.history[1], 'selected'), true)
 
   const errorAgent = createComposedAgent({
     seed: 'phase7b2-history',
@@ -189,6 +190,19 @@ test('selected, applied fallback, agent-error fallback, and supersession histori
   assert.equal(memory.history[0].selected, undefined)
   assert.equal(memory.history[0].resolution, 'fallback-after-agent-error')
   assert.ok(Object.hasOwn(memory.history[0], 'selected') === false)
+
+  errorAgent.finalizeAppliedTrace!({
+    request: req,
+    view,
+    appliedDecision: fallback,
+    resolution: 'fallback-after-agent-error',
+  })
+  memory = errorAgent.planMemorySnapshot()!
+  assert.equal(memory.history.length, 2)
+  assert.equal(memory.history[0].status, 'superseded')
+  assert.equal(memory.history[1].status, 'current')
+  assert.ok(memory.history.every((entry) =>
+    Object.hasOwn(entry, 'selected') === false))
 
   // An agent-error entry must omit the key outright. A forged null survives
   // plainDetachedData, so presence, not truthiness, is what the schema pins.

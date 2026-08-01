@@ -43,7 +43,7 @@
     },
     {
       "path": "test/agents/cognition/coherence.test.ts",
-      "sha256": "795a0ac59e4dd875c9c32620cbe4a78a5e215952d7dd68bdb79ab4ffc1a2f600",
+      "sha256": "f994912c9eec94701bdd3d7aff9bbf3b0c24a4a645a508e0a28943b5d61d4394",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "path": "test/agents/policy/decision-frame.test.ts",
-      "sha256": "764f3fa6a2a484ed9bf28820bb57de9d1459f2c7e12152d56eeac0eafaba395e",
+      "sha256": "a6ae2754e9946831908cf8f3ff991489e0777330314150f1cb889fb660c718ae",
       "rationale": "Legacy frame fixtures need discriminated-union narrowing."
     },
     {

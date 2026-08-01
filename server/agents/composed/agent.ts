@@ -568,15 +568,21 @@ export function createComposedAgent(
       let memory: PrivatePlanMemory
       try {
         memory = recordAppliedPlan({
-          memory: appliedPlanMemory,
           req: outcome.request,
           view: outcome.view,
           commitments: buildCommitments(extractEvidence(outcome.view)),
-          selectedDecision: outcome.selectedDecision,
-          selectedPlan: matchingPending?.plan,
           appliedDecision: outcome.appliedDecision,
           resolution: outcome.resolution,
           intent: coherenceIntent,
+          ...(appliedPlanMemory === undefined
+            ? {}
+            : { memory: appliedPlanMemory }),
+          ...(outcome.selectedDecision === undefined
+            ? {}
+            : { selectedDecision: outcome.selectedDecision }),
+          ...(matchingPending === undefined
+            ? {}
+            : { selectedPlan: matchingPending.plan }),
         })
       } finally {
         if (pendingIndex >= 0) pendingPlans.splice(pendingIndex, 1)
@@ -1105,9 +1111,13 @@ export function createComposedAgent(
           factCodes: analysis.factCodes,
           selectedScore: chosenScore,
           scoreSurface: compatibilityScored.scores,
-          direction: plannerCommunication,
-          selectedReasons: plannerReasonCodes,
           committedPolicyReasons: scoredFrame.candidateBoundary.reasonCodes,
+          ...(plannerCommunication === undefined
+            ? {}
+            : { direction: plannerCommunication }),
+          ...(plannerReasonCodes === undefined
+            ? {}
+            : { selectedReasons: plannerReasonCodes }),
         })
         const planStrategicReasons = plannerReasonCodes
           ?? selectedStrategicReasonCodes(
