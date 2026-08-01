@@ -31,6 +31,9 @@ import {
   exactWorldBeliefModel,
 } from '../../../server/agents/belief/exact.ts'
 import {
+  voteMatrixWeightedBeliefModel,
+} from '../../../server/agents/belief/vote-matrix-factor.ts'
+import {
   LANGUAGE_WEIGHTED_BELIEF_VERSION,
 } from '../../../server/agents/belief/language-factor.ts'
 import {
@@ -78,7 +81,14 @@ async function admitOn(beliefModel?: typeof questWeightedBeliefModel) {
 test('the reconstructible list is derived from the models themselves', () => {
   // Keyed off each model's own reported version, so a model cannot be listed
   // under a version it does not actually report.
-  for (const model of [exactWorldBeliefModel, questWeightedBeliefModel]) {
+  // Every model the host can rebuild from a view alone, seated or not.
+  // Membership follows the criterion rather than what production happens to
+  // run, so adding a factor cannot silently reproduce ADMIT-001.
+  for (const model of [
+    exactWorldBeliefModel,
+    questWeightedBeliefModel,
+    voteMatrixWeightedBeliefModel,
+  ]) {
     assert.equal(hostReconstructibleBeliefModel(model.version), model)
   }
   // And the quest model reports the version the rest of the tree names it by,

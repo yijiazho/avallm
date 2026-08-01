@@ -29,6 +29,7 @@
 
 import { exactWorldBeliefModel } from './exact.ts'
 import { questWeightedBeliefModel } from './quest-card-factor.ts'
+import { voteMatrixWeightedBeliefModel } from './vote-matrix-factor.ts'
 import type { BeliefModel } from './types.ts'
 
 /**
@@ -39,7 +40,17 @@ import type { BeliefModel } from './types.ts'
  */
 const HOST_RECONSTRUCTIBLE_BELIEF_MODELS: ReadonlyMap<string, BeliefModel> =
   new Map(
-    [exactWorldBeliefModel, questWeightedBeliefModel].map(
+    [
+      exactWorldBeliefModel,
+      questWeightedBeliefModel,
+      // Listed because it MEETS THE CRITERION, not because anything seats it.
+      // Membership here is decided by whether the host can rebuild the model
+      // from a view alone, and this one can. Gating the list on what happens to
+      // be seated instead would leave a trap: seating the vote factor would
+      // then reproduce ADMIT-001 exactly, with every production trace failing
+      // its host join and the exact score replay silently skipped.
+      voteMatrixWeightedBeliefModel,
+    ].map(
       (model) => [model.version, model],
     ),
   )

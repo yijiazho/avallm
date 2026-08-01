@@ -54,6 +54,7 @@ import {
 import {
   voteMatrixWeightedBeliefModel,
 } from '../../agents/belief/vote-matrix-factor.ts'
+import type { BeliefModel } from '../../agents/belief/types.ts'
 import {
   buildServantRoleUtilityProjection,
 } from '../../agents/analysis/servant-role-utility.ts'
@@ -153,12 +154,6 @@ function separates(view: PlayerView, req: DecisionRequest): boolean {
 }
 
 /**
- * Every servant proposal in one played-out game. The table is heuristic
- * throughout and the game runs to its natural end rather than being forced,
- * because the evidence the public read consumes IS resolved quests: forcing
- * success the way the assassin harness does would delete the signal under test.
- */
-/**
  * Which table generates the held-out states.
  *
  * It is a parameter because a behavioural factor can be right about a game or
@@ -172,6 +167,12 @@ function separates(view: PlayerView, req: DecisionRequest): boolean {
  */
 export type CalibrationPopulation = 'heuristic' | 'random'
 
+/**
+ * Every servant proposal in one played-out game. The game runs to its natural
+ * end rather than being forced, because the evidence these factors consume IS
+ * the resolved record: forcing success the way the assassin harness does would
+ * delete the signal under test.
+ */
 async function collectFromGame(
   seed: string,
   cast: ServantCalibrationCast,
@@ -459,12 +460,11 @@ export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
  * the constraints-only belief learns nothing from one: evil may always choose
  * to play success. The heuristic scores it anyway, `-0.5` per seat aboard, and
  * that is not a claim about what is possible but about what evil usually does,
- * which is precisely a likelihood. This factor prices exactly that, from a
- * fail-count distribution rather than a hand-weight.
+ * which is precisely a likelihood. That factor prices exactly that, from a
+ * fail-count distribution rather than a hand-weight, and `questWeightedPicker`
+ * below is how this harness scores it.
  */
-export function beliefModelPicker(
-  beliefModel: typeof questWeightedBeliefModel,
-): ProposalPicker {
+export function beliefModelPicker(beliefModel: BeliefModel): ProposalPicker {
   return async (input) => {
     const decision = (await createComposedAgent({
       seed: caseSeed(input),
@@ -472,23 +472,23 @@ export function beliefModelPicker(
       beliefModel,
     }).decide(input.req, input.view)).decision
     if (decision.kind !== 'propose') {
-      throw new Error('belief-model picker produced a non-proposal')
+      throw new Error(
+        `belief-model picker ${beliefModel.version} produced a non-proposal`,
+      )
     }
     return decision.team
   }
 }
 
-export const questWeightedPicker: ProposalPicker = async (input) => {
-  const decision = (await createComposedAgent({
-    seed: caseSeed(input),
-    scorer: roleObjectiveScorer,
-    beliefModel: questWeightedBeliefModel,
-  }).decide(input.req, input.view)).decision
-  if (decision.kind !== 'propose') {
-    throw new Error('quest-weighted picker produced a non-proposal')
-  }
-  return decision.team
-}
+/**
+ * The shipped quest-card factor, on the same policy.
+ *
+ * Built through the shared picker rather than repeating it: two copies of the
+ * same agent construction and guard drift independently, and the registry would
+ * then compare policies differing in a way nobody chose.
+ */
+export const questWeightedPicker: ProposalPicker =
+  beliefModelPicker(questWeightedBeliefModel)
 
 /**
  * The compatibility policy itself, as a proposal picker.
