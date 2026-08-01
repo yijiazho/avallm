@@ -295,23 +295,25 @@ export function renamePlayer(game: Game, seat: Seat, rawName: string): void {
 
 export function expectedDecisions(game: Game): DecisionRequest[] {
   const base = { round: game.round, proposalNum: game.proposalNum }
+  const request = (kind: DecisionRequest['kind'], seat: Seat): DecisionRequest =>
+    Object.freeze({ kind, seat, ...base })
   switch (game.phase) {
     case 'discussion':
-      return [{ kind: 'discuss', seat: game.discussion!.remaining[0], ...base }]
+      return [request('discuss', game.discussion!.remaining[0])]
     case 'proposal':
-      return [{ kind: 'propose', seat: game.leaderSeat, ...base }]
+      return [request('propose', game.leaderSeat)]
     case 'finalize':
-      return [{ kind: 'finalize', seat: game.leaderSeat, ...base }]
+      return [request('finalize', game.leaderSeat)]
     case 'vote':
       return game.players
         .filter((p) => game.pendingVotes[p.seat] === undefined)
-        .map((p) => ({ kind: 'vote' as const, seat: p.seat, ...base }))
+        .map((p) => request('vote', p.seat))
     case 'quest':
       return teamOnTable(game)
         .filter((seat) => game.pendingCards[seat] === undefined)
-        .map((seat) => ({ kind: 'quest' as const, seat, ...base }))
+        .map((seat) => request('quest', seat))
     case 'assassination':
-      return [{ kind: 'assassinate', seat: assassinSeat(game)!, ...base }]
+      return [request('assassinate', assassinSeat(game)!)]
     case 'gameOver':
       return []
   }

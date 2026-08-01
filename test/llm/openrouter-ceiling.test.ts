@@ -65,3 +65,45 @@ test('a fresh client under the same cap still makes its first call', async () =>
     globalThis.fetch = realFetch
   }
 })
+
+test('negative provider usage is rejected before it can reduce spend', async () => {
+  process.env.OPENROUTER_API_KEY = 'test-key'
+  process.env.OPENROUTER_MAX_SPEND_USD = '0.01'
+  try {
+    const state = mockFetch({
+      provider: 'test',
+      usage: { cost: -5, prompt_tokens: -1, completion_tokens: 1 },
+      choices: [{ message: { content: 'ok' } }],
+    })
+    const client = createOpenRouter({ quiet: true })
+    await assert.rejects(
+      client.call('m', [{ role: 'user', content: 'x' }]),
+      /invalid usage\.cost/,
+    )
+    assert.equal(state.calls, 1)
+    assert.equal(client.getTotalCost(), 0)
+    assert.deepEqual(client.getSpend(), {})
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
+
+test('provider usage must use JSON numbers rather than coercible values', async () => {
+  process.env.OPENROUTER_API_KEY = 'test-key'
+  process.env.OPENROUTER_MAX_SPEND_USD = '0.01'
+  try {
+    mockFetch({
+      provider: 'test',
+      usage: { cost: '0.001', prompt_tokens: 1, completion_tokens: 1 },
+      choices: [{ message: { content: 'ok' } }],
+    })
+    const client = createOpenRouter({ quiet: true })
+    await assert.rejects(
+      client.call('m', [{ role: 'user', content: 'x' }]),
+      /invalid usage\.cost/,
+    )
+    assert.equal(client.getTotalCost(), 0)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})

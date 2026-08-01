@@ -244,10 +244,10 @@ export function isDecisionKind(value: unknown): value is DecisionKind {
 }
 
 export interface DecisionRequest {
-  kind: DecisionKind
-  seat: Seat
-  round: number
-  proposalNum: number
+  readonly kind: DecisionKind
+  readonly seat: Seat
+  readonly round: number
+  readonly proposalNum: number
 }
 
 // `thinking` is the deciding agent's private in-character reasoning — the

@@ -47,12 +47,34 @@ interface Usage {
   reasoningTokens: number
 }
 
-function extractUsage(raw: any): Usage {
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+function nonNegativeNumber(value: unknown, field: string): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`OpenRouter returned invalid ${field}`)
+  }
+  return value
+}
+
+function extractUsage(raw: unknown): Usage {
+  const usage = record(raw)
+  const details = record(usage?.completion_tokens_details)
   return {
-    cost: Number(raw?.cost) || 0,
-    promptTokens: Number(raw?.prompt_tokens) || 0,
-    completionTokens: Number(raw?.completion_tokens) || 0,
-    reasoningTokens: Number(raw?.completion_tokens_details?.reasoning_tokens) || 0,
+    cost: nonNegativeNumber(usage?.cost, 'usage.cost'),
+    promptTokens: nonNegativeNumber(usage?.prompt_tokens, 'usage.prompt_tokens'),
+    completionTokens: nonNegativeNumber(
+      usage?.completion_tokens,
+      'usage.completion_tokens',
+    ),
+    reasoningTokens: nonNegativeNumber(
+      details?.reasoning_tokens,
+      'usage.completion_tokens_details.reasoning_tokens',
+    ),
   }
 }
 
@@ -161,7 +183,7 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     // as soon as fetch() resolved, res.json()/res.text() would read the body with
     // no abort at all and hang unbounded (observed: a sim froze ~25min mid-body).
     // So keep the timer armed across the body read and only clear it in finally.
-    let data: any
+    let data: unknown
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -189,7 +211,7 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
         throw new Error('OpenRouter ' + res.status + ': ' + t.slice(0, 300))
       }
       data = await res.json()
-    } catch (e: any) {
+    } catch (e: unknown) {
       // A stalled body aborts here just like a stalled fetch, but undici surfaces
       // the two differently: a header-phase abort is a DOMException 'AbortError',
       // while a body-read abort is a TypeError 'terminated' with the AbortError
@@ -200,10 +222,18 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     } finally {
       clearTimeout(timer)
     }
+    const response = record(data)
+    if (!response) throw new Error('OpenRouter returned a non-object response')
+    const choice = Array.isArray(response.choices)
+      ? record(response.choices[0])
+      : undefined
+    const message = record(choice?.message)
     return {
-      content: data.choices?.[0]?.message?.content || '',
-      usage: extractUsage(data.usage),
-      provider: data.provider,
+      content: typeof message?.content === 'string' ? message.content : '',
+      usage: extractUsage(response.usage),
+      provider: typeof response.provider === 'string'
+        ? response.provider
+        : undefined,
     }
   }
 
@@ -221,7 +251,7 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
     // are exactly providerPrefsFor(model), so recompute rather than thread it.
     const providerViolated =
       callOpts.provider == null &&
-      providerServedOutsidePolicy(providerPrefsFor(model) as any, result.provider)
+      providerServedOutsidePolicy(providerPrefsFor(model), result.provider)
     recordSpend({ tag, model, usage: result.usage, leaked, provider: result.provider, providerViolated })
     if (leaked && !quiet) {
       console.warn(`[openrouter] ${model} (${tag}) emitted ${rt} reasoning tokens despite suppression`)

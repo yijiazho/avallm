@@ -16,6 +16,7 @@ import {
 } from '../../server/agents/trace.ts'
 import { createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
+import { heuristicDecide } from '../../server/agents/heuristic.ts'
 import { runGame } from '../../server/sim/runner.ts'
 import { appendArtifact, readArtifacts, toArtifact } from '../../server/eval/core/artifact.ts'
 import { snapshotAt } from '../../server/eval/replay/replay.ts'
@@ -134,4 +135,29 @@ test('runner fallback preserves the ultimate action in a degraded trace', async 
     .find((snapshot) => snapshot.trace?.decisionId === fallbackTrace.decisionId)
   assert.ok(associated)
   assert.deepEqual(associated.original, fallbackTrace.action)
+})
+
+test('an agent cannot rewrite the host decision request', async () => {
+  const game = createGame({ seed: 'immutable-agent-request', playerCount: 5 })
+  let attempts = 0
+  const mutatingAgent: AvalonAgent = {
+    async decide(req, view) {
+      attempts++
+      const decision = heuristicDecide(req, view, game.seed)
+      assert.equal(
+        Reflect.set(req, 'seat', (req.seat + 1) % view.playerCount),
+        false,
+      )
+      return { decision }
+    },
+  }
+  const agents = new Map<Seat, AvalonAgent>(
+    game.players.map((player) => [player.seat, mutatingAgent]),
+  )
+
+  const result = await runGame({ game, agents })
+
+  assert.ok(attempts > 0)
+  assert.equal(result.game.phase, 'gameOver')
+  assert.equal(result.degraded.length, 0)
 })

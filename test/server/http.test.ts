@@ -134,6 +134,21 @@ test('/valid returns 404 for a game the server does not have', async () => {
   assert.equal(r.status, 404)
 })
 
+test('POST routes reject non-object and malformed JSON bodies with 400', async () => {
+  for (const body of ['null', '[]', '[']) {
+    const response = await fetch(`${base}/api/game/new`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+    assert.equal(response.status, 400)
+    assert.match(
+      String((await response.json() as { error?: string }).error),
+      /request body must be/,
+    )
+  }
+})
+
 test('/api/agents exposes two probabilistic choices and the Rule-based label', async () => {
   const response = await fetch(`${base}/api/agents`)
   assert.equal(response.status, 200)

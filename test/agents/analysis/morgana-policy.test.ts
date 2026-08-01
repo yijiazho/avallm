@@ -1118,8 +1118,7 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
     if (playerCount === 10) {
       mutable(input).view.round = 4
       mutable(input).view.proposalNum = 1
-      input.req.round = 4
-      input.req.proposalNum = 1
+      input.req = { ...input.req, round: 4, proposalNum: 1 }
       const seats = input.view.players.map((player) => player.seat)
       const team = (index: number, required?: number) => {
         const size = input.view.quests[index].teamSize

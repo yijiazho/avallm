@@ -94,7 +94,7 @@ const inviteCodes = () =>
     .map((c) => c.trim())
     .filter(Boolean)
 const gateOn = () => inviteCodes().length > 0
-const inviteOk = (body: any) =>
+const inviteOk = (body: Readonly<Record<string, unknown>>) =>
   !gateOn() || inviteCodes().includes(String(body?.invite ?? '').trim())
 
 // Resolve where user-created agents live BEFORE the first library scan. Load
@@ -138,7 +138,10 @@ const newId = () => crypto.randomBytes(5).toString('hex')
 // A present-but-wrong-typed value THROWS (handlers turn it into a 400) —
 // coercing a type error into "clear this field" would silently destroy
 // stored config. Key names, caps, and ranges still validate in validateDef.
-function engineFrom(body: any, base?: LlmEngine): LlmEngine {
+function engineFrom(
+  body: Readonly<Record<string, unknown>>,
+  base?: LlmEngine,
+): LlmEngine {
   const text = (key: string) => (v: unknown): string | undefined => {
     if (v === null || v === undefined) return undefined
     if (typeof v !== 'string') throw new Error(`${key} must be a string (or null to clear)`)
@@ -155,7 +158,7 @@ function engineFrom(body: any, base?: LlmEngine): LlmEngine {
     return Object.keys(out).length ? out : undefined
   }
   const pick = <T>(key: string, parse: (v: unknown) => T | undefined, prior: T | undefined) =>
-    (body && key in body ? parse(body[key]) : prior)
+    (Object.hasOwn(body, key) ? parse(body[key]) : prior)
   return {
     type: 'llm',
     model: pick('model', text('model'), base?.model),
@@ -301,7 +304,9 @@ function lobbyBroadcast(l: Lobby): void {
   for (const res of l.listeners) res.write(data)
 }
 
-function createLobby(body: any): { lobby: Lobby; token: string } {
+function createLobby(
+  body: Readonly<Record<string, unknown>>,
+): { lobby: Lobby; token: string } {
   const playerCount = Number(body.playerCount) || 7
   if (playerCount < 5 || playerCount > 9) throw new Error('playerCount must be 5-9')
   const humanSeats = Number(body.humanSeats) || 1
@@ -650,15 +655,29 @@ async function pump(s: Session): Promise<void> {
 
 // ---------- http plumbing ----------
 
+class BadRequestError extends Error {}
+
 function json(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify(body))
 }
 
-async function readBody(req: http.IncomingMessage): Promise<any> {
+async function readBody(
+  req: http.IncomingMessage,
+): Promise<Record<string, unknown>> {
   let raw = ''
   for await (const chunk of req) raw += chunk
-  return raw ? JSON.parse(raw) : {}
+  if (!raw) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new BadRequestError('request body must be valid JSON')
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new BadRequestError('request body must be a JSON object')
+  }
+  return parsed as Record<string, unknown>
 }
 
 function sse(res: http.ServerResponse): void {
@@ -1095,7 +1114,9 @@ const server = http.createServer(async (req, res) => {
     }
     json(res, 404, { error: 'not found' })
   } catch (err) {
-    json(res, 500, { error: err instanceof Error ? err.message : String(err) })
+    json(res, err instanceof BadRequestError ? 400 : 500, {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 })
 
