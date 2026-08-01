@@ -2,6 +2,7 @@ import { compareCandidateIds } from '../../agents/candidate/candidates.ts'
 import {
   PROBABILITY_TOLERANCE,
 } from '../../agents/canonical/probability-arithmetic.ts'
+import { probability } from '../../agents/canonical/canonical-shape.ts'
 
 export const MERLIN_CONCEALMENT_VALUE_VERSION =
   'merlin-outcome-aware-concealment-value-v1'
@@ -80,12 +81,6 @@ export function neutralPivotalProbability(playerCount: number): number {
   return choose(otherVoters, approvalsNeededFromOthers) / 2 ** otherVoters
 }
 
-function probability(value: number, label: string): void {
-  if (!Number.isFinite(value) || value < 0 || value > 1) {
-    throw new Error(`${label} must be a finite probability`)
-  }
-}
-
 function validateInput(input: MerlinConcealmentValueInput): void {
   neutralPivotalProbability(input.playerCount)
   if (
@@ -106,11 +101,12 @@ function validateInput(input: MerlinConcealmentValueInput): void {
     if (!Number.isFinite(candidate.boardUtility)) {
       throw new Error('board utility must be finite')
     }
-    probability(candidate.currentCleanProbability, 'current clean probability')
-    probability(
-      candidate.correctedExposureProxyIndex,
-      'corrected exposure proxy',
-    )
+    if (!probability(candidate.currentCleanProbability)) {
+      throw new Error('current clean probability must be a finite probability')
+    }
+    if (!probability(candidate.correctedExposureProxyIndex)) {
+      throw new Error('corrected exposure proxy must be a finite probability')
+    }
     if (
       !Number.isSafeInteger(candidate.rejectionsBeforeHammer)
       || candidate.rejectionsBeforeHammer < 1
