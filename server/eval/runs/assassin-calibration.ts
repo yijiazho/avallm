@@ -16,6 +16,7 @@
 // virtual-assassin replay. Everything is seeded; there is no clock or ambient
 // randomness, so the metrics are reproducible.
 
+import { MULTICLASS_LOG_LOSS_CLIP } from '../core/statistics.ts'
 import {
   applyDecision,
   createGame,
@@ -125,8 +126,6 @@ export function generateAssassinCalibrationViews(
   return out
 }
 
-const LOG_LOSS_EPSILON = 1e-12
-
 /**
  * Score a posterior builder over an already-generated held-out set. hit-rate is
  * argmax accuracy (ties broken to the lower seat, matching the shot's
@@ -166,7 +165,7 @@ export function scoreMerlinPosterior(
     }
     if (best.seat === merlinSeat) hits += 1
     brierSum += brier
-    logLossSum += -Math.log(Math.max(merlinProbability, LOG_LOSS_EPSILON))
+    logLossSum += -Math.log(Math.max(merlinProbability, MULTICLASS_LOG_LOSS_CLIP))
   }
   if (predictions === 0) {
     throw new Error('assassin calibration scored no predictions')

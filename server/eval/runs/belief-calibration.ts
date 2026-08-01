@@ -1,6 +1,6 @@
 // Calibration metrics shared by uniform and weighted belief ablations.
 
-import { meanOf, rate } from '../core/statistics.ts'
+import { BINARY_LOG_LOSS_CLIP, meanOf, rate } from '../core/statistics.ts'
 import type { RateEstimate } from '../core/statistics.ts'
 import type { DatasetSplit } from '../core/mechanical-data.ts'
 
@@ -77,7 +77,6 @@ export function scoreCalibration(
     return { rows: 0, brier: null, logLoss: null, curve: [] }
   }
   validateRows(rows)
-  const epsilon = 1e-15
   // Both scores are means of a per-row term, so they say so. meanOf folds in
   // place rather than materializing the projection, and rows is non-empty by the
   // guard above. Negating the mean is the same value as negating the sum before
@@ -86,8 +85,8 @@ export function scoreCalibration(
     (row.probability - Number(row.observed)) ** 2)!
   const logLoss = -meanOf(rows, (row) => {
     const probability = Math.min(
-      1 - epsilon,
-      Math.max(epsilon, row.probability),
+      1 - BINARY_LOG_LOSS_CLIP,
+      Math.max(BINARY_LOG_LOSS_CLIP, row.probability),
     )
     return row.observed
       ? Math.log(probability)

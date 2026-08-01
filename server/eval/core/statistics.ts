@@ -21,6 +21,33 @@ export const NORMAL_QUANTILE_95 = 1.959963984540054
 /** Resamples drawn per paired bootstrap. */
 export const BOOTSTRAP_RESAMPLES = 5_000
 
+/*
+ * Log-loss clipping bounds. These are NOT tolerances.
+ *
+ * A tolerance is slack a comparison may spend; these are the distance a
+ * probability is held away from an endpoint so Math.log stays finite. A
+ * degenerate posterior really does emit exactly 0, and log(0) would make the
+ * whole score -Infinity, so the clip decides what a confidently wrong
+ * prediction costs rather than absorbing rounding. That is why they live here
+ * and not in the agent tree's probability-arithmetic.ts, whose header spends a
+ * paragraph on why a second tolerance must not quietly join the first: these
+ * are not that, and folding them in would make both harder to read.
+ *
+ * The two values are deliberately reported rather than reconciled. They were
+ * written independently, at different magnitudes, for the same job; naming them
+ * is what made that visible. Unifying them is a real change to a published
+ * number, since the clip sets the floor on a degenerate row's log loss
+ * (-27.6 at 1e-12 against -34.5 at 1e-15), so it wants a decision and a rerun,
+ * not a tidy-up. Until then each call site keeps the value it was measured
+ * with.
+ */
+
+/** One-sided floor under the true class's mass in the multiclass log loss. */
+export const MULTICLASS_LOG_LOSS_CLIP = 1e-12
+
+/** Two-sided clip on a binary probability before its log loss. */
+export const BINARY_LOG_LOSS_CLIP = 1e-15
+
 export interface RateEstimate {
   successes: number
   trials: number

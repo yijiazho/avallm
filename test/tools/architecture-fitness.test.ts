@@ -445,6 +445,115 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
   )
 })
 
+test('an unowned magnitude is unowned in every area, not just the agent tree', () => {
+  const arch017 = (file: string, body: string) =>
+    rules([[file, body]]).filter((rule) => rule === 'ARCH017')
+
+  // eval was out of scope on the grounds that it has its own numerics. That is
+  // a reason for it to have its own owner, not for its magnitudes to go
+  // unowned: it held two log-loss clips written independently at 1e-12 and
+  // 1e-15 for the same job, which is the shape this rule exists to surface.
+  assert.deepEqual(
+    arch017('server/eval/runs/some-report.ts', 'export const t = 1e-12'),
+    ['ARCH017'],
+  )
+
+  // The engine stays out, and not only because it has no probabilities: it
+  // cannot import either owner (ARCH001), so reporting one would be advice it
+  // has no way to take.
+  assert.deepEqual(arch017('server/engine/probe.ts', 'const t = 1e-12'), [])
+  // sim and llm stay out as before. Neither holds a magnitude today, and
+  // widening on speculation would be inventing a rule for nobody.
+  assert.deepEqual(arch017('server/sim/runner.ts', 'export const t = 1e-9'), [])
+
+  // Each area is pointed at its own owner, because the two hold different
+  // contracts: comparison slack on one side, published-score bounds on the
+  // other.
+  const evalMessage = auditArchitectureSources([
+    ['server/eval/runs/some-report.ts', 'export const t = 1e-12'],
+  ]).find((entry) => entry.rule === 'ARCH017')?.message
+  assert.match(String(evalMessage), /eval\/core\/statistics\.ts/)
+  const agentMessage = auditArchitectureSources([
+    ['server/agents/policy/probe.ts', 'export const t = 1e-12'],
+  ]).find((entry) => entry.rule === 'ARCH017')?.message
+  assert.match(String(agentMessage), /canonical\/probability-arithmetic\.ts/)
+
+  // Both owners may write magnitudes; that is what being the owner means.
+  assert.deepEqual(
+    arch017(
+      'server/agents/canonical/probability-arithmetic.ts',
+      'export const PROBABILITY_TOLERANCE = 1e-12',
+    ),
+    [],
+  )
+  assert.deepEqual(
+    arch017('server/eval/core/statistics.ts', 'export const BINARY_LOG_LOSS_CLIP = 1e-15'),
+    [],
+  )
+})
+
+test('the engine cannot reach a layer no purity rule covers', () => {
+  const arch014 = (entries: readonly (readonly [string, string])[]) =>
+    rules(entries.map((entry) => [entry[0], entry[1]] as [string, string]))
+      .filter((rule) => rule === 'ARCH014')
+
+  // ARCH014 inspects engine files and ARCH019 inspects shared ones, so between
+  // them the engine's reachable set is covered today. Nothing enforced that:
+  // ARCH001 bans server/agents/ and server/eval/ by name, and the purity
+  // module arm only sees bare specifiers, so a relative import into a third
+  // layer satisfied every rule while putting unchecked code inside the
+  // engine's closure. server/shared/ is exactly such a layer and ARCH019 was
+  // written by hand when it appeared; this is what makes the next one loud.
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import { f } from '../helpers/util.ts'\nexport const g = f"],
+      ['server/helpers/util.ts', 'export const f = 1'],
+    ]),
+    ['ARCH014'],
+    'an uncovered layer inside the engine closure is reported',
+  )
+
+  // Transitively, because the hop that escapes need not be the first one.
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import { a } from '../shared/prng.ts'\nexport const g = a"],
+      ['server/shared/prng.ts', "export { a } from '../helpers/util.ts'"],
+      ['server/helpers/util.ts', 'export const a = 1'],
+    ]),
+    ['ARCH014'],
+    'the escape is found however many hops in it happens',
+  )
+
+  // The two layers that do carry the obligation are silent.
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import { a } from '../shared/prng.ts'\nexport const g = a"],
+      ['server/shared/prng.ts', 'export const a = 1'],
+    ]),
+    [],
+    'shared code carries the engine obligation under ARCH019',
+  )
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import { a } from './rules.ts'\nexport const g = a"],
+      ['server/engine/rules.ts', 'export const a = 1'],
+    ]),
+    [],
+    'engine to engine is the ordinary case',
+  )
+
+  // A type-only edge is erased, so it cannot carry a clock into the engine and
+  // must not drag its target into the obligation.
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import type { T } from '../helpers/util.ts'\nexport const g = 1"],
+      ['server/helpers/util.ts', 'export type T = number'],
+    ]),
+    [],
+    'a type-only edge does not extend the engine closure',
+  )
+})
+
 test('the ambient ban follows prompt text through value imports', () => {
   // The rule used to check only the declared roots. Purity is a property of the
   // reachable graph, so that was sound only for text a root assembled entirely
@@ -950,10 +1059,20 @@ test('a bare tolerance literal in the agent tree has no owner', () => {
   assert.deepEqual(agent('const zero = 0'), [])
   assert.deepEqual(agent('const half = 0.5'), [])
 
-  // Scoped to the probabilistic agent tree. The engine has no probabilities,
-  // and server/eval/ is an offline calibration layer with its own numerics.
+  // The engine stays out, for the reason this note always gave: it has no
+  // probabilities. It also could not comply if it did, since ARCH001 forbids it
+  // from importing either owner module, so a violation would be advice it
+  // cannot take.
   assert.deepEqual(rules([['server/engine/probe.ts', 'const t = 1e-12']]), [])
-  assert.deepEqual(rules([['server/eval/probe.ts', 'const t = 1e-15']]), [])
+  // eval used to be out on the grounds that it is "an offline calibration layer
+  // with its own numerics". That is now a reason for it to have its own owner
+  // rather than none: it held two log-loss clips at 1e-12 and 1e-15, written
+  // independently for the same job. See the eval case below.
+  assert.deepEqual(
+    rules([['server/eval/probe.ts', 'const t = 1e-15']])
+      .filter((rule) => rule === 'ARCH017'),
+    ['ARCH017'],
+  )
   // The owner module is where the magnitudes live.
   assert.deepEqual(
     rules([[

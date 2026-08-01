@@ -259,6 +259,30 @@ const TOLERANCE_LITERAL_CEILING = 1e-6
  * is a claim worth making explicitly and out loud rather than by typing digits.
  */
 const TOLERANCE_LITERAL_EXEMPTIONS = new Map([])
+/**
+ * Where a magnitude may be written down, by area.
+ *
+ * One owner per area rather than one for the tree: the agent layers and the
+ * evaluation layers do different numeric work and their constants answer to
+ * different contracts. probability-arithmetic.ts holds the slack a comparison
+ * may spend; statistics.ts holds the bounds a published score is computed
+ * with, including the log-loss clips, which are not tolerances at all. Pointing
+ * eval at the agent module would either import the agent tree into eval or
+ * force two unrelated regimes into one file, and that module's own header
+ * spends a paragraph on why a second regime must not quietly join the first.
+ */
+const SHARED_EVAL_STATISTICS = 'server/eval/core/statistics'
+const TOLERANCE_MAGNITUDE_OWNERS = new Set([
+  SHARED_PROBABILITY_ARITHMETIC,
+  SHARED_EVAL_STATISTICS,
+])
+
+/** The module a given file's magnitudes belong in, named in the violation. */
+function ownerForArea(sourcePath) {
+  return sourcePath.startsWith('server/eval/')
+    ? 'eval/core/statistics.ts'
+    : 'canonical/probability-arithmetic.ts'
+}
 // Engine purity. The engine is the seeded, replayable core: every game is a
 // pure function of its seed and its log, which is what lets the simulator
 // replay a transcript and get the same game back. An ambient clock or an
@@ -403,6 +427,11 @@ export const ARCHITECTURE_SCOPE_LISTS = Object.freeze([
   ['PROMPT_BUILDERS', 'source', PROMPT_BUILDERS],
   ['SCORE_LAYER_EXECUTION_OWNERS', 'source', SCORE_LAYER_EXECUTION_OWNERS],
   ['TRUSTED_RUNTIME_OWNERS', 'source', TRUSTED_RUNTIME_OWNERS],
+  // Caught by this manifest's own meta-guard the first time the list was added,
+  // which is the second time that scan has found a list its author forgot.
+  // Members are module identities rather than paths, which the liveness check
+  // resolves through its `.ts` fallback.
+  ['TOLERANCE_MAGNITUDE_OWNERS', 'source', TOLERANCE_MAGNITUDE_OWNERS],
   ['TRUSTED_RUNTIME_IDENTIFIERS', 'identifier', TRUSTED_RUNTIME_IDENTIFIERS],
 ].map(([name, kind, members]) =>
   Object.freeze({ name, kind, members: Object.freeze([...members]) })))
@@ -1118,7 +1147,7 @@ function violation(rule, importer, edge, detail) {
  * Type-only edges are excluded; see isTypeOnlyImport for why counting them
  * would manufacture a false positive on the OpenRouter client.
  */
-function promptTextClosure(entries, inspectOnce) {
+function indexSources(entries) {
   const sourceByPath = new Map()
   const pathByIdentity = new Map()
   for (const entry of entries) {
@@ -1139,8 +1168,21 @@ function promptTextClosure(entries, inspectOnce) {
     sourceByPath.set(sourcePath, entry[1])
     pathByIdentity.set(moduleIdentity(sourcePath), sourcePath)
   }
+  return { sourceByPath, pathByIdentity }
+}
+
+/**
+ * Every module reachable from `roots` through value imports, roots included.
+ *
+ * Two rules need this and they need the same thing: a purity obligation is a
+ * property of what a module can reach, and a per-file check can only stand in
+ * for that while something bounds the reachable set. ARCH015 uses it for prompt
+ * text, ARCH014 for the engine.
+ */
+function valueImportClosure(roots, index, inspectOnce) {
+  const { sourceByPath, pathByIdentity } = index
   const reached = new Set()
-  const pending = [...PROMPT_BUILDERS]
+  const pending = [...roots]
   while (pending.length) {
     const sourcePath = pending.pop()
     if (reached.has(sourcePath)) continue
@@ -1196,7 +1238,40 @@ export function auditArchitectureSources(sourceEntries) {
     parseMemo.set(sourcePath, result)
     return result
   }
-  const promptTextModules = promptTextClosure(entries, inspectOnce)
+  const sourceIndex = indexSources(entries)
+  const promptTextModules = valueImportClosure(
+    PROMPT_BUILDERS,
+    sourceIndex,
+    inspectOnce,
+  )
+  // The engine's purity obligation, as a reachability question rather than a
+  // per-file one. ARCH014 inspects files under server/engine/ and ARCH019 does
+  // the same for server/shared/, which the engine imports; between them every
+  // module the engine can currently reach is covered. Nothing enforced that,
+  // though. ARCH001 bans only server/agents/ and server/eval/ by name, and the
+  // purity check's own module arm sees bare specifiers only, so a relative
+  // import into a third layer would satisfy every rule while putting
+  // unchecked code inside the engine's closure.
+  //
+  // That is not hypothetical drift: server/shared/ is exactly such a layer, and
+  // ARCH019 exists because somebody noticed in time and wrote the rule by hand.
+  // This makes the next one impossible to miss instead of relying on that.
+  const engineReach = valueImportClosure(
+    [...sourceIndex.sourceByPath.keys()].filter(isEngine),
+    sourceIndex,
+    inspectOnce,
+  )
+  for (const reachedPath of engineReach) {
+    if (isEngine(reachedPath) || isShared(reachedPath)) continue
+    violations.push(violation(
+      'ARCH014',
+      reachedPath,
+      undefined,
+      'the engine reaches this module through value imports, but no purity '
+        + 'rule covers it, so a clock or an unseeded random here would make a '
+        + 'game stop being a pure function of its seed and log',
+    ))
+  }
   for (const entry of entries) {
     if (!Array.isArray(entry) || entry.length !== 2) {
       violations.push(violation(
@@ -1819,7 +1894,29 @@ export function auditArchitectureSources(sourceEntries) {
         }
       }
     }
-    if (isAgent(sourcePath) && !arithmeticOwner) {
+    // Agents and eval, each answering to its own owner module.
+    //
+    // The arm was scoped to the agent tree deliberately, not by oversight: the
+    // note on the case below argued the engine has no probabilities and that
+    // eval "is an offline calibration layer with its own numerics". The first
+    // half still holds and is why the engine stays out; it also could not
+    // comply, since ARCH001 forbids it from importing either owner, so a
+    // violation there would be advice it cannot take.
+    //
+    // The second half is what changed. Having its own numerics is a reason for
+    // eval to have its own owner, not a reason for its magnitudes to go
+    // unowned, and the difference showed: eval held two log-loss clips written
+    // independently at 1e-12 and 1e-15 for the same job. They are named in
+    // eval/core/statistics.ts now, which is where that layer's numbers already
+    // live. sim and llm stay out as before; neither has a magnitude today and
+    // widening on speculation would be inventing a rule for nobody.
+    const magnitudeOwner = TOLERANCE_MAGNITUDE_OWNERS.has(
+      moduleIdentity(sourcePath),
+    )
+    const magnitudeGoverned = isAgent(sourcePath)
+      || sourcePath.startsWith('server/eval/')
+    if (magnitudeGoverned && !magnitudeOwner) {
+      const owner = ownerForArea(sourcePath)
       const exempt = TOLERANCE_LITERAL_EXEMPTIONS.get(sourcePath)
       for (const literal of inspected.toleranceLiterals) {
         if (exempt?.has(literal.text)) continue
@@ -1828,8 +1925,8 @@ export function auditArchitectureSources(sourceEntries) {
           sourcePath,
           undefined,
           `tolerance literal ${literal.text} (line ${literal.line}) has no `
-            + 'owner; name it in canonical/probability-arithmetic.ts so a '
-            + 'call site says which regime it wanted',
+            + `owner; name it in ${owner} so a call site says which regime it `
+            + 'wanted',
         ))
       }
     }
@@ -1865,7 +1962,14 @@ export function auditArchitectureSources(sourceEntries) {
         ambient: 'engine code reads ambient',
         ambientWhy:
           'so a game stops being a pure function of its seed and log',
-        module: 'engine code can only import pure standard-library modules',
+        // Says what it checks. The old wording, "engine code can only import
+        // pure standard-library modules", claimed a great deal more than this
+        // arm delivers: it inspects bare specifiers only, so every relative
+        // import in the tree walks past it untouched. What actually keeps the
+        // engine's in-repo imports honest is ARCH001 for agents and eval, and
+        // the reachability check above for anything else.
+        module: 'engine code can only import pure standard-library packages; '
+          + 'in-repo imports are governed by the engine reachability rule',
       })
     }
     // The engine imports shared primitives, so a clock or an I/O import here
