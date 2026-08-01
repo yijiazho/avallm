@@ -48,11 +48,9 @@ function publicEvents(view: PlayerView): readonly GameEvent[] {
 }
 
 function copyUtteranceContext(
-  context: LanguageUtteranceContext | undefined,
-): LanguageUtteranceContext | undefined {
-  return context
-    ? { ...context, team: context.team.slice() }
-    : undefined
+  context: LanguageUtteranceContext,
+): LanguageUtteranceContext {
+  return { ...context, team: context.team.slice() }
 }
 
 function attributedUtterances(
@@ -278,7 +276,7 @@ function validUtterance(
   ) {
     return false
   }
-  if (value.context === undefined) return true
+  if (!Object.hasOwn(value, 'context')) return true
   return plainRecord(value.context)
     && exactOptionalKeys(
       value.context,
@@ -290,11 +288,11 @@ function validUtterance(
     && isSeatInRange(value.context.leader, playerCount)
     && validSeatArray(value.context.team, playerCount)
     && (
-      value.context.discussionRound === undefined
+      !Object.hasOwn(value.context, 'discussionRound')
       || safeInteger(value.context.discussionRound, 1)
     )
     && (
-      value.context.postRevision === undefined
+      !Object.hasOwn(value.context, 'postRevision')
       || typeof value.context.postRevision === 'boolean'
     )
 }

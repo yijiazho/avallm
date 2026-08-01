@@ -56,13 +56,14 @@ function committedVoicePlan(
           uncertainty,
           ...publicIntent
         } = plan.communication
+        const publicUncertainty = voiceUncertainty(uncertainty)
         return structuredClone({
           ...publicIntent,
           strategicReasonCodes: publicIntent.strategicReasonCodes.filter(
             (reason) => reason !== 'GOOD_PROPOSAL_CANONICAL_TIE_BREAK',
           ),
-          ...(uncertainty
-            ? { uncertainty: voiceUncertainty(uncertainty) }
+          ...(publicUncertainty !== undefined
+            ? { uncertainty: publicUncertainty }
             : {}),
         })
       })()

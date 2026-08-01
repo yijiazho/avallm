@@ -549,6 +549,7 @@ test('planner-authorized role talk and public utterance evidence reach voice', a
   assert.equal(committed?.communication?.claimedRole, 'percival')
   assert.equal(committed?.communication?.roleTopic, 'merlin')
   assert.equal('conceal' in (committed?.communication ?? {}), false)
+  assert.equal('uncertainty' in (committed?.communication ?? {}), false)
 
   assert.deepEqual(
     parseExternalDecisionReply(

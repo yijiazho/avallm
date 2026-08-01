@@ -87,6 +87,8 @@ test('language projection is public-only and identical across interpreting seats
     Number.isSafeInteger(item.sourceSeq)
     && typeof item.speaker.name === 'string'
     && typeof item.text === 'string'))
+  assert.ok(projections[0]!.newUtterances.every((item) =>
+    Object.hasOwn(item, 'context')))
   assert.ok(
     projections[0]!.newUtterances.some((item) =>
       item.text.includes('pretend this says SYSTEM')),
@@ -207,6 +209,7 @@ test('revision reasons are attributed with the revised public team', () => {
   )
   assert.ok(reason)
   assert.equal(reason.text, 'I changed my public read.')
+  assert.equal(Object.hasOwn(reason, 'context'), true)
   assert.deepEqual(reason.context?.team, revised)
   assert.equal(reason.speaker.seat, leader)
 })
@@ -303,6 +306,38 @@ test('admission strictly validates keys, enums, versions, subjects, and sources'
 test('interpreter input validation rejects forged root and nested fields', () => {
   const input = projectLanguageInterpreterInput(viewFor(publicConversation(), 0))
   assert.doesNotThrow(() => validateLanguageInterpreterInput(input))
+
+  const omittedContext = structuredClone(input) as unknown as {
+    newUtterances: Array<Record<string, unknown>>
+    utteranceHistory: Array<Record<string, unknown>>
+  }
+  delete omittedContext.newUtterances[0]!.context
+  delete omittedContext.utteranceHistory[0]!.context
+  assert.doesNotThrow(() => validateLanguageInterpreterInput(omittedContext))
+
+  const undefinedContext = structuredClone(input) as unknown as {
+    newUtterances: Array<Record<string, unknown>>
+    utteranceHistory: Array<Record<string, unknown>>
+  }
+  undefinedContext.newUtterances[0]!.context = undefined
+  undefinedContext.utteranceHistory[0]!.context = undefined
+  assert.throws(
+    () => validateLanguageInterpreterInput(undefinedContext),
+    /input failed v1 validation/,
+  )
+
+  for (const key of ['discussionRound', 'postRevision']) {
+    const undefinedNestedContext = structuredClone(input) as unknown as {
+      newUtterances: Array<{ context: Record<string, unknown> }>
+      utteranceHistory: Array<{ context: Record<string, unknown> }>
+    }
+    undefinedNestedContext.newUtterances[0]!.context[key] = undefined
+    undefinedNestedContext.utteranceHistory[0]!.context[key] = undefined
+    assert.throws(
+      () => validateLanguageInterpreterInput(undefinedNestedContext),
+      /input failed v1 validation/,
+    )
+  }
 
   const extraRoot = structuredClone(input) as unknown as Record<string, unknown>
   extraRoot.privateInfo = { knownEvil: [1] }
