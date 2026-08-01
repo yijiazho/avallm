@@ -284,7 +284,11 @@ function weightedSnapshot(
       (sum, item) => sum + factor.logLikelihood(world, item),
       0,
     ))
-  const best = Math.max(...raw)
+  // Folded, not spread: see the note in proposal-factor.ts. One argument per
+  // world against a stack-sized ceiling, and this factor is the seated one, so
+  // it is the copy that would degrade a real game if the margin ever closed.
+  let best = -Infinity
+  for (const value of raw) if (value > best) best = value
   const capped = raw.map((value) =>
     capLogLikelihood(
       value - best,

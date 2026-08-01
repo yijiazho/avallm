@@ -283,7 +283,9 @@ function weightedSnapshot(
       (sum, item) => sum + factor.logLikelihood(world, item),
       0,
     ))
-  const best = Math.max(...raw)
+  // Folded, not spread: see the note in proposal-factor.ts.
+  let best = -Infinity
+  for (const value of raw) if (value > best) best = value
   const capped = raw.map((value) =>
     capLogLikelihood(value - best, VOTE_MATRIX_LOG_LIKELIHOOD_CAP).value)
   return beliefFromWeightedWorlds(
