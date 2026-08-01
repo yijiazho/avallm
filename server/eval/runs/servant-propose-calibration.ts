@@ -54,6 +54,9 @@ import {
 import {
   voteMatrixWeightedBeliefModel,
 } from '../../agents/belief/vote-matrix-factor.ts'
+import {
+  proposalWeightedBeliefModel,
+} from '../../agents/belief/proposal-factor.ts'
 import type { BeliefModel } from '../../agents/belief/types.ts'
 import {
   buildServantRoleUtilityProjection,
@@ -645,6 +648,8 @@ export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
   'quest-weighted': questWeightedPicker,
   /** BELIEF-001's vote-matrix factor, on the same policy. */
   'vote-weighted': beliefModelPicker(voteMatrixWeightedBeliefModel),
+  /** BELIEF-001's other half: the proposal factor, on the same policy. */
+  'proposal-weighted': beliefModelPicker(proposalWeightedBeliefModel),
 })
 
 export interface ServantProposeCalibration {
@@ -661,6 +666,12 @@ export async function runServantProposeCalibration(
   seedsPer: number = SERVANT_CALIBRATION_SEEDS_PER,
   onProgress?: (line: string) => void,
   hypothesis: string = 'public-read',
+  // The generating table. `generateServantProposeCases` has taken this since
+  // the vote factor needed a second population, but the runner did not pass it,
+  // so the only way to reach the random corpus was a scratch script. A
+  // behavioural factor's whole verdict turns on this axis, so it belongs on the
+  // shipped entry point.
+  population: CalibrationPopulation = 'heuristic',
 ): Promise<ServantProposeCalibration> {
   const picker = SERVANT_PROPOSE_HYPOTHESES[hypothesis]
   if (!picker) {
@@ -669,8 +680,10 @@ export async function runServantProposeCalibration(
       + `${Object.keys(SERVANT_PROPOSE_HYPOTHESES).join(', ')}`,
     )
   }
-  onProgress?.(`generating cases (${seedsPer} seeds per cast)`)
-  const cases = await generateServantProposeCases(seedsPer)
+  onProgress?.(
+    `generating ${population} cases (${seedsPer} seeds per cast)`,
+  )
+  const cases = await generateServantProposeCases(seedsPer, population)
   onProgress?.(`scoring base over ${cases.length} decisions`)
   const base = await scoreProposalPicker(cases, baseProposalPicker)
   onProgress?.(`scoring ${hypothesis} over ${cases.length} decisions`)
@@ -762,10 +775,14 @@ async function main(): Promise<void> {
     options: {
       seeds: { type: 'string' },
       hypothesis: { type: 'string', default: 'public-read' },
+      population: { type: 'string', default: 'heuristic' },
       json: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false },
     },
   })
+  if (values.population !== 'heuristic' && values.population !== 'random') {
+    throw new Error('--population must be heuristic or random')
+  }
   const seedsPer = values.seeds === undefined
     ? SERVANT_CALIBRATION_SEEDS_PER
     : Number(values.seeds)
@@ -776,6 +793,7 @@ async function main(): Promise<void> {
     seedsPer,
     values.quiet ? undefined : (line) => console.log(line),
     values.hypothesis,
+    values.population,
   )
   process.stdout.write(
     values.json

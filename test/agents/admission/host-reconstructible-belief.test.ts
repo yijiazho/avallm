@@ -34,6 +34,9 @@ import {
   voteMatrixWeightedBeliefModel,
 } from '../../../server/agents/belief/vote-matrix-factor.ts'
 import {
+  proposalWeightedBeliefModel,
+} from '../../../server/agents/belief/proposal-factor.ts'
+import {
   LANGUAGE_WEIGHTED_BELIEF_VERSION,
 } from '../../../server/agents/belief/language-factor.ts'
 import {
@@ -88,6 +91,7 @@ test('the reconstructible list is derived from the models themselves', () => {
     exactWorldBeliefModel,
     questWeightedBeliefModel,
     voteMatrixWeightedBeliefModel,
+    proposalWeightedBeliefModel,
   ]) {
     assert.equal(hostReconstructibleBeliefModel(model.version), model)
   }

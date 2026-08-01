@@ -30,6 +30,7 @@
 import { exactWorldBeliefModel } from './exact.ts'
 import { questWeightedBeliefModel } from './quest-card-factor.ts'
 import { voteMatrixWeightedBeliefModel } from './vote-matrix-factor.ts'
+import { proposalWeightedBeliefModel } from './proposal-factor.ts'
 import type { BeliefModel } from './types.ts'
 
 /**
@@ -50,6 +51,10 @@ const HOST_RECONSTRUCTIBLE_BELIEF_MODELS: ReadonlyMap<string, BeliefModel> =
       // then reproduce ADMIT-001 exactly, with every production trace failing
       // its host join and the exact score replay silently skipped.
       voteMatrixWeightedBeliefModel,
+      // Same criterion, same reason: `weightedSnapshot` reads only
+      // `feasibleWorlds(view)` and `proposalEvidence(view, view.seat)`, so the
+      // host can rebuild it from a view alone whether or not anything seats it.
+      proposalWeightedBeliefModel,
     ].map(
       (model) => [model.version, model],
     ),
