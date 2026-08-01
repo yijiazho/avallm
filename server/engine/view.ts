@@ -268,9 +268,15 @@ function createPlayerViewProjection(
             ? { ...quest, team: quest.team.slice() }
             : { ...quest }),
         proposals: proposals.map(draftToRecord),
-        currentTeam: candidate.currentTeam?.slice(),
-        discussionRound: candidate.discussion?.roundNum,
-        discussionPostRevision: candidate.discussion?.postRevision,
+        ...(candidate.currentTeam === undefined
+          ? {}
+          : { currentTeam: candidate.currentTeam.slice() }),
+        ...(candidate.discussion === undefined
+          ? {}
+          : {
+              discussionRound: candidate.discussion.roundNum,
+              discussionPostRevision: candidate.discussion.postRevision,
+            }),
         transcript: transcript.map((entry) => ({
           seat: entry.seat,
           name: candidate.players[entry.seat]?.name
@@ -286,7 +292,9 @@ function createPlayerViewProjection(
             : {}),
         })),
         events: eventsForSeat(seat).slice(),
-        outcome: candidate.outcome ? { ...candidate.outcome } : undefined,
+        ...(candidate.outcome === undefined
+          ? {}
+          : { outcome: { ...candidate.outcome } }),
       }
     },
     get projectedEventCount() {
@@ -336,11 +344,17 @@ export function viewForSpectator(game: Game): PlayerView {
     leaderSeat: base.leaderSeat,
     quests: base.quests,
     proposals: base.proposals,
-    currentTeam: base.currentTeam,
-    discussionRound: base.discussionRound,
-    discussionPostRevision: base.discussionPostRevision,
+    ...(base.currentTeam === undefined
+      ? {}
+      : { currentTeam: base.currentTeam }),
+    ...(base.discussionRound === undefined
+      ? {}
+      : { discussionRound: base.discussionRound }),
+    ...(base.discussionPostRevision === undefined
+      ? {}
+      : { discussionPostRevision: base.discussionPostRevision }),
     transcript: base.transcript,
-    outcome: base.outcome,
+    ...(base.outcome === undefined ? {} : { outcome: base.outcome }),
   }
 }
 

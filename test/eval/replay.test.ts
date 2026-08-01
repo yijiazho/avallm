@@ -29,7 +29,7 @@ async function playAndCapture(seed: string, playerCount: number): Promise<{ arti
   const game = createGame({ seed, playerCount, talk: { maxRounds: 1, maxRoundsAfterChange: 1 } })
   const agents = new Map<Seat, AvalonAgent>(game.players.map((p) => [p.seat, {
     async decide(req, view) {
-      captured.push({ req, view: JSON.parse(JSON.stringify(view)) })
+      captured.push({ req, view })
       return { decision: heuristicDecide(req, view, seed) }
     },
   }]))
@@ -70,16 +70,13 @@ test('snapshotAt reproduces every decision view bit-for-bit', async () => {
     .map((ev) => ev.seq)
   assert.equal(actionSeqs.length, captured.length)
   // Spot-check a spread of decisions (full sweep would be slow: one replay each).
-  // JSON roundtrip before comparing: the live view carries undefined-valued
-  // keys (winner, currentTeam…) that serialization drops, and serialized
-  // content is exactly the fidelity the bank stores and replays.
   const picks = [0, 1, Math.floor(actionSeqs.length / 2), actionSeqs.length - 2, actionSeqs.length - 1]
   for (const i of picks) {
     const snap = snapshotAt(artifact, actionSeqs[i]!)
     assert.equal(snap.seat, captured[i]!.req.seat, `decision ${i}: seat`)
     assert.equal(snap.kind, captured[i]!.req.kind, `decision ${i}: kind`)
-    assert.deepEqual(JSON.parse(JSON.stringify(snap.req)), captured[i]!.req, `decision ${i}: request`)
-    assert.deepEqual(JSON.parse(JSON.stringify(snap.view)), captured[i]!.view, `decision ${i}: view`)
+    assert.deepEqual(snap.req, captured[i]!.req, `decision ${i}: request`)
+    assert.deepEqual(snap.view, captured[i]!.view, `decision ${i}: view`)
   }
 })
 

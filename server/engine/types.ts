@@ -205,13 +205,15 @@ export interface Game {
   leaderSeat: Seat
   players: Player[]
   quests: Quest[]
-  discussion?: {
+  // Engine-owned lifecycle slots are always present. Undefined means the
+  // corresponding phase state is currently inactive.
+  discussion: {
     remaining: Seat[]     // speakers left in the current round
     roundNum: number      // 1-based; restarts at 1 after a revision
     maxRounds: number     // snapshot of the applicable round count
     postRevision: boolean // false = initial segment, true = after proposalRevised
-  }
-  currentTeam?: Seat[]
+  } | undefined
+  currentTeam: Seat[] | undefined
   pendingVotes: Record<Seat, 'approve' | 'reject'>
   pendingCards: Record<Seat, 'success' | 'fail'>
   // Present iff the game is finished (phase === 'gameOver'). A single nested
@@ -354,6 +356,7 @@ interface PlayerViewShape {
   leaderSeat: Seat
   quests: Quest[]               // quest teams/results/failCounts are public
   proposals: ProposalRecord[]
+  // Projection fields are omission-based: inactive state is not an own key.
   currentTeam?: Seat[]
   discussionRound?: number
   discussionPostRevision?: boolean

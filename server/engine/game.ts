@@ -109,6 +109,8 @@ export function createGame(opts: CreateGameOpts): Game {
     leaderSeat,
     players,
     quests,
+    discussion: undefined,
+    currentTeam: undefined,
     pendingVotes: {},
     pendingCards: {},
     log: [],
