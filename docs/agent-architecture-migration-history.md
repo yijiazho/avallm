@@ -4414,3 +4414,56 @@ here.
   A v3 would have to model good's exceptions, not just its rule. That is a larger claim about
   play than v1 makes, and it should not be attempted without a population that did not generate
   the numbers it is tuned against.
+
+- Correction to the entry above: the v2 revert's REASONING was wrong, and the measurement it
+  rests on is now the weaker claim.
+
+  That entry said v2 lost because good approves at round one, since "rejecting there burns a
+  proposal count good needs later and buys almost no information", and that v2 modelled §1.2's
+  rule without its exception. `research-strategy.md` §1.3 says the opposite. Many groups **reject
+  the first proposal on principle** to harvest a free round of voting data; "always reject
+  mission 1" is a widely-cited convention, and who approves an arbitrary first team seeds the
+  trust graph. Rejecting round one does buy information: not a better-informed team next, which
+  is what the earlier reasoning looked for and correctly found absent, but another row of the
+  vote matrix, which is evidence in itself. That is doubly relevant here, since a vote-reading
+  factor consumes exactly those rows. Good rejecting at round one is how good manufactures the
+  evidence the factor reads.
+
+  So the ordering reverses. `decideVote` hard-codes round one to approve for good, which does NOT
+  follow the convention, and v2's off-team model is therefore CLOSER to documented human play
+  than the heuristic is. v2 measured worse because it modelled good correctly against a
+  population that plays the first round contrary to convention.
+
+  The measurement stands: on this corpus v1 beats v2, and v1 remains the registered version. What
+  does not stand is the inference that v1 is the better MODEL. It is the better fit to this
+  opponent, which is a different and much weaker claim, and it makes the retest trigger below
+  binding rather than optional.
+
+  A second correction, smaller. That entry also said four rejections let "evil's leader" seat an
+  unrefusable team. Leadership rotates deterministically, so the hammer's holder is fixed by the
+  seating, but whether that seat is evil is unknown to good. A rejection costs the RISK that the
+  unrefusable proposal falls to an evil leader, roughly the evil fraction of the table, not a
+  certainty.
+
+- HEUR-001. The heuristic never harvests the free voting round: `decideVote` returns approve for
+  any good seat at round one, against a convention the strategy brief calls widely cited. This is
+  not only a bot-strength question. Every factor that reads votes is measured against a
+  population that generates LESS vote evidence than real play would, so the whole class of
+  vote-reading factors is systematically understated by the current corpus. Fixing it changes
+  what the evidence looks like before it changes what any policy does with it.
+
+- Retest trigger for BELIEF-001, recorded because the two versions have OPPOSITE sensitivities to
+  play quality and the current verdict is a property of the opponent rather than of the game. v1
+  prices only evil and needs evil's vote leak to stay undisciplined, but the brief says strong
+  evil deliberately mutes it, so v1 weakens as evil improves. v2 prices good's baseline as well
+  and needs good to follow it reliably, so v2 strengthens as good improves. Re-run both whenever
+  the default opponent population changes materially: a heuristic that adopts the round-one
+  convention, an LLM table, or human logs. The result may invert.
+
+- Prerequisite noted while answering how a factor is turned off: there is no combined MECHANICAL
+  belief model. A factor is off exactly when the seated preset's belief model does not contain
+  it, which is a clean design with no dead config, but each weighted model bundles exactly one
+  factor. `languageBeliefPipelineVersion` and `combinedLanguageFactorBundleVersion` compose
+  language OVER a mechanical belief; nothing composes two mechanical factors. If the vote factor
+  ever earns a seat alongside the quest factor, that composition is a prerequisite rather than a
+  detail.
