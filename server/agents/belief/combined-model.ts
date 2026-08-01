@@ -122,7 +122,18 @@ import {
  * does not) and making them uniform would mean editing three settled files to
  * add a fourth; this adapts them instead.
  */
-export interface CombinedComponent<E> {
+/**
+ * Every factor's evidence carries a stable id, and composition depends on it:
+ * provenance is what admission joins a trace on. Constrained here rather than
+ * cast at the use site, so a component whose evidence lacks one fails to
+ * compile instead of emitting undefined ids that surface later as an
+ * unexplained host-join mismatch.
+ */
+export interface IdentifiedEvidence {
+  readonly evidenceId: string
+}
+
+export interface CombinedComponent<E extends IdentifiedEvidence> {
   readonly id: string
   readonly version: string
   /** Contributes to the bundle identity, so the pair cannot drift apart. */
@@ -155,7 +166,7 @@ interface ComponentContribution {
   readonly provenance: EvidenceContribution
 }
 
-function contribute<E>(
+function contribute<E extends IdentifiedEvidence>(
   component: CombinedComponent<E>,
   view: PlayerView,
   worlds: readonly HiddenWorld[],
@@ -179,7 +190,7 @@ function contribute<E>(
     capped,
     provenance: buildFactorProvenance(
       component,
-      evidence.map((item) => (item as { evidenceId: string }).evidenceId),
+      evidence.map((item) => item.evidenceId),
       component.logLikelihoodCap,
       capped,
     ),

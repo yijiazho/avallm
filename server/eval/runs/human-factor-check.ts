@@ -76,7 +76,6 @@ export interface InclusionResult {
 function inclusion(
   games: readonly HumanGame[],
   leaderIsEvil: boolean,
-  filter: (proposal: HumanProposal) => boolean = () => true,
 ): InclusionResult {
   let observed = 0
   let expected = 0
@@ -86,7 +85,6 @@ function inclusion(
     const evil = new Set(game.evilSeats)
     for (const proposal of game.proposals) {
       if (evil.has(proposal.leader) !== leaderIsEvil) continue
-      if (!filter(proposal)) continue
       const others = game.playerCount - 1
       const draw = proposal.team.length
         - (proposal.team.includes(proposal.leader) ? 1 : 0)

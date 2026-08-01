@@ -34,6 +34,7 @@ import {
   voteMatrixWeightedBeliefModel,
 } from './vote-matrix-factor.ts'
 import { proposalWeightedBeliefModel } from './proposal-factor.ts'
+import { questAndVoteGoodBeliefModel } from './combined-model.ts'
 import type { BeliefModel } from './types.ts'
 
 /**
@@ -61,6 +62,13 @@ const HOST_RECONSTRUCTIBLE_BELIEF_MODELS: ReadonlyMap<string, BeliefModel> =
       // `feasibleWorlds(view)` and `proposalEvidence(view, view.seat)`, so the
       // host can rebuild it from a view alone whether or not anything seats it.
       proposalWeightedBeliefModel,
+      // A COMBINATION also qualifies, and this is the entry most likely to be
+      // forgotten: it is not a factor, so it is absent from the factor manifest
+      // and from belief/*-factor.ts. It still reads only feasibleWorlds(view)
+      // and its components' view-only evidence builders, which is the whole
+      // criterion. Omitting it would reproduce ADMIT-001 for a composition the
+      // way omitting the vote factor would have for a factor.
+      questAndVoteGoodBeliefModel,
     ].map(
       (model) => [model.version, model],
     ),
