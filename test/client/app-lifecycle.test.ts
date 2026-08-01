@@ -28,3 +28,15 @@ test('closed route streams are nulled so they can be restored', () => {
   assert.match(app, /esRef\.current\?\.close\(\)[\s\S]*?esRef\.current = null/)
   assert.match(app, /lobbyEsRef\.current\?\.close\(\)[\s\S]*?lobbyEsRef\.current = null/)
 })
+
+test('decision submissions are single-flight and recover from failures', () => {
+  assert.match(app, /if \(!gameId \|\| !gameToken \|\| decisionAbortRef\.current\) return/)
+  assert.match(app, /signal: ctrl\.signal/)
+  assert.match(app, /catch \(e\)[\s\S]*?setError\(e instanceof Error/)
+  assert.match(app, /if \(!accepted && decisionAbortRef\.current === ctrl\)/)
+})
+
+test('the action bar is replaced while a decision is pending', () => {
+  assert.match(app, /: decisionPending\s*\? <div className="action-bar waiting">/)
+  assert.match(app, /decisionAbortRef\.current = null\s*setDecisionPending\(false\)/)
+})

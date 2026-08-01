@@ -110,17 +110,25 @@ export function App() {
   const [reveal, setReveal] = useState<RevealPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
+  const [decisionPending, setDecisionPending] = useState(false)
   const [library, setLibrary] = useState<Library | null>(null)
   const [showRef, setShowRef] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
   const esRef = useRef<EventSource | null>(null)
   const lobbyEsRef = useRef<EventSource | null>(null)
+  const decisionAbortRef = useRef<AbortController | null>(null)
   const screenRef = useRef(screen)
 
   const showScreen = useCallback((next: Screen) => {
     screenRef.current = next
     setScreen(next)
+  }, [])
+
+  const cancelPendingDecision = useCallback(() => {
+    decisionAbortRef.current?.abort()
+    decisionAbortRef.current = null
+    setDecisionPending(false)
   }, [])
 
   const refreshLibrary = useCallback(() => {
@@ -132,12 +140,15 @@ export function App() {
     lobbyEsRef.current?.close()
     esRef.current = null
     lobbyEsRef.current = null
+    decisionAbortRef.current?.abort()
+    decisionAbortRef.current = null
   }, [])
 
   useEffect(() => {
     const syncFromHash = () => {
       const next = parseHash()
       if (sameScreen(screenRef.current, next)) return
+      cancelPendingDecision()
       esRef.current?.close()
       lobbyEsRef.current?.close()
       esRef.current = null
@@ -151,10 +162,11 @@ export function App() {
     }
     window.addEventListener('hashchange', syncFromHash)
     return () => window.removeEventListener('hashchange', syncFromHash)
-  }, [showScreen])
+  }, [cancelPendingDecision, showScreen])
 
   const openGame = useCallback((id: string, token: string) => {
     lobbyEsRef.current?.close()
+    cancelPendingDecision()
     lobbyEsRef.current = null
     esRef.current?.close()
     esRef.current = null
@@ -168,6 +180,8 @@ export function App() {
     const es = new EventSource(`/api/game/${id}/events?token=${token}`)
     es.onmessage = (ev) => {
       setError(null) // EventSource auto-reconnects; a fresh payload means we're back
+      decisionAbortRef.current = null
+      setDecisionPending(false)
       setPayload(JSON.parse(ev.data))
     }
     // Don't try to distinguish "game gone" here: EventSource can't read the HTTP
@@ -176,11 +190,12 @@ export function App() {
     // game is caught by the fetch probe on the refresh-restore path instead.
     es.onerror = () => setError('connection lost, reconnecting…')
     esRef.current = es
-  }, [showScreen])
+  }, [cancelPendingDecision, showScreen])
 
   const enterLobby = useCallback((lobbyId: string, token: string) => {
     esRef.current?.close()
     esRef.current = null
+    cancelPendingDecision()
     window.location.hash = `#/join/${lobbyId}`
     showScreen({ name: 'lobby', lobbyId, token })
     setLobbyMissing(false)
@@ -205,7 +220,7 @@ export function App() {
       setLobbyMissing(true)
     }
     lobbyEsRef.current = es
-  }, [openGame])
+  }, [cancelPendingDecision, openGame])
 
   // Entering via a stored-token lobby URL: resolve whether it already started.
   useEffect(() => {
@@ -303,16 +318,32 @@ export function App() {
   }, [gameOver, gameId, reveal])
 
   const decide = useCallback(async (decision: Record<string, unknown>) => {
-    if (!gameId || !gameToken) return
+    if (!gameId || !gameToken || decisionAbortRef.current) return
+    const ctrl = new AbortController()
+    decisionAbortRef.current = ctrl
+    setDecisionPending(true)
     setError(null)
-    const res = await fetch(`/api/game/${gameId}/decide`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: gameToken, decision }),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      setError(data.error ?? 'decision rejected')
+    let accepted = false
+    try {
+      const res = await fetch(`/api/game/${gameId}/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: gameToken, decision }),
+        signal: ctrl.signal,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'decision rejected')
+      }
+      accepted = true
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      setError(e instanceof Error ? e.message : 'could not submit decision')
+    } finally {
+      if (!accepted && decisionAbortRef.current === ctrl) {
+        decisionAbortRef.current = null
+        setDecisionPending(false)
+      }
     }
   }, [gameId, gameToken])
 
@@ -339,6 +370,7 @@ export function App() {
   const copyLabel = copyState === 'ok' ? 'Copied!' : copyState === 'err' ? 'Copy failed' : 'Copy log'
 
   const backToLanding = useCallback(() => {
+    cancelPendingDecision()
     esRef.current?.close()
     lobbyEsRef.current?.close()
     esRef.current = null
@@ -350,7 +382,7 @@ export function App() {
     setLobby(null)
     setLobbyMissing(false)
     showScreen({ name: 'landing' })
-  }, [screen, showScreen])
+  }, [cancelPendingDecision, screen, showScreen])
 
   if (screen.name === 'landing') {
     return (
@@ -475,7 +507,7 @@ export function App() {
           asked for a decision, so it reads the same "table is thinking" line it
           showed all the way through the quest. */}
       {!showOutcome && (
-      <footer className={`youredge${myAsk && !payload.spectator ? ' waits' : ''}`}>
+      <footer className={`youredge${myAsk && !decisionPending && !payload.spectator ? ' waits' : ''}`}>
         <div className="edge-inner">
           <div className="youchip" title={payload.spectator ? roleTitle : `${roleTitle}: you are ⊕ Earth at this table`}>
             <span className="you-sigil">{payload.spectator ? '◎' : HUMAN_CELESTIAL.glyph}</span>
@@ -488,7 +520,9 @@ export function App() {
             ? <div className="action-bar waiting">
                 Spectating{payload.waitingOn.length ? `, waiting on ${payload.waitingOn.join(', ')}` : '…'}
               </div>
-            : <ActionBar view={view} ask={myAsk} onDecide={decide} waitingOn={payload.waitingOn} />}
+            : decisionPending
+              ? <div className="action-bar waiting">Submitting your decision…</div>
+              : <ActionBar view={view} ask={myAsk} onDecide={decide} waitingOn={payload.waitingOn} />}
         </div>
         {error && <p className="error">{error}</p>}
       </footer>
