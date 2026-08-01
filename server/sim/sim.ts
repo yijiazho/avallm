@@ -32,7 +32,7 @@ import {
   upsertDecisionTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
-import type { Game, Seat } from '../engine/types.ts'
+import type { Game, GameEvent, Seat } from '../engine/types.ts'
 import { resolvePackSeatTable, type PackSeatTable } from './pack-table.ts'
 import { tableAliases } from '../table-aliases.ts'
 
@@ -401,8 +401,9 @@ function writeTranscript(
     // reports violation totals with nothing saying which game or seat, which is
     // the hand-parsing this reporting exists to remove.
     violations: violations.map((v) => ({ seat: v.seat, rule: v.rule, round: v.round, detail: v.detail })),
-    winner: game.outcome?.winner,
-    winReason: game.outcome?.reason,
+    ...(game.outcome === undefined
+      ? {}
+      : { winner: game.outcome.winner, winReason: game.outcome.reason }),
     revealed: true,
     capturedAt: new Date().toISOString(),
     // The raw JSONL belongs to --out, which writes a replayable artifact.
@@ -424,7 +425,10 @@ async function playGame(i: number): Promise<void> {
   const plan = resolveTablePlan(seed)
   const game = createGame({
     seed, playerCount, names: plan.names(playerCount),
-    talk: { maxRounds, maxRoundsAfterChange },
+    talk: {
+      ...(maxRounds === undefined ? {} : { maxRounds }),
+      maxRoundsAfterChange,
+    },
   })
   const decisionTraces: DecisionTrace[] = []
   const agents = new Map<Seat, AvalonAgent>(
@@ -442,7 +446,9 @@ async function playGame(i: number): Promise<void> {
     game, agents,
     // stdout only. The transcript FILE is rendered from the finished log below,
     // so nothing needs collecting here.
-    onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
+    ...(verbose
+      ? { onEvent: (ev: GameEvent) => { const line = renderEvent(ev, game); if (line) console.log(line) } }
+      : {}),
   })
   const traceDegraded = summarizeTraceDegradations(decisionTraces)
   const violations = recordResult(game, plan, result, decisionTraces)

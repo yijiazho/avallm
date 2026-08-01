@@ -82,7 +82,14 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
     try {
       const output = await agent.decide(req, view)
       const decision = output.decision
-      return { req, view, agent, decision, trace: output.trace, selected: true }
+      return {
+        req,
+        view,
+        agent,
+        decision,
+        ...(output.trace === undefined ? {} : { trace: output.trace }),
+        selected: true,
+      }
     } catch (err) {
       degraded.push({
         seat: req.seat, kind: req.kind, atEvent: game.log.length,
