@@ -32,8 +32,10 @@ export function runPreparedScoreLayersForTest(
     ...completion,
     candidateBoundary: completion.candidateBoundary ?? {
       survivorCandidateIds: completion.forced.allowedCandidateIds,
-      selectedCandidateId: completion.forced.selectedCandidateId,
       reasonCodes: completion.forced.reasonCodes,
+      ...(completion.forced.selectedCandidateId === undefined
+        ? {}
+        : { selectedCandidateId: completion.forced.selectedCandidateId }),
     },
   })
 }

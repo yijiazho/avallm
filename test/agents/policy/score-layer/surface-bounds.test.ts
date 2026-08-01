@@ -120,7 +120,7 @@ test('the ceiling is a size bound and nothing else', () => {
   const shared = { reused: true }
   const aliased = surface(2, 1_100_000).map((row) => ({
     ...row,
-    features: shared as unknown as CandidateScore['features'],
+    features: shared as unknown as NonNullable<CandidateScore['features']>,
   }))
   assert.throws(
     () => validateCandidateScores(emptyContext(), aliased, 'third-party-v1'),

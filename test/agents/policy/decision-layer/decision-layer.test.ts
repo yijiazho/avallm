@@ -755,8 +755,10 @@ test('factory provenance, dependency admission, and universal dominance fail clo
         status: 'applied',
         surface: surface.create({
           survivorCandidateIds: prior.survivorCandidateIds,
-          selectedCandidateId: prior.selectedCandidateId,
           reasonCodes: ['TEST_FORGED_RELABEL'],
+          ...(prior.selectedCandidateId === undefined
+            ? {}
+            : { selectedCandidateId: prior.selectedCandidateId }),
         }),
       }
     },
