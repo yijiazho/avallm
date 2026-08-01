@@ -62,6 +62,7 @@ import {
   stableProbabilitySum,
 } from '../canonical/probability-arithmetic.ts'
 import { teamEvilCountDistribution } from './perception-asymmetry.ts'
+import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
 
 // The public-read half moved to morgana-counterfeit-public-read.ts. Re-export its
 // boundary so existing importers of these names keep resolving through here.
@@ -132,17 +133,6 @@ function merlinVisibleDistribution(
     (weighted) => weighted.probability,
   )
   return normalizedDistribution(out)
-}
-
-function failureCapability(
-  distribution: readonly number[],
-  failsRequired: number,
-): number {
-  return clamp01(
-    distribution
-      .slice(failsRequired)
-      .reduce((sum, mass) => sum + mass, 0),
-  )
 }
 
 interface CounterfeitAssessmentValues {
@@ -314,10 +304,16 @@ function assessCandidate(
     belief,
     candidate.team,
   )
-  const q = failureCapability(privateDistribution, failsRequired)
+  const q = clamp01(questFailureCapabilityProbability(
+    privateDistribution,
+    failsRequired,
+  ))
   const publicDistribution =
     publicTeams[index]!.evilCountDistribution.slice()
-  const p = failureCapability(publicDistribution, failsRequired)
+  const p = clamp01(questFailureCapabilityProbability(
+    publicDistribution,
+    failsRequired,
+  ))
   const support = candidate.direction === 'support'
   const counterfeitOpportunityReadProxyIndex =
     read.counterfeitReadProxyIndex
@@ -667,14 +663,14 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
       || !probability(raw.counterfeitValue)
     ) return false
     const threshold = request.failsRequired as number
-    const q = failureCapability(
+    const q = clamp01(questFailureCapabilityProbability(
       raw.merlinVisibleEvilCountDistribution as number[],
       threshold,
-    )
-    const p = failureCapability(
+    ))
+    const p = clamp01(questFailureCapabilityProbability(
       raw.publicEvilCountDistribution as number[],
       threshold,
-    )
+    ))
     const support = candidate.direction === 'support'
     const read = (
       value.actingSeatRead as PublicCounterfeitMerlinRead

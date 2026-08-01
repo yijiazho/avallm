@@ -69,6 +69,7 @@ import {
   projectionCodec,
 } from './projection-codec.ts'
 import { publicSeatSalience } from './public-seat-salience.ts'
+import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
 
 const boundedIndex = (value: unknown): value is number =>
   typeof value === 'number'
@@ -139,24 +140,6 @@ function publicTeamAmbiguity(
   assessment: PublicJointTeamAssessment,
 ): number {
   return publicTeamAmbiguityFrom(assessment.cleanProbability)
-}
-
-/**
- * The Merlin derivations that both the builder and the schema recompute: the
- * failure-capability tail of the evil-count distribution, and the influence
- * value. Derived once here so a coefficient can never drift between the two
- * sites. Each helper takes exactly the operands its caller already holds - the
- * builder feeds freshly derived values, the schema feeds the stored ones - so
- * the schema keeps validating stored quantities rather than distribution-
- * derived ones.
- */
-function failureCapabilityFrom(
-  evilCountDistribution: readonly number[],
-  failsRequired: number,
-): number {
-  return evilCountDistribution
-    .slice(failsRequired)
-    .reduce((sum, entry) => sum + entry, 0)
 }
 
 function influenceValueFrom(
@@ -275,7 +258,7 @@ function merlinAssessments(
       distribution[index] = clamp01(distribution[index]! / distributionTotal)
     }
     const teamCleanProbability = distribution[0]!
-    const teamFailureCapabilityProbability = failureCapabilityFrom(
+    const teamFailureCapabilityProbability = questFailureCapabilityProbability(
       distribution,
       failsRequired,
     )
@@ -752,7 +735,7 @@ function validateMerlinAssessment(
         - (assessment.teamCleanProbability as number),
     ) > PROBABILITY_TOLERANCE
     || Math.abs(
-      failureCapabilityFrom(
+      questFailureCapabilityProbability(
         assessment.evilCountDistribution as number[],
         request.failsRequired as number,
       )

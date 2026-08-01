@@ -65,6 +65,7 @@ import {
   type ObservationFraction,
   validObservationFraction,
 } from './observation-fraction.ts'
+import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
@@ -190,15 +191,6 @@ function directionForCandidate(
     : 'support'
 }
 
-function failureProbability(
-  distribution: readonly number[],
-  failsRequired: number,
-): number {
-  return clampProbability(distribution
-    .slice(failsRequired)
-    .reduce((sum, mass) => sum + mass, 0))
-}
-
 function oberonUnseenPosterior(
   hidden: HiddenTeamPosterior,
   self: Seat,
@@ -315,14 +307,17 @@ function objectiveAssessments(input: {
       team,
       probabilitySemantics: 'resolved-complete-world-sum',
       teamFailureCapabilityProbability:
-        failureProbability(distribution, input.view.quests[input.req.round - 1]!.failsRequired),
+        clampProbability(questFailureCapabilityProbability(
+          distribution,
+          input.view.quests[input.req.round - 1]!.failsRequired,
+        )),
       evilCountDistribution: distribution,
       publicProbabilitySemantics: 'public-preaction-uniform-feasible-joint',
       publicTeamFailureCapabilityProbability:
-        failureProbability(
+        clampProbability(questFailureCapabilityProbability(
           publicDistribution,
           input.view.quests[input.req.round - 1]!.failsRequired,
-        ),
+        )),
       publicEvilCountDistribution: publicDistribution,
       coordination: input.oberonPosterior
         ? {
@@ -856,16 +851,16 @@ function validateAssessment(
     assessment.publicEvilCountDistribution as number[]
   if (
     Math.abs(
-      failureProbability(
+      clampProbability(questFailureCapabilityProbability(
         privateDistribution,
         request.failsRequired as number,
-      ) - (assessment.teamFailureCapabilityProbability as number),
+      )) - (assessment.teamFailureCapabilityProbability as number),
     ) > PROBABILITY_TOLERANCE
     || Math.abs(
-      failureProbability(
+      clampProbability(questFailureCapabilityProbability(
         publicDistribution,
         request.failsRequired as number,
-      ) - (assessment.publicTeamFailureCapabilityProbability as number),
+      )) - (assessment.publicTeamFailureCapabilityProbability as number),
     ) > PROBABILITY_TOLERANCE
   ) return false
   if (role === 'oberon') {

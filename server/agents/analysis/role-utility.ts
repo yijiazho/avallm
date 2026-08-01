@@ -42,6 +42,7 @@ import {
   projectionCodec,
 } from './projection-codec.ts'
 import { publicSeatSalience } from './public-seat-salience.ts'
+import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
 
 export const ROLE_UTILITY_PROJECTION_VERSION =
   'merlin-percival-role-utility-v1'
@@ -129,20 +130,6 @@ function candidateDirectionSign(
   return candidate.direction === 'support'
     ? 1
     : candidate.direction === 'oppose' ? -1 : 0
-}
-
-/**
- * The public failure capability: probability mass at or above the failure
- * threshold in the public evil-count distribution. Derived once here so the
- * builder and the schema slice-and-sum identically.
- */
-function publicFailureCapabilityFrom(
-  evilCountDistribution: readonly number[],
-  failsRequired: number,
-): number {
-  return evilCountDistribution
-    .slice(failsRequired)
-    .reduce((sum, value) => sum + value, 0)
 }
 
 interface MerlinDerivedIndices {
@@ -292,7 +279,7 @@ function buildRoleUtilityProjectionInternal(
         }
         const merlin = source as MerlinCandidateObjective
         const sign = candidateDirectionSign(merlin.candidate)
-        const publicFailureCapability = publicFailureCapabilityFrom(
+        const publicFailureCapability = questFailureCapabilityProbability(
           publicTeam.evilCountDistribution,
           failsRequired,
         )
@@ -498,7 +485,7 @@ function roleUtilitySchema(detached: unknown): boolean {
         (entry) => entry,
       )
       const failsRequired = detached.request.failsRequired as number
-      const publicFailure = publicFailureCapabilityFrom(
+      const publicFailure = questFailureCapabilityProbability(
         distribution,
         failsRequired,
       )
