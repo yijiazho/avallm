@@ -105,7 +105,9 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       paid: false,
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -119,7 +121,9 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -134,7 +138,9 @@ export function phase4PolicyVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
         ...adapters,
       }),
     },
@@ -152,8 +158,10 @@ export async function runPhase4PolicyBench(
     variants: phase4PolicyVariants(),
     cases: options.cases ?? PHASE4_POLICY_BANK,
     bankId: PHASE4_POLICY_BANK_ID,
-    out: options.out,
-    onProgress: options.onProgress,
+    ...(options.out === undefined ? {} : { out: options.out }),
+    ...(options.onProgress === undefined
+      ? {}
+      : { onProgress: options.onProgress }),
   })
   return architectureReport(artifacts)
 }

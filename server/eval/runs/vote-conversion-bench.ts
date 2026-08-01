@@ -91,7 +91,9 @@ export function phase5VoteConversionVariants():
       paid: false,
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -107,7 +109,9 @@ export function phase5VoteConversionVariants():
         seed: context.seed,
         beliefModel: questWeightedBeliefModel,
         scorer: goodProposalScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -123,7 +127,9 @@ export function phase5VoteConversionVariants():
         seed: context.seed,
         beliefModel: questWeightedBeliefModel,
         scorer: topUtilityScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -139,7 +145,9 @@ export function phase5VoteConversionVariants():
         seed: context.seed,
         beliefModel: questWeightedBeliefModel,
         scorer: seededBandScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
   ]
@@ -184,8 +192,10 @@ export async function runPhase5VoteConversionBench(
       cases,
       bankId: PHASE5_VOTE_CONVERSION_BANK_ID,
       opponentKind,
-      out: options.out,
-      onProgress: options.onProgress,
+      ...(options.out === undefined ? {} : { out: options.out }),
+      ...(options.onProgress === undefined
+        ? {}
+        : { onProgress: options.onProgress }),
     })
     byPopulation[opponentKind] = {
       architecture: architectureReport(artifacts),

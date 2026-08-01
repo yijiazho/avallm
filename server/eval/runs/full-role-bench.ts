@@ -172,7 +172,9 @@ export function phase7FullRoleVariantsFor(
       ),
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -188,7 +190,9 @@ export function phase7FullRoleVariantsFor(
       ),
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
         scorer: goodProposalScorer,
       }),
     },
@@ -202,7 +206,9 @@ export function phase7FullRoleVariantsFor(
       ),
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
         scorer: goodProposalVoteScorer,
       }),
     },
@@ -215,7 +221,9 @@ export function phase7FullRoleVariantsFor(
       // role-bank arm, so a promotion or demo inherits this exact number.
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
         scorer: fullRolePolicyScorer,
         roleObjectiveRouter: true,
         evilQuestCardPolicy: 'robust-heterogeneous',
@@ -283,8 +291,10 @@ export async function runPhase7FullRoleBench(
         // which architectureReport rejects as a duplicate result.
         bankId: `${bank.id}-${opponentKind}`,
         opponentKind,
-        out: options.out,
-        onProgress: options.onProgress,
+        ...(options.out === undefined ? {} : { out: options.out }),
+        ...(options.onProgress === undefined
+          ? {}
+          : { onProgress: options.onProgress }),
       })
       byRole[group.targetRole] = architectureReport(artifacts)
     }

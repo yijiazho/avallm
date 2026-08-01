@@ -77,7 +77,9 @@ export function phase5QuestVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer: policyScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -92,7 +94,9 @@ export function phase5QuestVariants(): readonly ArchitectureVariant[] {
         seed: context.seed,
         beliefModel: questWeightedBeliefModel,
         scorer: policyScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -106,7 +110,9 @@ export function phase5QuestVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer: calibrationCompatibilityScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -121,7 +127,9 @@ export function phase5QuestVariants(): readonly ArchitectureVariant[] {
         seed: context.seed,
         beliefModel: questWeightedBeliefModel,
         scorer: calibrationCompatibilityScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
   ]
@@ -222,9 +230,11 @@ export async function runPhase5QuestBench(
     variants: phase5QuestVariants(),
     cases: options.cases ?? PHASE4_POLICY_BANK,
     bankId: PHASE5_QUEST_BANK_ID,
-    opponentKind: options.opponentKind,
-    out: options.out,
-    onProgress: options.onProgress,
+    ...(options.opponentKind === undefined ? {} : { opponentKind: options.opponentKind }),
+    ...(options.out === undefined ? {} : { out: options.out }),
+    ...(options.onProgress === undefined
+      ? {}
+      : { onProgress: options.onProgress }),
   })
   return {
     architecture: architectureReport(artifacts),

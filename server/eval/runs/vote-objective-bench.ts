@@ -98,7 +98,9 @@ export function nb013VoteObjectiveVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer: goodProposalVoteScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -109,7 +111,9 @@ export function nb013VoteObjectiveVariants(): readonly ArchitectureVariant[] {
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
         scorer: boardSwingScorer,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
     {
@@ -124,7 +128,9 @@ export function nb013VoteObjectiveVariants(): readonly ArchitectureVariant[] {
       },
       createTargetAgent: (context) => createComposedAgent({
         seed: context.seed,
-        onDecisionTrace: context.onDecisionTrace,
+        ...(context.onDecisionTrace === undefined
+          ? {}
+          : { onDecisionTrace: context.onDecisionTrace }),
       }),
     },
   ])
@@ -189,8 +195,10 @@ export async function runNb013VoteObjectiveBench(
         // variant/case cell repeats, which architectureReport rejects.
         bankId: `${NB013_VOTE_OBJECTIVE_BANK_ID}-${opponentKind}`,
         opponentKind,
-        out: options.out,
-        onProgress: options.onProgress,
+        ...(options.out === undefined ? {} : { out: options.out }),
+        ...(options.onProgress === undefined
+          ? {}
+          : { onProgress: options.onProgress }),
       })
       byRole[group.targetRole] = architectureReport(artifacts)
     }
