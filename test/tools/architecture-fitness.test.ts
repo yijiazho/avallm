@@ -47,6 +47,8 @@ const {
       readonly names: readonly string[]
       readonly namespace: boolean
       readonly locals: readonly string[]
+      /** Erased at compile time, so it carries no runtime behavior. */
+      readonly typeOnly: boolean
       readonly line: number
     }[]
     readonly ambientReads: ReadonlySet<string>
@@ -440,6 +442,77 @@ test('prompt builders cannot read ambient state into the cacheable prefix', () =
   assert.deepEqual(
     at('server/agents/prompts.ts', "import { isDeepStrictEqual } from 'node:util'"),
     [],
+  )
+})
+
+test('the ambient ban follows prompt text through value imports', () => {
+  // The rule used to check only the declared roots. Purity is a property of the
+  // reachable graph, so that was sound only for text a root assembled entirely
+  // by itself: measured on the real tree, the roots reach 55 modules and the
+  // rule inspected 4. A helper one hop away could stamp a clock into prompt
+  // text and pass, which is the hole these cases pin shut.
+  const arch015 = (entries: readonly (readonly [string, string])[]) =>
+    rules(entries.map((entry) => [entry[0], entry[1]] as [string, string]))
+      .filter((rule) => rule === 'ARCH015')
+
+  const ROOT = 'server/agents/prompts.ts'
+
+  // One hop: a root imports a helper for a value, and the helper reads a clock.
+  assert.deepEqual(
+    arch015([
+      [ROOT, "import { stamp } from './helper.ts'\nexport const t = `s ${stamp}`"],
+      ['server/agents/helper.ts', 'export const stamp = Date.now()'],
+    ]),
+    ['ARCH015'],
+    'a helper reached by a value import is inside the ban',
+  )
+
+  // Two hops, to show the walk is transitive rather than one level deep.
+  assert.deepEqual(
+    arch015([
+      [ROOT, "import { a } from './one.ts'\nexport const t = `s ${a}`"],
+      ['server/agents/one.ts', "export { a } from './two.ts'"],
+      ['server/agents/two.ts', 'export const a = Math.random()'],
+    ]),
+    ['ARCH015'],
+    'the closure is transitive',
+  )
+
+  // A type-only edge is erased by the compiler, so it cannot carry an ambient
+  // read into prompt text and must not drag its target into the ban. Without
+  // this exclusion the real closure reaches server/llm/openrouter.ts, whose
+  // process.env read is legitimate, and the rule would report a false positive.
+  assert.deepEqual(
+    arch015([
+      [ROOT, "import type { T } from './types-only.ts'\nexport const t = 's'"],
+      ['server/agents/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
+    ]),
+    [],
+    'a type-only import does not extend the ban',
+  )
+
+  // A module nobody reaches from a prompt root is unaffected, so widening the
+  // scope did not turn the rule into a tree-wide purity check.
+  assert.deepEqual(
+    arch015([
+      [ROOT, "export const t = 's'"],
+      ['server/agents/unreached.ts', 'export const stamp = Date.now()'],
+    ]),
+    [],
+    'an unreached module is still outside the ban',
+  )
+
+  // The module arm stays scoped to the declared roots. Being reachable means a
+  // module can put a value into prompt text, not that it must live on the pure
+  // standard library; belief/exact.ts is in the real closure and imports across
+  // the agent tree legitimately.
+  assert.deepEqual(
+    arch015([
+      [ROOT, "import { a } from './helper.ts'\nexport const t = `s ${a}`"],
+      ['server/agents/helper.ts', "import { readFileSync } from 'node:fs'\nexport const a = 1"],
+    ]),
+    [],
+    'a reached module may still import beyond the standard library',
   )
 })
 
@@ -909,6 +982,9 @@ test('TypeScript AST recognizes multiline imports and export-from declarations',
       names: ['Game', 'PlayerView'],
       namespace: false,
       locals: ['RawGame', 'PlayerView'],
+      // `import type` is erased, so this edge cannot carry runtime behavior.
+      // The prompt-text closure reads this field to avoid following it.
+      typeOnly: true,
       line: 2,
     },
     {
@@ -917,9 +993,32 @@ test('TypeScript AST recognizes multiline imports and export-from declarations',
       names: ['toArtifact'],
       namespace: false,
       locals: [],
+      typeOnly: false,
       line: 6,
     },
   ])
+})
+
+test('type-only edges are distinguished from the value edges that look like them', () => {
+  const edges = (source: string) =>
+    inspectSource('server/agents/example.ts', source).edges
+      .map((edge: { specifier: string; typeOnly: boolean }) =>
+        [edge.specifier, edge.typeOnly])
+
+  // Erased forms.
+  assert.deepEqual(edges("import type { A } from './a.ts'"), [['./a.ts', true]])
+  assert.deepEqual(edges("import { type A, type B } from './a.ts'"), [['./a.ts', true]])
+  assert.deepEqual(edges("export type { A } from './a.ts'"), [['./a.ts', true]])
+
+  // Retained forms. The mixed clause is the one worth pinning: every named
+  // member is type-only, but the default binding is still a value, so the
+  // module runs.
+  assert.deepEqual(edges("import D, { type A } from './a.ts'"), [['./a.ts', false]])
+  assert.deepEqual(edges("import { type A, b } from './a.ts'"), [['./a.ts', false]])
+  assert.deepEqual(edges("import { A } from './a.ts'"), [['./a.ts', false]])
+  assert.deepEqual(edges("import * as ns from './a.ts'"), [['./a.ts', false]])
+  // A bare specifier import has no clause at all and runs for side effects.
+  assert.deepEqual(edges("import './a.ts'"), [['./a.ts', false]])
 })
 
 test('TypeScript AST ignores lexical decoys and regex contents', () => {

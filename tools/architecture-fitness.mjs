@@ -430,6 +430,31 @@ function moduleIdentity(value) {
     .replace(/\/index$/, '')
 }
 
+/**
+ * Whether an import contributes nothing at runtime.
+ *
+ * `import type { X } from` and a named clause whose every member is `type X`
+ * are both erased by the compiler, so they cannot carry an ambient read or any
+ * other behavior into the importing module. A closure that counts them
+ * over-reports: following type edges out of the prompt builders reaches
+ * server/llm/openrouter.ts, whose `process.env` read is legitimate and can
+ * never touch prompt text, and reporting it would be a false positive.
+ *
+ * The `!clause.name` guard is the case worth spelling out: `import D, { type A }`
+ * has an all-type-only named clause but still binds `D` at runtime, so it is a
+ * value edge. A bare `import './x.ts'` has no clause at all and runs the module
+ * for its side effects, which is also a value edge.
+ */
+function isTypeOnlyImport(clause, bindings) {
+  if (!clause) return false
+  if (clause.isTypeOnly) return true
+  return !clause.name
+    && Boolean(bindings)
+    && ts.isNamedImports(bindings)
+    && bindings.elements.length > 0
+    && bindings.elements.every((element) => element.isTypeOnly)
+}
+
 function resolveModule(importer, specifier) {
   const normalized = specifier.replaceAll('\\', '/').replace(/[?#].*$/, '')
   let target
@@ -736,7 +761,15 @@ export function inspectSource(sourcePath, source) {
   const identifiers = new Set()
   const stringLiterals = new Set()
   const ambientReads = new Set()
-  function addEdge(node, kind, specifier, names, namespace, locals = []) {
+  function addEdge(
+    node,
+    kind,
+    specifier,
+    names,
+    namespace,
+    locals = [],
+    typeOnly = false,
+  ) {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast))
     edges.push({
       kind,
@@ -744,6 +777,7 @@ export function inspectSource(sourcePath, source) {
       names,
       namespace,
       locals,
+      typeOnly,
       line: line + 1,
     })
   }
@@ -771,7 +805,8 @@ export function inspectSource(sourcePath, source) {
     if (ts.isImportDeclaration(node)) {
       const specifier = literalModule(node.moduleSpecifier)
       if (specifier !== undefined) {
-        const bindings = node.importClause?.namedBindings
+        const clause = node.importClause
+        const bindings = clause?.namedBindings
         addEdge(
           node,
           'import',
@@ -783,6 +818,7 @@ export function inspectSource(sourcePath, source) {
           bindings && ts.isNamedImports(bindings)
             ? localNames(bindings.elements)
             : [],
+          isTypeOnlyImport(clause, bindings),
         )
       }
     } else if (ts.isExportDeclaration(node)) {
@@ -799,6 +835,16 @@ export function inspectSource(sourcePath, source) {
             ? originalNames(clause.elements)
             : [],
           clause === undefined || ts.isNamespaceExport(clause),
+          [],
+          // `export type { X } from` is erased exactly as the import form is, so
+          // a type-only re-export must not extend the prompt closure either.
+          node.isTypeOnly
+            || Boolean(
+              clause
+              && ts.isNamedExports(clause)
+              && clause.elements.length > 0
+              && clause.elements.every((element) => element.isTypeOnly),
+            ),
         )
       }
     } else if (
@@ -1022,6 +1068,12 @@ function collectPurityViolations(violations, rule, sourcePath, inspected, text) 
       `${text.ambient} ${read}, ${text.ambientWhy}`,
     ))
   }
+  // An omitted module arm means the caller wants only the ambient check. ARCH015
+  // uses that for modules it reaches through the prompt closure rather than
+  // declares as roots: they can put a value into prompt text, so an ambient read
+  // is theirs to answer for, but they are ordinary agent modules and are not
+  // held to the roots' standard-library-only import diet.
+  if (!text.module) return
   for (const edge of inspected.edges) {
     const bare = !edge.specifier.startsWith('.')
       && !edge.specifier.startsWith('/')
@@ -1044,6 +1096,70 @@ function violation(rule, importer, edge, detail) {
 }
 
 /**
+ * Every module that can put a value into a prompt: the declared prompt roots
+ * plus everything they reach through value imports.
+ *
+ * ARCH015 used to check exactly the four files in PROMPT_BUILDERS. Purity is a
+ * property of the reachable graph, not of one file, so that check was sound
+ * only for text those four assembled entirely by themselves. Measured on the
+ * tree at the time this was written, the roots reach 55 modules at runtime and
+ * the rule was inspecting 4 of them, roughly 7% of its own risk surface. The
+ * unchecked remainder included prompt-format.ts, knowledge-text.ts,
+ * record/public-record.ts and communication/belief-summary.ts, which are text
+ * renderers, precisely the category PROMPT_BUILDERS' own comment says the
+ * obligation follows: "a prompt string assembled from an ambient read is the
+ * defect this set exists to catch, and it does not care which module wrote it."
+ * The implementation cared, because it did not traverse.
+ *
+ * Nothing in the unchecked 51 was actually reading ambient state, so widening
+ * the scope fixed no live defect and needs no exemptions. It stops the rule
+ * from depending on the roots staying the only text assemblers.
+ *
+ * Type-only edges are excluded; see isTypeOnlyImport for why counting them
+ * would manufacture a false positive on the OpenRouter client.
+ */
+function promptTextClosure(entries, inspectOnce) {
+  const sourceByPath = new Map()
+  const pathByIdentity = new Map()
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue
+    if (typeof entry[0] !== 'string' || typeof entry[1] !== 'string') continue
+    let sourcePath
+    try {
+      sourcePath = normalizeRepoPath(entry[0])
+    } catch {
+      continue
+    }
+    sourceByPath.set(sourcePath, entry[1])
+    pathByIdentity.set(moduleIdentity(sourcePath), sourcePath)
+  }
+  const reached = new Set()
+  const pending = [...PROMPT_BUILDERS]
+  while (pending.length) {
+    const sourcePath = pending.pop()
+    if (reached.has(sourcePath)) continue
+    reached.add(sourcePath)
+    const source = sourceByPath.get(sourcePath)
+    if (source === undefined) continue
+    const { inspected } = inspectOnce(sourcePath, source)
+    if (!inspected) continue
+    for (const edge of inspected.edges) {
+      if (edge.typeOnly) continue
+      let target
+      try {
+        target = resolveModule(sourcePath, edge.specifier)
+      } catch {
+        continue
+      }
+      if (!target) continue
+      const next = pathByIdentity.get(target)
+      if (next && !reached.has(next)) pending.push(next)
+    }
+  }
+  return reached
+}
+
+/**
  * Enforce coarse ownership rules over declared source dependencies.
  *
  * This is a fast architecture regression guard for trusted contributors, not
@@ -1054,7 +1170,28 @@ function violation(rule, importer, edge, detail) {
 export function auditArchitectureSources(sourceEntries) {
   const violations = []
   const seenPaths = new Set()
-  for (const entry of sourceEntries) {
+  // Materialized because the prompt-text closure below needs a second look at
+  // the same sources, and the caller may hand us a generator.
+  const entries = [...sourceEntries]
+  const parseMemo = new Map()
+  /**
+   * Parse once per path, however many passes ask. The closure pass visits only
+   * the modules it can reach, and the main loop then reuses those results, so
+   * deriving the scope costs no additional parsing.
+   */
+  const inspectOnce = (sourcePath, source) => {
+    if (parseMemo.has(sourcePath)) return parseMemo.get(sourcePath)
+    let result
+    try {
+      result = { inspected: inspectSource(sourcePath, source), error: undefined }
+    } catch (error) {
+      result = { inspected: undefined, error }
+    }
+    parseMemo.set(sourcePath, result)
+    return result
+  }
+  const promptTextModules = promptTextClosure(entries, inspectOnce)
+  for (const entry of entries) {
     if (!Array.isArray(entry) || entry.length !== 2) {
       violations.push(violation(
         'ARCH000',
@@ -1114,10 +1251,10 @@ export function auditArchitectureSources(sourceEntries) {
       ))
       continue
     }
-    let inspected
-    try {
-      inspected = inspectSource(sourcePath, source)
-    } catch (error) {
+    const parsed = inspectOnce(sourcePath, source)
+    const inspected = parsed.inspected
+    if (!inspected) {
+      const error = parsed.error
       violations.push(violation(
         'ARCH000',
         sourcePath,
@@ -1739,12 +1876,20 @@ export function auditArchitectureSources(sourceEntries) {
         module: 'shared code can only import pure standard-library modules',
       })
     }
-    if (PROMPT_BUILDERS.has(sourcePath)) {
+    if (promptTextModules.has(sourcePath)) {
       collectPurityViolations(violations, 'ARCH015', sourcePath, inspected, {
         ambient: 'prompt builder reads ambient',
         ambientWhy:
           'so the cacheable prefix stops being a function of the PlayerView alone',
-        module: 'prompt builders can only import pure standard-library modules',
+        // The module arm stays scoped to the declared roots. Reaching a module
+        // through a value import means it can put a value into prompt text,
+        // which is what the ambient arm above is about; it does not mean the
+        // module is itself a prompt builder that must live on the pure
+        // standard library. belief/exact.ts is in the closure and legitimately
+        // imports across the agent tree.
+        module: PROMPT_BUILDERS.has(sourcePath)
+          ? 'prompt builders can only import pure standard-library modules'
+          : undefined,
         allowed: PROMPT_BUILDER_AMBIENT_ALLOWED.get(sourcePath),
       })
     }
