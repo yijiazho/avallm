@@ -1,0 +1,4796 @@
+{
+  "source": {
+    "name": "Avalon-NLU",
+    "url": "https://github.com/sstepput/Avalon-NLU",
+    "paper": "https://arxiv.org/abs/2311.05720",
+    "licence": "MIT, Copyright (c) 2023 Simon",
+    "retrieved": "2026-08-01"
+  },
+  "note": "Distilled by tools/distill-human-games.mjs. Mechanical record only; upstream also carries dialogue with persuasion and deception labels.",
+  "games": [
+    {
+      "id": "1aKReQ",
+      "playerCount": 6,
+      "roleBySeat": [
+        "assassin",
+        "servant",
+        "merlin",
+        "percival",
+        "morgana",
+        "servant"
+      ],
+      "evilSeats": [
+        0,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            4,
+            3,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            5,
+            4,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            3,
+            0,
+            5,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 1,
+          "team": [
+            0,
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            2,
+            4,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            2,
+            4,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 3,
+          "team": [
+            0,
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 4,
+          "team": [
+            3,
+            4,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 5,
+          "team": [
+            5,
+            0,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 0,
+          "team": [
+            0,
+            5,
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 1,
+          "team": [
+            2,
+            3,
+            1,
+            4
+          ],
+          "votes": null
+        },
+        {
+          "quest": 5,
+          "leader": 1,
+          "team": [
+            3,
+            1,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 2,
+          "team": [
+            5,
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 3,
+          "team": [
+            1,
+            3,
+            5,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1aMAaW",
+      "playerCount": 6,
+      "roleBySeat": [
+        "merlin",
+        "servant",
+        "morgana",
+        "servant",
+        "percival",
+        "assassin"
+      ],
+      "evilSeats": [
+        2,
+        5
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            3,
+            4,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            4,
+            2,
+            3,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            5,
+            1,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3YjxjN",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "assassin",
+        "merlin",
+        "morgana",
+        "servant",
+        "percival"
+      ],
+      "evilSeats": [
+        1,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            2,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 3,
+          "team": [
+            0,
+            3,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 3,
+          "team": [
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "6dBXa7",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "servant",
+        "morgana",
+        "merlin",
+        "assassin",
+        "percival"
+      ],
+      "evilSeats": [
+        2,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            5,
+            4,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 2,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            5,
+            0,
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            0,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "7ax9by",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "morgana",
+        "percival",
+        "merlin",
+        "assassin",
+        "servant"
+      ],
+      "evilSeats": [
+        1,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            3,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            4,
+            3,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            5,
+            2,
+            3,
+            0
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            5,
+            2,
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            3,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            5,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            4,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            0,
+            4,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            5,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 2,
+          "team": [
+            0,
+            5,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "9avmeG",
+      "playerCount": 6,
+      "roleBySeat": [
+        "percival",
+        "servant",
+        "servant",
+        "assassin",
+        "morgana",
+        "merlin"
+      ],
+      "evilSeats": [
+        3,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 1,
+          "team": [
+            1,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 2,
+          "team": [
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            4,
+            1,
+            5,
+            0
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            4,
+            5,
+            0,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            5,
+            4,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            5,
+            2,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DbDxbl",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "merlin",
+        "assassin",
+        "morgana",
+        "percival",
+        "servant"
+      ],
+      "evilSeats": [
+        2,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            5,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            3,
+            4,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            3,
+            5,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            3,
+            1,
+            4,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            4,
+            0,
+            5,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            4,
+            0,
+            5,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 2,
+          "team": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 3,
+          "team": [
+            1,
+            3,
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 4,
+          "team": [
+            1,
+            0,
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DdwRb1",
+      "playerCount": 6,
+      "roleBySeat": [
+        "merlin",
+        "assassin",
+        "morgana",
+        "servant",
+        "servant",
+        "percival"
+      ],
+      "evilSeats": [
+        1,
+        2
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            5,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            4,
+            3,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            0,
+            3,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            3,
+            4,
+            1,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 2,
+          "team": [
+            2,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Pdy7aQ",
+      "playerCount": 6,
+      "roleBySeat": [
+        "morgana",
+        "merlin",
+        "servant",
+        "percival",
+        "servant",
+        "assassin"
+      ],
+      "evilSeats": [
+        0,
+        5
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 3,
+          "team": [
+            3,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 4,
+          "team": [
+            3,
+            1,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            5,
+            4,
+            3,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            0,
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 2,
+          "team": [
+            4,
+            2,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 3,
+          "team": [
+            5,
+            4,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 4,
+          "team": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QdJ2dO",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "assassin",
+        "servant",
+        "merlin",
+        "morgana",
+        "percival"
+      ],
+      "evilSeats": [
+        1,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 2,
+          "team": [
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            2,
+            0,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            5,
+            0,
+            3,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            2,
+            0,
+            3,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            2,
+            0,
+            5,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            5,
+            0,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RdG7dD",
+      "playerCount": 6,
+      "roleBySeat": [
+        "percival",
+        "merlin",
+        "assassin",
+        "morgana",
+        "servant",
+        "servant"
+      ],
+      "evilSeats": [
+        2,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 1,
+          "team": [
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 2,
+          "team": [
+            2,
+            4,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 3,
+          "team": [
+            3,
+            2,
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 4,
+          "team": [
+            0,
+            2,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 5,
+          "team": [
+            5,
+            1,
+            3,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 5,
+          "leader": 5,
+          "team": [
+            5,
+            3,
+            2,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 0,
+          "team": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 5,
+          "leader": 0,
+          "team": [
+            0,
+            5,
+            3,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "YerEdO",
+      "playerCount": 6,
+      "roleBySeat": [
+        "morgana",
+        "servant",
+        "servant",
+        "percival",
+        "merlin",
+        "assassin"
+      ],
+      "evilSeats": [
+        0,
+        5
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 2,
+          "team": [
+            2,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            3,
+            2,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            5,
+            4,
+            3,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            2,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            2,
+            5,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            3,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kazYeJ",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "assassin",
+        "morgana",
+        "merlin",
+        "servant",
+        "percival"
+      ],
+      "evilSeats": [
+        1,
+        2
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 2,
+          "team": [
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            5,
+            4,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            2,
+            0,
+            4,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            5,
+            4,
+            3,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 0,
+          "team": [
+            0,
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mep2bM",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "assassin",
+        "morgana",
+        "merlin",
+        "percival",
+        "servant"
+      ],
+      "evilSeats": [
+        1,
+        2
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 2,
+          "team": [
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            3,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            4,
+            3,
+            5,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 5,
+          "team": [
+            3,
+            0,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 5,
+          "team": [
+            3,
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oeEva0",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "servant",
+        "morgana",
+        "assassin",
+        "merlin",
+        "percival"
+      ],
+      "evilSeats": [
+        2,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 4,
+          "team": [
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 5,
+          "team": [
+            4,
+            5,
+            0
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            4,
+            5,
+            0,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            4,
+            5,
+            0,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "penRe7",
+      "playerCount": 6,
+      "roleBySeat": [
+        "percival",
+        "servant",
+        "servant",
+        "morgana",
+        "assassin",
+        "merlin"
+      ],
+      "evilSeats": [
+        3,
+        4
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            0,
+            1,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            1,
+            2,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vbmOeY",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "servant",
+        "morgana",
+        "assassin",
+        "percival",
+        "merlin"
+      ],
+      "evilSeats": [
+        2,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            1
+          ],
+          "votes": null
+        },
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 2,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": null
+        },
+        {
+          "quest": 2,
+          "leader": 2,
+          "team": [
+            0,
+            1,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            0,
+            3,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 3,
+          "leader": 5,
+          "team": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": false
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 0,
+          "team": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            4
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 1,
+          "team": [
+            1,
+            2,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wdLwbj",
+      "playerCount": 6,
+      "roleBySeat": [
+        "morgana",
+        "percival",
+        "servant",
+        "assassin",
+        "servant",
+        "merlin"
+      ],
+      "evilSeats": [
+        0,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            0,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 1,
+          "team": [
+            0,
+            1,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 2,
+          "team": [
+            0,
+            2,
+            5,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 3,
+          "team": [
+            0,
+            4,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 4,
+          "team": [
+            4,
+            2,
+            5,
+            3
+          ],
+          "votes": null
+        },
+        {
+          "quest": 5,
+          "leader": 4,
+          "team": [
+            4,
+            2,
+            5,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 5,
+          "leader": 5,
+          "team": [
+            5,
+            4,
+            2,
+            1
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "xbojag",
+      "playerCount": 6,
+      "roleBySeat": [
+        "servant",
+        "morgana",
+        "merlin",
+        "assassin",
+        "servant",
+        "percival"
+      ],
+      "evilSeats": [
+        1,
+        3
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 0,
+          "team": [
+            2,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 2,
+          "team": [
+            0,
+            2,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": false
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 3,
+          "team": [
+            0,
+            2,
+            3,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": false
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 4,
+          "leader": 4,
+          "team": [
+            2,
+            4,
+            5
+          ],
+          "votes": null
+        },
+        {
+          "quest": 4,
+          "leader": 4,
+          "team": [
+            2,
+            4,
+            5
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": false
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "zbq2dp",
+      "playerCount": 6,
+      "roleBySeat": [
+        "percival",
+        "assassin",
+        "servant",
+        "servant",
+        "merlin",
+        "morgana"
+      ],
+      "evilSeats": [
+        1,
+        5
+      ],
+      "proposals": [
+        {
+          "quest": 1,
+          "leader": 2,
+          "team": [
+            0,
+            3
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 2,
+          "leader": 3,
+          "team": [
+            3,
+            0,
+            2
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": false
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": true
+            }
+          ]
+        },
+        {
+          "quest": 3,
+          "leader": 4,
+          "team": [
+            3,
+            2,
+            0,
+            4
+          ],
+          "votes": [
+            {
+              "seat": 0,
+              "approve": true
+            },
+            {
+              "seat": 1,
+              "approve": true
+            },
+            {
+              "seat": 2,
+              "approve": true
+            },
+            {
+              "seat": 3,
+              "approve": true
+            },
+            {
+              "seat": 4,
+              "approve": true
+            },
+            {
+              "seat": 5,
+              "approve": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

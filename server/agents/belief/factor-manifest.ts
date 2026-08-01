@@ -107,6 +107,20 @@ export interface BeliefFactorEntry {
   /** The bundle version a `BeliefModel` reports as `factorsVersion`. */
   readonly bundleVersion: string
   readonly seating: BeliefFactorSeating
+  /**
+   * What decided the CURRENT seating, and on which population. Required for
+   * every factor including the seated one, because "why is this on" decays
+   * exactly as fast as "why is this off" and is the harder of the two to
+   * reconstruct later.
+   */
+  readonly evidence: readonly string[]
+  /**
+   * The specific observation that would justify revisiting, written so a
+   * future reader can tell whether it has arrived. Not a wish list: "more
+   * data" is not a revisit condition, "a good-vote likelihood measured on a
+   * non-bot corpus" is.
+   */
+  readonly revisit: string
 }
 
 /**
@@ -134,6 +148,26 @@ export const BELIEF_FACTORS = {
       presets: ['full-role'],
       model: questWeightedBeliefModel,
     },
+    evidence: [
+      'BELIEF-002, wide bank servant cell, 360 paired deals per population '
+      + 'against heuristic and random opponents: clean proposal +10.5% and '
+      + '+4.4%, vote truth +4.6% and +7.4%, dirty-team approve -10.2% and '
+      + '-10.0%, every interval clear of zero, win rate unmoved in both.',
+      'Calibration improves on player-evil and is neutral on team-clean. '
+      + 'Merlin exposure does not rise.',
+      'Cost measured and is not a cost: on 60 ten-player round-three-plus '
+      + 'proposals the weighted arm ran 87.2 ms per decision against the '
+      + 'uniform arm\'s 96.8, because it reweights worlds the belief already '
+      + 'enumerated rather than enumerating more.',
+      'NOT validated on human games. The 2023 six-player human corpus has no '
+      + 'two-Fail quest and no Oberon, which are the two dimensions this '
+      + 'factor\'s parameters most depend on.',
+    ],
+    revisit:
+      'Merlin and Percival cells on the same wide bank, before this factor is '
+      + 'considered for good-base. Separately, any human or LLM corpus that '
+      + 'reaches two-Fail quests would be the first real test of the '
+      + 'twoFailsRequired parameters, which no measurement has yet touched.',
   },
   'language-factor': {
     factorVersion: LANGUAGE_LIKELIHOOD_FACTOR_VERSION,
@@ -142,6 +176,21 @@ export const BELIEF_FACTORS = {
     // factor that could run beside another. It still does not: no shipped
     // agent injects an interpreter, so it is dark outside eval and tests.
     seating: { kind: 'injected', option: 'languageInterpreter' },
+    evidence: [
+      'None from a shipped configuration, which is the honest entry. No agent '
+      + 'in registry.ts injects an interpreter, so this has never run in a '
+      + 'real game and its caps have never been exercised against play.',
+      'What exists is structural: the active-language eval bank and 24 tests '
+      + 'pin the 1.25 relative-odds cap, deduplication by source sequence, '
+      + 'viewer-authored sources as exact no-ops, and the guarantee that no '
+      + 'language evidence can revive an impossible world.',
+    ],
+    revisit:
+      'A measured arm that injects an interpreter and reports decision quality '
+      + 'against the same frozen banks the mechanical factors use. Until then '
+      + 'the open question is whether it helps, not how much. Note this is the '
+      + 'one factor that layers over a mechanical base rather than replacing '
+      + 'it, so it does not need the combined model the other two do.',
   },
   'vote-matrix-factor': {
     factorVersion: VOTE_MATRIX_FACTOR_VERSION,
@@ -149,10 +198,34 @@ export const BELIEF_FACTORS = {
     seating: {
       kind: 'unseated',
       why:
-        'BELIEF-001. v1 and v2 have opposite sensitivities and the verdict is a '
-        + 'property of the opponent, not the game. A bot-versus-bot corpus '
-        + 'cannot settle it in either direction.',
+        'BELIEF-001. Its evil half is confirmed on human games, but its good '
+        + 'half is measurably wrong and is the larger signal, so what ships '
+        + 'today would be the weaker of two available models. See BELIEF-003.',
     },
+    evidence: [
+      'Bot banks, v1 versus v2: v1 (evil-only) beat v2 (both sides) on the '
+      + 'heuristic corpus, 52.0% against 59.8% dirty, with the standing note '
+      + 'that v2 may have been penalized for modelling play correctly against '
+      + 'an opponent that does not follow the convention.',
+      'Human games (Avalon-NLU, 20 six-player annotated games with '
+      + 'ground-truth roles, 464 ballots) settle that note in v2\'s favour. '
+      + 'The evil asymmetry is confirmed at odds ratio 4.19 against this '
+      + 'model\'s implied 5.6, so the authored parameters are close. But good '
+      + 'voters approve clean teams 92.7% against dirty 59.2%, odds ratio '
+      + '0.11 where the model assumes 1.00.',
+      'A good vote is therefore world-dependent and does not cancel in the '
+      + 'normalization. It is being discarded rather than cancelled, and it is '
+      + 'the larger of the two signals. Not a Merlin artifact: servants alone '
+      + 'give 0.18 and Percival 0.18.',
+      'Untested dimensions: no Oberon or Mordred visibility asymmetry and no '
+      + 'two-Fail quest in that corpus, which is exactly what visibleFailPower '
+      + 'exists to handle.',
+    ],
+    revisit:
+      'BELIEF-003, a good-vote likelihood measured on a non-bot corpus, is the '
+      + 'change worth making before this is seated at all. Seating it also '
+      + 'requires the combined mechanical belief model, because a factor is a '
+      + 'whole BeliefModel and the quest factor already holds that slot.',
   },
   'proposal-factor': {
     factorVersion: PROPOSAL_FACTOR_VERSION,
@@ -160,10 +233,38 @@ export const BELIEF_FACTORS = {
     seating: {
       kind: 'unseated',
       why:
-        'BELIEF-001. Measured null on the random corpus, and the heuristic gain '
-        + 'is circular: decidePropose implements the same camouflage rule the '
-        + 'model prices, from the same brief sections.',
+        'BELIEF-004. Human games show the behaviour it prices is real and '
+        + 'non-diagnostic: good and evil leaders avoid seating evil at the '
+        + 'same rate, for different reasons. No retune fixes that.',
     },
+    evidence: [
+      'Bot banks: -3.38% dirty on the heuristic corpus (95% -5.17% to -1.59%, '
+      + '2039 decisions) and -1.44% on random (95% -3.48% to +0.61%, 2297 '
+      + 'decisions), which is null. It does not move the POLICY-002 quantity '
+      + 'it was aimed at: 1.111 evil per team against the base\'s 1.126, '
+      + 'interval containing zero.',
+      'The heuristic gain is circular. decidePropose implements the same '
+      + 'camouflage rule this model prices, citing the same brief sections, so '
+      + 'that population is close to built to satisfy it.',
+      'Human games (Avalon-NLU, 148 proposals) explain why, and the answer is '
+      + 'not the sign. Evil leaders do camouflage, seating a partner at odds '
+      + 'lift 0.55 against chance, close to the authored 0.5 and 0.6. But good '
+      + 'leaders seat evil at 0.49, and that result is the unambiguous one '
+      + '(exact p < 0.0001 over 111 proposals, against the evil result\'s '
+      + 'p = 0.089 over 37). The diagnostic ratio is 1.12 where this model '
+      + 'assumes about 0.55.',
+      'The firstRound entry, this model\'s strongest claim, has n = 4 in that '
+      + 'corpus and points the other way. It has no human support at all.',
+      'Reusable finding independent of the factor: the AvalonBench naive-minion '
+      + 'direction measures significantly WORSE than no factor at all (+4.07%, '
+      + 'p = 2.3e-6).',
+    ],
+    revisit:
+      'BELIEF-004. Only a reframing that prices the good leader\'s deduction '
+      + 'instead of assuming chance can help, because the defect is a '
+      + 'diagnostic ratio near 1 rather than a wrong magnitude. If that '
+      + 'reframing is not attempted, the right end state is deletion, keeping '
+      + 'the sign finding and the confound in the migration history.',
   },
 } as const satisfies Record<BeliefFactorModule, BeliefFactorEntry>
 

@@ -68,6 +68,28 @@ test('the manifest names exactly the factor modules on disk', () => {
   )
 })
 
+test('every factor states its evidence and what would change it', () => {
+  // The type makes both fields required, so this covers what the type cannot:
+  // that they were filled in rather than stubbed. A seating decision whose
+  // reasoning is a placeholder is the state this table exists to prevent, and
+  // it is the state a hurried future change would leave behind.
+  for (const [module, entry] of Object.entries(BELIEF_FACTORS)) {
+    assert.ok(
+      entry.evidence.length > 0,
+      `${module} records no evidence for its current seating`,
+    )
+    for (const line of entry.evidence) {
+      assert.ok(line.trim().length > 40, `${module} has a stub evidence line`)
+    }
+    // "more data" is not a revisit condition. The bar is a sentence a future
+    // reader can evaluate as arrived or not arrived.
+    assert.ok(
+      entry.revisit.trim().length > 60,
+      `${module} does not say what would justify revisiting its seating`,
+    )
+  }
+})
+
 test('every factor claiming a preset is actually seated by that preset', () => {
   const seated = seatedBundleByPreset()
   for (const [module, entry] of Object.entries(BELIEF_FACTORS)) {
