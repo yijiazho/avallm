@@ -317,6 +317,15 @@ const AMBIENT_NONDETERMINISM = new Set([
   'performance.now',
   'crypto.randomUUID',
   'crypto.getRandomValues',
+  'console',
+])
+const AMBIENT_GLOBAL_CALLS = new Set([
+  'Date',
+  'fetch',
+  'setImmediate',
+  'setInterval',
+  'setTimeout',
+  'queueMicrotask',
 ])
 // Pure standard-library modules the engine may still use. Everything else,
 // node builtin or npm package, is either I/O or ambient state, and the
@@ -550,21 +559,138 @@ function originalNames(elements) {
 /** True when this access is itself the base of a longer chain. */
 function extendsIntoParent(node) {
   return Boolean(node.parent)
-    && ts.isPropertyAccessExpression(node.parent)
-    && node.parent.expression === node
+    && (
+      (ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node)
+      || (ts.isElementAccessExpression(node.parent) && node.parent.expression === node)
+    )
 }
 
 /** `a.b.c` for a chain rooted at an identifier, otherwise undefined. */
 function dottedChain(node) {
   const parts = []
   let current = node
-  while (ts.isPropertyAccessExpression(current)) {
-    parts.unshift(current.name.text)
+  while (
+    ts.isPropertyAccessExpression(current)
+    || ts.isElementAccessExpression(current)
+  ) {
+    if (ts.isPropertyAccessExpression(current)) {
+      parts.unshift(current.name.text)
+      current = current.expression
+      continue
+    }
+    const argument = current.argumentExpression
+    if (!argument || !ts.isStringLiteralLike(argument)) return undefined
+    parts.unshift(argument.text)
     current = current.expression
   }
   if (!ts.isIdentifier(current)) return undefined
   parts.unshift(current.text)
-  return parts.join('.')
+  const chain = parts.join('.')
+  return chain.startsWith('globalThis.')
+    ? chain.slice('globalThis.'.length)
+    : chain
+}
+
+/** True when an identifier is the root of a dotted or bracketed access. */
+function extendsIntoAccess(node) {
+  return Boolean(node.parent)
+    && (
+      (ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node)
+      || (ts.isElementAccessExpression(node.parent) && node.parent.expression === node)
+    )
+}
+
+function bindingContains(name, wanted) {
+  if (!name) return false
+  if (ts.isIdentifier(name)) return name.text === wanted
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    return name.elements.some((element) =>
+      ts.isBindingElement(element) && bindingContains(element.name, wanted))
+  }
+  return false
+}
+
+function scopeBindsName(scope, wanted) {
+  if (ts.isFunctionLike(scope)) {
+    if (scope.name && ts.isIdentifier(scope.name) && scope.name.text === wanted) {
+      return true
+    }
+    if (scope.parameters.some((parameter) =>
+      bindingContains(parameter.name, wanted))) return true
+  }
+  if (ts.isCatchClause(scope)) {
+    return bindingContains(scope.variableDeclaration?.name, wanted)
+  }
+  if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) return false
+  for (const statement of scope.statements) {
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement))
+      && statement.name?.text === wanted
+    ) return true
+    if (ts.isImportDeclaration(statement)) {
+      const clause = statement.importClause
+      if (clause?.name?.text === wanted) return true
+      const bindings = clause?.namedBindings
+      if (
+        bindings
+        && ts.isNamespaceImport(bindings)
+        && bindings.name.text === wanted
+      ) return true
+      if (
+        bindings
+        && ts.isNamedImports(bindings)
+        && bindings.elements.some((element) => element.name.text === wanted)
+      ) return true
+    }
+    if (!ts.isVariableStatement(statement)) continue
+    if (statement.declarationList.declarations.some((declaration) =>
+      bindingContains(declaration.name, wanted))) return true
+  }
+  return false
+}
+
+function locallyBound(node, wanted) {
+  let current = node.parent
+  while (current) {
+    if (scopeBindsName(current, wanted)) return true
+    current = current.parent
+  }
+  return false
+}
+
+function accessRootIdentifier(node) {
+  let current = node
+  while (
+    ts.isPropertyAccessExpression(current)
+    || ts.isElementAccessExpression(current)
+  ) current = current.expression
+  return ts.isIdentifier(current) ? current : undefined
+}
+
+function identifierIsSyntacticName(node) {
+  const parent = node.parent
+  if (!parent) return false
+  return (
+    (ts.isVariableDeclaration(parent) && parent.name === node)
+    || (ts.isFunctionDeclaration(parent) && parent.name === node)
+    || (ts.isFunctionExpression(parent) && parent.name === node)
+    || (ts.isClassDeclaration(parent) && parent.name === node)
+    || (ts.isTypeAliasDeclaration(parent) && parent.name === node)
+    || (ts.isInterfaceDeclaration(parent) && parent.name === node)
+    || (ts.isParameter(parent) && parent.name === node)
+    || ts.isImportSpecifier(parent)
+    || ts.isExportSpecifier(parent)
+    || ts.isNamespaceImport(parent)
+    || ts.isImportClause(parent)
+    || (ts.isPropertyAccessExpression(parent) && parent.name === node)
+    || (ts.isPropertyAssignment(parent) && parent.name === node)
+    || (ts.isPropertyDeclaration(parent) && parent.name === node)
+    || (ts.isPropertySignature(parent) && parent.name === node)
+    || (ts.isMethodDeclaration(parent) && parent.name === node)
+    || (ts.isMethodSignature(parent) && parent.name === node)
+    || (ts.isQualifiedName(parent) && parent.right === node)
+    || ts.isBindingElement(parent)
+  )
 }
 
 /** The names an import binds locally, so `x as y` yields y rather than x. */
@@ -656,16 +782,16 @@ function collectScopedBindings(ast) {
  * `validProbability` and `finiteProbability`, the two private copies that were
  * live when this was written, are predicates and do.
  *
- * The annotation is the whole signal, so a predicate that omits its return type
- * is invisible here. Every guard-shaped declaration in the tree annotates, and
- * inferring one would mean reading bodies, which is where a name-based rule
- * stops being cheap and starts being a type checker.
+ * An explicit annotation is authoritative. For an unannotated helper, a small
+ * syntax-only inference recognizes unambiguous boolean expressions so omitting
+ * `: boolean` cannot become an easy way around the shared-owner rule. Ambiguous
+ * bodies stay outside the heuristic rather than pretending to be typechecked.
  */
 function collectModulePredicates(ast) {
   return collectModuleSignatures(ast, (type) => (
     ts.isTypePredicateNode(type)
     || type.kind === ts.SyntaxKind.BooleanKeyword
-  ))
+  ), 'boolean')
 }
 
 /**
@@ -687,23 +813,125 @@ function collectModuleNumericHelpers(ast) {
   return collectModuleSignatures(ast, (type) => (
     numeric(type)
     || (ts.isUnionTypeNode(type) && type.types.some(numeric))
-  ))
+  ), 'number')
+}
+
+/** A conservative syntax-only return kind for unannotated small helpers. */
+function inferredExpressionKind(expression) {
+  if (!expression) return undefined
+  if (
+    expression.kind === ts.SyntaxKind.TrueKeyword
+    || expression.kind === ts.SyntaxKind.FalseKeyword
+  ) return 'boolean'
+  if (ts.isNumericLiteral(expression)) return 'number'
+  if (ts.isParenthesizedExpression(expression)) {
+    return inferredExpressionKind(expression.expression)
+  }
+  if (ts.isPrefixUnaryExpression(expression)) {
+    if (expression.operator === ts.SyntaxKind.ExclamationToken) return 'boolean'
+    if (
+      expression.operator === ts.SyntaxKind.PlusToken
+      || expression.operator === ts.SyntaxKind.MinusToken
+      || expression.operator === ts.SyntaxKind.TildeToken
+    ) return 'number'
+  }
+  if (ts.isConditionalExpression(expression)) {
+    const left = inferredExpressionKind(expression.whenTrue)
+    const right = inferredExpressionKind(expression.whenFalse)
+    return left === right ? left : undefined
+  }
+  if (ts.isBinaryExpression(expression)) {
+    const booleanOperators = new Set([
+      ts.SyntaxKind.EqualsEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsToken,
+      ts.SyntaxKind.EqualsEqualsEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsEqualsToken,
+      ts.SyntaxKind.LessThanToken,
+      ts.SyntaxKind.LessThanEqualsToken,
+      ts.SyntaxKind.GreaterThanToken,
+      ts.SyntaxKind.GreaterThanEqualsToken,
+      ts.SyntaxKind.InKeyword,
+      ts.SyntaxKind.InstanceOfKeyword,
+    ])
+    if (booleanOperators.has(expression.operatorToken.kind)) return 'boolean'
+    if (
+      expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      || expression.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const left = inferredExpressionKind(expression.left)
+      const right = inferredExpressionKind(expression.right)
+      return left === 'boolean' && right === 'boolean' ? 'boolean' : undefined
+    }
+    const numericOperators = new Set([
+      ts.SyntaxKind.MinusToken,
+      ts.SyntaxKind.AsteriskToken,
+      ts.SyntaxKind.SlashToken,
+      ts.SyntaxKind.PercentToken,
+      ts.SyntaxKind.AsteriskAsteriskToken,
+      ts.SyntaxKind.AmpersandToken,
+      ts.SyntaxKind.BarToken,
+      ts.SyntaxKind.CaretToken,
+      ts.SyntaxKind.LessThanLessThanToken,
+      ts.SyntaxKind.GreaterThanGreaterThanToken,
+      ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken,
+    ])
+    if (numericOperators.has(expression.operatorToken.kind)) return 'number'
+  }
+  if (ts.isCallExpression(expression)) {
+    const call = dottedChain(expression.expression)
+    if (
+      call === 'Boolean'
+      || call === 'Number.isFinite'
+      || call === 'Number.isInteger'
+      || call === 'Number.isNaN'
+      || call === 'Array.isArray'
+      || call === 'Object.hasOwn'
+    ) return 'boolean'
+    if (
+      call === 'Number'
+      || call === 'parseFloat'
+      || call === 'parseInt'
+      || call?.startsWith('Math.')
+    ) return 'number'
+  }
+  return undefined
+}
+
+function inferredReturnKind(signature) {
+  if (!signature.body) return undefined
+  if (!ts.isBlock(signature.body)) return inferredExpressionKind(signature.body)
+  const kinds = []
+  const visit = (node) => {
+    if (node !== signature.body && ts.isFunctionLike(node)) return
+    if (ts.isReturnStatement(node) && node.expression) {
+      kinds.push(inferredExpressionKind(node.expression))
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(signature.body)
+  if (!kinds.length || kinds.some((kind) => kind === undefined)) return undefined
+  return kinds.every((kind) => kind === kinds[0]) ? kinds[0] : undefined
 }
 
 /**
  * The shared walk behind both collectors: every module-level function or
  * arrow declaration whose annotated return type satisfies `acceptType`.
  *
- * The annotation is the whole signal, so a declaration that omits its return
- * type is invisible here. Every guard-shaped and helper-shaped declaration in
- * the tree annotates, and inferring one would mean reading bodies, which is
- * where a name-based rule stops being cheap and starts being a type checker.
+ * Explicit annotations are authoritative. Unannotated bodies use the
+ * conservative syntax-only inference above; it recognizes clear boolean and
+ * numeric expressions without turning this architecture pass into a second
+ * typechecker.
  */
-function collectModuleSignatures(ast, acceptType) {
+function collectModuleSignatures(ast, acceptType, inferredKind) {
   const collected = []
   const record = (name, signature) => {
-    if (!name || !ts.isIdentifier(name) || !signature.type) return
-    if (!acceptType(signature.type)) return
+    if (!name || !ts.isIdentifier(name)) return
+    if (
+      signature.type
+        ? !acceptType(signature.type)
+        : inferredReturnKind(signature) !== inferredKind
+    ) return
     const { line } = ast.getLineAndCharacterOfPosition(name.getStart(ast))
     collected.push(Object.freeze({ name: name.text, line: line + 1 }))
   }
@@ -785,6 +1013,38 @@ function importTypeNames(qualifier) {
   return ts.isIdentifier(current) ? [current.text] : []
 }
 
+/** Named members selected directly from a dynamic import expression. */
+function dynamicImportNames(node) {
+  let current = node
+  while (
+    current.parent
+    && (
+      ts.isAwaitExpression(current.parent)
+      || ts.isParenthesizedExpression(current.parent)
+    )
+  ) current = current.parent
+  const parent = current.parent
+  if (
+    parent
+    && ts.isPropertyAccessExpression(parent)
+    && parent.expression === current
+  ) return [parent.name.text]
+  if (
+    parent
+    && ts.isElementAccessExpression(parent)
+    && parent.expression === current
+    && parent.argumentExpression
+    && ts.isStringLiteralLike(parent.argumentExpression)
+  ) return [parent.argumentExpression.text]
+  if (
+    parent
+    && ts.isVariableDeclaration(parent)
+    && parent.initializer === current
+    && ts.isObjectBindingPattern(parent.name)
+  ) return originalNames(parent.name.elements)
+  return []
+}
+
 /**
  * Use the repository-pinned TypeScript parser to extract dependencies and
  * capability identifiers without evaluating source.
@@ -812,6 +1072,8 @@ export function inspectSource(sourcePath, source) {
   const identifiers = new Set()
   const stringLiterals = new Set()
   const ambientReads = new Set()
+  const localExports = []
+  const typeAliases = []
   function addEdge(
     node,
     kind,
@@ -845,12 +1107,40 @@ export function inspectSource(sourcePath, source) {
     // the `Date.now` that actually reads a clock. The whole chain is recorded,
     // not its first two segments, so an allowlist can name a single
     // environment variable rather than the whole of `process.env`.
-    if (ts.isPropertyAccessExpression(node) && !extendsIntoParent(node)) {
+    if (
+      (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+      && !extendsIntoParent(node)
+    ) {
       const chain = dottedChain(node)
-      if (chain !== undefined) ambientReads.add(chain)
+      const root = accessRootIdentifier(node)
+      if (
+        chain !== undefined
+        && (!root || !locallyBound(root, root.text))
+      ) ambientReads.add(chain)
     }
-    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+    if (
+      ts.isNewExpression(node)
+      && ts.isIdentifier(node.expression)
+      && !locallyBound(node.expression, node.expression.text)
+    ) {
       ambientReads.add(`new ${node.expression.text}`)
+    }
+    if (
+      ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && AMBIENT_GLOBAL_CALLS.has(node.expression.text)
+      && !locallyBound(node.expression, node.expression.text)
+    ) {
+      ambientReads.add(node.expression.text)
+    }
+    if (
+      ts.isIdentifier(node)
+      && node.text === 'process'
+      && !extendsIntoAccess(node)
+      && !identifierIsSyntacticName(node)
+      && !locallyBound(node, 'process')
+    ) {
+      ambientReads.add('process')
     }
 
     if (ts.isImportDeclaration(node)) {
@@ -858,17 +1148,25 @@ export function inspectSource(sourcePath, source) {
       if (specifier !== undefined) {
         const clause = node.importClause
         const bindings = clause?.namedBindings
+        const importedNames = []
+        const importedLocals = []
+        if (clause?.name) {
+          importedNames.push('default')
+          importedLocals.push(clause.name.text)
+        }
+        if (bindings && ts.isNamedImports(bindings)) {
+          importedNames.push(...originalNames(bindings.elements))
+          importedLocals.push(...localNames(bindings.elements))
+        } else if (bindings && ts.isNamespaceImport(bindings)) {
+          importedLocals.push(bindings.name.text)
+        }
         addEdge(
           node,
           'import',
           specifier,
-          bindings && ts.isNamedImports(bindings)
-            ? originalNames(bindings.elements)
-            : [],
+          importedNames,
           Boolean(bindings && ts.isNamespaceImport(bindings)),
-          bindings && ts.isNamedImports(bindings)
-            ? localNames(bindings.elements)
-            : [],
+          importedLocals,
           isTypeOnlyImport(clause, bindings),
         )
       }
@@ -886,7 +1184,11 @@ export function inspectSource(sourcePath, source) {
             ? originalNames(clause.elements)
             : [],
           clause === undefined || ts.isNamespaceExport(clause),
-          [],
+          clause && ts.isNamedExports(clause)
+            ? localNames(clause.elements)
+            : clause && ts.isNamespaceExport(clause)
+              ? [clause.name.text]
+              : [],
           // `export type { X } from` is erased exactly as the import form is, so
           // a type-only re-export must not extend the prompt closure either.
           node.isTypeOnly
@@ -897,6 +1199,13 @@ export function inspectSource(sourcePath, source) {
               && clause.elements.every((element) => element.isTypeOnly),
             ),
         )
+      } else if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+        for (const element of node.exportClause.elements) {
+          localExports.push(Object.freeze({
+            local: element.propertyName?.text ?? element.name.text,
+            exported: element.name.text,
+          }))
+        }
       }
     } else if (
       ts.isImportEqualsDeclaration(node)
@@ -905,7 +1214,7 @@ export function inspectSource(sourcePath, source) {
       const expression = node.moduleReference.expression
       const specifier = expression ? literalModule(expression) : undefined
       if (specifier !== undefined) {
-        addEdge(node, 'import-equals', specifier, [], true)
+        addEdge(node, 'import-equals', specifier, [], true, [], node.isTypeOnly)
       }
     } else if (ts.isImportTypeNode(node)) {
       const specifier = ts.isLiteralTypeNode(node.argument)
@@ -930,7 +1239,7 @@ export function inspectSource(sourcePath, source) {
       if (specifier === undefined) rejectUnclassifiable(node, 'dynamic import')
       // A dynamic import yields a module namespace. Treat it as namespace
       // access even when an immediate property read happens afterward.
-      addEdge(node, 'dynamic-import', specifier, [], true)
+      addEdge(node, 'dynamic-import', specifier, dynamicImportNames(node), true)
     } else if (
       ts.isCallExpression(node)
       && ts.isIdentifier(node.expression)
@@ -941,6 +1250,22 @@ export function inspectSource(sourcePath, source) {
         : undefined
       if (specifier === undefined) rejectUnclassifiable(node, 'require')
       addEdge(node, 'require', specifier, [], true)
+    } else if (ts.isTypeAliasDeclaration(node)) {
+      const dependencies = new Set()
+      const collect = (part) => {
+        if (ts.isIdentifier(part) && !identifierIsSyntacticName(part)) {
+          dependencies.add(part.text)
+        }
+        ts.forEachChild(part, collect)
+      }
+      collect(node.type)
+      typeAliases.push(Object.freeze({
+        name: node.name.text,
+        dependencies: Object.freeze([...dependencies]),
+        exported: Boolean(node.modifiers?.some(
+          (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+        )),
+      }))
     }
     ts.forEachChild(node, visit)
   }
@@ -950,6 +1275,8 @@ export function inspectSource(sourcePath, source) {
     identifiers,
     stringLiterals,
     ambientReads,
+    localExports: Object.freeze(localExports),
+    typeAliases: Object.freeze(typeAliases),
     scopedBindings: collectScopedBindings(ast),
     predicates: collectModulePredicates(ast),
     numericHelpers: collectModuleNumericHelpers(ast),
@@ -1107,7 +1434,9 @@ function isArtifactOrArchitectureReport(target, names) {
 function collectPurityViolations(violations, rule, sourcePath, inspected, text) {
   for (const read of inspected.ambientReads) {
     const ambient = AMBIENT_NONDETERMINISM.has(read)
+      || AMBIENT_GLOBAL_CALLS.has(read)
       || [...AMBIENT_NONDETERMINISM].some((entry) => read.startsWith(`${entry}.`))
+      || read === 'process'
       || read.startsWith('process.')
     if (!ambient || text.allowed?.has(read)) continue
     violations.push(violation(
@@ -1223,6 +1552,100 @@ function valueImportClosure(roots, index, inspectOnce) {
 }
 
 /**
+ * Exported names whose type resolves, through imports, aliases, or re-exports,
+ * to the engine's raw Game interface.
+ *
+ * ARCH002 used to inspect only the spelling on an agent's direct import. A
+ * facade could therefore write `export type { Game as RawState }` and make the
+ * raw state available to agents under a name the rule no longer recognized.
+ * This fixed-point graph keeps the rule about provenance instead of spelling.
+ */
+function rawGameExports(index, inspectOnce) {
+  const { sourceByPath } = index
+  const exportsByModule = new Map([[ENGINE_TYPES, new Set(['Game'])]])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const [sourcePath, source] of sourceByPath) {
+      const identity = moduleIdentity(sourcePath)
+      const { inspected } = inspectOnce(sourcePath, source)
+      if (!inspected) continue
+      const locals = new Set(identity === ENGINE_TYPES ? ['Game'] : [])
+
+      for (const edge of inspected.edges) {
+        if (edge.kind !== 'import' && edge.kind !== 'import-equals') continue
+        let target
+        try {
+          target = resolveModule(sourcePath, edge.specifier)
+        } catch {
+          continue
+        }
+        const targetExports = target && exportsByModule.get(target)
+        if (!targetExports?.size) continue
+        if (edge.namespace) {
+          for (const local of edge.locals) locals.add(local)
+          continue
+        }
+        for (let index = 0; index < edge.names.length; index += 1) {
+          if (!targetExports.has(edge.names[index])) continue
+          locals.add(edge.locals[index] ?? edge.names[index])
+        }
+      }
+
+      let aliasesChanged = true
+      while (aliasesChanged) {
+        aliasesChanged = false
+        for (const alias of inspected.typeAliases) {
+          if (
+            locals.has(alias.name)
+            || !alias.dependencies.some((name) => locals.has(name))
+          ) continue
+          locals.add(alias.name)
+          aliasesChanged = true
+        }
+      }
+
+      const exported = new Set(exportsByModule.get(identity) ?? [])
+      for (const edge of inspected.edges) {
+        if (edge.kind !== 'export') continue
+        let target
+        try {
+          target = resolveModule(sourcePath, edge.specifier)
+        } catch {
+          continue
+        }
+        const targetExports = target && exportsByModule.get(target)
+        if (!targetExports?.size) continue
+        if (edge.namespace) {
+          if (edge.locals.length) {
+            for (const local of edge.locals) exported.add(local)
+          } else {
+            for (const name of targetExports) exported.add(name)
+          }
+          continue
+        }
+        for (let index = 0; index < edge.names.length; index += 1) {
+          if (!targetExports.has(edge.names[index])) continue
+          exported.add(edge.locals[index] ?? edge.names[index])
+        }
+      }
+      for (const item of inspected.localExports) {
+        if (locals.has(item.local)) exported.add(item.exported)
+      }
+      for (const alias of inspected.typeAliases) {
+        if (alias.exported && locals.has(alias.name)) exported.add(alias.name)
+      }
+
+      const prior = exportsByModule.get(identity)
+      if (prior && exported.size === prior.size) continue
+      exportsByModule.set(identity, exported)
+      changed = true
+    }
+  }
+  return exportsByModule
+}
+
+/**
  * Enforce coarse ownership rules over declared source dependencies.
  *
  * This is a fast architecture regression guard for trusted contributors, not
@@ -1254,6 +1677,7 @@ export function auditArchitectureSources(sourceEntries) {
     return result
   }
   const sourceIndex = indexSources(entries)
+  const rawGameExportsByModule = rawGameExports(sourceIndex, inspectOnce)
   const promptTextModules = valueImportClosure(
     PROMPT_BUILDERS,
     sourceIndex,
@@ -1666,6 +2090,22 @@ export function auditArchitectureSources(sourceEntries) {
         ))
         continue
       }
+      if (
+        isEngine(sourcePath)
+        && !edge.typeOnly
+        && !sourceIndex.pathByIdentity.has(target)
+        && !target.startsWith('server/engine/')
+        && !target.startsWith('server/shared/')
+      ) {
+        violations.push(violation(
+          'ARCH014',
+          sourcePath,
+          edge,
+          'engine value imports must stay inside engine/ or shared/ so every '
+            + 'reachable module carries a purity rule',
+        ))
+        continue
+      }
       // ARCH019. server/shared/ holds the primitives with no domain in them:
       // a seeded PRNG, DeepReadonly, an LRU map, key-list type guards. The
       // folder is only worth having while that stays true, and the failure
@@ -1725,11 +2165,18 @@ export function auditArchitectureSources(sourceEntries) {
         ))
         continue
       }
+      const rawGameNames = rawGameExportsByModule.get(target)
       if (
         isAgent(sourcePath)
         && (
           edge.names.includes('Game')
-          || (target === ENGINE_TYPES && edge.namespace)
+          || (
+            rawGameNames
+            && (
+              (edge.namespace && rawGameNames.size > 0)
+              || edge.names.some((name) => rawGameNames.has(name))
+            )
+          )
         )
       ) {
         violations.push(violation(
@@ -2132,6 +2579,7 @@ function collectServerSources(root) {
   return entries.sort(([left], [right]) => left.localeCompare(right))
 }
 
+/** ARCH021. The strict-test inventory has one owner and one default gate. */
 export function checkStrictTestRatchetOwnership(root = process.cwd()) {
   const violations = []
   const packagePath = path.join(root, 'package.json')
@@ -2155,7 +2603,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
         + ' && node tools/strict-test-ratchet.mjs'
     ) {
       violations.push(violation(
-        'ARCH006',
+        'ARCH021',
         'package.json',
         undefined,
         'the default typecheck must use the single strict test ratchet authority',
@@ -2163,7 +2611,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
     }
   } catch (error) {
     violations.push(violation(
-      'ARCH006',
+      'ARCH021',
       'package.json',
       undefined,
       `cannot verify the default strict-test gate: ${
@@ -2182,7 +2630,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
       const readResult = ts.readConfigFile(configPath, ts.sys.readFile)
       if (readResult.error) {
         violations.push(violation(
-          'ARCH006',
+          'ARCH021',
           entry.name,
           undefined,
           `cannot read TypeScript config: ${
@@ -2197,7 +2645,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
         && (!Array.isArray(config.references) || config.references.length > 0)
       ) {
         violations.push(violation(
-          'ARCH006',
+          'ARCH021',
           entry.name,
           undefined,
           'root TypeScript project references are rejected because they can hide a second test inventory',
@@ -2212,7 +2660,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
       )
       if (parsed.errors.length) {
         violations.push(violation(
-          'ARCH006',
+          'ARCH021',
           entry.name,
           undefined,
           `TypeScript config is invalid: ${parsed.errors.map((diagnostic) =>
@@ -2228,7 +2676,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
       })
       if (hasTestRoot) {
         violations.push(violation(
-          'ARCH006',
+          'ARCH021',
           entry.name,
           undefined,
           `strict test roots belong to ${authority}, not ${entry.name}`,
@@ -2237,7 +2685,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
     }
   } catch (error) {
     violations.push(violation(
-      'ARCH006',
+      'ARCH021',
       'tsconfig*.json',
       undefined,
       `cannot audit duplicate strict-test inventories: ${
@@ -2256,7 +2704,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
       const source = readFileSync(path.join(root, relative), 'utf8')
       if (inventoryMarkers.some((marker) => source.includes(marker))) {
         violations.push(violation(
-          'ARCH006',
+          'ARCH021',
           relative,
           undefined,
           `strict test inventory details belong only to ${authority}`,
@@ -2265,7 +2713,7 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
     }
   } catch (error) {
     violations.push(violation(
-      'ARCH006',
+      'ARCH021',
       'tools',
       undefined,
       `cannot audit strict-test tool ownership: ${
@@ -2287,10 +2735,10 @@ export function checkStrictTestRatchetOwnership(root = process.cwd()) {
  * unnecessary because every probability that layer emits belongs to a
  * distribution already checked as one. It was found by reading, not by a tool.
  *
- * Only `function` and `const` exports count. Types and interfaces are consumed
- * in type position, where a name-based scan cannot tell use from re-declaration,
- * and a class can be thrown in production while its name appears only in the
- * test that asserts on it, which is exactly the shape of BeliefInvariantError.
+ * Only `function` and `const` exports count. Types and interfaces remain outside
+ * this runtime-surface rule, and a class can be thrown in production while its
+ * name appears only in the test that asserts on it, which is exactly the shape
+ * of BeliefInvariantError.
  *
  * Same-file use counts as production use. A version constant referenced once as
  * `version: QUEST_CARD_FACTOR_VERSION` inside its own module is live even
@@ -2390,43 +2838,139 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ])],
 ])
 
-/** Module-level `export function` and `export const` names, with their lines. */
+/** Module-level function/const export surfaces, including `export { local }`. */
 function exportedValueNames(ast) {
-  const out = []
+  const declarations = new Map()
+  const out = new Map()
   const lineOf = (node) =>
     ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1
   for (const statement of ast.statements) {
     const exported = statement.modifiers?.some(
       (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
     )
-    if (!exported) continue
     if (ts.isFunctionDeclaration(statement) && statement.name) {
-      out.push({ name: statement.name.text, line: lineOf(statement.name) })
+      const declared = {
+        localName: statement.name.text,
+        line: lineOf(statement.name),
+      }
+      declarations.set(declared.localName, declared)
+      if (exported) out.set(declared.localName, {
+        name: declared.localName,
+        ...declared,
+      })
       continue
     }
-    if (!ts.isVariableStatement(statement)) continue
-    for (const declaration of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declaration.name)) {
-        out.push({
-          name: declaration.name.text,
+    if (ts.isVariableStatement(statement)) {
+      const isConst = Boolean(
+        statement.declarationList.flags & ts.NodeFlags.Const,
+      )
+      if (!isConst) continue
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue
+        const declared = {
+          localName: declaration.name.text,
           line: lineOf(declaration.name),
+        }
+        declarations.set(declared.localName, declared)
+        if (exported) out.set(declared.localName, {
+          name: declared.localName,
+          ...declared,
         })
       }
     }
   }
-  return out
+  for (const statement of ast.statements) {
+    if (
+      !ts.isExportDeclaration(statement)
+      || statement.moduleSpecifier
+      || !statement.exportClause
+      || !ts.isNamedExports(statement.exportClause)
+    ) continue
+    for (const element of statement.exportClause.elements) {
+      const localName = element.propertyName?.text ?? element.name.text
+      const declared = declarations.get(localName)
+      if (!declared) continue
+      out.set(element.name.text, {
+        name: element.name.text,
+        ...declared,
+      })
+    }
+  }
+  return [...out.values()]
 }
 
-function identifierCounts(ast) {
+/** Identifier references, excluding declarations, property keys, and exports. */
+function localReferenceCounts(ast) {
   const counts = new Map()
   const visit = (node) => {
-    if (ts.isIdentifier(node)) {
+    if (ts.isIdentifier(node) && !identifierIsSyntacticName(node)) {
       counts.set(node.text, (counts.get(node.text) ?? 0) + 1)
     }
     ts.forEachChild(node, visit)
   }
   visit(ast)
   return counts
+}
+
+function namespaceUsesExport(ast, namespace, exportedName) {
+  let found = false
+  const visit = (node) => {
+    if (found) return
+    if (
+      ts.isPropertyAccessExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === namespace
+      && node.name.text === exportedName
+    ) {
+      found = true
+      return
+    }
+    if (
+      ts.isElementAccessExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === namespace
+      && node.argumentExpression
+      && ts.isStringLiteralLike(node.argumentExpression)
+      && node.argumentExpression.text === exportedName
+    ) {
+      found = true
+      return
+    }
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.initializer)
+      && node.initializer.text === namespace
+      && ts.isObjectBindingPattern(node.name)
+      && node.name.elements.some((element) => (
+        (element.propertyName?.getText(ast) ?? element.name.getText(ast))
+        === exportedName
+      ))
+    ) {
+      found = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  return found
+}
+
+function consumesExport(module, ownerIdentity, exportedName) {
+  for (const edge of module.inspected.edges) {
+    let target
+    try {
+      target = resolveModule(module.sourcePath, edge.specifier)
+    } catch {
+      continue
+    }
+    if (target !== ownerIdentity) continue
+    if (edge.names.includes(exportedName)) return true
+    if (!edge.namespace) continue
+    if (edge.kind === 'export' || edge.kind === 'require') return true
+    if (edge.locals.some((local) =>
+      namespaceUsesExport(module.ast, local, exportedName))) return true
+  }
+  return false
 }
 
 /**
@@ -2519,10 +3063,16 @@ export function auditTestOnlyProductionExports(server, tests) {
       true,
       scriptKind(sourcePath),
     )
-    return { sourcePath, counts: identifierCounts(ast), ast }
+    return {
+      sourcePath,
+      identity: moduleIdentity(sourcePath),
+      references: localReferenceCounts(ast),
+      inspected: inspectSource(sourcePath, source),
+      ast,
+    }
   }
   const serverModules = server.map(parse)
-  const testCounts = tests.map(parse).map((entry) => entry.counts)
+  const testModules = tests.map(parse)
 
   const violations = []
   // Every exemption that actually suppressed something this run. An entry that
@@ -2535,12 +3085,12 @@ export function auditTestOnlyProductionExports(server, tests) {
     const exempt = TEST_ONLY_EXPORT_EXEMPTIONS.get(module.sourcePath)
     for (const declared of exportedValueNames(module.ast)) {
       const suppressed = exempt?.has(declared.name) === true
-      // The declaration itself contributes one identifier, so anything above
-      // one is a real use inside the declaring module.
-      if ((module.counts.get(declared.name) ?? 0) > 1) continue
+      if ((module.references.get(declared.localName) ?? 0) > 0) continue
       if (serverModules.some((other) =>
-        other !== module && other.counts.has(declared.name))) continue
-      if (!testCounts.some((counts) => counts.has(declared.name))) continue
+        other !== module
+        && consumesExport(other, module.identity, declared.name))) continue
+      if (!testModules.some((testModule) =>
+        consumesExport(testModule, module.identity, declared.name))) continue
       if (suppressed) {
         const names = consumed.get(module.sourcePath) ?? new Set()
         names.add(declared.name)

@@ -236,6 +236,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     let violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
+    assert.equal(violations[0].rule, 'ARCH021')
     assert.match(violations[0].message, /strict test roots/)
 
     writeFileSync(
@@ -296,7 +297,12 @@ test('the engine cannot read a clock, a random, or the filesystem', () => {
   assert.deepEqual(engine('export const t = () => new Date().getTime()'), ['ARCH014'])
   assert.deepEqual(engine('export const t = () => Math.random()'), ['ARCH014'])
   assert.deepEqual(engine('export const t = () => crypto.randomUUID()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => globalThis.crypto.randomUUID()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => Date()'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = () => fetch("https://example.com")'), ['ARCH014'])
   assert.deepEqual(engine('export const t = process.env.SEED'), ['ARCH014'])
+  assert.deepEqual(engine('export const t = process["env"].SEED'), ['ARCH014'])
+  assert.deepEqual(engine('const { env } = process; export const t = env.SEED'), ['ARCH014'])
   assert.deepEqual(
     engine("import { readFileSync } from 'node:fs'"),
     ['ARCH014'],
@@ -321,6 +327,7 @@ test('the engine cannot read a clock, a random, or the filesystem', () => {
   assert.deepEqual(engine('export interface H { process: boolean }'), [])
   assert.deepEqual(engine('export const h = { process: (x: number) => x }'), [])
   assert.deepEqual(engine('export const f = (process: number) => process + 1'), [])
+  assert.deepEqual(engine('export const f = (fetch: () => number) => fetch()'), [])
   assert.deepEqual(engine('export const f = (h: { process: number }) => h.process'), [])
   assert.deepEqual(engine('export const t = () => process.hrtime()'), ['ARCH014'])
 
@@ -512,6 +519,13 @@ test('the engine cannot reach a layer no purity rule covers', () => {
     ['ARCH014'],
     'an uncovered layer inside the engine closure is reported',
   )
+  assert.deepEqual(
+    arch014([
+      ['server/engine/game.ts', "import { f } from '../../client/src/util.ts'\nexport const g = f"],
+    ]),
+    ['ARCH014'],
+    'an out-of-server target is rejected even though it is absent from the source index',
+  )
 
   // Transitively, because the hop that escapes need not be the first one.
   assert.deepEqual(
@@ -598,6 +612,14 @@ test('the ambient ban follows prompt text through value imports', () => {
     ]),
     [],
     'a type-only import does not extend the ban',
+  )
+  assert.deepEqual(
+    arch015([
+      [ROOT, "import type T = require('./types-only.ts')\nexport const t = 's'"],
+      ['server/agents/types-only.ts', 'export const stamp = Date.now()\nexport type T = number'],
+    ]),
+    [],
+    'a type-only import-equals edge does not extend the ban',
   )
 
   // A module nobody reaches from a prompt root is unaffected, so widening the
@@ -759,6 +781,11 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
     ['ARCH016'],
     'arrow predicate',
   )
+  assert.deepEqual(
+    copy('const validProbability = (v: number) => Number.isFinite(v) && v >= 0 && v <= 1'),
+    ['ARCH016'],
+    'an inferred boolean return cannot hide the copy',
+  )
 
   // The two ways to spell the same copy without tripping the checks above: put
   // the return type on the variable rather than the arrow, and continue the
@@ -774,7 +801,7 @@ test('a shared shape guard cannot be re-declared under an affixed name', () => {
     'pluralized guard name',
   )
 
-  // The discriminator is the return type, not the name, because `probability`
+  // The discriminator is the return kind, not the name, because `probability`
   // is a shared guard and an ordinary domain noun at the same time. Every one of
   // these is a real declaration in the tree.
   assert.deepEqual(
@@ -969,6 +996,11 @@ test('a shared numeric helper cannot be re-declared privately', () => {
     'the unit-clamp synonym',
   )
   assert.deepEqual(
+    copy('const clamp01 = (v: number) => Math.max(0, Math.min(1, v))'),
+    ['ARCH017'],
+    'an inferred numeric return cannot hide the copy',
+  )
+  assert.deepEqual(
     copy('const close = (a: number, b: number): boolean => Math.abs(a - b) < 1'),
     ['ARCH017'],
     'the comparator synonym',
@@ -1111,7 +1143,7 @@ test('TypeScript AST recognizes multiline imports and export-from declarations',
       specifier: '../../eval/artifact.ts',
       names: ['toArtifact'],
       namespace: false,
-      locals: [],
+      locals: ['toArtifact'],
       typeOnly: false,
       line: 6,
     },
@@ -1128,6 +1160,7 @@ test('type-only edges are distinguished from the value edges that look like them
   assert.deepEqual(edges("import type { A } from './a.ts'"), [['./a.ts', true]])
   assert.deepEqual(edges("import { type A, type B } from './a.ts'"), [['./a.ts', true]])
   assert.deepEqual(edges("export type { A } from './a.ts'"), [['./a.ts', true]])
+  assert.deepEqual(edges("import type A = require('./a.ts')"), [['./a.ts', true]])
 
   // Retained forms. The mixed clause is the one worth pinning: every named
   // member is type-only, but the default binding is still a value, so the
@@ -1328,6 +1361,55 @@ test('runtime agents reject raw Game while allowing narrow domain types', () => 
       'ARCH002',
       'ARCH002',
     ],
+  )
+
+  assert.deepEqual(
+    rules([
+      [
+        'server/llm/raw-state.ts',
+        'export type { Game as RawState } from "../engine/types.ts"',
+      ],
+      [
+        'server/agents/transitive.ts',
+        'import type { RawState } from "../llm/raw-state.ts"',
+      ],
+    ]),
+    ['ARCH002'],
+    'a renamed re-export retains raw Game provenance',
+  )
+  assert.deepEqual(
+    rules([
+      [
+        'server/llm/raw-state.ts',
+        [
+          'import type { Game as InternalState } from "../engine/types.ts"',
+          'export type { InternalState as RawState }',
+        ].join('\n'),
+      ],
+      [
+        'server/agents/transitive.ts',
+        'import type { RawState } from "../llm/raw-state.ts"',
+      ],
+    ]),
+    ['ARCH002'],
+    'a local re-export retains raw Game provenance',
+  )
+  assert.deepEqual(
+    rules([
+      [
+        'server/llm/raw-state.ts',
+        [
+          'import type { Game } from "../engine/types.ts"',
+          'export type RawState = Game',
+        ].join('\n'),
+      ],
+      [
+        'server/agents/transitive.ts',
+        'import type { RawState } from "../llm/raw-state.ts"',
+      ],
+    ]),
+    ['ARCH002'],
+    'a type alias retains raw Game provenance',
   )
 })
 
@@ -1858,7 +1940,10 @@ test('a production export reached only from the suite is reported', () => {
   assert.deepEqual(
     audit(
       [['server/agents/probe.ts', 'export const onlyTested = 1']],
-      [['test/probe.test.ts', 'const seen = onlyTested']],
+      [[
+        'test/probe.test.ts',
+        'import { onlyTested } from "../server/agents/probe.ts"; void onlyTested',
+      ]],
     ),
     ['ARCH018'],
     'a value export whose sole consumer is a test',
@@ -1867,9 +1952,15 @@ test('a production export reached only from the suite is reported', () => {
     audit(
       [
         ['server/agents/probe.ts', 'export const shared = 1'],
-        ['server/agents/other.ts', 'const seen = shared'],
+        [
+          'server/agents/other.ts',
+          'import { shared } from "./probe.ts"; void shared',
+        ],
       ],
-      [['test/probe.test.ts', 'const alsoSeen = shared']],
+      [[
+        'test/probe.test.ts',
+        'import { shared } from "../server/agents/probe.ts"; void shared',
+      ]],
     ),
     [],
     'a production consumer anywhere clears it',
@@ -1883,7 +1974,10 @@ test('a production export reached only from the suite is reported', () => {
         'export const VERSION = "v1"',
         'export const build = (): string => VERSION',
       ].join('\n')]],
-      [['test/probe.test.ts', 'const seen = VERSION']],
+      [[
+        'test/probe.test.ts',
+        'import { VERSION } from "../server/agents/probe.ts"; void VERSION',
+      ]],
     ),
     [],
     'a constant used inside its own module is not test-only',
@@ -1896,6 +1990,39 @@ test('a production export reached only from the suite is reported', () => {
     ),
     [],
     'an export with no consumer at all is a different rule',
+  )
+  assert.deepEqual(
+    audit(
+      [
+        ['server/agents/probe.ts', 'export const onlyTested = 1'],
+        ['server/agents/other.ts', 'const onlyTested = 2; void onlyTested'],
+      ],
+      [[
+        'test/probe.test.ts',
+        'import { onlyTested } from "../server/agents/probe.ts"; void onlyTested',
+      ]],
+    ),
+    ['ARCH018'],
+    'an unrelated production identifier is not a consumer',
+  )
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', 'export const orphan = 1']],
+      [['test/probe.test.ts', 'const orphan = 2; void orphan']],
+    ),
+    [],
+    'an unrelated test identifier does not invent reachability',
+  )
+  assert.deepEqual(
+    audit(
+      [['server/agents/probe.ts', 'const listed = 1; export { listed }']],
+      [[
+        'test/probe.test.ts',
+        'import { listed } from "../server/agents/probe.ts"; void listed',
+      ]],
+    ),
+    ['ARCH018'],
+    'an export-list declaration is part of the production surface',
   )
   // Types and classes are out of scope: a type is consumed in type position,
   // and a class can be thrown in production while only the test names it.
@@ -1925,7 +2052,7 @@ test('an unreadable tree is reported, never treated as an empty one', () => {
     )
     writeFileSync(
       path.join(root, 'test', 'probe.test.ts'),
-      'const seen = onlyTested',
+      'import { onlyTested } from "../server/agents/probe.ts"; void onlyTested',
     )
     const found = (architectureModule as unknown as {
       checkTestOnlyProductionExports: (

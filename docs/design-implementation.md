@@ -74,6 +74,7 @@ asserts every directory on disk appears in it, so a new folder cannot be created
 7  score-diagnostics/     diagnostic projections OVER the role families
 8  communication/         rendering; no inbound edge from below
 9  admission/             trace admission, last before the composition spine
+10 composed/              composition-spine machinery; only composed.ts imports it
 ```
 
 A nested directory keys on its **first** segment, so `policy/score-layer/` and
