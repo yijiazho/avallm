@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createGame } from '../../server/engine/game.ts'
 import { nameIsReserved, normalizeName } from '../../server/engine/names.ts'
 import { viewFor } from '../../server/engine/view.ts'
-import { publicStateText } from '../../server/agents/prompts.ts'
+import { buildMessages } from '../../server/agents/prompts.ts'
 import {
   FORBIDDEN_TABLE_ALIAS_NAMES,
   TABLE_ALIAS_POOL,
@@ -36,10 +36,12 @@ test('the alias pool contains no reserved, role, or Arthurian identity', () => {
   }
 })
 
-test('rendered agent state uses aliases rather than model labels', () => {
+test('complete reflection messages use aliases without foreign model identities', () => {
   const names = tableAliases('prompt-aliases', 5)
   const game = createGame({ seed: 'prompt-aliases', playerCount: 5, names })
-  const rendered = publicStateText(viewFor(game, 0))
+  const rendered = buildMessages('reflect', viewFor(game, 0), '')
+    .map((message) => message.content)
+    .join('\n')
   for (const name of names) assert.ok(rendered.includes(name), `${name} reaches the prompt`)
-  assert.doesNotMatch(rendered, /Kimi|DeepSeek|Probabilistic \+ LLM|Rule-based/)
+  assert.doesNotMatch(rendered, /Kimi|DeepSeek|Gemini|Haiku|Allen|Probabilistic \+ LLM|Rule-based/)
 })

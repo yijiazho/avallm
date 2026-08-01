@@ -512,7 +512,9 @@ semantics and component identities.
 - Scratchpad chain: each `reflect` sees the previous scratchpad and updates it, so suspicions
   evolve rather than reset. Cap ~150 words (enforced by truncation at parse, a `THINKING_MAX_CHARS`
   backstop).
-- Same model slug for all of one bot's calls, obviously — the bot IS the model.
+- Same resolved model slug for all of one model-backed bot's calls. The table
+  alias stays fixed too; the alias is its conversational identity while the
+  model remains visible attribution rather than a player name.
 
 ### Cost estimate per game (7 players, 6 bots, cheap roster)
 
@@ -529,9 +531,12 @@ truth per call, no price table needed.
 
 ## 4. The model-identity feature
 
-The hook: bots are not "Sir Gawain (secretly an LLM)" — they are **"DeepSeek," sitting across the
-table from you**. You learn reasoning-style tells across games ("Gemini Flash always votes with
-the leader"; "Kimi writes paragraphs when it's nervous").
+The hook is transparent model identity without making implementation labels do
+double duty as player names. Alden sits across the table from you, while the UI
+plainly identifies Alden's agent card and resolved model. You can still learn
+reasoning-style tells across games ("Gemini Flash agents often vote with the
+leader"; "Kimi-backed agents write paragraphs when nervous") without a table of
+"Kimi 2" and "Probabilistic + LLM 3."
 
 ### Roster
 

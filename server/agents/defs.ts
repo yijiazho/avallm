@@ -22,7 +22,7 @@ import { DEFAULT_MODEL, ROSTER, rosterById } from '../llm/roster.ts'
 import { CALL_PARAMS } from '../llm/call-params.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
 import { ROLE_ALIGNMENT } from '../engine/rules.ts'
-import { nameIsReserved } from '../engine/names.ts'
+import { agentNameIsReserved } from '../engine/names.ts'
 import { resolvePacks } from './packs.ts'
 import type { ResolvedPack } from './packs.ts'
 import type { Role } from '../engine/types.ts'
@@ -245,15 +245,15 @@ export function validateDef(raw: unknown, opts: ValidateOpts = {}): AgentDef {
   if (typeof d.id !== 'string' || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(d.id)) {
     throw new Error('agent id must be a short kebab-case slug')
   }
-  // Agent names become bot table names, injected verbatim into every player's
-  // prompt — they get the same treatment as human names (CLAUDE.md): strip
-  // prompt-structure markup, collapse whitespace, reject reserved identity
-  // words ("You", "system", ...). Enforced HERE so every ingest path (POST,
-  // PUT, file-drop, curated) is covered.
+  // Agent-card names are public metadata rather than table identities. Strip
+  // prompt-structure markup, collapse whitespace, and retain the historical
+  // rejection of control-like identity words ("You", "system", ...), while
+  // allowing role-themed card labels such as "Merlin". Enforced HERE so every
+  // ingest path (POST, PUT, file-drop, curated) is covered.
   if (typeof d.name !== 'string') throw new Error('agent name required (max 40 chars)')
   d.name = d.name.replace(/[<>{}[\]|\\]/g, '').replace(/\s+/g, ' ').trim()
   if (!d.name || d.name.length > 40) throw new Error('agent name required (max 40 chars)')
-  if (nameIsReserved(d.name)) throw new Error(`"${d.name}" can't be used as an agent name: it's a reserved word`)
+  if (agentNameIsReserved(d.name)) throw new Error(`"${d.name}" can't be used as an agent name: it's a reserved word`)
   // Legacy defs carry version: '1.0' — read any string as its leading number.
   if (typeof d.version === 'string') d.version = Math.trunc(parseFloat(d.version)) || 1
   if (d.version !== undefined && (typeof d.version !== 'number' || !Number.isInteger(d.version) || d.version < 1)) {

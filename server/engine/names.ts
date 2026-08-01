@@ -14,13 +14,20 @@ import { ROLES, type Player } from './types.ts'
 // leader, on the team, etc. Game terms ("leader") and system words collide
 // with the prompt's own structure. These are rejected at the boundary; the
 // human's own view renders "You" client-side instead of storing it as a name.
-export const RESERVED_NAMES: ReadonlySet<string> = new Set([
+// Agent-card names are public metadata, not conversational player identities.
+// Keep the pre-alias identity-word policy for those labels so existing cards
+// named after Avalon roles remain valid when player names gain the stricter
+// role-name rule below.
+export const RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
   'you', 'u', 'me', 'i', 'myself', 'self', 'we', 'us',
-  'system', 'assistant', 'narrator',
+  'system', 'assistant', 'narrator', 'leader',
+])
+
+export const RESERVED_NAMES: ReadonlySet<string> = new Set([
+  ...RESERVED_AGENT_NAMES,
   // Public game identities and hidden roles are not safe player names. Aside
   // from confusing ordinary prose, allowing a player called "Merlin" makes a
   // grounded role claim indistinguishable from addressing that player.
-  'leader',
   ...ROLES,
 ])
 
@@ -30,6 +37,10 @@ export function normalizeName(name: string): string {
 
 export function nameIsReserved(name: string): boolean {
   return RESERVED_NAMES.has(normalizeName(name))
+}
+
+export function agentNameIsReserved(name: string): boolean {
+  return RESERVED_AGENT_NAMES.has(normalizeName(name))
 }
 
 function escapeRegExp(s: string): string {

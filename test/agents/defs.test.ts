@@ -239,15 +239,16 @@ test('validateDef: new layer fields — key checks, caps, temperature, CRLF', ()
   assert.equal(e.kindGuidance?.reflect, 'a\nb')
 })
 
-test('validateDef: agent names get the player-name policy (sanitize + reserved words)', () => {
-  // Reserved identity words are rejected — a bot named "You" poisons every
-  // other player's prompt exactly like a human named "You" would.
+test('validateDef: agent-card names are sanitized without inheriting player role reservations', () => {
+  // Historical control-like identity words remain rejected in library labels.
   assert.throws(() => validateDef({ id: 'you-bot', name: 'You', engine: { type: 'heuristic' } }), /reserved/)
   assert.throws(() => validateDef({ id: 'sys', name: ' system ', engine: { type: 'heuristic' } }), /reserved/)
   // Prompt-structure markup is stripped, not stored.
   const d = validateDef({ id: 'angle', name: '<Angle> {Bot}', engine: { type: 'heuristic' } })
   assert.equal(d.name, 'Angle Bot')
-  // Normal agent names still pass untouched.
+  // Role words are forbidden as player identities but valid in agent-card
+  // metadata, which no longer enters prompts as the bot's table name.
+  assert.equal(validateDef({ id: 'merlin', name: 'Merlin', engine: { type: 'heuristic' } }).name, 'Merlin')
   assert.equal(validateDef({ id: 'mh', name: 'Merlin Hunter', engine: { type: 'heuristic' } }).name, 'Merlin Hunter')
 })
 

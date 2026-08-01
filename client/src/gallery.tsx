@@ -153,7 +153,7 @@ const FeedZone = ({ children }: { children: React.ReactNode }) => <main>{childre
 const voteLeadIn: GameEvent[] = [
   { seq: 1, type: 'proposal', payload: { leader: 2, team: [0, 3], round: 1, proposalNum: 1, pitch: 'Two quiet seats. No reason to overthink the first one.' }, visibility: 'public' },
   { seq: 2, type: 'utterance', payload: { seat: 3, text: "I'll take it. Nobody has said anything worth doubting yet.", round: 1 }, visibility: 'public' },
-  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to hand DeepSeek a seat it picked itself.', round: 1 }, visibility: 'public' },
+  { seq: 3, type: 'utterance', payload: { seat: 5, text: 'Too early to approve Beatrix for a seat of their own choosing.', round: 1 }, visibility: 'public' },
   { seq: 4, type: 'utterance', payload: { seat: 6, text: '', round: 1 }, visibility: 'public' },
   { seq: 5, type: 'proposalLocked', payload: { leader: 2, round: 1, proposalNum: 1, team: [0, 3] }, visibility: 'public' },
 ]
