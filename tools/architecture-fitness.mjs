@@ -1130,6 +1130,12 @@ function promptTextClosure(entries, inspectOnce) {
     } catch {
       continue
     }
+    // First occurrence wins, matching the main loop, which reports a duplicate
+    // path as ARCH000 and analyses only the first. Letting a later duplicate
+    // overwrite here would seed the shared parse memo from a source the loop
+    // never looks at, and every rule for that file would then be evaluated
+    // against text it was not given.
+    if (sourceByPath.has(sourcePath)) continue
     sourceByPath.set(sourcePath, entry[1])
     pathByIdentity.set(moduleIdentity(sourcePath), sourcePath)
   }
