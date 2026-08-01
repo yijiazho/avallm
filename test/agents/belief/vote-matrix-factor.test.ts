@@ -201,3 +201,29 @@ test('the model declares the versions the belief reports', () => {
     VOTE_MATRIX_BUNDLE_VERSION,
   )
 })
+
+// The factor must find NOTHING where there is nothing to find. Against a table
+// that votes without regard to who is aboard there is no vote behaviour to
+// read, and measured on random-driven records this factor correctly finds
+// nothing (`p = 0.40`, against `p = 2.7e-35` on heuristic-driven ones). The
+// mechanism that keeps a patternless record from accumulating is the mixture:
+// no ballot is ever near-certain, so no run of them can pin a world.
+test('the mixture keeps every priced vote away from certainty', () => {
+  const world = worldOf(SEVEN)
+  const floor = VOTE_MATRIX_MODEL_PARAMETERS.uniformMixtureWeight / 2
+  for (const decisiveBoard of [true, false]) {
+    for (const failsRequired of [1, 2]) {
+      for (const team of [[0, 1, 4], [0, 1, 2], [4, 5], [4, 6]]) {
+        const evidence = ballot(team, [[4, true]], {
+          decisiveBoard,
+          failsRequired,
+        })
+        const approve = evilApproveProbability(world, evidence, 4)
+        assert.ok(
+          approve >= floor && approve <= 1 - floor,
+          `approve ${approve} escaped the mixture floor ${floor}`,
+        )
+      }
+    }
+  }
+})

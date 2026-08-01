@@ -40,6 +40,7 @@ import {
 import { viewFor } from '../../engine/view.ts'
 import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import { createHeuristicAgent, heuristicDecide } from '../../agents/heuristic.ts'
+import { createRandomAgent } from '../../agents/random.ts'
 import { createComposedAgent } from '../../agents/composed.ts'
 import {
   roleObjectiveScorer,
@@ -157,10 +158,25 @@ function separates(view: PlayerView, req: DecisionRequest): boolean {
  * because the evidence the public read consumes IS resolved quests: forcing
  * success the way the assassin harness does would delete the signal under test.
  */
+/**
+ * Which table generates the held-out states.
+ *
+ * It is a parameter because a behavioural factor can be right about a game or
+ * merely fitted to one opponent, and only a second population tells those
+ * apart. The vote-matrix model assumes evil approves teams it can fail, which
+ * is close to what the heuristic's own `decideVote` does, so a large gain
+ * measured only on heuristic-driven records would be unfalsifiable. Random
+ * opponents vote without regard to who is aboard, so a factor that reads votes
+ * should gain far LESS there, and one that gains just as much is reading
+ * something other than the votes.
+ */
+export type CalibrationPopulation = 'heuristic' | 'random'
+
 async function collectFromGame(
   seed: string,
   cast: ServantCalibrationCast,
   out: ServantProposeCase[],
+  population: CalibrationPopulation = 'heuristic',
 ): Promise<void> {
   const game = createGame({
     seed,
@@ -174,7 +190,9 @@ async function collectFromGame(
       .map((player) => player.seat),
   )
   const agents = game.players.map((player) =>
-    createHeuristicAgent({ seed, seat: player.seat }))
+    population === 'random'
+      ? createRandomAgent({ seed, seat: player.seat })
+      : createHeuristicAgent({ seed, seat: player.seat }))
   for (let step = 0; step < 600; step++) {
     const pending = expectedDecisions(game)
     if (!pending.length) return
@@ -202,14 +220,21 @@ async function collectFromGame(
 /** The held-out set. Deterministic: same seeds in, same cases out. */
 export async function generateServantProposeCases(
   seedsPer: number = SERVANT_CALIBRATION_SEEDS_PER,
+  population: CalibrationPopulation = 'heuristic',
 ): Promise<readonly ServantProposeCase[]> {
   const out: ServantProposeCase[] = []
   for (const cast of SERVANT_CALIBRATION_CASTS) {
     for (let seed = 0; seed < seedsPer; seed++) {
       await collectFromGame(
-        `servant-cal-${cast.playerCount}-${seed}`,
+        // The heuristic seeds are deliberately unprefixed. Every recorded
+        // measurement is against that exact held-out set, and renaming it
+        // would silently change the corpus those numbers refer to.
+        population === 'heuristic'
+          ? `servant-cal-${cast.playerCount}-${seed}`
+          : `servant-cal-${population}-${cast.playerCount}-${seed}`,
         cast,
         out,
+        population,
       )
     }
   }

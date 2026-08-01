@@ -4312,3 +4312,37 @@ here.
   bench arm resolve one identity, which is the invariant working: the arm moved with the preset,
   so what ships and what was measured stay the same configuration. `good-base` is untouched,
   because only `full-role` was gated.
+
+- Vote-matrix factor built, measured, and NOT promoted, on the population test that separates a
+  model of the game from a model of one opponent. BELIEF-001's remaining two signals are both
+  votes, so the factor prices one asymmetry: evil approves a team it can fail and is more
+  reluctant about one it cannot. Both heuristic signals fall out of that rule read in two
+  directions, only evil votes are priced (a constant for good voters cancels in the
+  normalization), and failability is world-conditioned so an Oberon aboard reads a team's
+  failability differently from the partners it cannot see.
+
+  On heuristic-driven records it is the strongest thing measured here: dirty-team rate `81.1%` to
+  `52.0%` over `625` held-out proposals, `211` discordant pairs to `29`, `p = 2.7e-35`, with the
+  round anchor landing correctly (identical to the base at q1 when no ballot has been cast, then
+  improving monotonically to `22.7%` against `78.0%` by q5).
+
+  **Against a random-driven population it finds nothing**: `75.5%` to `74.0%` over `703`
+  proposals, `76` to `65`, `p = 0.40`. The quest-card factor, run on the same two corpora,
+  survives both: `81.1%` to `70.7%` (`p = 6.8e-12`) and `75.5%` to `68.1%` (`p = 1.3e-5`).
+
+  That contrast is the finding, and it is not a defect in the factor. Random opponents vote
+  without regard to who is aboard, so there is genuinely no vote behaviour to read and finding
+  nothing is the honest result. What it establishes is the SHAPE of the evidence: the quest factor
+  reads quest outcomes, which are determined by who was aboard however anyone voted, so it
+  generalizes; the vote factor reads behaviour, so its value is entirely contingent on opponents
+  whose evil voting follows the modelled asymmetry.
+
+  And the heuristic follows that asymmetry close to by construction: its own `decideVote` makes
+  evil approve teams with known evil aboard, which is this model's assumption. So `p = 2.7e-35` is
+  an UPPER BOUND on a population built to satisfy the model, not an estimate for real play. That
+  is why the factor is registered and not seated, and why the wide-bank gate on it, however it
+  reads, cannot settle the question either: both of its populations are the same two.
+
+  What would settle it is a population that votes purposefully but was NOT built on this
+  assumption. The cheap version is a third synthetic table whose evil votes to look clean rather
+  than to fail; the expensive and more convincing version is EVAL-002's paid LLM comparison.
