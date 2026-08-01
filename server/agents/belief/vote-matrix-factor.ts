@@ -468,10 +468,38 @@ export function goodApproveProbability(
  * no entropy-shaped assertion can express the invariant, and the honest guard
  * is the decision-quality measurement above.
  *
- * So the honest position is that the good half is real in humans, partially
- * present in a heuristic that avoids suspected evil through `suspicion()`, and
- * absent in random play, and that no bot population we can simulate separates
- * it from v1. v2 stays built and unseated beside v1 rather than replacing it.
+ * A THIRD POPULATION SEPARATES THEM, AND IT FAVOURS v2.
+ *
+ * The two bot corpora above cannot settle a vote factor for opposite reasons,
+ * so `servant-propose-calibration` gained a composed opponent table: good seats
+ * that vote from an exact posterior, which is purposeful, and derived from the
+ * game's structure rather than from a convention or from the human corpus.
+ * Opponents are pinned to `full-role`'s seated quest-card belief, so the arm
+ * never faces itself. On 1713 held-out decisions:
+ *
+ *   composed corpus, base 78.4% dirty and 1.069 evil per team
+ *     v1   80.2%   1.169   paired +1.81 points, p = 0.11, null
+ *     v2   59.8%   0.798   paired -18.62 points, p = 1.5e-63
+ *
+ * v1 does NOTHING against an opponent it did not have hard-coded, and that is
+ * the second half of the finding. `decideVote`'s evil branch reads
+ * `if (aboard >= failsNeeded) return approve`, which is v1's entire model
+ * written as a deterministic rule. Its 30-point result on the heuristic corpus
+ * is therefore circular in exactly the way the proposal factor's was, and this
+ * is the first measurement able to show that.
+ *
+ * v2's good half, whose parameters came from human games, transfers to a
+ * population built from Bayesian inference rather than from those games. Two
+ * independent origins converging on "good seats avoid teams they believe are
+ * dirty" is evidence rather than construction. The honest scope: v2 works
+ * against opponents whose good seats vote on inferred cleanliness. Humans do
+ * (measured), composed agents do (by construction), the heuristic does
+ * partially through `suspicion()`, and random play does not, which is the whole
+ * spread of results above in one sentence.
+ *
+ * Still unseated. A factor is a whole BeliefModel and quest-card holds that
+ * slot, so seating this is not a configuration change, and one non-circular
+ * population is a strong signal rather than a promotion.
  */
 export const analyticalVoteMatrixFactorV2: VoteMatrixLikelihoodFactor =
   Object.freeze({

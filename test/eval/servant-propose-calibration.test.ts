@@ -10,6 +10,8 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { composedBrainOptions } from '../../server/agents/registry.ts'
+import { QUEST_WEIGHTED_BELIEF_VERSION } from '../../server/agents/belief/quest-card-factor.ts'
 import {
   SERVANT_CALIBRATION_CASTS,
   SERVANT_PROPOSE_CALIBRATION_VERSION,
@@ -17,6 +19,7 @@ import {
   generateServantProposeCases,
   pairProposalPickers,
   runServantProposeCalibration,
+  COMPOSED_OPPONENT_IDENTITY,
   scoreProposalPicker,
   servantProposalPicker,
   projectionAdjustedPicker,
@@ -239,5 +242,68 @@ test('an unknown hypothesis is refused by name', async () => {
   await assert.rejects(
     () => runServantProposeCalibration(SEEDS, undefined, 'not-a-hypothesis'),
     /unknown hypothesis not-a-hypothesis/,
+  )
+})
+
+test('each population generates a distinct corpus, and composed is one', async () => {
+  // The populations are the whole point of this harness, and until now nothing
+  // asserted they actually differ. A generator that silently ignored its
+  // population argument would leave every cross-population claim in the
+  // register resting on one corpus wearing three labels. That is not
+  // hypothetical: the runner accepted `population` for a release without
+  // passing it through, so the random corpus was unreachable from the CLI.
+  // One seed is enough: different opponents diverge within the first round,
+  // so the played-out records separate immediately and the eval lane does not
+  // pay for a composed corpus it only needs to tell apart.
+  const seeds = 1
+  const [heuristic, random, composed] = await Promise.all([
+    generateServantProposeCases(seeds, 'heuristic'),
+    generateServantProposeCases(seeds, 'random'),
+    generateServantProposeCases(seeds, 'composed'),
+  ])
+  for (const [label, cases] of [
+    ['heuristic', heuristic], ['random', random], ['composed', composed],
+  ] as const) {
+    assert.ok(cases.length > 0, `${label} produced no cases`)
+  }
+  // Same seeds, same casts, different opponents, so the played-out records
+  // must differ. Compared on the decision coordinates rather than on counts,
+  // because two corpora can coincidentally hold the same number of cases.
+  // Compared on the decision coordinates the case actually carries, rather
+  // than on counts, because two corpora can coincidentally hold the same
+  // number of cases while describing different games.
+  const shape = (cases: Awaited<ReturnType<typeof generateServantProposeCases>>) =>
+    JSON.stringify(cases.map(
+      (c) => [c.round, c.playerCount, c.req.seat, [...c.evilSeats]]))
+  assert.notEqual(shape(heuristic), shape(random))
+  assert.notEqual(shape(heuristic), shape(composed))
+  assert.notEqual(shape(random), shape(composed))
+})
+
+test('the composed opponent is frozen, not read from the registry', () => {
+  // The property that makes a composed corpus comparable across commits, and
+  // the one most likely to be "simplified" back into a registry lookup by
+  // someone who notices the duplication.
+  //
+  // Reading `composedBrainOptions('full-role')` instead would look identical
+  // today and rot silently: any future seating decision would change the
+  // opponent table, two composed numbers a commit apart would describe
+  // different experiments under one label, and seating a VOTE factor would put
+  // that factor into the opponents a vote factor is measured against. This
+  // pins the identity so that re-pointing it fails here rather than in a
+  // number nobody can reproduce.
+  assert.equal(
+    COMPOSED_OPPONENT_IDENTITY,
+    'full-role+exact-constraints+quest-card-v1',
+  )
+  // And the pin must agree with what full-role actually seats TODAY, because a
+  // frozen opponent that never matched production was never the right baseline
+  // to freeze. If these diverge, that is a deliberate re-baselining decision:
+  // update the pin and say so, do not delete the assertion.
+  assert.equal(
+    composedBrainOptions('full-role').beliefModel?.version,
+    QUEST_WEIGHTED_BELIEF_VERSION,
+    'full-role no longer seats the belief the composed opponent is pinned to; '
+    + 're-baseline deliberately or explain why the pin should lag',
   )
 })

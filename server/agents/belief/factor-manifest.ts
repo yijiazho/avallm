@@ -273,9 +273,10 @@ export const BELIEF_FACTORS = {
     seating: {
       kind: 'unseated',
       why:
-        'BELIEF-001. Two versions now exist and neither is promotable: v1 is '
-        + 'missing the larger of the two signals, and v2 supplies it without '
-        + 'beating v1 on any population we can simulate. See BELIEF-003.',
+        'BELIEF-001. v2 now beats v1 decisively on the one non-circular '
+        + 'population, but a factor is a whole BeliefModel and quest-card '
+        + 'holds that slot, so seating is not a configuration change. See '
+        + 'BELIEF-003.',
     },
     evidence: [
       'Bot banks, v1 versus v2: v1 (evil-only) beat v2 (both sides) on the '
@@ -308,19 +309,30 @@ export const BELIEF_FACTORS = {
       + '+1.35 points (p = 0.16). Both null, v2 directionally worse than doing '
       + 'nothing, which is the expected shape because random seats do not vote '
       + 'purposefully and the good signal this prices is simply absent.',
+      'Composed corpus, 1713 decisions against a pinned quest-card opponent '
+      + 'whose good seats vote from an exact posterior: base 78.4% dirty and '
+      + '1.069 evil per team, v1 80.2% and 1.169 (paired +1.81, p = 0.11, '
+      + 'null), v2 59.8% and 0.798 (paired -18.62, p = 1.5e-63). This is the '
+      + 'population the other two cannot supply, and it separates them.',
+      'It also shows v1 is the circular one. The heuristic decideVote evil '
+      + 'branch reads "if (aboard >= failsNeeded) return approve", which is '
+      + 'v1 entire model as a deterministic rule, so its 30-point result is an '
+      + 'artifact of an opponent that was told to play it. v1 does nothing '
+      + 'against an opponent that was not.',
       'Cap pressure checked, since tripling the priced ballots could have '
       + 'flattened the posterior: v1 clamps 0.833 of worlds and v2 0.821, so '
       + 'the added evidence is not being spent on saturation.',
     ],
     revisit:
-      'The good half is now BUILT, so the open question moved. It is real in '
-      + 'humans, partially present in a heuristic that avoids suspected evil '
-      + 'via suspicion(), and absent in random play, and no bot population we '
-      + 'can simulate separates v2 from v1. What would settle it is a corpus '
-      + 'where good voting is purposeful and not hard-coded, meaning EVAL-002 '
-      + 'or human games. Seating either version additionally requires the '
-      + 'combined mechanical belief model, because a factor is a whole '
-      + 'BeliefModel and the quest factor already holds that slot.',
+      'The blocker is now structural rather than evidentiary, which is a move '
+      + 'forward. v2 is confirmed on the one population that can carry the '
+      + 'question, and the same run showed v1 to be an artifact of an opponent '
+      + 'that had its model hard-coded. What stands between v2 and a seat is '
+      + 'the combined mechanical belief model: a factor is a whole BeliefModel '
+      + 'and quest-card holds that slot, so this is not a configuration '
+      + 'change. Build that, then run v2 and quest-card together against the '
+      + 'composed and wide banks before proposing a seat. Human or EVAL-002 '
+      + 'games remain the confirmation, not the gate.',
     parameterSources: {
       canFail: {
         kind: 'authored',

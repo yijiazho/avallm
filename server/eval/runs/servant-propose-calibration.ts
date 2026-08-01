@@ -42,6 +42,10 @@ import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import { createHeuristicAgent, heuristicDecide } from '../../agents/heuristic.ts'
 import { createRandomAgent } from '../../agents/random.ts'
 import { createComposedAgent } from '../../agents/composed.ts'
+import { fullRolePolicyScorer } from '../../agents/policy/score.ts'
+import {
+  QUEST_WEIGHTED_BELIEF_VERSION,
+} from '../../agents/belief/quest-card-factor.ts'
 import {
   roleObjectiveScorer,
   type CandidateScorer,
@@ -169,7 +173,76 @@ function separates(view: PlayerView, req: DecisionRequest): boolean {
  * should gain far LESS there, and one that gains just as much is reading
  * something other than the votes.
  */
-export type CalibrationPopulation = 'heuristic' | 'random'
+/**
+ * The opponent table a corpus is generated against.
+ *
+ * `composed` exists because the other two cannot settle a vote-reading factor,
+ * for opposite reasons. The heuristic's good branch IMPLEMENTS the off-team
+ * rule a vote factor might want to read, citing the same brief section, so it
+ * can confirm a feature by construction. Random seats do not vote purposefully
+ * at all, so any vote signal is absent by construction. A composed table votes
+ * from its exact posterior, which is purposeful and derived from the game's
+ * structure rather than from a convention or from the human corpus, so it is
+ * the one population that can separate a vote model from its own assumptions.
+ *
+ * The arm under test never faces itself. Opponents play on their preset's
+ * seated belief (`full-role`, so `analytical-quest-card-v1`), while the
+ * measured arm swaps only the belief used for the servant's proposal choice.
+ * Freezing that is what keeps self-play from becoming a feedback loop, and
+ * getting it wrong would be invisible in the output.
+ */
+export type CalibrationPopulation = 'heuristic' | 'random' | 'composed'
+
+/**
+ * The composed opponent table, PINNED rather than read from the registry.
+ *
+ * The obvious spelling is `composedBrainOptions('full-role')`, and it is wrong
+ * in two ways that are invisible in the output.
+ *
+ * A generated corpus is only evidence if it can be compared with the corpus a
+ * later run generates. The heuristic table has not changed in days, so a
+ * heuristic number from last week and one from today mean the same thing. An
+ * opponent read from the live registry changes whenever ANY seating decision
+ * changes, so two composed numbers taken a commit apart would silently describe
+ * different experiments while carrying the same label.
+ *
+ * Worse, the drift is self-referential exactly where it hurts. Seating a vote
+ * factor would put that factor into the opponents, and then measuring a vote
+ * factor against them is the feedback loop this population exists to avoid.
+ * The "arm never faces itself" property would still be documented, still be
+ * believed, and no longer be true.
+ *
+ * So the table is frozen here by name. It matches what `full-role` seats today,
+ * and it must NOT be re-pointed at the registry to keep matching.
+ *
+ * When the pin should move, ADD a `composed-v2` beside this one rather than
+ * repointing `composed`, the way `phase4-good-v1` and `phase4-good-wide-v1`
+ * coexist. Mutating a population in place silently invalidates every number
+ * already quoted against it, and the migration tracker's gate arithmetic exists
+ * because exactly that kind of substitution once manufactured three large
+ * effects that a wider bank overturned.
+ *
+ * Seating a factor is NOT a reason to move it, and is the strongest reason not
+ * to: regenerating after promoting a vote factor would put that factor into the
+ * opponents every future vote measurement is read against. The lag is the
+ * feature. The reasons that DO justify a new generation are validity failures,
+ * meaning this brain stops being constructible, or it stops exercising the
+ * channel being measured, or `full-role`'s scorer is replaced wholesale.
+ */
+const COMPOSED_OPPONENT = Object.freeze({
+  scorer: fullRolePolicyScorer,
+  roleObjectiveRouter: true as const,
+  evilQuestCardPolicy: 'robust-heterogeneous' as const,
+  beliefModel: questWeightedBeliefModel,
+})
+
+/**
+ * Names the frozen opponent in any result generated against it, so a quoted
+ * composed number carries the experiment it came from rather than relying on
+ * the reader to know which commit produced it.
+ */
+export const COMPOSED_OPPONENT_IDENTITY =
+  `full-role+${QUEST_WEIGHTED_BELIEF_VERSION}` as const
 
 /**
  * Every servant proposal in one played-out game. The game runs to its natural
@@ -194,10 +267,15 @@ async function collectFromGame(
       .filter((player) => ROLE_ALIGNMENT[player.role] === 'evil')
       .map((player) => player.seat),
   )
-  const agents = game.players.map((player) =>
-    population === 'random'
-      ? createRandomAgent({ seed, seat: player.seat })
-      : createHeuristicAgent({ seed, seat: player.seat }))
+  const agents = game.players.map((player) => {
+    if (population === 'random') {
+      return createRandomAgent({ seed, seat: player.seat })
+    }
+    if (population === 'composed') {
+      return createComposedAgent({ seed, ...COMPOSED_OPPONENT })
+    }
+    return createHeuristicAgent({ seed, seat: player.seat })
+  })
   for (let step = 0; step < 600; step++) {
     const pending = expectedDecisions(game)
     if (!pending.length) return
@@ -696,6 +774,10 @@ export async function runServantProposeCalibration(
     .filter((entry) => entry.input.readSeparates)
   return Object.freeze({
     version: SERVANT_PROPOSE_CALIBRATION_VERSION,
+    population,
+    opponent: population === 'composed'
+      ? COMPOSED_OPPONENT_IDENTITY
+      : population,
     cases: cases.length,
     base: base.metrics,
     candidate: candidate.metrics,
@@ -783,8 +865,12 @@ async function main(): Promise<void> {
       quiet: { type: 'boolean', default: false },
     },
   })
-  if (values.population !== 'heuristic' && values.population !== 'random') {
-    throw new Error('--population must be heuristic or random')
+  if (
+    values.population !== 'heuristic'
+    && values.population !== 'random'
+    && values.population !== 'composed'
+  ) {
+    throw new Error('--population must be heuristic, random or composed')
   }
   const seedsPer = values.seeds === undefined
     ? SERVANT_CALIBRATION_SEEDS_PER
