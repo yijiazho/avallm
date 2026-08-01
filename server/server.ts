@@ -61,7 +61,8 @@ import {
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
 import { renderTranscript, type TranscriptSeat } from './transcript.ts'
 import { tableAliases } from './table-aliases.ts'
-import { buildBotSeatPlans, type SeatedAgent } from './bot-seat-plan.ts'
+import { buildBotSeatPlans } from './bot-seat-plan.ts'
+import type { SeatedAgent } from './seated-agent.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'client', 'dist')

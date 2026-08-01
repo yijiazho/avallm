@@ -1,17 +1,6 @@
-import { agentDescriptor, publicInfo } from './agents/defs.ts'
-import type { AgentDef, AgentPublicInfo, TableSeat } from './agents/defs.ts'
+import type { AgentDef, TableSeat } from './agents/defs.ts'
 import type { Seat } from './engine/types.ts'
-
-/**
- * Game-lifetime snapshot of the implementation occupying one bot seat.
- * Session storage supplies the seat key; the game owns the public player name.
- */
-export interface SeatedAgent {
-  readonly def: AgentDef
-  readonly model?: string
-  readonly info: AgentPublicInfo
-  readonly descriptor: string
-}
+import { snapshotSeatedAgent, type SeatedAgent } from './seated-agent.ts'
 
 /**
  * Startup-only placement record. Seat and alias are consumed while creating the
@@ -73,17 +62,10 @@ export function buildBotSeatPlans({
   return rows.map(({ seat, tableSeat, alias }) => {
     // Snapshot the definition once. Library edits after game start must affect
     // future games only, while every consumer of this plan sees one identity.
-    const def = structuredClone(resolveDef(tableSeat))
-    const model = tableSeat.model
     return {
       seat,
       alias,
-      identity: {
-        def,
-        ...(model === undefined ? {} : { model }),
-        info: publicInfo(def, model),
-        descriptor: agentDescriptor(def, model),
-      },
+      identity: snapshotSeatedAgent(resolveDef(tableSeat), tableSeat.model),
     }
   })
 }

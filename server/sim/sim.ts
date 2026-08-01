@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { makeRng } from '../shared/prng.ts'
 import { createAgent, createAgentFromDef } from '../agents/registry.ts'
-import { agentDescriptor, loadAgentLibrary, publicInfo } from '../agents/defs.ts'
+import { loadAgentLibrary } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame, type RunResult } from './runner.ts'
@@ -20,7 +20,6 @@ import {
 import {
   SPEECH_NORMS, SPEECH_NORM_IDS, mergeSpeechNorms, newSpeechNormReport, speechNorms,
 } from '../eval/harness/norms.ts'
-import type { AgentDef, TableSeat } from '../agents/defs.ts'
 import {
   COMPOSED_BRAIN_PRESETS,
   type AgentContext,
@@ -34,6 +33,7 @@ import {
   type DecisionTrace,
 } from '../agents/trace.ts'
 import type { Game, Seat } from '../engine/types.ts'
+import { resolvePackSeatTable, type PackSeatTable } from './pack-table.ts'
 import { tableAliases } from '../table-aliases.ts'
 
 const USAGE = `npm run sim -- [flags]        headless Avalon simulator
@@ -166,8 +166,7 @@ function tierTableFor(seed: string): string[] | undefined {
 // ONCE (from --seed, not per game) so an aggregate run compares the same cast
 // across every seed; the random models handed to personality-only agents are
 // part of that table, not a per-game reroll.
-let packTable: TableSeat[] | undefined
-let packDefs: AgentDef[] | undefined
+let packTable: PackSeatTable | undefined
 if (values.pack) {
   const lib = loadAgentLibrary()
   const pack = lib.packs.find((p) => p.id === values.pack)
@@ -176,14 +175,15 @@ if (values.pack) {
     throw new Error(`unknown pack: ${values.pack} — known packs: ${known}`)
   }
   for (const p of lib.problems) console.warn(`[agents] ${p.file}: ${p.reason}`)
-  packTable = seatPack(pack, playerCount, lib.agents, makeRng(`${values.seed}:pack`))
+  let table = seatPack(pack, playerCount, lib.agents, makeRng(`${values.seed}:pack`))
   // --model means "force EVERY seat onto one roster id", so it outranks both
   // the roll seatPack deals a personality-only agent and any model a member's
   // def suggests: a pack on one model isolates persona from model spread.
-  if (forcedModel) packTable = packTable.map((t) => ({ agent: t.agent, model: forcedModel }))
-  packDefs = packTable.map((t) => lib.agents.find((a) => a.id === t.agent)!)
+  if (forcedModel) table = table.map((seat) => ({ agent: seat.agent, model: forcedModel }))
+  packTable = resolvePackSeatTable(table, lib.agents)
   if (!values.quiet) {
-    const seats = packTable.map((t, i) => `${packDefs![i]!.name}${t.model ? ` (${t.model})` : ''}`)
+    const seats = packTable.identities.map((identity) =>
+      `${identity.info.name}${identity.model ? ` (${identity.model})` : ''}`)
     console.log(`pack "${pack.name}": ${seats.join(', ')}`)
   }
 }
@@ -273,7 +273,10 @@ function resolveTablePlan(seed: string): TablePlan {
   }
 
   const agent = (seat: Seat, ctx: AgentContext): AvalonAgent => {
-    if (packTable && packDefs) return createAgentFromDef(packDefs[seat]!, ctx, packTable[seat]!.model)
+    if (packTable) {
+      const identity = packTable.identityAt(seat)
+      return createAgentFromDef(identity.def, ctx, identity.model)
+    }
     return createAgent(spec(seat), ctx)
   }
 
@@ -283,12 +286,7 @@ function resolveTablePlan(seed: string): TablePlan {
 
   // What actually sat in a seat for the replayable evaluation artifact.
   const descriptor = (seat: Seat): string => {
-    if (packTable && packDefs) {
-      const def = packDefs[seat]
-      const tableSeat = packTable[seat]
-      if (!def || !tableSeat) throw new Error(`missing pack seat ${seat}`)
-      return agentDescriptor(def, tableSeat.model)
-    }
+    if (packTable) return packTable.identityAt(seat).descriptor
     const s = spec(seat)
     if (s.type === 'llm') return `llm:${s.model}`
     if (s.type === 'composed') return `composed:${s.brain}`
@@ -296,8 +294,8 @@ function resolveTablePlan(seed: string): TablePlan {
   }
 
   const transcriptIdentity = (seat: Seat): { agent: string; model?: string } => {
-    if (packTable && packDefs) {
-      const info = publicInfo(packDefs[seat]!, packTable[seat]!.model)
+    if (packTable) {
+      const info = packTable.identityAt(seat).info
       return { agent: info.name, model: info.model }
     }
     const s = spec(seat)
