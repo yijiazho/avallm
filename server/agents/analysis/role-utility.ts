@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import { proposalVotes } from '../../engine/rules.ts'
 import type {
   DecisionRequest,
   PlayerView,
@@ -42,6 +41,7 @@ import {
   exactHostJoin,
   projectionCodec,
 } from './projection-codec.ts'
+import { publicSeatSalience } from './public-seat-salience.ts'
 
 export const ROLE_UTILITY_PROJECTION_VERSION =
   'merlin-percival-role-utility-v1'
@@ -204,31 +204,6 @@ function percivalRoleValueFrom(
   )
 }
 
-function ownPublicSalience(
-  observer: PublicObserverSnapshot,
-  viewerSeat: Seat,
-  record: ReturnType<typeof projectPublicRecord>,
-): number {
-  const own = observer.seats[viewerSeat]
-  if (!own) throw new Error('role utility observer lacks the viewer seat')
-  const completedVote = record.proposals.some(
-    (proposal) => proposalVotes(proposal).length === record.playerCount,
-  )
-  const behavior = own.behavior
-  // Approval direction is only meaningful after at least one complete public
-  // ballot. Before then it contributes exactly zero instead of treating the
-  // observer's zero default as an extreme vote.
-  const approvalSalience = completedVote
-    ? Math.abs(behavior.approvalIndex - 0.5) * 2
-    : 0
-  const behaviorSalience = (
-    behavior.proposalSelectionIndex
-    + behavior.failedQuestExposureIndex
-    + approvalSalience
-  ) / 3
-  return clamp01((own.goodProbability + behaviorSalience) / 2)
-}
-
 function assessmentMap(
   objective: PrivateRoleObjectiveSnapshot,
 ): ReadonlyMap<string, MerlinCandidateObjective | PercivalCandidateObjective> {
@@ -292,7 +267,9 @@ function buildRoleUtilityProjectionInternal(
     throw new Error('role utility candidate lacks a public team commitment')
   })
   const publicTeams = assessPublicJointTeams(publicRecord, teams)
-  const ownSalience = ownPublicSalience(observer, view.seat, publicRecord)
+  const own = observer.seats[view.seat]
+  if (!own) throw new Error('role utility observer lacks the viewer seat')
+  const ownSalience = publicSeatSalience(own, publicRecord)
   const failsRequired = view.quests[view.round - 1]?.failsRequired
   if (failsRequired !== 1 && failsRequired !== 2) {
     throw new Error('role utility lacks a legal quest failure threshold')

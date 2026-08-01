@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import { ROLE_ALIGNMENT, proposalVotes } from '../../engine/rules.ts'
+import { ROLE_ALIGNMENT } from '../../engine/rules.ts'
 import { merlinCandidatesOf } from '../../engine/knowledge.ts'
 import type {
   Decision,
@@ -68,6 +68,7 @@ import {
   exactHostJoin,
   projectionCodec,
 } from './projection-codec.ts'
+import { publicSeatSalience } from './public-seat-salience.ts'
 
 const boundedIndex = (value: unknown): value is number =>
   typeof value === 'number'
@@ -219,25 +220,6 @@ function percivalProxies(args: {
   }
 }
 
-function ownPublicSalience(
-  observer: PublicObserverSnapshot,
-  seat: Seat,
-  hasCompletedPublicVote: boolean,
-): number {
-  const own = observer.seats[seat]!
-  const behavior = own.behavior
-  const behaviorSalience = (
-    behavior.proposalSelectionIndex
-    + behavior.failedQuestExposureIndex
-    + (
-      hasCompletedPublicVote
-        ? Math.abs(behavior.approvalIndex - 0.5) * 2
-        : 0
-    )
-  ) / 3
-  return clamp01((own.goodProbability + behaviorSalience) / 2)
-}
-
 function publicRoleOnTeamProbability(
   observer: PublicObserverSnapshot,
   team: readonly Seat[],
@@ -273,7 +255,7 @@ function merlinAssessments(
   viewerSeat: Seat,
   publicTeams: readonly PublicJointTeamAssessment[],
   failsRequired: number,
-  hasCompletedPublicVote: boolean,
+  publicRecord: ReturnType<typeof projectPublicRecord>,
 ): readonly MerlinCandidateObjective[] {
   const hidden = identity.hiddenTeamPosterior
   if (!hidden) throw new Error('Merlin objective requires a hidden-team posterior')
@@ -318,10 +300,9 @@ function merlinAssessments(
       conspicuousnessIndex: conspicuousness,
       assassinExposureProxyIndex: clamp01(
         (
-          ownPublicSalience(
-            observer,
-            viewerSeat,
-            hasCompletedPublicVote,
+          publicSeatSalience(
+            observer.seats[viewerSeat]!,
+            publicRecord,
           )
           + conspicuousness
         ) / 2,
@@ -539,9 +520,6 @@ export function buildRoleObjectiveSnapshot(input: {
     publicRecord,
     commitments.map((candidate) => candidate.team!),
   )
-  const hasCompletedPublicVote = publicRecord.proposals.some(
-    (proposal) => proposalVotes(proposal).length === publicRecord.playerCount,
-  )
   const failsRequired = view.quests[view.round - 1]?.failsRequired
   if (failsRequired !== 1 && failsRequired !== 2) {
     throw new Error('role objective requires the current quest failure threshold')
@@ -579,7 +557,7 @@ export function buildRoleObjectiveSnapshot(input: {
           view.seat,
           publicTeams,
           failsRequired,
-          hasCompletedPublicVote,
+          publicRecord,
         ),
       },
     }
