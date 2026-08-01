@@ -5,7 +5,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { runCoverEffectDiagnostic } from '../../server/eval/runs/cover-effect.ts'
+import {
+  runComposedCoverEffectDiagnostic,
+  runCoverEffectDiagnostic,
+} from '../../server/eval/runs/cover-effect.ts'
 
 test('cover-effect diagnostic reports bounded hit-rates by decoy density', () => {
   const result = runCoverEffectDiagnostic({ seedsPer: 10 })
@@ -25,4 +28,23 @@ test('cover-effect diagnostic reports bounded hit-rates by decoy density', () =>
     totalShots += slice.shots
   }
   assert.equal(totalShots, result.shots)
+})
+
+test('composed cover-effect diagnostic reports bounded, consistent slices', async () => {
+  const result = await runComposedCoverEffectDiagnostic({ games: 12, playerCount: 5 })
+
+  assert.equal(result.version, 'cover-effect-v1')
+  let totalShots = 0
+  for (const slice of result.byDecoyDensity) {
+    assert.ok(['1', '2', '3+'].includes(slice.decoyDensity))
+    assert.ok(slice.shots > 0)
+    assert.ok(slice.assassinHitRate >= 0 && slice.assassinHitRate <= 1)
+    assert.ok(
+      slice.meanTrueMerlinConfidence >= 0
+      && slice.meanTrueMerlinConfidence <= 1,
+    )
+    totalShots += slice.shots
+  }
+  assert.equal(totalShots, result.shots)
+  if (result.shots > 0) assert.ok(result.meanDecoyDensity >= 1)
 })

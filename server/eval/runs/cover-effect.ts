@@ -11,9 +11,29 @@
 // assassin-calibration views (heuristic self-play to assassination). API-free.
 
 import { pathToFileURL } from 'node:url'
+import {
+  applyDecision,
+  createGame,
+  expectedDecisions,
+} from '../../engine/game.ts'
+import { viewFor } from '../../engine/view.ts'
+import { createAgent } from '../../agents/registry.ts'
 import { generateAssassinCalibrationViews } from './assassin-calibration.ts'
 import { buildPrivateEvilSeatMerlinPosterior } from '../../agents/analysis/assassin-merlin-posterior.ts'
 import { exactBelief } from '../../agents/belief/exact.ts'
+import type { AvalonAgent } from '../../agents/types.ts'
+import type { PlayerView, Seat, TalkConfig } from '../../engine/types.ts'
+
+const SILENT_TALK: TalkConfig = {
+  maxRounds: 0,
+  maxRoundsAfterChange: 0,
+  leaderInDiscussion: 'none',
+}
+
+interface AssassinationView {
+  readonly view: PlayerView
+  readonly merlinSeat: Seat
+}
 
 export const COVER_EFFECT_VERSION = 'cover-effect-v1'
 
@@ -38,10 +58,8 @@ export interface CoverEffectResult {
   readonly byDecoyDensity: readonly DensitySlice[]
 }
 
-export function runCoverEffectDiagnostic(
-  options: { seedsPer?: number } = {},
-): CoverEffectResult {
-  const cases = generateAssassinCalibrationViews(options.seedsPer ?? 100)
+/** Score the crowdedness-vs-accuracy relationship over assassin shot views. */
+function scoreCover(cases: readonly AssassinationView[]): CoverEffectResult {
   const buckets = new Map<string, { shots: number; hits: number; confidence: number }>()
   let densitySum = 0
   let shots = 0
@@ -107,10 +125,80 @@ export function runCoverEffectDiagnostic(
   }
 }
 
+/** Heuristic self-play (forced-success to reach assassination), the noisy regime. */
+export function runCoverEffectDiagnostic(
+  options: { seedsPer?: number } = {},
+): CoverEffectResult {
+  return scoreCover(generateAssassinCalibrationViews(options.seedsPer ?? 100))
+}
+
+/**
+ * Composed self-play to the assassination point: every seat the full-role
+ * mechanical stack, quests played out naturally, the assassin's view captured
+ * the moment before it shoots. Only good-winning games reach assassination, and
+ * those are exactly the games where a shot is taken.
+ */
+async function generateComposedAssassinationViews(
+  games: number,
+  playerCount: number,
+  seedBase: string,
+): Promise<AssassinationView[]> {
+  const out: AssassinationView[] = []
+  for (let index = 0; index < games; index++) {
+    const seed = `${seedBase}-${index}`
+    const game = createGame({ seed, playerCount, talk: SILENT_TALK })
+    const merlinSeat = game.players.find((p) => p.role === 'merlin')!.seat
+    const assassinSeat = game.players.find((p) => p.role === 'assassin')?.seat
+    if (assassinSeat === undefined) continue
+    const agents = new Map<Seat, AvalonAgent>()
+    for (const player of game.players) {
+      agents.set(player.seat, createAgent({ type: 'composed', brain: 'full-role' }, { seed, seat: player.seat }))
+    }
+    let guard = 0
+    while (
+      game.phase !== 'assassination'
+      && game.phase !== 'gameOver'
+      && guard++ < 400
+    ) {
+      const reqs = expectedDecisions(game)
+      if (!reqs.length) break
+      for (const req of reqs) {
+        const decision = (await agents.get(req.seat)!.decide(req, viewFor(game, req.seat))).decision
+        applyDecision(game, req.seat, decision)
+      }
+    }
+    if (game.phase === 'assassination') {
+      out.push({ view: viewFor(game, assassinSeat), merlinSeat })
+    }
+  }
+  return out
+}
+
+// Composed self-play, the clean regime. It does NOT collapse the top to a
+// single candidate: measured mean density stays ~3.3 (vs ~3.9 heuristic), still
+// mostly crowded. What composed play changes is the assassin's read SHARPNESS -
+// it hits harder at every density (see role-scorecard memory) - not Merlin
+// standing alone. The density->accuracy gradient itself holds in both regimes.
+export async function runComposedCoverEffectDiagnostic(
+  options: { games?: number; playerCount?: number; seedBase?: string } = {},
+): Promise<CoverEffectResult> {
+  return scoreCover(await generateComposedAssassinationViews(
+    options.games ?? 60,
+    options.playerCount ?? 7,
+    options.seedBase ?? 'cover-effect-composed',
+  ))
+}
+
 if (
   process.argv[1]
   && import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   const seedsPer = Number(process.argv[2] ?? 100)
-  console.log(JSON.stringify(runCoverEffectDiagnostic({ seedsPer }), null, 2))
+  // Composed games are real agent playthroughs (slow); keep the default modest
+  // and take its own arg rather than reusing the heuristic per-cast seed count.
+  const composedGames = Number(process.argv[3] ?? 40)
+  const heuristic = runCoverEffectDiagnostic({ seedsPer })
+  runComposedCoverEffectDiagnostic({ games: composedGames }).then((composed) => {
+    console.log(JSON.stringify({ heuristic, composed }, null, 2))
+  })
 }
