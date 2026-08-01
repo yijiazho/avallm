@@ -19,6 +19,7 @@ export interface TranscriptSeat {
   seat: Seat
   name: string
   agent: string          // 'human' or the agent-card/implementation identity
+  descriptor?: string    // exact replay identity, such as def:probabilistic-llm:llm:kimi
   model?: string         // resolved model slug, 'rule-based', or 'probabilistic'
   role?: Role            // present only when the transcript is a full reveal
   alignment?: Alignment
@@ -101,15 +102,15 @@ export function renderTranscript(input: TranscriptInput): string {
   out.push('## Seats')
   out.push('')
   if (input.revealed) {
-    out.push('| # | name | agent | model | role | align |')
-    out.push('| - | ---- | ----- | ----- | ---- | ----- |')
+    out.push('| # | name | agent | execution | model | role | align |')
+    out.push('| - | ---- | ----- | --------- | ----- | ---- | ----- |')
     for (const s of input.seats) {
-      out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.model ?? '—'} | ${s.role ?? '?'} | ${s.alignment ?? '?'} |`)
+      out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.descriptor ?? s.agent} | ${s.model ?? '—'} | ${s.role ?? '?'} | ${s.alignment ?? '?'} |`)
     }
   } else {
-    out.push('| # | name | agent | model |')
-    out.push('| - | ---- | ----- | ----- |')
-    for (const s of input.seats) out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.model ?? '—'} |`)
+    out.push('| # | name | agent | execution | model |')
+    out.push('| - | ---- | ----- | --------- | ----- |')
+    for (const s of input.seats) out.push(`| ${s.seat} | ${s.name} | ${s.agent} | ${s.descriptor ?? s.agent} | ${s.model ?? '—'} |`)
   }
   out.push('')
 

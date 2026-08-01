@@ -3,7 +3,7 @@
 // layers reach the system prompt, and the engine-owned parts stay fixed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { builtinDefs, parseTableSeat, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
+import { agentDescriptor, builtinDefs, parseTableSeat, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
 import { createAgentFromDef } from '../../server/agents/registry.ts'
 import { DEFAULT_MODEL, ROSTER, rosterById } from '../../server/llm/roster.ts'
 import type { OpenRouterClient } from '../../server/llm/openrouter.ts'
@@ -111,6 +111,20 @@ test('resolveModel precedence: seat override > def suggestion > DEFAULT_MODEL', 
   assert.equal(resolveModel(noModel, 'kimi'), 'kimi')
   // The override also drives the transparency badge.
   assert.equal(publicInfo(withModel, 'gemini-flash-lite').model, rosterById('gemini-flash-lite').slug)
+})
+
+test('artifact descriptors distinguish raw and probabilistic LLM seats on the same model', () => {
+  const defs = builtinDefs()
+  const raw = defs.find((def) => def.id === 'kimi')!
+  const hybrid = defs.find((def) => def.id === 'probabilistic-llm')!
+  const deterministic = defs.find((def) => def.id === 'probabilistic')!
+
+  assert.equal(agentDescriptor(raw), 'llm:kimi')
+  assert.equal(
+    agentDescriptor(hybrid, 'kimi'),
+    'def:probabilistic-llm:llm:kimi',
+  )
+  assert.equal(agentDescriptor(deterministic), 'def:probabilistic')
 })
 
 test('parseTableSeat accepts both wire shapes and rejects bad overrides', () => {

@@ -63,7 +63,7 @@ export interface ArtifactPlayer {
   name: string
   role: Role
   alignment: Alignment
-  agent: string // descriptor: 'heuristic' | 'random' | 'llm:<roster id>' | 'def:<agent id>' | 'human'
+  agent: string // descriptor: 'heuristic' | 'random' | 'llm:<model>' | 'def:<agent id>[:llm:<model>]' | 'human'
 }
 
 export interface ArchitectureRunMetadata {
@@ -264,6 +264,13 @@ function sortedUnique(values: readonly (string | undefined)[]): string[] {
   ))].sort()
 }
 
+function modelFromAgentDescriptor(agent: string): string | undefined {
+  if (agent.startsWith('llm:')) return agent.slice('llm:'.length)
+  const marker = ':llm:'
+  const at = agent.lastIndexOf(marker)
+  return at < 0 ? undefined : agent.slice(at + marker.length)
+}
+
 function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
   const traces = opts.decisionTraces ?? []
   const architecture = opts.architecture?.components ?? {}
@@ -349,8 +356,7 @@ function strategyVersions(opts: ToArtifactOpts): ArtifactStrategyVersions {
     agentDescriptors: sortedUnique(opts.agents),
     models: sortedUnique([
       architecture.model,
-      ...opts.agents.map((agent) =>
-        agent.startsWith('llm:') ? agent.slice('llm:'.length) : undefined),
+      ...opts.agents.map(modelFromAgentDescriptor),
     ]),
     prompts: sortedUnique([
       architecture.prompt,

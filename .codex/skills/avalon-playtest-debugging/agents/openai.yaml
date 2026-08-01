@@ -1,0 +1,4 @@
+interface:
+  display_name: "Avalon Playtest Debugging"
+  short_description: "Audit Avalon playtests and maintain the issue ledger"
+  default_prompt: "Use $avalon-playtest-debugging to audit this Avalon transcript or artifact and update the prioritized issue ledger."

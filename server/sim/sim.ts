@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util'
 import { createGame } from '../engine/game.ts'
 import { makeRng } from '../shared/prng.ts'
 import { createAgent, createAgentFromDef } from '../agents/registry.ts'
-import { engineUsesModel, loadAgentLibrary, publicInfo } from '../agents/defs.ts'
+import { agentDescriptor, loadAgentLibrary, publicInfo } from '../agents/defs.ts'
 import { randomModels, seatPack } from '../agents/packs.ts'
 import { ROSTER, rosterById } from '../llm/roster.ts'
 import { runGame, type RunResult } from './runner.ts'
@@ -283,10 +283,7 @@ function resolveTablePlan(seed: string): TablePlan {
   // What actually sat in a seat for the replayable evaluation artifact.
   const descriptor = (seat: Seat): string => {
     if (packTable && packDefs) {
-      const engine = packDefs[seat].engine
-      const model = packTable[seat].model
-        ?? (engineUsesModel(engine) ? engine.model : undefined)
-      return `${packDefs[seat].id}${model ? `:${model}` : ''}`
+      return agentDescriptor(packDefs[seat], packTable[seat].model)
     }
     const s = spec(seat)
     if (s.type === 'llm') return `llm:${s.model}`
@@ -385,6 +382,7 @@ function writeTranscript(
       seat: p.seat,
       name: p.name,
       ...plan.transcriptIdentity(p.seat),
+      descriptor: plan.descriptor(p.seat),
       role: p.role,
       alignment: p.alignment,
     })),

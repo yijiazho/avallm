@@ -36,7 +36,7 @@ import { appendArtifact, toArtifact } from './eval/core/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
 import { createAgentFromDef } from './agents/registry.ts'
-import { AGGREGATE_CAP, FIELD_CAP, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
+import { AGGREGATE_CAP, FIELD_CAP, agentDescriptor, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
 import { loadEnv } from './llm/env.ts'
 import type { AgentDef, AgentPublicInfo, LibraryProblem, LlmEngine, TableSeat } from './agents/defs.ts'
 import type { ResolvedPack } from './agents/packs.ts'
@@ -380,7 +380,7 @@ function startLobby(l: Lobby): void {
     usedNames.add(normalizeName(chosen))
     return chosen
   }
-  const botInfo: Record<number, AgentPublicInfo> = {}
+  const seatedAgents: Record<number, SeatedAgent> = {}
   const agents = new Map<Seat, AvalonAgent>()
   const decisionTraces: DecisionTrace[] = []
   // Deep-copy each seat's def PLUS its seat model override: the reveal (and,
@@ -388,7 +388,6 @@ function startLobby(l: Lobby): void {
   // a PUT or DELETE mid-game only affects future games (design doc §5). The
   // def is kept raw — overwriting engine.model would erase the distinction
   // between "def suggested X" and "host overrode to X".
-  const agentDefs: Record<number, { def: AgentDef; model?: string }> = {}
   const seed = `web-${newId()}`
   const humans = new Map<Seat, { token: string; name: string }>()
   l.members.forEach((m, i) => {
@@ -400,12 +399,18 @@ function startLobby(l: Lobby): void {
   // Agent-card names and model labels remain metadata. Only these aliases enter
   // PlayerView and therefore natural-language prompts and table talk.
   botSeatList.forEach((seat, i) => {
-    const def = defs[i]
+    const def = structuredClone(defs[i])
+    const model = table[i].model
     names[seat] = reserve(aliases[i])
-    // publicInfo gets the seat's model override so the in-game badge shows the
-    // model that actually answers. Its name remains the agent definition name.
-    botInfo[seat] = publicInfo(def, table[i].model)
-    agentDefs[seat] = { def: structuredClone(def), model: table[i].model }
+    // One game-start identity feeds the live agent, client badge, reveal,
+    // transcript, and artifact. Never reduce it to a model slug: a raw model
+    // card and a composed agent can call the same model.
+    seatedAgents[seat] = {
+      def,
+      model,
+      info: publicInfo(def, model),
+      descriptor: agentDescriptor(def, model),
+    }
   })
   // No talk override: this restated the engine default verbatim, so the shipped
   // pacing lived in two files that had to be edited together and nothing checked
@@ -413,21 +418,22 @@ function startLobby(l: Lobby): void {
   const game = createGame({
     seed, playerCount, names, roles: l.config.roles,
   })
-  botSeatList.forEach((seat, i) => {
+  botSeatList.forEach((seat) => {
+    const seated = seatedAgents[seat]
     agents.set(seat, createAgentFromDef(
-      defs[i],
+      seated.def,
       {
         seed,
         seat,
         onDecisionTrace: (trace) => upsertDecisionTrace(decisionTraces, trace),
       },
-      table[i].model,
+      seated.model,
     ))
   })
 
   const id = newId()
   const session: Session = {
-    game, agents, humans, botInfo, agentDefs, decisionTraces,
+    game, agents, humans, seatedAgents, decisionTraces,
     spectators: new Set(l.spectators.map((s) => s.token)),
     waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0, artifactWritten: false,
     listeners: new Set(), pumping: false,
@@ -446,8 +452,7 @@ interface Session {
   agents: Map<Seat, AvalonAgent>                       // bot seats
   humans: Map<Seat, { token: string; name: string }>
   spectators: Set<string>                              // spectator tokens
-  botInfo: Record<number, AgentPublicInfo>
-  agentDefs: Record<number, { def: AgentDef; model?: string }>  // def snapshots + seat overrides, taken at game start
+  seatedAgents: Record<number, SeatedAgent>
   waiting: DecisionRequest[]                           // pending HUMAN asks (any seat)
   acting: Seat[]
   degraded: {
@@ -464,13 +469,20 @@ interface Session {
   artifactWritten: boolean // one artifact per game, however often pump re-enters
 }
 
+interface SeatedAgent {
+  def: AgentDef
+  model?: string
+  info: AgentPublicInfo
+  descriptor: string
+}
+
 const sessions = new Map<string, Session>()
 
 // What actually sat in a seat. ONE definition, shared by the post-game artifact
 // and the debug transcript, so the two can never disagree about who played (the
 // same reason the sim has seatDescriptor).
 function seatAgentLabel(s: Session, seat: Seat): string {
-  return s.humans.has(seat) ? 'human' : (s.botInfo[seat]?.model ?? 'bot')
+  return s.humans.has(seat) ? 'human' : (s.seatedAgents[seat]?.descriptor ?? 'bot')
 }
 
 // ---------- post-game artifacts ----------
@@ -537,7 +549,9 @@ function payloadFor(s: Session, token: string) {
     waitingOn: s.waiting.map((w) => s.humans.get(w.seat)?.name ?? `seat ${w.seat}`),
     degraded: s.degraded.length,
     degradedSeqs: s.degradedSeqs,
-    bots: s.botInfo,
+    bots: Object.fromEntries(
+      Object.entries(s.seatedAgents).map(([seat, seated]) => [seat, seated.info]),
+    ),
     spectator,
   }
 }
@@ -886,7 +900,7 @@ const server = http.createServer(async (req, res) => {
           // The configs that actually played (def snapshots from game start,
           // immune to library edits/deletes) — full transparency post-game.
           agents: Object.fromEntries(
-            Object.entries(s.agentDefs).map(([seat, snap]) => [seat, publicInfo(snap.def, snap.model)]),
+            Object.entries(s.seatedAgents).map(([seat, seated]) => [seat, seated.info]),
           ),
         })
         return
@@ -915,9 +929,10 @@ const server = http.createServer(async (req, res) => {
         const seats: TranscriptSeat[] = s.game.players.map((p) => ({
           seat: p.seat,
           name: p.name,
-          agent: s.humans.has(p.seat) ? 'human' : (s.botInfo[p.seat]?.name ?? 'bot'),
-          ...(!s.humans.has(p.seat) && s.botInfo[p.seat]
-            ? { model: s.botInfo[p.seat].model }
+          agent: s.humans.has(p.seat) ? 'human' : (s.seatedAgents[p.seat]?.info.name ?? 'bot'),
+          descriptor: s.humans.has(p.seat) ? 'human' : (s.seatedAgents[p.seat]?.descriptor ?? 'bot'),
+          ...(!s.humans.has(p.seat) && s.seatedAgents[p.seat]
+            ? { model: s.seatedAgents[p.seat].info.model }
             : {}),
           ...(full ? { role: p.role, alignment: p.alignment } : {}),
         }))

@@ -25,7 +25,7 @@ async function finishedGame(seed = 'transcript', playerCount = 5) {
 
 function seatsFor(game: Awaited<ReturnType<typeof finishedGame>>, revealed: boolean): TranscriptSeat[] {
   return game.players.map((p) => ({
-    seat: p.seat, name: p.name, agent: 'Rule-based', model: 'rule-based',
+    seat: p.seat, name: p.name, agent: 'Rule-based', descriptor: 'heuristic', model: 'rule-based',
     ...(revealed ? { role: p.role, alignment: p.alignment } : {}),
   }))
 }
@@ -106,10 +106,12 @@ after(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
 
-async function newSoloGame() {
+async function newSoloGame(
+  table: string[] = ['autopilot', 'autopilot', 'autopilot', 'autopilot'],
+) {
   const res = await fetch(`${base}/api/game/new`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerCount: 5, table: ['autopilot', 'autopilot', 'autopilot', 'autopilot'], humanName: 'Tester' }),
+    body: JSON.stringify({ playerCount: 5, table, humanName: 'Tester' }),
   })
   return res.json() as Promise<{ id: string; token: string }>
 }
@@ -122,8 +124,21 @@ test('a lone human gets a mid-game FULL REVEAL transcript', async () => {
   const text = await r.text()
   assert.match(text, /FULL REVEAL/) // solo table: nobody to cheat
   assert.match(text, /# Avalon debug transcript/)
-  assert.match(text, /\| name \| agent \| model \| role \|/)
-  assert.match(text, /\| Rule-based \| rule-based \|/)
+  assert.match(text, /\| name \| agent \| execution \| model \| role \|/)
+  assert.match(text, /\| Rule-based \| heuristic \| rule-based \|/)
+})
+
+test('HTTP transcript preserves the definition apart from its display model', async () => {
+  const { id, token } = await newSoloGame([
+    'probabilistic', 'autopilot', 'autopilot', 'autopilot',
+  ])
+  const r = await fetch(`${base}/api/game/${id}/transcript?token=${token}`)
+  assert.equal(r.status, 200)
+  const text = await r.text()
+  assert.match(
+    text,
+    /\| Probabilistic \| def:probabilistic \| probabilistic \|/,
+  )
 })
 
 test('/transcript rejects a wrong token mid-game', async () => {

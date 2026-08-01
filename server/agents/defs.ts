@@ -68,6 +68,27 @@ export function resolveModel(def: AgentDef, override?: string): string {
   return override ?? def.engine.model ?? DEFAULT_MODEL
 }
 
+// Stable, replay-oriented identity for the implementation that occupied a
+// seat. PublicInfo is deliberately presentation-shaped (its model is an
+// OpenRouter slug and several definitions can share it), so it cannot serve as
+// artifact provenance. Keep both the definition id and the resolved roster id
+// for model-backed definitions; raw built-in model cards retain the compact
+// historical `llm:<model>` form.
+export function agentDescriptor(def: AgentDef, modelOverride?: string): string {
+  if (def.engine.type === 'heuristic') {
+    return def.id === 'autopilot' ? 'heuristic' : `def:${def.id}`
+  }
+  if (!engineUsesModel(def.engine)) return `def:${def.id}`
+
+  const model = resolveModel(def, modelOverride)
+  const rawBuiltinModel = def.engine.type === 'llm'
+    && def.tier === 'builtin'
+    && ROSTER.some((entry) => entry.id === def.id)
+  return rawBuiltinModel
+    ? `llm:${model}`
+    : `def:${def.id}:llm:${model}`
+}
+
 // The one place that maps an llm engine config to the prompt layers
 // buildMessages consumes. Every path that renders a def's prompt — live play
 // (registry.ts), the editor preview (server.ts), and eval bank replay
