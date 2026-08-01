@@ -21,7 +21,6 @@ import type { PublicRecord } from '../record/public-record.ts'
 import { projectionCodec } from './projection-codec.ts'
 import {
   MORGANA_COUNTERFEIT_PUBLIC_READ_VERSION,
-  type CounterfeitObservationFraction,
   type PublicCounterfeitMerlinRead,
   type PublicCounterfeitMerlinReadSnapshot,
 } from './morgana-counterfeit-types.ts'
@@ -36,17 +35,10 @@ import {
   closeProbability as close,
   latticeCount,
 } from '../canonical/probability-arithmetic.ts'
-
-function fraction(
-  numerator: number,
-  denominator: number,
-): CounterfeitObservationFraction {
-  return {
-    numerator,
-    denominator,
-    index: denominator === 0 ? null : numerator / denominator,
-  }
-}
+import {
+  observationFraction,
+  validObservationFraction,
+} from './observation-fraction.ts'
 
 interface TruthCounts {
   proposalHits: number
@@ -134,12 +126,12 @@ export function buildPublicCounterfeitMerlinRead(
     throw new Error('counterfeit public read requires Merlin in the public cast')
   }
   const seats = counts.map((entry, seat): PublicCounterfeitMerlinRead => {
-    const proposal = fraction(
+    const proposal = observationFraction(
       entry.proposalHits,
       entry.proposalObservations,
     )
-    const vote = fraction(entry.voteHits, entry.voteObservations)
-    const total = fraction(
+    const vote = observationFraction(entry.voteHits, entry.voteObservations)
+    const total = observationFraction(
       entry.proposalHits + entry.voteHits,
       entry.proposalObservations + entry.voteObservations,
     )
@@ -173,25 +165,6 @@ export function buildPublicCounterfeitMerlinRead(
     feasibleWorldCount: observer.feasibleWorldCount,
     seats,
   }
-}
-
-function validFraction(value: unknown): value is CounterfeitObservationFraction {
-  if (!plainRecord(value)) return false
-  if (
-    !exactKeys(value, ['numerator', 'denominator', 'index'])
-    || !Number.isSafeInteger(value.numerator)
-    || !Number.isSafeInteger(value.denominator)
-    || (value.numerator as number) < 0
-    || (value.denominator as number) < (value.numerator as number)
-  ) return false
-  if (value.denominator === 0) {
-    return value.numerator === 0 && value.index === null
-  }
-  return probability(value.index)
-    && close(
-      value.index,
-      (value.numerator as number) / (value.denominator as number),
-    )
 }
 
 /**
@@ -232,9 +205,9 @@ export function validReadRow(
     || !probability(value.merlinProbability)
     || !probability(value.relativeMerlinEligibilityIndex)
     || value.observationSemantics !== 'public-counts-no-data-is-null'
-    || !validFraction(value.proposalTruthTracking)
-    || !validFraction(value.voteTruthTracking)
-    || !validFraction(value.totalTruthTracking)
+    || !validObservationFraction(value.proposalTruthTracking)
+    || !validObservationFraction(value.voteTruthTracking)
+    || !validObservationFraction(value.totalTruthTracking)
     || value.proxySemantics
       !== 'bounded-deterministic-proxy-not-role-probability'
     || !probability(value.smoothedTruthTrackingIndex)

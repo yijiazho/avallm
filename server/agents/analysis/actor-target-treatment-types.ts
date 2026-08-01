@@ -1,5 +1,5 @@
 import type { Seat } from '../../engine/types.ts'
-import type { ObservationFraction } from './situation-types.ts'
+import type { ObservationFraction } from './observation-fraction.ts'
 
 export const ACTOR_TARGET_TREATMENT_READ_VERSION =
   'public-actor-target-treatment-read-v1'

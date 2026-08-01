@@ -35,7 +35,6 @@ import {
   type EvilCandidateObjective,
   type EvilObjectiveRole,
   type EvilRolePosture,
-  type ObservationFraction,
   type PrivateEvilRoleObjectiveSnapshot,
   type PublicEvilStanding,
   EVIL_OBJECTIVE_ROLES,
@@ -61,6 +60,11 @@ import {
   latticeCount,
   PROBABILITY_TOLERANCE,
 } from '../canonical/probability-arithmetic.ts'
+import {
+  observationFraction,
+  type ObservationFraction,
+  validObservationFraction,
+} from './observation-fraction.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
@@ -69,14 +73,6 @@ const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
   mordred: 'mordred-deep-cover',
   minion: 'minion-failure-banking',
   oberon: 'oberon-uncoordinated-disruption',
-}
-
-function fraction(numerator: number, denominator: number): ObservationFraction {
-  return {
-    numerator,
-    denominator,
-    index: denominator === 0 ? null : numerator / denominator,
-  }
 }
 
 function availableMean(values: readonly (number | null)[]): number | null {
@@ -129,19 +125,19 @@ function publicStanding(
   const allVotes = record.proposals.flatMap((proposal) => proposalVotes(proposal))
   return observer.seats.map((assessment) => {
     const seat = assessment.seat
-    const selected = fraction(
+    const selected = observationFraction(
       record.proposals.filter((proposal) => proposal.team.includes(seat)).length,
       record.proposals.length,
     )
     const seatVotes = allVotes.filter((vote) => vote.seat === seat)
-    const approval = fraction(
+    const approval = observationFraction(
       seatVotes.filter((vote) => vote.vote === 'approve').length,
       seatVotes.length,
     )
     const questExposure = record.quests.filter(
       (quest) => quest.result !== undefined && quest.team?.includes(seat),
     )
-    const failedQuestExposure = fraction(
+    const failedQuestExposure = observationFraction(
       questExposure.filter((quest) => quest.result === 'fail').length,
       questExposure.length,
     )
@@ -728,28 +724,7 @@ function validatePublicStandingEntry(
     'approval',
     'failedQuestExposure',
   ] as const) {
-    const fraction = standing[key] as Record<string, unknown>
-    if (
-      !fraction
-      || typeof fraction !== 'object'
-      || !exactKeys(fraction, ['numerator', 'denominator', 'index'])
-      || !Number.isSafeInteger(fraction.numerator)
-      || !Number.isSafeInteger(fraction.denominator)
-      || (fraction.numerator as number) < 0
-      || (fraction.denominator as number) < (fraction.numerator as number)
-      || (
-        fraction.denominator === 0
-          ? fraction.index !== null
-          : (
-              !probability(fraction.index)
-              || Math.abs(
-                (fraction.index as number)
-                  - (fraction.numerator as number)
-                    / (fraction.denominator as number),
-              ) > PROBABILITY_TOLERANCE
-            )
-      )
-    ) return false
+    if (!validObservationFraction(standing[key])) return false
   }
   for (const key of [
     'burnProxyIndex',

@@ -23,7 +23,6 @@ import {
 import {
   ACTOR_TARGET_TREATMENT_READ_VERSION,
   MAX_ACTOR_TARGET_TREATMENT_JSON_BYTES,
-  type ActorTargetTreatmentFraction,
   type ActorTargetTreatmentRow,
   type PrivateActorTargetTreatmentRead,
 } from './actor-target-treatment-types.ts'
@@ -35,23 +34,12 @@ import {
   exactKeys,
   plainDetachedData,
   plainRecord,
-  probability,
   tableSize,
 } from '../canonical/canonical-shape.ts'
 import {
-  closeProbability as close,
-} from '../canonical/probability-arithmetic.ts'
-
-function fraction(
-  numerator: number,
-  denominator: number,
-): ActorTargetTreatmentFraction {
-  return {
-    numerator,
-    denominator,
-    index: denominator === 0 ? null : numerator / denominator,
-  }
-}
+  observationFraction,
+  validObservationFraction,
+} from './observation-fraction.ts'
 
 function matrixIndex(
   playerCount: number,
@@ -141,11 +129,11 @@ export function buildPrivateActorTargetTreatmentRead(
         target,
         observationSemantics:
           'public-executed-proposal-counts-no-data-is-null',
-        proposalSelection: fraction(
+        proposalSelection: observationFraction(
           row.proposalNumerator,
           row.proposalDenominator,
         ),
-        voteApproval: fraction(
+        voteApproval: observationFraction(
           row.voteNumerator,
           row.voteDenominator,
         ),
@@ -167,27 +155,6 @@ export function buildPrivateActorTargetTreatmentRead(
     throw new Error('actor-target treatment read exceeds payload bound')
   }
   return result
-}
-
-function validFraction(
-  value: unknown,
-): value is ActorTargetTreatmentFraction {
-  if (
-    !plainRecord(value)
-    || !exactKeys(value, ['numerator', 'denominator', 'index'])
-    || !Number.isSafeInteger(value.numerator)
-    || !Number.isSafeInteger(value.denominator)
-    || (value.numerator as number) < 0
-    || (value.denominator as number) < (value.numerator as number)
-    || (value.denominator as number) > 5
-  ) return false
-  return value.denominator === 0
-    ? value.numerator === 0 && value.index === null
-    : probability(value.index)
-      && close(
-        value.index,
-        (value.numerator as number) / (value.denominator as number),
-      )
 }
 
 function validatePrivateActorTargetTreatmentShape(
@@ -234,8 +201,16 @@ function validatePrivateActorTargetTreatmentShape(
       && raw.target === index % playerCount
       && raw.observationSemantics
         === 'public-executed-proposal-counts-no-data-is-null'
-      && validFraction(raw.proposalSelection)
-      && validFraction(raw.voteApproval))
+      && plainRecord(raw.proposalSelection)
+      && validObservationFraction(
+        raw.proposalSelection,
+        { maxDenominator: 5 },
+      )
+      && plainRecord(raw.voteApproval)
+      && validObservationFraction(
+        raw.voteApproval,
+        { maxDenominator: 5 },
+      ))
   } catch {
     return false
   }

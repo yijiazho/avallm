@@ -1,5 +1,5 @@
 import type { Seat } from '../../engine/types.ts'
-import type { ObservationFraction } from './situation-types.ts'
+import type { ObservationFraction } from './observation-fraction.ts'
 import type {
   ObjectiveRequest,
   ObjectiveSourceBase,
