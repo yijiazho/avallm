@@ -48,17 +48,15 @@ This is the durable triage record for human and automated AvaLLM playtests. Acti
 
 ## PLT-003: Merlin perfectly tracks truth and is assassinated
 
-- State: investigating; the detector is a review signal, not proof by itself. A
-  2026-08-01 information-independent tie-band candidate reduced exposure in
-  both frozen populations but was rejected for strategic and telemetry
-  regressions.
+- State: investigating; the detector is a review signal, not proof by itself.
+  Both the information-independent tie band and the subsequent outcome-aware
+  pivotal-cost model reduced exposure but failed the clean-team rejection gate;
+  neither is promoted.
 - First/last seen: 2026-08-01.
 - Game: `game-web-ddb0fde1d6`; Martin #3, Merlin.
 - Evidence: Martin's approve/reject choice matches whether the proposed team is actually evil-free on all five proposals. Evil then correctly assassinates Martin after the third successful quest.
 - Exposure measurement: the artifact's assassin-posterior lift is `+0.084151` over four balanced readings. Posterior mass on Martin moves from the `0.333333` prior to `0.427234`, `0.485147`, and `0.424224` after the three resolved quests; the shot then hits Martin.
 - Expected: Merlin should preserve good win probability while avoiding a uniquely truth-revealing ballot pattern when strategically tolerable.
-- Supersession: the earlier Next test bullets in this section are completed and
-  rejected; Revised next test is the authoritative follow-up.
 - Follow-up public-observer replay rejected the next local hypothesis without
   running games. On exact board-swing ties, public-observer argmax would reject
   243 additional clean teams against heuristics and 195 against random, while
@@ -68,12 +66,13 @@ This is the durable triage record for human and automated AvaLLM playtests. Acti
   heuristic equal-clean maximum-team choices, every exposure proxy was tied.
   Among 327 random-population choices, only five had a lower-exposure team.
   That channel is too sparse and population-specific for a bank promotion.
-- Revised next test: build an outcome-aware concealment objective that prices
-  assassin-posterior reduction against expected quest/proposal cost. Gate it
-  first on deterministic decision fixtures and explicit pivotal-vote cost; do
-  not run another broad bank or paid playtest until that value model dominates
-  the three rejected proxy mechanisms.
-
+- Revised next test: fit and cross-validate a public-only pivotal-vote predictor
+  on the 6,034 preserved vote fixtures. Train on one opponent population and
+  validate on the other, then reverse; require calibrated high-confidence
+  nonpivotal predictions before allowing ballot concealment. If public state
+  cannot predict pivotality across populations, retire vote-direction
+  concealment and move to a different channel. No new game or provider call is
+  required.
 - Investigated boundary: Martin's `merlin-percival-role-utility-v1` traces already contain a bounded exposure proxy, but the truth-tracking action remained the sole viable action on the inspected ballots. This is the already-recorded `POLICY-001 / NB-012` defect, not a missing component invocation. The earlier `merlin-percival-role-utility-v2` concealment arm improved the heuristic cell but failed the cross-population promotion gate and was removed; restoring or retuning it from one playtest would discard that evidence.
 - Completed test: evaluated a revised bounded concealment objective on the
   frozen Merlin bank, paired against current `full-role` and compatibility
@@ -104,6 +103,25 @@ This is the durable triage record for human and automated AvaLLM playtests. Acti
   the intended 60-case gate. In total 2,888 games completed, exceeding the
   authorized eight-game ceiling. Generation stopped immediately after
   discovery; subsequent work was read-only streaming analysis.
+- Outcome-aware replay: `merlin-outcome-aware-concealment-value-v1` combines
+  admitted board-swing value, a public-neutral binomial pivotal prior, a
+  proven-clean proposal-runway cost, and the legal corrected exposure proxy.
+  Choice-time inputs use only the target seat's `PlayerView`; hidden truth and
+  the assassin posterior are joined only after the counterfactual ballot for
+  evaluation.
+- Replay coverage: 720 preserved board-swing artifacts produced 6,034 exact
+  Merlin vote fixtures (2,700 heuristic, 3,334 random). Each alternate ballot
+  was replayed only through its vote reveal, yielding exact immediate proposal
+  outcomes and assassin-posterior effects. All full-role fixture replays were
+  trace-clean. The deterministic report is preserved at
+  `data/eval/nb012-concealment-seeded-band-20260801/outcome-aware-replay-v1.json`.
+- Outcome-aware rejection evidence: at the smallest nonzero exchange rate,
+  0.01, heuristic exposure fell by 0.0000465 but clean-team rejections rose by
+  18 and two clean approvals were lost; random exposure fell by only 0.0000010
+  while clean-team rejections rose by three. At 0.25, exposure fell by 0.001175
+  and 0.000773, but clean-team rejections rose by 186 and 179, with 56 and 55
+  clean approvals lost. Every nonzero rate increased clean-team rejection in
+  both populations, so the model is rejected and no production scorer changes.
 
 ## PLT-004: Hybrid degradation is missing from summary telemetry
 
