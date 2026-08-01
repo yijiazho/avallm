@@ -319,20 +319,33 @@ export const BELIEF_FACTORS = {
       + 'v1 entire model as a deterministic rule, so its 30-point result is an '
       + 'artifact of an opponent that was told to play it. v1 does nothing '
       + 'against an opponent that was not.',
+      'Head to head against the SEATED factor on identical corpora, which is '
+      + 'the comparison a seat has to win. Heuristic (n=2039): base 81.1% '
+      + 'dirty, quest-card 71.0%, v2 52.1%, combined 61.5%. Composed (n=1713): '
+      + 'base 78.4%, quest-card 73.6%, v2 59.8%, combined 65.8%. The ordering '
+      + 'v2 > combined > quest-card holds on both populations.',
+      'So the candidate is REPLACING quest-card rather than joining it, and '
+      + 'combined-model.ts measured as not the route: summing the two '
+      + 'double-counts one inference, because a failed quest is quest-card '
+      + 'evidence AND what makes the ballots that approved that team '
+      + 'meaningful. The evidence is disjoint, the inference is not.',
       'Cap pressure checked, since tripling the priced ballots could have '
       + 'flattened the posterior: v1 clamps 0.833 of worlds and v2 0.821, so '
       + 'the added evidence is not being spent on saturation.',
     ],
     revisit:
-      'The blocker is now structural rather than evidentiary, which is a move '
-      + 'forward. v2 is confirmed on the one population that can carry the '
-      + 'question, and the same run showed v1 to be an artifact of an opponent '
-      + 'that had its model hard-coded. What stands between v2 and a seat is '
-      + 'the combined mechanical belief model: a factor is a whole BeliefModel '
-      + 'and quest-card holds that slot, so this is not a configuration '
-      + 'change. Build that, then run v2 and quest-card together against the '
-      + 'composed and wide banks before proposing a seat. Human or EVAL-002 '
-      + 'games remain the confirmation, not the gate.',
+      'The combined model exists and settled the question against itself: v2 '
+      + 'beats quest-card on both populations and beats the combination too, '
+      + 'so the open proposal is a REPLACEMENT. What it has not earned is the '
+      + 'gate quest-card passed. BELIEF-002 was seated on the wide bank at 360 '
+      + 'paired deals per population with clean-proposal, vote-truth, '
+      + 'dirty-approve, calibration and Merlin-exposure cells; v2 has one '
+      + 'metric from one harness on two populations. Run v2 through that same '
+      + 'gate, including the Merlin and Percival cells, before proposing to '
+      + 'unseat a factor that cleared it. Note also that v2 inherits v1 evil '
+      + 'half, which is the heuristic own vote rule, so its heuristic margin '
+      + 'is partly circular; its composed margin is not, and that is the one '
+      + 'to trust.',
     parameterSources: {
       canFail: {
         kind: 'authored',

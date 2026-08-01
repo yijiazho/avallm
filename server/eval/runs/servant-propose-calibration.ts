@@ -62,6 +62,7 @@ import {
 import {
   proposalWeightedBeliefModel,
 } from '../../agents/belief/proposal-factor.ts'
+import { questAndVoteGoodBeliefModel } from '../../agents/belief/combined-model.ts'
 import type { BeliefModel } from '../../agents/belief/types.ts'
 import {
   buildServantRoleUtilityProjection,
@@ -729,6 +730,13 @@ export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
   'vote-weighted': beliefModelPicker(voteMatrixWeightedBeliefModel),
   /** BELIEF-003: the same factor with good votes priced. */
   'vote-good-weighted': beliefModelPicker(voteMatrixGoodWeightedBeliefModel),
+  /**
+   * BELIEF-003's combination: the seated quest-card factor plus the good-vote
+   * model, both applied before normalizing. The arm that matters for a seat
+   * proposal, because the comparison a seat has to win is against what ships
+   * today rather than against the constraints-only base.
+   */
+  'quest+vote-good-weighted': beliefModelPicker(questAndVoteGoodBeliefModel),
   /** BELIEF-001's other half: the proposal factor, on the same policy. */
   'proposal-weighted': beliefModelPicker(proposalWeightedBeliefModel),
 })
