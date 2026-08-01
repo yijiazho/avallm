@@ -4467,3 +4467,30 @@ here.
   language OVER a mechanical belief; nothing composes two mechanical factors. If the vote factor
   ever earns a seat alongside the quest factor, that composition is a prerequisite rather than a
   detail.
+
+- HEUR-001 withdrawn the day it was registered, and the reason is worth more than the item.
+
+  It proposed teaching the heuristic §1.3's convention that good rejects the first proposal to
+  harvest voting data. That convention is a HUMAN table dynamic: you reject to watch how people
+  react and to seed a trust graph you then talk about. On a bot table with discussion disabled
+  there is nobody to read and no conversation to seed, so encoding it changes the synthetic
+  corpus without making the agent a better opponent for a person.
+
+  The stated justification was also circular. The corpus was to be changed so that a vote-reading
+  factor would measure better against it, which is tuning the instrument to the hypothesis.
+
+  The general correction, which should shape what counts as evidence from here. These agents
+  exist to be good to play AGAINST, for humans. Bot-versus-bot play is the cheap, fast, offline
+  proxy that makes iteration possible, and this tracker is full of it, but it is a proxy and not
+  the objective. Where a behaviour's value depends on human dynamics, a bot-versus-bot number
+  cannot establish it in either direction, and the honest move is to say so rather than to
+  reshape the bot population until the number appears.
+
+  Applied to the open question: the vote-matrix factor reads exactly the signal humans generate
+  and heuristics largely do not. Its v1-beats-v2 result is a fact about a heuristic table and
+  says little about play against people, where v2's premise (good follows a documented baseline)
+  and v1's premise (evil leaks through its votes) are both more nearly true. That is why
+  BELIEF-001's exit now names human or LLM tables rather than another synthetic population.
+
+  EVAL-001 already owns the checkpoint this implies, and its framing was right all along:
+  architecture tests cannot establish fun, persuasion, variety, or perceived fairness.
