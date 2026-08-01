@@ -102,6 +102,13 @@ function sameScreen(left: Screen, right: Screen): boolean {
   }
 }
 
+function isLibrary(value: unknown): value is Library {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<Library>
+  return Array.isArray(candidate.agents)
+    && Array.isArray(candidate.models)
+}
+
 export function App() {
   const [screen, setScreen] = useState<Screen>(parseHash)
   const [payload, setPayload] = useState<ServerPayload | null>(null)
@@ -112,12 +119,15 @@ export function App() {
   const [starting, setStarting] = useState(false)
   const [decisionPending, setDecisionPending] = useState(false)
   const [library, setLibrary] = useState<Library | null>(null)
+  const [libraryError, setLibraryError] = useState<string | null>(null)
   const [showRef, setShowRef] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
   const esRef = useRef<EventSource | null>(null)
   const lobbyEsRef = useRef<EventSource | null>(null)
   const decisionAbortRef = useRef<AbortController | null>(null)
+  const libraryAbortRef = useRef<AbortController | null>(null)
+  const libraryRetryRef = useRef<number | undefined>(undefined)
   const screenRef = useRef(screen)
 
   const showScreen = useCallback((next: Screen) => {
@@ -132,7 +142,37 @@ export function App() {
   }, [])
 
   const refreshLibrary = useCallback(() => {
-    fetch('/api/agents').then((r) => r.json()).then(setLibrary).catch(() => {})
+    libraryAbortRef.current?.abort()
+    if (libraryRetryRef.current !== undefined) {
+      window.clearTimeout(libraryRetryRef.current)
+    }
+    const ctrl = new AbortController()
+    libraryAbortRef.current = ctrl
+    const loadLibrary = async () => {
+      try {
+        const res = await fetch('/api/agents', { signal: ctrl.signal })
+        if (!res.ok) {
+          const problem = await res.json().catch(() => ({})) as { error?: unknown }
+          const message = typeof problem.error === 'string' ? problem.error : 'agent library unavailable'
+          throw new Error(message)
+        }
+        const data: unknown = await res.json()
+        if (!isLibrary(data)) {
+          throw new Error('agent library response was invalid')
+        }
+        if (libraryAbortRef.current !== ctrl) return
+        libraryAbortRef.current = null
+        libraryRetryRef.current = undefined
+        setLibraryError(null)
+        setLibrary(data)
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return
+        if (libraryAbortRef.current !== ctrl) return
+        setLibraryError(e instanceof Error ? e.message : 'could not load the agent library')
+        libraryRetryRef.current = window.setTimeout(() => void loadLibrary(), 2_000)
+      }
+    }
+    void loadLibrary()
   }, [])
   useEffect(refreshLibrary, [refreshLibrary])
   useEffect(() => () => {
@@ -142,6 +182,12 @@ export function App() {
     lobbyEsRef.current = null
     decisionAbortRef.current?.abort()
     decisionAbortRef.current = null
+    libraryAbortRef.current?.abort()
+    libraryAbortRef.current = null
+    if (libraryRetryRef.current !== undefined) {
+      window.clearTimeout(libraryRetryRef.current)
+      libraryRetryRef.current = undefined
+    }
   }, [])
 
   useEffect(() => {
@@ -420,7 +466,7 @@ export function App() {
             friends and let the machines fill the empty chairs.
           </p>
         </div>
-        <Launcher onStart={startGame} starting={starting} library={library} onLibraryChange={refreshLibrary} error={error} />
+        <Launcher onStart={startGame} starting={starting} library={library} onLibraryChange={refreshLibrary} error={error ?? libraryError} />
       </div>
     )
   }

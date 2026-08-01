@@ -49,3 +49,13 @@ test('reveal loading rejects error payloads and retries transient failures', () 
   assert.match(effect[1]!, /window\.setTimeout\(\(\) => void loadReveal\(\), 2_000\)/)
   assert.match(app, /ctrl\.abort\(\)[\s\S]*?window\.clearTimeout\(retryTimer\)/)
 })
+
+test('agent library loading validates, reports, and retries failures', () => {
+  const loader = app.match(/const loadLibrary = async \(\) => \{([\s\S]*?)\n    \}\n    void loadLibrary\(\)/)
+  assert.ok(loader, 'App no longer owns the retryable agent-library loader')
+  assert.match(loader[1]!, /if \(!res\.ok\)[\s\S]*?throw new Error/)
+  assert.match(loader[1]!, /const data: unknown = await res\.json\(\)[\s\S]*?if \(!isLibrary\(data\)\)/)
+  assert.match(loader[1]!, /setLibraryError\([\s\S]*?window\.setTimeout\(\(\) => void loadLibrary\(\), 2_000\)/)
+  assert.match(app, /Array\.isArray\(candidate\.agents\)[\s\S]*?Array\.isArray\(candidate\.models\)/)
+  assert.match(app, /error=\{error \?\? libraryError\}/)
+})
