@@ -48,15 +48,62 @@ This is the durable triage record for human and automated AvaLLM playtests. Acti
 
 ## PLT-003: Merlin perfectly tracks truth and is assassinated
 
-- State: investigating; the detector is a review signal, not proof by itself.
+- State: investigating; the detector is a review signal, not proof by itself. A
+  2026-08-01 information-independent tie-band candidate reduced exposure in
+  both frozen populations but was rejected for strategic and telemetry
+  regressions.
 - First/last seen: 2026-08-01.
 - Game: `game-web-ddb0fde1d6`; Martin #3, Merlin.
 - Evidence: Martin's approve/reject choice matches whether the proposed team is actually evil-free on all five proposals. Evil then correctly assassinates Martin after the third successful quest.
 - Exposure measurement: the artifact's assassin-posterior lift is `+0.084151` over four balanced readings. Posterior mass on Martin moves from the `0.333333` prior to `0.427234`, `0.485147`, and `0.424224` after the three resolved quests; the shot then hits Martin.
 - Expected: Merlin should preserve good win probability while avoiding a uniquely truth-revealing ballot pattern when strategically tolerable.
+- Supersession: the earlier Next test bullets in this section are completed and
+  rejected; Revised next test is the authoritative follow-up.
+- Follow-up public-observer replay rejected the next local hypothesis without
+  running games. On exact board-swing ties, public-observer argmax would reject
+  243 additional clean teams against heuristics and 195 against random, while
+  preventing only eight and zero dirty approvals. Lower-exposure-proxy argmax
+  produced the same failure.
+- Follow-up proposal replay also found insufficient opportunity. Among 212
+  heuristic equal-clean maximum-team choices, every exposure proxy was tied.
+  Among 327 random-population choices, only five had a lower-exposure team.
+  That channel is too sparse and population-specific for a bank promotion.
+- Revised next test: build an outcome-aware concealment objective that prices
+  assassin-posterior reduction against expected quest/proposal cost. Gate it
+  first on deterministic decision fixtures and explicit pivotal-vote cost; do
+  not run another broad bank or paid playtest until that value model dominates
+  the three rejected proxy mechanisms.
+
 - Investigated boundary: Martin's `merlin-percival-role-utility-v1` traces already contain a bounded exposure proxy, but the truth-tracking action remained the sole viable action on the inspected ballots. This is the already-recorded `POLICY-001 / NB-012` defect, not a missing component invocation. The earlier `merlin-percival-role-utility-v2` concealment arm improved the heuristic cell but failed the cross-population promotion gate and was removed; restoring or retuning it from one playtest would discard that evidence.
-- Next test: evaluate a revised bounded concealment objective on the frozen 60-deal Merlin bank, paired against current `full-role` and compatibility arms. Gate first on paired exposure lift, then dirty-team approval, clean-team rejection, quest outcomes, and both opponent populations. No paid model call is required.
+- Completed test: evaluated a revised bounded concealment objective on the
+  frozen Merlin bank, paired against current `full-role` and compatibility
+  arms. The seeded tie-band candidate failed the strategic and telemetry gates
+  recorded below; no paid model call was required.
 - New-run note: neither new artifact supplied a probabilistic+LLM Merlin sample. The clean game's Merlin was the rule-based human surrogate, and the cap-degraded game's Merlin was the raw Kimi control, so recurrence remains one qualifying game.
+- Rejected experiment: nb012-merlin-board-swing-seeded-band-v1 kept the
+  board-swing objective authoritative outside its existing 0.04 viable band
+  and selected approve/reject from a seed-derived, information-independent bit
+  inside the band. Against board-swing, exposure lift fell by -0.002342 over
+  360 heuristic deals (95% -0.003383 to -0.001302) and -0.002042 over 360
+  random deals (95% -0.002839 to -0.001245). It was causal in 568 ballots and
+  diverged on 283 matched decisions.
+- Rejection evidence: heuristic clean-team rejection rose from 56/731 (7.66%)
+  to 183/757 (24.17%), while random rose from 59/781 (7.55%) to 184/815
+  (22.58%). Random good wins fell from 218/360 to 213/360; heuristic wins rose
+  from 34/360 to 40/360. Even exact board-swing ties added 107 heuristic and
+  104 random clean-team rejections in matched states, so band width is not the
+  root cause: uniform ambiguity rejects publicly obvious clean teams.
+- Telemetry defect: all 1,693 trace degradations were scorer-invalid-output on
+  quest-card decisions. Native forced quest actions remained authoritative,
+  but a future arm must delegate inapplicable decisions without degradation.
+- Artifacts: the eight-game smoke plus 1,440 heuristic and 1,440 random
+  artifacts are preserved under
+  data/eval/nb012-concealment-seeded-band-20260801. These API-free mechanical
+  games contain no meaningful LLM utterances; spend was exactly $0.
+- Limit incident: wideGoodBankFor('merlin') expanded to 360 cases rather than
+  the intended 60-case gate. In total 2,888 games completed, exceeding the
+  authorized eight-game ceiling. Generation stopped immediately after
+  discovery; subsequent work was read-only streaming analysis.
 
 ## PLT-004: Hybrid degradation is missing from summary telemetry
 
