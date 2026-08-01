@@ -63,6 +63,7 @@ import {
 } from '../canonical/probability-arithmetic.ts'
 import { teamEvilCountDistribution } from './perception-asymmetry.ts'
 import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
+import { validCountDistribution } from './count-distribution.ts'
 
 // The public-read half moved to morgana-counterfeit-public-read.ts. Re-export its
 // boundary so existing importers of these names keep resolving through here.
@@ -487,16 +488,6 @@ export function buildAdmittedMorganaCounterfeitObjective(
   return buildMorganaCounterfeitObjectiveInternal(input, true)
 }
 
-function validDistribution(value: unknown, teamSize: number): value is number[] {
-  return denseArray(value)
-    && value.length === teamSize + 1
-    && value.every(probability)
-    && close(
-      value.reduce((sum, entry) => sum + (entry as number), 0),
-      1,
-    )
-}
-
 function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
   if (
     !plainRecord(value)
@@ -640,14 +631,14 @@ function morganaCounterfeitObjectiveSchema(value: unknown): boolean {
     const candidateTeamSize = candidate.team.length
     if (
       raw.probabilitySemantics !== 'resolved-complete-world-sum'
-      || !validDistribution(
+      || !validCountDistribution(
         raw.merlinVisibleEvilCountDistribution,
         candidateTeamSize,
       )
       || !probability(raw.merlinVisibleFailureCapabilityProbability)
       || raw.publicProbabilitySemantics
         !== 'public-preaction-uniform-feasible-joint'
-      || !validDistribution(
+      || !validCountDistribution(
         raw.publicEvilCountDistribution,
         candidateTeamSize,
       )

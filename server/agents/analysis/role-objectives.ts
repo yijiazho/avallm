@@ -70,6 +70,7 @@ import {
 } from './projection-codec.ts'
 import { publicSeatSalience } from './public-seat-salience.ts'
 import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
+import { validCountDistribution } from './count-distribution.ts'
 
 const boundedIndex = (value: unknown): value is number =>
   typeof value === 'number'
@@ -620,15 +621,6 @@ function validCommitment(
     && canonicalSeats(candidate.team, playerCount)
 }
 
-function validDistribution(value: unknown, teamSize: number): value is number[] {
-  return denseArray(value)
-    && value.length === teamSize + 1
-    && value.every(probability)
-    && Math.abs(
-      value.reduce((sum, entry) => sum + (entry as number), 0) - 1,
-    ) <= PROBABILITY_TOLERANCE
-}
-
 /*
  * The schema key lists bound to the interfaces they enumerate, so a field
  * renamed or added on any of these shapes turns its stale list here into a
@@ -729,7 +721,7 @@ function validateMerlinAssessment(
       !== 'bounded-deterministic-indices-not-probabilities'
     || !probability(assessment.teamCleanProbability)
     || !probability(assessment.teamFailureCapabilityProbability)
-    || !validDistribution(assessment.evilCountDistribution, teamSize)
+    || !validCountDistribution(assessment.evilCountDistribution, teamSize)
     || Math.abs(
       (assessment.evilCountDistribution as number[])[0]!
         - (assessment.teamCleanProbability as number),

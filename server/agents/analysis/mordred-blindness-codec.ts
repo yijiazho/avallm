@@ -33,6 +33,7 @@ import {
 import {
   mordredOpportunityValue,
 } from './mordred-blindness-calculation.ts'
+import { validCountDistribution } from './count-distribution.ts'
 
 interface SemanticContext {
   source: Record<string, unknown>
@@ -53,19 +54,6 @@ function canonicalRolesWithMordredAndMerlin(
   return canonicalRoles(value, playerCount)
     && value.includes('mordred')
     && value.includes('merlin')
-}
-
-function validDistribution(
-  value: unknown,
-  size: number,
-): value is number[] {
-  return denseArray(value)
-    && value.length === size + 1
-    && value.every(probability)
-    && close(
-      value.reduce((sum, entry) => sum + (entry as number), 0),
-      1,
-    )
 }
 
 function validateEnvelope(
@@ -258,8 +246,8 @@ function validateAssessment(
       !== 'resolved-complete-world-joint-sums'
     || raw.jointSemantics
       !== 'direct-joint-world-sums-no-marginal-products'
-    || !validDistribution(raw.visibleEvilCountDistribution, seats.length)
-    || !validDistribution(raw.totalEvilCountDistribution, seats.length)
+    || !validCountDistribution(raw.visibleEvilCountDistribution, seats.length)
+    || !validCountDistribution(raw.totalEvilCountDistribution, seats.length)
     || !probability(raw.merlinBlindWindowProbability)
     || !probability(raw.hiddenThresholdCrossingProbability)
     || (raw.hiddenThresholdCrossingProbability as number)

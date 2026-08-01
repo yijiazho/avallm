@@ -66,6 +66,7 @@ import {
   validObservationFraction,
 } from './observation-fraction.ts'
 import { questFailureCapabilityProbability } from './quest-failure-capability.ts'
+import { validCountDistribution } from './count-distribution.ts'
 
 const EVIL_ROLES = new Set<EvilObjectiveRole>(EVIL_OBJECTIVE_ROLES)
 const POSTURE: Record<EvilObjectiveRole, EvilRolePosture> = {
@@ -835,15 +836,10 @@ function validateAssessment(
     assessment.evilCountDistribution,
     assessment.publicEvilCountDistribution,
   ]) {
-    if (
-      !denseArray(distribution)
-      || distribution.length !== (assessment.team as Seat[]).length + 1
-      || distribution.some((entry) => !probability(entry))
-      || Math.abs(
-        (distribution as number[]).reduce((sum, entry) => sum + entry, 0)
-          - 1,
-      ) > PROBABILITY_TOLERANCE
-    ) return false
+    if (!validCountDistribution(
+      distribution,
+      (assessment.team as Seat[]).length,
+    )) return false
   }
   const privateDistribution =
     assessment.evilCountDistribution as number[]
