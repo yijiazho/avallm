@@ -29,6 +29,7 @@ import {
   type ComposedBrainPreset,
 } from '../agents/types.ts'
 import {
+  summarizeTraceDegradations,
   upsertDecisionTrace,
   type DecisionTrace,
 } from '../agents/trace.ts'
@@ -311,6 +312,7 @@ function resolveTablePlan(seed: string): TablePlan {
 
 const tally = {
   good: 0, evil: 0, reasons: new Map<string, number>(), degraded: 0,
+  traceDegraded: 0,
   blunders: new Map<ForcedPlayRule, number>(),
   norms: newSpeechNormReport(),
 }
@@ -329,6 +331,7 @@ function recordResult(
   tally[result.game.outcome!.winner]++
   tally.reasons.set(result.game.outcome!.reason, (tally.reasons.get(result.game.outcome!.reason) ?? 0) + 1)
   tally.degraded += result.degraded.length
+  tally.traceDegraded += summarizeTraceDegradations(decisionTraces).length
   // Grade forced plays in-process. toArtifact allocates in memory and writes
   // nothing (its only impurity is a createdAt timestamp), so this runs whether or
   // not --out was passed.
@@ -363,6 +366,7 @@ function writeTranscript(
   game: Game,
   plan: TablePlan,
   result: RunResult,
+  decisionTraces: readonly DecisionTrace[],
   violations: ForcedPlayViolation[],
   seed: string,
   i: number,
@@ -393,6 +397,7 @@ function writeTranscript(
       ? game.log
       : game.log.filter((ev) => ev.type !== 'thinking' && ev.type !== 'scratchpad'),
     degraded: result.degraded.map((d) => ({ seat: d.seat, kind: d.kind, error: d.error })),
+    traceDegraded: summarizeTraceDegradations(decisionTraces),
     // Into the FILE, not just the verbose footer. Aggregate runs are the whole
     // measurement path and they set verbose=false, so without this a batch
     // reports violation totals with nothing saying which game or seat, which is
@@ -441,6 +446,7 @@ async function playGame(i: number): Promise<void> {
     // so nothing needs collecting here.
     onEvent: verbose ? (ev) => { const line = renderEvent(ev, game); if (line) console.log(line) } : undefined,
   })
+  const traceDegraded = summarizeTraceDegradations(decisionTraces)
   const violations = recordResult(game, plan, result, decisionTraces)
   // Roles, outcome, and degradations close the printed transcript: a transcript
   // without the reveal cannot be read for play quality, since who was evil is
@@ -450,7 +456,11 @@ async function playGame(i: number): Promise<void> {
     revealRoles(game),
     '',
     `Winner: ${game.outcome?.winner} (${game.outcome?.reason})  [seed ${seed}]`,
+    `runner fallbacks: ${result.degraded.length}`,
     ...result.degraded.map((d) => `degraded: seat ${d.seat} ${d.kind} — ${d.error.slice(0, 120)}`),
+    `trace-degraded decisions: ${traceDegraded.length}`,
+    ...traceDegraded.map((d) =>
+      `trace-degraded: seat ${d.seat} ${d.kind} ${d.decisionId} — ${d.codes.join(', ')}`),
     // Alongside the reveal, because a blunder is only legible once you know who
     // was evil, and "which decisions were deterministically wrong" is the first
     // thing you want when reading a transcript for play quality.
@@ -458,7 +468,7 @@ async function playGame(i: number): Promise<void> {
       `BLUNDER [${v.rule}] Q${v.round}: ${v.name}(seat ${v.seat}·${v.role}) ${FORCED_PLAY_RULES[v.rule]}`),
   ]
   if (verbose) console.log(footer.join('\n'))
-  writeTranscript(game, plan, result, violations, seed, i)
+  writeTranscript(game, plan, result, decisionTraces, violations, seed, i)
 }
 
 // Games are independent, so play up to `concurrency` at once via a fixed worker
@@ -482,7 +492,8 @@ if (games > 1) {
   for (const [reason, n] of [...tally.reasons].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${reason}: ${n}`)
   }
-  if (tally.degraded) console.log(`degraded decisions total: ${tally.degraded}`)
+  console.log(`runner fallbacks total: ${tally.degraded}`)
+  console.log(`trace-degraded decisions total: ${tally.traceDegraded}`)
 
   // Always printed, including the zero. "0 forced-play violations" is the result,
   // not the absence of one, and a line that appears only on failure trains you to

@@ -13,7 +13,9 @@ import type { SpendEntry } from '../../llm/openrouter.ts'
 import type { Alignment, Game, GameEvent, Role, Seat, TalkConfig } from '../../engine/types.ts'
 import {
   COMPONENT_DECISION_TRACE_VERSION,
+  summarizeTraceDegradations,
   type DecisionTrace,
+  type TraceDegradedDecision,
 } from '../../agents/trace.ts'
 import {
   DECISION_COMPONENT_PLAN_VERSION,
@@ -172,6 +174,13 @@ export interface GameArtifact {
   winReason: string
   steps: number
   degraded: DegradedDecision[]
+  /**
+   * Composed decisions that continued after one or more configured components
+   * degraded. This is separate from `degraded`, which contains only host-level
+   * illegal/error fallbacks to the heuristic agent. Current writers always
+   * emit the array; historical artifacts may omit it.
+   */
+  traceDegraded?: TraceDegradedDecision[]
   log: readonly GameEvent[]
   architecture?: ArchitectureRunMetadata
   /** Stable identifiers required to interpret or train from this artifact. */
@@ -572,6 +581,7 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     winReason: game.outcome.reason,
     steps: opts.steps,
     degraded: opts.degraded,
+    traceDegraded: summarizeTraceDegradations(opts.decisionTraces ?? []),
     log: structuredClone(game.log),
     strategyVersions: strategyVersions(opts),
     ...(opts.tags ? { tags: opts.tags } : {}),

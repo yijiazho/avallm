@@ -168,6 +168,33 @@ export interface DecisionTrace {
 }
 
 /**
+ * Public-safe aggregate of a private trace's component degradation. The raw
+ * trace can contain hidden beliefs and reasoning, but operators still need to
+ * distinguish a clean composed decision from one that lost a configured
+ * component and continued through its bounded fallback path.
+ */
+export interface TraceDegradedDecision {
+  readonly decisionId: string
+  readonly seat: Seat
+  readonly kind: DecisionRequest['kind']
+  readonly codes: readonly string[]
+}
+
+export function summarizeTraceDegradations(
+  traces: readonly DecisionTrace[],
+): TraceDegradedDecision[] {
+  return traces.flatMap((trace) => {
+    const codes = [...new Set(trace.degradation)].sort()
+    return codes.length === 0 ? [] : [{
+      decisionId: trace.decisionId,
+      seat: trace.viewerSeat,
+      kind: trace.request.kind,
+      codes,
+    }]
+  })
+}
+
+/**
  * Complete ownership/version attribution carried on a composed decision trace.
  *
  * Extends {@link OptInComponentVersions} so the opt-in `identityModel`/

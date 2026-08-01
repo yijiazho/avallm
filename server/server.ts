@@ -50,6 +50,7 @@ import { nameIsReserved, normalizeName } from './engine/names.ts'
 import type { AvalonAgent } from './agents/types.ts'
 import { recordAppliedDecision } from './agents/applied-trace.ts'
 import {
+  summarizeTraceDegradations,
   upsertDecisionTrace,
   type DecisionTrace,
 } from './agents/trace.ts'
@@ -946,6 +947,9 @@ const server = http.createServer(async (req, res) => {
           // live client only a bare count — so a co-player in a multi-human game
           // gets no bot error detail the UI otherwise withholds.
           degraded: full ? s.degraded : undefined,
+          traceDegraded: full
+            ? summarizeTraceDegradations(s.decisionTraces)
+            : undefined,
           winner: s.game.outcome?.winner, winReason: s.game.outcome?.reason,
           revealed: full,
           scopedTo: full ? undefined : (typeof who === 'number' ? who : 'spectator'),

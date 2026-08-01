@@ -43,7 +43,7 @@
     },
     {
       "path": "test/agents/cognition/coherence.test.ts",
-      "sha256": "b42f6112fbd3a43536ff2a99ffe2297b6bf4ccfd279944a94a801b28c11a34f0",
+      "sha256": "795a0ac59e4dd875c9c32620cbe4a78a5e215952d7dd68bdb79ab4ffc1a2f600",
       "rationale": "Legacy plan fixtures intentionally mutate readonly contracts."
     },
     {
@@ -83,7 +83,7 @@
     },
     {
       "path": "test/agents/composed.test.ts",
-      "sha256": "327910a66aff8ee66793ceedcbcf89ec0b07025a0509daccdcdef8c222762b3e",
+      "sha256": "397be35547156a94541729c79ca2a5a6b611265f9950273c07170c5fe009e787",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {

@@ -23,6 +23,7 @@ import {
   COHERENCE_CONFLICT_CODES,
   type CoherenceIntent,
   type LiteralCommitmentBasis,
+  type PlanIntentBasis,
 } from '../../../server/agents/cognition/coherence.ts'
 import {
   recordAppliedPlan,
@@ -259,15 +260,30 @@ const coherenceReq: DecisionRequest = {
   round: 1,
   proposalNum: 1,
 }
+const supportPlanBasis: PlanIntentBasis = {
+  id: 'plan:discussion',
+  sourceViewThroughSeq: 3,
+  round: 1,
+  proposalNum: 1,
+  objective: 'SUPPORT_TEAM',
+  horizon: 'CURRENT_PROPOSAL',
+}
 
 test('every literal conflict code has a narrow deterministic trigger', () => {
   const cases: Array<{
     decision: Decision
     basis: LiteralCommitmentBasis[]
     currentTeam?: Seat[]
+    planIntentBasis?: PlanIntentBasis
     code: typeof COHERENCE_CONFLICT_CODES[number]
     kind?: DecisionRequest['kind']
   }> = [
+    {
+      decision: { kind: 'vote', vote: 'reject' },
+      basis: [],
+      planIntentBasis: supportPlanBasis,
+      code: 'VOTE_REVERSES_CURRENT_PROPOSAL_INTENT',
+    },
     {
       decision: { kind: 'vote', vote: 'reject' },
       basis: [teamBasis],
@@ -296,6 +312,7 @@ test('every literal conflict code has a narrow deterministic trigger', () => {
       'maintain',
       item.basis,
       item.currentTeam,
+      item.planIntentBasis,
     )
     assert.ok(assessment.conflictCodes.includes(item.code), item.code)
   }
@@ -307,6 +324,93 @@ test('every literal conflict code has a narrow deterministic trigger', () => {
     [0, 1],
   )
   assert.deepEqual(ordinaryRevision.conflictCodes, [])
+})
+
+test('same-proposal discussion stance is an explicit vote coherence basis', () => {
+  const { req, view } = firstRequest('phase7b2-plan-vote-continuity')
+  const discussReq: DecisionRequest = { ...req, kind: 'discuss' }
+  const discussDecision: Decision = { kind: 'discuss', say: 'I support this team.' }
+  const discussPlan: DecisionPlan = {
+    ...selectedPlan(discussReq, discussDecision, -1),
+    strategicIntent: {
+      version: 'strategic-intent-v1',
+      objective: 'SUPPORT_TEAM',
+      targetSeats: [],
+      horizon: 'CURRENT_PROPOSAL',
+      evidenceRefs: [],
+    },
+  }
+  const commitments = reconstructCognition(view).commitments
+  const memory = recordAppliedPlan({
+    req: discussReq,
+    view,
+    commitments,
+    selectedDecision: discussDecision,
+    selectedPlan: discussPlan,
+    appliedDecision: discussDecision,
+    resolution: 'selected-applied',
+    intent: 'maintain',
+  })
+  const voteReq: DecisionRequest = { ...req, kind: 'vote' }
+  const voteDecision: Decision = { kind: 'vote', vote: 'reject' }
+  const advanced = recordAppliedPlan({
+    memory,
+    req: voteReq,
+    view,
+    commitments,
+    selectedDecision: voteDecision,
+    selectedPlan: selectedPlan(voteReq, voteDecision, -1),
+    appliedDecision: voteDecision,
+    resolution: 'selected-applied',
+    intent: 'maintain',
+  })
+  const coherence = advanced.history.at(-1)!.coherence
+
+  assert.equal(coherence.planIntentBasis?.id, memory.history[0].id)
+  assert.ok(coherence.conflictCodes.includes(
+    'VOTE_REVERSES_CURRENT_PROPOSAL_INTENT',
+  ))
+  assert.equal(coherence.classification, 'accidental-conflict')
+  assert.ok(validatePrivatePlanMemory(advanced))
+
+  for (const mutate of [
+    (forged: any) => { forged.history[1].coherence.planIntentBasis.id = 'forged' },
+    (forged: any) => {
+      forged.history[1].coherence.planIntentBasis.sourceViewThroughSeq += 1
+    },
+    (forged: any) => {
+      forged.history[1].request.kind = 'quest'
+      forged.history[1].appliedDecision = { kind: 'quest', card: 'success' }
+      forged.history[1].selected.decision = { kind: 'quest', card: 'success' }
+    },
+  ]) {
+    const forged = structuredClone(advanced) as any
+    mutate(forged)
+    assert.equal(validatePrivatePlanMemory(forged), false)
+  }
+
+  const fallbackMemory = recordAppliedPlan({
+    req: discussReq,
+    view,
+    commitments,
+    selectedDecision: discussDecision,
+    selectedPlan: discussPlan,
+    appliedDecision: { kind: 'discuss', say: '' },
+    resolution: 'fallback-after-illegal-decision',
+    intent: 'maintain',
+  })
+  const afterFallback = recordAppliedPlan({
+    memory: fallbackMemory,
+    req: voteReq,
+    view,
+    commitments,
+    selectedDecision: voteDecision,
+    selectedPlan: selectedPlan(voteReq, voteDecision, -1),
+    appliedDecision: voteDecision,
+    resolution: 'selected-applied',
+    intent: 'maintain',
+  })
+  assert.equal(afterFallback.history.at(-1)!.coherence.planIntentBasis, undefined)
 })
 
 test('maintain, conceal, and deceive classify only detected literal conflicts', () => {

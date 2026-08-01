@@ -11,7 +11,10 @@ import {
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import { createAgent } from '../../server/agents/registry.ts'
 import { parseExternalDecisionReply } from '../../server/agents/external-reply.ts'
-import { decisionTraceIdForRequest } from '../../server/agents/trace.ts'
+import {
+  decisionTraceIdForRequest,
+  summarizeTraceDegradations,
+} from '../../server/agents/trace.ts'
 import { DECISION_COMPONENT_RUN_VERSION } from '../../server/agents/components/kernel.ts'
 import {
   ACTOR_TARGET_TREATMENT_COMPONENT,
@@ -257,6 +260,12 @@ test('planner may select only a supplied viable candidate ID', async () => {
   })
   const degraded = await invalid.decide(source.req, source.view)
   assert.ok(degraded.trace!.degradation.includes('planner-invalid-candidate'))
+  assert.deepEqual(summarizeTraceDegradations([degraded.trace!]), [{
+    decisionId: degraded.trace!.decisionId,
+    seat: degraded.trace!.viewerSeat,
+    kind: degraded.trace!.request.kind,
+    codes: ['planner-invalid-candidate'],
+  }])
   assert.notEqual(degraded.trace!.chosenCandidateId, 'invented:action')
   assert.deepEqual(degraded.decision.team, source.baselineDecision.team)
 })

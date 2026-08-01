@@ -11,6 +11,7 @@ import {
   COHERENCE_MODEL_VERSION,
   literalCommitmentBasis,
   type CoherenceIntent,
+  type PlanIntentBasis,
 } from './coherence.ts'
 import {
   PLAN_MEMORY_VERSION,
@@ -91,6 +92,42 @@ export interface RecordAppliedPlanInput {
   intent: CoherenceIntent
 }
 
+function currentProposalPlanIntentBasis(
+  memory: PrivatePlanMemory | undefined,
+  req: DecisionRequest,
+): PlanIntentBasis | undefined {
+  if (req.kind !== 'vote') return undefined
+  const source = [...(memory?.history ?? [])].reverse().find((entry) => {
+    const strategicIntent = entry.selected?.plan.strategicIntent
+    return entry.request.kind === 'discuss'
+      && entry.resolution === 'selected-applied'
+      && entry.request.round === req.round
+      && entry.request.proposalNum === req.proposalNum
+      && strategicIntent?.horizon === 'CURRENT_PROPOSAL'
+      && (
+        strategicIntent.objective === 'SUPPORT_TEAM'
+        || strategicIntent.objective === 'OPPOSE_TEAM'
+      )
+  })
+  const strategicIntent = source?.selected?.plan.strategicIntent
+  if (
+    !source
+    || strategicIntent?.horizon !== 'CURRENT_PROPOSAL'
+    || (
+      strategicIntent.objective !== 'SUPPORT_TEAM'
+      && strategicIntent.objective !== 'OPPOSE_TEAM'
+    )
+  ) return undefined
+  return {
+    id: source.id,
+    sourceViewThroughSeq: source.viewThroughSeq,
+    round: req.round,
+    proposalNum: req.proposalNum,
+    objective: strategicIntent.objective,
+    horizon: strategicIntent.horizon,
+  }
+}
+
 export function recordAppliedPlan(
   input: RecordAppliedPlanInput,
 ): PrivatePlanMemory {
@@ -130,12 +167,14 @@ export function recordAppliedPlan(
   const ordinal = input.memory?.nextOrdinal ?? 0
   const id = entryId(input.req, throughSeq, ordinal)
   const basis = literalCommitmentBasis(input.commitments, input.req)
+  const planIntentBasis = currentProposalPlanIntentBasis(input.memory, input.req)
   const coherence = assessLiteralCoherence(
     input.req,
     input.appliedDecision,
     input.intent,
     basis,
     input.view.currentTeam,
+    planIntentBasis,
   )
   const history: AppliedPlanHistoryEntry[] = (input.memory?.history ?? []).map(
     (entry) =>

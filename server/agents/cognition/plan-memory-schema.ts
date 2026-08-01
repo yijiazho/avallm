@@ -31,6 +31,7 @@ import {
   COHERENCE_MODEL_VERSION,
   coherenceBasisFromView,
   isCoherenceIntent,
+  type PlanIntentBasis,
 } from './coherence.ts'
 import { extractEvidence } from './evidence.ts'
 import {
@@ -89,7 +90,7 @@ const ENTRY_KEYS: readonly string[] = [
 ]
 const COHERENCE_KEYS: readonly string[] = [
   'version', 'intent', 'classification', 'conflictCodes',
-  'commitmentBasis', 'currentTeam',
+  'commitmentBasis', 'planIntentBasis', 'currentTeam',
 ]
 
 /** A distinct 1..5 seat team of seats in 0..9. */
@@ -261,6 +262,41 @@ function validCommitmentBasis(
   })
 }
 
+function validPlanIntentBasis(
+  value: unknown,
+  req: DecisionRequest,
+  viewThroughSeq: number,
+  currentOrdinal: number,
+): value is PlanIntentBasis {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const basis = value as Record<string, unknown>
+  const sourceOrdinal = typeof basis.id === 'string'
+    ? parseOrdinal(basis.id)
+    : -1
+  return req.kind === 'vote'
+    && Object.keys(basis).length === 6
+    && Object.keys(basis).every((key) => [
+      'id', 'sourceViewThroughSeq', 'round', 'proposalNum', 'objective',
+      'horizon',
+    ].includes(key))
+    && typeof basis.id === 'string'
+    && basis.id.length > 0
+    && sourceOrdinal >= 0
+    && sourceOrdinal < currentOrdinal
+    && Number.isSafeInteger(basis.sourceViewThroughSeq)
+    && Number(basis.sourceViewThroughSeq) >= -1
+    && Number(basis.sourceViewThroughSeq) <= viewThroughSeq
+    && basis.id === entryId(
+      { ...req, kind: 'discuss' },
+      Number(basis.sourceViewThroughSeq),
+      sourceOrdinal,
+    )
+    && basis.round === req.round
+    && basis.proposalNum === req.proposalNum
+    && (basis.objective === 'SUPPORT_TEAM' || basis.objective === 'OPPOSE_TEAM')
+    && basis.horizon === 'CURRENT_PROPOSAL'
+}
+
 function validSelectedPlan(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const plan = value as Record<string, unknown>
@@ -340,6 +376,15 @@ function validEntry(
       entry.request,
     )
     || (
+      entry.coherence.planIntentBasis !== undefined
+      && !validPlanIntentBasis(
+        entry.coherence.planIntentBasis,
+        entry.request,
+        entry.viewThroughSeq,
+        ordinal,
+      )
+    )
+    || (
       entry.coherence.currentTeam !== undefined
       && !validTeam(entry.coherence.currentTeam)
     )
@@ -351,6 +396,7 @@ function validEntry(
         entry.coherence.intent,
         entry.coherence.commitmentBasis,
         entry.coherence.currentTeam,
+        entry.coherence.planIntentBasis,
       ),
     )
     || !Object.keys(entry).every((key) => ENTRY_KEYS.includes(key))

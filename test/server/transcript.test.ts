@@ -70,6 +70,27 @@ test('scoped transcript hides roles and other seats\' private events', async () 
   assert.equal(foreignDeal, false, 'no other seat roleDealt in a scoped log')
 })
 
+test('full transcript labels runner fallbacks and trace degradation separately', async () => {
+  const game = await finishedGame('transcript-degradation')
+  const text = renderTranscript({
+    id: game.id, seed: game.seed, playerCount: game.config.playerCount,
+    phase: game.phase, round: game.round, proposalNum: game.proposalNum,
+    leaderSeat: game.leaderSeat, quests: game.quests, seats: seatsFor(game, true),
+    log: game.log, revealed: true,
+    degraded: [],
+    traceDegraded: [{
+      decisionId: 'trace-1', seat: 2, kind: 'vote',
+      codes: ['planner-error', 'voice-error'],
+    }],
+    capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: false,
+  })
+
+  assert.match(text, /runner fallbacks: 0/)
+  assert.match(text, /trace-degraded decisions: 1/)
+  assert.match(text, /trace-1.*planner-error, voice-error/)
+  assert.doesNotMatch(text, /degraded decisions: 0/)
+})
+
 test('backticks in free-form text do not break the code fences', async () => {
   const game = await finishedGame()
   // A pitch containing a triple backtick would close a fixed ``` fence early.

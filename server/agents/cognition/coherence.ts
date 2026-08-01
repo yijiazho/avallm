@@ -7,10 +7,11 @@ import type {
 import { teamsEqual } from '../../engine/seatset.ts'
 import type { PublicCommitment } from './commitment-types.ts'
 
-export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v2'
+export const COHERENCE_MODEL_VERSION = 'literal-commitment-coherence-v3'
 
 export const COHERENCE_CONFLICT_CODES = [
   'VOTE_OPPOSES_OWN_TEAM',
+  'VOTE_REVERSES_CURRENT_PROPOSAL_INTENT',
   'TEAM_REVERSES_CURRENT_TEAM',
   'REVISION_MISSING_EXPLANATION',
 ] as const
@@ -54,12 +55,22 @@ export interface LiteralCommitmentBasis {
   payload: { type: 'team'; action: 'proposed' | 'revised'; team: readonly Seat[] }
 }
 
+export interface PlanIntentBasis {
+  id: string
+  sourceViewThroughSeq: number
+  round: number
+  proposalNum: number
+  objective: 'SUPPORT_TEAM' | 'OPPOSE_TEAM'
+  horizon: 'CURRENT_PROPOSAL'
+}
+
 export interface CoherenceAssessment {
   version: typeof COHERENCE_MODEL_VERSION
   intent: CoherenceIntent
   classification: CoherenceClassification
   conflictCodes: readonly CoherenceConflictCode[]
   commitmentBasis: readonly LiteralCommitmentBasis[]
+  planIntentBasis?: PlanIntentBasis
   currentTeam?: readonly Seat[]
 }
 
@@ -100,6 +111,7 @@ export function assessLiteralCoherence(
   intent: CoherenceIntent,
   commitmentBasis: readonly LiteralCommitmentBasis[],
   currentTeam?: readonly Seat[],
+  planIntentBasis?: PlanIntentBasis,
 ): CoherenceAssessment {
   const codes = new Set<CoherenceConflictCode>()
   const ownTeam = commitmentBasis.find(
@@ -110,6 +122,14 @@ export function assessLiteralCoherence(
   if (appliedDecision.kind === 'vote') {
     if (ownTeam && appliedDecision.vote === 'reject') {
       codes.add('VOTE_OPPOSES_OWN_TEAM')
+    }
+    if (
+      (planIntentBasis?.objective === 'SUPPORT_TEAM'
+        && appliedDecision.vote === 'reject')
+      || (planIntentBasis?.objective === 'OPPOSE_TEAM'
+        && appliedDecision.vote === 'approve')
+    ) {
+      codes.add('VOTE_REVERSES_CURRENT_PROPOSAL_INTENT')
     }
   }
   if (appliedDecision.kind === 'finalize' && !appliedDecision.stick) {
@@ -141,6 +161,9 @@ export function assessLiteralCoherence(
     classification,
     conflictCodes,
     commitmentBasis: structuredClone(commitmentBasis),
+    ...(planIntentBasis
+      ? { planIntentBasis: structuredClone(planIntentBasis) }
+      : {}),
     ...(currentTeam ? { currentTeam: currentTeam.slice() } : {}),
   }
 }

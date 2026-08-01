@@ -64,7 +64,7 @@ export type {
   EvidenceKind,
   PublicEvidence,
 } from '../record/evidence.ts'
-export const PLAN_MEMORY_VERSION = 'private-plan-memory-v3'
+export const PLAN_MEMORY_VERSION = 'private-plan-memory-v4'
 
 export interface SelectedPlanSummary {
   decision: Decision

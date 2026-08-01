@@ -14,6 +14,7 @@
 // whatever it is given and never widens visibility.
 
 import type { Alignment, GameEvent, Phase, Quest, Role, Seat } from './engine/types.ts'
+import type { TraceDegradedDecision } from './agents/trace.ts'
 
 export interface TranscriptSeat {
   seat: Seat
@@ -37,6 +38,8 @@ export interface TranscriptInput {
   seats: TranscriptSeat[]
   log: readonly GameEvent[]        // already redacted to what the caller may see
   degraded?: { seat: Seat; kind: string; error: string }[]
+  /** Full-reveal-only summaries of bounded component degradation. */
+  traceDegraded?: readonly TraceDegradedDecision[]
   // Deterministically wrong decisions (eval/forced.ts). Optional because only a
   // finished, fully revealed transcript can carry them: a blunder is unreadable
   // without knowing who was evil, which is the same reason they sit beside the
@@ -84,10 +87,16 @@ export function renderTranscript(input: TranscriptInput): string {
     const scope = input.scopedTo === 'spectator' ? 'a spectator' : `seat ${input.scopedTo}`
     out.push(`- fidelity: **SCOPED** to ${scope} — public events plus that seat's own private events; other roles and bot reasoning are hidden (finish the game, or capture from the solo seat, for a full reveal)`)
   }
-  if (input.degraded && input.degraded.length) {
-    out.push(`- degraded decisions: ${input.degraded.length}`)
+  if (input.degraded) {
+    out.push(`- runner fallbacks: ${input.degraded.length}`)
     for (const d of input.degraded) {
       out.push(`  - ${who(d.seat)} ${d.kind}: ${d.error}`)
+    }
+  }
+  if (input.traceDegraded) {
+    out.push(`- trace-degraded decisions: ${input.traceDegraded.length}`)
+    for (const d of input.traceDegraded) {
+      out.push(`  - ${who(d.seat)} ${d.kind} \`${d.decisionId}\`: ${d.codes.join(', ')}`)
     }
   }
   if (input.violations && input.violations.length) {

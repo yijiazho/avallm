@@ -24,6 +24,7 @@ function descriptorKind(descriptor) {
   if (descriptor === 'heuristic' || descriptor === 'random') return descriptor
   if (descriptor.startsWith('def:probabilistic-llm:llm:')) return 'probabilistic-llm'
   if (descriptor === 'def:probabilistic') return 'probabilistic'
+  if (descriptor.startsWith('composed:')) return 'probabilistic'
   if (descriptor.startsWith('llm:')) return 'raw-llm'
   if (descriptor.startsWith('def:')) return 'definition'
   return 'legacy-or-unknown'
@@ -43,7 +44,9 @@ function executionEvidence(artifact, player) {
   const thinking = thinkingCount(artifact, player.seat)
   const descriptor = descriptorKind(player.agent)
   const inferred = traces.length > 0
-    ? 'probabilistic-llm'
+    ? descriptor === 'probabilistic'
+      ? 'probabilistic'
+      : 'probabilistic-llm'
     : thinking > 0 ? 'raw-llm' : descriptor
   return {
     seat: player.seat,
@@ -60,7 +63,10 @@ function executionEvidence(artifact, player) {
 function identityFindings(artifact, seats) {
   return seats.flatMap((seat) => {
     if (seat.decisionTraces === 0) return []
-    if (seat.descriptorKind === 'probabilistic-llm') return []
+    if (
+      seat.descriptorKind === 'probabilistic-llm'
+      || seat.descriptorKind === 'probabilistic'
+    ) return []
     return [{
       signature: 'IDENTITY_DESCRIPTOR_LOSS',
       priority: 'P1',
@@ -94,6 +100,9 @@ function voteContradictionFindings(artifact) {
     const contradicts = (objective === 'SUPPORT_TEAM' && actualVote === 'reject')
       || (objective === 'OPPOSE_TEAM' && actualVote === 'approve')
     if (!contradicts) return []
+    const explicitlyClassified = vote.privatePlanOutcome?.coherence?.conflictCodes
+      ?.includes('VOTE_REVERSES_CURRENT_PROPOSAL_INTENT') === true
+    if (explicitlyClassified) return []
     const player = artifact.players.find((entry) => entry.seat === vote.viewerSeat)
     return [{
       signature: 'PLAN_VOTE_CONTRADICTION',
@@ -107,9 +116,10 @@ function voteContradictionFindings(artifact) {
   })
 }
 
-function merlinExposureFindings(artifact) {
+function merlinExposureFindings(artifact, seats) {
   const merlin = artifact.players.find((player) => player.role === 'merlin')
-  if (!merlin || tracesFor(artifact, merlin.seat).length === 0) return []
+  const execution = seats.find((seat) => seat.seat === merlin?.seat)
+  if (!merlin || execution?.inferredExecution !== 'probabilistic-llm') return []
   const evil = new Set(artifact.players
     .filter((player) => player.alignment === 'evil')
     .map((player) => player.seat))
@@ -138,7 +148,7 @@ export function auditArtifact(artifact) {
   const findings = [
     ...identityFindings(artifact, seats),
     ...voteContradictionFindings(artifact),
-    ...merlinExposureFindings(artifact),
+    ...merlinExposureFindings(artifact, seats),
   ]
   return {
     gameId: artifact.id,
