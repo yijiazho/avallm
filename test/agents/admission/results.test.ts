@@ -350,7 +350,7 @@ test('an out-of-table seat is refused everywhere a trace names seats', () => {
   // cannot satisfy either way.
   const partialHostView = { rolesInPlay: fixture.view.rolesInPlay }
   const assessment = (team: readonly number[]) => ({
-    candidateId: `legal-candidates-v2:propose:${team.join(',')}`,
+    candidateId: `legal-candidates-v3:propose:${team.join(',')}`,
     beliefModelVersion: external.trace.beliefModelVersion,
     beliefThroughSeq: external.trace.beliefThroughSeq,
     probabilitySemantics: 'uniform-feasible-joint' as const,

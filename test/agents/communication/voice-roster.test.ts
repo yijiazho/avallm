@@ -75,6 +75,7 @@ test('bounded proposal voice receives the public roster for committed seat refer
   assert.ok(voiceCall)
   const rendered = JSON.parse(voiceCall.messages[1].content) as {
     committedPlan: {
+      speaker: { seat: number; name: string }
       players: { seat: number; name: string }[]
       publicContext: {
         record: unknown
@@ -83,6 +84,10 @@ test('bounded proposal voice receives the public roster for committed seat refer
       decision: { kind: string; team: number[] }
     }
   }
+  assert.deepEqual(rendered.committedPlan.speaker, {
+    seat: source.view.seat,
+    name: source.view.name,
+  })
   assert.deepEqual(
     rendered.committedPlan.players,
     source.view.players.map(({ seat, name }) => ({ seat, name })),
@@ -107,6 +112,10 @@ test('bounded proposal voice receives the public roster for committed seat refer
   assert.match(
     voiceCall.messages[0].content,
     /names copied exactly from that array/,
+  )
+  assert.match(
+    voiceCall.messages[0].content,
+    /speaker object is your public table identity/,
   )
   assert.match(
     voiceCall.messages[0].content,
@@ -136,6 +145,21 @@ test('bounded proposal voice receives the public roster for committed seat refer
     voiceCall.messages[0].content,
     /Do not make any negative role claim/,
   )
+  assert.match(voiceCall.messages[0].content, /at most 35 words/)
+  assert.match(
+    voiceCall.messages[0].content,
+    /Name every player in communication\.targetSeats explicitly/,
+  )
+  assert.match(
+    voiceCall.messages[0].content,
+    /Do not derive or state counts across multiple historical events/,
+  )
+  assert.match(
+    voiceCall.messages[0].content,
+    /Directly address a named player only when that seat appears in communication\.targetSeats/,
+  )
+  assert.match(voiceCall.messages[0].content, /never allege off-table coordination/)
+  assert.match(voiceCall.messages[0].content, /text only/)
   const plannerCall = calls.find(
     (call) => call.opts?.tag === 'voice-roster/planner',
   )
@@ -176,6 +200,158 @@ test('bounded proposal voice receives the public roster for committed seat refer
   })
   assert.equal(groundedPlayer?.text, `I trust ${rosterName}.`)
 
+  const possessivePlayerVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: `${rosterName}'s vote concerns me.` })
+      },
+    },
+    model: 'fake/model',
+  })
+  const possessivePlayer = await possessivePlayerVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  })
+  assert.equal(possessivePlayer?.text, `${rosterName}'s vote concerns me.`)
+
+  const target = rendered.committedPlan.players[1]
+  const wrongTarget = rendered.committedPlan.players[2]
+  assert.ok(target && wrongTarget)
+  const targetedPlan: CommittedVoicePlan = {
+    ...(rendered.committedPlan as unknown as CommittedVoicePlan),
+    decision: { kind: 'discuss', say: '' },
+    communication: {
+      version: 'communication-intent-v5',
+      channel: 'discussion',
+      targetSeats: [target.seat],
+      actCodes: ['EXPRESS_TRUST'],
+      evidenceRefs: [],
+      safeFactCodes: [],
+      strategicReasonCodes: [],
+      tone: 'natural',
+    },
+  }
+  const redirectedVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: `I trust ${wrongTarget.name}.` })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await redirectedVoice.speak({
+    plan: targetedPlan,
+    renderedPlan: JSON.stringify({ committedPlan: targetedPlan }),
+  }), undefined)
+  const groundedTargetVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: `I trust ${target.name}.` })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal((await groundedTargetVoice.speak({
+    plan: targetedPlan,
+    renderedPlan: JSON.stringify({ committedPlan: targetedPlan }),
+  }))?.text, `I trust ${target.name}.`)
+
+  const untargetedAddressVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: `${wrongTarget.name}, what do you think?` })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await untargetedAddressVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }), undefined)
+  const offTableVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({
+          text: `${target.name}, are you two talking off-table?`,
+        })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await offTableVoice.speak({
+    plan: targetedPlan,
+    renderedPlan: JSON.stringify({ committedPlan: targetedPlan }),
+  }), undefined)
+
+  const verboseVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: Array.from({ length: 36 }, () => 'steady').join(' ') })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await verboseVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }), undefined)
+
+  const thirdPersonSelfVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({
+          text: `${rendered.committedPlan.speaker.name}'s team keeps me off it.`,
+        })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await thirdPersonSelfVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }), undefined)
+
+  const aggregateHistoryVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({
+          text: "I've been on three quests already. Two of those failed.",
+        })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal(await aggregateHistoryVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }), undefined)
+
+  const ordinaryIndefiniteVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: "Makes me wonder if one of them's hiding something." })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal((await ordinaryIndefiniteVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }))?.text, "Makes me wonder if one of them's hiding something.")
+
+  const ordinaryFutureVoice = createBoundedVoice({
+    client: {
+      async call(): Promise<string> {
+        return JSON.stringify({ text: 'Once we hear more, I can decide.' })
+      },
+    },
+    model: 'fake/model',
+  })
+  assert.equal((await ordinaryFutureVoice.speak({
+    plan: rendered.committedPlan as unknown as CommittedVoicePlan,
+    renderedPlan: voiceCall.messages[1].content,
+  }))?.text, 'Once we hear more, I can decide.')
+
   const roleTalkVoice = createBoundedVoice({
     client: {
       async call(): Promise<string> {
@@ -190,7 +366,7 @@ test('bounded proposal voice receives the public roster for committed seat refer
     ...(rendered.committedPlan as unknown as CommittedVoicePlan),
     decision: { kind: 'discuss', say: '' },
     communication: {
-      version: 'communication-intent-v3',
+      version: 'communication-intent-v5',
       channel: 'discussion',
       targetSeats: [],
       actCodes: ['CLAIM_ROLE', 'WARN_ROLE_EXPOSURE'],
@@ -333,7 +509,7 @@ test('planner-authorized role talk and public utterance evidence reach voice', a
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'discussion',
             targetSeats: [utterance.speaker.seat],
             actCodes: [
@@ -455,7 +631,7 @@ test('utterance evidence must be present in the shared recent window', async () 
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'discussion',
             targetSeats: [(source.view.seat + 1) % source.view.playerCount],
             actCodes: ['RESPOND_TO_PLAYER'],
@@ -496,7 +672,7 @@ test('absent public evidence and negative-role acts are rejected', async () => {
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'discussion',
             targetSeats: [0],
             actCodes: ['RESPOND_TO_PLAYER'],

@@ -131,11 +131,9 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
           evidenceRefs: [],
         },
         communication: {
-          version: 'communication-intent-v3',
+          version: 'communication-intent-v5',
           channel: 'proposal-pitch',
-          targetSeats: selected.decision.kind === 'propose'
-            ? selected.decision.team
-            : [],
+          targetSeats: [],
           actCodes: [
             'EXPLAIN_COMMITTED_TEAM',
             'ACKNOWLEDGE_UNCERTAINTY',
@@ -287,8 +285,9 @@ test('bounded fake-client planner and voice use chosen posterior reasons without
   )
 })
 
-test('bounded planner v4 renders scalar intent and context-specific evidence and speech schemas', async () => {
+test('bounded planner v7 separates discussion turns from optional PASS speech', async () => {
   const calls = new Map<string, FakeCall>()
+  const outputs = new Map<string, Awaited<ReturnType<ReturnType<typeof createComposedAgent>['decide']>>>()
   for (const fixtureId of [
     'merlin-opening-proposal',
     'servant-vote-after-evidence',
@@ -330,11 +329,9 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
         ...(source.req.kind === 'propose'
           ? {
               communication: {
-                version: 'communication-intent-v3',
+                version: 'communication-intent-v5',
                 channel: 'proposal-pitch',
-                targetSeats: selected.decision.kind === 'propose'
-                  ? selected.decision.team
-                  : [],
+                targetSeats: [],
                 actCodes: ['EXPLAIN_COMMITTED_TEAM'],
                 evidenceRefs: [],
                 tone: 'natural',
@@ -343,10 +340,10 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
             : source.req.kind === 'discuss'
             ? {
                 communication: {
-                  version: 'communication-intent-v3',
+                  version: 'communication-intent-v5',
                   channel: 'discussion',
                   targetSeats: [],
-                  actCodes: ['PASS'],
+                  actCodes: ['SUPPORT_CURRENT_TEAM'],
                   evidenceRefs: [],
                   tone: 'natural',
                 },
@@ -354,9 +351,9 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
             : revision
               ? {
                   communication: {
-                    version: 'communication-intent-v3',
+                    version: 'communication-intent-v5',
                     channel: 'revision-reason',
-                    targetSeats: selected.decision.team,
+                    targetSeats: [],
                     actCodes: ['EXPLAIN_COMMITTED_REVISION'],
                     evidenceRefs: [],
                     tone: 'natural',
@@ -373,13 +370,14 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
       ...createBoundedPlannerVoice({
         client,
         model: 'fake/model',
-        tagPrefix: `v4-${fixtureId}`,
+        tagPrefix: `v6-${fixtureId}`,
       }),
     }).decide(source.req, source.view)
     assert.ok(
       !output.trace!.degradation.some((code) => code.startsWith('planner-')),
       `${fixtureId}: ${output.trace!.degradation.join(',')}`,
     )
+    outputs.set(fixtureId, output)
   }
 
   const proposalCall = calls.get('merlin-opening-proposal')!
@@ -418,6 +416,7 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
       (player) => player.seat,
     ),
   )
+  assert.equal(proposalTargetSeats.maxItems, 2)
   assert.match(proposalCall.messages[0].content, /concise bare JSON object/)
   assert.match(proposalCall.messages[0].content, /exactly one objective/)
 
@@ -435,25 +434,57 @@ test('bounded planner v4 renders scalar intent and context-specific evidence and
     JSON.stringify(reference) === JSON.stringify({ kind: 'quest', questNum: 3 })))
   assert.ok((voteEvidence.items?.enum?.length ?? 0) <= 46)
 
-  const passPrompt = plannerPrompt(calls.get('minion-late-discussion')!)
-  const passCommunication = schemaProperty(
-    passPrompt.outputSchema,
+  const discussionPrompt = plannerPrompt(calls.get('minion-late-discussion')!)
+  const discussionCommunication = schemaProperty(
+    discussionPrompt.outputSchema,
     'communication',
   )
-  assert.deepEqual(
-    schemaProperty(passCommunication, 'targetSeats').const,
-    [],
+  assert.equal(
+    schemaProperty(discussionPrompt.outputSchema, 'candidateId').const,
+    discussionPrompt.structuredCandidateId,
   )
   assert.deepEqual(
-    schemaProperty(passCommunication, 'actCodes').const,
-    ['PASS'],
+    schemaProperty(discussionCommunication, 'targetSeats').items?.enum,
+    discussionPrompt.context.publicContext.record.players.map(
+      (player) => player.seat,
+    ),
   )
-  assert.deepEqual(
-    schemaProperty(passCommunication, 'evidenceRefs').const,
-    [],
+  assert.ok(
+    schemaProperty(discussionCommunication, 'actCodes').items?.enum
+      ?.includes('PASS'),
   )
-  assert.equal(passCommunication.properties?.claimedRole, undefined)
-  assert.equal(passCommunication.properties?.roleTopic, undefined)
+  assert.ok(
+    schemaProperty(discussionCommunication, 'actCodes').items?.enum
+      ?.includes('SUPPORT_CURRENT_TEAM'),
+  )
+  assert.ok(
+    schemaProperty(discussionCommunication, 'actCodes').items?.enum
+      ?.includes('OPPOSE_CURRENT_TEAM'),
+  )
+  assert.ok(discussionCommunication.properties?.claimedRole)
+  assert.ok(discussionCommunication.properties?.roleTopic)
+  const discussionConditions = JSON.stringify(discussionCommunication.allOf)
+  const discussionOutputConditions = JSON.stringify(
+    discussionPrompt.outputSchema.allOf,
+  )
+  assert.match(discussionConditions, /"PASS"/)
+  assert.match(discussionConditions, /"minItems":1/)
+  assert.match(discussionConditions, /"maxItems":2/)
+  assert.match(discussionConditions, /"targetSeats":\{"const":\[\]\}/)
+  assert.match(discussionConditions, /"required":\["claimedRole"\]/)
+  assert.match(discussionConditions, /"required":\["roleTopic"\]/)
+  assert.match(discussionConditions, /"roleTopic":\{"const":"merlin"\}/)
+  assert.match(discussionOutputConditions, /"objective":\{"const":"SUPPORT_TEAM"\}/)
+  assert.match(discussionOutputConditions, /"SUPPORT_CURRENT_TEAM"/)
+  assert.match(discussionOutputConditions, /"objective":\{"const":"OPPOSE_TEAM"\}/)
+  assert.match(discussionOutputConditions, /"OPPOSE_CURRENT_TEAM"/)
+  assert.equal(outputs.get('minion-late-discussion')?.decision.kind, 'discuss')
+  assert.equal(
+    outputs.get('minion-late-discussion')?.decision.kind === 'discuss'
+      ? outputs.get('minion-late-discussion')?.decision.say
+      : undefined,
+    'I support the committed team.',
+  )
 
   const finalizeBase = plannerPrompt(calls.get('assassin-late-finalize')!)
   const stickCandidate = finalizeBase.context.viableCandidates.find(
@@ -776,7 +807,7 @@ test('planner inputs and admitted component versions are immutable boundaries', 
   assert.equal(output.decision.pitch, 'The committed team stands.')
 })
 
-test('bounded adapters reject wrapped JSON and action-shaped voice extras', async () => {
+test('bounded adapters reject wrapped JSON and non-text voice fields', async () => {
   const source = fixture('merlin-opening-proposal')
   for (const reply of [
     'preface {"candidateId":"invented"} after',
@@ -794,25 +825,75 @@ test('bounded adapters reject wrapped JSON and action-shaped voice extras', asyn
     assert.ok(output.trace!.degradation.includes('planner-no-choice'))
   }
 
-  const extraVoice = fakeClient((call) => {
-    if (call.opts?.tag?.endsWith('/planner')) {
-      return JSON.stringify({
-        candidateId: plannerInput(call).structuredCandidateId,
-      })
-    }
-    return '{"text":"wrapped voice","candidateId":"invented"}'
-  })
+  for (const reply of [
+    '{"text":"wrapped voice","candidateId":"invented"}',
+    '{"text":"wrapped voice","thinking":"private scratchpad"}',
+  ]) {
+    const extraVoice = fakeClient((call) => {
+      if (call.opts?.tag?.endsWith('/planner')) {
+        return JSON.stringify({
+          candidateId: plannerInput(call).structuredCandidateId,
+        })
+      }
+      return reply
+    })
+    const output = await createComposedAgent({
+      seed: source.source.seed,
+      scorer: goodProposalScorer,
+      ...createBoundedPlannerVoice({
+        client: extraVoice,
+        model: 'fake/model',
+      }),
+    }).decide(source.req, source.view)
+    assert.ok(output.trace!.degradation.includes('voice-no-output'))
+    assert.equal(output.decision.kind, 'propose')
+    assert.equal(output.decision.pitch, undefined)
+    assert.equal(output.decision.thinking, undefined)
+  }
+})
+
+test('host admission rejects a discussion objective and speech-act mismatch', async () => {
+  const source = fixture('minion-late-discussion')
+  let voiceCalls = 0
   const output = await createComposedAgent({
     seed: source.source.seed,
-    scorer: goodProposalScorer,
-    ...createBoundedPlannerVoice({
-      client: extraVoice,
-      model: 'fake/model',
-    }),
+    planner: {
+      version: 'mismatched-discussion-intent-v1',
+      async choose(input) {
+        return {
+          candidateId: input.structuredCandidateId,
+          strategicIntent: {
+            version: 'strategic-intent-v1',
+            objective: 'SUPPORT_TEAM',
+            targetSeats: [],
+            horizon: 'CURRENT_PROPOSAL',
+            evidenceRefs: [],
+          },
+          communication: {
+            version: 'communication-intent-v5',
+            channel: 'discussion',
+            targetSeats: [],
+            actCodes: ['OPPOSE_CURRENT_TEAM'],
+            evidenceRefs: [],
+            tone: 'natural',
+          },
+        }
+      },
+    },
+    voice: {
+      version: 'must-not-run-v1',
+      async speak() {
+        voiceCalls += 1
+        return { text: 'I oppose this team.' }
+      },
+    },
   }).decide(source.req, source.view)
-  assert.ok(output.trace!.degradation.includes('voice-no-output'))
-  assert.equal(output.decision.kind, 'propose')
-  assert.equal(output.decision.pitch, undefined)
+  assert.ok(
+    output.trace!.degradation.includes('planner-invalid-communication'),
+  )
+  assert.equal(output.decision.kind, 'discuss')
+  assert.equal(output.decision.say, '')
+  assert.equal(voiceCalls, 0)
 })
 
 test('direct planner communication rejects extra private-shaped fields', async () => {
@@ -827,7 +908,7 @@ test('direct planner communication rejects extra private-shaped fields', async (
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'proposal-pitch',
             targetSeats: [],
             actCodes: ['EXPLAIN_COMMITTED_TEAM'],
@@ -997,8 +1078,8 @@ test('architecture bank can compare free compatibility, structured-only, and hyb
         components: {
           ...baseComponents,
           scorer: 'good-proposal-vote-scorer-v1',
-          planner: 'bounded-llm-planner-v2',
-          voice: 'bounded-llm-voice-v1',
+          planner: 'bounded-llm-planner-v4',
+          voice: 'bounded-llm-voice-v5',
         },
         paid: false,
         createTargetAgent: (context) => createComposedAgent({

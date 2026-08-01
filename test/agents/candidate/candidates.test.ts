@@ -59,6 +59,20 @@ test('candidate IDs and order are deterministic and player-name invariant', () =
   }
 })
 
+test('discussion surface records an automatic transition without precommitting to silence', () => {
+  const fixture = readDecisionFixtures().find(
+    (entry) => entry.req.kind === 'discuss',
+  )!
+  const candidates = legalCandidates(fixture.req, fixture.view)
+  assert.equal(candidates.length, 1)
+  assert.equal(candidates[0].id, `${LEGAL_CANDIDATE_VERSION}:discuss:automatic`)
+  assert.deepEqual(candidates[0].decision, { kind: 'discuss', say: '' })
+  assert.equal(
+    (candidates[0] as { template?: string }).template,
+    'automatic',
+  )
+})
+
 test('candidate generation rejects mismatched seats and decision phases', () => {
   const fixture = readDecisionFixtures()[0]
   assert.throws(
@@ -158,7 +172,7 @@ function expectedCandidateCount(req: DecisionRequest, view: PlayerView): number 
   switch (req.kind) {
     case 'discuss':
       // Table talk has no enumerable mechanical content, so every seat has
-      // exactly one observable act: speaking. The words are voice's domain.
+      // exactly one automatic policy transition. Communication is separate.
       return 1
     case 'propose':
       return binomial(players, teamSize)
@@ -214,8 +228,8 @@ test('candidate counts match a closed-form oracle for every player count and kin
   )
 })
 
-/** Every syntactically well-typed decision of this kind, legal or not. */
-function syntacticDomain(req: DecisionRequest, view: PlayerView): readonly Decision[] {
+/** Every policy-owned alternative, holding voice-owned decoration empty. */
+function policyOwnedDomain(req: DecisionRequest, view: PlayerView): readonly Decision[] {
   const seats = view.players.map((player) => player.seat).sort((a, b) => a - b)
   // Only the team-shaped kinds need the 2^n subsets, so the rest never pay for
   // building them.
@@ -228,8 +242,8 @@ function syntacticDomain(req: DecisionRequest, view: PlayerView): readonly Decis
   }
   switch (req.kind) {
     case 'discuss':
-      // Speech text belongs to voice, not policy, so the say is held fixed and
-      // the policy-owned domain is the single act of speaking.
+      // Speech text belongs to communication, not mechanical policy. The
+      // policy-owned domain therefore contains only the automatic transition.
       return [{ kind: 'discuss', say: '' } as Decision]
     case 'propose':
       return everyTeam().map((team): Decision => ({ kind: 'propose', team }))
@@ -275,7 +289,7 @@ function sweepKey(req: DecisionRequest, view: PlayerView): string {
     : req.kind
 }
 
-test('the candidate surface is complete up to observable game equivalence', () => {
+test('the candidate surface is complete over policy-owned mechanical alternatives', () => {
   const covered = new Set<DecisionKind>()
   // The exhaustive sweep enumerates every seat subset, so it runs once per
   // distinct surface shape per case rather than at every decision; the
@@ -288,7 +302,7 @@ test('the candidate surface is complete up to observable game equivalence', () =
     covered.add(req.kind)
 
     const reachable = new Set<string>()
-    for (const decision of syntacticDomain(req, view)) {
+    for (const decision of policyOwnedDomain(req, view)) {
       try {
         reachable.add(outcomeOf(game, req.seat, decision))
       } catch (error) {

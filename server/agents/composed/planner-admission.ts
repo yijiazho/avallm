@@ -33,6 +33,10 @@ import {
 import type {
   CompatibilityPlannerResolution,
 } from '../policy/decision-frame.ts'
+import type {
+  PlannerCommunicationDirection,
+  StrategicIntent,
+} from '../policy/plan.ts'
 import type { CandidateScore } from '../policy/score.ts'
 import {
   projectLanguageInterpreterInput,
@@ -40,6 +44,21 @@ import {
 import {
   validStrategicIntent,
 } from '../record/strategic-intent-contract.ts'
+
+function discussionIntentIsCoherent(
+  decision: Decision,
+  intent: StrategicIntent | undefined,
+  communication: PlannerCommunicationDirection | undefined,
+): boolean {
+  if (decision.kind !== 'discuss' || intent === undefined) return true
+  if (intent.objective === 'SUPPORT_TEAM') {
+    return communication?.actCodes.includes('SUPPORT_CURRENT_TEAM') === true
+  }
+  if (intent.objective === 'OPPOSE_TEAM') {
+    return communication?.actCodes.includes('OPPOSE_CURRENT_TEAM') === true
+  }
+  return true
+}
 
 /**
  * What this seat knows about the table, for the shared direction contract.
@@ -104,7 +123,9 @@ function validPlannerReasons(
  * name only a candidate that scored viable, may cite only reasons its own score
  * supports, and loses invalid communication on its own without losing the
  * candidate, so a planner cannot widen the candidate set or reopen the mechanical
- * action it was handed.
+ * action it was handed. If discussion strategy and speech contradict each
+ * other, both are discarded together so plan memory cannot preserve one half
+ * of an incoherent pair.
  */
 export async function resolvePlannerChoice(input: {
   planner: CandidatePlanner
@@ -156,19 +177,30 @@ export async function resolvePlannerChoice(input: {
         attemptedCandidateId: planned.candidateId,
       }
     }
-    const communication = planned.communication !== undefined
+    const validatedCommunication = planned.communication !== undefined
       && validCommunicationDirection(
         planned.communication,
         plannerCommunicationContext(plannedCandidate.decision, view),
       )
       ? structuredClone(planned.communication)
       : undefined
-    const strategicIntent = planned.strategicIntent !== undefined
+    const validatedStrategicIntent = planned.strategicIntent !== undefined
       && validStrategicIntent(
         planned.strategicIntent,
         plannerCommunicationContext(plannedCandidate.decision, view),
       )
       ? structuredClone(planned.strategicIntent)
+      : undefined
+    const coherentIntent = discussionIntentIsCoherent(
+      plannedCandidate.decision,
+      validatedStrategicIntent,
+      validatedCommunication,
+    )
+    const communication = coherentIntent
+      ? validatedCommunication
+      : undefined
+    const strategicIntent = coherentIntent
+      ? validatedStrategicIntent
       : undefined
     return {
       kind: 'accepted',
@@ -179,7 +211,11 @@ export async function resolvePlannerChoice(input: {
       ...(strategicIntent ? { strategicIntent } : {}),
       ...(communication ? { communication } : {}),
       ...(planned.strategicIntent !== undefined && !strategicIntent
-        ? { degradationCode: 'planner-invalid-strategic-intent' }
+        ? {
+            degradationCode: coherentIntent
+              ? 'planner-invalid-strategic-intent'
+              : 'planner-invalid-communication',
+          }
         : planned.communication !== undefined && !communication
           ? { degradationCode: 'planner-invalid-communication' }
           : {}),

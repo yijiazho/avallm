@@ -607,3 +607,53 @@ The production v4 prompt, including its optional role-discussion fields, then re
 three-model, three-fixture matrix at 9/9 parser and host acceptance for $0.0108. DeepSeek Flash and
 Gemini Flash Lite emitted no reasoning tokens. Kimi emitted one reasoning token on each call despite
 the configured suppression; that is a model-policy observation, not a planner-contract failure.
+
+The subsequent dialogue sanity run exposed a separate structural mistake: all 24 target-seat
+discussion turns were silent. The engine's sole discussion transition had been named
+`discuss:pass` even though its empty text was only the pre-voice placeholder. Prompt v4 recognized
+that candidate name and correctly constrained communication to `PASS`, making speech impossible.
+Prompt v7, communication intent v5, and legal candidates v3 separate the two meanings. Policy
+records the single `discuss:automatic` engine transition without presenting it as a strategic
+choice. The communication direction independently selects explicit `PASS`, support or opposition
+to the current team, or another bounded speech act. A pass now means only that the player declines
+the current speaking opportunity; it does not cast a vote, endorse a team, or change any later
+decision.
+
+A two-model paid discussion gate then exercised early Percival, round-two Servant, and late Minion
+views on DeepSeek Flash and Kimi. The repaired planner contract admitted every case and selected
+speech in every case. DeepSeek voice published 3/3. Kimi initially published 1/3 because the
+proper-name guard treated the grammatical `s` in a grounded possessive such as `P1's` as an
+invented name; stripping only that possessive suffix fixed the deterministic false rejection, and
+the Kimi rerun published 3/3 without degradation. The original matrix plus diagnostic rerun cost
+$0.0179 across 18 calls.
+
+Mechanical silence is therefore fixed, but this is not yet a qualitative pass. Manual audit found
+only 3/6 final transcripts fully coherent with their typed intent and public history. One DeepSeek
+reply addressed P4 while its suspicion target was P3. One Kimi reply declared team support and
+trust but questioned whether its named player deserved trust and described a pending second quest
+as if it had already happened. Another Kimi reply claimed three current teammates had served on
+the first two successful quests when the public teams show only two. No reply invented a player or
+used an unauthorized role name.
+
+The next contract added those missing structural checks: target-bearing acts require one or two
+exact seats, non-target acts require none, every target must be named, direct address cannot redirect
+to an untargeted player, speech is capped at 35 words, and impossible off-table coordination is
+rejected. SUPPORT_TEAM and OPPOSE_TEAM objectives are also tied to matching public acts in both the
+planner schema and host admission. The repeated six-row gate cost $0.0129. DeepSeek selected one explicit PASS and all
+five attempted voices were admitted. The earlier wrong-target, off-table, and untargeted-question
+failures disappeared. Manual audit still caught one Kimi line that treated its own public alias as
+another player and invented aggregate quest counts.
+
+The committed voice plan now labels the speaker's public seat and name without exposing their role,
+requires first-person self-reference, and rejects aggregate history counts that were not supplied as
+host facts. A two-row late-Minion regression cost $0.0054. Both models again tried to summarize
+multiple historical events and failed closed to silence; Kimi no longer confused its own identity,
+but its otherwise grounded line added suspicion that was absent from the declared support-only act.
+This leaves the next problem well scoped: add a bounded semantic alignment or repair step between
+voice generation and publication, rather than expanding brittle keyword bans or starting a larger
+promotion study.
+
+A pre-land review narrowed the aggregate-history backstop to concrete retrospective constructions,
+so ordinary language such as "Once we hear more" remains legal. It also made the bounded voice
+reply genuinely text-only and added a host-side regression for contradictory discussion objectives
+and acts. These are admission properties, not additional strategic guidance.

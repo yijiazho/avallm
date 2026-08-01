@@ -143,21 +143,35 @@ prior speech, thinking, and notes are omitted. Player-authored names and utteran
 classified as inert, untrusted evidence in the planner prompt. Its voice adapter sees the committed action and a
 public-safe qualitative projection together with the canonical public board and a bounded recent
 utterance window, never the candidate surface, private role knowledge, or exact posterior values.
-The public roster is explicit. Communication intent v3 admits a finite set of acts, including an
+The public roster and the speaker's public seat/name identity are explicit, so voice can translate
+seat references and distinguish self from the other roster entries without receiving the speaker's
+private role. Communication intent v5 admits a finite set of acts, including an
 explicit silent `PASS`, response, suspicion, trust, defense, role-strategy talk, Merlin-exposure
-warnings, and positive first-person role claims. A role claim carries only the identity the planner
-intends to present, never whether it is true. Negative role claims are not part of the vocabulary.
+warnings, explicit support or opposition to the current team, and positive first-person role
+claims. A role claim carries only the identity the planner intends to present, never whether it is
+true. Negative role claims are not part of the vocabulary. Discussion has one automatic mechanical
+transition, `discuss:automatic`, because advancing after the current speaking opportunity is the
+only engine-state change available, not a strategic move. Its empty `say` is a pre-voice
+placeholder, not a silent-pass decision. The planner's actual choice is communication: either
+`PASS` or one of the bounded speech acts. Only `PASS` suppresses the voice call and advances the
+turn silently.
 Any cited evidence is a stable reference to an utterance, proposal, public proposal vote, or
 completed quest that must resolve against the same public projection before voice can run.
 Strategic intent v1 is a separate private continuity channel with a finite objective and horizon
 vocabulary, seat targets, and the same public evidence coordinates. It contains no free-form model
 reasoning, enters private plan memory only after the engine accepts the action, and is deliberately
-absent from the committed voice plan. Planner prompt v4 renders the response contract as a
+  absent from the committed voice plan. Planner prompt v7 renders the response contract as a
 context-specific JSON Schema: objective and horizon are scalar enums, communication is absent when
 the decision cannot speak, mixed finalize choices tie revision speech to a revise candidate, seat
-targets are limited to the current public roster, and evidence must be copied from a bounded exact
-menu containing the eight most recent utterances, three most recent proposals and ballots, and every
-completed quest.
+targets are limited to the current public roster, discussion turns permit either bounded speech or
+an explicit schema-constrained `PASS`, and evidence must be copied from a bounded exact menu
+containing the eight most recent utterances, three most recent proposals and ballots, and every
+completed quest. Voice admission independently bounds length, exact target naming, direct address,
+third-person self-reference, impossible private coordination, and unsupported aggregate history.
+Bounded voice replies contain text only; a model-authored scratchpad is not admitted. The host also
+rechecks the discussion objective against support/opposition speech instead of relying on the JSON
+Schema shown to the planner. Those checks fail closed to the already committed mechanical action;
+they do not let voice rewrite the plan.
 The web-library Probabilistic + LLM factory enables plan memory; the structured-only Probabilistic
 factory remains memory-off for a clean mechanical arm.
 Execution modes explicitly distinguish compatibility, structured-only, hybrid, and raw LLM paths.

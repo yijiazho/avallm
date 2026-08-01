@@ -58,7 +58,7 @@
     },
     {
       "path": "test/agents/communication/planner-voice-adapter.test.ts",
-      "sha256": "bbb83eac5e76b522310663c349927d7d78533a0fad2a6a7db4759ededc09a2c9",
+      "sha256": "ee1817f90aa934677141c8e9f32e6d867f257ecbfbc3d28d71d3504d8b838aaa",
       "rationale": "Legacy planner fixtures need feature and decision union narrowing."
     },
     {
@@ -83,7 +83,7 @@
     },
     {
       "path": "test/agents/composed.test.ts",
-      "sha256": "6ae46caaa8ed5faf3c36c1349279650dce2656624eb556c477bb55f91234151d",
+      "sha256": "327910a66aff8ee66793ceedcbcf89ec0b07025a0509daccdcdef8c222762b3e",
       "rationale": "Legacy agent fixtures need discriminated-union narrowing and readonly cleanup."
     },
     {

@@ -188,9 +188,10 @@ export function validCommunicationIntent(ctx: ComposedTraceContext): boolean {
     // omitted rather than faked, and the structural rules still apply.
     //
     // Seat lists here are bounded and dense but deliberately not canonicalSeats.
-    // A planner names the seats it is addressing in whatever order it chose, and
-    // a discussion intent addresses nobody, so ascending order and non-emptiness
-    // are the two parts of the canonical contract this list does not carry.
+    // A planner names the seats it is addressing in whatever order it chose,
+    // and acts that do not address a particular player may carry an empty list.
+    // Ascending order and unconditional non-emptiness are therefore the two
+    // parts of the canonical seat-list contract this direction does not carry.
     if (communicationDirectionFailure(intent, {
       allowedChannels: expectedChannel === undefined ? [] : [expectedChannel],
       additionalKeys: COMMUNICATION_INTENT_ONLY_KEYS,

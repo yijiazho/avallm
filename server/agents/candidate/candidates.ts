@@ -59,7 +59,7 @@ const teamKey = (team: readonly Seat[]): string =>
 function candidateSuffix(decision: Decision): string {
   switch (decision.kind) {
     case 'discuss':
-      return 'pass'
+      return 'automatic'
     case 'propose':
       return teamKey(decision.team)
     case 'finalize':
@@ -143,14 +143,17 @@ export function legalCandidates(
   switch (req.kind) {
     case 'discuss': {
       // Table talk is prose, so the mechanically legal surface here is a single
-      // candidate: the content of what a seat says is not enumerable.
+      // automatic transition: the engine advances after this seat's speaking
+      // opportunity. The empty string is a pre-voice placeholder, not a
+      // commitment to pass; communication independently decides whether the
+      // final action carries speech.
       const decision: Extract<Decision, { kind: 'discuss' }> = {
         kind: 'discuss',
         say: '',
       }
       const only: DiscussionCandidate = {
         ...candidate(decision),
-        template: 'pass',
+        template: 'automatic',
       }
       return [only]
     }

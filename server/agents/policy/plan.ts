@@ -44,7 +44,7 @@ import {
 } from './score.ts'
 
 export const DECISION_PLAN_VERSION = 'decision-plan-v3'
-export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v3'
+export const COMMUNICATION_INTENT_VERSION = 'communication-intent-v5'
 export const POSTERIOR_UNCERTAINTY_VERSION = 'posterior-uncertainty-v1'
 
 
@@ -55,6 +55,8 @@ export const COMMUNICATION_ACT_CODES = [
   'EXPLAIN_COMMITTED_REVISION',
   'ADVOCATE_SELECTED_ACTION',
   'ACKNOWLEDGE_UNCERTAINTY',
+  'SUPPORT_CURRENT_TEAM',
+  'OPPOSE_CURRENT_TEAM',
   'EXPRESS_SUSPICION',
   'EXPRESS_TRUST',
   'DEFEND_SELF',
@@ -69,8 +71,9 @@ export type CommunicationActCode =
 export const COMMUNICATION_ACTS_BY_CHANNEL = {
   discussion: [
     'PASS',
-    'ADVOCATE_SELECTED_ACTION',
     'ACKNOWLEDGE_UNCERTAINTY',
+    'SUPPORT_CURRENT_TEAM',
+    'OPPOSE_CURRENT_TEAM',
     'EXPRESS_SUSPICION',
     'EXPRESS_TRUST',
     'DEFEND_SELF',
@@ -175,6 +178,10 @@ export interface DecisionPlan {
 
 export interface CommittedVoicePlan {
   version: typeof DECISION_PLAN_VERSION
+  speaker: {
+    seat: Seat
+    name: string
+  }
   players: readonly {
     seat: Seat
     name: string

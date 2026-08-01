@@ -8,7 +8,11 @@
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { createComposedAgent } from '../../agents/composed.ts'
-import { createBoundedPlannerVoice } from '../../agents/communication/planner-voice-adapter.ts'
+import {
+  BOUNDED_PLANNER_VERSION,
+  BOUNDED_VOICE_VERSION,
+  createBoundedPlannerVoice,
+} from '../../agents/communication/planner-voice-adapter.ts'
 import {
   createGoodProposalVoteScorer,
   GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION,
@@ -32,8 +36,8 @@ import type { ArchitectureBankCase } from '../banks/architecture-bank.ts'
 import type { CallOpts, Msg } from '../../llm/openrouter.ts'
 
 export const PHASE4_POLICY_EVAL_VERSION = 'phase4-policy-eval-v1'
-export const PHASE4_FAKE_PLANNER_VERSION = 'bounded-llm-planner-v2'
-export const PHASE4_FAKE_VOICE_VERSION = 'bounded-llm-voice-v1'
+export const PHASE4_FAKE_PLANNER_VERSION = BOUNDED_PLANNER_VERSION
+export const PHASE4_FAKE_VOICE_VERSION = BOUNDED_VOICE_VERSION
 
 const scorer = createGoodProposalVoteScorer({
   selectionMode: 'seeded-band',

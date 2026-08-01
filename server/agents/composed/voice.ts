@@ -69,6 +69,12 @@ function committedVoicePlan(
     : undefined
   return {
     version: plan.version,
+    // Mark the public self explicitly. A bare roster lets a voice model know
+    // every name without telling it which entry should be rendered as I/me.
+    speaker: {
+      seat: view.seat,
+      name: view.name,
+    },
     // Voice has to translate the committed seat-number action into table
     // speech. Names are public, and supplying the whole public roster keeps it
     // from inventing referents for otherwise anonymous numbers.

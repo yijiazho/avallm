@@ -48,7 +48,7 @@ function direction(
     version: COMMUNICATION_INTENT_VERSION,
     channel: 'discussion',
     targetSeats: [],
-    actCodes: ['ADVOCATE_SELECTED_ACTION'],
+    actCodes: ['SUPPORT_CURRENT_TEAM'],
     evidenceRefs: [],
     tone: 'natural',
     ...overrides,
@@ -221,7 +221,42 @@ test('the act set commits the speaker to the rest of the direction', () => {
   )
   assert.equal(
     communicationDirectionFailure(
-      direction({ actCodes: ['ADVOCATE_SELECTED_ACTION'], claimedRole: 'merlin' }),
+      direction({ actCodes: ['SUPPORT_CURRENT_TEAM'], targetSeats: [1] }),
+      KNOWS_NOTHING,
+    ),
+    'unexpected-targets',
+    'non-target acts cannot smuggle an unrelated roster into voice',
+  )
+  assert.equal(
+    communicationDirectionFailure(
+      direction({
+        actCodes: ['EXPRESS_TRUST'],
+        targetSeats: [0, 1, 2],
+      }),
+      KNOWS_NOTHING,
+    ),
+    'target-seats',
+    'one short utterance cannot ground an unbounded player list',
+  )
+  assert.equal(
+    communicationDirectionFailure(
+      direction({ actCodes: ['EXPRESS_TRUST'], targetSeats: [1, 2] }),
+      KNOWS_NOTHING,
+    ),
+    undefined,
+  )
+  assert.equal(
+    communicationDirectionFailure(
+      direction({
+        actCodes: ['SUPPORT_CURRENT_TEAM', 'OPPOSE_CURRENT_TEAM'],
+      }),
+      KNOWS_NOTHING,
+    ),
+    'team-stance-conflict',
+  )
+  assert.equal(
+    communicationDirectionFailure(
+      direction({ actCodes: ['SUPPORT_CURRENT_TEAM'], claimedRole: 'merlin' }),
       KNOWS_NOTHING,
     ),
     'claimed-role',

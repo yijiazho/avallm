@@ -31,6 +31,14 @@ import {
 
 export { MAX_EVIDENCE_REFS, publicEvidenceExists, validPublicEvidenceReferences }
 
+export const MAX_COMMUNICATION_TARGETS = 2
+
+export const TARGET_BEARING_COMMUNICATION_ACTS = Object.freeze([
+  'EXPRESS_SUSPICION',
+  'EXPRESS_TRUST',
+  'RESPOND_TO_PLAYER',
+] as const)
+
 /**
  * The one contract for a planner-authored communication direction.
  *
@@ -114,7 +122,9 @@ export type CommunicationDirectionFailure =
   | 'act-codes'
   | 'act-not-on-channel'
   | 'pass-not-exclusive'
+  | 'team-stance-conflict'
   | 'missing-targets'
+  | 'unexpected-targets'
   | 'evidence-refs'
   | 'evidence-malformed'
   | 'evidence-unknown'
@@ -154,6 +164,7 @@ export function communicationDirectionFailure(
     !denseArray(targetSeats)
     || !targetSeats.every((seat) => safeIndex(seat, 0))
     || !hasDistinctSeats(targetSeats as readonly Seat[])
+    || targetSeats.length > MAX_COMMUNICATION_TARGETS
   ) return 'target-seats'
   if (
     context.seatExists
@@ -202,12 +213,15 @@ export function communicationDirectionFailure(
     )
   ) return 'pass-not-exclusive'
   if (
-    acts.some((code) =>
-      code === 'EXPRESS_SUSPICION'
-      || code === 'EXPRESS_TRUST'
-      || code === 'RESPOND_TO_PLAYER')
-    && targetSeats.length === 0
-  ) return 'missing-targets'
+    acts.includes('SUPPORT_CURRENT_TEAM')
+    && acts.includes('OPPOSE_CURRENT_TEAM')
+  ) return 'team-stance-conflict'
+  const targetsPlayers = acts.some((code) =>
+    TARGET_BEARING_COMMUNICATION_ACTS.includes(
+      code as (typeof TARGET_BEARING_COMMUNICATION_ACTS)[number],
+    ))
+  if (targetsPlayers && targetSeats.length === 0) return 'missing-targets'
+  if (!targetsPlayers && targetSeats.length !== 0) return 'unexpected-targets'
 
   const claimedRole = value.claimedRole
   if (

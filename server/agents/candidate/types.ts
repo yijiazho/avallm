@@ -33,7 +33,7 @@ export const FORCED_PLAY_REASON_CODES = [
 ] as const
 export type ForcedPlayReasonCode = typeof FORCED_PLAY_REASON_CODES[number]
 
-export const LEGAL_CANDIDATE_VERSION = 'legal-candidates-v2'
+export const LEGAL_CANDIDATE_VERSION = 'legal-candidates-v3'
 export const FORCED_POLICY_VERSION = 'forced-policy-v1'
 
 export interface PolicyCandidate {
@@ -45,13 +45,13 @@ export interface PolicyCandidate {
 
 /**
  * A finite discussion seam. Table talk has no enumerable mechanical content, so
- * this is a single candidate: the policy commits to speaking and arbitrary
- * prose remains the communication layer's job.
+ * this is a single automatic transition rather than a strategic choice. The
+ * communication layer independently decides whether to speak or pass.
  */
 export interface DiscussionCandidate extends PolicyCandidate {
   kind: 'discuss'
   decision: Extract<Decision, { kind: 'discuss' }>
-  template: 'pass'
+  template: 'automatic'
 }
 
 export interface ForcedPolicyResult {

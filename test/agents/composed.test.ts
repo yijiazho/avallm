@@ -78,7 +78,7 @@ test('composed engine runs in ownership order and attributes every component', a
     languageEvidence: 'off',
     observerModel: 'off',
     analysis: 'situation-analysis-v2',
-    candidates: 'legal-candidates-v2',
+    candidates: 'legal-candidates-v3',
     forcedPolicy: 'forced-policy-v1',
     policy: 'composed-policy-v1',
     scorer: 'compatibility-scorer-v1',
@@ -271,7 +271,7 @@ test('planner communication must match the committed action channel', async () =
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'discussion',
             targetSeats: [],
             actCodes: ['PASS'],
@@ -302,7 +302,7 @@ test('planner cannot publish private analysis fact codes', async () => {
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'proposal-pitch',
             targetSeats: [],
             actCodes: privateFacts,
@@ -419,10 +419,10 @@ test('revision reason and discussion speech are plan-driven without changing mec
         return {
           candidateId: input.structuredCandidateId,
           communication: {
-            version: 'communication-intent-v3',
+            version: 'communication-intent-v5',
             channel: 'discussion',
             targetSeats: [],
-            actCodes: ['ADVOCATE_SELECTED_ACTION'],
+            actCodes: ['SUPPORT_CURRENT_TEAM'],
             evidenceRefs: [],
             tone: 'natural',
           },
@@ -462,10 +462,10 @@ test('voice failure keeps the committed action and becomes silent degradation', 
                 return {
                   candidateId: input.structuredCandidateId,
                   communication: {
-                    version: 'communication-intent-v3' as const,
+                    version: 'communication-intent-v5' as const,
                     channel: 'discussion' as const,
                     targetSeats: [],
-                    actCodes: ['ADVOCATE_SELECTED_ACTION'] as const,
+                    actCodes: ['SUPPORT_CURRENT_TEAM'] as const,
                     evidenceRefs: [],
                     tone: 'natural' as const,
                   },

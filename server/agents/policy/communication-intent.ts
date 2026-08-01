@@ -335,7 +335,10 @@ export function defaultCommunicationIntent(
     return enrich({
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'proposal-pitch',
-      targetSeats: [...decision.team],
+      // The proposed team is already the committed mechanical action. It is
+      // not a list of conversational targets unless the planner selects a
+      // target-bearing act such as trust or suspicion.
+      targetSeats: [],
       actCodes: [
         'EXPLAIN_COMMITTED_TEAM',
         'ADVOCATE_SELECTED_ACTION',
@@ -349,7 +352,7 @@ export function defaultCommunicationIntent(
     return enrich({
       version: COMMUNICATION_INTENT_VERSION,
       channel: 'revision-reason',
-      targetSeats: [...decision.team],
+      targetSeats: [],
       actCodes: [
         'EXPLAIN_COMMITTED_REVISION',
         'ADVOCATE_SELECTED_ACTION',
