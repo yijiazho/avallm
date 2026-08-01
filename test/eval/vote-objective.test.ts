@@ -378,18 +378,18 @@ test('a symmetric decision still replays exactly after the NB-013 change', async
 
 test('the NB-013 gate bench differs from its baseline in the vote value only', () => {
   const [baseline, candidate] = nb013VoteObjectiveVariants()
-  assert.equal(baseline.id, NB013_VOTE_OBJECTIVE_VARIANTS.symmetric)
-  assert.equal(candidate.id, NB013_VOTE_OBJECTIVE_VARIANTS.boardSwing)
+  assert.equal(baseline!.id, NB013_VOTE_OBJECTIVE_VARIANTS.symmetric)
+  assert.equal(candidate!.id, NB013_VOTE_OBJECTIVE_VARIANTS.boardSwing)
   // Everything the comparison holds fixed has to be identical, or the delta
   // cannot be attributed to the value function.
-  const { scorer: baselineScorer, ...baselineRest } = baseline.components
-  const { scorer: candidateScorer, ...candidateRest } = candidate.components
+  const { scorer: baselineScorer, ...baselineRest } = baseline!.components
+  const { scorer: candidateScorer, ...candidateRest } = candidate!.components
   assert.deepEqual(
     { ...baselineRest, evaluationRole: 'shared' },
     { ...candidateRest, evaluationRole: 'shared' },
   )
   assert.equal(baselineScorer, goodProposalVoteScorer.version)
   assert.equal(candidateScorer, GOOD_PROPOSAL_VOTE_BOARD_SWING_SCORER_VERSION)
-  assert.equal(baseline.paid, false)
-  assert.equal(candidate.paid, false)
+  assert.equal(baseline!.paid, false)
+  assert.equal(candidate!.paid, false)
 })

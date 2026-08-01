@@ -78,11 +78,11 @@ test('default LLM prompts omit belief visibility and experimental prompts receiv
   if (experimentalOutput.trace) traces.push(experimentalOutput.trace)
   assert.ok(experimental.flat().some((text) => text.includes('EXACT BELIEF SUMMARY')))
   assert.equal(traces.length, 1)
-  assert.equal(traces[0].statedReasoning, 'uses exact summary')
-  assert.equal(traces[0].action.kind, 'propose')
-  assert.ok(traces[0].degradation.includes('pitch-failed'))
+  assert.equal(traces[0]!.statedReasoning, 'uses exact summary')
+  assert.equal(traces[0]!.action.kind, 'propose')
+  assert.ok(traces[0]!.degradation.includes('pitch-failed'))
   assert.equal(
-    traces[0].beliefThroughSeq,
+    traces[0]!.beliefThroughSeq,
     view.events.reduce((cursor, event) => Math.max(cursor, event.seq), -1),
   )
 })
@@ -126,7 +126,7 @@ test('parsed-but-unusable reflection output is recorded as trace degradation', a
     proposalNum: view.proposalNum,
   }, view)
   if (reflected.trace) traces.push(reflected.trace)
-  assert.deepEqual(traces[0].degradation, ['reflection-failed'])
+  assert.deepEqual(traces[0]!.degradation, ['reflection-failed'])
 })
 
 test('live incremental block and fixed-view preview block use identical rendering', () => {
@@ -142,7 +142,7 @@ test('live incremental block and fixed-view preview block use identical renderin
     undefined,
     { beliefVisibility: BELIEF_RENDERER_VERSION },
   )
-  assert.ok(messages[1].content.includes(expected))
+  assert.ok(messages[1]!.content.includes(expected))
 })
 
 test('seat-scoped belief prompts do not leak another seat private knowledge', () => {
@@ -151,7 +151,7 @@ test('seat-scoped belief prompts do not leak another seat private knowledge', ()
   const otherEvil = game.players.find((player) =>
     player.alignment === 'evil' && player.role !== 'oberon')!
   const rendered = experimentalBeliefContext(viewFor(game, otherEvil.seat)).rendered
-  const oberonName = game.players[oberon.seat].name
+  const oberonName = game.players[oberon.seat]!.name
   const provenEvil = rendered.split('\n').find((line) => line.startsWith('PROVEN EVIL:'))!
   assert.ok(!provenEvil.includes(oberonName), 'unseen Oberon must not be rendered as proven evil')
 })

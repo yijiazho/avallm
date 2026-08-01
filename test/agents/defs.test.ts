@@ -224,7 +224,7 @@ test('web-library probabilistic engines share mechanics while hybrid LLM only pl
     'every production hybrid call carries the player-reference norm',
   )
   assert.ok(
-    systemPrompts[1].includes(TABLE_TALK_NORMS),
+    systemPrompts[1]!.includes(TABLE_TALK_NORMS),
     'the production hybrid voice carries the shared table-talk norms',
   )
 })
@@ -300,7 +300,7 @@ test('strategy and kindGuidance layer into the prompt in design-doc order', () =
     kindGuidance: { vote: 'VOTE-MARKER weigh history', discuss: 'DISCUSS-MARKER never' },
   })
   const at = (needle: string) => {
-    const i = sys.content.indexOf(needle)
+    const i = sys!.content.indexOf(needle)
     assert.ok(i >= 0, `missing: ${needle}`)
     return i
   }
@@ -311,7 +311,7 @@ test('strategy and kindGuidance layer into the prompt in design-doc order', () =
   assert.ok(at('VOTE-MARKER') < at('TABLE TALK block'))       // injection guard after all custom text
   assert.ok(at('TABLE TALK block') < at('"vote"'))            // contract is the last word
   // guidance for other kinds stays out of this call
-  assert.ok(!sys.content.includes('DISCUSS-MARKER'))
+  assert.ok(!sys!.content.includes('DISCUSS-MARKER'))
 })
 
 test('personality and roleGuidance layer into the prompt; contracts stay fixed', () => {
@@ -322,21 +322,21 @@ test('personality and roleGuidance layer into the prompt; contracts stay fixed',
     personality: 'You are theatrical and paranoid.',
     roleGuidance: { [view.role]: 'CUSTOM GUIDANCE LINE' },
   })
-  assert.ok(!plain.content.includes('theatrical'))
-  assert.ok(layered.content.includes('theatrical and paranoid'))
-  assert.ok(layered.content.includes('CUSTOM GUIDANCE LINE'))
+  assert.ok(!plain!.content.includes('theatrical'))
+  assert.ok(layered!.content.includes('theatrical and paranoid'))
+  assert.ok(layered!.content.includes('CUSTOM GUIDANCE LINE'))
   // 'replace' (default) drops the baseline guidance for that role; 'append'
   // keeps it, so the agent still rides baseline strategy improvements.
-  const baseGuidance = ROLE_GUIDANCE[view.role]
+  const baseGuidance = ROLE_GUIDANCE[view.role]!
   const [replaced] = buildMessages('vote', view, '', { roleGuidance: { [view.role]: 'ONLY MINE' } })
   const [appended] = buildMessages('vote', view, '', { roleGuidance: { [view.role]: 'ALSO MINE' }, roleGuidanceMode: 'append' })
-  assert.ok(!replaced.content.includes(baseGuidance) && replaced.content.includes('ONLY MINE'))
-  assert.ok(appended.content.includes(baseGuidance) && appended.content.includes('ALSO MINE'))
+  assert.ok(!replaced!.content.includes(baseGuidance) && replaced!.content.includes('ONLY MINE'))
+  assert.ok(appended!.content.includes(baseGuidance) && appended!.content.includes('ALSO MINE'))
   // Engine-owned parts survive the overrides.
   for (const msg of [plain, layered]) {
-    assert.match(msg.content, /"vote"/)               // output contract
-    assert.match(msg.content, /TABLE TALK block/)     // injection guard
-    assert.match(msg.content, /succeeding 3 of 5/)    // rules digest
+    assert.match(msg!.content, /"vote"/)               // output contract
+    assert.match(msg!.content, /TABLE TALK block/)     // injection guard
+    assert.match(msg!.content, /succeeding 3 of 5/)    // rules digest
   }
 })
 
@@ -349,7 +349,7 @@ test('every role carries its alignment-shared doctrine, undroppable by overrides
       composed.startsWith(ALIGNMENT_SHARED[alignment]),
       `${role} guidance must lead with the ${alignment}-shared fragment`,
     )
-    assert.ok(composed.includes(ROLE_GUIDANCE[role]), `${role} keeps its role-specific text`)
+    assert.ok(composed.includes(ROLE_GUIDANCE[role]!), `${role} keeps its role-specific text`)
   }
   // The specific regression: Morgana and Mordred (which used to omit it) now get
   // the double-fail coordination warning via the shared fragment.
@@ -360,5 +360,5 @@ test('every role carries its alignment-shared doctrine, undroppable by overrides
   // stays in front, so a custom evil agent can't accidentally drop the warning.
   const replaced = roleGuidanceFor('morgana', { roleGuidance: { morgana: 'ONLY MINE' } })
   assert.ok(replaced.includes(EVIL_SHARED) && replaced.includes('ONLY MINE'))
-  assert.ok(!replaced.includes(ROLE_GUIDANCE.morgana))
+  assert.ok(!replaced.includes(ROLE_GUIDANCE.morgana!))
 })

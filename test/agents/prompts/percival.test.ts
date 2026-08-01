@@ -31,7 +31,7 @@ const guidanceFor = (roles: Role[]) => {
   return roleGuidanceFor('percival', {}, percivalView(g))
 }
 
-const WITH_DECOY = DEFAULT_ROLES[5]
+const WITH_DECOY = DEFAULT_ROLES[5]!
 // Legal, and what the picker's Advanced preset builds at 5 and 6 players: the
 // two evil seats go to Assassin and Mordred, so no Morgana is dealt.
 const NO_DECOY: Role[] = ['merlin', 'percival', 'servant', 'assassin', 'mordred']

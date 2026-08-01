@@ -553,7 +553,7 @@ export function createComposedAgent(
           .map((pending, index) => ({ pending, index }))
           .filter(({ pending }) => matchesAcknowledgment(pending))
         pendingIndex = legacyMatches.length === 1
-          ? legacyMatches[0].index
+          ? legacyMatches[0]!.index
           : -1
       }
       const matchingPending = pendingIndex < 0

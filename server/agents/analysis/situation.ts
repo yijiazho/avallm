@@ -320,7 +320,7 @@ export function analyzeSituation(
       )
     }
     const alternatives = policyCandidateAssessments
-      .filter((assessment) => assessment.candidateId !== currentMatches[0].candidateId)
+      .filter((assessment) => assessment.candidateId !== currentMatches[0]!.candidateId)
       .sort((left, right) =>
         right.cleanProbability - left.cleanProbability
         || compareCandidateIds(left.candidateId, right.candidateId))
@@ -333,8 +333,8 @@ export function analyzeSituation(
       beliefModelVersion: belief.modelVersion,
       beliefThroughSeq: belief.throughSeq,
       currentTeam,
-      currentCandidateId: currentMatches[0].candidateId,
-      bestAlternative: alternatives[0],
+      currentCandidateId: currentMatches[0]!.candidateId,
+      bestAlternative: alternatives[0]!,
     }
   }
   return {

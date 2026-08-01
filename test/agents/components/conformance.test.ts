@@ -328,9 +328,9 @@ function robustQuestNativeFixture() {
     kind: 'evil',
     evilPartners: [5],
   }
-  mutable(view).quests[0] = resolveQuest(view.quests[0], { result: 'success', failCount: 0 })
-  mutable(view).quests[1] = resolveQuest(view.quests[1], { result: 'fail', failCount: 1 })
-  mutable(view).quests[2] = pendingQuest(view.quests[2])
+  mutable(view).quests[0] = resolveQuest(view.quests[0]!, { result: 'success', failCount: 0 })
+  mutable(view).quests[1] = resolveQuest(view.quests[1]!, { result: 'fail', failCount: 1 })
+  mutable(view).quests[2] = pendingQuest(view.quests[2]!)
   const req = {
     kind: 'quest' as const,
     seat: view.seat,
@@ -357,7 +357,7 @@ function morganaNativeFixture() {
       seed: `phase7r3a4-conformance-${attempt}`,
       playerCount: 9,
     })
-    if (candidate.players[candidate.leaderSeat].role === 'morgana') {
+    if (candidate.players[candidate.leaderSeat]!.role === 'morgana') {
       game = candidate
       break
     }
@@ -458,7 +458,7 @@ function fiveHandedLeaderFixture(role: Role, roles: readonly Role[]) {
       playerCount: 5,
       roles: [...roles],
     })
-    if (candidate.players[candidate.leaderSeat].role === role) {
+    if (candidate.players[candidate.leaderSeat]!.role === role) {
       game = candidate
       break
     }
@@ -1068,7 +1068,7 @@ function servantProposeFixture() {
       seed: `servant-conformance-${attempt}`,
       playerCount: 7,
     })
-    if (candidate.players[candidate.leaderSeat].role === 'servant') {
+    if (candidate.players[candidate.leaderSeat]!.role === 'servant') {
       game = candidate
       break
     }

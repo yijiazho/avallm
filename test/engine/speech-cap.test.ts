@@ -40,7 +40,7 @@ test('a single enormous token still gets capped', () => {
 
 test('the engine caps spoken text, not just the helper', () => {
   const g = createGame({ seed: 'cap', playerCount: 5, roles: DEFAULT_ROLES[5] })
-  const size = g.quests[0].teamSize
+  const size = g.quests[0]!.teamSize
   const team = Array.from({ length: size }, (_, i) => (g.leaderSeat + i) % 5)
   applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'word '.repeat(200) })
   const proposal = g.log.find((e) => e.type === 'proposal')
@@ -51,7 +51,7 @@ test('the engine caps spoken text, not just the helper', () => {
 
   while (g.phase === 'discussion') {
     const [d] = expectedDecisions(g)
-    applyDecision(g, d.seat, { kind: 'discuss', say: d.seat === team[0] ? 'talking '.repeat(200) : '' })
+    applyDecision(g, d!.seat, { kind: 'discuss', say: d!.seat === team[0] ? 'talking '.repeat(200) : '' })
   }
   const said = g.log
     .filter((e) => e.type === 'utterance')

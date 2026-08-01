@@ -89,7 +89,9 @@ function reconcilesRoleAndTeamPosteriors(
         )
         if (!assignment) return false
         for (const seat of assignment.seats) {
-          marginal[seat] += hypothesis.probability
+          const currentMass = marginal[seat]
+          if (currentMass === undefined) return false
+          marginal[seat] = currentMass + hypothesis.probability
         }
       }
       const existing = marginalsByRole.get(role)
@@ -97,7 +99,8 @@ function reconcilesRoleAndTeamPosteriors(
         existing
         && existing.some(
           (recorded, seat) =>
-            Math.abs(recorded - marginal[seat]) > PROBABILITY_TOLERANCE,
+            marginal[seat] === undefined
+            || Math.abs(recorded - marginal[seat]) > PROBABILITY_TOLERANCE,
         )
       ) return false
       marginalsByRole.set(role, marginal)
@@ -118,13 +121,22 @@ function reconcilesRoleAndTeamPosteriors(
       (role) => ROLE_ALIGNMENT[role] === alignment,
     ).length
     for (let seat = 0; seat < playerCount; seat++) {
-      const roleProbability = queriedRoles.reduce(
-        (sum, role) => sum + marginalsByRole.get(role)![seat],
-        0,
+      const roleProbabilities = queriedRoles.map(
+        (role) => marginalsByRole.get(role)?.[seat],
       )
+      const evilProbability = evilBySeat[seat]
+      if (
+        evilProbability === undefined
+        || roleProbabilities.some((marginalValue) => marginalValue === undefined)
+      ) return false
+      let roleProbability = 0
+      for (const marginalValue of roleProbabilities) {
+        if (marginalValue === undefined) return false
+        roleProbability += marginalValue
+      }
       const alignmentProbability = alignment === 'evil'
-        ? evilBySeat[seat]
-        : 1 - evilBySeat[seat]
+        ? evilProbability
+        : 1 - evilProbability
       if (
         roleProbability > alignmentProbability + PROBABILITY_TOLERANCE
         || (
@@ -168,7 +180,10 @@ function validateScopeQueries(
     scopeKeys.push(canonical.queryKey)
   }
   return new Set(scopeKeys).size === scopeKeys.length
-    && !scopeKeys.some((key, index) => index > 0 && scopeKeys[index - 1] >= key)
+    && !scopeKeys.some((key, index) => {
+      const previous = scopeKeys[index - 1]
+      return index > 0 && previous !== undefined && previous >= key
+    })
 }
 
 /**
@@ -208,6 +223,7 @@ function validateRolePosterior(
     const assignedSeats = new Set<Seat>()
     for (const [assignmentIndex, assignment] of assignments.entries()) {
       const expected = [...counts.entries()][assignmentIndex]
+      if (!expected) return false
       if (
         !assignment
         || typeof assignment !== 'object'
@@ -398,8 +414,11 @@ export function validatePrivateIdentityHostJoin(
     playerCount,
   )
   return marginals.every(
-    (marginal, seat) =>
-      Math.abs(marginal.evilProbability - evilBySeat[seat])
-      <= PROBABILITY_TOLERANCE,
+    (marginal, seat) => {
+      const evilProbability = evilBySeat[seat]
+      return evilProbability !== undefined
+        && Math.abs(marginal.evilProbability - evilProbability)
+          <= PROBABILITY_TOLERANCE
+    },
   )
 }

@@ -103,13 +103,13 @@ export const PHASE4_POLICY_BANK: readonly ArchitectureBankCase[] = (
   [5, 6, 7, 8, 9, 10] as const
 ).flatMap((playerCount) =>
   TARGET_ROLES.flatMap((targetRole) =>
-    EXPECTED_SEATS[playerCount][targetRole].map(
+    EXPECTED_SEATS[playerCount]![targetRole]!.map(
       (expectedTargetSeat, index): ArchitectureBankCase => ({
         id: `${playerCount}p-${targetRole}-${index}`,
         seed:
           `${PHASE4_POLICY_BANK_ID}-${playerCount}-${targetRole}-${index}`,
         playerCount,
-        roles: CASTS[playerCount],
+        roles: CASTS[playerCount]!,
         talk: NO_DISCUSSION,
         targetRole,
         expectedTargetSeat,

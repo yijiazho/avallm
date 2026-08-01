@@ -335,7 +335,10 @@ function createLobby(
     table = body.table.map((t: unknown) => parseTableSeat(t, libById))
   } else {
     const pool = [...DEFAULT_TABLE, ...ROSTER.map((r) => r.id).filter((rid) => !DEFAULT_TABLE.includes(rid))]
-    table = Array.from({ length: botCount }, (_, i) => ({ agent: pool[i % pool.length] }))
+    table = Array.from(
+      { length: botCount },
+      (_, i) => ({ agent: pool[i % pool.length]! }),
+    )
   }
 
   const token = newToken()
@@ -360,7 +363,7 @@ function startLobby(l: Lobby): void {
   const seats = Array.from({ length: playerCount }, (_, i) => i)
   for (let i = seats.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[seats[i], seats[j]] = [seats[j], seats[i]]
+    ;[seats[i], seats[j]] = [seats[j]!, seats[i]!]
   }
   const humanSeatList = seats.slice(0, l.members.length).sort((a, b) => a - b)
   const botSeatList = seats.slice(l.members.length).sort((a, b) => a - b)
@@ -392,16 +395,24 @@ function startLobby(l: Lobby): void {
   const humans = new Map<Seat, { token: string; name: string }>()
   l.members.forEach((m, i) => {
     const seat = humanSeatList[i]
-    names[seat] = reserve(m.name)
-    humans.set(seat, { token: m.token, name: names[seat] })
+    if (seat === undefined) throw new Error(`missing human seat ${i}`)
+    const name = reserve(m.name)
+    names[seat] = name
+    humans.set(seat, { token: m.token, name })
   })
   const aliases = tableAliases(seed, botSeatList.length, [...humans.values()].map((h) => h.name))
   // Agent-card names and model labels remain metadata. Only these aliases enter
   // PlayerView and therefore natural-language prompts and table talk.
   botSeatList.forEach((seat, i) => {
-    const def = structuredClone(defs[i])
-    const model = table[i].model
-    names[seat] = reserve(aliases[i])
+    const sourceDef = defs[i]
+    const tableSeat = table[i]
+    const alias = aliases[i]
+    if (!sourceDef || !tableSeat || alias === undefined) {
+      throw new Error(`incomplete bot seat ${i}`)
+    }
+    const def = structuredClone(sourceDef)
+    const model = tableSeat.model
+    names[seat] = reserve(alias)
     // One game-start identity feeds the live agent, client badge, reveal,
     // transcript, and artifact. Never reduce it to a model slug: a raw model
     // card and a composed agent can call the same model.
@@ -420,6 +431,7 @@ function startLobby(l: Lobby): void {
   })
   botSeatList.forEach((seat) => {
     const seated = seatedAgents[seat]
+    if (!seated) throw new Error(`missing seated agent for seat ${seat}`)
     agents.set(seat, createAgentFromDef(
       seated.def,
       {
@@ -886,9 +898,11 @@ const server = http.createServer(async (req, res) => {
           return json(res, 400, { error: err instanceof Error ? err.message : String(err) })
         }
         const human = s.humans.get(who)
-        if (human) human.name = s.game.players[who].name
+        const player = s.game.players[who]
+        if (!player) return json(res, 400, { error: 'seat no longer exists' })
+        if (human) human.name = player.name
         broadcast(s)
-        json(res, 200, { ok: true, name: s.game.players[who].name })
+        json(res, 200, { ok: true, name: player.name })
         return
       }
       if (req.method === 'GET' && parts[3] === 'reveal') {
@@ -926,16 +940,18 @@ const server = http.createServer(async (req, res) => {
           : typeof who === 'number'
             ? viewFor(s.game, who).events
             : viewForSpectator(s.game).events
-        const seats: TranscriptSeat[] = s.game.players.map((p) => ({
-          seat: p.seat,
-          name: p.name,
-          agent: s.humans.has(p.seat) ? 'human' : (s.seatedAgents[p.seat]?.info.name ?? 'bot'),
-          descriptor: s.humans.has(p.seat) ? 'human' : (s.seatedAgents[p.seat]?.descriptor ?? 'bot'),
-          ...(!s.humans.has(p.seat) && s.seatedAgents[p.seat]
-            ? { model: s.seatedAgents[p.seat].info.model }
-            : {}),
-          ...(full ? { role: p.role, alignment: p.alignment } : {}),
-        }))
+        const seats: TranscriptSeat[] = s.game.players.map((p) => {
+          const seated = s.seatedAgents[p.seat]
+          const human = s.humans.has(p.seat)
+          return {
+            seat: p.seat,
+            name: p.name,
+            agent: human ? 'human' : (seated?.info.name ?? 'bot'),
+            descriptor: human ? 'human' : (seated?.descriptor ?? 'bot'),
+            ...(!human && seated ? { model: seated.info.model } : {}),
+            ...(full ? { role: p.role, alignment: p.alignment } : {}),
+          }
+        })
         const text = renderTranscript({
           id: s.game.id, seed: s.game.seed, playerCount: s.game.config.playerCount,
           phase: s.game.phase, round: s.game.round, proposalNum: s.game.proposalNum,

@@ -273,13 +273,9 @@ export function proposalEvidence(
   let questCursor = 0
   for (const proposal of view.proposals) {
     // Board state as of this proposal: quests resolved strictly before it.
-    while (
-      questCursor < view.quests.length
-      && view.quests[questCursor].status === 'complete'
-      && view.quests[questCursor].num < proposal.round
-    ) {
+    while (questCursor < view.quests.length) {
       const quest = view.quests[questCursor]
-      if (quest.status !== 'complete') break
+      if (!quest || quest.status !== 'complete' || quest.num >= proposal.round) break
       score[quest.result === 'success' ? 'good' : 'evil'] += 1
       questCursor += 1
     }
@@ -330,6 +326,8 @@ export function partnerVisibleToLeader(
 ): boolean {
   const leaderRole = world.roleBySeat[leader]
   const seatRole = world.roleBySeat[seat]
+  if (!leaderRole) throw new Error(`world has no role at leader seat ${leader}`)
+  if (!seatRole) throw new Error(`world has no role at candidate seat ${seat}`)
   if (ROLE_ALIGNMENT[leaderRole] !== 'evil') return false
   if (ROLE_ALIGNMENT[seatRole] !== 'evil') return false
   // Neither side of an Oberon pairing can see the other, in either direction.

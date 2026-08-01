@@ -123,7 +123,7 @@ test('outcome channels and rejection pressure are counted per variant', () => {
     }),
   ])
   assert.equal(diagnosis.cells.length, 1)
-  const cell = diagnosis.cells[0]
+  const cell = diagnosis.cells[0]!
   assert.equal(cell.games, 2)
   // The target is Merlin, so a good win is a target win. Both games are losses.
   assert.equal(cell.targetWins, 0)

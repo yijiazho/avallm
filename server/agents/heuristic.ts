@@ -39,27 +39,27 @@ function suspicion(view: PlayerView): number[] {
   const n = view.playerCount
   const score = new Array<number>(n).fill(0)
   const evil = knownEvilSeats(view)
-  for (const s of evil) score[s] += 10
+  for (const s of evil) score[s]! += 10
   for (const q of view.quests) {
     if (q.status !== 'complete') continue
     for (const s of q.team) {
       if (s === view.seat) continue
       // A failed quest is hard evidence: weight it so burned players actually
       // get excluded (fail-count inference, strategy doc §1).
-      if (q.result === 'fail') score[s] += 4 * (q.failCount / q.team.length)
-      else score[s] -= 0.5
+      if (q.result === 'fail') score[s]! += 4 * (q.failCount / q.team.length)
+      else score[s]! -= 0.5
     }
   }
   // Vote-pattern inference (strategy doc: the vote matrix is the game's
   // primary text): who led and who approved the teams that went on to fail?
   for (const prop of view.proposals) {
     if (!proposalApproved(prop)) continue
-    const quest = view.quests[prop.round - 1]
+    const quest = view.quests[prop.round - 1]!
     if (quest.status !== 'complete' || quest.result !== 'fail') continue
-    if (prop.leader !== view.seat) score[prop.leader] += 1.5
+    if (prop.leader !== view.seat) score[prop.leader]! += 1.5
     for (const v of proposalVotes(prop)) {
       if (v.seat === view.seat || v.vote !== 'approve') continue
-      if (!prop.team.includes(v.seat)) score[v.seat] += 0.4
+      if (!prop.team.includes(v.seat)) score[v.seat]! += 0.4
     }
   }
   score[view.seat] = -100 // trust thyself
@@ -70,13 +70,13 @@ function rankBySuspicion(view: PlayerView): Seat[] {
   const s = suspicion(view)
   return view.players
     .map((p) => p.seat)
-    .sort((a, b) => s[a] - s[b])
+    .sort((a, b) => s[a]! - s[b]!)
 }
 
 // ---- per-kind decisions ----
 
 function decidePropose(view: PlayerView, rng: Rng): Decision {
-  const size = view.quests[view.round - 1].teamSize
+  const size = view.quests[view.round - 1]!.teamSize
   const ranked = rankBySuspicion(view).filter((s) => s !== view.seat)
   const team: Seat[] = [view.seat]
   if (view.alignment === 'evil') {
@@ -87,7 +87,7 @@ function decidePropose(view: PlayerView, rng: Rng): Decision {
     // seat one is luck we cannot plan around). This replaces the look-clean
     // default for that quest rather than stacking with it (§7.3/§7.4 rule 3) —
     // the least suspicious partners, so the pair still reads as a normal team.
-    const need = view.quests[view.round - 1].failsRequired
+    const need = view.quests[view.round - 1]!.failsRequired
     team.push(...ranked.filter((s) => partners.has(s)).slice(0, Math.max(0, need - 1)))
     // The rest: the most trusted-looking non-partners.
     const clean = ranked.filter((s) => !partners.has(s))
@@ -147,7 +147,7 @@ function decideVote(
   if (view.role === 'merlin' && rng.chance(0.15)) return { kind: 'vote', vote: 'reject' }
   if (view.round === 1) return { kind: 'vote', vote: 'approve' }
   const sus = suspicion(view)
-  const worst = Math.max(...team.map((s) => sus[s]))
+  const worst = Math.max(...team.map((s) => sus[s]!))
   if (worst >= 1.2) return { kind: 'vote', vote: 'reject' } // someone burned is on it
   if (selfOnTeam) return { kind: 'vote', vote: 'approve' }
   // Off-team: at small counts the evil bloc + one lenient good passes any
@@ -240,7 +240,7 @@ function decideDiscuss(
   const passChance = (view.discussionRound ?? 1) >= 2 ? 0.75 : 0.3
   if (rng.chance(passChance)) return { kind: 'discuss', say: '' }
   const sus = suspicion(view)
-  const nameOf = (s: Seat) => view.players[s].name
+  const nameOf = (s: Seat) => view.players[s]!.name
   const stanceLines = stance === 'approve'
     ? [`This team works for me.`, `I'm good with this one.`]
     : stance === 'reject'
@@ -265,10 +265,10 @@ function decideDiscuss(
   }
 
   const ranked = view.players.map((p) => p.seat).filter((s) => s !== view.seat)
-    .sort((a, b) => sus[b] - sus[a])
-  const worst = ranked[0]
-  const trusted = ranked[ranked.length - 1]
-  if (sus[worst] > 1) {
+    .sort((a, b) => sus[b]! - sus[a]!)
+  const worst = ranked[0]!
+  const trusted = ranked[ranked.length - 1]!
+  if (sus[worst]! > 1) {
     return { kind: 'discuss', say: `I don't trust ${nameOf(worst)}.` }
   }
   const lines = [
@@ -319,7 +319,7 @@ export function heuristicDecide(
     // decision names a surviving legal candidate.
     return preferred
   }
-  return candidateById(candidates, forced.allowedCandidateIds[0]).decision
+  return candidateById(candidates, forced.allowedCandidateIds[0]!).decision
 }
 
 function candidateById(

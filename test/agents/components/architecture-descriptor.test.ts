@@ -490,7 +490,7 @@ test('configured pipeline rejects every invalid scalar and fallback shape', () =
     const pipeline = structuredClone(
       testConfiguredPipeline(),
     ) as unknown as Record<string, Record<string, unknown>>
-    pipeline[path[0]][path[1]] = value
+    pipeline[path[0]]![path[1]] = value
     return pipeline
   }
 
@@ -505,7 +505,7 @@ test('configured pipeline rejects every invalid scalar and fallback shape', () =
   const sparse = structuredClone(
     testConfiguredPipeline(),
   ) as unknown as Record<string, Record<string, unknown>>
-  sparse.scoring.configuredBaseChain = new Array(1)
+  sparse.scoring!.configuredBaseChain = new Array(1)
   assert.throws(() => resolve(sparse))
   assert.throws(() => resolve(replace(
     ['scoring', 'configuredBaseChain'],
@@ -776,7 +776,7 @@ test('descriptor owns component observer attribution across inapplicable paths',
     'exact-public-observer-v1',
   )
   assert.equal(
-    generic.trace!.components!.entries[0].status,
+    generic.trace!.components!.entries[0]!.status,
     'inapplicable',
   )
   assert.equal(

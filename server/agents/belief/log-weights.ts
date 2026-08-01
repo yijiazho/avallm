@@ -18,6 +18,6 @@ export function normalizeLogWeights(
   const probabilities = logWeightsToProbabilities(logWeights)
   return worlds.map((world, index) => ({
     world,
-    probability: probabilities[index],
+    probability: probabilities[index]!,
   }))
 }

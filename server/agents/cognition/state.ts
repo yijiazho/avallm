@@ -61,7 +61,7 @@ function languageConsistent(
   const readSeqs = reads.map((read) => read.sourceSeq)
   return (
     new Set(readSeqs).size === readSeqs.length
-    && readSeqs.every((seq, index) => index === 0 || readSeqs[index - 1] < seq)
+    && readSeqs.every((seq, index) => index === 0 || readSeqs[index - 1]! < seq)
     && JSON.stringify(readSeqs) === JSON.stringify(cursor.countedSourceSeqs)
     && cursor.throughSeq <= throughSeq
     && reads.every((read) => read.interpreterVersion === interpreterVersion)

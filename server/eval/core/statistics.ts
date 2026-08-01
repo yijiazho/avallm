@@ -83,8 +83,8 @@ export function median(values: readonly number[]): number | null {
   const ordered = [...values].sort((left, right) => left - right)
   const middle = Math.floor(ordered.length / 2)
   return ordered.length % 2
-    ? ordered[middle]
-    : (ordered[middle - 1] + ordered[middle]) / 2
+    ? ordered[middle]!
+    : (ordered[middle - 1]! + ordered[middle]!) / 2
 }
 
 /** Left fold of a projected field. Total of an empty set is zero, not null. */
@@ -197,7 +197,7 @@ export function nearestRank(
   return ordered[Math.max(
     0,
     Math.ceil(probability * ordered.length) - 1,
-  )]
+  )]!
 }
 
 /**
@@ -266,7 +266,7 @@ export function pairedBootstrapRateDelta<T>(
   for (let repetition = 0; repetition < BOOTSTRAP_RESAMPLES; repetition++) {
     const selected: Array<(typeof pairs)[number]> = []
     for (let index = 0; index < pairs.length; index++) {
-      selected.push(pairs[Math.floor(random() * pairs.length)])
+      selected.push(pairs[Math.floor(random() * pairs.length)]!)
     }
     const sampledBaseline = aggregate(
       selected.map((pair) => pair.baseline),

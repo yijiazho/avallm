@@ -69,7 +69,7 @@ function assassination(): Fixture {
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
   while (game.phase !== 'assassination') {
-    const req = expectedDecisions(game)[0]
+    const req = expectedDecisions(game)[0]!
     const view = viewFor(game, req.seat)
     applyDecision(
       game,
@@ -79,7 +79,7 @@ function assassination(): Fixture {
         : heuristicDecide(req, view, game.seed),
     )
   }
-  const req = expectedDecisions(game)[0]
+  const req = expectedDecisions(game)[0]!
   return { seed: game.seed, req, view: viewFor(game, req.seat) }
 }
 const mechanics = (

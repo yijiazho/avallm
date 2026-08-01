@@ -237,7 +237,7 @@ function main(): void {
       'usage: node server/eval/good-policy-diagnosis.ts <artifacts.jsonl> [--json]',
     )
   }
-  const diagnosis = diagnoseGoodPolicy(readArtifacts(positionals[0]))
+  const diagnosis = diagnoseGoodPolicy(readArtifacts(positionals[0]!))
   process.stdout.write(
     values.json
       ? `${JSON.stringify(diagnosis, null, 2)}\n`

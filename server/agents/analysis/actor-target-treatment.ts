@@ -114,7 +114,7 @@ export function buildPrivateActorTargetTreatmentRead(
         record.playerCount,
         proposal.leader,
         target,
-      )]
+      )]!
       row.proposalDenominator += 1
       if (team.has(target)) row.proposalNumerator += 1
     }
@@ -126,7 +126,7 @@ export function buildPrivateActorTargetTreatmentRead(
           record.playerCount,
           vote.seat,
           target,
-        )]
+        )]!
         row.voteDenominator += 1
         if (vote.vote === 'approve') row.voteNumerator += 1
       }
@@ -135,7 +135,7 @@ export function buildPrivateActorTargetTreatmentRead(
   const rows: ActorTargetTreatmentRow[] = []
   for (let actor = 0; actor < record.playerCount; actor++) {
     for (let target = 0; target < record.playerCount; target++) {
-      const row = counts[matrixIndex(record.playerCount, actor, target)]
+      const row = counts[matrixIndex(record.playerCount, actor, target)]!
       rows.push({
         actor,
         target,

@@ -105,7 +105,7 @@ function worldAnomaly(
   visibleEvil: readonly Seat[],
 ): { available: boolean; index: number } {
   const row = (target: Seat): ActorTargetTreatmentRow =>
-    read.rows[matrixIndex(read.playerCount, merlin, target)]
+    read.rows[matrixIndex(read.playerCount, merlin, target)]!
   const proposal = channelAnomaly(
     row(mordred).proposalSelection,
     visibleEvil.map((seat) => row(seat).proposalSelection),
@@ -177,7 +177,7 @@ function validateBeliefForMordred(
         (weighted) =>
           !close(
             weighted.probability,
-            belief.worlds[0].probability,
+            belief.worlds[0]!.probability,
           ),
       )
     )
@@ -254,7 +254,7 @@ export function buildPrivateMordredBlindnessObjective(
     ? view.currentTeam && canonicalTeam(view.currentTeam)
     : undefined
   if (
-    ![1, 2].includes(failsRequired)
+    (failsRequired !== 1 && failsRequired !== 2)
     || !Number.isSafeInteger(teamSize)
     || (
       req.kind === 'vote'
@@ -370,8 +370,8 @@ export function buildPrivateMordredBlindnessObjective(
         const totalCount = candidate.seats.filter(
           (seat) => world.totalEvil.includes(seat),
         ).length
-        visibleEvilCountDistribution[visibleCount] += world.probability
-        totalEvilCountDistribution[totalCount] += world.probability
+        visibleEvilCountDistribution[visibleCount]! += world.probability
+        totalEvilCountDistribution[totalCount]! += world.probability
         const blindWindow =
           candidate.seats.includes(view.seat)
           && visibleCount < failsRequired!

@@ -36,7 +36,7 @@ function proposal() {
     roles: ROLES,
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
-  const req = expectedDecisions(game)[0]
+  const req = expectedDecisions(game)[0]!
   return { game, req, view: viewFor(game, req.seat) }
 }
 

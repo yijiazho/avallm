@@ -243,7 +243,7 @@ export function createScoreLayerRegistry(
         if (
           declared.length !== order.length
           || declared.some((entry, index) =>
-            scoreLayerIdentityKey(entry) !== scoreLayerIdentityKey(order[index]))
+            scoreLayerIdentityKey(entry) !== scoreLayerIdentityKey(order[index]!))
         ) {
           throw new ScoreLayerRegistryError(
             'misordered-chain',

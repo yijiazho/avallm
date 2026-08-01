@@ -11,11 +11,11 @@ test('rename updates the player, emits a public event, and re-labels history', (
   const g = createGame({ seed: 'rn', playerCount: 5, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })
   const [req] = expectedDecisions(g)
-  applyDecision(g, req.seat, { kind: 'discuss', say: 'hello table' })
+  applyDecision(g, req!.seat, { kind: 'discuss', say: 'hello table' })
 
-  const speaker = req.seat
+  const speaker = req!.seat
   renamePlayer(g, speaker, 'Al')
-  assert.equal(g.players[speaker].name, 'Al')
+  assert.equal(g.players[speaker]!.name, 'Al')
   assert.equal(g.config.names[speaker], 'Al')
 
   const ev = g.log.at(-1)!
@@ -27,7 +27,7 @@ test('rename updates the player, emits a public event, and re-labels history', (
   // and the transcript carries the change notice for bots.
   const view = viewFor(g, (speaker + 1) % 5)
   const talk = view.transcript
-  assert.equal(talk[0].name, 'Al')
+  assert.equal(talk[0]!.name, 'Al')
   assert.match(talk.at(-1)!.text, /changed display name from .* to Al/)
   assert.match(transcriptText(view), /changed display name/)
 
@@ -39,7 +39,7 @@ test('rename rejects empty and already-taken names', () => {
   const g = createGame({ seed: 'rn2', playerCount: 5 })
   assert.throws(() => renamePlayer(g, 0, '   '), /empty/)
   assert.throws(() => renamePlayer(g, 0, 'You'), /reserved/)
-  assert.throws(() => renamePlayer(g, 0, g.players[1].name.toUpperCase()), /already taken/)
-  renamePlayer(g, 0, g.players[0].name) // no-op rename is fine
+  assert.throws(() => renamePlayer(g, 0, g.players[1]!.name.toUpperCase()), /already taken/)
+  renamePlayer(g, 0, g.players[0]!.name) // no-op rename is fine
   assert.notEqual(g.log.at(-1)!.type, 'rename')
 })

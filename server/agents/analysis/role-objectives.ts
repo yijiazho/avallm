@@ -36,6 +36,7 @@ import {
   type CandidatePublicCommitment,
   type MerlinCandidateObjective,
   type MerlinMorganaPairHypothesis,
+  type ObjectiveRequest,
   type ObjectiveSource,
   type PercivalCandidateObjective,
   type PercivalRoleObjective,
@@ -223,7 +224,7 @@ function ownPublicSalience(
   seat: Seat,
   hasCompletedPublicVote: boolean,
 ): number {
-  const own = observer.seats[seat]
+  const own = observer.seats[seat]!
   const behavior = own.behavior
   const behaviorSalience = (
     behavior.proposalSelectionIndex
@@ -246,7 +247,7 @@ function publicRoleOnTeamProbability(
     team.reduce(
       (sum, seat) =>
         sum + (
-          observer.seats[seat].roleMarginals.find(
+          observer.seats[seat]!.roleMarginals.find(
             (marginal) => marginal.role === role,
           )?.probability ?? 0
         ),
@@ -278,20 +279,20 @@ function merlinAssessments(
   if (!hidden) throw new Error('Merlin objective requires a hidden-team posterior')
   return commitments.map((candidate, candidateIndex) => {
     const team = candidate.team ?? []
-    const publicTeam = publicTeams[candidateIndex]
+    const publicTeam = publicTeams[candidateIndex]!
     const distribution = Array<number>(team.length + 1).fill(0)
     for (const hypothesis of hidden.hypotheses) {
       const evil = team.filter((seat) => hypothesis.evilSeats.includes(seat)).length
-      distribution[evil] += hypothesis.probability
+      distribution[evil]! += hypothesis.probability
     }
     const distributionTotal = distribution.reduce(
       (sum, mass) => sum + mass,
       0,
     )
     for (let index = 0; index < distribution.length; index++) {
-      distribution[index] = clamp01(distribution[index] / distributionTotal)
+      distribution[index] = clamp01(distribution[index]! / distributionTotal)
     }
-    const teamCleanProbability = distribution[0]
+    const teamCleanProbability = distribution[0]!
     const teamFailureCapabilityProbability = failureCapabilityFrom(
       distribution,
       failsRequired,
@@ -359,7 +360,7 @@ function pairPosterior(
       throw new Error('identity posterior has invalid Merlin/Morgana multiplicity')
     }
     return {
-      merlinSeat: merlin.seats[0],
+      merlinSeat: merlin.seats[0]!,
       morganaSeat: morgana?.seats[0] ?? null,
       probability: hypothesis.probability,
     }
@@ -400,9 +401,9 @@ function percivalAssessments(
       ),
     )
     const sign = directionSign(candidate.direction)
-    const publicTeam = publicTeams[candidateIndex]
+    const publicTeam = publicTeams[candidateIndex]!
     const publicMerlinProbabilityAtSelf =
-      observer.seats[viewerSeat].roleMarginals.find(
+      observer.seats[viewerSeat]!.roleMarginals.find(
         (marginal) => marginal.role === 'merlin',
       )?.probability ?? 0
     const publicMerlinOnTeamProbability =
@@ -526,8 +527,8 @@ export function buildRoleObjectiveSnapshot(input: {
       || ownPosterior.hypotheses.some(
         (hypothesis) =>
           hypothesis.assignments.length !== 1
-          || hypothesis.assignments[0].role !== 'merlin'
-          || !isDeepStrictEqual(hypothesis.assignments[0].seats, [view.seat]),
+          || hypothesis.assignments[0]!.role !== 'merlin'
+          || !isDeepStrictEqual(hypothesis.assignments[0]!.seats, [view.seat]),
       )
     ) {
       throw new Error('Merlin objective identity does not bind the viewer role')
@@ -542,7 +543,7 @@ export function buildRoleObjectiveSnapshot(input: {
     (proposal) => proposalVotes(proposal).length === publicRecord.playerCount,
   )
   const failsRequired = view.quests[view.round - 1]?.failsRequired
-  if (!Number.isSafeInteger(failsRequired) || failsRequired < 1 || failsRequired > 2) {
+  if (failsRequired !== 1 && failsRequired !== 2) {
     throw new Error('role objective requires the current quest failure threshold')
   }
   const source = {
@@ -555,7 +556,7 @@ export function buildRoleObjectiveSnapshot(input: {
     observerModelVersion: PUBLIC_OBSERVER_MODEL_VERSION,
     observerFeasibleWorldCount: observer.feasibleWorldCount,
   }
-  const request = {
+  const request: ObjectiveRequest = {
     seat: req.seat,
     kind: req.kind,
     round: req.round,
@@ -769,7 +770,7 @@ function validateMerlinAssessment(
     || !probability(assessment.teamFailureCapabilityProbability)
     || !validDistribution(assessment.evilCountDistribution, teamSize)
     || Math.abs(
-      (assessment.evilCountDistribution as number[])[0]
+      (assessment.evilCountDistribution as number[])[0]!
         - (assessment.teamCleanProbability as number),
     ) > PROBABILITY_TOLERANCE
     || Math.abs(

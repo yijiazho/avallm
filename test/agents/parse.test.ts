@@ -50,7 +50,7 @@ test('quest and assassinate salvage', () => {
   assert.equal((parseDecision('quest', 'I will play success of course', view).decision as any).card, 'success')
   assert.equal(parseDecision('quest', 'hmm', view).parseFailed, true)
 
-  const byName = parseDecision('assassinate', `It must be ${view.players[3].name}.`, view)
+  const byName = parseDecision('assassinate', `It must be ${view.players[3]!.name}.`, view)
   assert.equal((byName.decision as any).target, 3)
   const byNumber = parseDecision('assassinate', 'seat 5 is merlin', view)
   assert.equal((byNumber.decision as any).target, 5)

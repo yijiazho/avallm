@@ -174,7 +174,7 @@ const morganaOtherEvil = (() => {
   mutable(view).phase = 'vote'
   mutable(view).currentTeam = [0, 1, 2].slice(
     0,
-    view.quests[view.round - 1].teamSize,
+    view.quests[view.round - 1]!.teamSize,
   )
   return {
     req: {
@@ -359,7 +359,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
   const proposal = morganaProposal(5)
   const team = canonicalTeams(
     proposal.view.playerCount,
-    proposal.view.quests[proposal.view.round - 1].teamSize,
+    proposal.view.quests[proposal.view.round - 1]!.teamSize,
   )[0]
   const vote = asVote(proposal.view, team)
   const authentic = await createComposedAgent({
@@ -416,7 +416,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
   }
   const target = Math.max(...bases)
   for (const [index, assessment] of d2.assessments.entries()) {
-    const publicAction = (target - bases[index])
+    const publicAction = (target - bases[index]!)
       / (EVIL_ROLE_UTILITY_CONSTANTS.publicCoverWeight * 0.5)
     assert.ok(publicAction >= 0 && publicAction <= 1)
     assessment.publicTeamFailureCapabilityProbability =
@@ -435,7 +435,7 @@ test('seeded variation is vote-only, replayable, and confined to a hand-worked n
   }
   assert.ok(validatePrivateEvilRoleUtilityProjection(d2))
   assert.ok(Math.abs(
-    d2.assessments[0].roleValue - d2.assessments[1].roleValue,
+    d2.assessments[0]!.roleValue - d2.assessments[1]!.roleValue,
   ) <= 1e-12)
 
   const candidates = legalCandidates(vote.req, vote.view)
@@ -483,7 +483,7 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
   mutable(view).proposalNum = 1
   const seats = view.players.map((player) => player.seat)
   const teamFor = (index: number, required?: number) => {
-    const size = view.quests[index].teamSize
+    const size = view.quests[index]!.teamSize
     return required === undefined
       ? seats.slice(0, size)
       : [
@@ -491,22 +491,22 @@ test('an actual good-match-point forced vote remains authoritative over Morgana 
           ...seats.filter((seat) => seat !== required),
         ].slice(0, size).sort((left, right) => left - right)
   }
-  mutable(view).quests[0] = {
-    ...view.quests[0],
+  mutable(view).quests[0]! = {
+    ...view.quests[0]!,
     status: 'complete',
     team: teamFor(0),
     result: 'success',
     failCount: 0,
   }
-  mutable(view).quests[1] = {
-    ...view.quests[1],
+  mutable(view).quests[1]! = {
+    ...view.quests[1]!,
     status: 'complete',
     team: teamFor(1),
     result: 'success',
     failCount: 0,
   }
-  mutable(view).quests[2] = {
-    ...view.quests[2],
+  mutable(view).quests[2]! = {
+    ...view.quests[2]!,
     status: 'complete',
     team: teamFor(2, view.seat),
     result: 'fail',
@@ -581,21 +581,21 @@ test('an E1A-only malformed belief degrades narrowly to D2', async () => {
     infer(view: PlayerView) {
       const snapshot = structuredClone(exactBelief(view))
       const partner = evilPartnersOf(view.privateInfo)[0]!
-      const world = structuredClone(snapshot.worlds[0].world)
+      const world = structuredClone(snapshot.worlds[0]!.world)
       const goodSeat = world.alignmentBySeat.findIndex(
         (alignment) => alignment === 'good',
       )
       const partnerRole = world.roleBySeat[partner]
       const goodRole = world.roleBySeat[goodSeat]
-      ;(world.roleBySeat as Role[])[partner] = goodRole
-      ;(world.roleBySeat as Role[])[goodSeat] = partnerRole
+      ;(world.roleBySeat as Role[])[partner]! = goodRole!
+      ;(world.roleBySeat as Role[])[goodSeat]! = partnerRole!
       ;(world.alignmentBySeat as ('good' | 'evil')[])[partner] = 'good'
       ;(world.alignmentBySeat as ('good' | 'evil')[])[goodSeat] = 'evil'
       world.key = canonicalWorldKey(world.roleBySeat)
       ;(snapshot.worlds as {
         world: typeof world
         probability: number
-      }[])[0].world = world
+      }[])[0]!.world = world
       snapshot.modelVersion = this.version
       return snapshot
     },
@@ -803,7 +803,7 @@ test('E1B leaves the independent robust D3 quest-card path unchanged', async () 
     ...view.players
       .map((player) => player.seat)
       .filter((seat) => seat !== view.seat),
-  ].slice(0, view.quests[view.round - 1].teamSize).sort(
+  ].slice(0, view.quests[view.round - 1]!.teamSize).sort(
     (left, right) => left - right,
   )
   const req: DecisionRequest = {
@@ -901,7 +901,7 @@ test('external ingress and exact host replay reject nested, score, deletion, act
   const proposal = morganaProposal(5)
   const teams = canonicalTeams(
     proposal.view.playerCount,
-    proposal.view.quests[proposal.view.round - 1].teamSize,
+    proposal.view.quests[proposal.view.round - 1]!.teamSize,
   )
   const input = asVote(proposal.view, teams[0])
   const output = await createComposedAgent({
@@ -927,19 +927,19 @@ test('external ingress and exact host replay reject nested, score, deletion, act
   }).kind, 'trusted-exact')
   const mutations = [
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
-      morganaUtility(trace)!.candidates[0]
+      morganaUtility(trace)!.candidates[0]!
         .counterfeitValue += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
-      morganaUtility(trace)!.evilRoleUtility.assessments[0]
+      morganaUtility(trace)!.evilRoleUtility.assessments[0]!
         .roleValue += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
       morganaUtility(trace)!.counterfeitObjective
-        .assessments[0].counterfeitValue += 0.01
+        .assessments[0]!.counterfeitValue += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
-      trace.candidateScores![0].morganaRoleObjectiveFeatures!
+      trace.candidateScores![0]!.morganaRoleObjectiveFeatures!
         .counterfeitValue += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
@@ -1121,7 +1121,7 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
       input.req = { ...input.req, round: 4, proposalNum: 1 }
       const seats = input.view.players.map((player) => player.seat)
       const team = (index: number, required?: number) => {
-        const size = input.view.quests[index].teamSize
+        const size = input.view.quests[index]!.teamSize
         return required === undefined
           ? seats.slice(0, size)
           : [
@@ -1129,22 +1129,22 @@ test('5-10 player E1B surfaces include the 252-candidate maximum within 1 MiB', 
               ...seats.filter((seat) => seat !== required),
             ].slice(0, size).sort((left, right) => left - right)
       }
-      mutable(input).view.quests[0] = {
-        ...input.view.quests[0],
+      mutable(input).view.quests[0]! = {
+        ...input.view.quests[0]!,
         status: 'complete',
         team: team(0),
         result: 'success',
         failCount: 0,
       }
-      mutable(input).view.quests[1] = {
-        ...input.view.quests[1],
+      mutable(input).view.quests[1]! = {
+        ...input.view.quests[1]!,
         status: 'complete',
         team: team(1),
         result: 'success',
         failCount: 0,
       }
-      mutable(input).view.quests[2] = {
-        ...input.view.quests[2],
+      mutable(input).view.quests[2]! = {
+        ...input.view.quests[2]!,
         status: 'complete',
         team: team(2, input.view.seat),
         result: 'fail',
@@ -1223,7 +1223,7 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
     cases: ARCHITECTURE_BANK,
     bankId: 'phase7e1b-morgana-policy',
   })
-  const report = architectureReport(artifacts).variants[0]
+  const report = architectureReport(artifacts).variants[0]!
   assert.equal(report.safety.traceAttributionViolations, 0)
   assert.equal(report.safety.hiddenInformationViolations, 0)
   const morganaArtifact = artifacts.find(
@@ -1234,29 +1234,29 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
     undefined,
   )
   const forgedTrace = structuredClone([morganaArtifact])
-  const applicable = forgedTrace[0].decisionTraces!.find(
+  const applicable = forgedTrace[0]!.decisionTraces!.find(
     (trace) => morganaUtility(trace) !== undefined,
   )!
-  morganaUtility(applicable)!.candidates[0].counterfeitValue += 0.01
+  morganaUtility(applicable)!.candidates[0]!.counterfeitValue += 0.01
   assert.ok(
-    architectureReport(forgedTrace).variants[0]
+    architectureReport(forgedTrace).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
   const forgedManifest = structuredClone([morganaArtifact])
-  delete forgedManifest[0].strategyVersions!.morganaRoleUtilities
-  const descriptorOwned = architectureReport(forgedManifest).variants[0]
+  delete forgedManifest[0]!.strategyVersions!.morganaRoleUtilities
+  const descriptorOwned = architectureReport(forgedManifest).variants[0]!
   assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
   assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 
   const storedForgery = structuredClone([morganaArtifact])
-  const storedArtifact = storedForgery[0]
+  const storedArtifact = storedForgery[0]!
   const snapshots = authoritativeDecisionSnapshots(
     storedArtifact,
     storedArtifact.architecture!.targetSeat,
   )
   let replaced = false
   for (let index = 0; index < storedArtifact.decisionTraces!.length; index++) {
-    const originalTrace = storedArtifact.decisionTraces![index]
+    const originalTrace = storedArtifact.decisionTraces![index]!
     if (
       originalTrace.request.kind !== 'propose'
       && originalTrace.request.kind !== 'vote'
@@ -1277,13 +1277,13 @@ test('free architecture bank admits E1B attribution and rejects trace or manifes
     d2.trace!.componentVersions!.configuredMorganaRoleUtility =
       MORGANA_ROLE_UTILITY_PROJECTION_VERSION
     d2.trace!.degradation.push(MORGANA_ROLE_UTILITY_DEGRADATION)
-    storedArtifact.decisionTraces![index] = d2.trace!
+    storedArtifact.decisionTraces![index]! = d2.trace!
     replaced = true
     break
   }
   assert.equal(replaced, true, 'expected a replay-coherent stored D2 action')
   assert.ok(
-    architectureReport(storedForgery).variants[0]
+    architectureReport(storedForgery).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 })

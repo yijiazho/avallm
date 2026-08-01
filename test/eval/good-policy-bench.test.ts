@@ -156,7 +156,7 @@ test('Phase 4 policy comparison reports confidence, latency, safety, and variati
   if (proposalTrace!.action.kind === 'propose') {
     proposalTrace!.action.pitch = proposalTrace!.beliefModelVersion
   }
-  const leakedSummary = architectureReport([leaked]).variants[0]
+  const leakedSummary = architectureReport([leaked]).variants[0]!
   assert.ok(leakedSummary.safety.hiddenInformationViolations > 0)
   assert.ok(leakedSummary.safety.traceAttributionViolations > 0)
   assert.equal(
@@ -177,7 +177,7 @@ test('external ingress rejects forged admitted planner reasons', async () => {
     cases: PHASE4_POLICY_BANK.slice(0, 1),
     bankId: 'phase4d-stdio-reasons',
   })
-  const trace = artifacts[0].decisionTraces?.find(
+  const trace = artifacts[0]!.decisionTraces?.find(
     (candidate) => candidate.plannerReasonCodes?.length,
   )
   assert.ok(trace)

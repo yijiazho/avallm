@@ -192,7 +192,7 @@ test('Phase 5C hand-worked report exposes the full conversion diagnosis', () => 
     ],
   )
 
-  const baseline = report.variants[0]
+  const baseline = report.variants[0]!
   assert.equal(baseline.funnel.resolvedQuests, 6)
   assert.equal(baseline.funnel.successfulQuests, 3)
   assert.equal(baseline.funnel.reachedAssassination, 1)
@@ -204,7 +204,7 @@ test('Phase 5C hand-worked report exposes the full conversion diagnosis', () => 
     threeFails: 1,
   })
 
-  const proposal = report.variants[1]
+  const proposal = report.variants[1]!
   assert.equal(proposal.funnel.resolvedQuests, 7)
   assert.equal(proposal.funnel.successfulQuests, 6)
   assert.equal(proposal.funnel.reachedAssassination, 2)
@@ -212,12 +212,12 @@ test('Phase 5C hand-worked report exposes the full conversion diagnosis', () => 
   assert.equal(proposal.funnel.wins, 1)
   assert.equal(proposal.votes.cleanRejects, 0)
   assert.equal(proposal.votes.dirtyApprovals, 0)
-  assert.equal(proposal.byRole[0].role, 'merlin')
-  assert.equal(proposal.byRole[0].games, 2)
-  assert.equal(proposal.byPlayerCount[0].playerCount, 5)
-  assert.equal(proposal.byPlayerCount[0].games, 2)
+  assert.equal(proposal.byRole[0]!.role, 'merlin')
+  assert.equal(proposal.byRole[0]!.games, 2)
+  assert.equal(proposal.byPlayerCount[0]!.playerCount, 5)
+  assert.equal(proposal.byPlayerCount[0]!.games, 2)
 
-  const comparison = report.comparisons[0]
+  const comparison = report.comparisons[0]!
   assert.equal(comparison.matchedCases, 2)
   assert.deepEqual(comparison.winReasonTransitions, [
     { from: 'merlinAssassinated', to: 'assassinMissed', games: 1 },
@@ -276,15 +276,15 @@ test('the direct conversion report rejects every unmatched-table facet', () => {
   // Same configured role list, different seat-to-role deal: the old local
   // validator compared only `roles`, so this paired two different games.
   perturb('permuted deal', (artifact) => {
-    const [first, second] = [artifact.players[1].role, artifact.players[2].role]
-    artifact.players[1].role = second
-    artifact.players[2].role = first
+    const [first, second] = [artifact.players[1]!.role, artifact.players[2]!.role]
+    artifact.players[1]!.role = second
+    artifact.players[2]!.role = first
   })
   perturb('different opponent agent', (artifact) => {
-    artifact.players[3].agent = 'random'
+    artifact.players[3]!.agent = 'random'
   })
   perturb('different seat names', (artifact) => {
-    artifact.players[2].name = 'Renamed'
+    artifact.players[2]!.name = 'Renamed'
   })
   perturb('different talk configuration', (artifact) => {
     artifact.talk = { ...artifact.talk, maxRounds: 2 }

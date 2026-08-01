@@ -68,9 +68,9 @@ test('live DTO separates table aliases from agent and model identity', async () 
   const botSeats = Object.keys(payload.bots).map(Number)
   assert.equal(botSeats.length, 4)
   for (const seat of botSeats) {
-    assert.equal(payload.bots[seat].name, 'Rule-based', 'agent-card name is retained')
-    assert.equal(payload.bots[seat].model, 'rule-based', 'model identity is retained')
-    assert.ok(aliasPool.has(payload.view.players[seat].name), 'PlayerView uses a table alias')
+    assert.equal(payload.bots[seat]!.name, 'Rule-based', 'agent-card name is retained')
+    assert.equal(payload.bots[seat]!.model, 'rule-based', 'model identity is retained')
+    assert.ok(aliasPool.has(payload.view.players[seat]!.name), 'PlayerView uses a table alias')
   }
   assert.equal(new Set(payload.view.players.map((player) => player.name.toLowerCase())).size, 5)
 })

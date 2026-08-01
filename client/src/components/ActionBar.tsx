@@ -37,6 +37,17 @@ const TurnTag = ({ children }: { children: string }) => (
   <span className="turn-tag">⟡ {children}</span>
 )
 
+function currentQuest(view: PlayerView): PlayerView['quests'][number] {
+  const quest = view.quests[view.round - 1]
+  if (!quest) throw new Error(`missing quest ${view.round}`)
+  return quest
+}
+
+function playerName(view: PlayerView, seat: Seat): string {
+  return view.players.find((player) => player.seat === seat)?.name
+    ?? `Seat ${seat}`
+}
+
 function Discuss({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
   const [say, setSay] = useState('')
   const isLeader = view.leaderSeat === view.seat
@@ -75,7 +86,7 @@ function Discuss({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<st
 }
 
 function Propose({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
-  const size = view.quests[view.round - 1].teamSize
+  const size = currentQuest(view).teamSize
   const [team, setTeam] = useState<Seat[]>([])
   const [pitch, setPitch] = useState('')
   const toggle = (s: Seat) => setTeam((t) => t.includes(s) ? t.filter((x) => x !== s) : t.length < size ? [...t, s] : t)
@@ -121,13 +132,15 @@ function Propose({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<st
 // A revision requires a spoken reason — a silent team swap reads as evasive
 // and the engine announces the reason to the table.
 function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
-  const size = view.quests[view.round - 1].teamSize
+  const size = currentQuest(view).teamSize
   const current = view.currentTeam ?? []
   const [revising, setRevising] = useState(false)
   const [team, setTeam] = useState<Seat[]>([...current])
   const [reason, setReason] = useState('')
   const hammer = view.proposalNum === 5
-  const teamNames = current.map((s) => s === view.seat ? 'You' : view.players[s].name).join(' · ')
+  const teamNames = current
+    .map((s) => s === view.seat ? 'You' : playerName(view, s))
+    .join(' · ')
   const sameTeam = team.length === current.length
     && [...team].sort((a, b) => a - b).every((s, i) => s === current[i])
   const toggle = (s: Seat) => setTeam((t) => t.includes(s) ? t.filter((x) => x !== s) : t.length < size ? [...t, s] : t)
@@ -193,7 +206,9 @@ function Finalize({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<s
 // grayscale, a dim phone, and colour blindness — which the lapis/oxblood pair
 // these buttons used to share with the quest cards did not.
 function Vote({ view, onDecide }: { view: PlayerView; onDecide: (d: Record<string, unknown>) => void }) {
-  const team = (view.currentTeam ?? []).map((s) => s === view.seat ? 'You' : view.players[s].name).join(' · ')
+  const team = (view.currentTeam ?? [])
+    .map((s) => s === view.seat ? 'You' : playerName(view, s))
+    .join(' · ')
   return (
     <div className="action-bar your-turn" data-kind="vote">
       <TurnTag>Your vote</TurnTag>

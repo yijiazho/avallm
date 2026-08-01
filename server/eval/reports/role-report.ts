@@ -237,7 +237,7 @@ readonly Phase7RoleEvidenceRow[] {
     if (JSON.stringify(arms) !== JSON.stringify([...ARMS].sort())) {
       throw new Error(`${caseId}: incomplete logical arms`)
     }
-    const first = group[0]
+    const first = group[0]!
     const bankCase = ARCHITECTURE_BANK.find((row) => row.id === caseId)!
     if (!group.every((row) =>
       row.rowId === `${caseId}:${row.logicalArm}`
@@ -430,7 +430,7 @@ export async function buildPhase7RoleReport(
   // whole-game equality with an isolated score-only arm is specified only
   // where that policy cannot apply: good seats and Oberon.
   const isolatedFullComparable = caseGroups.filter((group) => {
-    const role = group[0].targetRole
+    const role = group[0]!.targetRole
     return ROLE_ALIGNMENT[role] === 'good' || role === 'oberon'
   })
   const isolatedFullEquivalentComparableCases =
@@ -438,7 +438,7 @@ export async function buildPhase7RoleReport(
       equivalent(group, 'isolated-role', 'full-role')).length
   const integratedFullRoleDifferenceCases = caseGroups
     .filter((group) => !equivalent(group, 'isolated-role', 'full-role'))
-    .map((group) => group[0].caseId)
+    .map((group) => group[0]!.caseId)
   const apiFreeAndSafe = Object.values(arms).every((arm) =>
     arm.calls === 0 && arm.cost === 0 && arm.degradation === 0
     && arm.forcedViolations === 0 && arm.safety.hiddenViolations === 0

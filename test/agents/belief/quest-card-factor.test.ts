@@ -102,8 +102,8 @@ test('analytical quest behavior is contextual, symmetric, and non-zero', () => {
     scoreBefore: { good: 2, evil: 1 },
   })
   assert.ok(
-    questFailCountDistribution(coordinated, twoFail)[2]
-      > questFailCountDistribution(uncoordinated, twoFail)[2],
+    questFailCountDistribution(coordinated, twoFail)[2]!
+      > questFailCountDistribution(uncoordinated, twoFail)[2]!,
   )
 
   const lone = world([
@@ -121,7 +121,7 @@ test('analytical quest behavior is contextual, symmetric, and non-zero', () => {
       scoreBefore: { good: 2, evil: 0 },
     }),
   )
-  assert.ok(slow[0] > decisive[0])
+  assert.ok(slow[0]! > decisive[0]!)
   assert.ok([...slow, ...decisive].every((probability) => probability > 0))
   assert.ok(Math.abs(slow.reduce((sum, value) => sum + value, 0) - 1) < 1e-12)
 
@@ -212,13 +212,13 @@ test('factor failure detail is bounded, single line, and house style', () => {
       createQuestWeightedBeliefModel(failing).infer(resolved).degradation
     assert.equal(degradation.length, 2)
     assert.equal(degradation[0], QUEST_CARD_FACTOR_DEGRADATION)
-    assert.ok(degradation[1].startsWith(QUEST_CARD_FACTOR_DETAIL_PREFIX))
-    assert.ok(degradation[1].length <= QUEST_CARD_FACTOR_DETAIL_MAX_LENGTH)
+    assert.ok(degradation[1]!.startsWith(QUEST_CARD_FACTOR_DETAIL_PREFIX))
+    assert.ok(degradation[1]!.length <= QUEST_CARD_FACTOR_DETAIL_MAX_LENGTH)
     // Bounded diagnosis must never carry newlines, control characters, or the
     // dashes the house style bans, since snapshots reach rendering surfaces.
-    assert.doesNotMatch(degradation[1], /[^\x20-\x7e]/)
-    assert.doesNotMatch(degradation[1], /[\u2010-\u2015\u2212]/)
-    return degradation[1]
+    assert.doesNotMatch(degradation[1]!, /[^\x20-\x7e]/)
+    assert.doesNotMatch(degradation[1]!, /[\u2010-\u2015\u2212]/)
+    return degradation[1]!
   }
 
   // Distinct failures stay distinguishable rather than collapsing to one label.
@@ -306,12 +306,12 @@ test('held-out quest ablation is paired, attributed, and external-ingress-safe',
     cases: PHASE4_POLICY_BANK.slice(0, 1),
     bankId: 'phase5b-stdio',
   })
-  const trace = artifact.decisionTraces?.find(
+  const trace = artifact!.decisionTraces?.find(
     (candidate) => candidate.quality === 'weighted',
-  )
+  )!
   assert.ok(trace)
   assert.equal(trace!.componentVersions?.factors, 'quest-card-only-v1')
-  assert.equal(trace!.beliefProvenance?.[0].factorId, 'quest-card')
+  assert.equal(trace!.beliefProvenance![0]!.factorId, 'quest-card')
   assert.doesNotThrow(() =>
     parseExternalDecisionReply(
       trace!.request,
@@ -329,7 +329,7 @@ test('held-out quest ablation is paired, attributed, and external-ingress-safe',
     cases: [edgeCase],
     bankId: 'phase5b-normalized-projection',
   })
-  assert.ok(normalized.decisionTraces?.every(
+  assert.ok(normalized!.decisionTraces?.every(
     (candidate) =>
       !candidate.degradation.includes('scorer-invalid-output')
       && (candidate.beliefTeamAssessments ?? []).every(

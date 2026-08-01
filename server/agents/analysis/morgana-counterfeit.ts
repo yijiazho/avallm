@@ -126,8 +126,8 @@ function merlinVisibleDistribution(
     belief.worlds,
     team,
     (weighted, seat) => {
-      const role = weighted.world.roleBySeat[seat]
-      return ROLE_ALIGNMENT[role] === 'evil' && role !== 'mordred'
+      const role = weighted.world.roleBySeat[seat]!
+      return ROLE_ALIGNMENT[role]! === 'evil' && role !== 'mordred'
     },
     (weighted) => weighted.probability,
   )
@@ -251,7 +251,7 @@ function validateBeliefForMorgana(
       && belief.worlds.some(
         (weighted) =>
           Math.abs(
-            weighted.probability - belief.worlds[0].probability,
+            weighted.probability - belief.worlds[0]!.probability,
           ) > PROBABILITY_TOLERANCE,
       )
     )
@@ -316,7 +316,7 @@ function assessCandidate(
   )
   const q = failureCapability(privateDistribution, failsRequired)
   const publicDistribution =
-    publicTeams[index].evilCountDistribution.slice()
+    publicTeams[index]!.evilCountDistribution.slice()
   const p = failureCapability(publicDistribution, failsRequired)
   const support = candidate.direction === 'support'
   const counterfeitOpportunityReadProxyIndex =
@@ -393,7 +393,7 @@ function buildMorganaCounterfeitObjectiveInternal(
     throw new Error('counterfeit objective received inconsistent public read')
   }
   const failsRequired = view.quests[view.round - 1]?.failsRequired
-  if (![1, 2].includes(failsRequired)) {
+  if (failsRequired !== 1 && failsRequired !== 2) {
     throw new Error('counterfeit objective requires current fail threshold')
   }
   const expectedTeamSize = TEAM_SIZES[view.playerCount]?.[view.round - 1]

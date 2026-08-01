@@ -50,6 +50,18 @@ test('replay reproduces archived games event-for-event', async () => {
   }
 })
 
+test('replay rejects a reordered artifact player table at the seat boundary', async () => {
+  const { artifact } = await playAndCapture('bad-player-table', 5)
+  const malformed: GameArtifact = {
+    ...artifact,
+    players: [...artifact.players].reverse(),
+  }
+  assert.throws(
+    () => replayGame(malformed),
+    /artifact is missing player at seat 0/,
+  )
+})
+
 test('snapshotAt reproduces every decision view bit-for-bit', async () => {
   const { artifact, captured } = await playAndCapture('snap', 7)
   // Decision action events, in order, correspond 1:1 to captured decisions.
@@ -63,11 +75,11 @@ test('snapshotAt reproduces every decision view bit-for-bit', async () => {
   // content is exactly the fidelity the bank stores and replays.
   const picks = [0, 1, Math.floor(actionSeqs.length / 2), actionSeqs.length - 2, actionSeqs.length - 1]
   for (const i of picks) {
-    const snap = snapshotAt(artifact, actionSeqs[i])
-    assert.equal(snap.seat, captured[i].req.seat, `decision ${i}: seat`)
-    assert.equal(snap.kind, captured[i].req.kind, `decision ${i}: kind`)
-    assert.deepEqual(JSON.parse(JSON.stringify(snap.req)), captured[i].req, `decision ${i}: request`)
-    assert.deepEqual(JSON.parse(JSON.stringify(snap.view)), captured[i].view, `decision ${i}: view`)
+    const snap = snapshotAt(artifact, actionSeqs[i]!)
+    assert.equal(snap.seat, captured[i]!.req.seat, `decision ${i}: seat`)
+    assert.equal(snap.kind, captured[i]!.req.kind, `decision ${i}: kind`)
+    assert.deepEqual(JSON.parse(JSON.stringify(snap.req)), captured[i]!.req, `decision ${i}: request`)
+    assert.deepEqual(JSON.parse(JSON.stringify(snap.view)), captured[i]!.view, `decision ${i}: view`)
   }
 })
 
@@ -119,7 +131,7 @@ test('bank: judged incidents mine into replayable snapshots; non-decision seqs a
   assert.equal(items.length, 1)
   assert.equal(skipped, 1)          // the voteReveal incident: a non-decision event
   assert.equal(failures.length, 0)  // no real replay failures
-  const item = items[0]
+  const item = items[0]!
   assert.equal(item.family, 'commitment-failure')
   assert.equal(item.snapshot.kind, 'discuss')
   assert.equal(item.snapshot.seq, utterance.seq)

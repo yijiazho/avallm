@@ -194,14 +194,14 @@ export function voteMatrixEvidence(
     // Board state as of this ballot: quests resolved strictly before it.
     while (
       questCursor < view.quests.length
-      && view.quests[questCursor].status === 'complete'
-      && view.quests[questCursor].num < proposal.round
+      && view.quests[questCursor]!.status === 'complete'
+      && view.quests[questCursor]!.num < proposal.round
     ) {
       // Narrowed by the loop guard above, and re-read here only so the union
       // discriminates for the compiler.
-      const quest = view.quests[questCursor]
+      const quest = view.quests[questCursor]!
       if (quest.status !== 'complete') break
-      score[quest.result === 'success' ? 'good' : 'evil'] += 1
+      score[quest.result === 'success' ? 'good' : 'evil']! += 1
       questCursor += 1
     }
     if (proposal.outcome !== 'voted') continue
@@ -242,7 +242,7 @@ export function visibleFailPower(
   voter: Seat,
   team: readonly Seat[],
 ): number {
-  const roleOf = (seat: Seat) => world.roleBySeat[seat]
+  const roleOf = (seat: Seat) => world.roleBySeat[seat]!
   const voterIsOberon = roleOf(voter) === 'oberon'
   let seen = 0
   for (const seat of team) {
@@ -250,7 +250,7 @@ export function visibleFailPower(
       seen += 1
       continue
     }
-    if (ROLE_ALIGNMENT[roleOf(seat)] !== 'evil') continue
+    if (ROLE_ALIGNMENT[roleOf(seat)]! !== 'evil') continue
     // Neither side of an Oberon pairing can see the other.
     if (voterIsOberon || roleOf(seat) === 'oberon') continue
     seen += 1
@@ -282,7 +282,7 @@ export const analyticalVoteMatrixFactor: VoteMatrixLikelihoodFactor =
     logLikelihood(world: HiddenWorld, evidence: VoteMatrixEvidence) {
       let total = 0
       for (const vote of evidence.votes) {
-        if (ROLE_ALIGNMENT[world.roleBySeat[vote.seat]] !== 'evil') continue
+        if (ROLE_ALIGNMENT[world.roleBySeat[vote.seat]!] !== 'evil') continue
         const approve = evilApproveProbability(world, evidence, vote.seat)
         // No guard against a zero here, unlike quest-card-factor, and the
         // difference is real rather than an oversight: that factor reads a

@@ -502,7 +502,7 @@ function main(): void {
       + '[--baseline <variant>] [--json]',
     )
   }
-  const artifacts = readArtifacts(positionals[0])
+  const artifacts = readArtifacts(positionals[0]!)
   if (values.baseline === undefined) {
     const { summary } = measureMerlinExposure(artifacts)
     process.stdout.write(

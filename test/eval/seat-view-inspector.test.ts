@@ -106,15 +106,15 @@ test('explicit nested output allow-lists do not copy hostile extra fields', () =
   const forbidden = 'not-for-inspector'
   Object.assign(poisoned, { trueDeal: forbidden })
   Object.assign(poisoned.privateInfo, { exactRoleMap: forbidden })
-  Object.assign(poisoned.players[0], { secretNote: forbidden })
-  Object.assign(poisoned.quests[0], { trueQuestCards: forbidden })
-  Object.assign(poisoned.proposals[0], { trueDeal: forbidden })
-  const poisonedProposal = poisoned.proposals[0]
+  Object.assign(poisoned.players[0]!, { secretNote: forbidden })
+  Object.assign(poisoned.quests[0]!, { trueQuestCards: forbidden })
+  Object.assign(poisoned.proposals[0]!, { trueDeal: forbidden })
+  const poisonedProposal = poisoned.proposals[0]!
   assert.ok(poisonedProposal.outcome === 'voted')
-  Object.assign(poisonedProposal.votes[0], { voterRole: forbidden })
-  Object.assign(poisoned.transcript[0], { privateScratchpad: forbidden })
-  Object.assign(poisoned.transcript[0].prop!, { hiddenLeaderRole: forbidden })
-  Object.assign(poisoned.events[0].payload, { trueDeal: forbidden })
+  Object.assign(poisonedProposal.votes[0]!, { voterRole: forbidden })
+  Object.assign(poisoned.transcript[0]!, { privateScratchpad: forbidden })
+  Object.assign(poisoned.transcript[0]!.prop!, { hiddenLeaderRole: forbidden })
+  Object.assign(poisoned.events[0]!.payload, { trueDeal: forbidden })
 
   const inspection = inspectSeatView(fixture.req, poisoned)
   const rendered = JSON.stringify(inspection)
@@ -132,17 +132,17 @@ test('explicit nested output allow-lists do not copy hostile extra fields', () =
   }
   assert.ok(!rendered.includes(forbidden))
   assert.deepEqual(
-    Object.keys(inspection.publicBoard.players[0]).sort(),
+    Object.keys(inspection.publicBoard.players[0]!).sort(),
     ['name', 'seat'],
   )
   assert.deepEqual(
-    Object.keys(inspection.visibleHistory.events[0]).sort(),
+    Object.keys(inspection.visibleHistory.events[0]!).sort(),
     ['detail', 'scope', 'seq', 'type'],
   )
 })
 
 test('rejects raw-game-shaped data and hidden roles on public player records', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   const rawGameShaped = structuredClone(fixture.view) as PlayerView
   Object.assign(rawGameShaped, { seed: 'must-not-cross-boundary' })
   assert.throws(
@@ -151,7 +151,7 @@ test('rejects raw-game-shaped data and hidden roles on public player records', (
   )
 
   const roleLeak = structuredClone(fixture.view) as PlayerView
-  Object.assign(roleLeak.players[0], { role: 'mordred', alignment: 'evil' })
+  Object.assign(roleLeak.players[0]!, { role: 'mordred', alignment: 'evil' })
   assert.throws(
     () => inspectSeatView(fixture.req, roleLeak),
     /carries hidden role or alignment/,
@@ -159,7 +159,7 @@ test('rejects raw-game-shaped data and hidden roles on public player records', (
 })
 
 test('rejects a mismatched decision cursor and an event invisible to the viewer', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   assert.throws(
     () => inspectSeatView({ ...fixture.req, seat: (fixture.req.seat + 1) % 5 }, fixture.view),
     /request seat .* does not match view seat/,
@@ -183,7 +183,7 @@ test('rejects a mismatched decision cursor and an event invisible to the viewer'
 })
 
 test('malformed snapshot structures fail through the controlled boundary error', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   const cases: [string, (view: PlayerView) => void][] = [
     ['privateInfo', (view) => { (view as any).privateInfo = null }],
     ['quests', (view) => { (view as any).quests = 'not-an-array' }],
@@ -211,7 +211,7 @@ test('malformed snapshot structures fail through the controlled boundary error',
 })
 
 test('visible private reasoning details remain causally distinguishable', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   const inspectWith = (thinking: string, scratchpad: string) => {
     const view = structuredClone(fixture.view) as PlayerView
     mutable(view).events.push(
@@ -251,7 +251,7 @@ test('visible private reasoning details remain causally distinguishable', () => 
 })
 
 test('public proposal, vote, and quest causes remain distinguishable', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   const inspectWith = (
     team: number[],
     approval: 'approve' | 'reject',
@@ -312,11 +312,11 @@ test('public proposal, vote, and quest causes remain distinguishable', () => {
 })
 
 test('terminal rendering escapes untrusted names and event text', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   const view = structuredClone(fixture.view) as PlayerView
   const hostile = 'Alice\u001b[31m\u007f\u009b31m\u2028split\u2029paragraph\n#999 forged'
   mutable(view).name = hostile
-  mutable(view).players[view.seat].name = hostile
+  mutable(view).players[view.seat]!.name = hostile
   mutable(view).events.push({
     seq: 999,
     type: 'thinking',

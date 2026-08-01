@@ -323,8 +323,8 @@ function buildMorganaRoleUtilityProjectionInternal(
     && band.length === 2
     && band.every(({ candidate }) => candidate.decision.kind === 'vote')
     && Math.abs(
-      band[0].counterfeitAssessment.counterfeitValue
-        - band[1].counterfeitAssessment.counterfeitValue,
+      band[0]!.counterfeitAssessment.counterfeitValue
+        - band[1]!.counterfeitAssessment.counterfeitValue,
     ) <= MORGANA_ROLE_UTILITY_CONSTANTS.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
   const seedDomain = MORGANA_ROLE_SEEDED_SCORER_VERSION
   const seedBucket =
@@ -637,7 +637,7 @@ function verifyBandAndSelection(args: {
       (candidate) => (candidate.decision as Decision).kind === 'vote',
     )
     && Math.abs(
-      bandRows[0].counterfeitValue - bandRows[1].counterfeitValue,
+      bandRows[0]!.counterfeitValue - bandRows[1]!.counterfeitValue,
     ) <= args.seededVoteCounterfeitBand + PROBABILITY_TOLERANCE
   if ((args.seedBucket !== undefined) !== seededEligible) return false
   const expectedSelected = args.forcedSelectedCandidateId

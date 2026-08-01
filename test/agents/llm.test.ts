@@ -33,7 +33,7 @@ test('clean decision carries thinking into the Decision', async () => {
   const d = (await agent.decide({ kind: 'vote', seat: 0, round: 1, proposalNum: 1 }, view0)).decision
   assert.deepEqual(d, { kind: 'vote', vote: 'approve', thinking: 'seat 2 is loud' })
   assert.equal(client.calls.length, 1)
-  assert.equal(client.calls[0].tag, 'deepseek-flash/vote')
+  assert.equal(client.calls[0]!.tag, 'deepseek-flash/vote')
 })
 
 test('good quest cards skip the LLM call entirely; evil still decides', async () => {
@@ -53,7 +53,7 @@ test('good quest cards skip the LLM call entirely; evil still decides', async ()
   )).decision
   assert.equal((d2 as any).card, 'fail')
   assert.equal(client.calls.length, 1)
-  assert.equal(client.calls[0].tag, 'deepseek-flash/quest')
+  assert.equal(client.calls[0]!.tag, 'deepseek-flash/quest')
 })
 
 test('one malformed reply triggers exactly one correction retry', async () => {
@@ -78,8 +78,8 @@ test('propose is commit-then-explain: pitch generated with the team locked', asy
       // The pitch prompt must carry the chosen team, by name.
       const user = messages.find((m) => m.role === 'user')!
       assert.match(user.content, /your proposed team for quest/)
-      assert.ok(user.content.includes(view0.players[0].name))
-      assert.ok(user.content.includes(view0.players[2].name))
+      assert.ok(user.content.includes(view0.players[0]!.name))
+      assert.ok(user.content.includes(view0.players[2]!.name))
       return '{"thinking": "sell it", "pitch": "Clean start with a proven pair."}'
     }
     throw new Error(`unexpected call ${opts.tag}`)

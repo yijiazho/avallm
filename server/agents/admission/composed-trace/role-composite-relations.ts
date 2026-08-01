@@ -105,7 +105,7 @@ export function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): bool
       ) return false
     }
     const mode = (
-      roleFeatureScores[0].roleObjectiveFeatures as Record<string, unknown>
+      roleFeatureScores[0]!.roleObjectiveFeatures as Record<string, unknown>
     ).selectionMode
     const expectedScorer = mode === 'seeded-composite-band'
       ? ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -135,16 +135,16 @@ export function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): bool
       && allowedRole.length === 2
       && Math.abs(
         Number(
-          (allowedRole[0].roleObjectiveFeatures as Record<string, unknown>)
+          (allowedRole[0]!.roleObjectiveFeatures as Record<string, unknown>)
             .combinedValue,
         )
         - Number(
-          (allowedRole[1].roleObjectiveFeatures as Record<string, unknown>)
+          (allowedRole[1]!.roleObjectiveFeatures as Record<string, unknown>)
             .combinedValue,
         ),
       ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
     const firstRole =
-      roleFeatureScores[0].roleObjectiveFeatures as Record<string, unknown>
+      roleFeatureScores[0]!.roleObjectiveFeatures as Record<string, unknown>
     if (
       !scorerAdmitsDiagnosticOwner(components?.scorer, expectedScorer)
       || !selectedByValue
@@ -157,11 +157,11 @@ export function validGoodRoleCompositeSelection(ctx: ComposedTraceContext): bool
             && allowedRole.length === 2
             && Math.abs(
               Number(
-                (allowedRole[0].roleObjectiveFeatures as Record<string, unknown>)
+                (allowedRole[0]!.roleObjectiveFeatures as Record<string, unknown>)
                   .combinedValue,
               )
               - Number(
-                (allowedRole[1].roleObjectiveFeatures as Record<string, unknown>)
+                (allowedRole[1]!.roleObjectiveFeatures as Record<string, unknown>)
                   .combinedValue,
               ),
             ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
@@ -234,7 +234,7 @@ export function validEvilRoleCompositeSelection(ctx: ComposedTraceContext): bool
       ) return false
     }
     const first =
-      evilRoleFeatureScores[0].evilRoleObjectiveFeatures as
+      evilRoleFeatureScores[0]!.evilRoleObjectiveFeatures as
         Record<string, unknown>
     const mode = first.selectionMode
     const expectedScorer = mode === 'seeded-role-utility-band'
@@ -260,10 +260,10 @@ export function validEvilRoleCompositeSelection(ctx: ComposedTraceContext): bool
       && allowedRows.length === 2
       && Math.abs(
         Number(
-          (allowedRows[0].evilRoleObjectiveFeatures as Record<string, unknown>)
+          (allowedRows[0]!.evilRoleObjectiveFeatures as Record<string, unknown>)
             .roleValue,
         ) - Number(
-          (allowedRows[1].evilRoleObjectiveFeatures as Record<string, unknown>)
+          (allowedRows[1]!.evilRoleObjectiveFeatures as Record<string, unknown>)
             .roleValue,
         ),
       ) <= EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand

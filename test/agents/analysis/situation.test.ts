@@ -34,13 +34,13 @@ test('current and caller-supplied teams share exact assessment semantics', () =>
   const candidate = [view.seat, (view.seat + 1) % view.playerCount]
   const analysis = analyzeSituation(view, { candidateTeams: [candidate] })
   assert.deepEqual(analysis.currentTeam?.team, [...view.currentTeam!].sort((a, b) => a - b))
-  assert.deepEqual(analysis.candidateTeams[0].team, [...candidate].sort((a, b) => a - b))
+  assert.deepEqual(analysis.candidateTeams[0]!.team, [...candidate].sort((a, b) => a - b))
   assert.equal(
     analysis.currentTeam!.evilCountDistribution.reduce((sum, share) => sum + share, 0),
     1,
   )
   assert.equal(
-    analysis.candidateTeams[0].evilCountDistribution.reduce((sum, share) => sum + share, 0),
+    analysis.candidateTeams[0]!.evilCountDistribution.reduce((sum, share) => sum + share, 0),
     1,
   )
 })
@@ -150,9 +150,9 @@ test('hard deductions distinguish private, closure, quest, and multi-constraint 
   const view: PlayerView = {
     ...base,
     quests: base.quests.map((quest) => {
-      if (quest.num === 1) return { ...quest, status: 'complete' as const, team: [evilA, evilB], result: 'fail' as const, failCount: 1 }
-      if (quest.num === 2) return { ...quest, status: 'complete' as const, team: [evilA, goodC, viewer], result: 'fail' as const, failCount: 1 }
-      if (quest.num === 3) return { ...quest, status: 'complete' as const, team: [evilB, goodC], result: 'fail' as const, failCount: 1 }
+      if (quest.num === 1) return { ...quest, status: 'complete' as const, team: [evilA!, evilB!], result: 'fail' as const, failCount: 1 }
+      if (quest.num === 2) return { ...quest, status: 'complete' as const, team: [evilA!, goodC!, viewer], result: 'fail' as const, failCount: 1 }
+      if (quest.num === 3) return { ...quest, status: 'complete' as const, team: [evilB!, goodC!], result: 'fail' as const, failCount: 1 }
       return quest
     }),
   }

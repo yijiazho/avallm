@@ -65,7 +65,7 @@ test('optional private traces round-trip in artifacts and replay to the same dec
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-trace-'))
   const file = path.join(dir, 'artifact.jsonl')
   appendArtifact(file, artifact)
-  const back = readArtifacts(file)[0]
+  const back = readArtifacts(file)[0]!
   assert.deepEqual(back.decisionTraces, [trace])
   const replayed = snapshotAt(back, firstAction.seq)
   assert.deepEqual(replayed.trace, trace)

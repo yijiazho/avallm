@@ -196,7 +196,7 @@ test('the viewer\'s own ballot is excluded, per ballot and not per record', asyn
       applyDecision(
         game,
         req.seat,
-        (await agents[req.seat].decide(req, viewFor(game, req.seat))).decision,
+        (await agents[req.seat]!.decide(req, viewFor(game, req.seat))).decision,
       )
     }
     if (viewFor(game, 0).proposals.some((p) => p.outcome === 'voted')) break

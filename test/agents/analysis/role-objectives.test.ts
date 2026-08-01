@@ -119,12 +119,12 @@ test('Merlin influence uses exact private joint teams and separate exact public 
   assert.equal(snapshot.objective.role, 'merlin')
   const identity = output.trace!.privateIdentity!
   const hidden = identity.hiddenTeamPosterior!
-  const assessment = snapshot.objective.assessments[0]
+  const assessment = snapshot.objective.assessments[0]!
   const team = assessment.candidate.team!
   const distribution = Array<number>(team.length + 1).fill(0)
   for (const hypothesis of hidden.hypotheses) {
     const evil = team.filter((seat) => hypothesis.evilSeats.includes(seat)).length
-    distribution[evil] += hypothesis.probability
+    distribution[evil]! += hypothesis.probability
   }
   assert.deepEqual(assessment.evilCountDistribution, distribution)
   assert.equal(assessment.teamCleanProbability, distribution[0])
@@ -140,7 +140,7 @@ test('Merlin influence uses exact private joint teams and separate exact public 
   )
   assert.equal(
     assessment.publicTeamCleanProbability,
-    publicTeam.cleanProbability,
+    publicTeam!.cleanProbability,
   )
   assert.equal(
     assessment.publicProbabilitySemantics,
@@ -162,7 +162,7 @@ test('Merlin approval extremity distinguishes no-vote sentinel from an observed 
   )!.seat
   const priorTeam = afterVoteView.players
     .filter((player) => player.seat !== afterVoteView.seat)
-    .slice(0, afterVoteView.quests[0].teamSize)
+    .slice(0, afterVoteView.quests[0]!.teamSize)
     .map((player) => player.seat)
     .sort((left, right) => left - right)
   mutable(afterVoteView).proposalNum = 2
@@ -232,7 +232,7 @@ test('Percival pair posterior is a complete-world sum bound to visible candidate
       pair.privateCandidateSeats,
     )
   }
-  const identityPair = output.trace!.privateIdentity!.rolePosteriors[0]
+  const identityPair = output.trace!.privateIdentity!.rolePosteriors[0]!
   assert.deepEqual(
     pair.hypotheses.map((hypothesis) => hypothesis.probability),
     identityPair.hypotheses.map((hypothesis) => hypothesis.probability),
@@ -531,7 +531,7 @@ test('private posterior weights causally change influence while public exposure 
     weightedObjective.source.beliefModelVersion,
     weightedModel.version,
   )
-  assert.equal(weighted.trace!.beliefProvenance![0].factorId, 'phase7c1-test')
+  assert.equal(weighted.trace!.beliefProvenance![0]!.factorId, 'phase7c1-test')
 })
 
 test('host join rejects forged candidates, private candidates, sources, and arithmetic', async () => {
@@ -553,7 +553,7 @@ test('host join rejects forged candidates, private candidates, sources, and arit
       copy.source.beliefThroughSeq += 1
     },
     (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
-      copy.objective.assessments[0].candidate.candidateId += ':forged'
+      copy.objective.assessments[0]!.candidate.candidateId += ':forged'
     },
     (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       if (copy.objective.role === 'percival') {
@@ -562,7 +562,7 @@ test('host join rejects forged candidates, private candidates, sources, and arit
     },
     (copy: NonNullable<ReturnType<typeof roleObjective>>) => {
       if (copy.objective.role === 'percival') {
-        copy.objective.assessments[0].pairInfluenceValue = 0.123
+        copy.objective.assessments[0]!.pairInfluenceValue = 0.123
       }
     },
   ]) {
@@ -588,7 +588,7 @@ test('external validator rejects sparse, expanded, unsafe, nonfinite, oversized,
   if (nonfinite.objective.role !== 'merlin') {
     assert.fail('Merlin fixture resolved another role objective')
   }
-  nonfinite.objective.assessments[0].teamCleanProbability = Number.NaN
+  nonfinite.objective.assessments[0]!.teamCleanProbability = Number.NaN
   malformed.push(nonfinite)
   const version = structuredClone(valid)
   ;(version as { version: string }).version = 'forged-v1'
@@ -690,7 +690,7 @@ test('external ingress and private/public boundaries preserve role objective att
     merlin,
   )
   const forged = structuredClone(merlin)
-  roleObjective(forged.trace!)!.objective.assessments[0]
+  roleObjective(forged.trace!)!.objective.assessments[0]!
     .publicTeamCleanProbability = 0
   assert.deepEqual(
     parseExternalDecisionReply(
@@ -855,32 +855,32 @@ test('artifact and architecture admission distinguish configured from applicable
     }
   }
 
-  const artifact = artifacts[0]
-  const noTraces = structuredClone(artifact)
+  const artifact = artifacts[0]!
+  const noTraces = structuredClone(artifact)!
   delete noTraces.decisionTraces
   assert.ok(
-    architectureReport([noTraces]).variants[0]
+    architectureReport([noTraces]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
-  const noManifest = structuredClone(artifact)
+  const noManifest = structuredClone(artifact)!
   delete noManifest.strategyVersions!.roleObjectives
-  const descriptorOwned = architectureReport([noManifest]).variants[0]
+  const descriptorOwned = architectureReport([noManifest]).variants[0]!
   assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
   assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
-  const forged = structuredClone(artifact)
-  roleObjective(forged.decisionTraces![0])!.request.round += 1
+  const forged = structuredClone(artifact)!
+  roleObjective(forged.decisionTraces![0]!)!.request.round += 1
   assert.ok(
-    architectureReport([forged]).variants[0]
+    architectureReport([forged]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const hiddenAsDegraded = structuredClone(artifact)
-  removeRoleObjective(hiddenAsDegraded.decisionTraces![0])
-  mutableArray(hiddenAsDegraded.decisionTraces![0].degradation).push(
+  const hiddenAsDegraded = structuredClone(artifact)!
+  removeRoleObjective(hiddenAsDegraded.decisionTraces![0]!)
+  mutableArray(hiddenAsDegraded.decisionTraces![0]!.degradation).push(
     ROLE_OBJECTIVE_DEGRADATION,
   )
   assert.ok(
-    architectureReport([hiddenAsDegraded]).variants[0]
+    architectureReport([hiddenAsDegraded]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
@@ -890,21 +890,21 @@ test('artifact and architecture admission distinguish configured from applicable
   for (const forge of [
     (candidate: typeof servant) => {
       addRoleObjectiveFrom(
-        candidate.decisionTraces![0],
-        artifact.decisionTraces![0],
+        candidate.decisionTraces![0]!,
+        artifact.decisionTraces![0]!,
       )
     },
     (candidate: typeof servant) => {
       mutableArray(
-        candidate.decisionTraces![0].componentPlan!.configured,
+        candidate.decisionTraces![0]!.componentPlan!.configured,
       ).push(structuredClone(
-        artifact.decisionTraces![0].componentPlan!.configured.find(
+        artifact.decisionTraces![0]!.componentPlan!.configured.find(
           (entry) => entry.id === GOOD_ROLE_OBJECTIVE_COMPONENT.id,
         )!,
       ))
     },
     (candidate: typeof servant) => {
-      mutableArray(candidate.decisionTraces![0].degradation).push(
+      mutableArray(candidate.decisionTraces![0]!.degradation).push(
         ROLE_OBJECTIVE_DEGRADATION,
       )
     },
@@ -912,7 +912,7 @@ test('artifact and architecture admission distinguish configured from applicable
     const forgedIneligible = structuredClone(servant)
     forge(forgedIneligible)
     assert.ok(
-      architectureReport([forgedIneligible]).variants[0]
+      architectureReport([forgedIneligible]).variants[0]!
         .safety.traceAttributionViolations > 0,
     )
   }
@@ -926,7 +926,7 @@ test('5-10 player exact public joint surfaces stay bounded and deterministic', (
       playerCount,
     })
     const view = viewFor(game, 0)
-    const teamSize = view.quests[0].teamSize
+    const teamSize = view.quests[0]!.teamSize
     const teams: number[][] = []
     const visit = (start: number, team: number[]): void => {
       if (team.length === teamSize) {
@@ -956,7 +956,7 @@ test('5-10 player exact public joint surfaces stay bounded and deterministic', (
         return result
       }
       assert.ok(
-        histogram.length <= choose(playerCount, EVIL_COUNT[playerCount]),
+        histogram.length <= choose(playerCount, EVIL_COUNT[playerCount]!),
       )
     }
     const started = performance.now()

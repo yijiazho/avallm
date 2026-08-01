@@ -18,14 +18,14 @@ test('discuss and pitch system prompts include the self-check bullet', () => {
   const view = viewFor(g, 0)
 
   const [discussSys] = buildMessages('discuss', view, '', {})
-  assert.equal(discussSys.role, 'system')
-  assert.match(discussSys.content, /run a second-order check/)
-  assert.match(discussSys.content, /what your words reveal about your own secret role/)
+  assert.equal(discussSys!.role, 'system')
+  assert.match(discussSys!.content, /run a second-order check/)
+  assert.match(discussSys!.content, /what your words reveal about your own secret role/)
 
   const [pitchSys] = buildMessages('pitch', view, '', {})
-  assert.match(pitchSys.content, /run a second-order check/)
+  assert.match(pitchSys!.content, /run a second-order check/)
 
   // Non-speech kinds do not carry the table-talk norms.
   const [voteSys] = buildMessages('vote', view, '', {})
-  assert.ok(!voteSys.content.includes('second-order check'))
+  assert.ok(!voteSys!.content.includes('second-order check'))
 })

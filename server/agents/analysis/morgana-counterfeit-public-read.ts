@@ -85,19 +85,19 @@ function truthCounts(record: PublicRecord): readonly TruthCounts[] {
       )
       .at(-1)
     if (!executed) continue
-    counts[executed.leader].proposalObservations += 1
+    counts[executed.leader]!.proposalObservations += 1
     if (quest.result === 'success') {
-      counts[executed.leader].proposalHits += 1
+      counts[executed.leader]!.proposalHits += 1
     }
     for (const vote of [...proposalVotes(executed)].sort(
       (left, right) => left.seat - right.seat,
     )) {
-      counts[vote.seat].voteObservations += 1
+      counts[vote.seat]!.voteObservations += 1
       if (
         (vote.vote === 'approve' && quest.result === 'success')
         || (vote.vote === 'reject' && quest.result === 'fail')
       ) {
-        counts[vote.seat].voteHits += 1
+        counts[vote.seat]!.voteHits += 1
       }
     }
   }
@@ -146,14 +146,14 @@ export function buildPublicCounterfeitMerlinRead(
     const smoothedTruthTrackingIndex =
       (total.numerator + 1) / (total.denominator + 2)
     const relativeMerlinEligibilityIndex =
-      merlinNumerators[seat] / maximum
+      merlinNumerators[seat]! / maximum
     return {
       seat,
       probabilitySemantics: 'public-uniform-feasible-joint',
-      merlinWorldNumerator: merlinNumerators[seat],
+      merlinWorldNumerator: merlinNumerators[seat]!,
       feasibleWorldDenominator: observer.feasibleWorldCount,
       merlinProbability:
-        merlinNumerators[seat] / observer.feasibleWorldCount,
+        merlinNumerators[seat]! / observer.feasibleWorldCount,
       relativeMerlinEligibilityIndex,
       observationSemantics: 'public-counts-no-data-is-null',
       proposalTruthTracking: proposal,

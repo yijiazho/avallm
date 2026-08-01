@@ -13,7 +13,7 @@ const percent = (value: number, uncertain = false): string => {
 
 const names = (view: PlayerView, seats: readonly Seat[]): string =>
   seats.length
-    ? seats.map((seat) => `${view.players[seat].name}(seat ${seat})`).join(', ')
+    ? seats.map((seat) => `${view.players[seat]!.name}(seat ${seat})`).join(', ')
     : 'none'
 
 function probabilitySemantics(snapshot: BeliefSnapshot): string {
@@ -83,12 +83,12 @@ function exactOnePairs(
   const pairs: [Seat, Seat][] = []
   for (let left = 0; left < unresolved.length; left++) {
     for (let right = left + 1; right < unresolved.length; right++) {
-      const a = unresolved[left]
-      const b = unresolved[right]
+      const a = unresolved[left]!
+      const b = unresolved[right]!
       if (snapshot.worlds.every((weighted) => {
         const world = weighted.world
-        const count = Number(world.alignmentBySeat[a] === 'evil')
-          + Number(world.alignmentBySeat[b] === 'evil')
+        const count = Number(world.alignmentBySeat[a]! === 'evil')
+          + Number(world.alignmentBySeat[b]! === 'evil')
         return count === 1
       })) {
         pairs.push([a, b])
@@ -122,7 +122,7 @@ export function renderBeliefSummary(
   if (analysis.unresolved.length) {
     lines.push('Unresolved player shares:')
     for (const seat of analysis.unresolved) {
-      const marginal = snapshot.playerMarginals[seat]
+      const marginal = snapshot.playerMarginals[seat]!
       lines.push(
         `  ${names(view, [seat])} | evil ${semantics}: `
         + `${percent(marginal.evilProbability, true)} | good ${semantics}: `

@@ -159,8 +159,8 @@ function convolveBernoulli(probabilities: readonly number[]): number[] {
   for (const probability of probabilities) {
     const next = Array<number>(distribution.length + 1).fill(0)
     for (let count = 0; count < distribution.length; count++) {
-      next[count] += distribution[count] * (1 - probability)
-      next[count + 1] += distribution[count] * probability
+      next[count]! += distribution[count]! * (1 - probability)
+      next[count + 1]! += distribution[count]! * probability
     }
     distribution = next
   }
@@ -225,7 +225,10 @@ export function questFailCountDistribution(
 ): readonly number[] {
   const evilRoles = evidence.team
     .map((seat) => world.roleBySeat[seat])
-    .filter((role) => ROLE_ALIGNMENT[role] === 'evil')
+    .filter(
+      (role): role is NonNullable<typeof role> =>
+        role !== undefined && ROLE_ALIGNMENT[role] === 'evil',
+    )
   if (!evilRoles.length) return [1]
   const nonOberonCount = evilRoles.filter((role) => role !== 'oberon').length
   const coordinatedNonOberon = nonOberonCount >= 2
@@ -239,7 +242,7 @@ export function questFailCountDistribution(
   const raw = convolveBernoulli(probabilities)
   if (evidence.failsRequired === 1 && coordinatedNonOberon && raw.length > 1) {
     // Known partners commonly try to place one Fail rather than doubling.
-    raw[1] *= QUEST_CARD_MODEL_PARAMETERS.coordinatedSingleFailBoost
+    raw[1]! *= QUEST_CARD_MODEL_PARAMETERS.coordinatedSingleFailBoost
   }
   const total = raw.reduce((sum, probability) => sum + probability, 0)
   const smoothing = QUEST_CARD_MODEL_PARAMETERS.uniformMixtureWeight

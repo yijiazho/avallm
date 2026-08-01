@@ -88,7 +88,7 @@ function playToAssassination(
   while (game.phase !== 'assassination' && guard++ < 40) {
     const reqs = expectedDecisions(game)
     if (!reqs.length) return undefined
-    const req = reqs[0]
+    const req = reqs[0]!
     if (req.kind === 'vote') {
       for (const vote of reqs) {
         applyDecision(game, vote.seat, { kind: 'vote', vote: 'approve' })

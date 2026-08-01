@@ -52,7 +52,7 @@ function fixture() {
   )!.seat
   let assassinVote: { req: DecisionRequest; view: PlayerView } | undefined
   while (game.phase !== 'assassination') {
-    const req = expectedDecisions(game)[0]
+    const req = expectedDecisions(game)[0]!
     const view = viewFor(game, req.seat)
     if (req.kind === 'vote' && req.seat === assassinSeat && !assassinVote) {
       assassinVote = { req, view }
@@ -152,7 +152,7 @@ function context(input: {
 }
 
 test('canonical ties and the hard boundary dominate target ranking', () => {
-  const layer = assassinScoreLayerDefinitions(EVIL_ROLE_SCORE_LAYER)[0]
+  const layer = assassinScoreLayerDefinitions(EVIL_ROLE_SCORE_LAYER)[0]!
   assert.equal(layer.kind, 'transform')
   if (layer.kind !== 'transform') throw new Error('expected transform')
   const tie = layer.execute(context())

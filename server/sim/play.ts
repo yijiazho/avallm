@@ -86,7 +86,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
       return { kind: 'discuss', say }
     }
     case 'propose': {
-      const size = view.quests[view.round - 1].teamSize
+      const size = view.quests[view.round - 1]!.teamSize
       const roster = view.players.map((p) => `${p.seat}=${p.name}`).join(' ')
       while (true) {
         const raw = await ask(`You lead. Pick ${size} seats (${roster}), comma-separated: `)
@@ -97,8 +97,8 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
     }
     case 'finalize': {
       const current = view.currentTeam ?? []
-      const size = view.quests[view.round - 1].teamSize
-      const teamLabel = current.map((s) => view.players[s].name).join(', ')
+      const size = view.quests[view.round - 1]!.teamSize
+      const teamLabel = current.map((s) => view.players[s]!.name).join(', ')
       const raw = (await ask(`Your team [${teamLabel}]. Enter to lock it in, or type a new comma-separated team: `)).trim()
       if (!raw) return { kind: 'finalize', stick: true }
       let input = raw
@@ -115,7 +115,7 @@ async function askHuman(req: DecisionRequest, view: PlayerView): Promise<Decisio
     }
     case 'vote': {
       const current = view.currentTeam ?? []
-      const teamLabel = current.map((s) => view.players[s].name).join(', ')
+      const teamLabel = current.map((s) => view.players[s]!.name).join(', ')
       while (true) {
         const raw = (await ask(`Vote on [${teamLabel}] (a=approve, r=reject): `)).trim().toLowerCase()
         if (raw.startsWith('a')) return { kind: 'vote', vote: 'approve' }
@@ -159,7 +159,7 @@ const agents = new Map<Seat, AvalonAgent>(
 
 // Role card.
 {
-  const me = game.players[HUMAN]
+  const me = game.players[HUMAN]!
   console.log(`\nYou are ${me.role.toUpperCase()} (${me.alignment}).`)
   const knowledge = game.log.find((ev) => ev.type === 'knowledge' && ev.payload.seat === HUMAN)
   const info = knowledge?.type === 'knowledge' ? knowledge.payload : { kind: 'none' as const }

@@ -33,7 +33,7 @@ function runDiscussion(g: Game): void {
   while (g.phase === 'discussion') {
     const [d] = expectedDecisions(g)
     // A hostile table is the pressure that made evil leaders fold.
-    applyDecision(g, d.seat, { kind: 'discuss', say: 'I do not like this team.' })
+    applyDecision(g, d!.seat, { kind: 'discuss', say: 'I do not like this team.' })
   }
 }
 
@@ -45,7 +45,7 @@ function driveToFinalize(g: Game, team: Seat[]): void {
 
 function finalizeAsk(g: Game): string {
   const [, user] = buildMessages('finalize', viewFor(g, g.leaderSeat), '')
-  return user.content
+  return user!.content
 }
 
 // The evil-seats-aboard clause only, so team rosters elsewhere in the prompt
@@ -63,14 +63,14 @@ function seatsBy(g: Game, alignment: 'good' | 'evil'): Seat[] {
 }
 
 test('evil leader with evil aboard is told what revising away costs', () => {
-  const g = findGame(5, 'ff-evil', (game) => game.players[game.leaderSeat].alignment === 'evil')
+  const g = findGame(5, 'ff-evil', (game) => game.players[game.leaderSeat]!.alignment === 'evil')
   const leader = g.leaderSeat
   const good = seatsBy(g, 'good')
-  driveToFinalize(g, [leader, good[0]])
+  driveToFinalize(g, [leader, good[0]!])
 
   const ask = finalizeAsk(g)
   assert.match(ask, /quest your side can no longer fail/)
-  assert.ok(knownEvilClause(ask).includes(g.players[leader].name), 'the leader is named as evil aboard')
+  assert.ok(knownEvilClause(ask).includes(g.players[leader]!.name), 'the leader is named as evil aboard')
   // Non-hammer: sticking still faces a vote, and a rejection is the cheap loss.
   assert.match(ask, /Nothing said in discussion binds a vote/)
   assert.match(ask, /even a rejection is cheap/)
@@ -78,9 +78,9 @@ test('evil leader with evil aboard is told what revising away costs', () => {
 })
 
 test('evil leader with no evil aboard is told the revision is cheap', () => {
-  const g = findGame(5, 'ff-clean', (game) => game.players[game.leaderSeat].alignment === 'evil')
+  const g = findGame(5, 'ff-clean', (game) => game.players[game.leaderSeat]!.alignment === 'evil')
   const good = seatsBy(g, 'good')
-  driveToFinalize(g, [good[0], good[1]])
+  driveToFinalize(g, [good[0]!, good[1]!])
 
   const ask = finalizeAsk(g)
   assert.match(ask, /No evil you know of is on this team/)
@@ -89,7 +89,7 @@ test('evil leader with no evil aboard is told the revision is cheap', () => {
 })
 
 test('good leader gets no alignment note at finalize', () => {
-  const g = findGame(5, 'ff-good', (game) => game.players[game.leaderSeat].alignment === 'good')
+  const g = findGame(5, 'ff-good', (game) => game.players[game.leaderSeat]!.alignment === 'good')
   const leader = g.leaderSeat
   const other = g.players.find((p) => p.seat !== leader)!.seat
   driveToFinalize(g, [leader, other])
@@ -105,7 +105,7 @@ test('good leader gets no alignment note at finalize', () => {
 
 test('an unseen Oberon on the team is never counted as evil the leader knows of', () => {
   const g = findGame(7, 'ff-oberon', (game) => {
-    const l = game.players[game.leaderSeat]
+    const l = game.players[game.leaderSeat]!
     return l.alignment === 'evil' && l.role !== 'oberon' && game.players.some((p) => p.role === 'oberon')
   })
   const leader = g.leaderSeat
@@ -114,14 +114,14 @@ test('an unseen Oberon on the team is never counted as evil the leader knows of'
 
   const ask = finalizeAsk(g)
   const clause = knownEvilClause(ask)
-  assert.ok(clause.includes(g.players[leader].name), 'the leader itself is counted')
+  assert.ok(clause.includes(g.players[leader]!.name), 'the leader itself is counted')
   assert.ok(!clause.includes(oberon.name), 'Oberon is invisible to the rest of evil')
   // The note still admits an unseen teammate could exist, without asserting one.
   assert.ok(!ask.includes('No evil you know of is on this team'), 'the leader is aboard')
 })
 
 test('at the hammer the note drops the rejection framing: there is no vote to lose', () => {
-  const g = findGame(5, 'ff-hammer', (game) => game.players[(game.leaderSeat + 4) % 5].alignment === 'evil')
+  const g = findGame(5, 'ff-hammer', (game) => game.players[(game.leaderSeat + 4) % 5]!.alignment === 'evil')
   // Burn the four votable proposals so the fifth is the hammer.
   for (let i = 0; i < MAX_PROPOSALS - 1; i++) {
     const leader = g.leaderSeat
@@ -131,7 +131,7 @@ test('at the hammer the note drops the rejection framing: there is no vote to lo
   }
   assert.equal(g.proposalNum, MAX_PROPOSALS)
   const leader = g.leaderSeat
-  assert.equal(g.players[leader].alignment, 'evil')
+  assert.equal(g.players[leader]!.alignment, 'evil')
   driveToFinalize(g, [leader, (leader + 1) % 5])
 
   const ask = finalizeAsk(g)

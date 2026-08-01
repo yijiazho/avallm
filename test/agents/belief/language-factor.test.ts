@@ -73,9 +73,9 @@ function publicConversation(): { game: Game; view: PlayerView } {
   let guard = 0
   while (game.phase === 'discussion') {
     const [request] = expectedDecisions(game)
-    applyDecision(game, request.seat, {
+    applyDecision(game, request!.seat, {
       kind: 'discuss',
-      say: `Seat ${request.seat + 1} gives a public read.`,
+      say: `Seat ${request!.seat + 1} gives a public read.`,
     })
     if (++guard > 20) throw new Error('discussion did not terminate')
   }
@@ -297,7 +297,7 @@ test('finite mapping is symmetric and evidence class is strength-neutral', () =>
       ]),
     ))
   for (const output of outputs.slice(1)) {
-    assert.deepEqual(probabilities(output), probabilities(outputs[0]))
+    assert.deepEqual(probabilities(output), probabilities(outputs[0]!))
   }
   assert.equal(
     new Set(outputs.map(
@@ -325,7 +325,7 @@ test('complete language history has a global 1.25 relative-odds cap', () => {
     admittedState(context, repeated),
   )
   const multipliers = weighted.worlds.map((entry, index) =>
-    entry.probability / base.worlds[index].probability)
+    entry.probability / base.worlds[index]!.probability)
   assert.ok(
     Math.max(...multipliers) / Math.min(...multipliers)
       <= Math.exp(LANGUAGE_HISTORY_LOG_ODDS_CAP) + 1e-12,
@@ -577,7 +577,7 @@ test('quest-weighted composition preserves mechanical posterior provenance', () 
     marginal.seat !== view.seat
     && marginal.evilProbability > 0
     && marginal.evilProbability < 1)!.seat
-  const items = [evidence(context.sources[0].sourceSeq, subject)]
+  const items = [evidence(context.sources[0]!.sourceSeq, subject)]
   const weighted = applyBoundedLanguageEvidence(
     view,
     base,
@@ -616,7 +616,7 @@ test('active language evidence never upgrades a degraded mechanical base', () =>
     marginal.seat !== view.seat
     && marginal.evilProbability > 0
     && marginal.evilProbability < 1)!.seat
-  const items = [evidence(context.sources[0].sourceSeq, subject)]
+  const items = [evidence(context.sources[0]!.sourceSeq, subject)]
   const weighted = applyBoundedLanguageEvidence(
     view,
     base,
@@ -808,7 +808,7 @@ test('injected computation failures preserve quest weighting and provenance', ()
     context,
     admittedState(
       context,
-      [evidence(context.sources[0].sourceSeq, subject)],
+      [evidence(context.sources[0]!.sourceSeq, subject)],
     ),
     failing,
   )

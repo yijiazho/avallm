@@ -151,7 +151,7 @@ DecisionComponentDefinition<NativeFixturePayload> = {
       status: 'produced',
       envelope: componentEnvelope(FIXTURE_COMPONENT, {
         keep: ids.slice(0, Math.min(2, ids.length)),
-        select: ids[0],
+        select: ids[0]!,
       }),
     }
   },
@@ -345,12 +345,12 @@ test('resolved order drives monotone narrowing, selection, and causal use', asyn
   assert.equal(run.operations.layersExecuted, 2)
   assert.equal(run.operations.surfaceBuildAttempts, 2)
   assert.deepEqual(
-    run.journal[0].componentReads,
+    run.journal[0]!.componentReads,
     [FIXTURE_COMPONENT].map(({ id, version }) => ({ id, version })),
   )
   assert.deepEqual(
-    run.journal[0].status === 'applied'
-      ? run.journal[0].attributedComponents
+    run.journal[0]!.status === 'applied'
+      ? run.journal[0]!.attributedComponents
       : [],
     [
       FIXTURE_DEPENDENCY_ROOT,
@@ -703,10 +703,10 @@ test('factory provenance, dependency admission, and universal dominance fail clo
       forgedLayer.token,
     ]),
   })
-  assert.equal(forged.journal[0].status, 'degraded')
+  assert.equal(forged.journal[0]!.status, 'degraded')
   assert.equal(
-    forged.journal[0].status === 'degraded'
-      ? forged.journal[0].failureCode
+    forged.journal[0]!.status === 'degraded'
+      ? forged.journal[0]!.failureCode
       : undefined,
     'invalid-surface',
   )
@@ -717,9 +717,9 @@ test('factory provenance, dependency admission, and universal dominance fail clo
   )
   assert.notEqual(rootIndex, -1)
   ;(unavailableRun.entries[rootIndex] as any) = {
-    component: unavailableRun.entries[rootIndex].component,
-    kind: unavailableRun.entries[rootIndex].kind,
-    privacy: unavailableRun.entries[rootIndex].privacy,
+    component: unavailableRun.entries[rootIndex]!.component,
+    kind: unavailableRun.entries[rootIndex]!.kind,
+    privacy: unavailableRun.entries[rootIndex]!.privacy,
     status: 'inapplicable',
   }
   const unavailable = runDecisionLayers({
@@ -729,15 +729,15 @@ test('factory provenance, dependency admission, and universal dominance fail clo
     ]),
     componentRun: unavailableRun,
   })
-  assert.equal(unavailable.journal[0].status, 'degraded')
+  assert.equal(unavailable.journal[0]!.status, 'degraded')
   assert.equal(
-    unavailable.journal[0].status === 'degraded'
-      ? unavailable.journal[0].failureCode
+    unavailable.journal[0]!.status === 'degraded'
+      ? unavailable.journal[0]!.failureCode
       : undefined,
     'dependency-unavailable',
   )
 
-  const selectedId = input.universalForced.allowedCandidateIds[0]
+  const selectedId = input.universalForced.allowedCandidateIds[0]!
   let appliesCalls = 0
   let executeCalls = 0
   const adversarialLayer: DecisionLayerDefinition = {
@@ -778,8 +778,8 @@ test('factory provenance, dependency admission, and universal dominance fail clo
     ['suppressed'],
   )
   assert.equal(
-    dominated.journal[0].status === 'suppressed'
-      ? dominated.journal[0].suppressionCode
+    dominated.journal[0]!.status === 'suppressed'
+      ? dominated.journal[0]!.suppressionCode
       : undefined,
     'universal-policy-selected',
   )
@@ -866,8 +866,8 @@ test('factory provenance, dependency admission, and universal dominance fail clo
     ['applied', 'applied', 'suppressed'],
   )
   assert.equal(
-    terminal.journal[2].status === 'suppressed'
-      ? terminal.journal[2].suppressionCode
+    terminal.journal[2]!.status === 'suppressed'
+      ? terminal.journal[2]!.suppressionCode
       : undefined,
     'prior-strategic-selection',
   )
@@ -896,7 +896,7 @@ test('surface laws reject reuse, widening, reordering, and invalid bounded reaso
       reasonCodes: ['TEST_REORDER'],
     })],
     ['duplicate-survivor', (prior) => ({
-      survivorCandidateIds: [prior[0], prior[0]],
+      survivorCandidateIds: [prior[0]!, prior[0]!],
       reasonCodes: ['TEST_DUPLICATE'],
     })],
     ['duplicate-reason', (prior) => ({
@@ -930,10 +930,10 @@ test('surface laws reject reuse, widening, reordering, and invalid bounded reaso
       ...input,
       order: createDecisionLayerRegistry([definition]).resolve([token]),
     })
-    assert.equal(run.journal[0].status, 'degraded', label)
+    assert.equal(run.journal[0]!.status, 'degraded', label)
     assert.equal(
-      run.journal[0].status === 'degraded'
-        ? run.journal[0].failureCode
+      run.journal[0]!.status === 'degraded'
+        ? run.journal[0]!.failureCode
         : undefined,
       'execution-failed',
       label,
@@ -976,10 +976,10 @@ test('surface laws reject reuse, widening, reordering, and invalid bounded reaso
     ...input,
     order: createDecisionLayerRegistry([reuse]).resolve([reuseToken]),
   })
-  assert.equal(reused.journal[0].status, 'degraded')
+  assert.equal(reused.journal[0]!.status, 'degraded')
   assert.equal(
-    reused.journal[0].status === 'degraded'
-      ? reused.journal[0].failureCode
+    reused.journal[0]!.status === 'degraded'
+      ? reused.journal[0]!.failureCode
       : undefined,
     'invalid-surface',
   )

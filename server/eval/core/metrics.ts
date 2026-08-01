@@ -14,7 +14,7 @@
 import { buildLedger } from './ledger.ts'
 import { forcedPlayViolations } from '../harness/forced.ts'
 import type { Ledger } from './ledger.ts'
-import type { GameArtifact } from './artifact.ts'
+import { artifactPlayerAt, type GameArtifact } from './artifact.ts'
 import type { ForcedPlayViolation } from '../harness/forced.ts'
 import type { Alignment, Role, Seat } from '../../engine/types.ts'
 
@@ -74,7 +74,7 @@ export interface GameMetrics {
 }
 
 export function computeMetrics(a: GameArtifact): GameMetrics {
-  const isEvil = (s: Seat) => a.players[s].alignment === 'evil'
+  const isEvil = (s: Seat) => artifactPlayerAt(a, s).alignment === 'evil'
   const teamHasEvil = (team: readonly Seat[]) => team.some(isEvil)
 
   const votes = new Map<Seat, { n: number; correct: number }>()

@@ -127,7 +127,7 @@ function denseOwnDataArray(value: unknown): readonly unknown[] | undefined {
   ) {
     return undefined
   }
-  return expected.map((key) => descriptors[key].value)
+  return expected.map((key) => descriptors[key]!.value)
 }
 
 export function artifactArchitectureAdmission(

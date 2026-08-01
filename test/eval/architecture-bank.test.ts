@@ -59,8 +59,8 @@ test('architecture bank rejects incomplete or discussion-enabled copies', () => 
   )
   assert.throws(
     () => validateArchitectureBank([{
-      ...ARCHITECTURE_BANK[0],
-      talk: { ...ARCHITECTURE_BANK[0].talk, maxRounds: 1 },
+      ...ARCHITECTURE_BANK[0]!,
+      talk: { ...ARCHITECTURE_BANK[0]!.talk, maxRounds: 1 },
     }, ...ARCHITECTURE_BANK.slice(1)]),
     /must keep discussion disabled/,
   )

@@ -36,7 +36,7 @@ function runDiscussion(g: Game): number {
     const [d] = expectedDecisions(g)
     // Say something substantive so the transcript shows the round actually
     // happened; an empty pass counts as a turn either way.
-    applyDecision(g, d.seat, { kind: 'discuss', say: `seat ${d.seat} has a view` })
+    applyDecision(g, d!.seat, { kind: 'discuss', say: `seat ${d!.seat} has a view` })
   }
   return seen
 }

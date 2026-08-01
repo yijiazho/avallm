@@ -59,10 +59,11 @@ export const HUMAN_CELESTIAL = { glyph: '⊕', body: 'Earth' }
 
 export function celestialFor(agentId: string | undefined, name: string): { glyph: string; body: string } {
   if (!agentId) return HUMAN_CELESTIAL
-  if (CELESTIAL[agentId]) return CELESTIAL[agentId]
+  const known = CELESTIAL[agentId]
+  if (known) return known
   let h = 0
   for (const c of agentId || name) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return OUTER_POOL[h % OUTER_POOL.length]
+  return OUTER_POOL[h % OUTER_POOL.length]!
 }
 
 export type EmblemId =

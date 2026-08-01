@@ -89,7 +89,7 @@ function exactProjection(record: PublicRecord) {
     feasibleWorldCount: joint.worldCount,
     entropy: joint.entropy,
     seats: Array.from({ length: record.playerCount }, (_, seat) => {
-      const player = joint.playerMarginals[seat]
+      const player = joint.playerMarginals[seat]!
       return {
         seat,
         goodProbability: player.goodProbability,
@@ -159,12 +159,12 @@ export function assessPublicJointTeams(
         aboard &= aboard - 1
         count += 1
       }
-      distribution[count] += worldCount
+      distribution[count]! += worldCount
     }
     return {
       team,
       probabilitySemantics: 'public-preaction-uniform-feasible-joint',
-      cleanProbability: distribution[0] / exact.feasibleWorldCount,
+      cleanProbability: distribution[0]! / exact.feasibleWorldCount,
       evilCountDistribution: distribution.map(
         (count) => count / exact.feasibleWorldCount,
       ),

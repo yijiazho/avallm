@@ -93,7 +93,7 @@ test('Phase 7 parsers fail closed on inventory, fields, and pretruth drift', () 
     ),
     /incomplete standard-v1 inventory/,
   )
-  const first = JSON.parse(roleText.split('\n')[0])
+  const first = JSON.parse(roleText.split('\n')[0]!)
   first.unowned = true
   assert.throws(
     () => parsePhase7RoleEvidence(

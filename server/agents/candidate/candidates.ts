@@ -39,7 +39,7 @@ function combinations(items: readonly Seat[], size: number): readonly Seat[][] {
       return
     }
     for (let index = start; index <= items.length - (size - selected.length); index++) {
-      selected.push(items[index])
+      selected.push(items[index]!)
       visit(index + 1)
       selected.pop()
     }
@@ -100,7 +100,7 @@ export function hypotheticalProposalCandidates(
     .map((player) => player.seat)
     .sort((a, b) => a - b)
   const size = view.quests[view.round - 1]?.teamSize
-  if (!Number.isInteger(size) || size <= 0 || size > seats.length) {
+  if (size === undefined || !Number.isInteger(size) || size <= 0 || size > seats.length) {
     throw new Error(`cannot generate proposal teams for quest ${view.round}`)
   }
   return combinations(seats, size).map((team) =>
@@ -161,7 +161,7 @@ export function legalCandidates(
       return hypotheticalProposalCandidates(view)
     }
     case 'finalize': {
-      const size = view.quests[view.round - 1].teamSize
+      const size = view.quests[view.round - 1]!.teamSize
       const revisions = combinations(seats, size)
         .filter((team) => !teamsEqual(team, view.currentTeam ?? []))
         .map((team) =>

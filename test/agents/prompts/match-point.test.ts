@@ -42,7 +42,7 @@ const leaderAfter = (g: Game, n: number): Seat =>
 // A 'fail' outcome seats enough evil to meet failsRequired and has them fail;
 // a 'success' needs no role forcing, since evil may play Success too.
 function playQuest(g: Game, outcome: 'success' | 'fail'): void {
-  const q = g.quests[g.round - 1]
+  const q = g.quests[g.round - 1]!
   const evil = g.players.filter((p) => p.alignment === 'evil').map((p) => p.seat)
   const rest = g.players.map((p) => p.seat).filter((s) => !evil.includes(s))
   const team = outcome === 'fail'
@@ -55,7 +55,7 @@ function playQuest(g: Game, outcome: 'success' | 'fail'): void {
     const fails = outcome === 'fail' && evil.includes(d.seat)
     applyDecision(g, d.seat, { kind: 'quest', card: fails ? 'fail' : 'success' })
   }
-  assert.equal(asCompletedQuest(g.quests[round - 1]).result, outcome)
+  assert.equal(asCompletedQuest(g.quests[round - 1]!).result, outcome)
 }
 
 const playCleanQuests = (g: Game, n: number): void => {
@@ -63,13 +63,13 @@ const playCleanQuests = (g: Game, n: number): void => {
 }
 
 const askFor = (g: Game, kind: 'propose' | 'vote', seat: Seat): string =>
-  buildMessages(kind, viewFor(g, seat), '')[1].content
+  buildMessages(kind, viewFor(g, seat), '')[1]!.content
 
 const seatsBy = (g: Game, alignment: 'good' | 'evil'): Seat[] =>
   g.players.filter((p) => p.alignment === alignment).map((p) => p.seat)
 
 test('an evil leader at good match point is told this is the last team it will pick', () => {
-  const g = findGame(7, 'mp-evil', (game) => game.players[leaderAfter(game, 2)].alignment === 'evil')
+  const g = findGame(7, 'mp-evil', (game) => game.players[leaderAfter(game, 2)]!.alignment === 'evil')
   playCleanQuests(g, 2)
   assert.equal(g.phase, 'proposal')
 
@@ -90,13 +90,13 @@ test('an evil leader at EVIL\'s match point is told a Fail here wins it', () => 
   // exists. At 5p and 6p no two-Fail quest exists at all, so without this arm
   // evil's match point never got its stakes named.
   const g = findGame(7, 'mp-evilmp', (game) => {
-    const l = game.players[leaderAfter(game, 2)]
+    const l = game.players[leaderAfter(game, 2)]!
     return l.alignment === 'evil'
   })
   playQuest(g, 'fail')
   playQuest(g, 'fail')
   assert.equal(g.round, 3)
-  assert.equal(g.quests[2].failsRequired, 1, 'Q3 at 7p sinks on one Fail')
+  assert.equal(g.quests[2]!.failsRequired, 1, 'Q3 at 7p sinks on one Fail')
 
   const ask = askFor(g, 'propose', g.leaderSeat)
   assert.match(ask, /third failed quest and wins the game outright/)
@@ -106,7 +106,7 @@ test('an evil leader at EVIL\'s match point is told a Fail here wins it', () => 
 })
 
 test('a good leader at good match point is steered off testing unknowns', () => {
-  const g = findGame(7, 'mp-good', (game) => game.players[leaderAfter(game, 2)].alignment === 'good')
+  const g = findGame(7, 'mp-good', (game) => game.players[leaderAfter(game, 2)]!.alignment === 'good')
   playCleanQuests(g, 2)
 
   const ask = askFor(g, 'propose', g.leaderSeat)
@@ -121,41 +121,41 @@ test('before match point both alignments get the normal-round proposal advice', 
   const g = findGame(7, 'mp-early', () => true)
   playCleanQuests(g, 1) // good at 1 of 3: nothing is decided yet
   const ask = askFor(g, 'propose', g.leaderSeat)
-  const evil = g.players[g.leaderSeat].alignment === 'evil'
+  const evil = g.players[g.leaderSeat]!.alignment === 'evil'
   assert.match(ask, evil ? /usually want exactly ONE evil/ : /best objective records/)
   assert.ok(!ask.includes('the last team you will ever pick'))
   assert.ok(!ask.includes('most likely to succeed, not the most informative'))
 })
 
 test('at good match point an evil voter is told approving a team it cannot fail ends the game', () => {
-  const g = findGame(7, 'mp-vote', (game) => game.players[leaderAfter(game, 2)].alignment === 'good')
+  const g = findGame(7, 'mp-vote', (game) => game.players[leaderAfter(game, 2)]!.alignment === 'good')
   playCleanQuests(g, 2)
   // An all-good team: no evil voter knows of anyone aboard who could Fail it.
   const good = seatsBy(g, 'good')
-  const size = g.quests[g.round - 1].teamSize
+  const size = g.quests[g.round - 1]!.teamSize
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: good.slice(0, size) })
   assert.equal(g.phase, 'vote')
 
-  const evilOffTeam = seatsBy(g, 'evil')[0]
+  const evilOffTeam = seatsBy(g, 'evil')[0]!
   const ask = askFor(g, 'vote', evilOffTeam)
   assert.match(ask, /A success here is good's third quest/)
   assert.match(ask, /reject is the last lever your side has/)
   assert.match(ask, /have a reason you can say out loud/)
 
   // Good players never see it, at any board.
-  assert.ok(!askFor(g, 'vote', good[0]).includes('last lever your side has'))
+  assert.ok(!askFor(g, 'vote', good[0]!).includes('last lever your side has'))
 })
 
 test('an evil voter on a team its side can sink is told to approve it', () => {
   const g = findGame(7, 'mp-aboard', (game) => {
-    const l = game.players[leaderAfter(game, 2)]
+    const l = game.players[leaderAfter(game, 2)]!
     // A leader with a visible partner, so it can seat one and still be evil itself.
     return l.alignment === 'evil' && l.role !== 'oberon'
   })
   playCleanQuests(g, 2)
   const leader = g.leaderSeat
-  const size = g.quests[g.round - 1].teamSize
-  assert.equal(g.quests[g.round - 1].failsRequired, 1, 'Q3 at 7p sinks on one Fail')
+  const size = g.quests[g.round - 1]!.teamSize
+  assert.equal(g.quests[g.round - 1]!.failsRequired, 1, 'Q3 at 7p sinks on one Fail')
   applyDecision(g, leader, { kind: 'propose', team: [leader, ...seatsBy(g, 'good')].slice(0, size) })
 
   // The motivating miss: both evil rejected the team that carried their own
@@ -176,7 +176,7 @@ test('one Fail aboard a two-Fail quest cannot sink it, so match point still says
   // evil aboard", but a lone teammate on the big quest sinks nothing, so from
   // this voter's view that team is as unstoppable as a clean one.
   const g = findGame(7, 'mp-twofail', (game) => {
-    const l = game.players[leaderAfter(game, 3)]
+    const l = game.players[leaderAfter(game, 3)]!
     return l.alignment === 'evil' && l.role !== 'oberon'
   })
   // Board: good 2, evil 1, Q4 pending and needing two Fails. Good is at match
@@ -185,11 +185,11 @@ test('one Fail aboard a two-Fail quest cannot sink it, so match point still says
   playQuest(g, 'success')
   playQuest(g, 'fail')
   assert.equal(g.round, 4)
-  const q4 = g.quests[3]
+  const q4 = g.quests[3]!
   assert.equal(q4.failsRequired, 2, 'Q4 at 7p needs two Fails')
 
   const leader = g.leaderSeat
-  assert.equal(g.players[leader].alignment, 'evil')
+  assert.equal(g.players[leader]!.alignment, 'evil')
   applyDecision(g, leader, { kind: 'propose', team: [leader, ...seatsBy(g, 'good')].slice(0, q4.teamSize) })
 
   const ask = askFor(g, 'vote', leader)
@@ -200,12 +200,12 @@ test('one Fail aboard a two-Fail quest cannot sink it, so match point still says
 
 test('an unseen Oberon aboard does not suppress the note, and is never named by it', () => {
   const g = findGame(7, 'mp-oberon', (game) => {
-    const l = game.players[leaderAfter(game, 2)]
+    const l = game.players[leaderAfter(game, 2)]!
     return l.alignment === 'good' && game.players.some((p) => p.role === 'oberon')
   })
   playCleanQuests(g, 2)
   const oberon = g.players.find((p) => p.role === 'oberon')!
-  const size = g.quests[g.round - 1].teamSize
+  const size = g.quests[g.round - 1]!.teamSize
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [oberon.seat, ...seatsBy(g, 'good')].slice(0, size) })
 
   // Oberon IS aboard and can fail it, but the rest of evil cannot see that, so
@@ -223,12 +223,12 @@ test('evil match point (two failed quests) leaves the vote note off', () => {
   // fails banked, approving a clean team costs evil nothing decisive.
   const g = findGame(7, 'mp-mirror', () => true)
   playCleanQuests(g, 1)
-  const v = viewFor(g, seatsBy(g, 'evil')[0])
+  const v = viewFor(g, seatsBy(g, 'evil')[0]!)
   // Hand-set the board to 0 successes / 2 fails on the seat's own view.
-  mutable(v).quests[0] = resolveQuest(v.quests[0], { result: 'fail', failCount: 1 })
-  mutable(v).quests[1] = resolveQuest(v.quests[1], { result: 'fail', failCount: 1 })
+  mutable(v).quests[0] = resolveQuest(v.quests[0]!, { result: 'fail', failCount: 1 })
+  mutable(v).quests[1] = resolveQuest(v.quests[1]!, { result: 'fail', failCount: 1 })
   const [, user] = buildMessages('vote', v, '')
-  assert.ok(!user.content.includes('last lever your side has'))
+  assert.ok(!user!.content.includes('last lever your side has'))
 })
 
 // ---- the two-Fail quest (quest 4 at 7+ players) ----
@@ -248,13 +248,13 @@ function boardAtQ4(prefix: string, pred: (g: Game) => boolean): Game {
   playCleanQuests(g, 2)
   playQuest(g, 'fail')
   assert.equal(g.round, 4)
-  assert.equal(g.quests[3].failsRequired, 2)
+  assert.equal(g.quests[3]!.failsRequired, 2)
   return g
 }
 
 test('the two-Fail quest orders the leader to seat a partner, not one evil', () => {
   const g = boardAtQ4('q4-pair', (game) => {
-    const l = game.players[leaderAfter(game, 3)]
+    const l = game.players[leaderAfter(game, 3)]!
     return l.alignment === 'evil' && l.role !== 'oberon'
   })
   const ask = askFor(g, 'propose', g.leaderSeat)
@@ -271,7 +271,7 @@ test('the two-Fail quest orders the leader to seat a partner, not one evil', () 
 
 test('the two-Fail quest states whichever match point the board is on', () => {
   const evilLeads = (game: Game) => {
-    const l = game.players[leaderAfter(game, 3)]
+    const l = game.players[leaderAfter(game, 3)]!
     return l.alignment === 'evil' && l.role !== 'oberon'
   }
   // 2 successes + 1 fail: good is one quest from ending the phase.
@@ -290,7 +290,7 @@ test('the two-Fail quest states whichever match point the board is on', () => {
 })
 
 test('an Oberon leader is not told to seat a partner it cannot see', () => {
-  const g = boardAtQ4('q4-oberon', (game) => game.players[leaderAfter(game, 3)].role === 'oberon')
+  const g = boardAtQ4('q4-oberon', (game) => game.players[leaderAfter(game, 3)]!.role === 'oberon')
   const ask = askFor(g, 'propose', g.leaderSeat)
 
   // It has no partner in its view, so the order would be unfollowable. For
@@ -303,12 +303,12 @@ test('the unseen-teammate warning only fires at tables that deal an Oberon', () 
   // 8p has a two-Fail quest 4 as well, but Morgana/Assassin/Minion all see each
   // other: there is no invisible partner to hope for, so raising one is noise.
   const g = findGame(8, 'q4-no-oberon', (game) => {
-    const l = game.players[leaderAfter(game, 3)]
+    const l = game.players[leaderAfter(game, 3)]!
     return l.alignment === 'evil'
   })
   playCleanQuests(g, 2)
   playQuest(g, 'fail')
-  assert.equal(g.quests[3].failsRequired, 2)
+  assert.equal(g.quests[3]!.failsRequired, 2)
   assert.ok(!g.players.some((p) => p.role === 'oberon'))
 
   const ask = askFor(g, 'propose', g.leaderSeat)

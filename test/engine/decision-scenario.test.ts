@@ -80,7 +80,7 @@ test('legal replay derives a real proposal, vote, and quest surface', () => {
   assert.equal(Object.isFrozen(scenario.view.events), true)
   assert.throws(
     () => mutable(scenario.view).events.push(
-      mutable(scenario.view.events[0]),
+      mutable(scenario.view.events[0])!,
     ),
     TypeError,
   )

@@ -23,8 +23,11 @@ import {
   createIncrementalPlayerViewProjection,
   viewFor,
 } from '../../engine/view.ts'
-import { MIN_REPLAYABLE_SCHEMA } from '../core/artifact.ts'
-import type { GameArtifact } from '../core/artifact.ts'
+import {
+  artifactPlayerAt,
+  MIN_REPLAYABLE_SCHEMA,
+  type GameArtifact,
+} from '../core/artifact.ts'
 import type {
   Decision, DecisionRequest, Game, GameEvent, PlayerView, Seat,
 } from '../../engine/types.ts'
@@ -265,9 +268,10 @@ function createReplayGame(a: GameArtifact): Game {
     id: a.id,
   })
   for (const p of game.players) {
-    if (p.role !== a.players[p.seat].role) {
+    const archived = artifactPlayerAt(a, p.seat)
+    if (p.role !== archived.role) {
       throw new Error(
-        `replay deal mismatch at seat ${p.seat}: dealt ${p.role}, archived ${a.players[p.seat].role}`
+        `replay deal mismatch at seat ${p.seat}: dealt ${p.role}, archived ${archived.role}`
         + (a.roles ? '' : ' — pre-v2 artifact with no stored roles and a non-default deal'),
       )
     }
@@ -282,7 +286,7 @@ function initialReplayNames(a: GameArtifact): string[] {
   }
   const names = created.payload.names.slice()
   for (let index = a.log.length - 1; index >= 0; index--) {
-    const event = a.log[index]
+    const event = a.log[index]!
     if (event.type !== 'rename') continue
     const seat = event.payload.seat
     const from = event.payload.from
@@ -352,9 +356,10 @@ export function replayGame(a: GameArtifact, untilSeq?: number): Game {
     id: a.id,
   })
   for (const p of game.players) {
-    if (p.role !== a.players[p.seat].role) {
+    const archived = artifactPlayerAt(a, p.seat)
+    if (p.role !== archived.role) {
       throw new Error(
-        `replay deal mismatch at seat ${p.seat}: dealt ${p.role}, archived ${a.players[p.seat].role}`
+        `replay deal mismatch at seat ${p.seat}: dealt ${p.role}, archived ${archived.role}`
         + (a.roles ? '' : ' — pre-v2 artifact with no stored roles and a non-default deal'),
       )
     }
@@ -419,7 +424,7 @@ function snapshotForStep(
     firstSeq: step.firstSeq,
     seat: step.seat,
     kind: original.kind,
-    role: a.players[step.seat].role,
+    role: artifactPlayerAt(a, step.seat).role,
     req,
     view,
     scratchpad: step.scratchpad,
@@ -625,7 +630,7 @@ export function snapshotAt(a: GameArtifact, seq: number): DecisionSnapshot {
     firstSeq: step.firstSeq,
     seat: step.seat,
     kind: original.kind,
-    role: a.players[step.seat].role,
+    role: artifactPlayerAt(a, step.seat).role,
     req,
     view,
     scratchpad: original.notes ?? priorPadText ?? '',

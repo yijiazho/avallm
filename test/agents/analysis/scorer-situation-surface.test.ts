@@ -185,7 +185,7 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
     ...viewFor(morganaGame, morganaSeat),
     phase: 'vote',
     currentTeam: morganaGame.players
-      .slice(0, morganaGame.quests[0].teamSize)
+      .slice(0, morganaGame.quests[0]!.teamSize)
       .map((player) => player.seat),
   }
   const morganaReq: DecisionRequest = {
@@ -217,7 +217,7 @@ test('good, C2, D2, Morgana, and D3 replay from the shared surface', async () =>
         ...visibleEvil,
         ...d3Game.players.map((player) => player.seat),
       ]),
-    ].slice(0, d3Game.quests[0].teamSize),
+    ].slice(0, d3Game.quests[0]!.teamSize),
   }
   const d3Req: DecisionRequest = {
     kind: 'quest',

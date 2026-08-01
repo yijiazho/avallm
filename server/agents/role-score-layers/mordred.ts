@@ -174,7 +174,7 @@ function mordredDefinition(
         && context.request.kind === 'vote'
         && viableBand.length === 2
         && Math.abs(
-          viableBand[0].utility - viableBand[1].utility,
+          viableBand[0]!.utility - viableBand[1]!.utility,
         ) <= MORDRED_BLINDNESS_ROLE_UTILITY_CONSTANTS.seededVoteBand
       const seedBucket = seededVoteBand
         ? stablePolicyBucket([

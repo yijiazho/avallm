@@ -68,6 +68,7 @@ export function createGame(opts: CreateGameOpts): Game {
     throw new EngineError(`playerCount must be ${MIN_PLAYERS}-${MAX_PLAYERS}, got ${playerCount}`)
   }
   const roles = opts.roles ?? DEFAULT_ROLES[playerCount]
+  if (!roles) throw new EngineError(`no default roles for ${playerCount} players`)
   validateRoles(playerCount, roles)
   const names = opts.names ?? Array.from({ length: playerCount }, (_, i) => `P${i}`)
   if (names.length !== playerCount) throw new EngineError('names length mismatch')
@@ -85,13 +86,15 @@ export function createGame(opts: CreateGameOpts): Game {
   const rng = makeRng(`deal:${opts.seed}`)
   const dealtRoles = rng.shuffle(roles)
   const players: Player[] = dealtRoles.map((role, seat) => ({
-    seat, name: names[seat], role, alignment: ROLE_ALIGNMENT[role],
+    seat, name: names[seat]!, role, alignment: ROLE_ALIGNMENT[role],
   }))
   const leaderSeat = rng.int(playerCount)
 
+  const teamSizes = TEAM_SIZES[playerCount]
+  if (!teamSizes) throw new EngineError(`no team sizes for ${playerCount} players`)
   const quests: Quest[] = Array.from({ length: QUESTS_PER_GAME }, (_, i) => ({
     num: i + 1,
-    teamSize: TEAM_SIZES[playerCount][i],
+    teamSize: teamSizes[i]!,
     failsRequired: failsRequired(playerCount, i + 1),
     status: 'pending',
   }))
@@ -224,8 +227,14 @@ function teamOnTable(game: Game): Seat[] {
   return game.currentTeam
 }
 
+function questForRound(game: Game): Quest {
+  const quest = game.quests[game.round - 1]
+  if (!quest) throw new EngineError(`no quest for round ${game.round}`)
+  return quest
+}
+
 function validateTeam(game: Game, team: unknown): Seat[] {
-  const size = game.quests[game.round - 1].teamSize
+  const size = questForRound(game).teamSize
   if (!Array.isArray(team) || team.length !== size) {
     throw new EngineError(`team must have exactly ${size} members`)
   }
@@ -299,7 +308,13 @@ export function expectedDecisions(game: Game): DecisionRequest[] {
     Object.freeze({ kind, seat, ...base })
   switch (game.phase) {
     case 'discussion':
-      return [request('discuss', game.discussion!.remaining[0])]
+      {
+        const seat = game.discussion?.remaining[0]
+        if (seat === undefined) {
+          throw new EngineError('discussion phase has no remaining speaker')
+        }
+        return [request('discuss', seat)]
+      }
     case 'proposal':
       return [request('propose', game.leaderSeat)]
     case 'finalize':
@@ -520,7 +535,13 @@ function applyDecisionCore(
       game.pendingVotes[seat] = decision.vote
       emit(game, 'voteCast', { seat, vote: decision.vote }, { only: [seat] })
       if (Object.keys(game.pendingVotes).length === game.config.playerCount) {
-        const votes = game.players.map((p) => ({ seat: p.seat, vote: game.pendingVotes[p.seat] }))
+        const votes = game.players.map((p) => {
+          const vote = game.pendingVotes[p.seat]
+          if (vote === undefined) {
+            throw new EngineError(`missing vote for seat ${p.seat}`)
+          }
+          return { seat: p.seat, vote }
+        })
         const approves = votes.filter((v) => v.vote === 'approve').length
         // Official rule: strict majority approves; a tie rejects.
         const approved = approves * 2 > game.config.playerCount
@@ -544,12 +565,13 @@ function applyDecisionCore(
 
     case 'quest': {
       const player = game.players[seat]
+      if (!player) throw new EngineError(`no player at seat ${seat}`)
       // Rule, not honor system: good cannot play fail.
       const card = player.alignment === 'good' ? 'success' : decision.card
       game.pendingCards[seat] = card
       emit(game, 'questCard', { seat, card }, { only: [seat] })
       if (Object.keys(game.pendingCards).length === teamOnTable(game).length) {
-        const quest = game.quests[game.round - 1]
+        const quest = questForRound(game)
         const failCount = Object.values(game.pendingCards).filter((c) => c === 'fail').length
         const result = failCount >= quest.failsRequired ? 'fail' : 'success'
         // Flip the quest to `complete` in one assignment: team, result, and
@@ -593,7 +615,9 @@ function applyDecisionCore(
 
     case 'assassinate': {
       const target = decision.target
-      const wasMerlin = game.players[target].role === 'merlin'
+      const targetPlayer = game.players[target]
+      if (!targetPlayer) throw new EngineError(`no player at seat ${target}`)
+      const wasMerlin = targetPlayer.role === 'merlin'
       emit(game, 'assassination', { assassin: seat, target, wasMerlin }, 'public')
       endGame(game, wasMerlin ? 'evil' : 'good', wasMerlin ? 'merlinAssassinated' : 'assassinMissed')
       return { game, appliedDecision: { kind: 'assassinate', target, ...privateFields } }

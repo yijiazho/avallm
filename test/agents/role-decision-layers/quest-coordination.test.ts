@@ -76,9 +76,9 @@ function questRequest(view: PlayerView): DecisionRequest {
 
 function nondecisive(view: PlayerView): PlayerView {
   const next = structuredClone(view)
-  mutable(next).quests[0] = resolveQuest(next.quests[0], { result: 'success', failCount: 0 })
-  mutable(next).quests[1] = resolveQuest(next.quests[1], { result: 'fail', failCount: 1 })
-  mutable(next).quests[2] = pendingQuest(next.quests[2])
+  mutable(next).quests[0] = resolveQuest(next.quests[0]!, { result: 'success', failCount: 0 })
+  mutable(next).quests[1] = resolveQuest(next.quests[1]!, { result: 'fail', failCount: 1 })
+  mutable(next).quests[2] = pendingQuest(next.quests[2]!)
   return next
 }
 

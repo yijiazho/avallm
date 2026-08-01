@@ -31,11 +31,12 @@ async function generate(): Promise<void> {
   const reportText = serializePhase7RoleReport(
     await buildPhase7RoleReport(roleText, virtualText),
   )
-  for (const [path, contents] of [
+  const outputs: readonly (readonly [string, string])[] = [
     [PHASE7_ROLE_EVIDENCE_BASELINE, roleText],
     [PHASE7_VIRTUAL_ASSASSIN_BASELINE, virtualText],
     [PHASE7_ROLE_REPORT_BASELINE, reportText],
-  ]) {
+  ]
+  for (const [path, contents] of outputs) {
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, contents)
   }
@@ -64,8 +65,8 @@ async function main(): Promise<void> {
     throw new Error('--out and --check are mutually exclusive')
   }
   const report = serializePhase7RoleReport(await buildPhase7RoleReport(
-    readFileSync(resolve(positionals[0]), 'utf8'),
-    readFileSync(resolve(positionals[1]), 'utf8'),
+    readFileSync(resolve(positionals[0]!), 'utf8'),
+    readFileSync(resolve(positionals[1]!), 'utf8'),
   ))
   if (values.check) {
     if (readFileSync(resolve(values.check), 'utf8') !== report) {

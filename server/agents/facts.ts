@@ -151,7 +151,7 @@ function ownPositions(record: PublicRecord, viewerSeat: Seat): string[] {
     if (quest?.result === undefined) continue
     const mine = proposalVotes(prop).find((v) => v.seat === viewerSeat)
     const led = prop.leader === viewerSeat
-    const team = prop.team.map((s) => record.players[s].name).join('/')
+    const team = prop.team.map((s) => record.players[s]!.name).join('/')
     if ((led || mine?.vote === 'approve') && quest.result === 'fail') {
       out.push(`You ${led ? 'PROPOSED' : 'APPROVED'} the Q${prop.round} team [${team}] → it FAILED.`)
     } else if (mine?.vote === 'reject' && quest.result === 'success') {

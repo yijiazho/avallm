@@ -47,7 +47,7 @@ export interface BenchOpts {
 
 function tableSeat(table: 'heuristic' | 'llm', seat: Seat): { spec: AgentSpec; descriptor: string; name?: string } {
   if (table === 'llm') {
-    const entry = ROSTER[seat % ROSTER.length]
+    const entry = ROSTER[seat % ROSTER.length]!
     const dup = Math.floor(seat / ROSTER.length)
     return {
       spec: { type: 'llm', model: entry.id },
@@ -61,7 +61,7 @@ function tableSeat(table: 'heuristic' | 'llm', seat: Seat): { spec: AgentSpec; d
 export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
   const playerCount = opts.playerCount ?? 7
   const table = opts.table ?? 'heuristic'
-  if (!DEFAULT_ROLES[playerCount].includes(opts.role)) {
+  if (!DEFAULT_ROLES[playerCount]!.includes(opts.role)) {
     throw new Error(`role ${opts.role} is not in the ${playerCount}-player role set`)
   }
   const artifacts: GameArtifact[] = []
@@ -98,8 +98,8 @@ export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
           agents.set(p.seat, createAgentFromDef(def, ctx))
           descriptors.push(`def:${def.id}`)
         } else {
-          agents.set(p.seat, createAgent(seatInfo[p.seat].spec, ctx))
-          descriptors.push(seatInfo[p.seat].descriptor)
+          agents.set(p.seat, createAgent(seatInfo[p.seat]!.spec, ctx))
+          descriptors.push(seatInfo[p.seat]!.descriptor)
         }
       }
       const result = await runGame({ game, agents })
@@ -159,6 +159,7 @@ async function main(): Promise<void> {
   const role = values.role as Role
   const table = values.table as 'heuristic' | 'llm'
   const [maxRounds, maxRoundsAfterChange = 0] = values.talk!.split(',').map(Number)
+  if (maxRounds === undefined) throw new Error('--talk requires a round count')
   const out = values.out ?? `data/eval/bench-${role}-${values.seed}.jsonl`
 
   const artifacts = await runBench({

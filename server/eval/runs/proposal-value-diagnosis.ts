@@ -527,7 +527,7 @@ function foldSurface(
     (score) => proposalCleanProbability(score) === max,
   )
   const canonicalFirst = [...argmax].sort((left, right) =>
-    compareCandidateIds(left.candidateId, right.candidateId))[0]
+    compareCandidateIds(left.candidateId, right.candidateId))[0]!
   // The scorer stamps this code on the canonically first tied row only, so a
   // corpus that disagrees with the recomputed argmax is refused rather than
   // averaged into a conclusion about tie-breaking.
@@ -757,6 +757,9 @@ function pairFirstProposals(
   const pairings: FirstProposalPairing[] = []
   for (const group of groups.values()) {
     const baselineId = options.baselineVariant ?? group.order[0]
+    if (!baselineId) {
+      throw new Error(`no variants in bank ${group.bank} for target ${group.targetRole}`)
+    }
     const baselineCases = group.byVariant.get(baselineId)
     if (!baselineCases) {
       // The default always resolves, so this is an explicit --baseline that
@@ -1031,7 +1034,7 @@ function main(): void {
       + '<artifacts.jsonl> [--baseline <variant>] [--json]',
     )
   }
-  const diagnosis = diagnoseProposalValue(readArtifacts(positionals[0]), {
+  const diagnosis = diagnoseProposalValue(readArtifacts(positionals[0]!), {
     ...(values.baseline ? { baselineVariant: values.baseline } : {}),
   })
   process.stdout.write(

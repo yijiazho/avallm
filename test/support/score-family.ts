@@ -147,7 +147,7 @@ export function asVote(
     ...structuredClone(view),
     phase: 'vote',
     currentTeam: [...(team ?? view.players
-      .slice(0, view.quests[view.round - 1].teamSize)
+      .slice(0, view.quests[view.round - 1]!.teamSize)
       .map((player) => player.seat))]
       .sort((left, right) => left - right),
   }
@@ -267,7 +267,7 @@ function replayUnderForcedBoundary(input: {
     surface.analysis,
     candidates,
   )
-  const forcedCandidateId = candidates[0].id
+  const forcedCandidateId = candidates[0]!.id
   const forced = {
     ...universalForced,
     applied: true,
@@ -303,7 +303,7 @@ function replayUnderForcedBoundary(input: {
         reasonCodes: forced.reasonCodes,
       },
       deterministicSeed: input.seed,
-      compatibilityCandidateId: candidates[0].id,
+      compatibilityCandidateId: candidates[0]!.id,
       componentDefinitions,
       componentRun: components,
     }),
@@ -611,7 +611,7 @@ export function assertScoreFamilyConformance(
         assert.ok(rows?.length, `${family} ${label} produced no score rows`)
         const target = rows.find(
           (row) => row.candidateId !== forgedTrace.structuredCandidateId,
-        ) ?? rows[0]
+        ) ?? rows[0]!
         // A fixed epsilon is not a forgery when the target holds the
         // non-viable sentinel: -Number.MAX_SAFE_INTEGER + 0.01 IS
         // -Number.MAX_SAFE_INTEGER in float64, so the trace would replay

@@ -324,7 +324,7 @@ test('quest-four public one-evil mass is neutral rather than fail-capable', asyn
   const utility = roleUtility(output.trace!)!.assessments.find(
     (assessment) =>
       assessment.role === 'merlin'
-      && assessment.publicEvilCountDistribution[1] > 0,
+      && assessment.publicEvilCountDistribution[1]! > 0,
   )!
   assert.equal(utility.role, 'merlin')
   const distribution = utility.publicEvilCountDistribution
@@ -337,7 +337,7 @@ test('quest-four public one-evil mass is neutral rather than fail-capable', asyn
     utility.publicTeamCleanProbability
       - utility.publicTeamFailureCapabilityProbability,
   )
-  assert.ok(distribution[1] > 0)
+  assert.ok(distribution[1]! > 0)
 })
 
 test('Percival proposal and vote consume pair influence and self-decoy utility', async () => {
@@ -414,7 +414,7 @@ test('Percival proposal and vote consume pair influence and self-decoy utility',
         beliefModel: weightedFor(favoredSeat),
       })),
   )
-  assert.notDeepEqual(favorFirst.decision, favorSecond.decision)
+  assert.notDeepEqual(favorFirst!.decision, favorSecond!.decision)
 })
 
 test('Percival without Morgana retains the explicit null-pair semantics', async () => {
@@ -469,11 +469,11 @@ test('a delegated decision carries no role objective, utility, or feature forger
   assert.equal(forgedFeatures?.version, 'good-proposal-features-v1')
   if (forgedFeatures?.version === 'good-proposal-features-v1') {
     const distribution = forgedFeatures.evilCountDistribution
-    const delta = Math.min(0.01, distribution[1] / 2)
+    const delta = Math.min(0.01, distribution[1]! / 2)
     assert.ok(delta > 0)
     forgedFeatures.cleanProbability += delta
-    distribution[0] += delta
-    distribution[1] -= delta
+    distribution[0]! += delta
+    distribution[1]! -= delta
     forgedScore.value += delta
   }
   const forgedAdmission = admitDecisionTrace({
@@ -505,10 +505,10 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
   ])
   for (const output of outputs) {
     const scores = output.trace!.candidateScores!
-    const role = scores[0].roleObjectiveFeatures!
+    const role = scores[0]!.roleObjectiveFeatures!
     const gap = Math.abs(
-      scores[0].roleObjectiveFeatures!.combinedValue
-      - scores[1].roleObjectiveFeatures!.combinedValue,
+      scores[0]!.roleObjectiveFeatures!.combinedValue
+      - scores[1]!.roleObjectiveFeatures!.combinedValue,
     )
     assert.equal(
       role.inViableBand,
@@ -532,9 +532,9 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       ))
     } else {
       const forged = structuredClone(output)
-      forged.trace!.candidateScores![0]
+      forged.trace!.candidateScores![0]!
         .roleObjectiveFeatures!.selectionAdjustment += 0.01
-      forged.trace!.candidateScores![0].value += 0.01
+      forged.trace!.candidateScores![0]!.value += 0.01
       assert.deepEqual(
         parseExternalDecisionReply(
           fixture.req,
@@ -553,11 +553,11 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     { seed: 'phase7c2-explicit-band' },
   )
   assert.equal(
-    bandOutput.trace!.candidateScores![0]
+    bandOutput.trace!.candidateScores![0]!
       .roleObjectiveFeatures!.inViableBand,
     true,
   )
-  const expectedBucket = bandOutput.trace!.candidateScores![0]
+  const expectedBucket = bandOutput.trace!.candidateScores![0]!
     .roleObjectiveFeatures!.seedBucket
   let oppositeSeedOutput: Awaited<ReturnType<typeof decide>> | undefined
   for (let index = 0; index < 32; index++) {
@@ -567,7 +567,7 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
       { seed: `phase7c2-opposite-band-${index}` },
     )
     if (
-      candidate.trace!.candidateScores![0]
+      candidate.trace!.candidateScores![0]!
         .roleObjectiveFeatures!.seedBucket !== expectedBucket
     ) {
       oppositeSeedOutput = candidate
@@ -593,9 +593,9 @@ test('seeded role votes vary only inside the combined band and replay exactly', 
     )
   }
   const forged = structuredClone(bandOutput)
-  forged.trace!.candidateScores![0]
+  forged.trace!.candidateScores![0]!
     .roleObjectiveFeatures!.selectionAdjustment += 0.01
-  forged.trace!.candidateScores![0].value += 0.01
+  forged.trace!.candidateScores![0]!.value += 0.01
   assert.deepEqual(
     parseExternalDecisionReply(
       bandFixture.req,
@@ -666,7 +666,7 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
     analysis,
     candidates,
   )
-  const selectedCandidateId = candidates[0].id
+  const selectedCandidateId = candidates[0]!.id
   const forced = {
     ...ordinary,
     applied: true,
@@ -690,7 +690,7 @@ test('forced selection bypasses role ranking and reports a non-material gap', as
       reasonCodes: forced.reasonCodes,
     },
     deterministicSeed: 'phase7c2-role-policy',
-    compatibilityCandidateId: candidates[0].id,
+    compatibilityCandidateId: candidates[0]!.id,
     expectedScorerVersion: ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
     componentDefinitions: createProductionComponentRegistry({
       goodObjectiveAllDecisionKinds: true,
@@ -790,7 +790,7 @@ test('base scorers cannot inject role telemetry at the score boundary', () => {
       },
     }
     const forged = structuredClone(trace.candidateScores!) as CandidateScore[]
-    forged[0].roleObjectiveFeatures = {
+    forged[0]!.roleObjectiveFeatures = {
       version: 'merlin-percival-role-score-features-v1',
     } as never
     // The composed boundary already accepted the authoritative surface. A
@@ -853,7 +853,7 @@ test('private role utility is external-ingress-safe, host-joined, and absent fro
     /PRIVATE_ROLE|roleValue|pairInfluence|exposure/i,
   )
   const deleted = mutableClone(output)
-  roleUtility(deleted.trace!)!.assessments[0].roleValue += 0.01
+  roleUtility(deleted.trace!)!.assessments[0]!.roleValue += 0.01
   deleted.trace!.componentVersions!.scorer = GOOD_PROPOSAL_VOTE_SCORER_VERSION
   deleted.trace!.componentVersions!.configuredScorer =
     ROLE_OBJECTIVE_SCORER_VERSION
@@ -904,7 +904,7 @@ test('role utility validator rejects accessors, sparse data, and forged equation
   const output = await decide(merlin)
   const projection = roleUtility(output.trace!)!
   const forged = structuredClone(projection)
-  const first = forged.assessments[0]
+  const first = forged.assessments[0]!
   assert.equal(first.role, 'merlin')
   first.correctedExposureProxyIndex = 0
   assert.equal(validatePrivateRoleUtilityProjection(forged), false)
@@ -1013,34 +1013,34 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     cases: [merlinCase],
     bankId: 'phase7c2-role-policy',
   })
-  assert.equal(artifact.strategyVersions?.roleUtilities, undefined)
+  assert.equal(artifact!.strategyVersions?.roleUtilities, undefined)
   assert.equal(
-    architectureReport([artifact]).variants[0]
+    architectureReport([artifact!]).variants[0]!
       .safety.traceAttributionViolations,
     0,
   )
-  const withoutTraces = structuredClone(artifact)
+  const withoutTraces = structuredClone(artifact)!
   delete withoutTraces.decisionTraces
   assert.ok(
-    architectureReport([withoutTraces]).variants[0]
+    architectureReport([withoutTraces]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
-  const forged = mutableClone(artifact)
+  const forged = mutableClone(artifact)!
   const applicable = forged.decisionTraces!.find(
     (trace) => roleUtility(trace) !== undefined,
   )!
-  roleUtility(applicable)!.assessments[0].roleValue += 0.01
+  roleUtility(applicable)!.assessments[0]!.roleValue += 0.01
   applicable.componentVersions!.scorer =
     GOOD_PROPOSAL_VOTE_SEEDED_SCORER_VERSION
   applicable.componentVersions!.configuredScorer =
     ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
   applicable.degradation.push('role-utility-projection-failed')
   assert.ok(
-    architectureReport([forged]).variants[0]
+    architectureReport([forged]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedEquation = mutableClone(artifact)
+  const forgedEquation = mutableClone(artifact)!
   const equationTrace = forgedEquation.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1054,11 +1054,11 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   equationScore.roleObjectiveFeatures!.combinedValue += 0.123
   equationScore.value += 0.123
   assert.ok(
-    architectureReport([forgedEquation]).variants[0]
+    architectureReport([forgedEquation]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedBaseSurface = mutableClone(artifact)
+  const forgedBaseSurface = mutableClone(artifact)!
   const baseTrace = forgedBaseSurface.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1072,21 +1072,21 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
   assert.equal(baseFeatures?.version, 'good-proposal-features-v1')
   if (baseFeatures?.version === 'good-proposal-features-v1') {
     const distribution = baseFeatures.evilCountDistribution
-    const delta = Math.min(0.01, distribution[1] / 2)
+    const delta = Math.min(0.01, distribution[1]! / 2)
     assert.ok(delta > 0)
     baseFeatures.cleanProbability += delta
-    distribution[0] += delta
-    distribution[1] -= delta
+    distribution[0]! += delta
+    distribution[1]! -= delta
     baseScore.roleObjectiveFeatures!.baseValue += delta
     baseScore.roleObjectiveFeatures!.combinedValue += delta
     baseScore.value += delta
   }
   assert.ok(
-    architectureReport([forgedBaseSurface]).variants[0]
+    architectureReport([forgedBaseSurface]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedChoice = mutableClone(artifact)
+  const forgedChoice = mutableClone(artifact)!
   const choiceTrace = forgedChoice.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1110,11 +1110,11 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     )],
   }
   assert.ok(
-    architectureReport([forgedChoice]).variants[0]
+    architectureReport([forgedChoice]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedAppliedAction = mutableClone(artifact)
+  const forgedAppliedAction = mutableClone(artifact)!
   const appliedTrace = forgedAppliedAction.decisionTraces!.find(
     (trace) =>
       trace.request.kind === 'propose'
@@ -1141,11 +1141,11 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     ]
   }
   assert.ok(
-    architectureReport([forgedAppliedAction]).variants[0]
+    architectureReport([forgedAppliedAction]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
-  const forgedSpeech = structuredClone(artifact)
+  const forgedSpeech = structuredClone(artifact)!
   const speechTrace = forgedSpeech.decisionTraces!.find(
     (trace) => trace.action.kind === 'propose',
   )!
@@ -1153,7 +1153,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
     speechTrace.action.pitch = 'role-composite-decision'
   }
   const forgedSpeechSafety =
-    architectureReport([forgedSpeech]).variants[0].safety
+    architectureReport([forgedSpeech]).variants[0]!.safety
   assert.ok(forgedSpeechSafety.traceAttributionViolations > 0)
   assert.ok(forgedSpeechSafety.hiddenInformationViolations > 0)
 
@@ -1204,7 +1204,7 @@ test('architecture artifacts and reports host-join applicable role policy', asyn
           forgedTrace.request.kind === 'propose'
           && roleUtility(forgedTrace)
         ) {
-          const score = forgedTrace.candidateScores![0]
+          const score = forgedTrace.candidateScores![0]!
           score.roleObjectiveFeatures!.roleAdjustment += 0.123
           score.roleObjectiveFeatures!.combinedValue += 0.123
           score.value += 0.123

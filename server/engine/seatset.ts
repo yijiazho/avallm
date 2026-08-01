@@ -47,5 +47,5 @@ export function hasDistinctSeats(team: readonly Seat[]): boolean {
 // distinct-then-ascending pair that used to sit side by side over the same
 // array collapses to this single call.
 export function isCanonicalTeam(team: readonly Seat[]): boolean {
-  return team.every((seat, index) => index === 0 || team[index - 1] < seat)
+  return team.every((seat, index) => index === 0 || team[index - 1]! < seat)
 }

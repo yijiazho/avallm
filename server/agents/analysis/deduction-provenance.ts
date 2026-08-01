@@ -65,7 +65,7 @@ function combinations<T>(items: readonly T[], size: number): readonly T[][] {
       return
     }
     for (let index = start; index < items.length; index++) {
-      current.push(items[index])
+      current.push(items[index]!)
       visit(index + 1)
       current.pop()
     }
@@ -142,7 +142,7 @@ export function provenanceFor(
     .filter((id): id is string => id !== undefined)
   if (
     proof.length === 1
-    && directSingleQuestProof(proof[0], seat, alignment)
+    && directSingleQuestProof(proof[0]!, seat, alignment)
   ) {
     return { kind: 'quest-record', evidenceIds: questIds, questNums }
   }

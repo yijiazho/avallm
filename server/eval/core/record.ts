@@ -6,15 +6,15 @@
 // can cite exact moments.
 
 import { sanitizeSpeech } from '../../agents/prompts.ts'
-import type { GameArtifact } from './artifact.ts'
+import { artifactPlayerAt, type GameArtifact } from './artifact.ts'
 import type { GameEvent, Seat } from '../../engine/types.ts'
 
 export function nameOf(a: GameArtifact, seat: Seat): string {
-  return `${a.players[seat].name}(seat ${seat})`
+  return `${artifactPlayerAt(a, seat).name}(seat ${seat})`
 }
 
 function teamText(a: GameArtifact, team: readonly Seat[]): string {
-  return team.map((s) => a.players[s].name).join('/')
+  return team.map((s) => artifactPlayerAt(a, s).name).join('/')
 }
 
 function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null {
@@ -42,7 +42,7 @@ function eventLine(a: GameArtifact, ev: GameEvent, full: boolean): string | null
     case 'voteReveal': {
       if (ev.payload.auto === true) return `${tag} HAMMER: team [${teamText(a, ev.payload.team)}] auto-approved, no vote`
       const votes = ev.payload.votes
-        .map((v) => `${a.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')
+        .map((v) => `${artifactPlayerAt(a, v.seat).name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')
       return `${tag} votes: ${votes} -> ${ev.payload.approved ? 'APPROVED' : 'rejected'}`
     }
     case 'questResult':

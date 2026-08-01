@@ -98,7 +98,7 @@ function boardWithFailure(playerCount: number, roles: Role[], seed: string): Gam
     talk: { maxRounds: 1, maxRoundsAfterChange: 0 },
   })
   for (let round = 0; round < 2 && g.phase !== 'gameOver'; round++) {
-    const size = g.quests[g.round - 1].teamSize
+    const size = g.quests[g.round - 1]!.teamSize
     // Seat the evil players first, so the team carries as many as it can hold
     // and a 2-Fail quest is reachable at the player counts that have one.
     const evil = g.players.filter((p) => p.alignment === 'evil').map((p) => p.seat)
@@ -107,13 +107,13 @@ function boardWithFailure(playerCount: number, roles: Role[], seed: string): Gam
     applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'the fastest way to a result' })
     while (g.phase === 'discussion') {
       const [d] = expectedDecisions(g)
-      applyDecision(g, d.seat, { kind: 'discuss', say: '' })
+      applyDecision(g, d!.seat, { kind: 'discuss', say: '' })
     }
     if (g.phase === 'finalize') applyDecision(g, g.leaderSeat, { kind: 'finalize', stick: true })
     for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
     for (const r of expectedDecisions(g)) {
       if (r.kind !== 'quest') continue
-      applyDecision(g, r.seat, { kind: 'quest', card: g.players[r.seat].alignment === 'evil' ? 'fail' : 'success' })
+      applyDecision(g, r.seat, { kind: 'quest', card: g.players[r.seat]!.alignment === 'evil' ? 'fail' : 'success' })
     }
   }
   return g
@@ -128,7 +128,7 @@ function renderAll(g: Game, hasAssassin: boolean): Array<{ where: string; text: 
     const view = viewFor(g, p.seat)
     for (const kind of kinds) {
       const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
-      out.push({ where: `${kind} prompt for a ${p.role} seat`, text: `${sys.content}\n${user.content}` })
+      out.push({ where: `${kind} prompt for a ${p.role} seat`, text: `${sys!.content}\n${user!.content}` })
     }
   }
   return out

@@ -79,7 +79,7 @@ function validGoodProposalFeatures(
     || features.evilCountDistribution.some((value) => !probability(value))
     || features.evilCountDistribution.some(
       (value, index) =>
-        Math.abs(value - assessment.evilCountDistribution[index]) > PROBABILITY_TOLERANCE,
+        Math.abs(value - assessment.evilCountDistribution[index]!) > PROBABILITY_TOLERANCE,
     )
   ) {
     return false
@@ -103,7 +103,7 @@ function sameDistribution(
 ): boolean {
   return left.length === right.length
     && left.every(
-      (value, index) => Math.abs(value - right[index]) <= PROBABILITY_TOLERANCE,
+      (value, index) => Math.abs(value - right[index]!) <= PROBABILITY_TOLERANCE,
     )
 }
 
@@ -193,7 +193,7 @@ function goodVoteUtility(
   )
   if (
     currentMatches.length !== 1
-    || projection.currentCandidateId !== currentMatches[0][0]
+    || projection.currentCandidateId !== currentMatches[0]![0]
     || !sequenceEqual(projection.currentTeam.team, currentTeam)
   ) {
     throw new Error('good vote current-team join mismatch')

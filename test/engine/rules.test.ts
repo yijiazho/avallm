@@ -28,7 +28,7 @@ test('only quest 4 at 7+ players needs two fails', () => {
 
 test('default role sets are internally consistent', () => {
   for (let n = 5; n <= 10; n++) {
-    const roles = DEFAULT_ROLES[n]
+    const roles = DEFAULT_ROLES[n]!
     assert.equal(roles.length, n)
     validateRoles(n, roles) // throws on inconsistency
     const evil = roles.filter((r) => ROLE_ALIGNMENT[r] === 'evil').length
@@ -41,7 +41,7 @@ test('validateRoles rejects bad sets', () => {
   assert.throws(() => validateRoles(5, ['merlin', 'percival', 'servant', 'servant', 'assassin']))
   assert.throws(() => validateRoles(5, ['merlin', 'percival', 'servant', 'morgana', 'minion'])) // merlin w/o assassin
   assert.throws(() => validateRoles(5, ['servant', 'servant', 'servant', 'morgana', 'assassin'])) // assassin w/o merlin
-  assert.throws(() => validateRoles(6, DEFAULT_ROLES[5]))
+  assert.throws(() => validateRoles(6, DEFAULT_ROLES[5]!))
 })
 
 // The dependency lattice (ROLE_REQUIRES). These casts are legal by seat count and

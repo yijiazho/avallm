@@ -65,8 +65,8 @@ test('discussion surface records an automatic transition without precommitting t
   )!
   const candidates = legalCandidates(fixture.req, fixture.view)
   assert.equal(candidates.length, 1)
-  assert.equal(candidates[0].id, `${LEGAL_CANDIDATE_VERSION}:discuss:automatic`)
-  assert.deepEqual(candidates[0].decision, { kind: 'discuss', say: '' })
+  assert.equal(candidates[0]!.id, `${LEGAL_CANDIDATE_VERSION}:discuss:automatic`)
+  assert.deepEqual(candidates[0]!.decision, { kind: 'discuss', say: '' })
   assert.equal(
     (candidates[0] as { template?: string }).template,
     'automatic',
@@ -74,7 +74,7 @@ test('discussion surface records an automatic transition without precommitting t
 })
 
 test('candidate generation rejects mismatched seats and decision phases', () => {
-  const fixture = readDecisionFixtures()[0]
+  const fixture = readDecisionFixtures()[0]!
   assert.throws(
     () => legalCandidates({ ...fixture.req, seat: (fixture.req.seat + 1) % 5 }, fixture.view),
     /does not match view seat/,
@@ -168,7 +168,7 @@ const binomial = (n: number, k: number): number =>
 
 function expectedCandidateCount(req: DecisionRequest, view: PlayerView): number {
   const players = view.players.length
-  const teamSize = TEAM_SIZES[players][view.round - 1]
+  const teamSize = TEAM_SIZES[players]![view.round - 1]!
   switch (req.kind) {
     case 'discuss':
       // Table talk has no enumerable mechanical content, so every seat has
@@ -199,7 +199,7 @@ test('candidate counts match a closed-form oracle for every player count and kin
       const current = view.currentTeam ?? []
       assert.equal(
         current.length,
-        TEAM_SIZES[view.players.length][view.round - 1],
+        TEAM_SIZES[view.players.length]![view.round - 1],
         `${label} finalize without a full current team`,
       )
       assert.equal(new Set(current).size, current.length, label)
@@ -285,7 +285,7 @@ const outcomeOf = (game: Game, seat: Seat, decision: Decision): string => {
  */
 function sweepKey(req: DecisionRequest, view: PlayerView): string {
   return req.kind === 'propose' || req.kind === 'finalize'
-    ? `${req.kind}:${TEAM_SIZES[view.players.length][view.round - 1]}`
+    ? `${req.kind}:${TEAM_SIZES[view.players.length]![view.round - 1]}`
     : req.kind
 }
 

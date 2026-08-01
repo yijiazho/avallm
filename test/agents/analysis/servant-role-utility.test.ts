@@ -30,7 +30,7 @@ function servantPropose(): { view: PlayerView; req: DecisionRequest } {
       seed: `servant-utility-${attempt}`,
       playerCount: 7,
     })
-    if (game.players[game.leaderSeat].role !== 'servant') continue
+    if (game.players[game.leaderSeat]!.role !== 'servant') continue
     const view = viewFor(game, game.leaderSeat)
     return {
       view,
@@ -78,7 +78,7 @@ async function servantProposeWithEvidence(): Promise<{
         applyDecision(
           game,
           req.seat,
-          (await agents[req.seat].decide(req, view)).decision,
+          (await agents[req.seat]!.decide(req, view)).decision,
         )
       }
     }
@@ -167,17 +167,17 @@ test('a tampered role value is rejected', () => {
   const projection = buildServantRoleUtilityProjection(input)
 
   const moved = structuredClone(projection)
-  moved.assessments[0].roleValue = 1 - moved.assessments[0].roleValue
+  moved.assessments[0]!.roleValue = 1 - moved.assessments[0]!.roleValue
   // Still structurally valid: only the host join can catch a wrong number,
   // since the schema has no public read to recompute the average against.
   assert.ok(validateServantRoleUtilityProjection(moved))
   assert.equal(validateAdmittedServantRoleUtilityHostJoin(moved, input), false)
 
   const outOfRange = structuredClone(projection)
-  outOfRange.assessments[0].roleValue = 1.5
+  outOfRange.assessments[0]!.roleValue = 1.5
   assert.equal(validateServantRoleUtilityProjection(outOfRange), false)
 
   const duplicated = structuredClone(projection)
-  duplicated.assessments[1].candidateId = duplicated.assessments[0].candidateId
+  duplicated.assessments[1]!.candidateId = duplicated.assessments[0]!.candidateId
   assert.equal(validateServantRoleUtilityProjection(duplicated), false)
 })

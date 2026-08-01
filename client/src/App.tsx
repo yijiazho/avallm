@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { AgentInfo, AgentPack, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ServerPayload, TableSeat } from './types.ts'
 import { tokenEstimate as tokenEst } from './agentConfig.ts'
 import { useRevealPacing } from './revealPacing.ts'
-import { EVIL_COUNT, PRESETS, ROLE_INFO, RULES_SUMMARY, buildRoles } from './setup.ts'
+import { PRESETS, ROLE_INFO, RULES_SUMMARY, buildRoles, evilCountFor } from './setup.ts'
 import type { PresetId, Role, SpecialSelection } from './setup.ts'
 import { ActionBar } from './components/ActionBar.tsx'
 import { ARCANA, HUMAN_CELESTIAL, SPECTATOR_ARCANA, celestialFor } from './components/Arcana.tsx'
@@ -24,7 +24,10 @@ const REPO_URL = 'https://github.com/allenliu/avallm'
 
 // A model id's short slug for display: the family-qualified form "vendor/model"
 // shows just the model half; a bare id shows whole.
-const modelSlug = (model: string) => (model.includes('/') ? model.split('/')[1] : model)
+const modelSlug = (model: string) => {
+  if (!model.includes('/')) return model
+  return model.split('/')[1] ?? model
+}
 
 // Model dropdowns group by cost tier, cheapest first, alphabetical within a
 // tier. The roster's own order is curation history — meaningless to a host —
@@ -42,7 +45,11 @@ type ModelOption = { id: string; slug: string; tier: string }
 function modelsByTier(models: ModelOption[], label: (m: ModelOption) => string) {
   const sorted = (ms: ModelOption[]) => [...ms].sort((a, b) => label(a).localeCompare(label(b)))
   const known = MODEL_TIER_ORDER
-    .map((tier) => ({ tier, title: TIER_LABEL[tier], models: sorted(models.filter((m) => m.tier === tier)) }))
+    .map((tier) => ({
+      tier,
+      title: TIER_LABEL[tier] ?? tier,
+      models: sorted(models.filter((m) => m.tier === tier)),
+    }))
   // Anything with an unrecognized tier still gets listed, in a trailing group.
   // Dropping it would make the model unselectable, and Library types `tier` as
   // a plain string — so widening the roster's tier union would silently hide a
@@ -66,17 +73,19 @@ const gameTokenKey = (gameId: string) => `avalon-game-token-${gameId}`
 
 function parseHash(): Screen {
   const g = window.location.hash.match(/^#\/game\/([a-z0-9]+)/)
-  if (g) {
-    const stored = localStorage.getItem(gameTokenKey(g[1]))
+  const gameId = g?.[1]
+  if (gameId) {
+    const stored = localStorage.getItem(gameTokenKey(gameId))
     // Without the seat token we can't reconnect to a private view; drop to landing.
-    if (stored) return { name: 'game', id: g[1], token: stored }
+    if (stored) return { name: 'game', id: gameId, token: stored }
     return { name: 'landing' }
   }
   const m = window.location.hash.match(/^#\/join\/([a-z0-9]+)/)
-  if (m) {
-    const stored = localStorage.getItem(tokenKey(m[1]))
-    if (stored) return { name: 'lobby', lobbyId: m[1], token: stored }
-    return { name: 'join', lobbyId: m[1] }
+  const lobbyId = m?.[1]
+  if (lobbyId) {
+    const stored = localStorage.getItem(tokenKey(lobbyId))
+    if (stored) return { name: 'lobby', lobbyId, token: stored }
+    return { name: 'join', lobbyId }
   }
   return { name: 'landing' }
 }
@@ -701,7 +710,7 @@ const shuffled = <T,>(items: readonly T[]): T[] => {
   const out = items.slice()
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
+    ;[out[i], out[j]] = [out[j]!, out[i]!]
   }
   return out
 }
@@ -725,7 +734,10 @@ function defaultTable(library: Library | null, count: number, exclude: string[] 
   // on the roster is a model that can take a seat, and one that shouldn't be
   // drawn belongs benched in roster.ts rather than ranked last here.
   const order = shuffled(models)
-  return Array.from({ length: count }, (_, i) => ({ agent: order[i % order.length] }))
+  return Array.from(
+    { length: count },
+    (_, i) => ({ agent: order[i % order.length]! }),
+  )
 }
 
 // A personality-only agent (a character card with no model suggestion) falls
@@ -838,9 +850,13 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
   }
 
   const built = useMemo(() => buildRoles(players, sel), [players, sel])
-  const evil = EVIL_COUNT[players]
+  const evil = evilCountFor(players)
 
-  const toggles: { key: keyof SpecialSelection; label: string; roles: Role[] }[] = [
+  const toggles: {
+    key: keyof SpecialSelection
+    label: string
+    roles: [Role, ...Role[]]
+  }[] = [
     { key: 'merlinPair', label: 'Merlin & Assassin', roles: ['merlin', 'assassin'] },
     { key: 'percival', label: 'Percival', roles: ['percival'] },
     { key: 'morgana', label: 'Morgana', roles: ['morgana'] },
@@ -849,7 +865,9 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
   ]
   const toggleRoleDesc = (role: Role, attributed: boolean) => {
     const { name, desc } = ROLE_INFO[role]
-    return attributed ? `${name} ${desc[0].toLowerCase()}${desc.slice(1)}` : desc
+    return attributed
+      ? `${name} ${desc.charAt(0).toLowerCase()}${desc.slice(1)}`
+      : desc
   }
 
   const goodRoles = built.roles?.filter((r) => ROLE_INFO[r].side === 'good') ?? []
@@ -898,7 +916,7 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
                 <label className="field wide">Players
                   <select value={players} onChange={(e) => setPlayersAndRoles(Number(e.target.value))}>
                     {[5, 6, 7, 8, 9].map((n) => (
-                      <option key={n} value={n}>{n} players · {n - EVIL_COUNT[n]} good / {EVIL_COUNT[n]} evil</option>
+                      <option key={n} value={n}>{n} players · {n - evilCountFor(n)} good / {evilCountFor(n)} evil</option>
                     ))}
                   </select>
                 </label>
@@ -1139,9 +1157,10 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                 title={seatSlug ?? info?.model}
                 onChange={(e) => {
                   const next = library.agents.find((a) => a.id === e.target.value)
-                  setSeat(i, next?.unavailable
+                  const replacement = next?.unavailable
                     ? { agent: e.target.value, model: library.defaultModel ?? library.models[0]?.id }
-                    : dealModels(library, [e.target.value])[0])
+                    : dealModels(library, [e.target.value])[0]
+                  if (replacement) setSeat(i, replacement)
                 }}
               >
                 {/* The default roster stays first without a heading. Every

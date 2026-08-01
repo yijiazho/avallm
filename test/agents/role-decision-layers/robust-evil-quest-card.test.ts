@@ -48,14 +48,14 @@ function robustQuestFixture(decisive = false): {
     .find((fixture) => fixture.id === 'oberon-two-fail-quest')!
   const view = structuredClone(source.view)
   mutable(view).seat = 4
-  mutable(view).name = view.players[4].name
+  mutable(view).name = view.players[4]!.name
   mutable(view).role = 'assassin'
   mutable(view).alignment = 'evil'
   mutable(view).privateInfo = { kind: 'evil', evilPartners: [5] }
   if (!decisive) {
-    mutable(view).quests[0] = resolveQuest(view.quests[0], { result: 'success', failCount: 0 })
-    mutable(view).quests[1] = resolveQuest(view.quests[1], { result: 'fail', failCount: 1 })
-    mutable(view).quests[2] = pendingQuest(view.quests[2])
+    mutable(view).quests[0] = resolveQuest(view.quests[0]!, { result: 'success', failCount: 0 })
+    mutable(view).quests[1] = resolveQuest(view.quests[1]!, { result: 'fail', failCount: 1 })
+    mutable(view).quests[2] = pendingQuest(view.quests[2]!)
   }
   return {
     req: { ...source.req, seat: view.seat },
@@ -104,7 +104,7 @@ test('robust D3 owns one strategic boundary and no legacy flat authority', async
   assert.deepEqual(trace.decisionLayerRun!.configured, [
     ROBUST_EVIL_QUEST_CARD_DECISION_LAYER,
   ])
-  assert.equal(trace.decisionLayerRun!.journal[0].status, 'applied')
+  assert.equal(trace.decisionLayerRun!.journal[0]!.status, 'applied')
   assert.deepEqual(surface.survivorCandidateIds, [
     surface.selectedCandidateId,
   ])
@@ -180,7 +180,7 @@ test('planner context honors an unselected strategic narrowing', async () => {
   const hostilePlanner = {
     async choose() {
       return [...context.viableCandidates]
-        .sort((left, right) => right.score - left.score)[0].id
+        .sort((left, right) => right.score - left.score)[0]!.id
     },
   }
 
@@ -206,7 +206,7 @@ test('universal selection suppresses robust execution and component use', async 
     (entry) => entry.component.id === EVIL_QUEST_CARD_ROBUST_COMPONENT.id,
   )!
 
-  assert.equal(run.journal[0].status, 'suppressed')
+  assert.equal(run.journal[0]!.status, 'suppressed')
   assert.equal(run.operations.layersExecuted, 0)
   assert.equal(run.operations.componentPayloadReads, 0)
   assert.equal(use.used, false)

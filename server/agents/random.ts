@@ -13,14 +13,14 @@ export function randomDecide(req: DecisionRequest, view: PlayerView, seed: strin
     case 'discuss':
       return { kind: 'discuss', say: rng.chance(0.5) ? '' : 'Hmm.' }
     case 'propose': {
-      const size = view.quests[view.round - 1].teamSize
+      const size = view.quests[view.round - 1]!.teamSize
       return { kind: 'propose', team: rng.shuffle(seats).slice(0, size) }
     }
     case 'finalize': {
       // Revise sometimes so fuzz exercises the post-revision segment; the
       // engine rejects an identical "revision", so fall back to stick.
       if (rng.chance(0.8)) return { kind: 'finalize', stick: true }
-      const size = view.quests[view.round - 1].teamSize
+      const size = view.quests[view.round - 1]!.teamSize
       const team = rng.shuffle(seats).slice(0, size).sort((a, b) => a - b)
       if (teamsEqual(team, view.currentTeam ?? [])) return { kind: 'finalize', stick: true }
       return { kind: 'finalize', stick: false, team }

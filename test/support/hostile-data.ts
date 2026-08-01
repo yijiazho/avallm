@@ -10,11 +10,11 @@ export function structurallyHostileRecords<Fields extends object>(
     }),
   )
   const accessor = { ...ownFields }
-  const firstKey = Object.keys(ownFields)[0]
+  const firstKey = Object.keys(ownFields)[0]!
   Object.defineProperty(accessor, firstKey, {
     enumerable: true,
     configurable: true,
-    get: () => ownFields[firstKey],
+    get: () => ownFields[firstKey]!,
   })
   const symbol = { ...ownFields }
   Object.defineProperty(symbol, Symbol('hidden'), {
@@ -23,7 +23,7 @@ export function structurallyHostileRecords<Fields extends object>(
   })
   const nonEnumerable = { ...ownFields }
   Object.defineProperty(nonEnumerable, firstKey, {
-    value: ownFields[firstKey],
+    value: ownFields[firstKey]!,
     enumerable: false,
   })
   return [

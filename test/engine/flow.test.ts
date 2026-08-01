@@ -42,7 +42,7 @@ test('a tied vote rejects the team', () => {
   propose(g, [0, 1])
   const votes: Record<number, 'approve' | 'reject'> =
     { 0: 'approve', 1: 'approve', 2: 'approve', 3: 'reject', 4: 'reject', 5: 'reject' }
-  voteAll(g, (s) => votes[s])
+  voteAll(g, (s) => votes[s]!)
   assert.equal(g.phase, 'proposal') // rejected: back to proposal, not quest
   assert.equal(g.proposalNum, 2)
 })
@@ -64,7 +64,7 @@ test('the 5th proposal is auto-approved with no vote, leader rotating after each
     voteAll(g, () => 'reject')
   }
   for (let i = 1; i < leaders.length; i++) {
-    assert.equal(leaders[i], (leaders[i - 1] + 1) % 7, 'leader rotates after each rejection')
+    assert.equal(leaders[i], (leaders[i - 1]! + 1) % 7, 'leader rotates after each rejection')
   }
 
   // The hammer: with maxRounds 0 the 5th proposal goes straight to the quest —
@@ -91,7 +91,7 @@ test('good quest cards are coerced to success', () => {
   propose(g, good)
   voteAll(g, () => 'approve')
   playQuest(g, () => 'fail') // both good players try to play fail
-  const q1 = asCompletedQuest(g.quests[0])
+  const q1 = asCompletedQuest(g.quests[0]!)
   assert.equal(q1.result, 'success')
   assert.equal(q1.failCount, 0)
   const cards = g.log.filter((ev) => ev.type === 'questCard')
@@ -104,14 +104,14 @@ test('quest 4 at 7 players survives one fail but not two; assassination decides 
   const good = goodSeats(g)
 
   runRound(g, good.slice(0, 2), [])                        // Q1 success
-  runRound(g, [evil[0], good[0], good[1]], [evil[0]])      // Q2 fail
+  runRound(g, [evil[0]!, good[0]!, good[1]!], [evil[0]!])      // Q2 fail
   runRound(g, good.slice(0, 3), [])                        // Q3 success
   assert.equal(g.round, 4)
-  assert.equal(g.quests[3].failsRequired, 2)
+  assert.equal(g.quests[3]!.failsRequired, 2)
 
   // One fail on quest 4 is not enough at 7 players.
-  runRound(g, [evil[0], good[0], good[1], good[2]], [evil[0]])
-  const q4 = asCompletedQuest(g.quests[3])
+  runRound(g, [evil[0]!, good[0]!, good[1]!, good[2]!], [evil[0]!])
+  const q4 = asCompletedQuest(g.quests[3]!)
   assert.equal(q4.failCount, 1)
   assert.equal(q4.result, 'success')
 
@@ -134,10 +134,10 @@ test('two fails break quest 4 at 7 players', () => {
   const evil = evilSeats(g)
   const good = goodSeats(g)
   runRound(g, good.slice(0, 2), [])                                   // Q1 success
-  runRound(g, [evil[0], good[0], good[1]], [evil[0]])                 // Q2 fail
+  runRound(g, [evil[0]!, good[0]!, good[1]!], [evil[0]!])                 // Q2 fail
   runRound(g, good.slice(0, 3), [])                                   // Q3 success
-  runRound(g, [evil[0], evil[1], good[0], good[1]], [evil[0], evil[1]]) // Q4: 2 fails
-  assert.equal(asCompletedQuest(g.quests[3]).result, 'fail')
+  runRound(g, [evil[0]!, evil[1]!, good[0]!, good[1]!], [evil[0]!, evil[1]!]) // Q4: 2 fails
+  assert.equal(asCompletedQuest(g.quests[3]!).result, 'fail')
   assert.equal(g.phase, 'proposal') // 2-2, game continues to quest 5
   assert.equal(g.round, 5)
 })
@@ -160,9 +160,9 @@ test('three failed quests end the game immediately, no assassination', () => {
   const g = mk(7, 'threefails')
   const evil = evilSeats(g)
   const good = goodSeats(g)
-  runRound(g, [evil[0], good[0]], [evil[0]])
-  runRound(g, [evil[0], good[0], good[1]], [evil[0]])
-  runRound(g, [evil[0], good[0], good[1]], [evil[0]])
+  runRound(g, [evil[0]!, good[0]!], [evil[0]!])
+  runRound(g, [evil[0]!, good[0]!, good[1]!], [evil[0]!])
+  runRound(g, [evil[0]!, good[0]!, good[1]!], [evil[0]!])
   assert.equal(g.phase, 'gameOver')
   assert.equal(g.outcome?.winner, 'evil')
   assert.equal(g.outcome?.reason, 'threeFails')
@@ -186,7 +186,7 @@ function talkRound(g: Game, sayFor: (seat: Seat) => string = () => ''): void {
   const n = g.discussion!.remaining.length
   for (let i = 0; i < n; i++) {
     const [req] = expectedDecisions(g)
-    applyDecision(g, req.seat, { kind: 'discuss', say: sayFor(req.seat) })
+    applyDecision(g, req!.seat, { kind: 'discuss', say: sayFor(req!.seat) })
   }
 }
 
@@ -223,12 +223,12 @@ test('the leader speaks last under leaderInDiscussion: last', () => {
   const g = createGame({ seed: 'lean2', playerCount: 5, talk: { maxRounds: 2, maxRoundsAfterChange: 0, leaderInDiscussion: 'last' } })
   propose(g, [g.leaderSeat, (g.leaderSeat + 1) % 5])
   const [req] = expectedDecisions(g)
-  assert.notEqual(req.seat, g.leaderSeat)
-  applyDecision(g, req.seat, { kind: 'discuss', say: 'hm' })
+  assert.notEqual(req!.seat, g.leaderSeat)
+  applyDecision(g, req!.seat, { kind: 'discuss', say: 'hm' })
   // Walk to the leader's turn, which closes the round.
-  while (expectedDecisions(g)[0].seat !== g.leaderSeat) {
+  while (expectedDecisions(g)[0]!.seat !== g.leaderSeat) {
     const [r] = expectedDecisions(g)
-    applyDecision(g, r.seat, { kind: 'discuss', say: '' })
+    applyDecision(g, r!.seat, { kind: 'discuss', say: '' })
   }
   applyDecision(g, g.leaderSeat, { kind: 'discuss', say: 'trust me' })
   const leaderUtt = g.log.filter((e) => e.type === 'utterance').at(-1)!
@@ -244,9 +244,9 @@ test('discussion walks non-leaders from the leader\'s left, leader speaks last',
   const order: Seat[] = []
   for (let i = 0; i < 5; i++) {
     const [req] = expectedDecisions(g)
-    assert.equal(req.kind, 'discuss')
-    order.push(req.seat)
-    applyDecision(g, req.seat, { kind: 'discuss', say: i % 2 ? 'hm' : '' })
+    assert.equal(req!.kind, 'discuss')
+    order.push(req!.seat)
+    applyDecision(g, req!.seat, { kind: 'discuss', say: i % 2 ? 'hm' : '' })
   }
   assert.equal(order[0], (g.leaderSeat + 1) % 5, 'starts left of the leader')
   assert.equal(order.at(-1), g.leaderSeat, 'leader closes the round')
@@ -260,8 +260,8 @@ test('leaderInDiscussion none excludes the leader from the rotation', () => {
   const order: Seat[] = []
   for (let i = 0; i < 4; i++) {
     const [req] = expectedDecisions(g)
-    order.push(req.seat)
-    applyDecision(g, req.seat, { kind: 'discuss', say: '' })
+    order.push(req!.seat)
+    applyDecision(g, req!.seat, { kind: 'discuss', say: '' })
   }
   assert.ok(!order.includes(g.leaderSeat))
   assert.equal(g.phase, 'finalize')
@@ -365,8 +365,8 @@ test('a public leadChange marks the leader at the start of every proposal cycle'
   // The initial deal announces the first leader.
   let marks = leadChanges()
   assert.equal(marks.length, 1)
-  assert.equal(marks[0].visibility, 'public')
-  assert.deepEqual(marks[0].payload, { seat: g.leaderSeat, round: 1, proposalNum: 1 })
+  assert.equal(marks[0]!.visibility, 'public')
+  assert.deepEqual(marks[0]!.payload, { seat: g.leaderSeat, round: 1, proposalNum: 1 })
 
   // A rejection opens a fresh cycle under the rotated leader — new marker.
   const firstLeader = g.leaderSeat
@@ -374,7 +374,7 @@ test('a public leadChange marks the leader at the start of every proposal cycle'
   voteAll(g, () => 'reject')
   marks = leadChanges()
   assert.equal(marks.length, 2)
-  assert.deepEqual(marks[1].payload, { seat: (firstLeader + 1) % 7, round: 1, proposalNum: 2 })
+  assert.deepEqual(marks[1]!.payload, { seat: (firstLeader + 1) % 7, round: 1, proposalNum: 2 })
 
   // A completed quest advances the round under the next leader — new marker.
   const before = leadChanges().length

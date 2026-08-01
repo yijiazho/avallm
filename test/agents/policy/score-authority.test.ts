@@ -170,7 +170,7 @@ test('native family replays retain concrete journal and transitive component att
     ...viewFor(morganaGame, morganaSeat),
     phase: 'vote',
     currentTeam: morganaGame.players
-      .slice(0, morganaGame.quests[0].teamSize)
+      .slice(0, morganaGame.quests[0]!.teamSize)
       .map((player) => player.seat),
   }
   const morganaReq: DecisionRequest = {
@@ -288,7 +288,7 @@ test('native family replays retain concrete journal and transitive component att
       forced: output.trace!.forcedPolicyResult!,
       candidateBoundary: output.trace!.decisionLayerRun!.surface,
       deterministicSeed: entry.seed,
-      compatibilityCandidateId: candidates[0].id,
+      compatibilityCandidateId: candidates[0]!.id,
       expectedScorerVersion: scorerVersion,
       componentDefinitions: createProductionComponentRegistry({
         goodObjectiveAllDecisionKinds: true,
@@ -339,7 +339,7 @@ test('native family replays retain concrete journal and transitive component att
       forced: output.trace!.forcedPolicyResult!,
       candidateBoundary: output.trace!.decisionLayerRun!.surface,
       deterministicSeed: entry.seed,
-      compatibilityCandidateId: candidates[0].id,
+      compatibilityCandidateId: candidates[0]!.id,
       expectedScorerVersion: scorerVersion,
       componentDefinitions: createProductionComponentRegistry({
         goodObjectiveAllDecisionKinds: true,
@@ -448,8 +448,8 @@ test('trusted current-v2 replay rejects score, choice, attribution, and flat-sta
     }
   }
   const reasonForgery = structuredClone(output)
-  reasonForgery.trace!.candidateScores![0].reasonCodes = [
-    ...reasonForgery.trace!.candidateScores![0].reasonCodes,
+  reasonForgery.trace!.candidateScores![0]!.reasonCodes = [
+    ...reasonForgery.trace!.candidateScores![0]!.reasonCodes,
     'FORGED',
   ]
   assert.deepEqual(

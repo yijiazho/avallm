@@ -26,7 +26,9 @@ export function assessTeam(
   snapshot: BeliefSnapshot,
   proposedTeam: readonly Seat[],
 ): TeamAssessment {
-  return assessTeams(snapshot, [proposedTeam])[0]
+  const assessment = assessTeams(snapshot, [proposedTeam])[0]
+  if (!assessment) throw new Error('team assessment produced no result')
+  return assessment
 }
 
 const countBits = (value: number): number => {
@@ -75,7 +77,7 @@ export function assessTeams(
     for (const seat of team) teamMask |= 1 << seat
     const evilWorldCounts = Array<number>(team.length + 1).fill(0)
     for (const [evilMask, weight] of maskWeights) {
-      evilWorldCounts[countBits(teamMask & evilMask)] += weight
+      evilWorldCounts[countBits(teamMask & evilMask)]! += weight
     }
     const totalWeight = evilWorldCounts.reduce(
       (sum, weight) => sum + weight,
@@ -94,7 +96,7 @@ export function assessTeams(
     )
     return {
       team,
-      cleanProbability: evilCountDistribution[0],
+      cleanProbability: evilCountDistribution[0]!,
       evilCountDistribution,
     }
   })

@@ -72,7 +72,7 @@ function latency(games: readonly GameObservation[]): LatencySummary {
     samples: ordered.length,
     medianMs: median(ordered),
     p95Ms: nearestRank(ordered, 0.95),
-    maxMs: ordered.length ? ordered[ordered.length - 1] : null,
+    maxMs: ordered.length ? ordered[ordered.length - 1]! : null,
   }
 }
 
@@ -199,9 +199,9 @@ function componentEvidence(
     ),
     decisions: traces.filter((trace) => trace.components !== undefined).length,
     configured: (
-      admissions[0].provenance === 'descriptor-host-manifest-admitted'
-      || admissions[0].provenance === 'legacy-host-manifest-admitted'
-    ) ? admissions[0].plan.configured.length : 0,
+      admissions[0]!.provenance === 'descriptor-host-manifest-admitted'
+      || admissions[0]!.provenance === 'legacy-host-manifest-admitted'
+    ) ? admissions[0]!.plan.configured.length : 0,
     admitted: entries.filter((entry) => entry.status === 'admitted').length,
     inapplicable: entries.filter(
       (entry) => entry.status === 'inapplicable',
@@ -252,7 +252,7 @@ export function summarizeVariant(id: string, games: GameObservation[]): Architec
     (admission, index) =>
       admission.provenance === 'descriptor-host-manifest-admitted'
         ? architectureIdentityVersions(admission.identity)
-        : games[index].meta.components,
+        : games[index]!.meta.components,
   )
   const componentKeys = architectureAdmissions.map(
     (admission, index) =>
@@ -277,7 +277,7 @@ export function summarizeVariant(id: string, games: GameObservation[]): Architec
       `variant ${id} has inconsistent decision component manifests`,
     )
   }
-  const firstAdmission = architectureAdmissions[0]
+  const firstAdmission = architectureAdmissions[0]!
   const decisionComponentPlan =
     firstAdmission.provenance === 'descriptor-host-manifest-admitted'
     || firstAdmission.provenance === 'legacy-host-manifest-admitted'

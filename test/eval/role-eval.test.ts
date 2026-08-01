@@ -68,11 +68,11 @@ test('Phase 7 matrix has five truthful raw identities per standard case', () => 
       )
       const prior = scorerByRawId.get(variant.id)
       if (prior) assert.equal(prior, variant.components.scorer)
-      scorerByRawId.set(variant.id, variant.components.scorer)
+      scorerByRawId.set(variant.id, variant.components.scorer!)
     }
-    const isolated = variants[3]
+    const isolated = variants[3]!
     assert.match(isolated.id, new RegExp(bankCase.targetRole))
-    const full = variants[4]
+    const full = variants[4]!
     assert.equal(full.id, 'full-role')
     assert.equal(full.components.scorer, fullRolePolicyScorer.version)
     assert.equal(
@@ -124,7 +124,7 @@ test('virtual Assassin freezes twelve unlabelled PlayerView predictions before t
 
 test('Phase 7 runner smoke emits deterministic sortable exact evidence', async () => {
   const result = await runPhase7RoleEval({
-    cases: [ARCHITECTURE_BANK[0]],
+    cases: [ARCHITECTURE_BANK[0]!],
   })
   assert.equal(result.rows.length, 5)
   assert.equal(result.artifacts.length, 5)

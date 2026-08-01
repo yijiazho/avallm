@@ -37,7 +37,7 @@ import {
   PHASE4_POLICY_BANK_ID,
 } from '../banks/good-policy-bank.ts'
 import type { ArchitectureBankCase } from '../banks/architecture-bank.ts'
-import type { GameArtifact } from '../core/artifact.ts'
+import { artifactPlayerAt, type GameArtifact } from '../core/artifact.ts'
 import type { AgentSpec } from '../../agents/types.ts'
 
 export const PHASE5_QUEST_EVAL_VERSION = 'phase5-quest-eval-v1'
@@ -161,7 +161,7 @@ function predictionRows(
           split: 'test',
           target: 'player-evil',
           probability: marginal.evilProbability,
-          observed: artifact.players[marginal.seat].alignment === 'evil',
+          observed: artifactPlayerAt(artifact, marginal.seat).alignment === 'evil',
         })
       }
       for (const assessment of trace.beliefTeamAssessments ?? []) {
@@ -177,7 +177,7 @@ function predictionRows(
           target: 'team-clean',
           probability: assessment.cleanProbability,
           observed: assessment.team.every(
-            (seat) => artifact.players[seat].alignment === 'good',
+            (seat) => artifactPlayerAt(artifact, seat).alignment === 'good',
           ),
         })
       }

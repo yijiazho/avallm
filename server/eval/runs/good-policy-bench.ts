@@ -53,7 +53,7 @@ function fakeClient(): {
   return {
     async call(_model, messages, opts) {
       if (opts?.tag?.endsWith('/planner')) {
-        const input = JSON.parse(messages[1].content) as {
+        const input = JSON.parse(messages[1]!.content) as {
           structuredCandidateId: string
           context: {
             viableCandidates: Array<{

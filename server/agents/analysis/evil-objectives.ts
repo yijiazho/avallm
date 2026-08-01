@@ -228,7 +228,7 @@ function oberonUnseenPosterior(
       const length = Math.min(left.seats.length, right.seats.length)
       for (let index = 0; index < length; index++) {
         if (left.seats[index] !== right.seats[index]) {
-          return left.seats[index] - right.seats[index]
+          return left.seats[index]! - right.seats[index]!
         }
       }
       return left.seats.length - right.seats.length
@@ -239,14 +239,14 @@ function oberonUnseenPosterior(
     }))
   const countDistribution = Array<number>(playerCount).fill(0)
   for (const hypothesis of hypotheses) {
-    countDistribution[hypothesis.evilSeats.length] += hypothesis.probability
+    countDistribution[hypothesis.evilSeats.length]! += hypothesis.probability
   }
   const countTotal = countDistribution.reduce(
     (sum, mass) => sum + mass,
     0,
   )
   for (let count = 0; count < countDistribution.length; count++) {
-    countDistribution[count] /= countTotal
+    countDistribution[count]! /= countTotal
   }
   return {
     probabilitySemantics: 'resolved-complete-world-sum',
@@ -295,12 +295,12 @@ function objectiveAssessments(input: {
       const evil = team.filter(
         (seat) => hypothesis.evilSeats.includes(seat),
       ).length
-      distribution[evil] += hypothesis.probability
+      distribution[evil]! += hypothesis.probability
     }
     for (let count = 0; count < distribution.length; count++) {
-      distribution[count] /= privateTotal
+      distribution[count]! /= privateTotal
     }
-    const publicDistribution = publicTeams[index].evilCountDistribution
+    const publicDistribution = publicTeams[index]!.evilCountDistribution
     const unseenEvilOnTeamProbability = input.oberonPosterior
       ? input.oberonPosterior.hypotheses.reduce(
           (sum, hypothesis) =>
@@ -319,13 +319,13 @@ function objectiveAssessments(input: {
       team,
       probabilitySemantics: 'resolved-complete-world-sum',
       teamFailureCapabilityProbability:
-        failureProbability(distribution, input.view.quests[input.req.round - 1].failsRequired),
+        failureProbability(distribution, input.view.quests[input.req.round - 1]!.failsRequired),
       evilCountDistribution: distribution,
       publicProbabilitySemantics: 'public-preaction-uniform-feasible-joint',
       publicTeamFailureCapabilityProbability:
         failureProbability(
           publicDistribution,
-          input.view.quests[input.req.round - 1].failsRequired,
+          input.view.quests[input.req.round - 1]!.failsRequired,
         ),
       publicEvilCountDistribution: publicDistribution,
       coordination: input.oberonPosterior
@@ -653,7 +653,7 @@ function validateOberonPosterior(
     if (prior && prior >= key) return { ok: false }
     prior = key
     total += hypothesis.probability as number
-    derivedCounts[(hypothesis.evilSeats as Seat[]).length] +=
+    derivedCounts[(hypothesis.evilSeats as Seat[]).length]! +=
       hypothesis.probability as number
   }
   if (

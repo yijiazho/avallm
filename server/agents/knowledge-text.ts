@@ -108,13 +108,13 @@ function recordLine(view: PlayerView, certain: RoleCertainties): string {
   // for both produced "Quest 1 names P4 is EVIL".
   const named = (f: typeof added[number]) => seatName(view, f.seat)
   const asSide = (group: typeof added) => {
-    const one = group[0].alignment
+    const one = group[0]!.alignment
     return group.every((f) => f.alignment === one)
       ? `${listOf(group.map(named))} as ${side(one)}`
       : listOf(group.map((f) => `${named(f)} as ${side(f.alignment)}`))
   }
   const isSide = (group: typeof added) => {
-    const one = group[0].alignment
+    const one = group[0]!.alignment
     return group.every((f) => f.alignment === one)
       ? `${listOf(group.map(named))} ${group.length === 1 ? 'is' : 'are'} ${side(one)}`
       : listOf(group.map((f) => `${named(f)} is ${side(f.alignment)}`))
@@ -231,7 +231,7 @@ function dealKnowledgeText(
     // Merlin), and the paired prose read "one of these two is Merlin" while
     // naming a single player. He simply sees Merlin, so say that.
     if (pair.length === 1) {
-      return `${seatName(view, pair[0])} is Merlin, and you know it outright: there is no second candidate to confuse you.` +
+      return `${seatName(view, pair[0]!)} is Merlin, and you know it outright: there is no second candidate to confuse you.` +
         ` Guard that hard. Naming them, or defending them more than anyone else would, paints the Assassin's target on the one player good cannot afford to lose.` +
         compositionLine(view, ['merlin'])
     }

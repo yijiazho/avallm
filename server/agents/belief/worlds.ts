@@ -131,7 +131,7 @@ export function enumerateCanonicalWorlds(
     const roleBySeat = Array<Role>(evidence.playerCount)
     roleBySeat[pinned.seat] = pinned.role
     for (let i = 0; i < actualSeats.length; i++) {
-      roleBySeat[actualSeats[i]] = canonical[i + 1]
+      roleBySeat[actualSeats[i]!]! = canonical[i + 1]!
     }
     return {
       roleBySeat,
@@ -194,6 +194,11 @@ export function rolePossibilities(
   worlds: readonly HiddenWorld[],
   seat: Seat,
 ): readonly Role[] {
-  const roles = new Set(worlds.map((world) => world.roleBySeat[seat]))
+  const roles = new Set<Role>()
+  for (const world of worlds) {
+    const role = world.roleBySeat[seat]
+    if (!role) throw new Error(`world has no role at seat ${seat}`)
+    roles.add(role)
+  }
   return canonicalRoleMultiset([...roles])
 }

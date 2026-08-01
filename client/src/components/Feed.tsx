@@ -418,7 +418,8 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
     case 'utterance': {
       if (ev.payload.text) return { key: ev.seq, kind: 'talk', seat: ev.payload.seat, text: ev.payload.text }
       // Silence is information too.
-      return { key: ev.seq, kind: 'quiet', seat: ev.payload.seat, text: ` ${conjugate(PASS_VERBS[ev.seq % PASS_VERBS.length], !you(ev.payload.seat))}.` }
+      const verb = PASS_VERBS[ev.seq % PASS_VERBS.length] ?? 'wait'
+      return { key: ev.seq, kind: 'quiet', seat: ev.payload.seat, text: ` ${conjugate(verb, !you(ev.payload.seat))}.` }
     }
     case 'proposal': {
       const team = ev.payload.team.map(name).join(' · ')

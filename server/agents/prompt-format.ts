@@ -12,7 +12,7 @@ import type { Seat } from '../engine/types.ts'
 export const seatName = (
   source: { players: readonly { name: string }[] },
   s: Seat,
-): string => `${source.players[s].name}(seat ${s})`
+): string => `${source.players[s]!.name}(seat ${s})`
 
 // Join items into prose with an Oxford-free "A, B and C". One item renders bare,
 // none renders empty.

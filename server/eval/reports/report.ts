@@ -17,7 +17,7 @@ const fmt = (n: number | null | undefined, digits = 2): string =>
   n === null || n === undefined || Number.isNaN(n) ? '—' : n.toFixed(digits)
 
 function row(cells: (string | number)[], widths: number[]): string {
-  return cells.map((c, i) => String(c).padEnd(widths[i])).join(' ').trimEnd()
+  return cells.map((c, i) => String(c).padEnd(widths[i]!)).join(' ').trimEnd()
 }
 
 // ---- per-agent aggregates ----
@@ -101,7 +101,7 @@ function pairDeltas(games: GameMetrics[]): { role: string; candidateId: string; 
   const complete = [...best[1].entries()].filter(([, p]) => p.candidate && p.baseline)
   if (!complete.length) return null
 
-  const role = complete[0][1].candidate!.tags!.bench!
+  const role = complete[0]![1].candidate!.tags!.bench!
   // Every game in this group is a bench of `role`, so the role seat always
   // exists; guard anyway so a malformed artifact skips rather than throwing.
   const seatOf = (g: GameMetrics): SeatMetrics | undefined => g.seats.find((s) => s.role === role)
@@ -128,10 +128,15 @@ function pairDeltas(games: GameMetrics[]): { role: string; candidateId: string; 
         : null,
     }]
   })
+  const candidateId = complete[0]![1].candidate!.tags!.agentId
+  const baselineId = complete[0]![1].baseline!.tags!.agentId
+  if (!candidateId || !baselineId) {
+    throw new Error(`complete ${role} pair is missing agent ids`)
+  }
   return {
     role,
-    candidateId: complete[0][1].candidate!.tags!.agentId,
-    baselineId: complete[0][1].baseline!.tags!.agentId,
+    candidateId,
+    baselineId,
     deltas,
   }
 }
@@ -156,7 +161,7 @@ if (!positionals.length) {
 const artifacts = positionals.flatMap((f) => readArtifacts(f))
 const games = artifacts.map(computeMetrics)
 const degradedSeats = new Map<GameMetrics, Set<number>>(
-  games.map((g, i) => [g, new Set(artifacts[i].degraded.map((d) => d.seat))]),
+  games.map((g, i) => [g, new Set(artifacts[i]!.degraded.map((d) => d.seat))]),
 )
 
 console.log(`\n== OVERVIEW ==`)
@@ -223,7 +228,7 @@ if (merlinGames.length) {
 
 const judged = games.filter((g) => g.judge)
 if (judged.length) {
-  console.log(`\n== JUDGE (${judged[0].judge!.model}) ==`)
+  console.log(`\n== JUDGE (${judged[0]!.judge!.model}) ==`)
   const found = judged.filter((g) => g.judge!.blindedMerlinCorrect).length
   console.log(`blinded pass: merlin found ${found}/${judged.length} (${pct(found, judged.length)})`)
   const families = new Map<string, number>()

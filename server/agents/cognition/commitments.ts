@@ -17,9 +17,9 @@ function supersede(
   by: string,
 ): void {
   for (let index = 0; index < commitments.length; index++) {
-    const commitment = commitments[index]
+    const commitment = commitments[index]!
     if (commitment.status === 'current' && predicate(commitment)) {
-      commitments[index] = { ...commitment, status: 'superseded', supersededBy: by }
+      commitments[index]! = { ...commitment, status: 'superseded', supersededBy: by }
     }
   }
 }

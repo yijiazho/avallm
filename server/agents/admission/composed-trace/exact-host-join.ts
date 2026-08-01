@@ -273,7 +273,7 @@ export function validExactComposedTraceHostJoin(
     if (
       scores.length !== legal.length
       || scores.some(
-        (score, index) => score.candidateId !== legal[index].id,
+        (score, index) => score.candidateId !== legal[index]!.id,
       )
     ) return false
 

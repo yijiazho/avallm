@@ -22,7 +22,7 @@ const seats = (count: number) =>
 const unplayedQuests = (playerCount: number) =>
   Array.from({ length: QUESTS_PER_GAME }, (_, index) => ({
     num: index + 1,
-    teamSize: TEAM_SIZES[playerCount][index],
+    teamSize: TEAM_SIZES[playerCount]![index]!,
     failsRequired: failsRequired(playerCount, index + 1),
   }))
 
@@ -34,7 +34,7 @@ const unplayedQuests = (playerCount: number) =>
 export function failedQuestRecord(): PublicRecord {
   return {
     playerCount: 5,
-    rolesInPlay: [...DEFAULT_ROLES[5]].sort(),
+    rolesInPlay: [...DEFAULT_ROLES[5]!].sort(),
     players: seats(5),
     phase: 'proposal',
     round: 2,
@@ -73,7 +73,7 @@ export function failedQuestRecord(): PublicRecord {
 export function openingRecord(playerCount: number): PublicRecord {
   return {
     playerCount,
-    rolesInPlay: [...DEFAULT_ROLES[playerCount]].sort(),
+    rolesInPlay: [...DEFAULT_ROLES[playerCount]!].sort(),
     players: seats(playerCount),
     phase: 'proposal',
     round: 1,

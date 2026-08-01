@@ -39,9 +39,9 @@ test(':root block is locatable', () => {
 function tokenTable(): Map<string, string> {
   const table = new Map<string, string>()
   for (const m of src.slice(rootStart, rootEnd).matchAll(/^\s*--([\w-]+):\s*#([0-9a-fA-F]{6});/gm)) {
-    const hex = m[2]
+    const hex = m[2]!
     const key = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',')
-    if (!table.has(key)) table.set(key, m[1])
+    if (!table.has(key)) table.set(key, m[1]!)
   }
   return table
 }
@@ -105,7 +105,7 @@ test('no hex literal outside :root duplicates a palette token', () => {
   const table = tokenTable()
   const offenders: string[] = []
   for (const m of scannable().matchAll(/#([0-9a-fA-F]{6})\b/g)) {
-    const key = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)).join(',')
+    const key = [0, 2, 4].map((i) => parseInt(m[1]!.slice(i, i + 2), 16)).join(',')
     const token = table.get(key)
     if (!token) continue
     offenders.push(`  styles.css:${lineOf(m.index!)}  ${m[0]}  ->  var(--${token})`)

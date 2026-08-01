@@ -103,7 +103,9 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
         return ok({ kind: 'propose', team: team as Seat[], pitch, thinking })
       }
       // Salvage: pull seat numbers out of the text in order.
-      const size = view.quests[view.round - 1].teamSize
+      const quest = view.quests[view.round - 1]
+      if (!quest) return fail(`missing quest ${view.round}`)
+      const size = quest.teamSize
       const nums = [...content.matchAll(/\b\d+\b/g)]
         .map((m) => Number(m[0]))
         .filter((n) => n >= 0 && n < view.playerCount)
@@ -251,7 +253,9 @@ export function parseDecision(kind: LlmCallKind, content: string, view: PlayerVi
 // the correction retry gets a specific error message.
 export function legalityError(d: Decision, view: PlayerView): string | null {
   if (d.kind === 'propose' || (d.kind === 'finalize' && d.stick === false)) {
-    const size = view.quests[view.round - 1].teamSize
+    const quest = view.quests[view.round - 1]
+    if (!quest) return `missing quest ${view.round}`
+    const size = quest.teamSize
     if (d.team.length !== size) return `team must have exactly ${size} members, got ${d.team.length}`
     if (!hasDistinctSeats(d.team)) return 'team has duplicate seats'
     if (d.team.some((s) => s < 0 || s >= view.playerCount)) return 'team has an invalid seat number'

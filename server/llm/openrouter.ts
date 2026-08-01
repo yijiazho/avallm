@@ -143,11 +143,10 @@ export function createOpenRouter(opts: { timeoutMs?: number; quiet?: boolean } =
   }
 
   function recordSpend(u: SpendUpdate): void {
-    SPEND[u.tag] ??= {
+    const s = SPEND[u.tag] ?? (SPEND[u.tag] = {
       cost: 0, calls: 0, prompt: 0, completion: 0, reasoning: 0,
       reasoningLeakCalls: 0, providerViolationCalls: 0, model: u.model, providers: {},
-    }
-    const s = SPEND[u.tag]
+    })
     s.model = u.model
     s.calls++
     s.cost += u.usage.cost

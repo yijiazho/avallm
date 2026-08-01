@@ -90,17 +90,17 @@ function replayPretruth(history: FrozenHistory) {
   })
   for (const team of history.successfulProposalPrefix) {
     const proposal = expectedDecisions(game)
-    if (proposal.length !== 1 || proposal[0].kind !== 'propose') {
+    if (proposal.length !== 1 || proposal[0]!.kind !== 'propose') {
       throw new Error(`${history.id}: frozen prefix expected a proposal`)
     }
-    applyDecision(game, proposal[0].seat, { kind: 'propose', team: [...team] })
+    applyDecision(game, proposal[0]!.seat, { kind: 'propose', team: [...team] })
     while (game.phase === 'vote') {
       for (const req of expectedDecisions(game)) {
         applyDecision(game, req.seat, { kind: 'vote', vote: 'approve' })
       }
     }
     while (game.phase === 'quest') {
-      const req = expectedDecisions(game)[0]
+      const req = expectedDecisions(game)[0]!
       applyDecision(game, req.seat, { kind: 'quest', card: 'success' })
     }
   }

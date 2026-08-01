@@ -179,10 +179,10 @@ export function createPolicyComponentRuntime<
       }]
       visiting.add(rootKey)
       while (stack.length > 0) {
-        const frame = stack[stack.length - 1]
+        const frame = stack[stack.length - 1]!
         if (frame.dependencyIndex < frame.definition.dependencies.length) {
           const dependency =
-            frame.definition.dependencies[frame.dependencyIndex]
+            frame.definition.dependencies[frame.dependencyIndex]!
           frame.dependencyIndex++
           operations.componentDependencyEdgesVisited++
           const dependencyKey = componentIdentityKey(dependency)

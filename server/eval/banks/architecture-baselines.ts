@@ -162,7 +162,7 @@ function transcriptSpend(text: string): Map<string, { calls: number; cost: numbe
   const out = new Map<string, { calls: number; cost: number }>()
   const pattern = /^  ([a-z0-9-]+): \$([0-9.]+) over ([0-9]+) calls/gim
   for (const match of text.matchAll(pattern)) {
-    out.set(match[1], { cost: Number(match[2]), calls: Number(match[3]) })
+    out.set(match[1]!, { cost: Number(match[2]), calls: Number(match[3]) })
   }
   return out
 }
@@ -206,7 +206,7 @@ export function buildObservedPromptBaseline(directory: string): ObservedPromptBa
     if (!fs.existsSync(transcriptFile)) throw new Error(`${transcriptFile}: matching transcript missing`)
     const gameArtifacts = readArtifacts(artifactFile)
     if (gameArtifacts.length !== 1) throw new Error(`${artifactFile}: expected exactly one game`)
-    const artifact = gameArtifacts[0]
+    const artifact = gameArtifacts[0]!
     artifacts.push(artifact)
     sourceFiles.push(
       { file: artifactName, sha256: hashFile(artifactFile) },
@@ -225,25 +225,38 @@ export function buildObservedPromptBaseline(directory: string): ObservedPromptBa
     ) as Record<string, number>)
     for (const event of artifact.log) {
       const observed = action(event.type, event.payload)
-      if (observed) decisions[observed.seat][observed.kind]++
+      if (observed) {
+        const byKind = decisions[observed.seat]
+        if (!byKind) throw new Error(`missing decision counters for seat ${observed.seat}`)
+        byKind[observed.kind] = (byKind[observed.kind] ?? 0) + 1
+      }
     }
     const degraded = artifact.players.map(() => Object.fromEntries(
       DECISION_KINDS.map((kind) => [kind, 0]),
     ) as Record<string, number>)
-    for (const item of artifact.degraded) degraded[item.seat][item.kind]++
+    for (const item of artifact.degraded) {
+      const byKind = degraded[item.seat]
+      if (!byKind) throw new Error(`missing degradation counters for seat ${item.seat}`)
+      byKind[item.kind] = (byKind[item.kind] ?? 0) + 1
+    }
 
     for (const player of artifact.players) {
       const model = player.agent.replace(/^llm:/, '')
       const modelSpend = spend.get(model)
       if (!modelSpend) throw new Error(`${transcriptFile}: no spend line for ${model}`)
+      const playerDecisions = decisions[player.seat]
+      const playerDegraded = degraded[player.seat]
+      if (!playerDecisions || !playerDegraded) {
+        throw new Error(`${artifactFile}: missing counters for seat ${player.seat}`)
+      }
       seats.push({
         role: player.role,
         model,
         won: player.alignment === artifact.winner,
-        decisions: decisions[player.seat],
+        decisions: playerDecisions,
         calls: modelSpend.calls,
         cost: modelSpend.cost,
-        degraded: degraded[player.seat],
+        degraded: playerDegraded,
       })
     }
   }
@@ -254,12 +267,12 @@ export function buildObservedPromptBaseline(directory: string): ObservedPromptBa
     .map((model) => sumDimension(model, seats.filter((seat) => seat.model === model)))
   const byDecisionKind = DECISION_KINDS.map((kind): ObservedDimension => ({
     id: kind,
-    decisions: sumOf(seats, (seat) => seat.decisions[kind]),
+    decisions: sumOf(seats, (seat) => seat.decisions[kind]!),
     // These archived transcripts printed exact spend per model but not per
     // call tag, so inventing a kind-level allocation would be false precision.
     calls: null,
     cost: null,
-    degraded: sumOf(seats, (seat) => seat.degraded[kind]),
+    degraded: sumOf(seats, (seat) => seat.degraded[kind]!),
   }))
   const winners = artifacts.reduce<Record<string, number>>((acc, artifact) => {
     acc[artifact.winner] = (acc[artifact.winner] ?? 0) + 1

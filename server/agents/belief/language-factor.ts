@@ -403,7 +403,7 @@ function normalizePreservingSupport(
   const probabilities = logWeightsToProbabilitiesPreservingSupport(logWeights)
   return worlds.map((world, index) => ({
     world,
-    probability: probabilities[index],
+    probability: probabilities[index]!,
   }))
 }
 
@@ -476,7 +476,7 @@ function weightedLanguageSnapshot(
   const weighted = normalizePreservingSupport(
     base.worlds.map((entry) => entry.world),
     base.worlds.map(
-      (entry, index) => Math.log(entry.probability) + capped[index],
+      (entry, index) => Math.log(entry.probability) + capped[index]!,
     ),
   )
   return beliefFromWeightedWorlds(view, weighted, {

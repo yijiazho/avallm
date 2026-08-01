@@ -50,35 +50,35 @@ test('architecture bench compares variants on an identical fixed deal and table'
   })
   assert.equal(artifacts.length, 2)
   const [baseline, candidate] = artifacts
-  assert.equal(baseline.seed, candidate.seed)
+  assert.equal(baseline!.seed, candidate!.seed)
   assert.deepEqual(
-    baseline.players.map((p) => p.role),
-    candidate.players.map((p) => p.role),
+    baseline!.players.map((p) => p.role),
+    candidate!.players.map((p) => p.role),
   )
-  assert.deepEqual(baseline.log, candidate.log)
-  assert.equal(baseline.architecture?.targetSeat, 4)
-  assert.equal(candidate.architecture?.targetSeat, 4)
+  assert.deepEqual(baseline!.log, candidate!.log)
+  assert.equal(baseline!.architecture?.targetSeat, 4)
+  assert.equal(candidate!.architecture?.targetSeat, 4)
 
   const report = architectureReport(artifacts)
   assert.equal(report.bank, 'test-bank')
   assert.equal(report.variants.length, 2)
   assert.equal(report.comparisons.length, 1)
-  assert.equal(report.comparisons[0].matchedCases, 1)
-  assert.equal(report.comparisons[0].wins, 0)
-  assert.equal(report.comparisons[0].degraded, 0)
+  assert.equal(report.comparisons[0]!.matchedCases, 1)
+  assert.equal(report.comparisons[0]!.wins, 0)
+  assert.equal(report.comparisons[0]!.degraded, 0)
   assert.match(renderArchitectureReport(report), /1 matched/)
   assert.match(renderArchitectureReport(report), /belief=exact-constraints-v1/)
   assert.match(renderArchitectureReport(report), /policy=heuristic-policy-v2/)
   assert.match(renderArchitectureReport(report), /experiment=baseline/)
 
   assert.throws(
-    () => architectureReport([...artifacts, baseline]),
+    () => architectureReport([...artifacts, baseline!]),
     /duplicate architecture result/,
   )
-  const mismatched = structuredClone(candidate)
-  mismatched.players[0].name = 'Different table'
+  const mismatched = structuredClone(candidate)!
+  mismatched.players[0]!.name = 'Different table'
   assert.throws(
-    () => architectureReport([baseline, mismatched]),
+    () => architectureReport([baseline!, mismatched]),
     /not matched on deal and table configuration/,
   )
 })
@@ -150,13 +150,13 @@ test('spendDelta records only calls made during one architecture game', () => {
     spendDelta(
       { 'agent/vote': entry(2, 0.02) },
       { 'agent/vote': entry(5, 0.05), 'agent/propose': entry(1, 0.03) },
-    )['agent/vote'].calls,
+    )['agent/vote']!.calls,
     3,
   )
   const delta = spendDelta(
     { 'agent/vote': entry(2, 0.02) },
     { 'agent/vote': entry(5, 0.05), 'agent/propose': entry(1, 0.03) },
   )
-  assert.ok(Math.abs(delta['agent/vote'].cost - 0.03) < 1e-12)
+  assert.ok(Math.abs(delta['agent/vote']!.cost - 0.03) < 1e-12)
   assert.deepEqual(delta['agent/propose'], entry(1, 0.03))
 })

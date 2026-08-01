@@ -45,9 +45,9 @@ test('full-reveal transcript exposes roles, the whole log, and the raw JSONL', a
   // Every seat's role appears (from the seat table) and the raw JSONL carries
   // exactly one line per logged event.
   for (const p of game.players) assert.ok(text.includes(p.role), `role ${p.role} present`)
-  const jsonl = text.split('```jsonl\n')[1].split('\n```')[0].trim().split('\n')
+  const jsonl = text.split('```jsonl\n')[1]!.split('\n```')[0]!.trim().split('\n')
   assert.equal(jsonl.length, game.log.length)
-  assert.equal(JSON.parse(jsonl[0]).type, 'gameCreated')
+  assert.equal(JSON.parse(jsonl[0]!).type, 'gameCreated')
 })
 
 test('scoped transcript hides roles and other seats\' private events', async () => {
@@ -65,7 +65,7 @@ test('scoped transcript hides roles and other seats\' private events', async () 
   assert.doesNotMatch(text, /FULL REVEAL/)
   // The scoped log only carries public events plus seat 0's own private ones,
   // so no other seat's roleDealt leaks in the raw JSONL.
-  const jsonl = text.split('```jsonl\n')[1].split('\n```')[0].trim().split('\n').map((l) => JSON.parse(l))
+  const jsonl = text.split('```jsonl\n')[1]!.split('\n```')[0]!.trim().split('\n').map((l) => JSON.parse(l))
   const foreignDeal = jsonl.some((ev) => ev.type === 'roleDealt' && ev.payload.seat !== seat)
   assert.equal(foreignDeal, false, 'no other seat roleDealt in a scoped log')
 })

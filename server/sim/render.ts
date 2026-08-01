@@ -3,7 +3,7 @@
 import type { Game, GameEvent, Seat } from '../engine/types.ts'
 
 function name(game: Game, seat: Seat): string {
-  return `${game.players[seat].name}(${seat})`
+  return `${game.players[seat]!.name}(${seat})`
 }
 
 export function renderEvent(ev: GameEvent, game: Game): string | null {

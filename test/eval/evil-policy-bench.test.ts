@@ -107,7 +107,7 @@ test('the evil bank targets each in-scope role with a matched sample', () => {
         (a, b) => a - b,
       ),
       PLAYER_COUNTS.filter(
-        (playerCount) => DEFAULT_ROLES[playerCount].includes(targetRole),
+        (playerCount) => DEFAULT_ROLES[playerCount]!.includes(targetRole),
       ),
       `${targetRole} table sizes`,
     )
@@ -155,7 +155,7 @@ test('the full-role bench declares the evil bank and routes evil objectives', as
   assert.equal(report.bank, bank.id)
   assert.equal(report.cases, 1)
   const byRole = report.byPopulation.heuristic!
-  const roleReport = byRole[PHASE7_EVIL_POLICY_BANK[0].targetRole]
+  const roleReport = byRole[PHASE7_EVIL_POLICY_BANK[0]!.targetRole]!
   assert.deepEqual(
     roleReport.variants.map((variant) => variant.id),
     ['compatibility', 'good-proposal-only', 'base-composed', 'full-role'],

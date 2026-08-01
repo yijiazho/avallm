@@ -222,7 +222,7 @@ test('seeded vote variation stays inside both bounded gates', () => {
   const definition = mordredScoreLayerDefinitions({
     deterministic: EVIL_ROLE_SCORE_LAYER,
     seeded: SEEDED_EVIL_ROLE_SCORE_LAYER,
-  })[1]
+  })[1]!
   assert.equal(definition.kind, 'transform')
   if (definition.kind !== 'transform') throw new Error('expected transform')
   const applicable = unitVoteContext({

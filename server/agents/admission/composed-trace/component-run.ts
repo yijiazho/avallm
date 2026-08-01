@@ -293,6 +293,7 @@ export function validGenericComponentRun(
     const ref = run.configured[index]
     const entry = run.entries[index]
     const use = run.policyUse[index]
+    if (!ref || !entry || !use) return false
     const definition = PRODUCTION_COMPONENT_REGISTRY.definition(ref)!
     if (
       !exactGenericRecord(entry.component, ['id', 'version'])

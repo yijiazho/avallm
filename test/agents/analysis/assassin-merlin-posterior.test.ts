@@ -57,19 +57,19 @@ function assassinFixture(
       {
         round: 1,
         proposalNum: 1,
-        leader: first,
-        team: [partner, first],
+        leader: first!,
+        team: [partner, first!],
         outcome: 'voted',
-        votes: [{ seat: first, vote: 'approve' }],
+        votes: [{ seat: first!, vote: 'approve' }],
         approved: true,
       },
       {
         round: 2,
         proposalNum: 1,
-        leader: second,
-        team: [partner, second, filler],
+        leader: second!,
+        team: [partner, second!, filler!],
         outcome: 'voted',
-        votes: [{ seat: second, vote: 'reject' }],
+        votes: [{ seat: second!, vote: 'reject' }],
         approved: true,
       },
     ]
@@ -102,7 +102,7 @@ test('joint prior and bounded behavior math respect Mordred sight and Oberon unc
   const expectedMass = [1, 1 / Math.sqrt(2), 0.5]
   const total = expectedMass.reduce((sum, value) => sum + value, 0)
   supported.forEach((row, index) =>
-    assert.ok(close(row.posteriorProbability, expectedMass[index] / total)))
+    assert.ok(close(row.posteriorProbability, expectedMass[index]! / total)))
 
   const oberonFixture = assassinFixture(TEN)
   const oberon = oberonFixture.game.players.find(
@@ -126,15 +126,15 @@ test('rejected votes count while auto-approved proposals carry no vote evidence'
     .filter((seat) => seat !== fixture.view.seat && seat !== partner)
   mutable(fixture).view.proposals = [
     {
-      round: 2, proposalNum: 1, leader: candidate,
-      team: [partner, candidate, filler],
+      round: 2, proposalNum: 1, leader: candidate!,
+      team: [partner, candidate!, filler!],
       outcome: 'auto',
     },
     {
-      round: 1, proposalNum: 1, leader: candidate,
-      team: [partner, candidate],
+      round: 1, proposalNum: 1, leader: candidate!,
+      team: [partner, candidate!],
       outcome: 'voted',
-      votes: [{ seat: candidate, vote: 'approve' }],
+      votes: [{ seat: candidate!, vote: 'approve' }],
       approved: false,
     },
   ]
@@ -167,7 +167,7 @@ test('native component reuses the generic codec, execution, and privacy contract
     invalidValue: { ...payload, role: 'merlin' },
   })
   const scalarForgery = structuredClone(payload)
-  scalarForgery.targets[0].proposalObservations = 0.5
+  scalarForgery.targets[0]!.proposalObservations = 0.5
   const forged = canonicalizeJson(
     scalarForgery,
     MAX_ASSASSIN_MERLIN_POSTERIOR_JSON_BYTES,
@@ -209,10 +209,10 @@ test('truth outside the captured seat view cannot affect the posterior', () => {
       player.seat !== fixture.view.seat
       && !evilPartnersOf(fixture.view.privateInfo).includes(player.seat),
   )
-  ;[unknown[0].role, unknown[1].role] = [unknown[1].role, unknown[0].role]
-  ;[unknown[0].alignment, unknown[1].alignment] = [
-    unknown[1].alignment,
-    unknown[0].alignment,
+  ;[unknown[0]!.role, unknown[1]!.role] = [unknown[1]!.role, unknown[0]!.role]
+  ;[unknown[0]!.alignment, unknown[1]!.alignment] = [
+    unknown[1]!.alignment,
+    unknown[0]!.alignment,
   ]
   assert.deepEqual(
     buildPrivateAssassinMerlinPosterior({ ...fixture, belief }),

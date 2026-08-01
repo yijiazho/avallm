@@ -270,8 +270,8 @@ export function runDecisionLayers(
   if (
     input.order.order.length !== input.order.definitions.length
     || input.order.order.some((ref, index) =>
-      ref.id !== input.order.definitions[index].token.id
-      || ref.version !== input.order.definitions[index].token.version)
+      ref.id !== input.order.definitions[index]!.token.id
+      || ref.version !== input.order.definitions[index]!.token.version)
   ) throw new Error('decision layer definitions are out of order')
   const legalOrder = input.candidates.map((candidate) => candidate.id)
   let surface = createInitialSurface(input, operations)

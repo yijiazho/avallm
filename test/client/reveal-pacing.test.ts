@@ -128,7 +128,7 @@ test('every ending the client can name is paced', () => {
   const gate = read('revealPacing.ts')
   const table = gate.match(/CLOSING_BEAT_MS[^=]*= \{([\s\S]*?)\n\}/)
   assert.ok(table, 'revealPacing.ts no longer declares a CLOSING_BEAT_MS table')
-  const paced = new Set([...table[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]))
+  const paced = new Set([...table[1]!.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]))
   for (const reason of Object.keys(WIN_REASONS)) {
     assert.ok(
       paced.has(reason),
@@ -147,9 +147,9 @@ test('no closing beat re-budgets the quest reveal it already waited out', () => 
   const gate = read('revealPacing.ts')
   const table = gate.match(/CLOSING_BEAT_MS[^=]*= \{([\s\S]*?)\n\}/)
   assert.ok(table, 'revealPacing.ts no longer declares a CLOSING_BEAT_MS table')
-  for (const [line, reason] of [...table[1].matchAll(/^\s*(\w+):(.*)$/gm)].map((m) => [m[2], m[1]])) {
+  for (const [line, reason] of [...table[1]!.matchAll(/^\s*(\w+):(.*)$/gm)].map((m) => [m[2], m[1]])) {
     assert.doesNotMatch(
-      line, /QUEST_REVEAL_MS/,
+      line!, /QUEST_REVEAL_MS/,
       `the '${reason}' beat budgets QUEST_REVEAL_MS, but the beat does not start `
       + 'until the card has finished turning. Budget only what is owed AFTER that.',
     )

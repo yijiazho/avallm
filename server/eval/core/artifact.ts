@@ -192,6 +192,31 @@ export interface GameArtifact {
   judge?: JudgeResult
 }
 
+/** Fail closed when an archived player table is sparse, reordered, or truncated. */
+export function artifactPlayerAt(
+  artifact: GameArtifact,
+  seat: Seat,
+): ArtifactPlayer {
+  if (artifact.players.length !== artifact.playerCount) {
+    throw new Error(
+      `${artifact.id}: artifact player table has ${artifact.players.length} entries; `
+      + `expected ${artifact.playerCount}`,
+    )
+  }
+  for (let expectedSeat = 0; expectedSeat < artifact.players.length; expectedSeat++) {
+    if (artifact.players[expectedSeat]?.seat !== expectedSeat) {
+      throw new Error(
+        `${artifact.id}: artifact is missing player at seat ${expectedSeat}`,
+      )
+    }
+  }
+  const player = artifact.players[seat]
+  if (!player) {
+    throw new Error(`${artifact.id}: artifact is missing player at seat ${seat}`)
+  }
+  return player
+}
+
 // ---- post-hoc analysis results ----
 
 export interface VirtualAssassinResult {
@@ -507,7 +532,7 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     && (
       !opts.architecture
       || opts.trustedComponentPlans.length !== 1
-      || opts.trustedComponentPlans[0].seat
+      || opts.trustedComponentPlans[0]!.seat
         !== opts.architecture.targetSeat
     )
   ) {
@@ -535,10 +560,14 @@ export function toArtifact(game: Game, opts: ToArtifactOpts): GameArtifact {
     playerCount: game.config.playerCount,
     roles: game.config.roles.slice(),
     talk: game.config.talk,
-    players: game.players.map((p) => ({
-      seat: p.seat, name: p.name, role: p.role, alignment: p.alignment,
-      agent: opts.agents[p.seat],
-    })),
+    players: game.players.map((p) => {
+      const agent = opts.agents[p.seat]
+      if (!agent) throw new Error(`missing artifact agent for seat ${p.seat}`)
+      return {
+        seat: p.seat, name: p.name, role: p.role, alignment: p.alignment,
+        agent,
+      }
+    }),
     winner: game.outcome.winner,
     winReason: game.outcome.reason,
     steps: opts.steps,

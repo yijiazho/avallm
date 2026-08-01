@@ -172,7 +172,7 @@ test('frozen fixture selection returns only allow-listed projection data', async
   assert.equal(metadata.selectedId, 'servant-vote-after-evidence')
   assert.ok(metadata.fixtures.length > 1)
   assert.deepEqual(
-    Object.keys(metadata.fixtures[0]).sort(),
+    Object.keys(metadata.fixtures[0]!).sort(),
     ['decision', 'id', 'self'],
   )
 
@@ -225,7 +225,7 @@ test('frozen fixture selection returns only allow-listed projection data', async
 test('custom snapshot files are projected before serving and never retained by the handler', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'seat-microscope-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const fixture = structuredClone(readDecisionFixtures()[0])
+  const fixture = structuredClone(readDecisionFixtures()[0])!
   const marker = 'raw-custom-marker-must-not-cross'
   Object.assign(fixture, { baselineDecision: { kind: marker } })
   Object.assign(fixture.view, { harmlessUnknownInput: marker })
@@ -264,7 +264,7 @@ test('seat-view-only mode preserves the boundary projection without inventing po
 test('invalid custom files fail before native execution and do not echo raw values', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'seat-microscope-invalid-'))
   try {
-    const fixture = structuredClone(readDecisionFixtures()[0])
+    const fixture = structuredClone(readDecisionFixtures()[0])!
     const marker = 'private-seed-value-must-not-echo'
     Object.assign(fixture.view, { seed: marker })
     const file = path.join(directory, 'invalid.json')

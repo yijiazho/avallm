@@ -233,7 +233,7 @@ export function publicStateText(view: PlayerView): string {
     const need = q.failsRequired === 2 ? ', needs 2 fails' : ''
     if (q.status !== 'complete') return `Q${q.num}(size ${q.teamSize}${need}): pending`
     const tag = q.result === 'success' ? 'SUCCEEDED' : `FAILED (${q.failCount} fail${q.failCount === 1 ? '' : 's'})`
-    const team = ` team: ${q.team.map((s) => view.players[s].name).join('/')}`
+    const team = ` team: ${q.team.map((s) => view.players[s]!.name).join('/')}`
     return `Q${q.num}(size ${q.teamSize}${need}): ${tag}${team}`
   })
   lines.push(`Quest board: ${board.join(' | ')}.`)
@@ -257,11 +257,11 @@ export function publicStateText(view: PlayerView): string {
       const pitch = p.pitch ? ` pitch: "${sanitizeSpeech(p.pitch).slice(0, 120)}"` : ''
       const outcome = p.outcome === 'auto'
         ? 'AUTO-APPROVED (hammer, no vote)'
-        : `${p.approved ? 'APPROVED' : 'rejected'} (${p.votes.map((v) => `${view.players[v.seat].name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')})`
+        : `${p.approved ? 'APPROVED' : 'rejected'} (${p.votes.map((v) => `${view.players[v.seat]!.name}:${v.vote === 'approve' ? 'Y' : 'N'}`).join(' ')})`
       const revised = p.revision
-        ? ` (revised at finalize: ${revisionDelta(p.revision.from, p.team, (s) => view.players[s].name)})`
+        ? ` (revised at finalize: ${revisionDelta(p.revision.from, p.team, (s) => view.players[s]!.name)})`
         : ''
-      return `Q${p.round}.${p.proposalNum} leader ${view.players[p.leader].name}, team [${p.team.map((s) => view.players[s].name).join('/')}]${revised} -> ${outcome}${pitch}`
+      return `Q${p.round}.${p.proposalNum} leader ${view.players[p.leader]!.name}, team [${p.team.map((s) => view.players[s]!.name).join('/')}]${revised} -> ${outcome}${pitch}`
     })
     lines.push(`Vote record:\n${hist.join('\n')}`)
   }
@@ -419,7 +419,7 @@ function discussAsk(v: PlayerView): string {
 }
 
 function proposeAsk(v: PlayerView): string {
-  const teamSize = v.quests[v.round - 1].teamSize
+  const teamSize = v.quests[v.round - 1]!.teamSize
   const { failsNeeded, mp } = evilSinkRead(v)
   // The dossier's board-stakes rows already say what this quest decides. This
   // is the leader's half of acting on it: a Morgana at good's match point
@@ -566,7 +566,7 @@ function questAsk(v: PlayerView): string {
   // made an evil bot play Success into good's THIRD quest and hand away the game.
   // Multi-evil splitting stays as soft partner-reading (no injected convention
   // — that would be an out-of-band private channel evil is not supposed to have).
-  const q = v.quests[v.round - 1]
+  const q = v.quests[v.round - 1]!
   const { failsNeeded, mp } = evilSinkRead(v)
   const needsTwo = failsNeeded === 2
   const twoNote = needsTwo

@@ -238,7 +238,7 @@ function relativeWeights(logWeights: readonly number[]): number[] {
   }
   let maximum = -Infinity
   for (let index = 0; index < logWeights.length; index++) {
-    const weight = logWeights[index]
+    const weight = logWeights[index]!
     if (!Number.isFinite(weight)) {
       throw new Error('log-weight normalization requires finite weights')
     }
@@ -315,9 +315,9 @@ export function logWeightsToProbabilitiesPreservingSupport(
   }
   let largest = 0
   for (let index = 1; index < probabilities.length; index++) {
-    if (probabilities[index] > probabilities[largest]) largest = index
+    if (probabilities[index]! > probabilities[largest]!) largest = index
   }
-  probabilities[largest] +=
+  probabilities[largest]! +=
     1 - stableProbabilitySum(probabilities, (mass) => mass)
   if (probabilities.some((mass) => !Number.isFinite(mass) || mass <= 0)) {
     throw new Error('log-weight normalization lost support it must preserve')

@@ -14,7 +14,7 @@ import { extractObject } from '../../agents/parse.ts'
 import { INJECTION_GUARD } from '../../agents/prompts.ts'
 import { rosterById } from '../../llm/roster.ts'
 import { publicRecord, nameOf } from '../core/record.ts'
-import { readArtifacts, writeArtifacts } from '../core/artifact.ts'
+import { artifactPlayerAt, readArtifacts, writeArtifacts } from '../core/artifact.ts'
 import type { GameArtifact, VirtualAssassinResult } from '../core/artifact.ts'
 import type { OpenRouterClient } from '../../llm/openrouter.ts'
 
@@ -106,7 +106,7 @@ async function main(): Promise<void> {
       writeArtifacts(file, artifacts)
       const chance = (1 / a.players.filter((p) => p.alignment === 'good').length)
       console.log(
-        `${a.id.padEnd(28)} merlin seat ${result.merlinSeat} (${a.players[result.merlinSeat].name}): `
+        `${a.id.padEnd(28)} merlin seat ${result.merlinSeat} (${artifactPlayerAt(a, result.merlinSeat).name}): `
         + `${result.hits}/${result.samples} picked (chance ${(chance * 100).toFixed(0)}%)`
         + (a.tags?.variant ? `  [${a.tags.variant}]` : ''),
       )

@@ -99,7 +99,7 @@ export async function runServantMerlinVoteDiagnostic(
     const seed = `${seedBase}-${index}`
     const game = createGame({ seed, playerCount, talk: SILENT_TALK })
     const trueMerlin = game.players.find((p) => p.role === 'merlin')!.seat
-    const isEvil = (seat: Seat) => ROLE_ALIGNMENT[game.players[seat].role] === 'evil'
+    const isEvil = (seat: Seat) => ROLE_ALIGNMENT[game.players[seat]!.role] === 'evil'
     const agents = new Map<Seat, AvalonAgent>()
     for (const player of game.players) {
       agents.set(
@@ -112,12 +112,12 @@ export async function runServantMerlinVoteDiagnostic(
     while (game.phase !== 'gameOver' && guard++ < 400) {
       const reqs = expectedDecisions(game)
       if (!reqs.length) break
-      if (reqs[0].kind === 'vote') {
+      if (reqs[0]!.kind === 'vote') {
         const applications: { seat: Seat; decision: Awaited<ReturnType<AvalonAgent['decide']>>['decision'] }[] = []
         for (const req of reqs) {
           const view = viewFor(game, req.seat)
           const decision = (await agents.get(req.seat)!.decide(req, view)).decision
-          if (game.players[req.seat].role === 'servant' && decision.kind === 'vote') {
+          if (game.players[req.seat]!.role === 'servant' && decision.kind === 'vote') {
             const teamSeatsEvil = (view.currentTeam ?? []).some(isEvil)
             samples.push({
               // The quest-weighted belief the full-role servant actually votes

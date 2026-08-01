@@ -147,13 +147,13 @@ const EXPECTED_SEATS: Readonly<
 export const PHASE7_EVIL_POLICY_BANK: readonly ArchitectureBankCase[] =
   PHASE7_EVIL_TARGET_ROLES.flatMap((targetRole) =>
     ([5, 6, 7, 8, 9, 10] as const).flatMap((playerCount) =>
-      (EXPECTED_SEATS[playerCount][targetRole] ?? []).map(
+      (EXPECTED_SEATS[playerCount]![targetRole] ?? []).map(
         (expectedTargetSeat, index): ArchitectureBankCase => ({
           id: `${playerCount}p-${targetRole}-${index}`,
           seed:
             `${PHASE7_EVIL_POLICY_BANK_ID}-${playerCount}-${targetRole}-${index}`,
           playerCount,
-          roles: CASTS[playerCount],
+          roles: CASTS[playerCount]!,
           talk: NO_DISCUSSION,
           targetRole,
           expectedTargetSeat,

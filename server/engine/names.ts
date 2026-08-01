@@ -100,6 +100,6 @@ export function capSpeech(text: string, max: number): string {
 export function stripSeatRefs(text: string, players: Player[]): string {
   return text.replace(/\b(?:seats?|players?)\s*#?\s*(\d+)\b/gi, (m, d) => {
     const n = Number(d)
-    return n >= 0 && n < players.length ? players[n].name : m
+    return n >= 0 && n < players.length ? players[n]!.name : m
   })
 }

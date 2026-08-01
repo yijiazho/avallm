@@ -109,7 +109,7 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
 
   const comparisons: ArchitectureComparison[] = []
   if (variantIds.length > 1) {
-    const baseline = variantIds[0]
+    const baseline = variantIds[0]!
     const baselineByCase = new Map(byVariant.get(baseline)!.map((g) => [g.meta.caseId, g]))
     for (const candidate of variantIds.slice(1)) {
       const pairs = byVariant.get(candidate)!.flatMap((candidateGame) => {
@@ -147,7 +147,7 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
             trials: 1,
           }),
           seededRandom(
-            `${games[0].meta.bank}:${baseline}:${candidate}:wins`,
+            `${games[0]!.meta.bank}:${baseline}:${candidate}:wins`,
           ),
         ),
         cleanInitialProposalRateDelta: pairedBootstrapRateDelta(
@@ -157,28 +157,28 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
             trials: game.initialProposals,
           }),
           seededRandom(
-            `${games[0].meta.bank}:${baseline}:${candidate}:proposals`,
+            `${games[0]!.meta.bank}:${baseline}:${candidate}:proposals`,
           ),
         ),
         voteTruthAccuracyDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'truth'),
           seededRandom(
-            `${games[0].meta.bank}:${baseline}:${candidate}:votes`,
+            `${games[0]!.meta.bank}:${baseline}:${candidate}:votes`,
           ),
         ),
         voteDirtyTeamApproveRateDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'dirty-team-approve'),
           seededRandom(
-            `${games[0].meta.bank}:${baseline}:${candidate}:dirty-team-approve`,
+            `${games[0]!.meta.bank}:${baseline}:${candidate}:dirty-team-approve`,
           ),
         ),
         voteCleanTeamRejectRateDelta: pairedBootstrapRateDelta(
           pairs,
           (game) => voteRateCount(game.voteConfusion, 'clean-team-reject'),
           seededRandom(
-            `${games[0].meta.bank}:${baseline}:${candidate}:clean-team-reject`,
+            `${games[0]!.meta.bank}:${baseline}:${candidate}:clean-team-reject`,
           ),
         ),
       })
@@ -187,7 +187,7 @@ export function architectureReport(artifacts: readonly GameArtifact[]): Architec
 
   return {
     schema: ARCHITECTURE_REPORT_SCHEMA,
-    bank: games[0].meta.bank,
+    bank: games[0]!.meta.bank,
     cases: caseIds,
     variants,
     comparisons,

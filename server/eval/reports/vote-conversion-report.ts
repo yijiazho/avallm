@@ -243,7 +243,7 @@ function summarize(
 function sameComponents(
   games: readonly ConversionObservation[],
 ): Record<string, string> {
-  const first = games[0].meta.components
+  const first = games[0]!.meta.components
   for (const game of games.slice(1)) {
     if (JSON.stringify(game.meta.components) !== JSON.stringify(first)) {
       throw new Error(
@@ -316,7 +316,10 @@ function comparison(
     matchedCases: pairs.length,
     winReasonTransitions: [...transitions.entries()]
       .map(([key, games]) => {
-        const [from, to] = key.split('\0')
+        const separator = key.indexOf('\0')
+        if (separator < 0) throw new Error(`invalid win-reason transition ${key}`)
+        const from = key.slice(0, separator)
+        const to = key.slice(separator + 1)
         return { from, to, games }
       })
       .sort((left, right) =>
@@ -409,16 +412,16 @@ export function phase5VoteConversionReport(
       })),
     }
   })
-  const baseline = variantIds[0]
+  const baseline = variantIds[0]!
   return {
     schema: PHASE5_VOTE_CONVERSION_REPORT_SCHEMA,
-    bank: [...banks][0],
-    population: [...populations][0],
+    bank: [...banks][0]!,
+    population: [...populations][0]!,
     cases: [...new Set(games.map((game) => game.meta.caseId))].sort(),
     variants,
     comparisons: variantIds.slice(1).map((candidate) =>
       comparison(
-        [...banks][0],
+        [...banks][0]!,
         baseline,
         candidate,
         byVariant.get(baseline)!,

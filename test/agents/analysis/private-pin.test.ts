@@ -40,7 +40,7 @@ test('a seat pins the alignments its belief knows and the table does not', () =>
     .filter((player) => ROLE_ALIGNMENT[player.role] === 'evil' && player.role !== 'mordred')
     .map((player) => player.seat)
   for (const seat of visibleEvil) {
-    const row = read.rows[seat]
+    const row = read.rows[seat]!
     assert.equal(row.pin, 'evil', `seat ${seat} should be pinned evil`)
     assert.equal(row.privateEvilProbability, 1)
     assert.ok(row.publicEvilProbability > 0 && row.publicEvilProbability < 1)
@@ -49,8 +49,8 @@ test('a seat pins the alignments its belief knows and the table does not', () =>
   // both remaining goods, with its own row excluded from the leverage counts.
   assert.equal(read.pinnedEvilCount, visibleEvil.length)
   assert.equal(read.pinnedGoodCount, 5 - 1 - visibleEvil.length)
-  assert.equal(read.rows[merlin].seat, merlin)
-  assert.equal(read.rows[merlin].pin, 'good')
+  assert.equal(read.rows[merlin]!.seat, merlin)
+  assert.equal(read.rows[merlin]!.pin, 'good')
 })
 
 test('the built read validates and a tampered one does not', () => {
@@ -92,7 +92,7 @@ function collapsedExposure() {
   const goodSeat = game.players.find(
     (player) => ROLE_ALIGNMENT[player.role] === 'good',
   )!.seat
-  const propose = expectedDecisions(game)[0]
+  const propose = expectedDecisions(game)[0]!
   assert.equal(propose.kind, 'propose')
   applyDecision(game, propose.seat, {
     kind: 'propose',
@@ -102,7 +102,7 @@ function collapsedExposure() {
   while (guard++ < 20) {
     const reqs = expectedDecisions(game)
     if (!reqs.length) break
-    const req = reqs[0]
+    const req = reqs[0]!
     if (req.kind === 'vote') {
       for (const vote of reqs) applyDecision(game, vote.seat, { kind: 'vote', vote: 'approve' })
     } else if (req.kind === 'finalize') {

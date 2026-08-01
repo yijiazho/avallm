@@ -46,12 +46,12 @@ function midGame(playerCount: number, roles: Role[], seed: string) {
     talk: { maxRounds: 1, maxRoundsAfterChange: 0 },
   })
   for (let round = 0; round < 2; round++) {
-    const size = g.quests[g.round - 1].teamSize
+    const size = g.quests[g.round - 1]!.teamSize
     const team = Array.from({ length: size }, (_, i) => (g.leaderSeat + i) % playerCount)
     applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'a clean pair to open with' })
     while (g.phase === 'discussion') {
       const [d] = expectedDecisions(g)
-      applyDecision(g, d.seat, { kind: 'discuss', say: '' })
+      applyDecision(g, d!.seat, { kind: 'discuss', say: '' })
     }
     if (g.phase === 'finalize') applyDecision(g, g.leaderSeat, { kind: 'finalize', stick: true })
     for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
@@ -74,7 +74,7 @@ test('the enumeration actually covers the legal space', () => {
   for (const [n, seen] of counts) assert.ok(seen > 1, `only ${seen} cast(s) enumerated at ${n} players`)
   // The deals the app ships must be in there, or the generator is missing a shape.
   for (const n of Object.keys(DEFAULT_ROLES).map(Number)) {
-    const want = [...DEFAULT_ROLES[n]].sort().join(',')
+    const want = [...DEFAULT_ROLES[n]!].sort().join(',')
     assert.ok(
       casts.some((c) => c.playerCount === n && [...c.roles].sort().join(',') === want),
       `default ${n}p deal missing from the enumeration`,
@@ -102,7 +102,7 @@ for (const cast of legalCasts()) {
       const view = viewFor(g, p.seat)
       for (const kind of kinds) {
         const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
-        const rendered = `${sys.content}\n${user.content}`
+        const rendered = `${sys!.content}\n${user!.content}`
         for (const role of absent) {
           if (mentions(rendered, role)) hits.add(`"${role}" in the ${kind} prompt for a ${p.role} seat`)
         }

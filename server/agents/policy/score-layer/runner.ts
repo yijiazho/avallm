@@ -133,9 +133,9 @@ export function scoreLayerDiagnosticOwnerVersion(
   ) throw new Error('score diagnostic ownership requires one resolved chain')
   let activeIndex = -1
   for (let index = 0; index < run.journal.length; index++) {
-    const configured = run.configured[index]
-    const definition = chain.definitions[index]
-    const entry = run.journal[index]
+    const configured = run.configured[index]!
+    const definition = chain.definitions[index]!
+    const entry = run.journal[index]!
     if (
       configured.id !== definition.token.id
       || configured.version !== definition.token.version
@@ -149,14 +149,14 @@ export function scoreLayerDiagnosticOwnerVersion(
   if (activeIndex < 0) {
     throw new Error('score diagnostic ownership requires an active scorer')
   }
-  const active = run.journal[activeIndex]
-  const definition = chain.definitions[activeIndex]
+  const active = run.journal[activeIndex]!
+  const definition = chain.definitions[activeIndex]!
   if (
     definition.kind !== 'transform'
     || definition.diagnosticOwner !== 'predecessor'
   ) return active.layer.version
   for (let index = activeIndex - 1; index >= 0; index--) {
-    const prior = run.journal[index]
+    const prior = run.journal[index]!
     if (prior.status === 'applied' || prior.status === 'generated') {
       return prior.layer.version
     }
@@ -307,7 +307,7 @@ function runPreparedScoreLayers(
   const journal: ScoreLayerJournalEntry[] = []
   let componentRun: Immutable<DecisionComponentRun> = input.componentRun
 
-  const rootCandidate = input.chain.definitions[0]
+  const rootCandidate = input.chain.definitions[0]!
   if (rootCandidate.kind !== 'root') {
     throw new Error('score layer chain does not begin with its total root')
   }
@@ -315,7 +315,7 @@ function runPreparedScoreLayers(
   const rootReads = scoreLayerReadJournal()
   if (!analysisAdmitted(
     root,
-    prepared.entries[0].requirements,
+    prepared.entries[0]!.requirements,
     input,
     operations,
   )) throw new Error('total score layer root analysis admission failed')
@@ -344,7 +344,7 @@ function runPreparedScoreLayers(
   journal.push(Object.freeze({
     layer: frozenRef(root.token),
     status: 'generated',
-    analysisRequirements: prepared.entries[0].requirements,
+    analysisRequirements: prepared.entries[0]!.requirements,
     analysisAdmission: 'admitted',
     componentLookups: frozenScoreLayerReadRefs(rootReads.lookups),
     componentReads: frozenScoreLayerReadRefs(rootReads.reads),
@@ -359,7 +359,7 @@ function runPreparedScoreLayers(
     layerIndex < input.chain.definitions.length;
     layerIndex++
   ) {
-    const candidate = input.chain.definitions[layerIndex]
+    const candidate = input.chain.definitions[layerIndex]!
     if (candidate.kind !== 'transform') {
       throw new Error('score layer chain has a second root')
     }
@@ -370,7 +370,7 @@ function runPreparedScoreLayers(
     }
     executed.add(key)
     const reads = scoreLayerReadJournal()
-    const analysisPreparation = prepared.entries[layerIndex]
+    const analysisPreparation = prepared.entries[layerIndex]!
     if (analysisPreparation.status === 'disabled') {
       journal.push(degraded(
         definition,

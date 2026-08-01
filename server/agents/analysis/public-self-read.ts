@@ -78,11 +78,11 @@ function weightedMoments(
   weightTotal: number,
 ): { mean: number; spread: number } {
   const mean = values.reduce(
-    (sum, value, index) => sum + weights[index] * value,
+    (sum, value, index) => sum + weights[index]! * value,
     0,
   ) / weightTotal
   const variance = values.reduce(
-    (sum, value, index) => sum + weights[index] * (value - mean) ** 2,
+    (sum, value, index) => sum + weights[index]! * (value - mean) ** 2,
     0,
   ) / weightTotal
   return { mean, spread: Math.sqrt(Math.max(0, variance)) }
@@ -155,17 +155,17 @@ export function buildPublicSelfRead(
   const seats = evilReadIndices.map((evilReadIndex, seat): PublicSelfRead => ({
     seat,
     probabilitySemantics: 'public-uniform-feasible-joint',
-    evilProbability: observer.seats[seat].evilProbability,
-    merlinProbability: likeness.seats[seat].merlinProbability,
+    evilProbability: observer.seats[seat]!.evilProbability,
+    merlinProbability: likeness.seats[seat]!.merlinProbability,
     proxySemantics: 'bounded-deterministic-proxy-not-role-probability',
     evilReadIndex,
-    merlinReadIndex: merlinReadIndices[seat],
-    servantWeight: servantWeights[seat],
+    merlinReadIndex: merlinReadIndices[seat]!,
+    servantWeight: servantWeights[seat]!,
     evilReadDeviation: deviationOf(
       evilReadIndex, evil.mean, evil.spread,
     ),
     merlinReadDeviation: deviationOf(
-      merlinReadIndices[seat], merlin.mean, merlin.spread,
+      merlinReadIndices[seat]!, merlin.mean, merlin.spread,
     ),
   }))
 
@@ -316,10 +316,10 @@ function publicSelfReadSchema(detached: unknown): boolean {
   for (let seat = 0; seat < playerCount; seat++) {
     const entry = seats[seat] as Record<string, unknown>
     const expectedEvil = deviationOf(
-      evilReadIndices[seat], evil.mean, evil.spread,
+      evilReadIndices[seat]!, evil.mean, evil.spread,
     )
     const expectedMerlin = deviationOf(
-      merlinReadIndices[seat], merlin.mean, merlin.spread,
+      merlinReadIndices[seat]!, merlin.mean, merlin.spread,
     )
     if (
       Math.abs(expectedEvil - (entry.evilReadDeviation as number))

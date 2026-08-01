@@ -117,7 +117,7 @@ function assassination(): Fixture {
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
   while (game.phase !== 'assassination') {
-    const req = expectedDecisions(game)[0]
+    const req = expectedDecisions(game)[0]!
     const view = viewFor(game, req.seat)
     applyDecision(
       game,
@@ -127,7 +127,7 @@ function assassination(): Fixture {
         : heuristicDecide(req, view, game.seed),
     )
   }
-  const req = expectedDecisions(game)[0]
+  const req = expectedDecisions(game)[0]!
   return {
     caseId: 'assassin-target',
     seed: game.seed,
@@ -150,14 +150,14 @@ function robustD3(): Fixture {
   // is unchanged by the pending/complete refactor. Quest 3 resets to pending; an
   // unresolved quest's team is never read, so dropping it (the union carries no
   // in-progress team) does not move the digest either.
-  const resolvedTwo = base.quests[1]
+  const resolvedTwo = base.quests[1]!
   if (resolvedTwo.status !== 'complete') {
     throw new Error('robust D3 source fixture must have a resolved quest 2')
   }
   const view = {
     ...base,
     seat: 4,
-    name: base.players[4].name,
+    name: base.players[4]!.name,
     role: 'assassin' as const,
     alignment: 'evil' as const,
     privateInfo: { kind: 'evil' as const, evilPartners: [5] },

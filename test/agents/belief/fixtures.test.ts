@@ -113,7 +113,7 @@ test('every frozen Phase 0 decision fixture meets the exact-belief exit gate', (
   )
 
   for (const fixture of fixtures) {
-    const expected = EXPECTED[fixture.id]
+    const expected = EXPECTED[fixture.id]!
     const snapshot = exactBelief(fixture.view)
     assert.deepEqual(exactBelief(fixture.view), snapshot, `${fixture.id}: posterior determinism`)
     assert.equal(snapshot.throughSeq, expected.throughSeq, fixture.id)
@@ -129,6 +129,6 @@ test('every frozen Phase 0 decision fixture meets the exact-belief exit gate', (
     close(assessment.cleanProbability, expected.clean)
     assert.equal(assessment.evilCountDistribution.length, expected.distribution.length)
     assessment.evilCountDistribution.forEach((probability, evilCount) =>
-      close(probability, expected.distribution[evilCount]))
+      close(probability, expected.distribution[evilCount]!))
   }
 })

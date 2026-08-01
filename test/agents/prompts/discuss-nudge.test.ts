@@ -26,7 +26,7 @@ const askAtRound = (round: number): string => {
   const view = viewFor(g, 0)
   mutable(view).discussionRound = round
   const [, user] = buildMessages('discuss', view, '', {})
-  return user.content
+  return user!.content
 }
 
 test('the discuss ask never teaches passivity as a statistic', () => {

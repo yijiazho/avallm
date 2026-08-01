@@ -100,7 +100,7 @@ export function hiddenTeamEvilMarginals(
   for (const hypothesis of posterior.hypotheses) {
     for (const seat of hypothesis.evilSeats) {
       if (seat >= 0 && seat < playerCount) {
-        addProbability(accumulators[seat], hypothesis.probability)
+        addProbability(accumulators[seat]!, hypothesis.probability)
       }
     }
   }
@@ -289,7 +289,7 @@ function validateBelief(snapshot: BeliefSnapshot): {
     && snapshot.worlds.some(
       (weighted) =>
         Math.abs(
-          weighted.probability - snapshot.worlds[0].probability,
+          weighted.probability - snapshot.worlds[0]!.probability,
         ) > PROBABILITY_TOLERANCE,
     )
   ) {

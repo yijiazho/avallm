@@ -83,7 +83,7 @@ export function seededSelectionReplayInvalid(params: {
   } = params
   if (forcedSelected) {
     return viable.length !== 1
-      || viable[0].candidateId !== forcedSelected
+      || viable[0]!.candidateId !== forcedSelected
       || rows.some((score) => {
         const feature = featuresOf(score)
         return feature.seedBucket !== undefined
@@ -110,7 +110,7 @@ export function seededSelectionReplayInvalid(params: {
       })
   }
   return viable.length !== 1
-    || viable[0].candidateId !== canonicalTop
+    || viable[0]!.candidateId !== canonicalTop
     || rows.some((score) => {
       const feature = featuresOf(score)
       return feature.seedBucket !== undefined

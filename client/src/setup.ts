@@ -10,6 +10,14 @@ import type { Role } from './types.ts'
 
 export const EVIL_COUNT: Record<number, number> = { 5: 2, 6: 2, 7: 3, 8: 3, 9: 3 }
 
+export function evilCountFor(playerCount: number): number {
+  const count = EVIL_COUNT[playerCount]
+  if (count === undefined) {
+    throw new RangeError(`no evil-player count for ${playerCount} players`)
+  }
+  return count
+}
+
 // Mirrors server/engine/rules.ts TEAM_SIZES / failsRequired (display only —
 // the engine is authoritative). Quest 4 at 7+ players needs 2 fails.
 export const TEAM_SIZES: Record<number, number[]> = {
@@ -144,7 +152,7 @@ const REQUIRES: Partial<Record<keyof SpecialSelection, { needs: keyof SpecialSel
 }
 
 export function buildRoles(playerCount: number, sel: SpecialSelection): BuiltRoles {
-  const evil = EVIL_COUNT[playerCount]
+  const evil = evilCountFor(playerCount)
   const good = playerCount - evil
   const goodSpecials = (sel.merlinPair ? 1 : 0) + (sel.percival ? 1 : 0)
   const evilSpecials = (sel.merlinPair ? 1 : 0) + (sel.morgana ? 1 : 0) + (sel.mordred ? 1 : 0) + (sel.oberon ? 1 : 0)

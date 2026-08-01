@@ -17,8 +17,9 @@
 import {
   computeMetrics,
 } from '../core/metrics.ts'
-import type {
-  GameArtifact,
+import {
+  artifactPlayerAt,
+  type GameArtifact,
 } from '../core/artifact.ts'
 import {
   countVoteByDirection,
@@ -110,7 +111,10 @@ export function observe(a: GameArtifact): GameObservation {
   )
   const decisionTraces = traceSafety.traces
   const metrics = computeMetrics(a)
-  const seatMetrics = metrics.seats[meta.targetSeat]
+  const seatMetrics = metrics.seats.find((seat) => seat.seat === meta.targetSeat)
+  if (!seatMetrics) {
+    throw new Error(`${a.id}: metrics are missing target seat ${meta.targetSeat}`)
+  }
   const decisions = new Map<string, number>()
   let cleanInitialProposals = 0
   let initialProposals = 0
@@ -123,7 +127,7 @@ export function observe(a: GameArtifact): GameObservation {
       initialProposals++
       if (
         ev.payload.team.every(
-          (teamSeat) => a.players[teamSeat].alignment === 'good',
+          (teamSeat) => artifactPlayerAt(a, teamSeat).alignment === 'good',
         )
       ) {
         cleanInitialProposals++

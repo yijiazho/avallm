@@ -98,7 +98,7 @@ function dealtTargetSeat(
   const game = createGame({
     seed,
     playerCount,
-    roles: [...CASTS[playerCount]],
+    roles: [...CASTS[playerCount]!],
     talk: NO_DISCUSSION,
   })
   const target = game.players.find((player) => player.role === targetRole)
@@ -123,7 +123,7 @@ export const WIDE_GOOD_BANK: readonly ArchitectureBankCase[] = Object.freeze(
           id: `${playerCount}p-${targetRole}-${index}`,
           seed,
           playerCount,
-          roles: CASTS[playerCount],
+          roles: CASTS[playerCount]!,
           talk: NO_DISCUSSION,
           targetRole,
           expectedTargetSeat: dealtTargetSeat(seed, playerCount, targetRole),

@@ -152,7 +152,7 @@ export function teamEvilCountDistribution<Item>(
   for (const item of items) {
     let count = 0
     for (const seat of team) if (isEvilOnTeam(item, seat)) count += 1
-    out[count] += probabilityOf(item)
+    out[count]! += probabilityOf(item)
   }
   return out
 }
@@ -198,7 +198,7 @@ export function certaintyDifferential(
     throw new Error('certainty differential requires aligned marginals')
   }
   return privateEvilProbability.map((privateEvil, seat) => {
-    const publicEvil = publicEvilProbability[seat]
+    const publicEvil = publicEvilProbability[seat]!
     const publicUncertain = publicEvil > 0 && publicEvil < 1
     const privatePin: PrivatePin =
       !publicUncertain ? null

@@ -94,8 +94,8 @@ test('reading more Merlin-like raises the decoy value', () => {
   const ranked = [...read.seats].sort(
     (left, right) => left.merlinReadDeviation - right.merlinReadDeviation,
   )
-  const least = ranked[0]
-  const most = ranked[ranked.length - 1]
+  const least = ranked[0]!
+  const most = ranked[ranked.length - 1]!
   assert.notEqual(
     least.merlinReadDeviation,
     most.merlinReadDeviation,
@@ -274,7 +274,7 @@ test('a cast without Merlin leaves the objective inapplicable, not degraded', as
       roles: [...roles],
     })
     const req = expectedDecisions(game).find(
-      (decision) => game.players[decision.seat].role === 'servant',
+      (decision) => game.players[decision.seat]!.role === 'servant',
     )
     if (!req) continue
     const trace = (await createComposedAgent({

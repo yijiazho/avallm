@@ -223,7 +223,7 @@ test('the viewer\'s own proposals are an exact, non-degraded no-op', async () =>
       applyDecision(
         game,
         req.seat,
-        (await agents[req.seat].decide(req, view)).decision,
+        (await agents[req.seat]!.decide(req, view)).decision,
       )
     }
     if (game.log.some((event) => event.type === 'proposal')) {
@@ -402,7 +402,7 @@ test('the factor only redistributes inside the feasible set', async () => {
       applyDecision(
         game,
         req.seat,
-        (await agents[req.seat].decide(req, viewFor(game, req.seat))).decision,
+        (await agents[req.seat]!.decide(req, viewFor(game, req.seat))).decision,
       )
     }
   }

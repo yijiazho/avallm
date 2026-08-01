@@ -110,7 +110,7 @@ test('every exact snapshot satisfies its distribution postconditions', () => {
 
 test('assessTeams distributions are valid across a real deal', () => {
   const game = createGame({ seed: 'inv-assess', playerCount: 7, roles: CASTS[7] })
-  const snapshot = exactBelief(viewFor(game, game.players[0].seat))
+  const snapshot = exactBelief(viewFor(game, game.players[0]!.seat))
   const teams = [[0, 1, 2], [3, 4, 5, 6], [0, 6]]
   const assessments = assessTeams(snapshot, teams)
   for (const assessment of assessments) {
@@ -119,7 +119,7 @@ test('assessTeams distributions are valid across a real deal', () => {
     assert.equal(assessment.cleanProbability, assessment.evilCountDistribution[0])
   }
   // Single-team convenience wrapper agrees with the batch.
-  assert.deepEqual(assessTeam(snapshot, teams[0]), assessments[0])
+  assert.deepEqual(assessTeam(snapshot, teams[0]!), assessments[0])
 })
 
 // The projection's own normalization is the last summation before a snapshot
@@ -209,7 +209,7 @@ test('the widest snapshot entropy is exact enough to survive an observer-grade c
 
 test('beliefFromWeightedWorlds normalizes arbitrary positive weights into a valid snapshot', () => {
   const game = createGame({ seed: 'inv-corrupt', playerCount: 5, roles: CASTS[5] })
-  const view = viewFor(game, game.players[0].seat)
+  const view = viewFor(game, game.players[0]!.seat)
   // Ascending raw weights the projection must normalize. Its internal
   // postcondition runs on this non-uniform data, so reaching a well-formed
   // snapshot (rather than a throw) is the proof the guard passed here.

@@ -61,10 +61,10 @@ export function advanceDecisionComponentRun(
     throw new Error('component run advancement changed resolved graph state')
   }
   for (let index = 0; index < prior.policyUse.length; index++) {
-    const before = prior.policyUse[index]
-    const after = next.policyUse[index]
+    const before = prior.policyUse[index]!
+    const after = next.policyUse[index]!
     const prefix = before.stages.every(
-      (stage, stageIndex) => after.stages[stageIndex] === stage,
+      (stage, stageIndex) => after.stages[stageIndex]! === stage,
     )
     if (
       componentIdentityKey(before.component) !==

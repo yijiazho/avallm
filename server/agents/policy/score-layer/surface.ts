@@ -274,9 +274,9 @@ export function createScoreLayerSurfaceRuntime(
           let viableSurvivors = 0
           for (let index = 0; index < draft.scores.length; index++) {
             operations.surfaceRowsVisited++
-            const source = draft.scores[index]
+            const source = draft.scores[index]!
             if (
-              source.candidateId !== candidates[index].id
+              source.candidateId !== candidates[index]!.id
               || typeof source.value !== 'number'
               || !Number.isFinite(source.value)
               || typeof source.viable !== 'boolean'
@@ -306,7 +306,7 @@ export function createScoreLayerSurfaceRuntime(
               reasonIndex++
             ) {
               operations.surfaceReasonsVisited++
-              const reason = source.reasonCodes[reasonIndex]
+              const reason = source.reasonCodes[reasonIndex]!
               if (
                 typeof reason !== 'string'
                 || reason.length > MAX_SCORE_LAYER_STRING_BYTES

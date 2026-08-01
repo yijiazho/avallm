@@ -459,7 +459,7 @@ function plannerOutputSchema(
       : [],
   )
   const automaticDiscussion = context.viableCandidates.length === 1
-    && context.viableCandidates[0].decision.kind === 'discuss'
+    && context.viableCandidates[0]!.decision.kind === 'discuss'
   const properties: Record<string, unknown> = {
     candidateId: automaticDiscussion
       ? { const: structuredCandidateId }

@@ -54,7 +54,7 @@ const matchPointReached = (g: Game): boolean =>
 
 // Run one quest to a chosen outcome, leaving the game at the next proposal.
 function playQuest(g: Game, outcome: 'success' | 'fail'): void {
-  const q = g.quests[g.round - 1]
+  const q = g.quests[g.round - 1]!
   const evil = g.players.filter((p) => p.alignment === 'evil').map((p) => p.seat)
   const rest = g.players.map((p) => p.seat).filter((s) => !evil.includes(s))
   const team = outcome === 'fail'
@@ -67,7 +67,7 @@ function playQuest(g: Game, outcome: 'success' | 'fail'): void {
     const fails = outcome === 'fail' && evil.includes(d.seat)
     applyDecision(g, d.seat, { kind: 'quest', card: fails ? 'fail' : 'success' })
   }
-  assert.equal(asCompletedQuest(g.quests[round - 1]).result, outcome)
+  assert.equal(asCompletedQuest(g.quests[round - 1]!).result, outcome)
 }
 
 // Board at good's match point with Q4 pending: two clean quests, then one
@@ -79,14 +79,14 @@ function boardAtQ4MatchPoint(prefix: string, pred: (g: Game) => boolean = () => 
   playQuest(g, 'success')
   playQuest(g, 'fail')
   assert.equal(g.round, 4)
-  assert.equal(g.quests[3].failsRequired, 2)
+  assert.equal(g.quests[3]!.failsRequired, 2)
   assert.equal(g.quests.filter((q) => q.status === 'complete' && q.result === 'success').length, 2)
   return g
 }
 
 // Put a specific team on the table (the leader proposes it) and stop at the vote.
 function proposeTeam(g: Game, team: Seat[]): void {
-  assert.equal(team.length, g.quests[g.round - 1].teamSize)
+  assert.equal(team.length, g.quests[g.round - 1]!.teamSize)
   applyDecision(g, g.leaderSeat, { kind: 'propose', team })
   assert.equal(g.phase, 'vote')
 }
@@ -100,19 +100,19 @@ const decide = (g: Game, kind: DecisionRequest['kind'], seat: Seat): Decision =>
 test('evil rejects the team that ends the game when it knows of no way to sink it', () => {
   const g = boardAtQ4MatchPoint('h-vote-reject')
   const [pairA] = pairSeats(g)
-  const team = [pairA, ...goodSeats(g)].slice(0, g.quests[3].teamSize)
+  const team = [pairA!, ...goodSeats(g)].slice(0, g.quests[3]!.teamSize)
   proposeTeam(g, team)
 
   // One known evil aboard a quest that needs two: approving runs good's third
   // quest and leaves only the assassin's guess. The reject is the last lever.
-  const d = decide(g, 'vote', pairA)
+  const d = decide(g, 'vote', pairA!)
   assert.deepEqual(d, { kind: 'vote', vote: 'reject' })
 })
 
 test('evil still approves a match-point team its own side can sink', () => {
   const g = boardAtQ4MatchPoint('h-vote-approve')
   const pair = pairSeats(g)
-  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[3].teamSize)
+  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[3]!.teamSize)
   proposeTeam(g, team)
 
   // Two known Fails aboard: approval keeps the option, and whether the cards
@@ -127,20 +127,20 @@ test('a lone evil does not burn a Fail on the two-Fail quest, even at match poin
   const g = boardAtQ4MatchPoint('h-quest-lone')
   const [pairA] = pairSeats(g)
   const oberon = seatsOfRole(g, 'oberon')[0]
-  const team = [pairA, ...goodSeats(g).filter((s) => s !== oberon)].slice(0, g.quests[3].teamSize)
+  const team = [pairA!, ...goodSeats(g).filter((s) => s !== oberon)].slice(0, g.quests[3]!.teamSize)
   proposeTeam(g, team)
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
   assert.equal(g.phase, 'quest')
 
   // The card cannot sink a quest needing two and only advertises an evil. The
   // match point does not change that: it is dominated on every board.
-  assert.deepEqual(decide(g, 'quest', pairA), { kind: 'quest', card: 'success' })
+  assert.deepEqual(decide(g, 'quest', pairA!), { kind: 'quest', card: 'success' })
 })
 
 test('Oberon is exempt: it Fails the two-Fail quest it cannot coordinate on', () => {
   const g = boardAtQ4MatchPoint('h-quest-oberon')
-  const oberon = seatsOfRole(g, 'oberon')[0]
-  const team = [oberon, ...goodSeats(g)].slice(0, g.quests[3].teamSize)
+  const oberon = seatsOfRole(g, 'oberon')[0]!
+  const team = [oberon, ...goodSeats(g)].slice(0, g.quests[3]!.teamSize)
   proposeTeam(g, team)
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
 
@@ -153,7 +153,7 @@ test('Oberon is exempt: it Fails the two-Fail quest it cannot coordinate on', ()
 test('a known pair both Fail the two-Fail quest on a decisive board', () => {
   const g = boardAtQ4MatchPoint('h-quest-pair')
   const pair = pairSeats(g)
-  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[3].teamSize)
+  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[3]!.teamSize)
   proposeTeam(g, team)
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
 
@@ -174,11 +174,11 @@ test('the pair never doubles up on an undecided one-Fail quest', () => {
     const g = findGame(7, `h-quest-undecided-${i}`, () => true)
     playQuest(g, 'success')
     playQuest(g, 'fail')
-    assert.equal(g.quests[2].failsRequired, 1)
+    assert.equal(g.quests[2]!.failsRequired, 1)
     assert.ok(!matchPointReached(g), 'board is still undecided')
 
     const pair = pairSeats(g)
-    const team = [...pair, ...goodSeats(g)].slice(0, g.quests[2].teamSize)
+    const team = [...pair, ...goodSeats(g)].slice(0, g.quests[2]!.teamSize)
     proposeTeam(g, team)
     for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
 
@@ -195,10 +195,10 @@ test('on a decisive board both known evil spend a card, convention or not', () =
   const g = findGame(5, 'h-quest-decisive', () => true)
   playQuest(g, 'fail')
   playQuest(g, 'fail')
-  assert.equal(g.quests[2].failsRequired, 1)
+  assert.equal(g.quests[2]!.failsRequired, 1)
 
   const pair = pairSeats(g)
-  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[2].teamSize)
+  const team = [...pair, ...goodSeats(g)].slice(0, g.quests[2]!.teamSize)
   proposeTeam(g, team)
   for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
 
@@ -213,12 +213,12 @@ test('on a decisive board both known evil spend a card, convention or not', () =
 
 test('an evil leader seats a partner on the quest that needs two Fails', () => {
   const g = boardAtQ4MatchPoint('h-propose-pair',
-    (game) => game.players[(game.leaderSeat + 3) % 7].alignment === 'evil')
+    (game) => game.players[(game.leaderSeat + 3) % 7]!.alignment === 'evil')
   // Three resolved quests rotate leadership three seats on; the deal was chosen
   // so that lands on evil.
   const leader = g.leaderSeat
-  assert.equal(g.players[leader].alignment, 'evil')
-  assert.notEqual(g.players[leader].role, 'oberon') // Oberon has no partner to seat
+  assert.equal(g.players[leader]!.alignment, 'evil')
+  assert.notEqual(g.players[leader]!.role, 'oberon') // Oberon has no partner to seat
 
   const d = decide(g, 'propose', leader) as { kind: 'propose'; team: Seat[] }
   const partners = evilPartnersOf(viewFor(g, leader).privateInfo)
@@ -230,7 +230,7 @@ test('an evil leader seats a partner on the quest that needs two Fails', () => {
 
 test('the one-evil-per-team default still holds on the quests that need one Fail', () => {
   const g = findGame(7, 'h-propose-solo', (game) => {
-    const l = game.players[game.leaderSeat]
+    const l = game.players[game.leaderSeat]!
     return l.alignment === 'evil' && l.role !== 'oberon'
   })
   const leader = g.leaderSeat

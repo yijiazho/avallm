@@ -156,7 +156,7 @@ export function recommendPolicy(results: VariantResult[]): Recommendation {
     .filter((r) => r.name !== 'none-sent' && clean(r))
     .sort((a, b) => a.cost - b.cost)
   if (cleanFlags.length) {
-    const w = cleanFlags[0]
+    const w = cleanFlags[0]!
     const send = VARIANTS.find((v) => v.name === w.name)!.send
     return {
       canSuppress: true, suppress: send, variant: w.name,

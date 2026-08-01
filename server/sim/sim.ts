@@ -182,7 +182,7 @@ if (values.pack) {
   if (forcedModel) packTable = packTable.map((t) => ({ agent: t.agent, model: forcedModel }))
   packDefs = packTable.map((t) => lib.agents.find((a) => a.id === t.agent)!)
   if (!values.quiet) {
-    const seats = packTable.map((t, i) => `${packDefs![i].name}${t.model ? ` (${t.model})` : ''}`)
+    const seats = packTable.map((t, i) => `${packDefs![i]!.name}${t.model ? ` (${t.model})` : ''}`)
     console.log(`pack "${pack.name}": ${seats.join(', ')}`)
   }
 }
@@ -264,7 +264,7 @@ function resolveTablePlan(seed: string): TablePlan {
   const tierTable = tierTableFor(seed)
 
   const spec = (seat: Seat): AgentSpec => {
-    if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length].id }
+    if (isLlm) return { type: 'llm', model: tierTable?.[seat] ?? forcedModel ?? ROSTER[seat % ROSTER.length]!.id }
     if (composedBrain) return { type: 'composed', brain: composedBrain }
     if (values.agents === 'random') return { type: 'random' }
     if (values.agents === 'mixed') return seat % 2 === 0 ? { type: 'heuristic' } : { type: 'random' }
@@ -272,7 +272,7 @@ function resolveTablePlan(seed: string): TablePlan {
   }
 
   const agent = (seat: Seat, ctx: AgentContext): AvalonAgent => {
-    if (packTable && packDefs) return createAgentFromDef(packDefs[seat], ctx, packTable[seat].model)
+    if (packTable && packDefs) return createAgentFromDef(packDefs[seat]!, ctx, packTable[seat]!.model)
     return createAgent(spec(seat), ctx)
   }
 
@@ -283,7 +283,10 @@ function resolveTablePlan(seed: string): TablePlan {
   // What actually sat in a seat for the replayable evaluation artifact.
   const descriptor = (seat: Seat): string => {
     if (packTable && packDefs) {
-      return agentDescriptor(packDefs[seat], packTable[seat].model)
+      const def = packDefs[seat]
+      const tableSeat = packTable[seat]
+      if (!def || !tableSeat) throw new Error(`missing pack seat ${seat}`)
+      return agentDescriptor(def, tableSeat.model)
     }
     const s = spec(seat)
     if (s.type === 'llm') return `llm:${s.model}`
@@ -293,7 +296,7 @@ function resolveTablePlan(seed: string): TablePlan {
 
   const transcriptIdentity = (seat: Seat): { agent: string; model?: string } => {
     if (packTable && packDefs) {
-      const info = publicInfo(packDefs[seat], packTable[seat].model)
+      const info = publicInfo(packDefs[seat]!, packTable[seat]!.model)
       return { agent: info.name, model: info.model }
     }
     const s = spec(seat)
@@ -530,7 +533,7 @@ if (isLlm) {
   console.log(`\nLLM spend: $${client.getTotalCost().toFixed(4)} total`)
   const byModel = new Map<string, { cost: number; calls: number; leaks: number }>()
   for (const [tag, e] of Object.entries(spend)) {
-    const model = tag.split('/')[0]
+    const model = tag.split('/')[0]!
     const agg = byModel.get(model) ?? { cost: 0, calls: 0, leaks: 0 }
     agg.cost += e.cost
     agg.calls += e.calls

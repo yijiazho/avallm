@@ -413,7 +413,7 @@ function decodeCanonicalDecisionLayerTrace(
     || !journal
     || journal.length !== configured.length
     || !journal.every((entry, index) =>
-      validJournalEntry(entry, configured[index]))
+      validJournalEntry(entry, configured[index]!))
   ) return undefined
   const surface = frozenRecord(run.surface, [
     ...SURFACE_KEYS,

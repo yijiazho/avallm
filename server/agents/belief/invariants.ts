@@ -42,7 +42,7 @@ export function assertDistribution(
 ): readonly number[] {
   const total: CompensatedProbability = { sum: 0, compensation: 0 }
   for (let index = 0; index < values.length; index++) {
-    const value = values[index]
+    const value = values[index]!
     if (!Number.isFinite(value) || value < -tolerance) {
       throw new BeliefInvariantError(
         `${label}[${index}] is not a probability mass: ${value}`,

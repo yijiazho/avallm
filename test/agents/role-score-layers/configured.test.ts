@@ -115,7 +115,7 @@ test('configured score seam owns family selection and registry construction', ()
   for (const [scorer, terminal] of cases) {
     assert.equal(configuredScoreLayerTerminalFor(scorer), terminal)
     const chain = registry.resolve({ terminal })
-    assert.equal(chain.order[0].id, COMPATIBILITY_SCORE_LAYER.id)
+    assert.equal(chain.order[0]!.id, COMPATIBILITY_SCORE_LAYER.id)
     assert.equal(chain.order.at(-1)?.id, terminal.id)
   }
   assert.equal(

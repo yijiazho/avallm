@@ -253,7 +253,7 @@ function projectGood(
   const inViableBand =
     voteRows.length === 2
     && Math.abs(
-      voteRows[0].combinedValue - voteRows[1].combinedValue,
+      voteRows[0]!.combinedValue - voteRows[1]!.combinedValue,
     ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
   const seeded = scorerVersion === ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
   const bandActive =
@@ -338,7 +338,7 @@ function projectEvil(
     : []
   const inViableBand =
     voteRows.length === 2
-    && Math.abs(voteRows[0].roleValue - voteRows[1].roleValue)
+    && Math.abs(voteRows[0]!.roleValue - voteRows[1]!.roleValue)
       <= EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
   const seeded =
     scorerVersion === EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION
@@ -377,8 +377,10 @@ function projectEvil(
       ...(band.seedBucket === undefined ? {} : { seedBucket: band.seedBucket }),
       utility: structuredClone(utility),
     }
+    const score = mechanical([row], scorerVersion)[0]
+    if (!score) throw new Error('evil-role diagnostic projection missing')
     return {
-      ...mechanical([row], scorerVersion)[0],
+      ...score,
       evilRoleObjectiveFeatures,
     }
   })
@@ -437,8 +439,10 @@ function projectMorgana(
         : { seedBucket: projection.seedBucket }),
       utility: structuredClone(utility),
     }
+    const score = mechanical([row], scorerVersion)[0]
+    if (!score) throw new Error('Morgana diagnostic projection missing')
     return {
-      ...mechanical([row], scorerVersion)[0],
+      ...score,
       morganaRoleObjectiveFeatures,
     }
   })

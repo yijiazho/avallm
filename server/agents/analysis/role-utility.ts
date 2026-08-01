@@ -301,7 +301,7 @@ function buildRoleUtilityProjectionInternal(
   const assessments = candidates.map(
     (candidate, index): RoleUtilityAssessment => {
       const source = objectives.get(candidate.id)
-      const publicTeam = publicTeams[index]
+      const publicTeam = publicTeams[index]!
       if (
         !source
         || source.candidate.candidateId !== candidate.id
@@ -541,7 +541,7 @@ function roleUtilitySchema(detached: unknown): boolean {
       })
       if (
         Math.abs(distributionTotal - 1) > PROBABILITY_TOLERANCE
-        || Math.abs(distribution[0]
+        || Math.abs(distribution[0]!
           - (common.publicTeamCleanProbability as number)) > PROBABILITY_TOLERANCE
         || Math.abs(publicFailure
           - (common.publicTeamFailureCapabilityProbability as number))

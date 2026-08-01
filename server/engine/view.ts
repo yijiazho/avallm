@@ -98,6 +98,12 @@ function createPlayerViewProjection(
   let nextEvent = 0
   let lastProjectedEvent: GameEvent | undefined
 
+  const eventsForSeat = (seat: Seat): GameEvent[] => {
+    const events = visibleEvents[seat]
+    if (!events) throw new Error(`no event projection for seat ${seat}`)
+    return events
+  }
+
   const assertImmutableEvent = (
     value: unknown,
     seen = new Set<object>(),
@@ -138,10 +144,10 @@ function createPlayerViewProjection(
     }
     if (
       nextEvent > 0
-      && (
-        candidate.log[nextEvent - 1] !== lastProjectedEvent
-        || candidate.log[nextEvent - 1].seq !== nextEvent - 1
-      )
+      && (() => {
+        const previous = candidate.log[nextEvent - 1]
+        return previous !== lastProjectedEvent || previous?.seq !== nextEvent - 1
+      })()
     ) {
       throw new Error('incremental player-view projection prefix mismatch')
     }
@@ -149,7 +155,7 @@ function createPlayerViewProjection(
 
   const projectEvent = (ev: GameEvent): void => {
     for (const seat of projectedSeats) {
-      if (eventVisibleTo(ev, seat)) visibleEvents[seat].push(ev)
+      if (eventVisibleTo(ev, seat)) eventsForSeat(seat).push(ev)
     }
 
     if (ev.type === 'proposal') {
@@ -171,6 +177,7 @@ function createPlayerViewProjection(
       }
     } else if (ev.type === 'proposalRevised') {
       const rec = proposals[proposals.length - 1]
+      if (!rec) throw new Error('proposal revision without proposal')
       rec.team = ev.payload.to.slice()
       rec.revision = {
         from: ev.payload.from.slice(),
@@ -186,6 +193,7 @@ function createPlayerViewProjection(
       }
     } else if (ev.type === 'voteReveal') {
       const rec = proposals[proposals.length - 1]
+      if (!rec) throw new Error('vote reveal without proposal')
       rec.resolution = {
         votes: ev.payload.votes.map((vote) => ({ ...vote })),
         approved: ev.payload.approved,
@@ -217,6 +225,9 @@ function createPlayerViewProjection(
       const from = nextEvent
       while (nextEvent < candidate.log.length) {
         const event = candidate.log[nextEvent]
+        if (!event) {
+          throw new Error(`incremental player-view projection missing event ${nextEvent}`)
+        }
         if (event.seq !== nextEvent) {
           throw new Error(
             `incremental player-view projection expected seq ${nextEvent}, got ${event.seq}`,
@@ -262,7 +273,8 @@ function createPlayerViewProjection(
         discussionPostRevision: candidate.discussion?.postRevision,
         transcript: transcript.map((entry) => ({
           seat: entry.seat,
-          name: candidate.players[entry.seat].name,
+          name: candidate.players[entry.seat]?.name
+            ?? (() => { throw new Error(`no player at seat ${entry.seat}`) })(),
           text: entry.text,
           ...(entry.prop
             ? {
@@ -273,7 +285,7 @@ function createPlayerViewProjection(
               }
             : {}),
         })),
-        events: visibleEvents[seat].slice(),
+        events: eventsForSeat(seat).slice(),
         outcome: candidate.outcome ? { ...candidate.outcome } : undefined,
       }
     },

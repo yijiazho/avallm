@@ -222,8 +222,8 @@ function admitsProposal(
     context.request.kind !== 'propose'
     || context.view.alignment !== 'good'
     || context.requirements.length !== 1
-    || context.requirements[0].id !== GOOD_PROPOSAL_ANALYSIS.id
-    || context.requirements[0].version !== GOOD_PROPOSAL_ANALYSIS.version
+    || context.requirements[0]!.id !== GOOD_PROPOSAL_ANALYSIS.id
+    || context.requirements[0]!.version !== GOOD_PROPOSAL_ANALYSIS.version
     || context.analysis.policyCandidateAssessments.length
       !== context.candidates.length
   ) return false
@@ -326,7 +326,7 @@ function voteUtility(
   const best = alternatives[0]
   if (
     currentMatches.length !== 1
-    || projection.currentCandidateId !== currentMatches[0][0]
+    || projection.currentCandidateId !== currentMatches[0]![0]
     || !sequenceEqual(projection.currentTeam.team, currentTeam)
     || projection.currentTeam.cleanProbability
       !== context.analysis.currentTeam?.cleanProbability
@@ -377,8 +377,8 @@ function admitsVote(
 ): boolean {
   if (
     context.requirements.length !== 1
-    || context.requirements[0].id !== GOOD_VOTE_ANALYSIS.id
-    || context.requirements[0].version !== GOOD_VOTE_ANALYSIS.version
+    || context.requirements[0]!.id !== GOOD_VOTE_ANALYSIS.id
+    || context.requirements[0]!.version !== GOOD_VOTE_ANALYSIS.version
   ) return false
   try {
     // Both utility versions read the same joined inputs, so either one proves
@@ -904,7 +904,7 @@ function roleDefinition(
       const voteRows = context.request.kind === 'vote' ? allowedRows : []
       const inBand = voteRows.length === 2
         && Math.abs(
-          voteRows[0].combinedValue - voteRows[1].combinedValue,
+          voteRows[0]!.combinedValue - voteRows[1]!.combinedValue,
         ) <= ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
       const bandActive = !forcedSelection && seeded && inBand
       const seedBucket = bandActive

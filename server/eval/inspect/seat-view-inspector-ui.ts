@@ -160,7 +160,7 @@ function createRequestHandler(
           sendError(response, 404, `unknown fixture "${id ?? ''}"`)
           return
         }
-        sendJson(response, 200, entries[index].inspection)
+        sendJson(response, 200, entries[index]!.inspection)
         return
       }
       const asset = request.method === 'GET' ? ASSETS.get(url.pathname) : undefined

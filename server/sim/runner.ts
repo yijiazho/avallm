@@ -70,7 +70,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
   const flushEvents = async () => {
     if (!opts.onEvent) return
     while (emitted < game.log.length) {
-      await opts.onEvent(game.log[emitted++])
+      await opts.onEvent(game.log[emitted++]!)
     }
   }
   await flushEvents()
@@ -107,7 +107,7 @@ export async function runGame(opts: RunOpts): Promise<RunResult> {
 
     // All current requests are independent (same phase), so resolve together.
     const results = reqs.length === 1
-      ? [await decideOne(reqs[0])]
+      ? [await decideOne(reqs[0]!)]
       : await Promise.all(reqs.map(decideOne))
 
     for (const { req, view, agent, decision, trace, selected } of results) {

@@ -45,7 +45,7 @@ import {
   runVirtualAssassinEvaluation,
   type VirtualAssassinEvidence,
 } from '../harness/virtual-assassin.ts'
-import type { GameArtifact } from '../core/artifact.ts'
+import { artifactPlayerAt, type GameArtifact } from '../core/artifact.ts'
 import type { Role } from '../../engine/types.ts'
 
 export const PHASE7_ROLE_EVAL_VERSION = 'phase7-role-eval-v1'
@@ -273,10 +273,10 @@ export function phase7RoleEvidenceRow(
   if (summaries.length !== 1) {
     throw new Error(`${artifact.id}: expected one architecture summary`)
   }
-  const summary: ArchitectureVariantSummary = summaries[0]
+  const summary: ArchitectureVariantSummary = summaries[0]!
   const manifest = artifact.strategyVersions?.resolvedArchitecture
   if (!manifest) throw new Error(`${artifact.id}: missing resolved identity`)
-  const target = artifact.players[meta.targetSeat]
+  const target = artifactPlayerAt(artifact, meta.targetSeat)
   const componentEvidence = summary.componentEvidence
   if (!componentEvidence) {
     throw new Error(`${artifact.id}: missing exact component evidence`)

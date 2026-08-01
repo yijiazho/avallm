@@ -48,7 +48,7 @@ const CASTS: Readonly<Record<number, readonly Role[]>> = {
 async function play(
   playerCount: number,
   seed: string,
-  roles: readonly Role[] = CASTS[playerCount],
+  roles: readonly Role[] = CASTS[playerCount]!,
 ): Promise<GameArtifact> {
   const game = createGame({
     seed,
@@ -76,7 +76,7 @@ test('an opening board reads exactly the prior, in every cast', async () => {
     const artifact = await play(playerCount, `anchor-${playerCount}`)
     const scored = scoreMerlinExposure(artifact)
     assert.ok(scored, `${playerCount}p must be scoreable`)
-    const opening = scored.samples[0]
+    const opening = scored.samples[0]!
     assert.equal(opening.questsResolved, 0)
     assert.ok(
       Math.abs(opening.lift) < 1e-12,

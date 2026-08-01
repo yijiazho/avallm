@@ -39,9 +39,9 @@ export function projectUniformJointWorlds(
     }
     worldCount++
     for (let seat = 0; seat < playerCount; seat++) {
-      const role = world.roleBySeat[seat]
-      roleCounts[seat].set(role, (roleCounts[seat].get(role) ?? 0) + 1)
-      if (world.alignmentBySeat[seat] === 'evil') evilCounts[seat]++
+      const role = world.roleBySeat[seat]!
+      roleCounts[seat]!.set(role, (roleCounts[seat]!.get(role) ?? 0) + 1)
+      if (world.alignmentBySeat[seat] === 'evil') evilCounts[seat]!++
     }
   })
   if (worldCount === 0) {
@@ -50,7 +50,7 @@ export function projectUniformJointWorlds(
   return {
     worldCount,
     playerMarginals: Array.from({ length: playerCount }, (_, seat) => {
-      const evilProbability = evilCounts[seat] / worldCount
+      const evilProbability = evilCounts[seat]! / worldCount
       return {
         seat,
         goodProbability: 1 - evilProbability,
@@ -62,7 +62,7 @@ export function projectUniformJointWorlds(
       (_, seat) => roles.map((role) => ({
         seat,
         role,
-        probability: (roleCounts[seat].get(role) ?? 0) / worldCount,
+        probability: (roleCounts[seat]!.get(role) ?? 0) / worldCount,
       })),
     ).flat(),
     entropy: Math.log2(worldCount),

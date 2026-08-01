@@ -80,22 +80,22 @@ test('seats on a failed quest deviate dirty and the rest deviate clean', () => {
 
   for (const seat of onFailedQuest) {
     assert.ok(
-      snapshot.seats[seat].evilReadDeviation > 0,
+      snapshot.seats[seat]!.evilReadDeviation > 0,
       `seat ${seat} was on the failed quest and must read dirty`,
     )
   }
   for (const seat of offFailedQuest) {
     assert.ok(
-      snapshot.seats[seat].evilReadDeviation < 0,
+      snapshot.seats[seat]!.evilReadDeviation < 0,
       `seat ${seat} stayed off the failed quest and must read clean`,
     )
   }
 
   const dirtiest = Math.min(
-    ...onFailedQuest.map((seat) => snapshot.seats[seat].evilReadIndex),
+    ...onFailedQuest.map((seat) => snapshot.seats[seat]!.evilReadIndex),
   )
   const cleanest = Math.max(
-    ...offFailedQuest.map((seat) => snapshot.seats[seat].evilReadIndex),
+    ...offFailedQuest.map((seat) => snapshot.seats[seat]!.evilReadIndex),
   )
   assert.ok(
     dirtiest > cleanest,
@@ -155,16 +155,16 @@ test('a snapshot that disagrees with its own arithmetic is rejected', () => {
   assert.equal(validatePublicSelfReadSnapshot(movedSpread), false)
 
   const movedDeviation = structuredClone(buildPublicSelfRead(record))
-  movedDeviation.seats[0].evilReadDeviation = 0.5
+  movedDeviation.seats[0]!.evilReadDeviation = 0.5
   assert.equal(validatePublicSelfReadSnapshot(movedDeviation), false)
 
   const movedWeight = structuredClone(buildPublicSelfRead(record))
-  movedWeight.seats[0].servantWeight = 0.5
+  movedWeight.seats[0]!.servantWeight = 0.5
   assert.equal(validatePublicSelfReadSnapshot(movedWeight), false)
 
   // An index change is caught through the deviation it should have moved.
   const movedIndex = structuredClone(buildPublicSelfRead(record))
-  movedIndex.seats[0].evilReadIndex = 0.9
+  movedIndex.seats[0]!.evilReadIndex = 0.9
   assert.equal(validatePublicSelfReadSnapshot(movedIndex), false)
 
   // And the probability is bracketed against the index it feeds. Seat 2 reads
@@ -175,7 +175,7 @@ test('a snapshot that disagrees with its own arithmetic is rejected', () => {
   // probability that contradicts its index rather than one that is merely off.
   // Exact reconstruction is the host-join rule's job, not the schema's.
   const movedProbability = structuredClone(buildPublicSelfRead(record))
-  movedProbability.seats[2].evilProbability = 0.99
+  movedProbability.seats[2]!.evilProbability = 0.99
   assert.equal(validatePublicSelfReadSnapshot(movedProbability), false)
 })
 

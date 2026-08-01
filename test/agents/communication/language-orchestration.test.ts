@@ -68,30 +68,30 @@ function proposalAfterPublicConversation(): {
   let guard = 0
   while (game.phase === 'discussion') {
     const [request] = expectedDecisions(game)
-    applyDecision(game, request.seat, {
+    applyDecision(game, request!.seat, {
       kind: 'discuss',
-      say: `Seat ${request.seat + 1} states a public read.`,
+      say: `Seat ${request!.seat + 1} states a public read.`,
     })
     if (++guard > 20) throw new Error('discussion did not terminate')
   }
   const [finalize] = expectedDecisions(game)
-  assert.equal(finalize.kind, 'finalize')
-  applyDecision(game, finalize.seat, { kind: 'finalize', stick: true })
+  assert.equal(finalize!.kind, 'finalize')
+  applyDecision(game, finalize!.seat, { kind: 'finalize', stick: true })
   while (game.phase === 'vote') {
     for (const request of expectedDecisions(game)) {
       applyDecision(game, request.seat, { kind: 'vote', vote: 'reject' })
     }
   }
   const [req] = expectedDecisions(game)
-  assert.equal(req.kind, 'propose')
-  const view = viewFor(game, req.seat)
+  assert.equal(req!.kind, 'propose')
+  const view = viewFor(game, req!.seat)
   const subject = view.players.find((player) =>
     player.seat !== view.seat
     && !knownEvilOf(view.privateInfo).includes(player.seat)
     && !evilPartnersOf(view.privateInfo).includes(player.seat)
   )?.seat
   assert.notEqual(subject, undefined)
-  return { req, view, subject: subject! }
+  return { req: req!, view, subject: subject! }
 }
 
 function evidenceFor(
@@ -178,7 +178,7 @@ test('opt-in orchestration is deterministic and causally reaches scoring', async
   )
   assert.deepEqual(
     one.trace!.languageEvidence?.admittedSourceSeqs,
-    [callsA[0].newUtterances.find(
+    [callsA[0]!.newUtterances.find(
       (utterance) => utterance.speaker.seat !== view.seat,
     )!.sourceSeq],
   )
@@ -489,7 +489,7 @@ test('no-speech public history never calls the interpreter', async () => {
     talk: { maxRounds: 0, maxRoundsAfterChange: 0 },
   })
   const [req] = expectedDecisions(game)
-  const view = viewFor(game, req.seat)
+  const view = viewFor(game, req!.seat)
   let calls = 0
   const agent = createComposedAgent({
     seed: 'phase6c-no-speech',
@@ -501,8 +501,8 @@ test('no-speech public history never calls the interpreter', async () => {
       },
     },
   })
-  const first = await agent.decide(req, view)
-  const second = await agent.decide(req, view)
+  const first = await agent.decide(req!, view)
+  const second = await agent.decide(req!, view)
   assert.equal(calls, 0)
   assert.equal(
     first.trace!.languageEvidence?.cursorThroughSeq,
@@ -571,7 +571,7 @@ test('language attribution survives external ingress validation and artifact JSO
   )
   assert.ok(languageContribution)
   ;(languageContribution.evidenceIds as string[])[0] =
-    languageContribution.evidenceIds[0].replace(
+    languageContribution.evidenceIds[0]!.replace(
       `language:${INTERPRETER_VERSION}`,
       'language:forged-interpreter-v1',
     )
@@ -647,8 +647,8 @@ test('free architecture bank runs the attributed language pipeline', async () =>
   })
   assert.equal(artifacts.length, 1)
   assert.equal(calls, 0)
-  assert.equal(artifacts[0].telemetry?.llm, undefined)
-  assert.ok(artifacts[0].decisionTraces?.every((trace) =>
+  assert.equal(artifacts[0]!.telemetry?.llm, undefined)
+  assert.ok(artifacts[0]!.decisionTraces?.every((trace) =>
     trace.componentVersions?.languageEvidence === 'bounded-language-only-v1'
     && trace.componentVersions.factors === 'bounded-language-only-v1'
     && trace.languageEvidence !== undefined))

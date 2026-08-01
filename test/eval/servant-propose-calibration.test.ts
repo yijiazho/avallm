@@ -192,7 +192,7 @@ test('a small calibration run scores both policies on one shared set', async () 
 
 test('the alignment table is what defines a dirty team', async () => {
   const cases = await generateServantProposeCases(SEEDS)
-  const entry = cases[0]
+  const entry = cases[0]!
   // The harness scores against ROLE_ALIGNMENT, not against a hand-listed set of
   // evil role names that a new role would silently fall out of.
   const expected = entry.view.players
@@ -219,7 +219,7 @@ test('every named hypothesis scores the same cases as the base', async () => {
   for (const name of names) {
     const scored = await scoreProposalPicker(
       cases,
-      SERVANT_PROPOSE_HYPOTHESES[name],
+      SERVANT_PROPOSE_HYPOTHESES[name]!,
     )
     assert.equal(scored.metrics.decisions, base.metrics.decisions, name)
     assert.equal(scored.picks.length, cases.length, name)
@@ -228,7 +228,7 @@ test('every named hypothesis scores the same cases as the base', async () => {
     for (const [index, team] of scored.picks.entries()) {
       assert.equal(
         team.length,
-        cases[index].view.quests[cases[index].round - 1].teamSize,
+        cases[index]!.view.quests[cases[index]!.round - 1]!.teamSize,
         `${name} produced a wrong-sized team`,
       )
     }

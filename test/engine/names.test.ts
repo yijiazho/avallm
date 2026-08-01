@@ -36,7 +36,7 @@ test('discussion utterances have their seat references scrubbed as they enter th
   const g = createGame({ seed: 'np', playerCount: 5, names, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
   applyDecision(g, g.leaderSeat, { kind: 'propose', team: [0, 1] })
   const [req] = expectedDecisions(g)
-  applyDecision(g, req.seat, { kind: 'discuss', say: 'I trust seat 2, not player 3' })
+  applyDecision(g, req!.seat, { kind: 'discuss', say: 'I trust seat 2, not player 3' })
   const utter = g.log.find((e) => e.type === 'utterance')!
   assert.equal(utter.payload.text, 'I trust Cara, not Dan')
 })

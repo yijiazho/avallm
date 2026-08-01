@@ -79,7 +79,7 @@ test('runtime and admission cannot rebuild scorer-sensitive situation analysis',
       owner,
     )
     assert.match(
-      violations[0].message,
+      violations[0]!.message,
       /scorer-situation-surface/,
       owner,
     )
@@ -236,8 +236,8 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     let violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.equal(violations[0].rule, 'ARCH021')
-    assert.match(violations[0].message, /strict test roots/)
+    assert.equal(violations[0]!.rule, 'ARCH021')
+    assert.match(violations[0]!.message, /strict test roots/)
 
     writeFileSync(
       path.join(root, 'tsconfig.hidden.json'),
@@ -245,7 +245,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.match(violations[0].message, /strict test roots/)
+    assert.match(violations[0]!.message, /strict test roots/)
 
     writeFileSync(
       path.join(root, 'tsconfig.hidden.json'),
@@ -253,7 +253,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.match(violations[0].message, /strict test roots/)
+    assert.match(violations[0]!.message, /strict test roots/)
 
     writeFileSync(
       path.join(root, 'tsconfig.hidden.json'),
@@ -261,7 +261,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.match(violations[0].message, /strict test roots/)
+    assert.match(violations[0]!.message, /strict test roots/)
 
     writeFileSync(
       path.join(root, 'tsconfig.hidden.json'),
@@ -272,7 +272,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.match(violations[0].message, /project references are rejected/)
+    assert.match(violations[0]!.message, /project references are rejected/)
 
     writeFileSync(
       path.join(root, 'tsconfig.hidden.json'),
@@ -280,7 +280,7 @@ test('strict test ownership rejects hidden roots, references, and malformed shap
     )
     violations = checkStrictTestRatchetOwnership(root)
     assert.equal(violations.length, 1)
-    assert.match(violations[0].message, /TypeScript config is invalid/)
+    assert.match(violations[0]!.message, /TypeScript config is invalid/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -1252,8 +1252,8 @@ test('non-literal dynamic imports fail closed', () => {
       ['ARCH000', 'server/engine/template.ts'],
     ],
   )
-  assert.match(violations[0].message, /dynamic import target must be a string literal/)
-  assert.match(violations[1].message, /dynamic import target must be a string literal/)
+  assert.match(violations[0]!.message, /dynamic import target must be a string literal/)
+  assert.match(violations[1]!.message, /dynamic import target must be a string literal/)
 })
 
 test('path normalization closes Windows and POSIX dependency bypasses', () => {
@@ -1301,8 +1301,8 @@ test('runtime agents cannot depend on evaluation code', () => {
     ],
   ])
   assert.equal(violations.length, 1)
-  assert.equal(violations[0].rule, 'ARCH002')
-  assert.match(violations[0].message, /one\.ts:1 -> \.\.\/\.\.\/eval\/metrics/)
+  assert.equal(violations[0]!.rule, 'ARCH002')
+  assert.match(violations[0]!.message, /one\.ts:1 -> \.\.\/\.\.\/eval\/metrics/)
 })
 
 test('runtime agents reject raw Game while allowing narrow domain types', () => {
@@ -1913,12 +1913,12 @@ test('audit fails closed on unreadable, duplicate, and malformed sources', () =>
       'ARCH000',
     ],
   )
-  assert.match(violations[0].message, /could not be read/)
-  assert.match(violations[1].message, /duplicate normalized source path/)
-  assert.match(violations[2].message, /could not be parsed/)
-  assert.match(violations[3].message, /unsupported extension/)
-  assert.match(violations[4].message, /outside the governed server tree/)
-  assert.match(violations[5].message, /module target escapes the repository/)
+  assert.match(violations[0]!.message, /could not be read/)
+  assert.match(violations[1]!.message, /duplicate normalized source path/)
+  assert.match(violations[2]!.message, /could not be parsed/)
+  assert.match(violations[3]!.message, /unsupported extension/)
+  assert.match(violations[4]!.message, /outside the governed server tree/)
+  assert.match(violations[5]!.message, /module target escapes the repository/)
 })
 
 // ARCH018. The repository already fails the build on dead declarations, but

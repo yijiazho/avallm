@@ -215,7 +215,7 @@ async function collectFromGame(
       applyDecision(
         game,
         req.seat,
-        (await agents[req.seat].decide(req, view)).decision,
+        (await agents[req.seat]!.decide(req, view)).decision,
       )
     }
   }
@@ -281,7 +281,7 @@ function slices(
   for (const [index, input] of cases.entries()) {
     const key = keyOf(input)
     const entry = grouped.get(key) ?? { n: 0, dirty: 0, evil: 0 }
-    const placed = dirtyCount(picks[index], input.evilSeats)
+    const placed = dirtyCount(picks[index]!, input.evilSeats)
     entry.n += 1
     entry.dirty += placed > 0 ? 1 : 0
     entry.evil += placed
@@ -312,7 +312,7 @@ export async function scoreProposalPicker(
   let dirtyTeams = 0
   let evilSeatsPlaced = 0
   for (const [index, input] of cases.entries()) {
-    const placed = dirtyCount(picks[index], input.evilSeats)
+    const placed = dirtyCount(picks[index]!, input.evilSeats)
     if (placed > 0) dirtyTeams += 1
     evilSeatsPlaced += placed
   }
@@ -398,8 +398,8 @@ export function pairProposalPickers(
   let baseCleanCandidateDirty = 0
   let candidateCleanBaseDirty = 0
   for (const [index, input] of cases.entries()) {
-    const baseTeam = [...base[index]].sort((left, right) => left - right)
-    const candidateTeam = [...candidate[index]].sort(
+    const baseTeam = [...base[index]!].sort((left, right) => left - right)
+    const candidateTeam = [...candidate[index]!].sort(
       (left, right) => left - right,
     )
     if (baseTeam.join(',') !== candidateTeam.join(',')) differingPicks += 1
@@ -699,8 +699,8 @@ export async function runServantProposeCalibration(
     pairing: pairProposalPickers(cases, base.picks, candidate.picks),
     separatingPairing: pairProposalPickers(
       separating.map((entry) => entry.input),
-      separating.map((entry) => base.picks[entry.index]),
-      separating.map((entry) => candidate.picks[entry.index]),
+      separating.map((entry) => base.picks[entry.index]!),
+      separating.map((entry) => candidate.picks[entry.index]!),
     ),
   })
 }

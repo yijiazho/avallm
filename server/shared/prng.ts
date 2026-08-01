@@ -30,12 +30,15 @@ export function makeRng(seed: string | number): Rng {
     next,
     int: (n) => Math.floor(next() * n),
     chance: (p) => next() < p,
-    pick: (arr) => arr[Math.floor(next() * arr.length)],
+    pick: (arr) => {
+      if (arr.length === 0) throw new RangeError('cannot pick from an empty array')
+      return arr[Math.floor(next() * arr.length)]!
+    },
     shuffle: (arr) => {
       const out = arr.slice()
       for (let i = out.length - 1; i > 0; i--) {
         const j = Math.floor(next() * (i + 1))
-        ;[out[i], out[j]] = [out[j], out[i]]
+        ;[out[i], out[j]] = [out[j]!, out[i]!]
       }
       return out
     },

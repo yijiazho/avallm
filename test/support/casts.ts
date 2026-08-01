@@ -41,7 +41,7 @@ const subsets = <T,>(xs: T[]): T[][] =>
 export function legalCasts(): Cast[] {
   const out: Cast[] = []
   for (const playerCount of Object.keys(EVIL_COUNT).map(Number).sort((a, b) => a - b)) {
-    const evil = EVIL_COUNT[playerCount]
+    const evil = EVIL_COUNT[playerCount]!
     const good = playerCount - evil
     for (const gs of subsets(GOOD_SPECIALS)) {
       for (const es of subsets(EVIL_SPECIALS)) {

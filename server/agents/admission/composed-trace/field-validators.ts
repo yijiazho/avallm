@@ -473,6 +473,7 @@ function validEvilCountDistribution(
     && Math.abs(
       stableProbabilitySum(distribution, (mass) => mass) - 1,
     ) <= PROBABILITY_TOLERANCE
+    && distribution[0] !== undefined
     && Math.abs(distribution[0] - cleanProbability) <= PROBABILITY_TOLERANCE
   )
 }

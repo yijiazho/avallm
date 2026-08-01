@@ -131,7 +131,7 @@ export function seatPack(pack: ResolvedPack, botCount: number, agents: AgentDef[
   // is NaN, the index read yields undefined, and the seat falls back to
   // 'autopilot' rather than throwing on an oversized table.
   const ids = Array.from({ length: botCount }, (_, i) => (
-    i < take ? members[i] : leftovers[(i - take) % leftovers.length] ?? 'autopilot'
+    i < take ? members[i]! : leftovers[(i - take) % leftovers.length] ?? 'autopilot'
   ))
   // Deal the random models in one batch so they're distinct across seats.
   const needsModel = ids.filter((id) => {

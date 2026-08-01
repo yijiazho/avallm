@@ -147,8 +147,8 @@ test('log-sum-exp normalizes without overflowing and rejects a non-vector', () =
   // so a normalizer that did not shift first would return NaN here.
   assert.ok(Number.isFinite(Math.exp(1_000)) === false)
   const large = logWeightsToProbabilities([1_000, 999])
-  assert.ok(Math.abs(large[0] + large[1] - 1) < PROBABILITY_TOLERANCE)
-  assert.ok(large[0] > large[1])
+  assert.ok(Math.abs(large[0]! + large[1]! - 1) < PROBABILITY_TOLERANCE)
+  assert.ok(large[0]! > large[1]!)
   // Equal weights are the uniform distribution, exactly.
   assert.deepEqual([...logWeightsToProbabilities([7, 7, 7, 7])], Array(4).fill(0.25))
 
@@ -336,7 +336,7 @@ test('lattice-admitted marginals sum to 1 inside the strict tolerance', () => {
     const counts = Array<number>(roleSlots).fill(
       Math.floor(worldCount / roleSlots),
     )
-    counts[0] += worldCount - counts.reduce((sum, count) => sum + count, 0)
+    counts[0]! += worldCount - counts.reduce((sum, count) => sum + count, 0)
     const marginals = counts.map((count) => count / worldCount + edge)
     for (const [index, marginal] of marginals.entries()) {
       assert.equal(

@@ -227,7 +227,7 @@ test('a flat posterior is reported as a tie the candidate order breaks', () => {
         { team: [1, 4], cleanProbability: 0.25 },
       ],
     }],
-  })])
+  })])!
   assert.equal(cell.scoredProposals, 1)
   assert.equal(cell.argmaxTeams, 3)
   assert.equal(cell.tieDecided, 1)
@@ -254,7 +254,7 @@ test('a sharp posterior is reported as a decided choice with a real margin', () 
         { team: [1, 4], cleanProbability: 0 },
       ],
     }],
-  })])
+  })])!
   assert.equal(cell.tieDecided, 0)
   assert.equal(cell.uniqueDecided, 1)
   assert.equal(cell.uniqueDecidedClean, 1)
@@ -282,7 +282,7 @@ test('cleanliness, the coin-flip null, and the posterior stay three numbers', ()
         { team: [3, 5], cleanProbability: 0.1 },
       ],
     }],
-  })])
+  })])!
   assert.equal(cell.cleanProposals, 0)
   assert.equal(cell.tieDecided, 1)
   assert.equal(cell.tieDecidedClean, 0)
@@ -307,7 +307,7 @@ test('the chosen team keeps its own lexicographic rank on the viable surface', (
         { team: [2, 3], cleanProbability: 0.9 },
       ],
     }],
-  })])
+  })])!
   assert.equal(cell.tracedProposals, 1)
   assert.equal(cell.viableTeams, 3)
   // Last of three viable ids in canonical order, so not the predictable floor.
@@ -341,7 +341,7 @@ test('rounds carry the argmax size, so a sharpening posterior is visible', () =>
         ],
       },
     ],
-  })])
+  })])!
   assert.deepEqual(
     cell.byRound.map((slice) => [
       slice.round,
@@ -375,7 +375,7 @@ test('a removed candidate leaves the viable surface and its nulls', () => {
         { team: [2, 3], cleanProbability: 0.5 },
       ],
     }],
-  })])
+  })])!
   assert.equal(cell.viableTeams, 2)
   assert.equal(cell.argmaxTeams, 2)
   assert.equal(cell.tieDecided, 1)
@@ -416,7 +416,7 @@ test('proposal numbers are separated, so a regression can be localized', () => {
       { round: 2, proposalNum: 1, team: [1, 4] },
       { round: 3, proposalNum: 5, team: [2, 4], approved: true, questResult: 'fail' },
     ],
-  })])
+  })])!
   assert.equal(cell.proposals, 3)
   assert.equal(cell.cleanProposals, 1)
   assert.deepEqual(
@@ -456,7 +456,7 @@ test('only an unrevised approved proposal can cost its own quest', () => {
         questResult: 'fail',
       },
     ],
-  })])
+  })])!
   assert.equal(cell.proposals, 4)
   assert.equal(cell.cleanProposals, 0)
   assert.equal(cell.approved, 2)
@@ -476,7 +476,7 @@ test('a repeated same-size team is counted only where a repeat was possible', ()
       { round: 3, proposalNum: 1, team: [0, 1] },
       { round: 4, proposalNum: 1, team: [0, 2] },
     ],
-  })])
+  })])!
   // Two later proposals had an earlier team of the same size to repeat; one did.
   assert.equal(cell.sameSizeRepeatPairs, 2)
   assert.equal(cell.sameSizeRepeats, 1)
@@ -521,7 +521,7 @@ test('the matched pair is the first proposal both arms reach identically', () =>
     candidate('c', [1, 2]),
   ])
   assert.equal(diagnosis.pairings.length, 1)
-  const pairing = diagnosis.pairings[0]
+  const pairing = diagnosis.pairings[0]!
   assert.equal(pairing.baseline, 'compatibility')
   assert.equal(pairing.candidate, 'structured')
   assert.equal(pairing.cases, 3)
@@ -559,7 +559,7 @@ test('a pair whose arms proposed from different positions is excluded, not folde
       proposals: [],
     }),
   ])
-  const pairing = diagnosis.pairings[0]
+  const pairing = diagnosis.pairings[0]!
   assert.equal(pairing.cases, 2)
   assert.equal(pairing.pairs, 0)
   assert.equal(pairing.unmatchedPosition, 1)

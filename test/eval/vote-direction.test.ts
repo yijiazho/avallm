@@ -209,39 +209,39 @@ test('the report separates the vote error directions a promotion is gated on', a
   })
 
   const report = architectureReport([
-    withUniformVotes(source, 'rejects-clean', 'reject'),
-    withUniformVotes(source, 'approves-dirty', 'approve'),
+    withUniformVotes(source!, 'rejects-clean', 'reject'),
+    withUniformVotes(source!, 'approves-dirty', 'approve'),
   ])
   assert.equal(report.schema, 3)
   const [rejectsClean, approvesDirty] = report.variants
 
   // The symmetric metric is blind to the difference: one right, one wrong.
-  assert.equal(rejectsClean.decisionQuality.voteTruthAccuracy.rate, 0.5)
-  assert.equal(approvesDirty.decisionQuality.voteTruthAccuracy.rate, 0.5)
+  assert.equal(rejectsClean!.decisionQuality.voteTruthAccuracy.rate, 0.5)
+  assert.equal(approvesDirty!.decisionQuality.voteTruthAccuracy.rate, 0.5)
 
-  assert.equal(rejectsClean.decisionQuality.voteDirtyTeamApproveRate.rate, 0)
-  assert.equal(approvesDirty.decisionQuality.voteDirtyTeamApproveRate.rate, 1)
-  assert.equal(rejectsClean.decisionQuality.voteCleanTeamRejectRate.rate, 1)
-  assert.equal(approvesDirty.decisionQuality.voteCleanTeamRejectRate.rate, 0)
+  assert.equal(rejectsClean!.decisionQuality.voteDirtyTeamApproveRate.rate, 0)
+  assert.equal(approvesDirty!.decisionQuality.voteDirtyTeamApproveRate.rate, 1)
+  assert.equal(rejectsClean!.decisionQuality.voteCleanTeamRejectRate.rate, 1)
+  assert.equal(approvesDirty!.decisionQuality.voteCleanTeamRejectRate.rate, 0)
   assert.equal(
-    rejectsClean.decisionQuality.voteDirtyTeamApproveRate.trials,
+    rejectsClean!.decisionQuality.voteDirtyTeamApproveRate.trials,
     1,
   )
 
   // The same split reaches the Merlin role slice, not just the variant total.
-  const roleSlice = approvesDirty.byRole.find(
+  const roleSlice = approvesDirty!.byRole.find(
     (slice) => slice.role === 'merlin',
   )!
   assert.equal(roleSlice.decisionQuality.voteDirtyTeamApproveRate.rate, 1)
   assert.equal(roleSlice.decisionQuality.voteCleanTeamRejectRate.rate, 0)
 
   const [comparison] = report.comparisons
-  assert.equal(comparison.matchedCases, 1)
+  assert.equal(comparison!.matchedCases, 1)
   // The paired delta a promotion gate would read: the symmetric accuracy says
   // the candidate is unchanged while the costly error goes from none to all.
-  assert.equal(comparison.voteTruthAccuracyDelta.delta, 0)
-  assert.equal(comparison.voteDirtyTeamApproveRateDelta.delta, 1)
-  assert.equal(comparison.voteCleanTeamRejectRateDelta.delta, -1)
+  assert.equal(comparison!.voteTruthAccuracyDelta.delta, 0)
+  assert.equal(comparison!.voteDirtyTeamApproveRateDelta.delta, 1)
+  assert.equal(comparison!.voteCleanTeamRejectRateDelta.delta, -1)
 
   const rendered = renderArchitectureReport(report)
   assert.match(rendered, /vote-errors dirty-approve 0\.0% \(0\/1,/)

@@ -124,7 +124,7 @@ function evilDefinition(
       const inViableBand =
         voteRows.length === 2
         && Math.abs(
-          voteRows[0].utility.roleValue - voteRows[1].utility.roleValue,
+          voteRows[0]!.utility.roleValue - voteRows[1]!.utility.roleValue,
         ) <= EVIL_ROLE_OBJECTIVE_UTILITY_CONSTANTS.viableBand
       const bandActive = !forcedSelection && seeded && inViableBand
       const seedBucket = bandActive

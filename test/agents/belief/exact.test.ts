@@ -218,18 +218,18 @@ test('Fail counts impose minimum evil cardinality, including multiple Fails', ()
   const base = viewAs(game, 'servant')
   const others = base.players.map(({ seat }) => seat).filter((seat) => seat !== base.seat)
 
-  const oneFail = exactBelief(withQuest(base, 1, [base.seat, others[0]], 1, 'fail'))
+  const oneFail = exactBelief(withQuest(base, 1, [base.seat, others[0]!], 1, 'fail'))
   assert.equal(oneFail.worlds.length, 3)
   assert.ok(oneFail.worlds.every(
-    ({ world }) => world.alignmentBySeat[others[0]] === 'evil',
+    ({ world }) => world.alignmentBySeat[others[0]!] === 'evil',
   ))
 
   const twoFails = exactBelief(
-    withQuest(base, 2, [base.seat, others[0], others[1]], 2, 'fail'),
+    withQuest(base, 2, [base.seat, others[0]!, others[1]!], 2, 'fail'),
   )
   assert.equal(twoFails.worlds.length, 1)
   assert.ok(twoFails.worlds.every(({ world }) =>
-    [others[0], others[1]].every((seat) => world.alignmentBySeat[seat] === 'evil')))
+    [others[0], others[1]].every((seat) => world.alignmentBySeat[seat!]! === 'evil')))
 })
 
 test('a zero-Fail quest does not clear evil players from its team', () => {
@@ -259,11 +259,11 @@ test('a one-Fail success on the two-Fail quest still requires evil aboard', () =
   })
   const base = viewAs(game, 'servant')
   const others = base.players.map(({ seat }) => seat).filter((seat) => seat !== base.seat)
-  const team = [base.seat, others[0], others[1], others[2]]
+  const team = [base.seat, others[0]!, others[1]!, others[2]!]
   const snapshot = exactBelief(withQuest(base, 4, team, 1, 'success'))
   assert.equal(snapshot.worlds.length, 19)
   assert.ok(snapshot.worlds.every(({ world }) =>
-    team.some((seat) => world.alignmentBySeat[seat] === 'evil')))
+    team.some((seat) => world.alignmentBySeat[seat!]! === 'evil')))
 })
 
 test('uniform posterior, marginals, entropy, and model metadata match a hand-worked cast', () => {
@@ -303,16 +303,16 @@ test('team-clean probability and full evil-count distribution use joint worlds',
   const snapshot = exactBelief(view)
   const others = view.players.map(({ seat }) => seat).filter((seat) => seat !== view.seat)
 
-  const withViewer = assessTeam(snapshot, [others[0], view.seat])
+  const withViewer = assessTeam(snapshot, [others[0]!, view.seat])
   close(withViewer.cleanProbability, 0.5)
-  assert.deepEqual(withViewer.team, [view.seat, others[0]].sort((a, b) => a - b))
+  assert.deepEqual(withViewer.team, [view.seat, others[0]].sort((a, b) => a! - b!))
   withViewer.evilCountDistribution.forEach((probability, count) =>
-    close(probability, [0.5, 0.5, 0][count]))
+    close(probability, [0.5, 0.5, 0][count]!))
 
-  const pair = assessTeam(snapshot, [others[0], others[1]])
+  const pair = assessTeam(snapshot, [others[0]!, others[1]!])
   close(pair.cleanProbability, 1 / 6)
   pair.evilCountDistribution.forEach((probability, count) =>
-    close(probability, [1 / 6, 4 / 6, 1 / 6][count]))
+    close(probability, [1 / 6, 4 / 6, 1 / 6][count]!))
 })
 
 test('world and top-world ordering are deterministic under tied probabilities', () => {
@@ -366,7 +366,7 @@ function rotateView(view: PlayerView, shift: number): PlayerView {
 function rotateWorld(world: HiddenWorld, shift: number): string {
   const roles = Array<Role>(world.roleBySeat.length)
   for (let seat = 0; seat < roles.length; seat++) {
-    roles[rotateSeat(seat, roles.length, shift)] = world.roleBySeat[seat]
+    roles[rotateSeat(seat, roles.length, shift)]! = world.roleBySeat[seat]!
   }
   return canonicalWorldKey(roles)
 }
@@ -392,7 +392,7 @@ test('seat rotation rotates worlds and projections without changing probabilitie
       marginal.seat,
       originalView.playerCount,
       shift,
-    )]
+    )]!
     close(other.goodProbability, marginal.goodProbability)
     close(other.evilProbability, marginal.evilProbability)
   }

@@ -37,14 +37,14 @@ test('every LLM call gets a neutral player-reference rule', () => {
   ]
   for (const kind of kinds) {
     const [system] = buildMessages(kind, view, '')
-    assert.ok(system.content.includes(PLAYER_REFERENCE_NORMS), `${kind} prompt carries the rule`)
+    assert.ok(system!.content.includes(PLAYER_REFERENCE_NORMS), `${kind} prompt carries the rule`)
   }
 
   const [custom] = buildMessages('discuss', view, '', {
     personality: 'Use a custom voice that may describe another player differently.',
   })
   assert.ok(
-    custom.content.indexOf(PLAYER_REFERENCE_NORMS) > custom.content.indexOf('Your table persona'),
+    custom!.content.indexOf(PLAYER_REFERENCE_NORMS) > custom!.content.indexOf('Your table persona'),
     'the engine-owned rule takes precedence over custom prompt layers',
   )
 })
@@ -100,12 +100,12 @@ const ANTI_EXAMPLE = `"that's not X, that's Y"`
 function midGame() {
   const g = createGame({ seed: 'mimicry', playerCount: 7, talk: { maxRounds: 1, maxRoundsAfterChange: 0 } })
   for (let round = 0; round < 2; round++) {
-    const size = g.quests[g.round - 1].teamSize
+    const size = g.quests[g.round - 1]!.teamSize
     const team = Array.from({ length: size }, (_, i) => (g.leaderSeat + i) % 7)
     applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'a clean pair to open with' })
     while (g.phase === 'discussion') {
       const [d] = expectedDecisions(g)
-      applyDecision(g, d.seat, { kind: 'discuss', say: '' })
+      applyDecision(g, d!.seat, { kind: 'discuss', say: '' })
     }
     if (g.phase === 'finalize') applyDecision(g, g.leaderSeat, { kind: 'finalize', stick: true })
     for (const p of g.players) applyDecision(g, p.seat, { kind: 'vote', vote: 'approve' })
@@ -125,7 +125,7 @@ test('no rendered prompt shows the model a construction the norms ban', () => {
     const view = viewFor(g, p.seat)
     for (const kind of kinds) {
       const [sys, user] = buildMessages(kind, view, '', {}, { chosenTeam: [...(view.currentTeam ?? [0, 1])] })
-      const rendered = `${sys.content}\n${user.content}`
+      const rendered = `${sys!.content}\n${user!.content}`
       const where = `${kind} prompt for seat ${p.seat} (${p.role})`
       assert.doesNotMatch(rendered, BANNED_DASH, `${where} contains an em or en dash`)
       assert.doesNotMatch(

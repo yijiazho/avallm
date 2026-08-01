@@ -9,6 +9,7 @@ import type { Player, PrivateInfo, Seat } from './types.ts'
 // knowledge — deal, viewFor, and tests all share it.
 export function computeKnowledge(players: Player[], seat: Seat): PrivateInfo {
   const me = players[seat]
+  if (!me) throw new RangeError(`no player at seat ${seat}`)
   const seatsOf = (pred: (p: Player) => boolean) =>
     players.filter(pred).map((p) => p.seat).sort((a, b) => a - b)
 

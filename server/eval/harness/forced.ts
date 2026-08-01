@@ -26,7 +26,7 @@
 
 import { QUESTS_TO_WIN, failsRequired } from '../../engine/rules.ts'
 import { computeKnowledge, evilPartnersOf } from '../../engine/knowledge.ts'
-import type { GameArtifact } from '../core/artifact.ts'
+import { artifactPlayerAt, type GameArtifact } from '../core/artifact.ts'
 import type { Player, Role, Seat } from '../../engine/types.ts'
 
 export const FORCED_PLAY_RULES = {
@@ -81,7 +81,7 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
   const record = (
     seat: Seat, rule: ForcedPlayRule, round: number, seq: number, detail: string,
   ) => {
-    const p = a.players[seat]
+    const p = artifactPlayerAt(a, seat)
     out.push({ seat, name: p.name, role: p.role, agent: p.agent, rule, round, seq, detail })
   }
 
@@ -199,7 +199,7 @@ export function forcedPlayViolations(a: GameArtifact): ForcedPlayViolation[] {
                 record(seat, 'win-point-success', round, ev.seq,
                   `Success on Q${round} passed up evil's winning third fail (${math})`)
               }
-            } else if (card === 'fail' && n < need && players[seat].role !== 'oberon') {
+            } else if (card === 'fail' && n < need && players[seat]!.role !== 'oberon') {
               record(seat, 'wasted-lone-fail', round, ev.seq,
                 `Fail on Q${round} could not sink it (${math})`)
             }

@@ -66,7 +66,7 @@ const fixture = (role: Role) =>
 
 function voteFixture(role: Role): { req: DecisionRequest; view: PlayerView } {
   const source = fixture(role)
-  const teamSize = source.view.quests[source.view.round - 1].teamSize
+  const teamSize = source.view.quests[source.view.round - 1]!.teamSize
   const view: PlayerView = {
     ...structuredClone(source.view),
     phase: 'vote',
@@ -234,7 +234,7 @@ async function contextFor(
         : {}),
       reasonCodes: forced.reasonCodes,
     },
-    compatibilityCandidateId: candidates[0].id,
+    compatibilityCandidateId: candidates[0]!.id,
     ...(roleUtility ? { roleUtility } : {}),
     ...(evilRoleUtility ? { evilRoleUtility } : {}),
     ...(morganaRoleUtility ? { morganaRoleUtility } : {}),

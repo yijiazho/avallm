@@ -213,7 +213,7 @@ export function validVoteFeatureScores(ctx: ComposedTraceContext): boolean {
     ) {
       return false
     }
-    const first = voteFeatureScores[0].features as Record<string, unknown>
+    const first = voteFeatureScores[0]!.features as Record<string, unknown>
     const request = trace.request as DecisionRequest
     const boardScore = first.boardScore as Record<string, unknown>
     const sharedKeys = [
@@ -317,7 +317,7 @@ export function validVoteFeatureScores(ctx: ComposedTraceContext): boolean {
             )
           : (
               viable.length !== 1
-              || viable[0].candidateId !== canonicalTop
+              || viable[0]!.candidateId !== canonicalTop
               || voteFeatureScores.some(
                 (score) =>
                   (

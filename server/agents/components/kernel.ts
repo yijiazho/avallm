@@ -543,8 +543,8 @@ export function validateDecisionComponentRunHostJoin(
     const frozenRequest = frozenInput(request)
     const frozenView = frozenInput(view)
     for (let index = 0; index < run.configured.length; index++) {
-      const ref = run.configured[index]
-      const entry = run.entries[index]
+      const ref = run.configured[index]!
+      const entry = run.entries[index]!
       const key = componentIdentityKey(ref)
       const definition = definitions.get(key)
       if (

@@ -117,7 +117,7 @@ const voteFixture = (role: Role) => asVote(fixture(role).view)
 function setLegalTwoOneBoard(view: PlayerView, evilSeat: number): void {
   const seats = view.players.map((player) => player.seat)
   const team = (questIndex: number, requiredSeat?: number) => {
-    const size = view.quests[questIndex].teamSize
+    const size = view.quests[questIndex]!.teamSize
     const selected = requiredSeat === undefined
       ? seats.slice(0, size)
       : [
@@ -126,22 +126,22 @@ function setLegalTwoOneBoard(view: PlayerView, evilSeat: number): void {
         ].slice(0, size).sort((left, right) => left - right)
     return selected
   }
-  mutable(view).quests[0] = {
-    ...view.quests[0],
+  mutable(view).quests[0]! = {
+    ...view.quests[0]!,
     status: 'complete',
     team: team(0),
     result: 'success',
     failCount: 0,
   }
-  mutable(view).quests[1] = {
-    ...view.quests[1],
+  mutable(view).quests[1]! = {
+    ...view.quests[1]!,
     status: 'complete',
     team: team(1),
     result: 'success',
     failCount: 0,
   }
-  mutable(view).quests[2] = {
-    ...view.quests[2],
+  mutable(view).quests[2]! = {
+    ...view.quests[2]!,
     status: 'complete',
     team: team(2, evilSeat),
     result: 'fail',
@@ -252,7 +252,7 @@ test('evil proposal utility is exact and failure capacity owns seventy percent',
   }
   const viable = trace.candidateScores!.filter((score) => score.viable)
   assert.equal(viable.length, 1)
-  assert.equal(trace.structuredCandidateId, viable[0].candidateId)
+  assert.equal(trace.structuredCandidateId, viable[0]!.candidateId)
 })
 
 test('evil vote rejection compares the canonical best D1 alternative', async () => {
@@ -288,12 +288,12 @@ test('the seeded evil vote band equation matches its own diagnostics', async () 
   const input = voteFixture('mordred')
   const first = await decide(input)
   const scores = first.trace!.candidateScores!
-  const inBand = scores[0].evilRoleObjectiveFeatures!.inViableBand
+  const inBand = scores[0]!.evilRoleObjectiveFeatures!.inViableBand
   assert.equal(
     inBand,
     Math.abs(
-      scores[0].evilRoleObjectiveFeatures!.roleValue
-        - scores[1].evilRoleObjectiveFeatures!.roleValue,
+      scores[0]!.evilRoleObjectiveFeatures!.roleValue
+        - scores[1]!.evilRoleObjectiveFeatures!.roleValue,
     ) <= 0.04,
   )
   if (!inBand) {
@@ -350,15 +350,15 @@ test('external ingress and host replay reject utility, score, seed, and deletion
 
   const mutations = [
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
-      evilUtility(trace)!.assessments[0]
+      evilUtility(trace)!.assessments[0]!
         .failureCapacityContribution += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
-      trace.candidateScores![0].evilRoleObjectiveFeatures!.roleValue += 0.01
+      trace.candidateScores![0]!.evilRoleObjectiveFeatures!.roleValue += 0.01
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
       const feature =
-        trace.candidateScores![0].evilRoleObjectiveFeatures!
+        trace.candidateScores![0]!.evilRoleObjectiveFeatures!
       feature.seedBucket = feature.seedBucket === 0 ? 1 : 0
     },
     (trace: Mutable<NonNullable<typeof output.trace>>) => {
@@ -421,7 +421,7 @@ test('forced D2 diagnostics are unseeded and malformed D2 falls through to Phase
       candidateTeams(hypotheticalTeamCandidates, input.view),
     goodVote: true,
   })
-  const selectedCandidateId = candidates[0].id
+  const selectedCandidateId = candidates[0]!.id
   const forced = {
     ...ordinary.trace!.forcedPolicyResult!,
     applied: true,
@@ -444,7 +444,7 @@ test('forced D2 diagnostics are unseeded and malformed D2 falls through to Phase
       reasonCodes: forced.reasonCodes,
     },
     deterministicSeed: 'phase7d2-evil-policy',
-    compatibilityCandidateId: candidates[0].id,
+    compatibilityCandidateId: candidates[0]!.id,
     expectedScorerVersion: EVIL_ROLE_OBJECTIVE_SEEDED_SCORER_VERSION,
     componentDefinitions: createProductionComponentRegistry({
       goodObjectiveAllDecisionKinds: true,
@@ -578,20 +578,20 @@ test('D2 utility validator is total over hostile detached data', async () => {
   assert.equal(validatePrivateEvilRoleUtilityProjection(cyclic), false)
 
   const oversized = structuredClone(utility)
-  oversized.assessments[0].candidateId =
+  oversized.assessments[0]!.candidateId =
     'x'.repeat(DEFAULT_COMPONENT_PAYLOAD_JSON_BYTES)
   assert.equal(validatePrivateEvilRoleUtilityProjection(oversized), false)
 
   const badTeam = structuredClone(utility)
-  badTeam.assessments[0].team = [1, 0]
+  badTeam.assessments[0]!.team = [1, 0]
   assert.equal(validatePrivateEvilRoleUtilityProjection(badTeam), false)
 
   const badPosture = structuredClone(utility)
-  badPosture.assessments[0].posture = 'mordred-deep-cover'
+  badPosture.assessments[0]!.posture = 'mordred-deep-cover'
   assert.equal(validatePrivateEvilRoleUtilityProjection(badPosture), false)
 
   const visibleAsSelfOnly = structuredClone(utility)
-  const visibleAssessment = visibleAsSelfOnly.assessments[0]
+  const visibleAssessment = visibleAsSelfOnly.assessments[0]!
   visibleAssessment.coordination = {
     kind: 'self-only-uncoordinated',
     selfAboard: visibleAssessment.team.includes(
@@ -607,7 +607,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   const oberonOutput = await decide(proposalFixture('oberon'), false)
   const oberonUtility = evilUtility(oberonOutput.trace!)!
   const oberonAsVisible = structuredClone(oberonUtility)
-  oberonAsVisible.assessments[0].coordination = {
+  oberonAsVisible.assessments[0]!.coordination = {
     kind: 'visible-coordination',
     coordinatedEvilAboard: 0,
     totalVisibleEvil: 1,
@@ -618,7 +618,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   )
 
   const visibleFutureAsOberon = structuredClone(utility)
-  const futureAssessment = visibleFutureAsOberon.assessments[0]
+  const futureAssessment = visibleFutureAsOberon.assessments[0]!
   futureAssessment.futureOpportunityValue = 0
   futureAssessment.futureOpportunityAvailable = true
   futureAssessment.futureOpportunityContribution = 0
@@ -635,7 +635,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   )
 
   const oberonFutureAsVisible = structuredClone(oberonUtility)
-  const oberonFutureAssessment = oberonFutureAsVisible.assessments[0]
+  const oberonFutureAssessment = oberonFutureAsVisible.assessments[0]!
   oberonFutureAssessment.futureOpportunityValue = 0
   oberonFutureAssessment.futureOpportunityAvailable = true
   oberonFutureAssessment.futureOpportunityContribution = 0
@@ -653,7 +653,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   )
 
   const supportWithRejectionRunway = structuredClone(utility)
-  const rejectionAssessment = supportWithRejectionRunway.assessments[0]
+  const rejectionAssessment = supportWithRejectionRunway.assessments[0]!
   rejectionAssessment.futureOpportunityValue = 0.5
   rejectionAssessment.futureOpportunityAvailable = true
   rejectionAssessment.futureOpportunityContribution =
@@ -674,7 +674,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
 
   assert.notEqual(utility.request.round, 5)
   const prematureTerminal = structuredClone(utility)
-  const terminalAssessment = prematureTerminal.assessments[0]
+  const terminalAssessment = prematureTerminal.assessments[0]!
   terminalAssessment.futureOpportunityValue = 0
   terminalAssessment.futureOpportunityAvailable = false
   terminalAssessment.futureOpportunityContribution = 0
@@ -856,7 +856,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
 
   const detachedCoordinatedCount = structuredClone(freshVisibleUtility)
   const detachedCoordination =
-    detachedCoordinatedCount.assessments[visibleReserveIndex]
+    detachedCoordinatedCount.assessments[visibleReserveIndex]!
   assert.equal(detachedCoordination.coordination.kind, 'visible-coordination')
   if (detachedCoordination.coordination.kind === 'visible-coordination') {
     detachedCoordination.coordination.coordinatedEvilAboard =
@@ -871,7 +871,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
 
   const scaledVisibleReserve = structuredClone(freshVisibleUtility)
   const scaledAssessment =
-    scaledVisibleReserve.assessments[visibleReserveIndex]
+    scaledVisibleReserve.assessments[visibleReserveIndex]!
   const scaledSource = scaledAssessment.futureOpportunitySource
   assert.equal(scaledSource.kind, 'visible-coordination-reserve')
   if (scaledSource.kind === 'visible-coordination-reserve') {
@@ -919,7 +919,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
 
   const detachedUnseenProbability = structuredClone(freshOberonUtility)
   const detachedUnseen =
-    detachedUnseenProbability.assessments[unseenIndex]
+    detachedUnseenProbability.assessments[unseenIndex]!
   assert.equal(
     detachedUnseen.coordination.kind,
     'self-only-uncoordinated',
@@ -936,7 +936,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   )
 
   const flippedSelfAboard = structuredClone(freshOberonUtility)
-  const selfAssessment = flippedSelfAboard.assessments[0]
+  const selfAssessment = flippedSelfAboard.assessments[0]!
   assert.equal(
     selfAssessment.coordination.kind,
     'self-only-uncoordinated',
@@ -953,7 +953,7 @@ test('D2 utility validator is total over hostile detached data', async () => {
   const freshVoteView = viewFor(freshGame, freshTarget.seat)
   mutable(freshVoteView).phase = 'vote'
   mutable(freshVoteView).currentTeam = freshVoteView.players
-    .slice(0, freshVoteView.quests[0].teamSize)
+    .slice(0, freshVoteView.quests[0]!.teamSize)
     .map((player) => player.seat)
   const freshVote = await decide({
     req: {
@@ -1119,7 +1119,7 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
   })
   assert.equal(artifacts.length, ARCHITECTURE_BANK.length)
   assert.equal(
-    architectureReport(artifacts).variants[0]
+    architectureReport(artifacts).variants[0]!
       .safety.traceAttributionViolations,
     0,
   )
@@ -1163,10 +1163,10 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
   const utilityTrace = forgedUtility.decisionTraces!.find(
     (trace) => evilUtility(trace) !== undefined,
   )!
-  evilUtility(utilityTrace)!.assessments[0]
+  evilUtility(utilityTrace)!.assessments[0]!
     .publicCoverContribution += 0.01
   assert.ok(
-    architectureReport([forgedUtility]).variants[0]
+    architectureReport([forgedUtility]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
@@ -1178,7 +1178,7 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
   boardRequest.completedEvilQuests =
     boardRequest.completedEvilQuests === 0 ? 1 : 0
   assert.ok(
-    architectureReport([forgedBoard]).variants[0]
+    architectureReport([forgedBoard]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
@@ -1199,13 +1199,13 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
       actionTrace.action.vote === 'approve' ? 'reject' : 'approve'
   }
   assert.ok(
-    architectureReport([forgedAction]).variants[0]
+    architectureReport([forgedAction]).variants[0]!
       .safety.traceAttributionViolations > 0,
   )
 
   const forgedManifest = structuredClone(evilArtifact)
   delete forgedManifest.strategyVersions!.evilRoleUtilities
-  const descriptorOwned = architectureReport([forgedManifest]).variants[0]
+  const descriptorOwned = architectureReport([forgedManifest]).variants[0]!
   assert.equal(descriptorOwned.safety.traceAttributionViolations, 0)
   assert.equal(descriptorOwned.safety.promotionEvidenceEligible, true)
 
@@ -1224,7 +1224,7 @@ test('free architecture bank attributes the nested D2 to C2 to Phase4 chain', as
       onDecisionTrace(trace) {
         const forged = mutableClone(trace)
         if (evilUtility(forged)) {
-          evilUtility(forged)!.assessments[0]
+          evilUtility(forged)!.assessments[0]!
             .futureOpportunityContribution += 0.01
         }
         context.onDecisionTrace!(forged)

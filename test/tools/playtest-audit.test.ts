@@ -49,8 +49,8 @@ test('playtest auditor distinguishes execution evidence and finds plan reversals
   }
 
   const audit = auditArtifact(artifact)
-  assert.equal(audit.seats[0].inferredExecution, 'probabilistic-llm')
-  assert.equal(audit.seats[1].inferredExecution, 'raw-llm')
+  assert.equal(audit.seats[0]!.inferredExecution, 'probabilistic-llm')
+  assert.equal(audit.seats[1]!.inferredExecution, 'raw-llm')
   assert.deepEqual(
     audit.findings.map((finding) => finding.signature).sort(),
     [
