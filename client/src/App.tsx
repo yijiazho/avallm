@@ -90,6 +90,18 @@ function parseHash(): Screen {
   return { name: 'landing' }
 }
 
+function sameScreen(left: Screen, right: Screen): boolean {
+  if (left.name !== right.name) return false
+  switch (left.name) {
+    case 'landing': return true
+    case 'join': return right.name === 'join' && left.lobbyId === right.lobbyId
+    case 'lobby': return right.name === 'lobby'
+      && left.lobbyId === right.lobbyId && left.token === right.token
+    case 'game': return right.name === 'game'
+      && left.id === right.id && left.token === right.token
+  }
+}
+
 export function App() {
   const [screen, setScreen] = useState<Screen>(parseHash)
   const [payload, setPayload] = useState<ServerPayload | null>(null)
@@ -104,23 +116,55 @@ export function App() {
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
   const esRef = useRef<EventSource | null>(null)
   const lobbyEsRef = useRef<EventSource | null>(null)
+  const screenRef = useRef(screen)
+
+  const showScreen = useCallback((next: Screen) => {
+    screenRef.current = next
+    setScreen(next)
+  }, [])
 
   const refreshLibrary = useCallback(() => {
     fetch('/api/agents').then((r) => r.json()).then(setLibrary).catch(() => {})
   }, [])
   useEffect(refreshLibrary, [refreshLibrary])
-  useEffect(() => () => { esRef.current?.close(); lobbyEsRef.current?.close() }, [])
+  useEffect(() => () => {
+    esRef.current?.close()
+    lobbyEsRef.current?.close()
+    esRef.current = null
+    lobbyEsRef.current = null
+  }, [])
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const next = parseHash()
+      if (sameScreen(screenRef.current, next)) return
+      esRef.current?.close()
+      lobbyEsRef.current?.close()
+      esRef.current = null
+      lobbyEsRef.current = null
+      setPayload(null)
+      setLobby(null)
+      setLobbyMissing(false)
+      setReveal(null)
+      setError(null)
+      showScreen(next)
+    }
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [showScreen])
 
   const openGame = useCallback((id: string, token: string) => {
     lobbyEsRef.current?.close()
+    lobbyEsRef.current = null
     esRef.current?.close()
+    esRef.current = null
     setReveal(null)
     setPayload(null)
     // Persist the seat so a refresh reconnects instead of dumping to the lobby.
     // Solo games have no #/join/ URL, so the game id + token must live here too.
     localStorage.setItem(gameTokenKey(id), token)
     window.location.hash = `#/game/${id}`
-    setScreen({ name: 'game', id, token })
+    showScreen({ name: 'game', id, token })
     const es = new EventSource(`/api/game/${id}/events?token=${token}`)
     es.onmessage = (ev) => {
       setError(null) // EventSource auto-reconnects; a fresh payload means we're back
@@ -132,13 +176,16 @@ export function App() {
     // game is caught by the fetch probe on the refresh-restore path instead.
     es.onerror = () => setError('connection lost, reconnecting…')
     esRef.current = es
-  }, [])
+  }, [showScreen])
 
   const enterLobby = useCallback((lobbyId: string, token: string) => {
+    esRef.current?.close()
+    esRef.current = null
     window.location.hash = `#/join/${lobbyId}`
-    setScreen({ name: 'lobby', lobbyId, token })
+    showScreen({ name: 'lobby', lobbyId, token })
     setLobbyMissing(false)
     lobbyEsRef.current?.close()
+    lobbyEsRef.current = null
     const es = new EventSource(`/api/lobby/${lobbyId}/events`)
     es.onmessage = (ev) => {
       const data: LobbyPayload = JSON.parse(ev.data)
@@ -164,8 +211,7 @@ export function App() {
   useEffect(() => {
     if (screen.name !== 'lobby' || lobbyEsRef.current) return
     enterLobby(screen.lobbyId, screen.token)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [screen, enterLobby])
 
   // Refresh landed on a #/game/ URL (solo or reconnecting player): reopen the stream.
   // Probe /valid first — EventSource hides the HTTP status, so a game that's gone
@@ -184,15 +230,14 @@ export function App() {
           localStorage.removeItem(gameTokenKey(id))
           window.location.hash = ''
           setError('that game is no longer available (the server may have restarted)')
-          setScreen({ name: 'landing' })
+          showScreen({ name: 'landing' })
         }
       })
       // Only a network-level failure (server unreachable) lands here — not a 404.
       // Open the stream and let EventSource retry until the server comes back.
       .catch((e) => { if (e.name !== 'AbortError') openGame(id, token) })
     return () => ctrl.abort()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [screen, openGame, showScreen])
 
   const startGame = useCallback(async (opts: {
     players: number; humanSeats: number; table: TableSeat[]; roles: Role[] | null; humanName: string
@@ -296,14 +341,16 @@ export function App() {
   const backToLanding = useCallback(() => {
     esRef.current?.close()
     lobbyEsRef.current?.close()
+    esRef.current = null
+    lobbyEsRef.current = null
     // Drop the solo game's stored seat so leaving doesn't reconnect on refresh.
     if (screen.name === 'game') localStorage.removeItem(gameTokenKey(screen.id))
     window.location.hash = ''
     setPayload(null)
     setLobby(null)
     setLobbyMissing(false)
-    setScreen({ name: 'landing' })
-  }, [screen])
+    showScreen({ name: 'landing' })
+  }, [screen, showScreen])
 
   if (screen.name === 'landing') {
     return (
