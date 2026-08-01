@@ -36,9 +36,9 @@ import { appendArtifact, toArtifact } from './eval/core/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
 import { createAgentFromDef } from './agents/registry.ts'
-import { AGGREGATE_CAP, FIELD_CAP, agentDescriptor, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
+import { AGGREGATE_CAP, FIELD_CAP, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
 import { loadEnv } from './llm/env.ts'
-import type { AgentDef, AgentPublicInfo, LibraryProblem, LlmEngine, TableSeat } from './agents/defs.ts'
+import type { AgentDef, LibraryProblem, LlmEngine, TableSeat } from './agents/defs.ts'
 import type { ResolvedPack } from './agents/packs.ts'
 import { RULES_DIGEST, ROLE_GUIDANCE, ALIGNMENT_SHARED, TABLE_TALK_NORMS, OUTPUT_CONTRACTS, buildMessages } from './agents/prompts.ts'
 import { CALL_PARAMS } from './llm/call-params.ts'
@@ -60,6 +60,7 @@ import {
 import type { Decision, DecisionRequest, Game, GameEvent, Role, Seat } from './engine/types.ts'
 import { renderTranscript, type TranscriptSeat } from './transcript.ts'
 import { tableAliases } from './table-aliases.ts'
+import { buildBotSeatPlans, type SeatedAgent } from './bot-seat-plan.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'client', 'dist')
@@ -357,7 +358,6 @@ function createLobby(
 
 function startLobby(l: Lobby): void {
   const { playerCount, table } = l.config
-  const defs = table.map(seatDef)
 
   // Shuffle humans across the whole table (no "host is always seat 0" tell).
   const seats = Array.from({ length: playerCount }, (_, i) => i)
@@ -401,47 +401,39 @@ function startLobby(l: Lobby): void {
     humans.set(seat, { token: m.token, name })
   })
   const aliases = tableAliases(seed, botSeatList.length, [...humans.values()].map((h) => h.name))
+  const botPlans = buildBotSeatPlans({
+    playerCount,
+    seats: botSeatList,
+    table,
+    aliases,
+    resolveDef: seatDef,
+  })
   // Agent-card names and model labels remain metadata. Only these aliases enter
   // PlayerView and therefore natural-language prompts and table talk.
-  botSeatList.forEach((seat, i) => {
-    const sourceDef = defs[i]
-    const tableSeat = table[i]
-    const alias = aliases[i]
-    if (!sourceDef || !tableSeat || alias === undefined) {
-      throw new Error(`incomplete bot seat ${i}`)
-    }
-    const def = structuredClone(sourceDef)
-    const model = tableSeat.model
+  for (const { seat, alias, identity } of botPlans) {
     names[seat] = reserve(alias)
     // One game-start identity feeds the live agent, client badge, reveal,
     // transcript, and artifact. Never reduce it to a model slug: a raw model
     // card and a composed agent can call the same model.
-    seatedAgents[seat] = {
-      def,
-      model,
-      info: publicInfo(def, model),
-      descriptor: agentDescriptor(def, model),
-    }
-  })
+    seatedAgents[seat] = identity
+  }
   // No talk override: this restated the engine default verbatim, so the shipped
   // pacing lived in two files that had to be edited together and nothing checked
   // that they matched. createGame owns it now (engine/game.ts).
   const game = createGame({
     seed, playerCount, names, roles: l.config.roles,
   })
-  botSeatList.forEach((seat) => {
-    const seated = seatedAgents[seat]
-    if (!seated) throw new Error(`missing seated agent for seat ${seat}`)
+  for (const { seat, identity } of botPlans) {
     agents.set(seat, createAgentFromDef(
-      seated.def,
+      identity.def,
       {
         seed,
         seat,
         onDecisionTrace: (trace) => upsertDecisionTrace(decisionTraces, trace),
       },
-      seated.model,
+      identity.model,
     ))
-  })
+  }
 
   const id = newId()
   const session: Session = {
@@ -479,13 +471,6 @@ interface Session {
   pumping: boolean
   steps: number            // decisions applied, for the artifact's steps field
   artifactWritten: boolean // one artifact per game, however often pump re-enters
-}
-
-interface SeatedAgent {
-  def: AgentDef
-  model?: string
-  info: AgentPublicInfo
-  descriptor: string
 }
 
 const sessions = new Map<string, Session>()
