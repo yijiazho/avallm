@@ -426,7 +426,7 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
       return {
         key: ev.seq, kind: 'deed', seat: ev.payload.leader, verb: you(ev.payload.leader) ? 'propose' : 'proposes',
         text: `${team} for quest ${ev.payload.round} · proposal ${ev.payload.proposalNum} of 5`,
-        pitch: ev.payload.pitch ? String(ev.payload.pitch) : undefined,
+        ...(ev.payload.pitch ? { pitch: String(ev.payload.pitch) } : {}),
       }
     }
     case 'proposalLocked': {
@@ -444,7 +444,7 @@ function renderEvent(ev: GameEvent, name: (s: number) => string, view: PlayerVie
         key: ev.seq, kind: 'deed', glyph: '⟲ ', seat,
         verb: you(seat) ? 'revise the team' : 'revises the team',
         text: `${to} · quest ${ev.payload.round}`,
-        pitch: ev.payload.reason ? String(ev.payload.reason) : undefined,
+        ...(ev.payload.reason ? { pitch: String(ev.payload.reason) } : {}),
       }
     }
     case 'voteReveal': {

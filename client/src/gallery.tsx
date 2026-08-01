@@ -229,7 +229,11 @@ const VARIANTS: Variant[] = [
 // Published for the harness to enumerate (id + crop selector + optional hover),
 // so adding a fixture here is enough to get it shot — the tool hard-codes nothing.
 ;(window as unknown as { __VARIANTS__: { id: string; sel: string; hover?: string }[] }).__VARIANTS__ =
-  VARIANTS.map((x) => ({ id: x.id, sel: x.sel, hover: x.hover }))
+  VARIANTS.map((x) => ({
+    id: x.id,
+    sel: x.sel,
+    ...(x.hover ? { hover: x.hover } : {}),
+  }))
 
 const current = () => VARIANTS.find((x) => x.id === location.hash.replace(/^#/, '')) ?? null
 

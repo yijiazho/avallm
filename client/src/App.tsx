@@ -313,7 +313,7 @@ export function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             playerCount: opts.players, table: opts.table, humanName: opts.humanName,
-            invite: opts.invite,
+            ...(opts.invite ? { invite: opts.invite } : {}),
             ...(opts.roles ? { roles: opts.roles } : {}),
           }),
         })
@@ -327,7 +327,8 @@ export function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: opts.humanName, playerCount: opts.players, humanSeats: opts.humanSeats,
-            table: opts.table, invite: opts.invite,
+            table: opts.table,
+            ...(opts.invite ? { invite: opts.invite } : {}),
             ...(opts.roles ? { roles: opts.roles } : {}),
           }),
         })
@@ -888,6 +889,9 @@ function defaultTable(library: Library | null, count: number, exclude: string[] 
   )
 }
 
+const tableSeat = (agent: string, model?: string): TableSeat =>
+  model ? { agent, model } : { agent }
+
 // A personality-only agent (a character card with no model suggestion) falls
 // back to the server's DEFAULT_MODEL, so a themed table would be one model
 // wearing six hats. Deal it a random roster model instead — written onto the
@@ -904,7 +908,7 @@ function dealModels(library: Library, ids: string[]): TableSeat[] {
   return ids.map((id) => {
     const info = library.agents.find((a) => a.id === id)
     return agentUsesModel(info) && !info?.suggestedModel
-      ? { agent: id, model: draw() }
+      ? tableSeat(id, draw())
       : { agent: id }
   })
 }
@@ -1184,7 +1188,14 @@ function Launcher({ onStart, starting, library, onLibraryChange, error }: {
           <button
             className="cta"
             disabled={starting || !built.roles || table.length !== botCount || needsCode}
-            onClick={() => onStart({ players, humanSeats, table, roles: built.roles, humanName, invite: invite || undefined })}
+            onClick={() => onStart({
+              players,
+              humanSeats,
+              table,
+              roles: built.roles,
+              humanName,
+              ...(invite ? { invite } : {}),
+            })}
           >
             {starting
               ? 'Setting the table…'
@@ -1306,7 +1317,7 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                 onChange={(e) => {
                   const next = library.agents.find((a) => a.id === e.target.value)
                   const replacement = next?.unavailable
-                    ? { agent: e.target.value, model: library.defaultModel ?? library.models[0]?.id }
+                    ? tableSeat(e.target.value, library.defaultModel ?? library.models[0]?.id)
                     : dealModels(library, [e.target.value])[0]
                   if (replacement) setSeat(i, replacement)
                 }}
@@ -1334,7 +1345,7 @@ function TablePicker({ library, table, onChange, fill, onFill }: {
                 <select
                   className="model-override"
                   value={seat.model ?? ''}
-                  onChange={(e) => setSeat(i, { agent: seat.agent, model: e.target.value || undefined })}
+                  onChange={(e) => setSeat(i, tableSeat(seat.agent, e.target.value))}
                   title="Model this seat runs on"
                 >
                   {/* Slugs, not marketing names: this dropdown is the one place
@@ -1394,7 +1405,10 @@ function AgentStudio({ library, onChanged }: { library: Library | null; onChange
 
   const roles = Object.keys(library.baseline?.roleGuidance ?? {})
   const kinds = library.baseline?.kinds ?? []
-  const invite = () => localStorage.getItem('avalon-invite') || undefined
+  const inviteField = () => {
+    const invite = localStorage.getItem('avalon-invite')
+    return invite ? { invite } : {}
+  }
   const tunedChars = strategy.length + personality.length
     + Object.values(roleG).reduce((n, t) => n + t.length, 0)
     + Object.values(kindG).reduce((n, t) => n + t.length, 0)
@@ -1412,7 +1426,7 @@ function AgentStudio({ library, onChanged }: { library: Library | null; onChange
     roleGuidanceMode: roleGMode,
     kindGuidance: kindG,
     temperature: temp === '' ? null : Number(temp),
-    invite: invite(),
+    ...inviteField(),
   })
 
   const reset = () => {
@@ -1464,7 +1478,7 @@ function AgentStudio({ library, onChanged }: { library: Library | null; onChange
       const res = await fetch(`/api/agents/${a.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invite: invite() }),
+        body: JSON.stringify(inviteField()),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'failed to delete agent')
