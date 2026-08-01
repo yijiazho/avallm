@@ -312,8 +312,29 @@ export function App() {
   const gameOver = payload?.view.phase === 'gameOver'
 
   useEffect(() => {
-    if (gameOver && gameId && !reveal) {
-      fetch(`/api/game/${gameId}/reveal`).then((r) => r.json()).then(setReveal).catch(() => {})
+    if (!gameOver || !gameId || reveal) return
+    const ctrl = new AbortController()
+    let retryTimer: number | undefined
+    const loadReveal = async () => {
+      try {
+        const res = await fetch(`/api/game/${gameId}/reveal`, { signal: ctrl.signal })
+        if (!res.ok) {
+          const problem = await res.json().catch(() => ({}))
+          throw new Error(problem.error ?? 'reveal unavailable')
+        }
+        const data: RevealPayload = await res.json()
+        setError(null)
+        setReveal(data)
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return
+        setError(e instanceof Error ? e.message : 'could not load the reveal')
+        retryTimer = window.setTimeout(() => void loadReveal(), 2_000)
+      }
+    }
+    void loadReveal()
+    return () => {
+      ctrl.abort()
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
     }
   }, [gameOver, gameId, reveal])
 

@@ -40,3 +40,12 @@ test('the action bar is replaced while a decision is pending', () => {
   assert.match(app, /: decisionPending\s*\? <div className="action-bar waiting">/)
   assert.match(app, /decisionAbortRef\.current = null\s*setDecisionPending\(false\)/)
 })
+
+test('reveal loading rejects error payloads and retries transient failures', () => {
+  const effect = app.match(/const loadReveal = async \(\) => \{([\s\S]*?)\n    \}\n    void loadReveal\(\)/)
+  assert.ok(effect, 'App no longer owns the retryable reveal loader')
+  assert.match(effect[1]!, /if \(!res\.ok\)[\s\S]*?throw new Error/)
+  assert.match(effect[1]!, /const data: RevealPayload = await res\.json\(\)/)
+  assert.match(effect[1]!, /window\.setTimeout\(\(\) => void loadReveal\(\), 2_000\)/)
+  assert.match(app, /ctrl\.abort\(\)[\s\S]*?window\.clearTimeout\(retryTimer\)/)
+})
