@@ -1884,7 +1884,14 @@ export function auditArchitectureSources(sourceEntries) {
     }
     if (promptTextModules.has(sourcePath)) {
       collectPurityViolations(violations, 'ARCH015', sourcePath, inspected, {
-        ambient: 'prompt builder reads ambient',
+        // Named for what the module actually is. The scope is now the closure,
+        // so most modules it covers are not prompt builders at all: the engine's
+        // rules, names, knowledge and seatset all sit in it. Reporting those as
+        // prompt builders reads as a misconfigured rule and sends the reader
+        // after the scope list instead of the ambient read.
+        ambient: PROMPT_BUILDERS.has(sourcePath)
+          ? 'prompt builder reads ambient'
+          : 'module reached from a prompt builder reads ambient',
         ambientWhy:
           'so the cacheable prefix stops being a function of the PlayerView alone',
         // The module arm stays scoped to the declared roots. Reaching a module

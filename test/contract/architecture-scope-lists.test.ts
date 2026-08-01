@@ -79,8 +79,12 @@ test('every scope list is non-empty and free of duplicates', () => {
 test('no scope list escapes the manifest', () => {
   const source = readFileSync(repoPath(TOOL_SOURCE), 'utf8')
   // The naming conventions the tool already uses for a set of scoped files.
+  // `export const` counts. Exporting a scope list is the established way to let
+  // a test assert against it, which is exactly how SHARED_ARITHMETIC_HELPER_NAMES
+  // is written, so anchoring on a bare `const` would let the most likely future
+  // list walk straight past the scan this test is.
   const declared = [...source.matchAll(
-    /^const (\w*(?:OWNERS|BUILDERS|CONSUMERS|IDENTIFIERS))\s*=\s*new Set\(/gm,
+    /^(?:export )?const (\w*(?:OWNERS|BUILDERS|CONSUMERS|IDENTIFIERS))\s*=\s*new Set\(/gm,
   )].map((match) => match[1]!)
   assert.ok(declared.length > 0, 'the declaration scan matched nothing, so it is broken')
   const covered = new Set(ARCHITECTURE_SCOPE_LISTS.map((list) => list.name))
