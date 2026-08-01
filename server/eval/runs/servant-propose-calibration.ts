@@ -51,6 +51,9 @@ import {
   questWeightedBeliefModel,
 } from '../../agents/belief/quest-card-factor.ts'
 import {
+  voteMatrixWeightedBeliefModel,
+} from '../../agents/belief/vote-matrix-factor.ts'
+import {
   buildServantRoleUtilityProjection,
 } from '../../agents/analysis/servant-role-utility.ts'
 import { diagnosisPercent } from '../core/report-format.ts'
@@ -434,6 +437,22 @@ export function scorerPicker(scorer: CandidateScorer): ProposalPicker {
  * which is precisely a likelihood. This factor prices exactly that, from a
  * fail-count distribution rather than a hand-weight.
  */
+export function beliefModelPicker(
+  beliefModel: typeof questWeightedBeliefModel,
+): ProposalPicker {
+  return async (input) => {
+    const decision = (await createComposedAgent({
+      seed: caseSeed(input),
+      scorer: roleObjectiveScorer,
+      beliefModel,
+    }).decide(input.req, input.view)).decision
+    if (decision.kind !== 'propose') {
+      throw new Error('belief-model picker produced a non-proposal')
+    }
+    return decision.team
+  }
+}
+
 export const questWeightedPicker: ProposalPicker = async (input) => {
   const decision = (await createComposedAgent({
     seed: caseSeed(input),
@@ -599,6 +618,8 @@ export const SERVANT_PROPOSE_HYPOTHESES: Readonly<
   'compatibility': compatibilityProposalPicker,
   /** The shipped-but-disabled quest-card factor, on the same policy. */
   'quest-weighted': questWeightedPicker,
+  /** BELIEF-001's vote-matrix factor, on the same policy. */
+  'vote-weighted': beliefModelPicker(voteMatrixWeightedBeliefModel),
 })
 
 export interface ServantProposeCalibration {
