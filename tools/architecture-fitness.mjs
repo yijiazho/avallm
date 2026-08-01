@@ -271,17 +271,39 @@ const TOLERANCE_LITERAL_EXEMPTIONS = new Map([])
  * force two unrelated regimes into one file, and that module's own header
  * spends a paragraph on why a second regime must not quietly join the first.
  */
+// Declared here rather than beside isAgent because the magnitude-area table
+// below needs it, and that table is read by ARCHITECTURE_SCOPE_LISTS earlier in
+// the file than isAgent sits.
+const AGENT_PREFIX = 'server/agents/'
 const SHARED_EVAL_STATISTICS = 'server/eval/core/statistics'
-const TOLERANCE_MAGNITUDE_OWNERS = new Set([
-  SHARED_PROBABILITY_ARITHMETIC,
-  SHARED_EVAL_STATISTICS,
+/**
+ * One table, so the two questions cannot drift apart. Which areas the rule
+ * covers and which module each is told to use are the same fact, and encoding
+ * them separately means a later widening updates one and silently leaves the
+ * other pointing a new layer at the agent tree's module, which is the coupling
+ * the per-area split exists to avoid.
+ */
+const TOLERANCE_MAGNITUDE_AREAS = Object.freeze([
+  Object.freeze({
+    prefix: 'server/eval/',
+    owner: SHARED_EVAL_STATISTICS,
+    label: 'eval/core/statistics.ts',
+  }),
+  Object.freeze({
+    prefix: AGENT_PREFIX,
+    owner: SHARED_PROBABILITY_ARITHMETIC,
+    label: 'canonical/probability-arithmetic.ts',
+  }),
 ])
+const TOLERANCE_MAGNITUDE_OWNERS = new Set(
+  TOLERANCE_MAGNITUDE_AREAS.map((area) => area.owner),
+)
 
-/** The module a given file's magnitudes belong in, named in the violation. */
-function ownerForArea(sourcePath) {
-  return sourcePath.startsWith('server/eval/')
-    ? 'eval/core/statistics.ts'
-    : 'canonical/probability-arithmetic.ts'
+/** The area a file belongs to, or undefined when magnitudes are ungoverned. */
+function magnitudeAreaFor(sourcePath) {
+  return TOLERANCE_MAGNITUDE_AREAS.find(
+    (area) => sourcePath.startsWith(area.prefix),
+  )
 }
 // Engine purity. The engine is the seeded, replayable core: every game is a
 // pure function of its seed and its log, which is what lets the simulator
@@ -943,8 +965,6 @@ function isShared(sourcePath) {
   return sourcePath.startsWith('server/shared/')
 }
 
-const AGENT_PREFIX = 'server/agents/'
-
 function isAgent(sourcePath) {
   return sourcePath.startsWith(AGENT_PREFIX)
 }
@@ -1124,29 +1144,7 @@ function violation(rule, importer, edge, detail) {
   })
 }
 
-/**
- * Every module that can put a value into a prompt: the declared prompt roots
- * plus everything they reach through value imports.
- *
- * ARCH015 used to check exactly the four files in PROMPT_BUILDERS. Purity is a
- * property of the reachable graph, not of one file, so that check was sound
- * only for text those four assembled entirely by themselves. Measured on the
- * tree at the time this was written, the roots reach 55 modules at runtime and
- * the rule was inspecting 4 of them, roughly 7% of its own risk surface. The
- * unchecked remainder included prompt-format.ts, knowledge-text.ts,
- * record/public-record.ts and communication/belief-summary.ts, which are text
- * renderers, precisely the category PROMPT_BUILDERS' own comment says the
- * obligation follows: "a prompt string assembled from an ambient read is the
- * defect this set exists to catch, and it does not care which module wrote it."
- * The implementation cared, because it did not traverse.
- *
- * Nothing in the unchecked 51 was actually reading ambient state, so widening
- * the scope fixed no live defect and needs no exemptions. It stops the rule
- * from depending on the roots staying the only text assemblers.
- *
- * Type-only edges are excluded; see isTypeOnlyImport for why counting them
- * would manufacture a false positive on the OpenRouter client.
- */
+/** Repository paths and module identities for one audit's sources. */
 function indexSources(entries) {
   const sourceByPath = new Map()
   const pathByIdentity = new Map()
@@ -1178,6 +1176,23 @@ function indexSources(entries) {
  * property of what a module can reach, and a per-file check can only stand in
  * for that while something bounds the reachable set. ARCH015 uses it for prompt
  * text, ARCH014 for the engine.
+ *
+ * What it bought ARCH015, since that is the case it was measured on. The rule
+ * used to check exactly the four files in PROMPT_BUILDERS, which was sound only
+ * for text those four assembled entirely by themselves. On the tree at the time,
+ * the roots reached 55 modules at runtime and the rule inspected 4 of them,
+ * roughly 7% of its own risk surface. The unchecked remainder included
+ * prompt-format.ts, knowledge-text.ts, record/public-record.ts and
+ * communication/belief-summary.ts, all text renderers, precisely the category
+ * PROMPT_BUILDERS' own comment says the obligation follows: "a prompt string
+ * assembled from an ambient read is the defect this set exists to catch, and it
+ * does not care which module wrote it." The implementation cared, because it
+ * did not traverse. Nothing in the unchecked 51 was reading ambient state, so
+ * the widening fixed no live defect and needed no exemptions.
+ *
+ * Type-only edges are skipped, and that is load-bearing rather than tidy: see
+ * isTypeOnlyImport for why counting them would manufacture a false positive on
+ * the OpenRouter client.
  */
 function valueImportClosure(roots, index, inspectOnce) {
   const { sourceByPath, pathByIdentity } = index
@@ -1913,10 +1928,9 @@ export function auditArchitectureSources(sourceEntries) {
     const magnitudeOwner = TOLERANCE_MAGNITUDE_OWNERS.has(
       moduleIdentity(sourcePath),
     )
-    const magnitudeGoverned = isAgent(sourcePath)
-      || sourcePath.startsWith('server/eval/')
-    if (magnitudeGoverned && !magnitudeOwner) {
-      const owner = ownerForArea(sourcePath)
+    const magnitudeArea = magnitudeAreaFor(sourcePath)
+    if (magnitudeArea && !magnitudeOwner) {
+      const owner = magnitudeArea.label
       const exempt = TOLERANCE_LITERAL_EXEMPTIONS.get(sourcePath)
       for (const literal of inspected.toleranceLiterals) {
         if (exempt?.has(literal.text)) continue
