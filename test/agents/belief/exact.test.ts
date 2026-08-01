@@ -79,7 +79,7 @@ test('hand-worked casts have exact canonical world counts', () => {
   const standard = createGame({
     seed: 'belief-count-standard',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
   })
   assert.equal(exactBelief(viewAs(standard, 'servant')).worlds.length, 24)
   assert.equal(exactBelief(viewAs(standard, 'merlin')).worlds.length, 4)
@@ -125,7 +125,7 @@ test('every feasible world pins the viewer own role', () => {
   const game = createGame({
     seed: 'belief-own-role',
     playerCount: 10,
-    roles: DEFAULT_ROLES[10],
+    roles: DEFAULT_ROLES[10]!,
   })
   for (const player of game.players) {
     const snapshot = exactBelief(viewFor(game, player.seat))
@@ -139,7 +139,7 @@ test('Merlin sees every non-Mordred evil while Mordred remains hidden', () => {
   const game = createGame({
     seed: 'belief-merlin-mordred',
     playerCount: 9,
-    roles: DEFAULT_ROLES[9],
+    roles: DEFAULT_ROLES[9]!,
   })
   const view = viewAs(game, 'merlin')
   const visible = knownEvilOf(view.privateInfo)
@@ -166,7 +166,7 @@ test('evil partner lists are complete except for Oberon, who learns no partners'
   const game = createGame({
     seed: 'belief-oberon',
     playerCount: 7,
-    roles: DEFAULT_ROLES[7],
+    roles: DEFAULT_ROLES[7]!,
   })
   const morganaView = viewAs(game, 'morgana')
   const partners = evilPartnersOf(morganaView.privateInfo)
@@ -192,7 +192,7 @@ test('Percival candidates hold Merlin and Morgana between them', () => {
   const game = createGame({
     seed: 'belief-percival',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
   })
   const view = viewAs(game, 'percival')
   const candidates = merlinCandidatesOf(view.privateInfo)
@@ -375,7 +375,7 @@ test('seat rotation rotates worlds and projections without changing probabilitie
   const game = createGame({
     seed: 'belief-rotation',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
   })
   const originalView = { ...viewAs(game, 'percival'), events: [] }
   const shift = 2
@@ -413,7 +413,7 @@ test('a legal PlayerView always retains the true world', () => {
   const game = createGame({
     seed: 'belief-truth-retention',
     playerCount: 7,
-    roles: DEFAULT_ROLES[7],
+    roles: DEFAULT_ROLES[7]!,
   })
   const trueKey = canonicalWorldKey(game.players.map(({ role }) => role))
   for (const player of game.players) {
@@ -430,7 +430,7 @@ test('inconsistent legal-shape evidence fails clearly instead of returning an em
   const game = createGame({
     seed: 'belief-no-world',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
   })
   const view = viewAs(game, 'merlin')
   assert.throws(

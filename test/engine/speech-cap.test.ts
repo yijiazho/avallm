@@ -39,7 +39,7 @@ test('a single enormous token still gets capped', () => {
 })
 
 test('the engine caps spoken text, not just the helper', () => {
-  const g = createGame({ seed: 'cap', playerCount: 5, roles: DEFAULT_ROLES[5] })
+  const g = createGame({ seed: 'cap', playerCount: 5, roles: DEFAULT_ROLES[5]! })
   const size = g.quests[0]!.teamSize
   const team = Array.from({ length: size }, (_, i) => (g.leaderSeat + i) % 5)
   applyDecision(g, g.leaderSeat, { kind: 'propose', team, pitch: 'word '.repeat(200) })

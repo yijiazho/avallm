@@ -77,7 +77,7 @@ test('hard deductions distinguish private, closure, quest, and multi-constraint 
   const directGame = createGame({
     seed: 'analysis-single-quest',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
   const percivalSeat = directGame.players.find((player) => player.role === 'percival')!.seat
@@ -107,7 +107,7 @@ test('hard deductions distinguish private, closure, quest, and multi-constraint 
   const questOnlyGame = createGame({
     seed: 'analysis-quest-only',
     playerCount: 5,
-    roles: DEFAULT_ROLES[5],
+    roles: DEFAULT_ROLES[5]!,
     talk: { maxRounds: 0, maxRoundsAfterChange: 0, leaderInDiscussion: 'none' },
   })
   const evilTeam = questOnlyGame.players

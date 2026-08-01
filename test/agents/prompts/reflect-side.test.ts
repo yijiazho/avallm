@@ -23,7 +23,7 @@ import { DEFAULT_ROLES } from '../../../server/engine/rules.ts'
 // A real view rather than a stub. The reflect branch happens not to read it
 // today, so a two-argument call would pass by luck and break silently the moment
 // that changes.
-const VIEW = viewFor(createGame({ seed: 'reflect', playerCount: 5, roles: DEFAULT_ROLES[5] }), 0)
+const VIEW = viewFor(createGame({ seed: 'reflect', playerCount: 5, roles: DEFAULT_ROLES[5]! }), 0)
 
 const reflect = (suspicions: unknown[]) =>
   parseDecision('reflect', JSON.stringify({ suspicions, deductions: [], plan: 'watch the votes' }), VIEW)

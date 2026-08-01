@@ -17,7 +17,7 @@ import { createGame, applyDecision, expectedDecisions } from '../../server/engin
 import { DEFAULT_ROLES } from '../../server/engine/rules.ts'
 import type { Game } from '../../server/engine/types.ts'
 
-const fresh = () => createGame({ seed: 'talk-default', playerCount: 5, roles: DEFAULT_ROLES[5] })
+const fresh = () => createGame({ seed: 'talk-default', playerCount: 5, roles: DEFAULT_ROLES[5]! })
 
 test('the default talk config is 2,1 with the leader closing', () => {
   const g = fresh()

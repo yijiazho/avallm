@@ -28,7 +28,7 @@ import type { WeightedWorld } from '../../../server/agents/belief/types.ts'
 // The role sets that exercise every projection branch: base 5-player, the
 // Merlin/Percival/Morgana kit, and a 10-player deal (the widest world set, the
 // one whose thousands of masses stress the sum tolerance).
-const CASTS: Record<number, Role[]> = {
+const CASTS = {
   5: ['merlin', 'percival', 'servant', 'morgana', 'assassin'],
   6: ['merlin', 'percival', 'servant', 'servant', 'morgana', 'assassin'],
   7: ['merlin', 'percival', 'servant', 'servant', 'morgana', 'assassin', 'oberon'],
@@ -36,7 +36,7 @@ const CASTS: Record<number, Role[]> = {
     'merlin', 'percival', 'servant', 'servant', 'servant', 'servant',
     'morgana', 'mordred', 'assassin', 'oberon',
   ],
-}
+} satisfies Record<number, Role[]>
 
 // ---- the pure guards ----
 
