@@ -4384,3 +4384,33 @@ here.
 
   Next version of the factor therefore prices two asymmetries rather than one: failability as
   now, plus own-membership, with good's off-team rejection baseline supplying the contrast.
+
+- Vote-matrix v2 built from the brief's off-team feature, measured, and REVERTED. The previous
+  entry read §3.1 correctly: "approve-rate on teams excluding the voter" is the evil-finder
+  strong humans use, it discriminates because §1.2 gives good a stated baseline of rejecting
+  teams it is not on, and v1 could not read it because good votes were unpriced. v2 priced both
+  sides, plus the brief's named exception for teams every member has already validated.
+
+  It measured worse. On the heuristic corpus, dirty-team rate `59.8%` against v1's `52.0%` over
+  the same `625` proposals; on the random corpus `72.8%` against `74.0%`, still null either way.
+
+  The by-round profile says why, and it is not subtle: at q2 v2 reads `82.7%` against the
+  constraints-only base's own `81.7%`. It is WORSE THAN NO FACTOR at the round where round-one
+  ballots dominate the record, and round one is exactly where good does not follow the off-team
+  rule, because rejecting there burns a proposal count good needs later and buys almost no
+  information. §1.2 names that exception; v2 modelled the rule and not the exception.
+
+  The general result is worth more than the specific revert. A feature that depends on GOOD's
+  behaviour can only be read as well as good is modelled, and good's baseline carries enough
+  documented exceptions (proposal pressure, validated teams, deliberate trust signals, the
+  hammer) that a partial model injects more noise than signal. v1's narrower rule, price only
+  what the host can reconstruct confidently and let the good constant cancel in the
+  normalization, is the more defensible position and is now the measured one too.
+
+  So the brief was right about the feature and right about the reason it works, and still did not
+  license this implementation. Reading the research told us what to build; only the measurement
+  told us whether this attempt at it was worth having.
+
+  A v3 would have to model good's exceptions, not just its rule. That is a larger claim about
+  play than v1 makes, and it should not be attempted without a population that did not generate
+  the numbers it is tuned against.
