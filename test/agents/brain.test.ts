@@ -48,12 +48,12 @@ test('resolved LLM brains separate exact inference from compatibility and compac
     observerModel: 'off',
   })
 
-  const experimental = resolveBrain({
+  const withBeliefSummary = resolveBrain({
     type: 'llm',
     brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   })
-  assert.equal(experimental.belief, EXACT_BELIEF_MODEL_VERSION)
-  assert.equal(experimental.beliefVisibility, BELIEF_RENDERER_VERSION)
+  assert.equal(withBeliefSummary.belief, EXACT_BELIEF_MODEL_VERSION)
+  assert.equal(withBeliefSummary.beliefVisibility, BELIEF_RENDERER_VERSION)
 })
 
 test('new architecture metadata is derived from the resolved runtime brain', () => {
@@ -74,11 +74,11 @@ test('new architecture metadata is derived from the resolved runtime brain', () 
   const normal = defaultComponents(llmDef())
   assert.equal(normal.belief, EXACT_BELIEF_MODEL_VERSION)
   assert.equal(normal.beliefVisibility, COMPAT_CERTAINTIES_VISIBILITY)
-  const experimental = defaultComponents(llmDef({
+  const withBeliefSummary = defaultComponents(llmDef({
     brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   }))
-  assert.equal(experimental.belief, EXACT_BELIEF_MODEL_VERSION)
-  assert.equal(experimental.beliefVisibility, BELIEF_RENDERER_VERSION)
+  assert.equal(withBeliefSummary.belief, EXACT_BELIEF_MODEL_VERSION)
+  assert.equal(withBeliefSummary.beliefVisibility, BELIEF_RENDERER_VERSION)
 })
 
 test('heuristic, random, and composed component identities remain truthful', () => {
@@ -208,9 +208,10 @@ test('Phase 2 prompt bytes remain frozen across every decision fixture', () => {
     digest(),
     '36868ab196ea84eb493a6c9b20ef418ec2bca2104358d4db569eb6a591027c3b',
   )
+  // The compact digest moved when promotion removed the stale status marker from the heading.
   assert.equal(
     digest(BELIEF_RENDERER_VERSION),
-    '6b04d74ce58e158dbc00c1cd2ec7acd14f12fbe7cac3bf76eb13e34ccfa957d8',
+    'f8ffd30dec12debd9bae70b1f21b97b9341359c1230f2d0f2f45ae529b94b820',
   )
 })
 

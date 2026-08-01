@@ -112,7 +112,7 @@ export function renderBeliefSummary(
 ): string {
   const semantics = probabilitySemantics(snapshot)
   const lines = [
-    `== EXACT BELIEF SUMMARY (experimental, ${BELIEF_RENDERER_VERSION}) ==`,
+    `== EXACT BELIEF SUMMARY (${BELIEF_RENDERER_VERSION}) ==`,
     `Model ${snapshot.modelVersion} | visible event cursor ${snapshot.throughSeq} | quality ${snapshot.quality}.`,
     `Semantics: values below are ${semantics}. They are not calibrated behavioral likelihoods.`,
     `PROVEN GOOD: ${names(view, analysis.provenGood)}.`,

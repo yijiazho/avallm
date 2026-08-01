@@ -19,9 +19,9 @@ import { proposalRejected } from '../engine/rules.ts'
 import type { Decision, DecisionRequest, PlayerView } from '../engine/types.ts'
 import type { AgentDecision, AvalonAgent } from './types.ts'
 import {
-  experimentalBeliefContext,
-  type ExperimentalBeliefContext,
-} from './experimental.ts'
+  buildBeliefSummaryContext,
+  type BeliefSummaryContext,
+} from './belief-summary-context.ts'
 import type { CognitionState } from './cognition/types.ts'
 import {
   createDecisionTrace,
@@ -99,9 +99,9 @@ export function createLlmAgent(opts: LlmAgentOpts): AvalonAgent {
   function advanceBeliefContext(
     view: PlayerView,
     candidateTeams: readonly (readonly number[])[] = [],
-  ): ExperimentalBeliefContext | undefined {
+  ): BeliefSummaryContext | undefined {
     if (!compactBeliefSummary) return undefined
-    const context = experimentalBeliefContext(view, candidateTeams, cognition)
+    const context = buildBeliefSummaryContext(view, candidateTeams, cognition)
     cognition = context.cognition
     return context
   }

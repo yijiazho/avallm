@@ -1,0 +1,13 @@
+{
+  "id": "exact-belief",
+  "name": "Exact Belief",
+  "version": 1,
+  "author": "AvaLLM",
+  "about": "Raw LLM agent with the compact exact belief summary. It is not the default policy.",
+  "engine": {
+    "type": "llm",
+    "brain": {
+      "beliefVisibility": "compact-belief-v1"
+    }
+  }
+}

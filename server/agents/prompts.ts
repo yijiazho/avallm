@@ -29,8 +29,8 @@ import { factsDossier } from './facts.ts'
 import { knowledgeText } from './knowledge-text.ts'
 import { listOf, seatName } from './prompt-format.ts'
 import {
-  experimentalBeliefContext,
-} from './experimental.ts'
+  buildBeliefSummaryContext,
+} from './belief-summary-context.ts'
 import { BELIEF_RENDERER_VERSION } from './communication/belief-summary.ts'
 import type { BeliefVisibility } from './brain.ts'
 import type { Alignment, PlayerView, Role, Seat } from '../engine/types.ts'
@@ -729,7 +729,7 @@ export function buildMessages(
 ): Msg[] {
   const computedBelief = features.beliefVisibility === BELIEF_RENDERER_VERSION
     && (!features.beliefBlock || !features.belief)
-    ? experimentalBeliefContext(
+    ? buildBeliefSummaryContext(
         view,
         extra?.chosenTeam ? [extra.chosenTeam] : [],
       )

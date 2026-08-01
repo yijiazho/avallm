@@ -6,8 +6,8 @@ import { viewFor } from '../../../server/engine/view.ts'
 import { createLlmAgent } from '../../../server/agents/llm.ts'
 import { buildMessages } from '../../../server/agents/prompts.ts'
 import {
-  experimentalBeliefContext,
-} from '../../../server/agents/experimental.ts'
+  buildBeliefSummaryContext,
+} from '../../../server/agents/belief-summary-context.ts'
 import { readDecisionFixtures } from '../../../server/eval/replay/decision-fixtures.ts'
 import type { OpenRouterClient } from '../../../server/llm/openrouter.ts'
 import type { DecisionTrace } from '../../../server/agents/trace.ts'
@@ -31,7 +31,7 @@ test('compact rendering separates proof from uniform hypothesis shares and shows
   const fixture = readDecisionFixtures().find(
     (candidate) => candidate.id === 'percival-opening-discussion',
   )!
-  const rendered = experimentalBeliefContext(fixture.view).rendered
+  const rendered = buildBeliefSummaryContext(fixture.view).rendered
   assert.match(rendered, /PROVEN GOOD:/)
   assert.match(rendered, /PROVEN EVIL:/)
   assert.match(rendered, /uniform share of feasible hypotheses/)
@@ -47,7 +47,7 @@ test('compact rendering separates proof from uniform hypothesis shares and shows
   assert.ok(unresolvedLines.every((line) => !/: 0%|: 100%/.test(line)))
 })
 
-test('default LLM prompts omit belief visibility and experimental prompts receive it', async () => {
+test('default LLM prompts omit belief visibility and configured summary prompts receive it', async () => {
   const game = createGame({ seed: 'prompt-isolation', playerCount: 5 })
   const view = viewFor(game, game.leaderSeat)
   const req = { kind: 'propose' as const, seat: view.seat, round: 1, proposalNum: 1 }
@@ -63,20 +63,20 @@ test('default LLM prompts omit belief visibility and experimental prompts receiv
   await defaultAgent.decide(req, view)
   assert.ok(defaults.flat().every((text) => !text.includes('EXACT BELIEF SUMMARY')))
 
-  const experimental: string[][] = []
-  const experimentalAgent = createLlmAgent({
+  const beliefSummary: string[][] = []
+  const beliefSummaryAgent = createLlmAgent({
     modelId: 'deepseek-flash',
     client: captureClient(
       JSON.stringify({ thinking: 'uses exact summary', team: [view.seat, (view.seat + 1) % 5] }),
-      experimental,
+      beliefSummary,
     ),
     brain: { beliefVisibility: BELIEF_RENDERER_VERSION },
   })
   // The trace rides the decide() envelope now, so the host owns persisting it.
   const traces: DecisionTrace[] = []
-  const experimentalOutput = await experimentalAgent.decide(req, view)
-  if (experimentalOutput.trace) traces.push(experimentalOutput.trace)
-  assert.ok(experimental.flat().some((text) => text.includes('EXACT BELIEF SUMMARY')))
+  const beliefSummaryOutput = await beliefSummaryAgent.decide(req, view)
+  if (beliefSummaryOutput.trace) traces.push(beliefSummaryOutput.trace)
+  assert.ok(beliefSummary.flat().some((text) => text.includes('EXACT BELIEF SUMMARY')))
   assert.equal(traces.length, 1)
   assert.equal(traces[0]!.statedReasoning, 'uses exact summary')
   assert.equal(traces[0]!.action.kind, 'propose')
@@ -133,7 +133,7 @@ test('live incremental block and fixed-view preview block use identical renderin
   const fixture = readDecisionFixtures().find(
     (candidate) => candidate.id === 'servant-vote-after-evidence',
   )!
-  const expected = experimentalBeliefContext(fixture.view).rendered
+  const expected = buildBeliefSummaryContext(fixture.view).rendered
   const messages = buildMessages(
     fixture.req.kind,
     fixture.view,
@@ -150,7 +150,7 @@ test('seat-scoped belief prompts do not leak another seat private knowledge', ()
   const oberon = game.players.find((player) => player.role === 'oberon')!
   const otherEvil = game.players.find((player) =>
     player.alignment === 'evil' && player.role !== 'oberon')!
-  const rendered = experimentalBeliefContext(viewFor(game, otherEvil.seat)).rendered
+  const rendered = buildBeliefSummaryContext(viewFor(game, otherEvil.seat)).rendered
   const oberonName = game.players[oberon.seat]!.name
   const provenEvil = rendered.split('\n').find((line) => line.startsWith('PROVEN EVIL:'))!
   assert.ok(!provenEvil.includes(oberonName), 'unseen Oberon must not be rendered as proven evil')

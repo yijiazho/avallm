@@ -438,16 +438,14 @@ eval-only `AVALON_NO_DOSSIER` A/B lever in `facts.ts`.
    Budget in §5.
 5. **The decision ask** for this kind.
 
-Phase 2 adds one explicit, nondefault context experiment: an LLM definition with
-`beliefMode: "exact-summary-v1"` receives a compact exact-belief block between the derived facts
-and private notes. Phase 3A retains that field as a compatibility input and resolves it once into
-the typed `brain-spec-v1` configuration. Baseline LLMs and the experiment both use
-`exact-constraints-v1`; their belief visibility differs:
-`compat-certainties-v1` versus `compact-belief-v1`. The block is reconstructed only from that
-seat's `PlayerView`, labels its values as uniform shares of feasible hypotheses, and uses the same
-renderer in live play, the fixed preview fixture, and offline replay. Brain identity is independent
-of model choice, personality, strategy, and other prompt layers. Baseline LLM definitions retain
-their existing prompt and policy behavior.
+Raw LLM agents can select a compact exact-belief block between the derived facts and private
+notes with `brain.beliefVisibility: "compact-belief-v1"`. The default raw-LLM visibility
+remains `compat-certainties-v1`; both configurations use `exact-constraints-v1` inference.
+The block is reconstructed only from that seat's `PlayerView`, labels its values as uniform
+shares of feasible hypotheses, and uses the same renderer in live play, the fixed preview
+fixture, and offline replay. The `brain-spec-v1` identity is independent of model choice,
+personality, strategy, and other prompt layers. Normal raw LLM definitions retain their
+existing prompt and policy behavior.
 
 ### Malformed-output ladder
 
@@ -468,7 +466,7 @@ Fallback events carry a `degraded: true` flag surfaced in the post-game reveal (
 vote on quest 3 was a fallback") — honesty about which decisions were actually the model's, which
 matters for a game whose premise is model identity.
 
-Completed-game artifacts may also contain optional private `DecisionTrace` rows for experimental
+Completed-game artifacts may also contain optional private `DecisionTrace` rows for traced
 agents. A composed trace records the seat and request identity; belief cursor and quality; compact
 hypotheses; relevant team assessment; the complete brain, belief/factor, analysis, candidate,
 forced-policy, policy, scorer, planner, typed-context/renderer, and communication versions; the

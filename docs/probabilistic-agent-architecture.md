@@ -867,7 +867,7 @@ not drift silently.
 ```text
 server/agents/                        # about 51.5k lines in fourteen owners
   *.ts                                #  6.0k  agent boundary and the raw-LLM baseline
-    types.ts registry.ts defs.ts packs.ts board.ts experimental.ts
+    types.ts registry.ts defs.ts packs.ts board.ts belief-summary-context.ts
     heuristic.ts random.ts llm.ts external-reply.ts composed.ts brain.ts
     prompts.ts facts.ts parse.ts trace.ts
   canonical/                          #  1.4k  domain-free shape and probability guards

@@ -3,7 +3,7 @@
 // layers reach the system prompt, and the engine-owned parts stay fixed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agentDescriptor, builtinDefs, parseTableSeat, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
+import { agentDescriptor, builtinDefs, loadAgentLibrary, parseTableSeat, publicInfo, resolveModel, validateDef } from '../../server/agents/defs.ts'
 import { createAgentFromDef } from '../../server/agents/registry.ts'
 import { DEFAULT_MODEL, ROSTER, rosterById } from '../../server/llm/roster.ts'
 import type { OpenRouterClient } from '../../server/llm/openrouter.ts'
@@ -41,6 +41,18 @@ test('built-in library exposes roster, rule-based, and both probabilistic agents
   )
   const ids = defs.map((d) => d.id)
   assert.equal(new Set(ids).size, ids.length)
+})
+
+test('curated exact-belief card uses its promoted public identity', () => {
+  const library = loadAgentLibrary()
+  const exactBelief = library.agents.find((def) => def.id === 'exact-belief')
+  assert.equal(exactBelief?.name, 'Exact Belief')
+  assert.deepEqual(exactBelief?.engine, {
+    type: 'llm',
+    brain: { beliefVisibility: 'compact-belief-v1' },
+  })
+  assert.equal(library.agents.some((def) => def.id === 'exact-belief-experimental'), false)
+  assert.equal(library.problems.some((problem) => problem.file.includes('exact-belief')), false)
 })
 
 test('publicInfo fills badges and maps engine to a display model', () => {

@@ -1,6 +1,6 @@
 // Repeatable, API-free Phase 2 performance benchmark.
 //
-// Measures the exact posterior alone and the complete experimental prompt
+// Measures the exact posterior alone and the complete belief-summary prompt
 // rendering path on representative standard 5- and 10-player opening views.
 // The first call is cold for that cast/view key; warm samples reuse the normal
 // bounded solver caches. No result is written unless the caller redirects it.
@@ -27,7 +27,7 @@ interface CaseResult {
   worldCount: number
   promptChars: number
   exactBelief: Timing
-  experimentalPrompt: Timing
+  beliefSummaryPrompt: Timing
 }
 
 const WARM_PERCENTILE = 0.95
@@ -103,7 +103,7 @@ function benchmarkCase(playerCount: 5 | 10, warmIterations: number): CaseResult 
     worldCount,
     promptChars,
     exactBelief: exact,
-    experimentalPrompt: prompt,
+    beliefSummaryPrompt: prompt,
   }
 }
 
@@ -132,21 +132,21 @@ function main(): void {
   const results = runBeliefPerformance(Number(values.iterations))
   if (values.json) {
     console.log(JSON.stringify({
-      benchmark: 'exact-belief-and-experimental-prompt-v1',
+      benchmark: 'exact-belief-and-summary-prompt-v1',
       node: process.version,
       warmIterations: Number(values.iterations),
       results,
     }, null, 2))
     return
   }
-  console.log(`exact-belief-and-experimental-prompt-v1 (${process.version}, ${values.iterations} warm runs)`)
+  console.log(`exact-belief-and-summary-prompt-v1 (${process.version}, ${values.iterations} warm runs)`)
   for (const result of results) {
     console.log(
       `${result.playerCount} players, ${result.viewerRole}, ${result.worldCount} worlds, `
       + `${result.promptChars} prompt chars`,
     )
     console.log(`  exact belief:        ${formatTiming(result.exactBelief)}`)
-    console.log(`  experimental prompt: ${formatTiming(result.experimentalPrompt)}`)
+    console.log(`  belief summary prompt: ${formatTiming(result.beliefSummaryPrompt)}`)
   }
 }
 
