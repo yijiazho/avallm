@@ -120,7 +120,7 @@ export async function reasoningProbe(opts: ProbeOpts): Promise<VariantResult[]> 
       transient,
       reasoningTokens: calls ? spend!.reasoning / calls : 0,
       cost: calls ? spend!.cost / calls : 0,
-      error,
+      ...(error === undefined ? {} : { error }),
     })
   }
   return results

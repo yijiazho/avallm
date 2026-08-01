@@ -674,10 +674,10 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
       const agents = new Map<Seat, AvalonAgent>()
       const decisionTraces: DecisionTrace[] = []
       const targetLatencySamples: DecisionLatencySample[] = []
-      let expectedComponentPlan: DecisionComponentPlan | undefined
-      let expectedArchitectureDescriptor:
-        ResolvedArchitectureDescriptor | undefined
-      let expectComponentTrace = false
+      let expectedComposedArchitecture: {
+        descriptor: ResolvedArchitectureDescriptor
+        componentPlan: DecisionComponentPlan
+      } | undefined
       const descriptors: string[] = game.players.map(() => opponentKind)
       for (const player of game.players) {
         const ctx = {
@@ -698,12 +698,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             resolvedBrain?: () => ResolvedComposedBrain
           }
           if (typeof possibleComposed.resolvedBrain === 'function') {
-            expectedArchitectureDescriptor =
-              possibleComposed.resolvedBrain().description
-            expectedComponentPlan = structuredClone(
-              decisionComponentPlan(possibleComposed.resolvedBrain()),
-            )
-            expectComponentTrace = true
+            const resolvedBrain = possibleComposed.resolvedBrain()
+            expectedComposedArchitecture = {
+              descriptor: resolvedBrain.description,
+              componentPlan: structuredClone(decisionComponentPlan(resolvedBrain)),
+            }
           }
           agents.set(
             player.seat,
@@ -825,18 +824,17 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
             view: snapshot.view,
             authoritativeAction: snapshot.original,
             deterministicSeed: c.seed,
-            ...(expectComponentTrace
-              ? {
+            ...(expectedComposedArchitecture === undefined
+              ? {}
+              : {
                   expectComponentTrace: true,
-                  expectedComponentPlan,
+                  expectedComponentPlan:
+                    expectedComposedArchitecture.componentPlan,
                   expectedArchitectureIdentity:
-                    expectedArchitectureDescriptor
-                      ? revalidatedArchitectureIdentity(
-                          expectedArchitectureDescriptor,
-                        )
-                      : undefined,
-                }
-              : {}),
+                    revalidatedArchitectureIdentity(
+                      expectedComposedArchitecture.descriptor,
+                    ),
+                }),
           })
           if (traceAdmission.kind === 'rejected') {
             traceAdmissionRejection = traceAdmission.reason
@@ -898,9 +896,9 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
               // replay above. Descriptor metadata names the configured
               // scorer, while the trace truthfully names the resolved layer.
               if (currentComponentTrace) {
-                return expectedArchitectureDescriptor !== undefined
+                return expectedComposedArchitecture !== undefined
                   && expectedComponents.scorer
-                    !== expectedArchitectureDescriptor.configuredPipeline
+                    !== expectedComposedArchitecture.descriptor.configuredPipeline
                       .scoring.configuredScorer
               }
               const rolePolicyApplicable =
@@ -1323,11 +1321,11 @@ export async function runArchitectureBench(opts: ArchitectureBenchOpts): Promise
         },
         telemetry,
         decisionTraces,
-        ...(expectedArchitectureDescriptor
+        ...(expectedComposedArchitecture
           ? {
               trustedArchitecture: {
                 seat: target.seat,
-                descriptor: expectedArchitectureDescriptor,
+                descriptor: expectedComposedArchitecture.descriptor,
               },
             }
           : {}),
@@ -1375,7 +1373,9 @@ async function main(): Promise<void> {
     variants,
     out: values.out,
     allowPaid: values['allow-paid'],
-    onProgress: values.quiet ? undefined : (line) => console.log(line),
+    ...(values.quiet
+      ? {}
+      : { onProgress: (line: string) => console.log(line) }),
   })
   console.log(`\n${artifacts.length} architecture game(s) -> ${values.out}`)
   console.log(`report: node server/eval/architecture-report.ts ${values.out}`)

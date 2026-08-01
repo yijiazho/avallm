@@ -188,7 +188,9 @@ function composedVariant(input: {
     },
     createTargetAgent: (context) => createComposedAgent({
       seed: context.seed,
-      onDecisionTrace: context.onDecisionTrace,
+      ...(context.onDecisionTrace === undefined
+        ? {}
+        : { onDecisionTrace: context.onDecisionTrace }),
       ...(input.scorer ? { scorer: input.scorer } : {}),
       ...(input.observer ? { publicObserver: true } : {}),
       ...(input.router ? { roleObjectiveRouter: true } : {}),
@@ -357,7 +359,9 @@ export async function runPhase7RoleEval(options: {
       variants: phase7RoleVariantsFor(bankCase.targetRole),
       cases: [bankCase],
       bankId: PHASE7_ROLE_EVAL_BANK_ID,
-      onProgress: options.onProgress,
+      ...(options.onProgress === undefined
+        ? {}
+        : { onProgress: options.onProgress }),
     }))
   }
   const rows = Object.freeze(artifacts.map(phase7RoleEvidenceRow)

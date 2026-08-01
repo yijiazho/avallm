@@ -1052,7 +1052,9 @@ async function main(): Promise<void> {
     }
     const running = await startSeatViewInspectorUi({
       fixtureFile: values.file,
-      initialFixture: values.fixture,
+      ...(values.fixture === undefined
+        ? {}
+        : { initialFixture: values.fixture }),
       port,
       mode: values.mode,
     })

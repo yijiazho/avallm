@@ -125,6 +125,7 @@ test('reasoningProbe: a transient 429 on the winning flag does not disqualify it
   const results = await reasoningProbe({ client, slug: 'vendor/model', samples: 3 })
   const none = results.find((r) => r.name === 'effort:none')!
   assert.equal(none.error, undefined)           // 429 was NOT recorded as terminal
+  assert.equal(Object.hasOwn(none, 'error'), false)
   assert.equal(none.transient, 1)               // it was counted as a skipped sample
   assert.ok(none.calls >= 1 && none.reasoningTokens < 1) // clean on the surviving samples
   assert.deepEqual(recommendPolicy(results).suppress, { effort: 'none' }) // still recommended
@@ -136,6 +137,7 @@ test('reasoningProbe: a 400 rejection is terminal and disqualifies the variant',
   const results = await reasoningProbe({ client, slug: 'vendor/model', samples: 3 })
   const ef = results.find((r) => r.name === 'enabled:false')!
   assert.match(ef.error ?? '', /400/)
+  assert.equal(Object.hasOwn(ef, 'error'), true)
   assert.equal(ef.transient, 0)
   assert.equal(ef.calls, 0) // broke before any successful call
 })

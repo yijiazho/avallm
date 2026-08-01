@@ -85,7 +85,9 @@ export function activeLanguageEvaluationVariant(
     },
     createTargetAgent: (context) => createComposedAgent({
       seed: context.seed,
-      onDecisionTrace: context.onDecisionTrace,
+      ...(context.onDecisionTrace === undefined
+        ? {}
+        : { onDecisionTrace: context.onDecisionTrace }),
       languageInterpreter: createActiveLanguageEvaluationInterpreter(
         context.seat,
         stats,

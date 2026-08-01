@@ -140,7 +140,9 @@ export async function replayItem(item: BankItem, def: AgentDef): Promise<{ decis
       ? def.engine.temperature ?? params.temperature
       : params.temperature,
     max_tokens: params.max_tokens,
-    response_format: params.json ? { type: 'json_object' } : undefined,
+    ...(params.json
+      ? { response_format: { type: 'json_object' } }
+      : {}),
   })
 
   // Match createLlmAgent's decision ladder (llm.ts): tolerant parse + legality

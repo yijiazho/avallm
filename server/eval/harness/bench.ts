@@ -79,9 +79,13 @@ export async function runBench(opts: BenchOpts): Promise<GameArtifact[]> {
       // bank dedupes incidents by `${artifactId}:${seq}`, which would then
       // conflate the baseline's and candidate's incidents at the same seq.
       const game = createGame({
-        seed, playerCount, talk: opts.talk,
+        seed,
+        playerCount,
+        ...(opts.talk === undefined ? {} : { talk: opts.talk }),
         id: `game-${seed}-${variant}`,
-        names: table === 'llm' ? seatInfo.map((s) => s.name!) : undefined,
+        ...(table === 'llm'
+          ? { names: seatInfo.map((seat) => seat.name!) }
+          : {}),
       })
       const roleSeat = game.players.find((p) => p.role === opts.role)!.seat
       const agents = new Map<Seat, AvalonAgent>()
@@ -172,7 +176,9 @@ async function main(): Promise<void> {
     talk: { maxRounds, maxRoundsAfterChange, leaderInDiscussion: 'last' },
     table,
     out,
-    onProgress: values.quiet ? undefined : (line) => console.log(line),
+    ...(values.quiet
+      ? {}
+      : { onProgress: (line: string) => console.log(line) }),
   })
   console.log(`\n${artifacts.length} games -> ${out}`)
   console.log(`report: node server/eval/report.ts ${out}`)
