@@ -20,7 +20,7 @@ import { TableSeats } from './components/TableSeats.tsx'
 
 const Brand = () => <>Ava<span className="llm">LLM</span></>
 
-const REPO_URL = 'https://github.com/allenliu/avallm'
+const REPO_URL = 'https://github.com/yijiazho/avallm'
 
 // A model id's short slug for display: the family-qualified form "vendor/model"
 // shows just the model half; a bare id shows whole.
