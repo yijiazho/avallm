@@ -1,7 +1,7 @@
 # ARCH-003 — Archive read API and previous-games UI
 
 - **Status:** proposed
-- **Depends on:** ARCH-001, ARCH-002
+- **Depends on:** ARCH-001 (done), ARCH-002
 - **Blocks:** none
 - **Design:** [design-game-archive.md](../design-game-archive.md) §Read path, §HTTP surface
 - **Size:** M

@@ -1,7 +1,7 @@
 # ARCH-001 — Archive record, writer, and boot index
 
-- **Status:** proposed
-- **Depends on:** SHARED-001
+- **Status:** implemented 2026-11-02 (PR #2)
+- **Depends on:** SHARED-001 (done)
 - **Blocks:** ARCH-002, ARCH-003, ARCH-004, REVIEW-002, MEM-001
 - **Design:** [design-game-archive.md](../design-game-archive.md) §One record per game,
   §Where it lives, §Write path, §Read path
@@ -92,23 +92,48 @@ records, so the existing `AVALON_ARTIFACTS` privacy rationale still applies unti
 
 ## Acceptance criteria
 
-- [ ] A finished game produces exactly one `<archiveDir>/<gameId>.json` containing an
+- [x] A finished game produces exactly one `<archiveDir>/<gameId>.json` containing an
       `ArchivedGame` whose `artifact.id` is the engine game id and whose `artifact.log` is the full
       finished log.
-- [ ] `archiveVersion === 1`; a record with a newer version is refused for that file only.
-- [ ] The record preserves `roles` (pre-shuffle), `winner`, `winReason`, per-seat agent
+- [x] `archiveVersion === 1`; a record with a newer version is refused for that file only.
+- [x] The record preserves `roles` (pre-shuffle), `winner`, `winReason`, per-seat agent
       descriptors, and the runtime `humanSeats` and `botTable`.
-- [ ] Writing the same game twice is a no-op (tracked by game id, not by a session boolean).
-- [ ] `AVALON_GAME_ARCHIVE=off` performs no archive write and leaves the game playable.
-- [ ] A write failure logs a warning, does not throw out of `pump`, and does not prevent the game
+- [x] Writing the same game twice is a no-op (tracked by game id, not by a session boolean).
+- [x] `AVALON_GAME_ARCHIVE=off` performs no archive write and leaves the game playable.
+- [x] A write failure logs a warning, does not throw out of `pump`, and does not prevent the game
       from finishing or the reveal from loading.
-- [ ] A malformed archive file is reported in `loadArchive().problems`, is skipped, and the rest
+- [x] A malformed archive file is reported in `loadArchive().problems`, is skipped, and the rest
       of the archive loads.
-- [ ] Boot scan is read-only: it does not create `<archiveDir>` when the directory is absent.
-- [ ] The in-memory index exposes id, createdAt, playerCount, roles, winner, post-game status, and
+- [x] Boot scan is read-only: it does not create `<archiveDir>` when the directory is absent.
+- [x] The in-memory index exposes id, createdAt, playerCount, roles, winner, post-game status, and
       per-seat agent descriptor/model without parsing full logs on every list.
-- [ ] `AVALON_ARTIFACTS`, when set, still appends its JSONL line; both sinks receive the same game
+- [x] `AVALON_ARTIFACTS`, when set, still appends its JSONL line; both sinks receive the same game
       id, roles, and winner.
+
+## Implementation notes (2026-11-02)
+
+- SHARED-001 landed in the same change; the archive follows `<dataDir>/games` through
+  `gamesDir()` and never adds a separate `AVALON_ARCHIVE_DIR`.
+- `server/archive/types.ts` holds the record/meta types. `server/archive/store.ts` holds the
+  writer, tolerant reader, boot scan, and metadata index.
+- `toArchivedGame(game, opts)` still calls `toArtifact` exactly once. The accepted config includes
+  optional `fidelity` and `historyMode`; ARCH-001 supplies `full` and `off` respectively.
+- Idempotence is enforced twice: the session remembers `archivedGameId`, and the store refuses to
+  rewrite an id already in its index or already present as a file. Base records are therefore
+  write-once; REVIEW-002 should add an explicit update path for post-game state rather than weaken
+  this guard.
+- `writeArchivedGame` uses `writeJsonAtomic`; a corrupt existing file therefore stops that write
+  (the caller warns) rather than being silently clobbered.
+- `readArchivedGame` exposes named `ArchiveCorruptError` and `ArchiveVersionError` failures so the
+  boot scan can report one file without aborting the directory.
+- `archiveMeta` reports `postgame: 'none'`; `ArchivedGame.postgame` remains typed `never` until
+  REVIEW-002.
+- The read/index exports (`readArchivedGame`, `getArchiveMeta`, `listArchiveMeta`) are deliberately
+  consumption-free until ARCH-003. ARCH018 has a temporary exemption that the staleness check will
+  report once the read API consumes them.
+- Tests: `test/archive/store.test.ts` and `test/server/archive-write.test.ts`, both lane `fast`.
+  The HTTP test finishes a real 5-seat game through the SSE decision path and covers the
+  archive-off case, a dual sink, and a swallowed write failure.
 
 ## Testing plan
 

@@ -1,6 +1,7 @@
 # Design: optional cross-game memory for agents
 
-**Status:** proposed, unbuilt. Written 2026-11-01.
+**Status:** proposed, unbuilt. Written 2026-11-01. The archive foundation (ARCH-001) is built; the
+selection/digest work still needs ARCH-002 and MEM-001.
 Companions: [design-game-archive.md](design-game-archive.md) (the corpus),
 [design-postgame-review.md](design-postgame-review.md) (the best part of the corpus),
 [design-bot-guidance.md](design-bot-guidance.md) §6 (prompt slots),

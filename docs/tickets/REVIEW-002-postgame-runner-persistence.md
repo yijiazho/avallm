@@ -1,7 +1,7 @@
 # REVIEW-002 — Post-game runner, persistence, and status
 
 - **Status:** proposed
-- **Depends on:** REVIEW-001, ARCH-001
+- **Depends on:** REVIEW-001, ARCH-001 (done)
 - **Blocks:** REVIEW-003
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Scheduling and failure,
   §Cost and control

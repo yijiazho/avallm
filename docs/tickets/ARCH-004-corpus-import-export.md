@@ -1,7 +1,7 @@
 # ARCH-004 — Artifact corpus import/export and dual-write
 
 - **Status:** proposed
-- **Depends on:** ARCH-001
+- **Depends on:** ARCH-001 (done)
 - **Blocks:** none
 - **Design:** [design-game-archive.md](../design-game-archive.md) §Relationship to the existing
   artifact corpus

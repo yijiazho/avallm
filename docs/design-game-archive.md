@@ -1,6 +1,7 @@
 # Design: durable game archive (local game logs)
 
-**Status:** proposed, unbuilt. Written 2026-11-01.
+**Status:** foundation built 2026-11-02 (SHARED-001 + ARCH-001). Fidelity split, retention,
+read API, import/export, and cross-game memory remain proposed.
 Companions: [design-implementation.md](design-implementation.md) (architecture),
 [design-snapshots.md](design-snapshots.md) (in-progress durability),
 [design-postgame-review.md](design-postgame-review.md),
@@ -30,43 +31,44 @@ This document designs that persistent layer. It deliberately reuses the existing
   `GameArtifact` (`ARTIFACT_SCHEMA = 4`) with the full log, the pre-shuffle role multiset, per-seat
   agent descriptors, winner, degradation records, optional decision traces, and optional
   `probes`/`judge` analyses. `toArtifact(game, opts)` requires `phase === 'gameOver'`.
-- **The server already writes one, but only if asked.** `saveArtifact` in `server/server.ts` runs
-  once at `gameOver` when `AVALON_ARTIFACTS` is set, appending a JSONL line to a single file. It is
-  opt-in because an artifact is a full reveal (roles, private `thinking`, `scratchpad`, secret
-  cards) and retention is an operator choice. Write failures are warned and swallowed.
+- **The server writes one per-game archive by default.** ARCH-001 wraps the same `GameArtifact` in
+  `ArchivedGame` and writes one `<dataDir>/games/<gameId>.json` at `gameOver`, before any paid
+  post-game work. `AVALON_GAME_ARCHIVE=off` disables it. The archive is still full-fidelity:
+  redaction arrives with ARCH-002.
+- **The eval corpus is still an explicit opt-in export.** `saveArtifact` also appends a JSONL line
+  to `AVALON_ARTIFACTS` when that path is configured. Both sinks receive the same artifact object.
 - **The on-demand transcript is not persisted.** `GET /api/game/:id/transcript` renders Markdown
   with `renderTranscript`; it is built for copying to a chat, not for storage.
-- **The data-dir plumbing is half-generalized.** `AVALON_DATA_DIR` (or
-  `RAILWAY_VOLUME_MOUNT_PATH`) is resolved once in `server/server.ts`, but only the agent store
-  consumes it: `useDataDir()` in `server/agents/defs.ts` points `data/agents` at the base. There is
-  no shared "data root" module.
-- **Nothing survives a restart.** `sessions` and `lobbies` are plain in-memory maps. Boot scans
-  only the agent library. `design-snapshots.md` scopes in-progress durability; this document is
-  about finished games and can land first.
+- **The data-dir plumbing is generalized.** `server/data-dir.ts` resolves `AVALON_DATA_DIR` (then
+  `RAILWAY_VOLUME_MOUNT_PATH`, then repo-local `data`) once at startup. `server/agents/defs.ts`
+  and `server/archive/store.ts` both derive their directories from it.
+- **Finished games survive a restart; running ones do not.** `sessions` and `lobbies` remain plain
+  in-memory maps, so a restart still kills an in-progress game. Boot now scans finished archive
+  records into a metadata index, but has no snapshot or resume path for live sessions
+  ([design-snapshots.md](design-snapshots.md) owns that).
 
 ## Gaps
 
-| Gap | Today | Needed |
-|---|---|---|
-| Per-game record | One optional JSONL corpus at `AVALON_ARTIFACTS` | One addressable record per game |
-| Default | Off | On by default for finished games, with an explicit opt-out |
-| Discovery | Must parse the whole corpus | List finished games by time, winner, agent, and model without loading full logs |
-| History selection | No per-agent view of the corpus | Metadata index that answers "which games did this agent play?" |
-| Lifecycle | Write-once | Update with post-game review and retention metadata |
-| Durability | In-memory sessions | Reboot-safe files on the configured data volume |
-| Retention | None | Bounded growth, deletion, and documented privacy posture |
-| Reuse | `readArtifacts` rejects future schemas | Tolerant per-file reads that skip one bad file, never the corpus |
+| Gap | Before ARCH-001 | Current after ARCH-001 | Needed |
+|---|---|---|---|
+| Per-game record | One optional JSONL corpus at `AVALON_ARTIFACTS` | One addressable `<dataDir>/games/<gameId>.json` per finished game | Done |
+| Default | Off | Archive on; JSONL corpus still opt-in | Done |
+| Discovery | Must parse the whole corpus | Boot metadata index; no HTTP list yet | Read API (ARCH-003) |
+| History selection | No per-agent view of the corpus | Index carries per-seat descriptor and model | Selection query (MEM-001) |
+| Lifecycle | Write-once | Base record write-once; `postgame` reserved | Post-game review (REVIEW-002) |
+| Durability | In-memory sessions | Finished games survive; live sessions still do not | Snapshots for in-progress games |
+| Retention | None | None | Bounded growth and deletion (ARCH-002) |
+| Reuse | `readArtifacts` rejects future schemas | Archive reads are tolerant per file | Corpus import/export (ARCH-004) |
 
-Two subtler gaps:
+Two subtler issues:
 
-1. **`saveArtifact` is once per `Session`, not once per game.** `artifactWritten` is a session
-   flag. That is correct today because a session holds exactly one game, but it is the wrong
-   invariant for a store keyed by game id. Track the written game id instead, so a future session
-   that hosts more than one game cannot silently skip a record.
+1. **`saveArtifact` is once per `Session`, not once per game.** ARCH-001 resolved this by tracking
+   the written engine game id (`Session.archivedGameId`) and making the store idempotent by id.
+   A future session that hosts more than one game cannot silently skip a record.
 2. **The full log is a full reveal.** `toArtifact` stores `game.log`, which includes
-   `roleDealt`/`knowledge`/`thinking`/`scratchpad`/`questCard`. A durable archive built directly on
-   it inherits that sensitivity. The design below makes fidelity an explicit choice instead of an
-   accident.
+   `roleDealt`/`knowledge`/`thinking`/`scratchpad`/`questCard`. ARCH-001 deliberately keeps that
+   full fidelity; ARCH-002 introduces the public storage mode and the default switch on gated
+   deployments.
 
 ## Design
 
@@ -76,12 +78,12 @@ Every finished game produces exactly one archive record, written by a single ser
 Do not add a second writer in the eval path; the sim can keep using `--out <jsonl>` and the web
 archive can be imported/exported to that format.
 
-Proposed home: `server/archive/` (a server layer, not `server/engine` and not `server/agents`).
+Built home: `server/archive/` (a server layer, not `server/engine` and not `server/agents`).
 It may import the engine and `toArtifact`; the engine must never import it (ARCH014/ARCH019 stay
 untouched).
 
 ```ts
-// server/archive/record.ts
+// server/archive/types.ts (implemented)
 export const ARCHIVE_VERSION = 1
 
 export type ArchiveFidelity = 'public' | 'full'
@@ -99,6 +101,9 @@ export interface ArchivedGame {
   postgame?: PostgameRecord    // see design-postgame-review.md
 }
 ```
+
+The runtime functions live in `server/archive/store.ts`: `toArchivedGame`, `writeArchivedGame`,
+`readArchivedGame`, `loadArchive`, `archiveMeta`, `getArchiveMeta`, and `listArchiveMeta`.
 
 `GameArtifact` already carries players, roles, winner, agents, and `createdAt`, so the wrapper must
 not duplicate them. The wrapper exists for **runtime-only config and post-game state**, which the
@@ -129,10 +134,9 @@ The post-game review is stored separately (`postgame`) and already contains mode
 
 ### Where it lives
 
-Extend the existing data root rather than inventing a second one. Factor the resolution in
-`server/server.ts` into `server/data-dir.ts` (`dataDir()`, `useDataDirBase(base)`) and have both
-the agent store and the archive read it. Keep `useDataDir()` in `defs.ts` as a thin adapter for
-compatibility.
+Extend the existing data root rather than inventing a second one. The resolution now lives in
+`server/data-dir.ts` (`dataDir()`, `useDataDirBase()`), and both the agent store and the archive
+read it. `useDataDir()` in `defs.ts` remains a thin adapter for compatibility.
 
 ```
 <dataDir>/agents/<id>.json          # existing
@@ -144,7 +148,9 @@ One file per game has three advantages over the single JSONL corpus:
 
 - deleting one game is `rm`, not a corpus rewrite;
 - a corrupt file loses one game, not the whole archive;
-- post-game analysis can rewrite one record atomically without touching unrelated games.
+- post-game analysis can rewrite one record atomically without touching unrelated games. ARCH-001
+  itself is write-once; REVIEW-002 will add the explicit update path rather than bypassing the
+  idempotence check.
 
 `gameId` is the engine game id (`game-web-<id>`), not the session id. They already differ today:
 `startLobby` mints a session id (`newId()`), while `createGame` derives `game-${seed}`. Routing uses
@@ -155,13 +161,18 @@ archive API.
 
 1. On `gameOver`, in `pump`, write the base record **before** any paid post-game work, so a crash
    during analysis cannot lose the game.
-2. `writeArchive(record)` uses the same atomic pattern as `saveCustomDef`: write
+2. `writeArchivedGame(record)` uses the same atomic pattern as `saveCustomDef`: write
    `<file>.tmp-<pid>`, `fsync` optional, `rename` into place. Never append.
-3. If the volume is not mounted (`AVALON_DATA_DIR` set but missing), warn once at boot, exactly as
-   the agent store does, and degrade to "no archive" rather than failing the game.
+3. If the volume is not mounted (`AVALON_DATA_DIR` set but missing), the startup warning is the
+   same one the agent store emits, and the boot scan stays read-only. The first finished game may
+   create `<dataDir>/games` when the filesystem allows it; any write failure is warned and
+   swallowed. A future ticket can make a missing configured base a hard "no archive" mode if the
+   ephemeral-directory case proves confusing in practice.
 4. A failed write is warned and swallowed. The game result is already in memory and on clients;
    bookkeeping must not take the game down.
-5. Post-game review updates are full-record rewrites (small, one game).
+5. Post-game review updates are full-record rewrites (small, one game). ARCH-001's
+   `writeArchivedGame` is deliberately write-once by game id for base records, so REVIEW-002 must
+   add a dedicated update path instead of weakening that guard.
 6. If the process dies mid-write, the temp file is ignored on boot and the previous record (if
    any) is intact.
 
@@ -172,16 +183,17 @@ compete for the same file. Recommended split: snapshots live in `<dataDir>/sessi
 
 ### Read path
 
-- **Boot scan.** `loadArchive()` reads every `*.json` in `<dataDir>/games/`, validates
+- **Boot scan (built).** `loadArchive()` reads every `*.json` in `<dataDir>/games/`, validates
   `archiveVersion`, and builds an in-memory index of small metadata (game id, finished time,
-  player count, roles, winner, post-game status, per-seat agent descriptor and model, file size).
-  A bad file is logged as a problem and skipped; it never aborts the scan. The index is a cache,
-  not a source of truth. At friends-scale (hundreds of games) scanning a directory at boot is
-  cheap; add an index file only if measurement says otherwise.
-- **Selection.** `listArchive({ agent?, model?, limit?, before? })` reads the index only. `agent`
-  matches a seat's descriptor (`llm:...` or `def:...`), which is what cross-game memory needs.
-  This is also what the "previous games" UI consumes.
-- **Load one.** `readArchivedGame(id)` parses one file with a tolerant reader. A
+  player count, roles, winner, post-game status, per-seat agent descriptor and model). A bad file
+  is logged as a problem and skipped; it never aborts the scan. The index is a cache, not a source
+  of truth. At friends-scale (hundreds of games) scanning a directory at boot is cheap; add an
+  index file only if measurement says otherwise.
+- **Selection (proposed).** `listArchive({ agent?, model?, limit?, before? })` reads the index
+  only. `agent` matches a seat's descriptor (`llm:...` or `def:...`), which is what cross-game
+  memory needs. This is also what the "previous games" UI consumes. ARCH-001 exposes
+  `listArchiveMeta()` but no filters or HTTP route yet.
+- **Load one (built).** `readArchivedGame(id)` parses one file with a tolerant reader. An
   `archiveVersion` newer than the server's is refused for that file, not for the directory.
 
 ### HTTP surface
@@ -219,8 +231,8 @@ This mirrors the existing transcript rule: a full reveal is a deliberate request
   append-only, consumed by `readArtifacts`, `probe`, `judge`, and the bench tools.
 - The archive is the **product record**: one file per game, discoverable, updatable, retention-
   managed. It can contain the same `GameArtifact` object.
-- If both are enabled, write both from one `saveArtifact` call site, and never let them disagree
-  about `id`, `roles`, or `winner`.
+- If both are enabled, both are written from one `saveArtifact` call site and carry the same
+  artifact object, so they cannot disagree about `id`, `roles`, or `winner`.
 - Import path: `node tools/archive-import.ts <corpus.jsonl>` reads an existing corpus and writes one
   archive file per artifact. Imported records need no extra table identity: their players, agents,
   and timestamps are already in the artifact, which is all history selection needs.
@@ -228,8 +240,9 @@ This mirrors the existing transcript rule: a full reveal is a deliberate request
 
 ## Phasing
 
-1. **Foundation:** factor `server/data-dir.ts`, add `server/archive/record.ts` (types, atomic
-   write/read, boot index), wire `saveArtifact` to it. No UI.
+1. **Foundation (done 2026-11-02):** factor `server/data-dir.ts`, add `server/archive/types.ts` and
+   `server/archive/store.ts` (atomic write/read, boot index), and wire the two `saveArtifact` sinks.
+   No UI.
 2. **Fidelity split:** public redaction, env override, retention GC, delete route.
 3. **Read API + UI:** list and detail routes, a "Previous games" surface, transcript reuse.
 4. **Per-agent index:** expose descriptor/model filtering, the input cross-game memory needs (see
@@ -238,18 +251,27 @@ This mirrors the existing transcript rule: a full reveal is a deliberate request
 
 ## Testing
 
-- Round-trip: `toArtifact` → `writeArchive` → `readArchivedGame` preserves id, roles, winner, log,
-  and per-seat agents; `public` fidelity drops every non-public event and keeps the role reveal.
+Built by ARCH-001:
+
+- Round-trip: `toArtifact` → `writeArchivedGame` → `readArchivedGame` preserves id, roles, winner,
+  log, and per-seat agents.
 - Atomicity: a temp file left by a crashed write is ignored; the previous record still loads.
-- Corrupt file: one bad JSON file is skipped and surfaced, the rest of the archive loads.
+- Corrupt file: one bad JSON file is skipped and surfaced, the rest of the archive loads. A newer
+  `archiveVersion` is refused for that file only.
+- Boot scan is read-only and does not create directories for an unmounted volume.
+- Idempotence: the same finished game is written exactly once, tracked by game id rather than by a
+  session flag.
+- Dual sink: `AVALON_ARTIFACTS` still appends its line and both sinks carry the same id, roles, and
+  winner.
+
+Still proposed:
+
+- `public` fidelity drops every non-public event and keeps the role reveal.
 - Retention: GC removes the oldest records and never deletes the newest games first.
 - No leak: `GET /api/games/:id` never contains private `thinking`/`scratchpad`; `/raw` does, and is
   gated.
-- Idempotence: the same finished game is written exactly once, tracked by game id rather than by a
-  session flag.
 - Selection: `listArchive({ agent })` returns exactly the games in which that descriptor held a
   seat, newest first.
-- Boot scan is read-only and does not create directories for an unmounted volume.
 
 ## Open questions
 

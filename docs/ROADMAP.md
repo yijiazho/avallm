@@ -73,6 +73,9 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 
 - **Durable game archive.** Keep one local record per finished game (plus retention), replacing
   the opt-in JSONL-only artifact path as the product record. Built on the existing `GameArtifact`.
+  **Foundation landed 2026-11-02 (ARCH-001):** one full-fidelity record per finished game under
+  `<dataDir>/games`, plus a boot metadata index. Remaining: public fidelity/retention/delete
+  (ARCH-002), read API and previous-games UI (ARCH-003), corpus import/export (ARCH-004).
   **Design in [design-game-archive.md](design-game-archive.md).**
 - **Post-game review.** Each modeled seat reviews its own decisions with hindsight; humans can
   write a note. Stored beside the game, shown in the reveal, included in the transcript.
