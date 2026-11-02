@@ -337,6 +337,11 @@ const clamp = (text: string, max: number): string => text.trim().slice(0, max)
 const fenceSafe = (text: string): string =>
   text.replaceAll('<<<POSTGAME_TURNS', '[fence]').replaceAll('POSTGAME_TURNS>>>', '[fence]')
 
+// Evidence is model-authored too. Sanitize before clamping and fencing it, the
+// same boundary every other prompt surface uses for untrusted table text.
+const quoted = (text: string, max: number): string =>
+  fenceSafe(sanitizeSpeech(clamp(text, max)))
+
 /**
  * The conversation so far. A turn is its spoken statement plus the citations and
  * comments that support it, so the next seat can answer a specific claim rather
@@ -363,16 +368,16 @@ function renderPriorTurns(
     lines.push(
       `Turn ${index + 1}: ${fenceSafe(sanitizeSpeech(nameOf(view, turn.seat)))} (seat ${turn.seat})`,
     )
-    lines.push(`  said: "${fenceSafe(sanitizeSpeech(statement))}"`)
+    lines.push(`  said: "${quoted(statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
     if (index >= detailedFrom) {
       if (turn.decisions.length) {
         lines.push('  cited decisions:')
         for (const decision of turn.decisions.slice(0, POSTGAME_MAX_DECISIONS)) {
           const alternative = decision.alternative
-            ? ` (alternative: ${fenceSafe(clamp(decision.alternative, POSTGAME_ALTERNATIVE_MAX_CHARS))})`
+            ? ` (alternative: ${quoted(decision.alternative, POSTGAME_ALTERNATIVE_MAX_CHARS)})`
             : ''
           lines.push(
-            `    #${decision.seq} ${decision.kind}: ${fenceSafe(clamp(decision.assessment, POSTGAME_ASSESSMENT_MAX_CHARS))}${alternative}`,
+            `    #${decision.seq} ${decision.kind}: ${quoted(decision.assessment, POSTGAME_ASSESSMENT_MAX_CHARS)}${alternative}`,
           )
         }
       }
@@ -380,12 +385,12 @@ function renderPriorTurns(
         lines.push('  comments on the table:')
         for (const comment of turn.commentary.slice(0, POSTGAME_MAX_COMMENTS)) {
           lines.push(
-            `    on ${fenceSafe(sanitizeSpeech(nameOf(view, comment.seat)))} (seat ${comment.seat}): ${fenceSafe(clamp(comment.note, POSTGAME_COMMENT_MAX_CHARS))}`,
+            `    on ${fenceSafe(sanitizeSpeech(nameOf(view, comment.seat)))} (seat ${comment.seat}): ${quoted(comment.note, POSTGAME_COMMENT_MAX_CHARS)}`,
           )
         }
       }
       lines.push(
-        `  lesson: ${fenceSafe(sanitizeSpeech(clamp(turn.lesson, POSTGAME_LESSON_MAX_CHARS)))}`,
+        `  lesson: ${quoted(turn.lesson, POSTGAME_LESSON_MAX_CHARS)}`,
       )
     }
   })

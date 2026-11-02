@@ -318,8 +318,9 @@ a specific claim about its own play instead of reviewing in isolation.
 - `Reveal` renders the section as a collapsed `<details>` below the thinking timeline, with a
   compact "Table talk" block in speaking order, one detailed card per seat, and a note editor on
   the human's card.
-- A review can be quoted into the next speaker's prompt only through the round-table section, which
-  sanitizes every player-authored string and fences the quoted turns with the injection guard.
+- A review can be quoted into the next speaker's prompt only through the round-table section. Every
+  quoted field (statement, assessment, alternative, comment note, lesson, and seat name) passes
+  through `sanitizeSpeech`, and the quoted turns are fenced with the injection guard.
 
 ### Cost and control
 
@@ -369,8 +370,8 @@ Small next to a full game (~190 calls), but not zero. Controls:
 - Human note: token-gated, game-over-gated, length-capped, escaped in the UI, sanitized when it
   later enters a history prompt.
 - Round table: calls run in seat order; a later prompt contains the earlier seats' statements and
-  citations; the first speaker gets `You speak first.`; a failed turn is skipped; quoted turns
-  cannot close the prompt fence.
+  citations; the first speaker gets `You speak first.`; a failed turn is skipped; every quoted
+  field is sanitized, and quoted turns cannot close the prompt fence.
 
 ## Open questions
 

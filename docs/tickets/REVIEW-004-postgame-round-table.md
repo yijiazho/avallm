@@ -113,10 +113,12 @@ npm run test:lanes
   `PostgameReview.statement`, and optional `PostgameRecord.turnOrder`. `postgameRecord` fills
   `turnOrder` from the model seats in seat order.
 - `server/postgame/prompts.ts` builds the `EARLIER POST-GAME TURNS` block from
-  `PostgameExtra.priorTurns`, sanitizes every quoted string, clamps the evidence, and replaces the
-  fence markers inside quoted statements. Every earlier statement is quoted; detailed citations,
-  comments, and lessons are limited to the three most recent turns. The system contract also asks
-  for the spoken statement.
+  `PostgameExtra.priorTurns`. Every quoted field — statement, assessment, alternative, comment
+  note, lesson, and seat name — goes through `sanitizeSpeech` before it is clamped and fenced, so
+  directive markup in an earlier review cannot reach the next prompt. The fence markers are also
+  replaced inside quoted text. Every earlier statement is quoted; detailed citations, comments, and
+  lessons are limited to the three most recent turns. The system contract also asks for the spoken
+  statement.
 - `server/postgame/run.ts` awaits each `reviewSeat` in seat order, appends each successful review to
   `priorTurns`, and passes that array to the next prompt. `AVALON_POSTGAME_CONCURRENCY` and the
   bounded worker pool were removed.
