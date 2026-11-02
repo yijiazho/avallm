@@ -1,6 +1,6 @@
 # REVIEW-001 — Post-game projection, prompt, and parser
 
-- **Status:** implemented 2026-11-02 (PR pending)
+- **Status:** implemented 2026-11-02 (PR #3)
 - **Depends on:** SHARED-002 (fixture games are enough for the rest)
 - **Blocks:** REVIEW-002, REVIEW-003
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Record shape,

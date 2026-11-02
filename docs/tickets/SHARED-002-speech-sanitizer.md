@@ -1,6 +1,6 @@
 # SHARED-002 — Shared speech sanitizer
 
-- **Status:** implemented 2026-11-02 (PR pending)
+- **Status:** implemented 2026-11-02 (PR #3)
 - **Depends on:** none
 - **Blocks:** REVIEW-001, MEM-001
 - **Design:** none; refactor required by both designs

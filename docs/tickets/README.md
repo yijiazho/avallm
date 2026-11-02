@@ -1,7 +1,7 @@
 # Implementation tickets: game archive, post-game review, cross-game memory
 
 **Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2). SHARED-002 and REVIEW-001
-implemented 2026-11-02 (PR pending); remaining tickets proposed.
+implemented 2026-11-02 (PR #3); remaining tickets proposed.
 Written 2026-11-01.
 Source designs: [design-game-archive.md](../design-game-archive.md),
 [design-postgame-review.md](../design-postgame-review.md),
