@@ -24,6 +24,7 @@
 import { MAX_PROPOSALS, ROLE_ALIGNMENT, proposalResolved } from '../../engine/rules.ts'
 import { mentionsName } from '../../engine/names.ts'
 import { evilPartnersOf } from '../../engine/knowledge.ts'
+import { sanitizeSpeech } from '../../shared/speech.ts'
 import { knownEvilAboard, matchPoint } from '../board.ts'
 import { factsDossier } from './facts.ts'
 import { knowledgeText } from './knowledge-text.ts'
@@ -268,16 +269,10 @@ export function publicStateText(view: PlayerView): string {
   return lines.join('\n')
 }
 
-// Strip markup that could pose as system/format directives before human or
-// bot text enters any prompt (sanitize-at-boundary).
-export function sanitizeSpeech(text: string): string {
-  return text
-    .replace(/\[\/?INST\]|<<\/?SYS>>|<\|[^|]*\|>/gi, ' ')
-    .replace(/<\/?[a-z_|/\\-]+>/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 400)
-}
+// Re-exported from its shared home so every existing caller keeps importing
+// this path. The shared module imports nothing, which is what lets the
+// post-game review use it without pulling in live decision-prompt code.
+export { sanitizeSpeech }
 
 export function transcriptText(view: PlayerView, maxUtterances = 14): string {
   const recent = view.transcript.slice(-maxUtterances)

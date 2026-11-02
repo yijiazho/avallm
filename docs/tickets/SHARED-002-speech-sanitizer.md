@@ -1,6 +1,6 @@
 # SHARED-002 — Shared speech sanitizer
 
-- **Status:** proposed
+- **Status:** implemented 2026-11-02 (PR #3)
 - **Depends on:** none
 - **Blocks:** REVIEW-001, MEM-001
 - **Design:** none; refactor required by both designs
@@ -34,11 +34,11 @@ caller keeps working. Behavior must be byte-for-byte identical.
 
 ## Acceptance criteria
 
-- [ ] `sanitizeSpeech` is importable from `server/shared/speech.ts` and from
+- [x] `sanitizeSpeech` is importable from `server/shared/speech.ts` and from
       `server/agents/raw-llm/prompts.ts` with identical behavior.
-- [ ] No existing import site changes.
-- [ ] `server/shared/speech.ts` imports nothing (ARCH019 purity stays green).
-- [ ] Output is unchanged on the full fixture corpus, including the 400-character truncation.
+- [x] No existing import site changes.
+- [x] `server/shared/speech.ts` imports nothing (ARCH019 purity stays green).
+- [x] Output is unchanged on the full fixture corpus, including the 400-character truncation.
 
 ## Testing plan
 
@@ -56,6 +56,16 @@ node --test test/shared/speech.test.ts
 npm run typecheck
 npm run verify:contract
 ```
+
+## Implementation notes
+
+- `server/shared/speech.ts` owns the moved function verbatim, with no imports.
+- `server/agents/raw-llm/prompts.ts` imports the shared binding and re-exports it. The local import
+  is deliberate: `export { sanitizeSpeech } from ...` alone would not bind the name for the four
+  existing call sites inside that module.
+- `test/shared/speech.test.ts` freezes seven fixture outputs and asserts both import paths are the
+  same function. Verified with the ticket tests, `npm run typecheck`, the existing prompt suites,
+  and `npm run verify:contract`.
 
 ## Risks and notes
 
