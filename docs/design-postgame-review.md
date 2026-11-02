@@ -1,9 +1,10 @@
 # Design: post-game review and commentary
 
-**Status:** partially built. REVIEW-001 (full-reveal projection, review prompt, parser, and
-Markdown renderer) landed 2026-11-02. The runner, persistence, API, and reveal UI remain proposed.
-Written 2026-11-01. The archive foundation (ARCH-001) is built, so
-REVIEW-002 now has its persistence dependency.
+**Status:** built through the API and reveal UI. REVIEW-001 (full-reveal projection, review
+prompt, parser, and Markdown renderer) landed 2026-11-02; REVIEW-002 (runner, archive persistence,
+status) and REVIEW-003 (review routes, human notes, reveal UI, transcript section) landed the same
+day. The only remaining phase is measurement and tuning on real games.
+Written 2026-11-01. The archive foundation (ARCH-001) is built.
 Companions: [design-game-archive.md](design-game-archive.md),
 [design-cross-game-memory.md](design-cross-game-memory.md),
 [design-implementation.md](design-implementation.md) §3 (call kinds, prompts, traces),
@@ -255,18 +256,29 @@ prompt as history. An optional "ask a model to review my play" is a separate pai
 default; it uses the same prompt with the human's seat and returns a review without a `lesson`
 from the human.
 
+**Built 2026-11-02 (REVIEW-003).** When `AVALON_POSTGAME=off` no runner record exists, but a human
+may still write a note: the POST creates a minimal record with the human seats only and status
+`complete`. This keeps the human's words without inventing reviews for seats that were never asked.
+The record is durable only when `AVALON_GAME_ARCHIVE` is on, like every other archive field.
+
 ### Presentation
 
 - `Reveal` gains a "Post-game review" section below the thinking timeline: one card per seat with
   status, summary, the cited decisions, and the lesson. Human cards show the textarea or the saved
   note.
-- `RevealPayload` gains `postgame?: PostgameRecord` (or a slim wire version) and `canReview`.
-- While running, the client polls `GET /api/game/:id/review` every couple of seconds, or a
-  `postgameRev` counter on the SSE payload triggers a refetch. Do not stream partial model prose.
+- `RevealPayload` gains `canReview` and `reviewNoteCap`; the full `PostgameRecord` is deliberately
+  omitted from `/reveal` and fetched from `GET /api/game/:id/review`. The slim SSE payload carries
+  only `{ status, completed, total, rev }`.
+- While running, the client polls `GET /api/game/:id/review` every two seconds and refetches when
+  the SSE `rev` changes. It stops on unmount and on every terminal status (`complete`, `partial`,
+  `failed`). Do not stream partial model prose.
 - `renderTranscript` gains an optional `## Post-game review` section, so "Copy log" keeps the
-  analysis with the game. The renderer stays pure: the caller passes the record.
+  analysis with the game. The renderer stays pure: the caller passes the record, and it refuses to
+  render one on a scoped transcript.
 - The archive stores the same record ([design-game-archive.md](design-game-archive.md)), so it
-  survives the process.
+  survives the process. A record left `running` at boot is settled without spending money.
+- `Reveal` renders the section as a collapsed `<details>` below the thinking timeline, with one
+  card per seat and a note editor on the human's card.
 
 ### Cost and control
 
@@ -290,11 +302,13 @@ Small next to a full game (~190 calls), but not zero. Controls:
 
 1. **Types, projection, parser, prompt** with offline tests against a fixture game. **Built
    2026-11-02 (REVIEW-001):** `viewForPostgame`, `server/postgame/`, and the offline tests.
-2. **Runner and storage:** run after `gameOver`, write `postgame` into the archive, status in the
-   session.
-3. **API and reveal UI:** fetch/poll, per-seat cards, human note endpoint.
-4. **Transcript section** and copy-log integration.
+2. **Runner and storage.** Built 2026-11-02 (REVIEW-002): `server/postgame/run.ts`, archive
+   persistence, boot settlement, and the SSE status/rev counter.
+3. **API and reveal UI.** Built 2026-11-02 (REVIEW-003): `GET`/`POST /api/game/:id/review`, the
+   human note path, and the collapsed per-seat cards.
+4. **Transcript section** and copy-log integration. Built 2026-11-02 (REVIEW-003).
 5. **Measure** the review quality and spend on real games; tune the ledger budget and the caps.
+   Still proposed.
 
 ## Testing
 

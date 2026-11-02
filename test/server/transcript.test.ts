@@ -4,15 +4,30 @@
 import { test, before, after } from 'node:test'
 import { mutable } from '../support/mutable.ts'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createGame } from '../../server/engine/game.ts'
 import { viewFor } from '../../server/engine/view.ts'
 import { createAgent } from '../../server/agents/registry.ts'
+import { heuristicDecide } from '../../server/agents/heuristic.ts'
 import { runGame } from '../../server/sim/runner.ts'
 import { renderTranscript, type TranscriptSeat } from '../../server/transcript.ts'
-import { server } from '../../server/server.ts'
+import type { PostgameRecord } from '../../server/postgame/types.ts'
 import type { AvalonAgent } from '../../server/agents/types.ts'
-import type { Seat } from '../../server/engine/types.ts'
+import type { Seat, PlayerView } from '../../server/engine/types.ts'
+
+// The new full-transcript case finishes a real HTTP game, which starts the
+// post-game runner and (with the archive on) writes a record. Isolate the data
+// root before server.ts resolves it at boot.
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-transcript-http-'))
+process.env.AVALON_DATA_DIR = path.join(root, 'data')
+process.env.AVALON_GAME_ARCHIVE = 'on'
+process.env.AVALON_POSTGAME = 'on'
+process.env.AVALON_INVITE_CODE = ''
+delete process.env.RAILWAY_VOLUME_MOUNT_PATH
+const { server } = await import('../../server/server.ts')
 
 async function finishedGame(seed = 'transcript', playerCount = 5) {
   const game = createGame({ seed, playerCount, talk: { maxRounds: 0, maxRoundsAfterChange: 0 } })
@@ -29,6 +44,64 @@ function seatsFor(game: Awaited<ReturnType<typeof finishedGame>>, revealed: bool
     ...(revealed ? { role: p.role, alignment: p.alignment } : {}),
   }))
 }
+
+function postgameFixture(): PostgameRecord {
+  return {
+    version: 1,
+    startedAt: '2026-01-01T00:00:00.000Z',
+    completedAt: '2026-01-01T00:01:00.000Z',
+    status: 'complete',
+    seats: {
+      0: {
+        seat: 0,
+        kind: 'agent',
+        model: 'test/model',
+        status: 'complete',
+        review: {
+          summary: 'A useful summary.',
+          decisions: [],
+          commentary: [],
+          lesson: 'Trust the vote record.',
+        },
+      },
+      1: {
+        seat: 1,
+        kind: 'human',
+        status: 'complete',
+        note: 'My own note.',
+      },
+    },
+  }
+}
+
+test('full-reveal transcript appends the post-game review', async () => {
+  const game = await finishedGame()
+  const text = renderTranscript({
+    id: game.id, seed: game.seed, playerCount: game.config.playerCount,
+    phase: game.phase, round: game.round, proposalNum: game.proposalNum,
+    leaderSeat: game.leaderSeat, quests: game.quests, seats: seatsFor(game, true),
+    log: game.log, revealed: true, postgame: postgameFixture(),
+    capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: false,
+  })
+  assert.match(text, /## Post-game review/)
+  assert.match(text, /A useful summary\./)
+  assert.match(text, /Trust the vote record\./)
+  assert.match(text, /My own note\./)
+})
+
+test('a scoped transcript refuses to render a review even if handed one', async () => {
+  const game = await finishedGame()
+  const text = renderTranscript({
+    id: game.id, seed: game.seed, playerCount: game.config.playerCount,
+    phase: 'vote', round: 2, proposalNum: 1,
+    leaderSeat: game.leaderSeat, quests: game.quests, seats: seatsFor(game, false),
+    log: viewFor(game, 0).events, revealed: false, scopedTo: 0,
+    postgame: postgameFixture(),
+    capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: false,
+  })
+  assert.doesNotMatch(text, /## Post-game review/)
+  assert.doesNotMatch(text, /A useful summary\./)
+})
 
 test('full-reveal transcript exposes roles, the whole log, and the raw JSONL', async () => {
   const game = await finishedGame()
@@ -125,6 +198,7 @@ before(async () => {
 after(async () => {
   server.closeAllConnections?.()
   await new Promise<void>((resolve) => server.close(() => resolve()))
+  fs.rmSync(root, { recursive: true, force: true })
 })
 
 async function newSoloGame(
@@ -136,6 +210,68 @@ async function newSoloGame(
   })
   return res.json() as Promise<{ id: string; token: string }>
 }
+
+interface GamePayload {
+  view: PlayerView
+  ask: { kind: string; seat: number; round: number; proposalNum: number }[]
+}
+
+async function finishGame(id: string, token: string): Promise<void> {
+  const controller = new AbortController()
+  const response = await fetch(`${base}/api/game/${id}/events?token=${token}`, {
+    signal: controller.signal,
+  })
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const sent = new Set<string>()
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) throw new Error('stream ended before gameOver')
+      buffer += decoder.decode(value, { stream: true })
+      const frames = buffer.split('\n\n')
+      buffer = frames.pop() ?? ''
+      for (const frame of frames) {
+        const line = frame.split('\n').find((entry) => entry.startsWith('data: '))
+        if (!line) continue
+        const payload = JSON.parse(line.slice(6)) as GamePayload
+        if (payload.view.phase === 'gameOver') return
+        for (const req of payload.ask) {
+          const key = `${req.kind}:${req.round}:${req.proposalNum}:${payload.view.events.length}`
+          if (sent.has(key)) continue
+          sent.add(key)
+          const decided = await fetch(`${base}/api/game/${id}/decide`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token,
+              decision: heuristicDecide(
+                req as Parameters<typeof heuristicDecide>[0],
+                payload.view,
+                'transcript-http',
+              ),
+            }),
+          })
+          if (!decided.ok) throw new Error(`decision failed: ${await decided.text()}`)
+        }
+      }
+    }
+  } finally {
+    controller.abort()
+  }
+}
+
+test('a finished HTTP transcript carries the post-game review section', async () => {
+  const { id, token } = await newSoloGame()
+  await finishGame(id, token)
+  const r = await fetch(`${base}/api/game/${id}/transcript?token=${token}`)
+  assert.equal(r.status, 200)
+  const text = await r.text()
+  assert.match(text, /## Post-game review/)
+  assert.match(text, /status: \*\*complete\*\*/)
+  assert.match(text, /no model to ask for a review/)
+})
 
 test('a lone human gets a mid-game FULL REVEAL transcript', async () => {
   const { id, token } = await newSoloGame()

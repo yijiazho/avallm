@@ -1,7 +1,8 @@
 # Implementation tickets: game archive, post-game review, cross-game memory
 
 **Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2). SHARED-002 and REVIEW-001
-implemented 2026-11-02 (PR #3); remaining tickets proposed.
+implemented 2026-11-02 (PR #3). REVIEW-002 and REVIEW-003 implemented 2026-11-02 (PR #4); remaining
+tickets proposed.
 Written 2026-11-01.
 Source designs: [design-game-archive.md](../design-game-archive.md),
 [design-postgame-review.md](../design-postgame-review.md),
@@ -48,9 +49,9 @@ SHARED-002 [done]  shared speech sanitizer
     |
     +--> REVIEW-001 [done]  post-game projection + prompt + parser
             |
-            +--> REVIEW-002  runner + persistence
+            +--> REVIEW-002 [done]  runner + persistence
                     |
-                    +--> REVIEW-003  API + reveal UI + human note
+                    +--> REVIEW-003 [done]  API + reveal UI + human note
 ```
 
 REVIEW-001 can start before ARCH-001 because it only needs a finished fixture game and
@@ -68,8 +69,8 @@ ARCH-002, and SHARED-002.
 | ARCH-003 | Archive read API and previous-games UI | proposed | ARCH-001, ARCH-002 | M | archive §HTTP surface |
 | ARCH-004 | Artifact corpus import/export and dual-write | proposed | ARCH-001 | S | archive §Relationship to the artifact corpus |
 | REVIEW-001 | Post-game projection, prompt, parser | implemented | SHARED-002 | M | review §Record shape, §Projection, §Not a LlmCallKind |
-| REVIEW-002 | Post-game runner and persistence | proposed | REVIEW-001, ARCH-001 | M | review §Scheduling and failure |
-| REVIEW-003 | Review API and reveal UI | proposed | REVIEW-002 | M | review §Presentation, §Human seats |
+| REVIEW-002 | Post-game runner and persistence | implemented | REVIEW-001, ARCH-001 | M | review §Scheduling and failure |
+| REVIEW-003 | Review API and reveal UI | implemented | REVIEW-002 | M | review §Presentation, §Human seats |
 | MEM-001 | History selection and digest | proposed | ARCH-001, ARCH-002, SHARED-002 | M | memory §Scope, §Digest |
 | MEM-002 | History transport and prompt slot | proposed | MEM-001 | M | memory §Prompt placement, §Transport |
 | MEM-003 | History configuration, UI, measurement | proposed | MEM-002 | M | memory §Configuration, §Cost |

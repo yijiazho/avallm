@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AgentInfo, AgentPack, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ServerPayload, TableSeat } from './types.ts'
+import type { AgentInfo, AgentPack, DecisionRequest, Library, LobbyPayload, PreviewResponse, RevealPayload, ReviewPayload, ServerPayload, TableSeat } from './types.ts'
 import { tokenEstimate as tokenEst } from './agentConfig.ts'
 import { useRevealPacing } from './revealPacing.ts'
 import { PRESETS, ROLE_INFO, RULES_SUMMARY, buildRoles, evilCountFor } from './setup.ts'
@@ -123,11 +123,16 @@ export function App() {
   const [showRef, setShowRef] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
+  const [review, setReview] = useState<ReviewPayload | null>(null)
+  const [reviewSaving, setReviewSaving] = useState(false)
   const esRef = useRef<EventSource | null>(null)
   const lobbyEsRef = useRef<EventSource | null>(null)
   const decisionAbortRef = useRef<AbortController | null>(null)
   const libraryAbortRef = useRef<AbortController | null>(null)
   const libraryRetryRef = useRef<number | undefined>(undefined)
+  const reviewAbortRef = useRef<AbortController | null>(null)
+  const reviewTimerRef = useRef<number | undefined>(undefined)
+  const reviewFetchRef = useRef<() => void>(() => {})
   const screenRef = useRef(screen)
 
   const showScreen = useCallback((next: Screen) => {
@@ -188,6 +193,12 @@ export function App() {
       window.clearTimeout(libraryRetryRef.current)
       libraryRetryRef.current = undefined
     }
+    reviewAbortRef.current?.abort()
+    reviewAbortRef.current = null
+    if (reviewTimerRef.current !== undefined) {
+      window.clearTimeout(reviewTimerRef.current)
+      reviewTimerRef.current = undefined
+    }
   }, [])
 
   useEffect(() => {
@@ -203,7 +214,14 @@ export function App() {
       setLobby(null)
       setLobbyMissing(false)
       setReveal(null)
+      setReview(null)
       setError(null)
+      reviewAbortRef.current?.abort()
+      reviewAbortRef.current = null
+      if (reviewTimerRef.current !== undefined) {
+        window.clearTimeout(reviewTimerRef.current)
+        reviewTimerRef.current = undefined
+      }
       showScreen(next)
     }
     window.addEventListener('hashchange', syncFromHash)
@@ -217,7 +235,14 @@ export function App() {
     esRef.current?.close()
     esRef.current = null
     setReveal(null)
+    setReview(null)
     setPayload(null)
+    reviewAbortRef.current?.abort()
+    reviewAbortRef.current = null
+    if (reviewTimerRef.current !== undefined) {
+      window.clearTimeout(reviewTimerRef.current)
+      reviewTimerRef.current = undefined
+    }
     // Persist the seat so a refresh reconnects instead of dumping to the lobby.
     // Solo games have no #/join/ URL, so the game id + token must live here too.
     localStorage.setItem(gameTokenKey(id), token)
@@ -364,7 +389,10 @@ export function App() {
     let retryTimer: number | undefined
     const loadReveal = async () => {
       try {
-        const res = await fetch(`/api/game/${gameId}/reveal`, { signal: ctrl.signal })
+        const res = await fetch(
+          `/api/game/${gameId}/reveal?token=${encodeURIComponent(gameToken ?? '')}`,
+          { signal: ctrl.signal },
+        )
         if (!res.ok) {
           const problem = await res.json().catch(() => ({}))
           throw new Error(problem.error ?? 'reveal unavailable')
@@ -383,7 +411,144 @@ export function App() {
       ctrl.abort()
       if (retryTimer !== undefined) window.clearTimeout(retryTimer)
     }
-  }, [gameOver, gameId, reveal])
+  }, [gameOver, gameId, gameToken, reveal])
+
+  // ---- post-game review ----
+  // The full record is large and arrives after the reveal, so it is fetched
+  // separately. While the fan-out is running the client polls, and the SSE
+  // revision triggers an immediate refetch when the server has news. Any
+  // terminal status (complete, partial, failed) stops the timer; a human seat
+  // left pending because the optional note was not written is terminal.
+  const stopReviewPolling = useCallback(() => {
+    if (reviewTimerRef.current !== undefined) {
+      window.clearTimeout(reviewTimerRef.current)
+      reviewTimerRef.current = undefined
+    }
+  }, [])
+
+  const fetchReview = useCallback(async () => {
+    if (!gameId || !gameOver) return
+    reviewAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    reviewAbortRef.current = ctrl
+    try {
+      const res = await fetch(
+        `/api/game/${gameId}/review?token=${encodeURIComponent(gameToken ?? '')}`,
+        { signal: ctrl.signal },
+      )
+      if (!res.ok) {
+        // 404 means the session is gone (a restart), so no amount of polling
+        // will bring the review back. A transient failure keeps retrying.
+        if (res.status === 404) {
+          reviewAbortRef.current = null
+          return
+        }
+        const problem = await res.json().catch(() => ({}))
+        throw new Error(problem.error ?? 'review unavailable')
+      }
+      const data: ReviewPayload = await res.json()
+      if (ctrl.signal.aborted) return
+      reviewAbortRef.current = null
+      setReview(data)
+      setError(null)
+      stopReviewPolling()
+      if (data.postgame?.status === 'running') {
+        reviewTimerRef.current = window.setTimeout(
+          () => reviewFetchRef.current(),
+          2_000,
+        )
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      if (ctrl.signal.aborted) return
+      reviewAbortRef.current = null
+      setError(e instanceof Error ? e.message : 'could not load the review')
+      // A failed fetch is not terminal: retry while the game is over unless the
+      // next request shows a terminal status.
+      stopReviewPolling()
+      reviewTimerRef.current = window.setTimeout(
+        () => reviewFetchRef.current(),
+        2_000,
+      )
+    }
+  }, [gameId, gameOver, gameToken, stopReviewPolling])
+
+  useEffect(() => {
+    reviewFetchRef.current = () => { void fetchReview() }
+  }, [fetchReview])
+
+  useEffect(() => {
+    if (!gameOver || !gameId) {
+      reviewAbortRef.current?.abort()
+      reviewAbortRef.current = null
+      stopReviewPolling()
+      setReview(null)
+      return
+    }
+    setReview(null)
+    void fetchReview()
+    return () => {
+      reviewAbortRef.current?.abort()
+      reviewAbortRef.current = null
+      stopReviewPolling()
+    }
+  }, [gameOver, gameId, fetchReview, stopReviewPolling])
+
+  const postgameRev = payload?.postgame?.rev
+  useEffect(() => {
+    if (!gameOver || postgameRev === undefined) return
+    reviewFetchRef.current()
+  }, [gameOver, postgameRev])
+
+  const saveReviewNote = useCallback(async (text: string) => {
+    if (!gameId || !gameToken) throw new Error('not seated in this game')
+    setReviewSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/game/${gameId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: gameToken, text }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'could not save the note')
+      }
+      const data = await res.json() as { ok: true; seat: number; note: string }
+      setReview((prev) => {
+        if (!prev?.postgame) return prev
+        const seat = prev.postgame.seats[data.seat] ?? {
+          seat: data.seat,
+          kind: 'human' as const,
+          status: 'complete' as const,
+        }
+        return {
+          ...prev,
+          rev: prev.rev + 1,
+          postgame: {
+            ...prev.postgame,
+            seats: {
+              ...prev.postgame.seats,
+              [data.seat]: {
+                ...seat,
+                kind: 'human',
+                status: 'complete',
+                note: data.note,
+              },
+            },
+          },
+        }
+      })
+      // Reviews disabled: the server created a minimal record for the note, so
+      // there was nothing local to patch.
+      if (!review?.postgame) reviewFetchRef.current()
+    } catch (e) {
+      reviewFetchRef.current()
+      throw e
+    } finally {
+      setReviewSaving(false)
+    }
+  }, [gameId, gameToken, review?.postgame])
 
   const decide = useCallback(async (decision: Record<string, unknown>) => {
     if (!gameId || !gameToken || decisionAbortRef.current) return
@@ -449,6 +614,13 @@ export function App() {
     setPayload(null)
     setLobby(null)
     setLobbyMissing(false)
+    setReview(null)
+    reviewAbortRef.current?.abort()
+    reviewAbortRef.current = null
+    if (reviewTimerRef.current !== undefined) {
+      window.clearTimeout(reviewTimerRef.current)
+      reviewTimerRef.current = undefined
+    }
     showScreen({ name: 'landing' })
   }, [cancelPendingDecision, screen, showScreen])
 
@@ -535,7 +707,16 @@ export function App() {
       </div>
       {showOutcome ? (
         <main className="reveal-main">
-          <Reveal view={view} reveal={reveal} onNewGame={backToLanding} onCopyLog={copyLog} copyLabel={copyLabel} />
+          <Reveal
+            view={view}
+            reveal={reveal}
+            review={review}
+            noteSaving={reviewSaving}
+            onSaveNote={saveReviewNote}
+            onNewGame={backToLanding}
+            onCopyLog={copyLog}
+            copyLabel={copyLabel}
+          />
         </main>
       ) : (
       <main>

@@ -105,3 +105,58 @@ export function postgameRecord(
     seats: bySeat,
   }
 }
+
+/** The seats that received a model call. Humans and model-free agents are not here. */
+export function modeledSeats(record: PostgameRecord): PostgameSeat[] {
+  return Object.values(record.seats).filter(
+    (seat) => seat.kind === 'agent' && seat.model !== undefined,
+  )
+}
+
+/**
+ * Terminal aggregation over MODEL seats only. A human note is optional, so a
+ * human seat left pending never keeps the record running and never turns an
+ * otherwise-complete record into a failure. This is the one place both the
+ * runner and the boot settlement ask "is the fan-out over?".
+ */
+export function postgameStatusFromSeats(
+  seats: readonly PostgameSeat[],
+): PostgameStatus {
+  const modeled = seats.filter(
+    (seat) => seat.kind === 'agent' && seat.model !== undefined,
+  )
+  if (modeled.some((seat) => seat.status === 'pending' || seat.status === 'running')) {
+    return 'running'
+  }
+  if (modeled.every((seat) => seat.status === 'complete' || seat.status === 'unavailable')) {
+    return 'complete'
+  }
+  const completed = modeled.filter((seat) => seat.status === 'complete').length
+  const failed = modeled.filter((seat) => seat.status === 'failed').length
+  if (completed > 0 && failed > 0) return 'partial'
+  if (completed === 0) return failed > 0 ? 'failed' : 'complete'
+  return 'partial'
+}
+
+/**
+ * A process restart cannot resume a paid fan-out. Settle an archive record left
+ * running without spending money: every model seat that did not finish becomes
+ * failed, and the record is partial when at least one seat completed.
+ */
+export function settleInterruptedPostgame(
+  record: PostgameRecord,
+  completedAt: string,
+): PostgameRecord {
+  const modeled = modeledSeats(record)
+  for (const seat of modeled) {
+    if (seat.status === 'pending' || seat.status === 'running') {
+      seat.status = 'failed'
+      seat.error ??= 'review interrupted by a server restart'
+    }
+  }
+  record.status = modeled.some((seat) => seat.status === 'complete')
+    ? 'partial'
+    : 'failed'
+  record.completedAt = completedAt
+  return record
+}

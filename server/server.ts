@@ -14,7 +14,9 @@
 //   GET  /api/game/:id/valid?token=   (200 live seat / 403 wrong token / 404 no game)
 //   GET  /api/game/:id/events?token=  (SSE: that seat's view; spectators get public-only)
 //   POST /api/game/:id/decide         {token, decision}
-//   GET  /api/game/:id/reveal         (gameOver only)
+//   GET  /api/game/:id/reveal?token=  (gameOver only; token only supplies canReview)
+//   GET  /api/game/:id/review?token=  (gameOver only; full record plus canReview/rev)
+//   POST /api/game/:id/review         {token, text} (seated human note, gameOver only)
 //   GET  /api/game/:id/transcript?token=&raw=  (copyable debug transcript; full reveal when final or solo-vs-bots, else scoped to the seat)
 //   GET/POST /api/agents, GET /api/usage
 // Static: client/dist
@@ -44,6 +46,7 @@ import {
   archiveDir,
   loadArchive,
   toArchivedGame,
+  updateArchivedGamePostgame,
   useArchiveDir,
   writeArchivedGame,
 } from './archive/store.ts'
@@ -71,6 +74,9 @@ import { renderTranscript, type TranscriptSeat } from './transcript.ts'
 import { tableAliases } from './table-aliases.ts'
 import { buildBotSeatPlans } from './bot-seat-plan.ts'
 import type { SeatedAgent } from './seated-agent.ts'
+import { runPostgame } from './postgame/run.ts'
+import { postgameRecord, REVIEW_NOTE_CAP } from './postgame/types.ts'
+import type { PostgameRecord } from './postgame/types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'client', 'dist')
@@ -491,6 +497,7 @@ function startLobby(l: Lobby): void {
     waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0,
     artifactAppended: false,
     listeners: new Set(), pumping: false,
+    postgameRev: 0,
   }
   sessions.set(id, session)
   l.status = 'started'
@@ -528,6 +535,11 @@ interface Session {
   // other. The archive is keyed by engine game id, not by this session.
   archivedGameId?: string
   artifactAppended: boolean
+  // The post-game review lives beside game.log, never inside it. `rev` is the
+  // cheap SSE change signal; the full record is fetched from /review.
+  postgame?: PostgameRecord
+  postgameRev: number
+  postgameStarted?: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -574,6 +586,45 @@ if (artifactFile) {
 // writes without restarting, matching the invite-code gate above.
 const archiveEnabled = () =>
   (process.env.AVALON_GAME_ARCHIVE ?? '').trim().toLowerCase() !== 'off'
+
+// Reviews are paid work triggered by game end. They default on locally and off
+// on a gated deployment, until the setup screen exposes a per-lobby toggle.
+// AVALON_POSTGAME=on|off always wins; read live so an operator can change it
+// without a restart.
+const postgameEnabled = () => {
+  const raw = (process.env.AVALON_POSTGAME ?? '').trim().toLowerCase()
+  if (raw === 'on') return true
+  if (raw === 'off') return false
+  return !gateOn()
+}
+
+// A bookkeeping failure here is warned and swallowed. Reviews are optional, and
+// a finished game must never go down because its analysis could not be saved.
+function persistPostgame(id: string, record: PostgameRecord): void {
+  try {
+    updateArchivedGamePostgame(id, record)
+  } catch (err) {
+    console.warn(`[postgame] could not write ${id}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+function maybeStartPostgame(s: Session): void {
+  if (s.postgameStarted) return
+  s.postgameStarted = true
+  if (!postgameEnabled()) return
+  // Freeze the game at the call site. The runner never reads session.game.
+  const game = s.game
+  void runPostgame(s, game, {
+    ...(archiveEnabled()
+      ? { archive: { update: (id, record) => persistPostgame(id, record) } }
+      : {}),
+    notify: () => broadcast(s),
+  }).catch((err) => {
+    // runPostgame is designed not to throw; this is the belt-and-braces guard
+    // for a defect in the runner rather than an expected path.
+    console.warn(`[postgame] runner failed for ${game.id}: ${err instanceof Error ? err.message : String(err)}`)
+  })
+}
 
 function saveArtifact(s: Session): void {
   const appendWanted = Boolean(artifactFile) && !s.artifactAppended
@@ -651,6 +702,19 @@ function payloadFor(s: Session, token: string) {
       Object.entries(s.seatedAgents).map(([seat, seated]) => [seat, seated.info]),
     ),
     spectator,
+    // Status and a revision only. Model prose stays behind /review: it is
+    // large, arrives late, and must not ride every SSE frame.
+    ...(s.postgame === undefined
+      ? {}
+      : {
+          postgame: {
+            status: s.postgame.status,
+            completed: Object.values(s.postgame.seats)
+              .filter((seat) => seat.status === 'complete').length,
+            total: Object.keys(s.postgame.seats).length,
+            rev: s.postgameRev,
+          },
+        }),
   }
 }
 
@@ -758,7 +822,10 @@ async function pump(s: Session): Promise<void> {
     }
     s.waiting = []
     s.acting = []
-    if (s.game.phase === 'gameOver') saveArtifact(s)
+    if (s.game.phase === 'gameOver') {
+      saveArtifact(s)
+      maybeStartPostgame(s)
+    }
     broadcast(s)
   } finally {
     s.pumping = false
@@ -991,8 +1058,70 @@ const server = http.createServer(async (req, res) => {
         json(res, 200, { ok: true, name: player.name })
         return
       }
+      // ---- post-game review (fetched separately from the game stream) ----
+      if (req.method === 'GET' && parts[3] === 'review') {
+        if (s.game.phase !== 'gameOver') return json(res, 403, { error: 'game still running' })
+        const who = seatOf(s, url.searchParams.get('token') ?? '')
+        json(res, 200, {
+          ...(s.postgame === undefined ? {} : { postgame: s.postgame }),
+          canReview: typeof who === 'number',
+          rev: s.postgameRev,
+        })
+        return
+      }
+      if (req.method === 'POST' && parts[3] === 'review') {
+        const body = await readBody(req)
+        if (s.game.phase !== 'gameOver') return json(res, 409, { error: 'game still running' })
+        const who = seatOf(s, typeof body.token === 'string' ? body.token : '')
+        // Only a seated human can write. Bots have no token, and a spectator
+        // token resolves to 'spectator', so both fall through this one check.
+        if (typeof who !== 'number') {
+          return json(res, 403, { error: 'only a seated player can review' })
+        }
+        const text = typeof body.text === 'string' ? body.text.trim() : ''
+        if (!text) return json(res, 400, { error: 'note must not be empty' })
+        if (text.length > REVIEW_NOTE_CAP) {
+          return json(res, 400, { error: `note must be at most ${REVIEW_NOTE_CAP} characters` })
+        }
+        // Reviews disabled means no runner ever created a record. Rather than
+        // drop the human's words, create a minimal human-only record. It is
+        // terminal immediately because there are no model seats to wait for.
+        if (!s.postgame) {
+          const humans = [...s.humans.keys()].sort((a, b) => a - b)
+          s.postgame = postgameRecord(
+            humans.map((seat) => ({ seat, kind: 'human' as const })),
+          )
+          s.postgame.status = 'complete'
+          s.postgame.completedAt = s.postgame.startedAt
+        }
+        const seat = s.postgame.seats[who]
+        if (seat) {
+          seat.kind = 'human'
+          seat.note = text
+          seat.status = 'complete'
+        } else {
+          s.postgame.seats[who] = {
+            seat: who,
+            kind: 'human',
+            status: 'complete',
+            note: text,
+          }
+        }
+        s.postgameRev += 1
+        if (archiveEnabled()) {
+          // A note can arrive from the decide POST's early gameOver broadcast
+          // before pump has written the base archive record. Write it first so
+          // the note is not dropped by an update that finds no file.
+          saveArtifact(s)
+          persistPostgame(s.game.id, s.postgame)
+        }
+        broadcast(s)
+        json(res, 200, { ok: true, seat: who, note: text })
+        return
+      }
       if (req.method === 'GET' && parts[3] === 'reveal') {
         if (s.game.phase !== 'gameOver') return json(res, 403, { error: 'game still running' })
+        const who = seatOf(s, url.searchParams.get('token') ?? '')
         json(res, 200, {
           players: s.game.players.map((p) => ({ seat: p.seat, name: p.name, role: p.role, alignment: p.alignment })),
           log: s.game.log,
@@ -1002,6 +1131,10 @@ const server = http.createServer(async (req, res) => {
           agents: Object.fromEntries(
             Object.entries(s.seatedAgents).map(([seat, seated]) => [seat, seated.info]),
           ),
+          // The full review is fetched from /review; the reveal only needs to
+          // know whether this requester may write a note and how long it can be.
+          canReview: typeof who === 'number',
+          reviewNoteCap: REVIEW_NOTE_CAP,
         })
         return
       }
@@ -1058,6 +1191,9 @@ const server = http.createServer(async (req, res) => {
           ...(outcome === undefined
             ? {}
             : { winner: outcome.winner, winReason: outcome.reason }),
+          // A review can quote another seat's private reasoning, so it rides
+          // only the full reveal. A scoped transcript must never carry it.
+          ...(full && s.postgame ? { postgame: s.postgame } : {}),
           revealed: full,
           capturedAt: new Date().toISOString(),
           includeRaw: url.searchParams.get('raw') !== '0',

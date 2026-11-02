@@ -79,9 +79,10 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
   **Design in [design-game-archive.md](design-game-archive.md).**
 - **Post-game review.** Each modeled seat reviews its own decisions with hindsight; humans can
   write a note. Stored beside the game, shown in the reveal, included in the transcript.
-  **Offline half landed 2026-11-02 (REVIEW-001):** the gameOver-only full-reveal projection, review
-  prompt, tolerant parser, record types, and Markdown renderer. Remaining: runner and persistence
-  (REVIEW-002), API and reveal UI (REVIEW-003).
+  **Built 2026-11-02 (REVIEW-001 to REVIEW-003):** the gameOver-only full-reveal projection, review
+  prompt, tolerant parser, record types, Markdown renderer, best-effort runner, archive
+  persistence, review routes, human notes, reveal UI, and transcript section. Remaining:
+  measurement and tuning on real games (phase 5 of the design).
   **Design in [design-postgame-review.md](design-postgame-review.md).**
 - **Optional cross-game memory.** Agents read bounded digests of games they played before, off by
   default because it raises input tokens and retention sensitivity. Other seats' historical roles

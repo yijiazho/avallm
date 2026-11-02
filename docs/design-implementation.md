@@ -51,9 +51,9 @@ server/
   json-io.ts       ← atomic JSON write and tolerant read helpers for server persistence
   archive/         ← durable finished-game records: one ArchivedGame per game plus a boot metadata
                      index. Server-layer only; the engine never imports it.
-  postgame/        ← offline half of the post-game review: record types, a gameOver-only
-                     full-reveal prompt, tolerant parser, and Markdown renderer. Server-layer only;
-                     the engine and decision agents never import it.
+  postgame/        ← post-game review: record types, a gameOver-only full-reveal prompt,
+                     tolerant parser, Markdown renderer, and the best-effort runner.
+                     Server-layer only; the engine and decision agents never import it.
   server.ts        ← http glue: game session store, POST /api/game/*, SSE stream to client
 client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts human actions.
 ```
