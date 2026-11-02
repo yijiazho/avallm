@@ -21,6 +21,7 @@ import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Game, Seat } from '../../server/engine/types.ts'
 
 const VALID = JSON.stringify({
+  statement: 'I would take back the second team.',
   summary: 'A reasonable game.',
   decisions: [],
   commentary: [],
@@ -179,6 +180,28 @@ test('the reveal is available while the fan-out is still running', async () => {
   release()
   const record = await running
   assert.equal(record.status, 'complete')
+})
+
+test('the round table runs in seat order and later turns see earlier statements', async () => {
+  const game = await finishedGame('postgame-round-table')
+  const session = sessionFor(game, { human: [4], modelSeats: [0, 1] })
+  const client = fakeClient(() => [{ content: VALID }])
+  const record = await runPostgame(session, game, { client })
+
+  assert.deepEqual(record.turnOrder, [0, 1])
+  assert.deepEqual(
+    client.calls.map((call) => Number(String(call.opts.tag).split('/').at(-1))),
+    [0, 1],
+    'turns are sequential in seat order',
+  )
+  assert.equal(record.seats[0]!.review?.statement, 'I would take back the second team.')
+
+  const firstPrompt = client.calls[0]!.messages.map((message) => message.content).join('\n')
+  assert.match(firstPrompt, /You speak first\./)
+  const secondPrompt = client.calls[1]!.messages.map((message) => message.content).join('\n')
+  assert.match(secondPrompt, /EARLIER POST-GAME TURNS/)
+  assert.match(secondPrompt, /I would take back the second team\./)
+  assert.doesNotMatch(secondPrompt, /You speak first\./)
 })
 
 test('a parse failure gets exactly one retry and can then complete', async () => {

@@ -125,6 +125,8 @@ export interface PostgameComment {
 }
 
 export interface PostgameReview {
+  /** Spoken turn in the post-game round table; old records may omit it. */
+  statement?: string
   summary: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
@@ -156,6 +158,8 @@ export interface PostgameRecord {
   completedAt?: string
   status: PostgameStatus
   seats: Record<Seat, PostgameSeat>
+  /** Model seats in the order they spoke; old records may omit it. */
+  turnOrder?: Seat[]
 }
 
 export interface PostgameSummary {

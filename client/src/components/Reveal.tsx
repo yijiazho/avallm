@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type {
   PlayerView,
+  PostgameRecord,
   PostgameSeat,
   RevealPayload,
   ReviewPayload,
@@ -139,6 +140,7 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
           No seat review could be completed. The per-seat errors are below.
         </p>
       )}
+      {record && <PostgameTableTalk record={record} name={name} />}
       {record && (
         <div className="pg-grid">
           {seats.map((seat) => (
@@ -167,6 +169,32 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
         </div>
       )}
     </details>
+  )
+}
+
+// The spoken turns, in the order they happened. The detailed cards below keep
+// the evidence; this block is the conversation a human actually wants to read.
+function PostgameTableTalk({ record, name }: {
+  record: PostgameRecord
+  name: (seat: Seat) => string
+}) {
+  const turns = (record.turnOrder ?? [])
+    .map((seat) => record.seats[seat])
+    .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+  if (!turns.length) return null
+  return (
+    <div className="pg-talk">
+      <h4>Table talk</h4>
+      <ol>
+        {turns.map((seat) => (
+          <li key={seat.seat}>
+            <span className="pg-talk-name">{name(seat.seat)}</span>
+            <span className="pg-talk-seat">seat {seat.seat}</span>
+            <p>{seat.review?.statement ?? seat.review?.summary}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 

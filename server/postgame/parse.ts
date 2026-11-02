@@ -17,6 +17,7 @@ import {
   POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
   POSTGAME_SUMMARY_MAX_CHARS,
 } from './types.ts'
 import type { DecisionKind, GameEvent, Seat } from '../engine/types.ts'
@@ -134,6 +135,12 @@ export function parsePostgameReply(
     if (!summary) return { ok: false, error: 'missing summary' }
     const lesson = requiredText(object, 'lesson', POSTGAME_LESSON_MAX_CHARS)
     if (!lesson) return { ok: false, error: 'missing lesson' }
+    // The statement is the spoken turn. Old records and a model that omits it
+    // still parse; the renderer falls back to the summary.
+    const statementRaw = object.statement
+    const statement = typeof statementRaw === 'string'
+      ? clamp(statementRaw, POSTGAME_STATEMENT_MAX_CHARS)
+      : ''
 
     const rawDecisions = object.decisions
     if (!Array.isArray(rawDecisions)) {
@@ -163,7 +170,13 @@ export function parsePostgameReply(
 
     return {
       ok: true,
-      review: { summary, decisions, commentary, lesson },
+      review: {
+        ...(statement ? { statement } : {}),
+        summary,
+        decisions,
+        commentary,
+        lesson,
+      },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

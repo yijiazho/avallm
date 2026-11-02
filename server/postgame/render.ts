@@ -12,6 +12,7 @@ import {
   POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
   POSTGAME_SUMMARY_MAX_CHARS,
   REVIEW_NOTE_CAP,
 } from './types.ts'
@@ -83,6 +84,24 @@ function renderSeat(
   return out
 }
 
+function renderTableTalk(
+  record: PostgameRecord,
+  nameOf: (seat: number) => string,
+): string[] {
+  if (!record.turnOrder?.length) return []
+  const turns = record.turnOrder
+    .map((seat) => record.seats[seat])
+    .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+  if (!turns.length) return []
+  const out: string[] = ['### Table talk', '']
+  turns.forEach((seat, index) => {
+    const statement = seat.review?.statement ?? seat.review?.summary ?? ''
+    out.push(`${index + 1}. ${nameOf(seat.seat)} (seat ${seat.seat}): "${clamp(statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+  })
+  out.push('')
+  return out
+}
+
 export function renderPostgameMarkdown(
   record: PostgameRecord,
   nameOf: (seat: number) => string,
@@ -101,6 +120,7 @@ export function renderPostgameMarkdown(
     out.push('')
     return out.join('\n')
   }
+  out.push(...renderTableTalk(record, nameOf))
   for (const seat of seats) out.push(...renderSeat(seat, nameOf))
   return out.join('\n')
 }

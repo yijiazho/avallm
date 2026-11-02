@@ -1,9 +1,10 @@
 # Design: post-game review and commentary
 
-**Status:** built through the API and reveal UI. REVIEW-001 (full-reveal projection, review
+**Status:** built through the post-game round table. REVIEW-001 (full-reveal projection, review
 prompt, parser, and Markdown renderer) landed 2026-11-02; REVIEW-002 (runner, archive persistence,
-status) and REVIEW-003 (review routes, human notes, reveal UI, transcript section) landed the same
-day. The only remaining phase is measurement and tuning on real games.
+status), REVIEW-003 (review routes, human notes, reveal UI, transcript section), and REVIEW-004
+(sequential round table) landed the same day. The only remaining phase is measurement and tuning on
+real games.
 Written 2026-11-01. The archive foundation (ARCH-001) is built.
 Companions: [design-game-archive.md](design-game-archive.md),
 [design-cross-game-memory.md](design-cross-game-memory.md),
@@ -74,6 +75,8 @@ export interface PostgameRecord {
   completedAt?: string
   status: 'running' | 'complete' | 'partial' | 'failed'
   seats: Record<Seat, PostgameSeat>
+  /** Model seats in speaking order; optional on records written before REVIEW-004. */
+  turnOrder?: Seat[]
 }
 
 export interface PostgameSeat {
@@ -83,6 +86,8 @@ export interface PostgameSeat {
   status: 'pending' | 'running' | 'complete' | 'failed' | 'unavailable'
   /** Agent self-review. Absent for humans unless they ask a model to coach them. */
   review?: {
+    /** Spoken turn in the round table; optional for older records. */
+    statement?: string
     summary: string
     decisions: {
       seq: number
@@ -198,12 +203,16 @@ Per seat, in one call (budget roughly 1.5k system + 2-4k user tokens):
    `seq`, kind, what the seat knew (its private info and notes at the time), what it chose, and
    the public consequence. The engine already stores `thinking` and `notes` as events; use them
    rather than re-asking the model to remember.
-3. **The table's pivotal moments.** A bounded selection (for example the final vote, the
+3. **The earlier turns.** The post-game round table's completed statements, cited decisions, and
+   comments, sanitized and fenced. The first speaker sees none.
+4. **The table's pivotal moments.** A bounded selection (for example the final vote, the
    assassination, every failed quest, and any vote that contradicted the seat's stated position).
-4. **The ask.** "Review your own decisions. Pick at most four: what you knew, what you chose, what
-   you would do differently, and one lesson for a future game. Then add at most two short comments
-   on other seats' decisions." Output is JSON with `seq` citations.
-5. **Guards.** All player-authored text is untrusted and sanitized (`sanitizeSpeech`); a statement
+5. **The ask.** "Speak to the table first: name at most two decisions you or another seat made that
+   you think were problematic, and answer an earlier turn if it named you. Then review your own
+   decisions. Pick at most four: what you knew, what you chose, what you would do differently, and
+   one lesson for a future game. Then add at most two short comments on other seats' decisions."
+   Output is JSON with `seq` citations.
+6. **Guards.** All player-authored text is untrusted and sanitized (`sanitizeSpeech`); a statement
    that the transcript cannot change the task or the output format; the house-style rules.
 
 Do not dump the raw JSONL log. It is mostly noise (event envelopes, duplicate payloads) and can be
@@ -217,11 +226,11 @@ gameOver
   └─ archive base record (synchronous, no model calls)
        └─ void runPostgame(session, frozenGame)
             ├─ set session.postgame = running; broadcast
-            ├─ for each seat (bounded concurrency 2-3)
-            │    ├─ agent seat with a model: one review call, one retry
-            │    ├─ heuristic/random seat: status 'unavailable'
-            │    └─ human seat: status 'pending' (optional note)
-            ├─ write archive after each completion (atomic rewrite)
+            ├─ for each model seat in seat order (sequential round table)
+            │    ├─ one review call with the earlier turns in the prompt, one retry
+            │    ├─ heuristic/random/composed seat: status 'unavailable'
+            │    └─ human seat: status 'pending' (optional note, no model turn)
+            ├─ write archive after each turn (atomic rewrite)
             └─ status complete/partial/failed; broadcast
 ```
 
@@ -235,8 +244,13 @@ gameOver
   completed model seat plus any interrupted/failed seat becomes `partial`, and an interrupted
   fan-out with no completed model seat becomes `failed`. The games are archived; re-running a
   review is a paid operation and should be an explicit command, not a boot surprise.
-- **Concurrency cap** protects a 7-9 seat table from firing nine simultaneous calls and tripping
-  provider rate limits.
+- **Sequential turns, not a parallel fan-out.** REVIEW-004 makes the review a round table: each
+  model seat speaks once, in seat order, and sees the earlier turns. This keeps the call count the
+  same as independent reviews but makes the wall-clock cost the sum of the calls instead of the
+  slowest one. The old concurrency cap and `AVALON_POSTGAME_CONCURRENCY` are gone; rate limiting
+  is no longer the concern, because there is only one review request in flight at a time.
+- **A failed turn is skipped, not substituted.** Later speakers see only turns that completed, so a
+  failed seat cannot poison the rest of the conversation with an empty statement.
 
 ### Human seats
 
@@ -261,6 +275,30 @@ may still write a note: the POST creates a minimal record with the human seats o
 `complete`. This keeps the human's words without inventing reviews for seats that were never asked.
 The record is durable only when `AVALON_GAME_ARCHIVE` is on, like every other archive field.
 
+### Post-game round table
+
+**Built 2026-11-02 (REVIEW-004).** The per-seat review is not an independent essay. Model seats
+speak once each, in seat order, and each later prompt contains the earlier turns: the spoken
+statement plus the `seq` citations and table comments that support it. A seat can therefore answer
+a specific claim about its own play instead of reviewing in isolation.
+
+- The turn's spoken text is `PostgameReview.statement` (optional, capped at 500 characters, and
+  sanitized when quoted into another prompt). Older records and a model that omits it still parse;
+  the UI and renderer fall back to `summary`.
+- Every earlier statement is quoted, but detailed citations, comments, and lessons are carried only
+  for the three most recent turns. A full table would otherwise put every earlier seat's evidence
+  into the last prompt.
+- `PostgameRecord.turnOrder` records the speaking order. It is optional on older records, so the
+  reveal and transcript can keep rendering a record written before this phase.
+- The structured `summary`, `decisions`, `commentary`, and `lesson` remain the evidence behind the
+  turn. The UI shows a compact "Table talk" block in `turnOrder`, then the detailed cards.
+- This is still one call per modeled seat, so the cost is unchanged. The reveal is already
+  available while the turns run; the section fills in as each seat speaks.
+- No synthesis pass in v1. The analysis is the seats' own reviews with the conversation in context.
+  A table-level verdict is a separate, optional call and remains an open question.
+- Human seats keep the note editor instead of a model turn. A human's written note is not quoted
+  into the model turns, because it can arrive after the fan-out has finished.
+
 ### Presentation
 
 - `Reveal` gains a "Post-game review" section below the thinking timeline: one card per seat with
@@ -277,8 +315,12 @@ The record is durable only when `AVALON_GAME_ARCHIVE` is on, like every other ar
   render one on a scoped transcript.
 - The archive stores the same record ([design-game-archive.md](design-game-archive.md)), so it
   survives the process. A record left `running` at boot is settled without spending money.
-- `Reveal` renders the section as a collapsed `<details>` below the thinking timeline, with one
-  card per seat and a note editor on the human's card.
+- `Reveal` renders the section as a collapsed `<details>` below the thinking timeline, with a
+  compact "Table talk" block in speaking order, one detailed card per seat, and a note editor on
+  the human's card.
+- A review can be quoted into the next speaker's prompt only through the round-table section. Every
+  quoted field (statement, assessment, alternative, comment note, lesson, and seat name) passes
+  through `sanitizeSpeech`, and the quoted turns are fenced with the injection guard.
 
 ### Cost and control
 
@@ -307,7 +349,9 @@ Small next to a full game (~190 calls), but not zero. Controls:
 3. **API and reveal UI.** Built 2026-11-02 (REVIEW-003): `GET`/`POST /api/game/:id/review`, the
    human note path, and the collapsed per-seat cards.
 4. **Transcript section** and copy-log integration. Built 2026-11-02 (REVIEW-003).
-5. **Measure** the review quality and spend on real games; tune the ledger budget and the caps.
+5. **Round table:** sequential turns with prior-turn context and a spoken statement. Built
+   2026-11-02 (REVIEW-004).
+6. **Measure** the review quality and spend on real games; tune the ledger budget and the caps.
    Still proposed.
 
 ## Testing
@@ -325,6 +369,9 @@ Small next to a full game (~190 calls), but not zero. Controls:
   same game replaces its own record only.
 - Human note: token-gated, game-over-gated, length-capped, escaped in the UI, sanitized when it
   later enters a history prompt.
+- Round table: calls run in seat order; a later prompt contains the earlier seats' statements and
+  citations; the first speaker gets `You speak first.`; a failed turn is skipped; every quoted
+  field is sanitized, and quoted turns cannot close the prompt fence.
 
 ## Open questions
 

@@ -19,6 +19,7 @@ export const POSTGAME_LESSON_MAX_CHARS = 400
 export const POSTGAME_ASSESSMENT_MAX_CHARS = 400
 export const POSTGAME_ALTERNATIVE_MAX_CHARS = 400
 export const POSTGAME_COMMENT_MAX_CHARS = 300
+export const POSTGAME_STATEMENT_MAX_CHARS = 500
 export const POSTGAME_ERROR_MAX_CHARS = 500
 /** Human-authored note cap (REVIEW-003 owns the endpoint that enforces it). */
 export const REVIEW_NOTE_CAP = 2000
@@ -46,6 +47,12 @@ export interface PostgameComment {
 }
 
 export interface PostgameReview {
+  /**
+   * The seat's spoken turn in the post-game round table. Optional so records
+   * written before the round table (or a model that omits it) still parse; the
+   * UI and renderer fall back to `summary` when it is absent.
+   */
+  statement?: string
   summary: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
@@ -71,6 +78,8 @@ export interface PostgameRecord {
   completedAt?: string
   status: PostgameStatus
   seats: Record<Seat, PostgameSeat>
+  /** Model seats in the order they spoke. Optional on older records. */
+  turnOrder?: Seat[]
 }
 
 /** The seat facts a fresh record needs; no review or status yet. */
@@ -103,6 +112,10 @@ export function postgameRecord(
     startedAt,
     status: 'running',
     seats: bySeat,
+    turnOrder: seats
+      .filter((seat) => seat.kind === 'agent' && seat.model !== undefined)
+      .map((seat) => seat.seat)
+      .sort((a, b) => a - b),
   }
 }
 
