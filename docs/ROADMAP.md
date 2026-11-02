@@ -63,6 +63,26 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
 9. **Kimi cosmetic reasoning leak** (1 token/call): silence or tolerate explicitly; currently
    noisy in logs only.
 
+## Incoming — game history, reviews, memory
+
+> **2026-11-01:** three requested features, designed as a dependency chain. The archive is the
+> foundation; the other two read from it. A rematch was considered and dropped: replaying a cast
+> with reshuffled roles makes historical role memories actively misleading. Implementation
+> tickets (description, plan, acceptance criteria, tests) are indexed in
+> [docs/tickets/README.md](tickets/README.md).
+
+- **Durable game archive.** Keep one local record per finished game (plus retention), replacing
+  the opt-in JSONL-only artifact path as the product record. Built on the existing `GameArtifact`.
+  **Design in [design-game-archive.md](design-game-archive.md).**
+- **Post-game review.** Each modeled seat reviews its own decisions with hindsight; humans can
+  write a note. Stored beside the game, shown in the reveal, included in the transcript.
+  **Design in [design-postgame-review.md](design-postgame-review.md).**
+- **Optional cross-game memory.** Agents read bounded digests of games they played before, off by
+  default because it raises input tokens and retention sensitivity. Other seats' historical roles
+  are hidden by default so a new deal cannot be read through an old one. Depends on the archive
+  and gets its best material from post-game reviews. **Design in
+  [design-cross-game-memory.md](design-cross-game-memory.md).**
+
 ## Social & presentation
 
 10. **Free-form human chat** (MP3 headline): humans interject any time during discussion via a
