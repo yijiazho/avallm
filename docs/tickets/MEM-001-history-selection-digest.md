@@ -1,7 +1,7 @@
 # MEM-001 — History selection and digest rendering
 
 - **Status:** proposed
-- **Depends on:** ARCH-001, ARCH-002, SHARED-002
+- **Depends on:** ARCH-001 (done), ARCH-002, SHARED-002
 - **Blocks:** MEM-002
 - **Design:** [design-cross-game-memory.md](../design-cross-game-memory.md) §Scope, §The
   role-confusion rule, §Digest, §What the block says

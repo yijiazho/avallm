@@ -47,7 +47,11 @@ server/
                      Internally ordered; see "Inside agents/" below.
   llm/             ← the OpenRouter chokepoint, call-kind param table,
                      model roster config, reasoning policy
-  server.js        ← http glue: game session store, POST /api/game/*, SSE stream to client
+  data-dir.ts      ← the one persistent data root (AVALON_DATA_DIR > Railway mount > repo data/)
+  json-io.ts       ← atomic JSON write and tolerant read helpers for server persistence
+  archive/         ← durable finished-game records: one ArchivedGame per game plus a boot metadata
+                     index. Server-layer only; the engine never imports it.
+  server.ts        ← http glue: game session store, POST /api/game/*, SSE stream to client
 client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts human actions.
 ```
 

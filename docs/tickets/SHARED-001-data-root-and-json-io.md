@@ -1,8 +1,8 @@
 # SHARED-001 — Data root and atomic JSON I/O
 
-- **Status:** proposed
+- **Status:** implemented 2026-11-02 (PR #2)
 - **Depends on:** none
-- **Blocks:** ARCH-001, REVIEW-002, MEM-001
+- **Blocks:** ARCH-001 (done), REVIEW-002, MEM-001
 - **Design:** [design-game-archive.md](../design-game-archive.md) §Where it lives, §Write path
 - **Size:** S
 
@@ -59,16 +59,30 @@ configured and the warning when a configured base does not exist.
 
 ## Acceptance criteria
 
-- [ ] `AVALON_DATA_DIR` wins over `RAILWAY_VOLUME_MOUNT_PATH`; an empty value is treated as unset.
-- [ ] With no base configured, `dataDir()` is the repo-local `data`, exactly as today.
-- [ ] `userAgentsDir()` is `<base>/agents` and the library boot scan plus later saves/deletes use
+- [x] `AVALON_DATA_DIR` wins over `RAILWAY_VOLUME_MOUNT_PATH`; an empty value is treated as unset.
+- [x] With no base configured, `dataDir()` is the repo-local `data`, exactly as today.
+- [x] `userAgentsDir()` is `<base>/agents` and the library boot scan plus later saves/deletes use
       the same path.
-- [ ] A configured base that does not exist still produces the boot warning and does not crash.
-- [ ] `writeJsonAtomic` leaves no readable partial file: after a simulated write failure, the
+- [x] A configured base that does not exist still produces the boot warning and does not crash.
+- [x] `writeJsonAtomic` leaves no readable partial file: after a simulated write failure, the
       previous file content is unchanged and a stale temp file is not treated as a record.
-- [ ] `readJsonFile` reports the file path on malformed JSON.
-- [ ] No new runtime dependency; the server still runs under `node server/server.ts`.
-- [ ] `test/archive/*.test.ts` files declare `// test-lane: fast`.
+- [x] `readJsonFile` reports the file path on malformed JSON.
+- [x] No new runtime dependency; the server still runs under `node server/server.ts`.
+- [x] `test/archive/*.test.ts` files declare `// test-lane: fast`.
+
+## Implementation notes (2026-11-02)
+
+Landed with ARCH-001 (PR #2), because the archive needs the shared root and writer.
+
+- `server/data-dir.ts` owns `resolveDataDirBase`, `useDataDirBase`, `dataDir`, `userAgentsDir`,
+  and `gamesDir`.
+- `server/json-io.ts` owns `writeJsonAtomic`, `readJsonFile`, and `isTempFile`. The writer accepts
+  `{ pretty: true }`, which lets `saveCustomDef` keep its existing two-space on-disk format.
+- `server/server.ts` resolves the base once after `loadEnv`, warns when a configured base is
+  missing, and calls `useDataDirBase` before the library scan and archive scan.
+- `server/agents/defs.ts` delegates `userAgentsDir()` to the shared root; `useDataDir()` remains as
+  a deprecated adapter for existing callers.
+- Tests: `test/archive/data-dir.test.ts` and `test/archive/json-io.test.ts`, both lane `fast`.
 
 ## Testing plan
 

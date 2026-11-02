@@ -1,6 +1,7 @@
 # Implementation tickets: game archive, post-game review, cross-game memory
 
-**Status:** proposed, unstarted. Written 2026-11-01.
+**Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2); remaining tickets proposed.
+Written 2026-11-01.
 Source designs: [design-game-archive.md](../design-game-archive.md),
 [design-postgame-review.md](../design-postgame-review.md),
 [design-cross-game-memory.md](../design-cross-game-memory.md).
@@ -25,9 +26,9 @@ played before**, with other seats' historical roles hidden by default.
 ## Dependency graph
 
 ```
-SHARED-001  data root + atomic JSON I/O
+SHARED-001 [done]  data root + atomic JSON I/O
     |
-    +--> ARCH-001  archive record + writer + boot index
+    +--> ARCH-001 [done]  archive record + writer + boot index
     |       |
     |       +--> ARCH-002  fidelity + retention + delete
     |       |       |
@@ -57,20 +58,20 @@ ARCH-002, and SHARED-002.
 
 ## Ticket index
 
-| ID | Title | Depends on | Size | Design |
-|---|---|---|---|---|
-| SHARED-001 | Data root and atomic JSON I/O | none | S | archive §Where it lives, §Write path |
-| SHARED-002 | Shared speech sanitizer | none | XS | review §What the prompt sees; memory §What the block says |
-| ARCH-001 | Archive record, writer, boot index | SHARED-001 | M | archive §Design, §Write path, §Read path |
-| ARCH-002 | Archive fidelity, retention, delete | ARCH-001 | M | archive §Fidelity, §Retention |
-| ARCH-003 | Archive read API and previous-games UI | ARCH-001, ARCH-002 | M | archive §HTTP surface |
-| ARCH-004 | Artifact corpus import/export and dual-write | ARCH-001 | S | archive §Relationship to the artifact corpus |
-| REVIEW-001 | Post-game projection, prompt, parser | SHARED-002 | M | review §Record shape, §Projection, §Not a LlmCallKind |
-| REVIEW-002 | Post-game runner and persistence | REVIEW-001, ARCH-001 | M | review §Scheduling and failure |
-| REVIEW-003 | Review API and reveal UI | REVIEW-002 | M | review §Presentation, §Human seats |
-| MEM-001 | History selection and digest | ARCH-001, ARCH-002, SHARED-002 | M | memory §Scope, §Digest |
-| MEM-002 | History transport and prompt slot | MEM-001 | M | memory §Prompt placement, §Transport |
-| MEM-003 | History configuration, UI, measurement | MEM-002 | M | memory §Configuration, §Cost |
+| ID | Title | Status | Depends on | Size | Design |
+|---|---|---|---|---|---|
+| SHARED-001 | Data root and atomic JSON I/O | implemented | none | S | archive §Where it lives, §Write path |
+| SHARED-002 | Shared speech sanitizer | proposed | none | XS | review §What the prompt sees; memory §What the block says |
+| ARCH-001 | Archive record, writer, boot index | implemented | SHARED-001 | M | archive §Design, §Write path, §Read path |
+| ARCH-002 | Archive fidelity, retention, delete | proposed | ARCH-001 | M | archive §Fidelity, §Retention |
+| ARCH-003 | Archive read API and previous-games UI | proposed | ARCH-001, ARCH-002 | M | archive §HTTP surface |
+| ARCH-004 | Artifact corpus import/export and dual-write | proposed | ARCH-001 | S | archive §Relationship to the artifact corpus |
+| REVIEW-001 | Post-game projection, prompt, parser | proposed | SHARED-002 | M | review §Record shape, §Projection, §Not a LlmCallKind |
+| REVIEW-002 | Post-game runner and persistence | proposed | REVIEW-001, ARCH-001 | M | review §Scheduling and failure |
+| REVIEW-003 | Review API and reveal UI | proposed | REVIEW-002 | M | review §Presentation, §Human seats |
+| MEM-001 | History selection and digest | proposed | ARCH-001, ARCH-002, SHARED-002 | M | memory §Scope, §Digest |
+| MEM-002 | History transport and prompt slot | proposed | MEM-001 | M | memory §Prompt placement, §Transport |
+| MEM-003 | History configuration, UI, measurement | proposed | MEM-002 | M | memory §Configuration, §Cost |
 
 Sizes are relative: S is a focused day, M is a few days, and every M includes its tests.
 

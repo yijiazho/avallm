@@ -1,7 +1,7 @@
 # ARCH-002 — Archive fidelity, retention, and deletion
 
 - **Status:** proposed
-- **Depends on:** ARCH-001
+- **Depends on:** ARCH-001 (done)
 - **Blocks:** ARCH-003, MEM-001
 - **Design:** [design-game-archive.md](../design-game-archive.md) §Fidelity, §Retention and privacy
 - **Size:** M

@@ -1,6 +1,7 @@
 # Design: post-game review and commentary
 
-**Status:** proposed, unbuilt. Written 2026-11-01.
+**Status:** proposed, unbuilt. Written 2026-11-01. The archive foundation (ARCH-001) is built, so
+REVIEW-002 now has its persistence dependency.
 Companions: [design-game-archive.md](design-game-archive.md),
 [design-cross-game-memory.md](design-cross-game-memory.md),
 [design-implementation.md](design-implementation.md) §3 (call kinds, prompts, traces),

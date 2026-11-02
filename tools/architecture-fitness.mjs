@@ -2919,6 +2919,16 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
   ['server/eval/replay/trace-replay.ts', new Set([
     'authoritativeDecisionSnapshots',
   ])],
+  // ARCH-001 ships the archive reader and in-memory index ahead of the read API
+  // that will consume them (ARCH-003). The writer and boot scan are live here;
+  // these three are the deliberate substrate for the next ticket, not dead
+  // helpers. The staleness check above reports them the moment ARCH-003 wires a
+  // production caller.
+  ['server/archive/store.ts', new Set([
+    'getArchiveMeta',
+    'listArchiveMeta',
+    'readArchivedGame',
+  ])],
 ])
 
 /** Module-level function/const export surfaces, including `export { local }`. */

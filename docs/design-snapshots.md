@@ -9,7 +9,9 @@ Companions: [design-implementation.md](design-implementation.md) (architecture),
 
 Games live entirely in memory (`sessions`, `lobbies` maps in
 [server/server.ts](../server/server.ts)). Every Railway redeploy, crash, or
-process recycle destroys every running game and boots all players. That is
+process recycle destroys every running game and boots all players. Finished games now have a
+durable archive ([design-game-archive.md](design-game-archive.md)), but an in-progress session
+still has no snapshot. That is
 tolerable for a timer-based game but **fatal for this one**: play is
 correspondence-paced with *no timers* (a deliberate identity choice —
 ROADMAP "Deliberately not doing"), so a single game can legitimately span
