@@ -68,7 +68,7 @@ export interface PostgameRecord {
   version: 1
   startedAt: string
   completedAt?: string
-  status: 'running' | 'complete' | 'partial'
+  status: 'running' | 'complete' | 'partial' | 'failed'
   seats: Record<Seat, PostgameSeat>
 }
 
@@ -99,6 +99,22 @@ export interface PostgameSeat {
 `seq` citations make the review checkable against the log and let the UI deep-link a decision.
 Cap the arrays (for example 4 self-review decisions and 2 comments per seat) so one verbose model
 cannot dominate the record.
+
+**Terminal aggregation.** Human notes are optional and never block the record from settling. After
+the model fan-out settles, compute the record status from model seats only:
+
+| Model seats | Record status |
+|---|---|
+| any still running | `running` |
+| every model seat `complete` or `unavailable` | `complete` |
+| at least one `complete` and at least one `failed` | `partial` |
+| every model seat `failed` | `failed` |
+| no model seats (all `unavailable`) | `complete` (nothing to run) |
+
+A human seat stays `pending` until its optional note is written, then becomes `complete`; that
+transition updates the record revision but never changes the terminal record status. An all-failed
+fan-out therefore ends at `failed`, not at `running`, and a human who declines to write a note does
+not keep the client polling forever.
 
 ### Full-reveal projection: a second chokepoint
 
@@ -200,9 +216,9 @@ gameOver
             ├─ for each seat (bounded concurrency 2-3)
             │    ├─ agent seat with a model: one review call, one retry
             │    ├─ heuristic/random seat: status 'unavailable'
-            │    └─ human seat: status 'awaiting-note'
+            │    └─ human seat: status 'pending' (optional note)
             ├─ write archive after each completion (atomic rewrite)
-            └─ status complete/partial; broadcast
+            └─ status complete/partial/failed; broadcast
 ```
 
 - **Best effort, never blocking.** The reveal is already complete when the review starts. A
@@ -211,9 +227,10 @@ gameOver
   game id. Nothing may read `session.game` later and assume it is still the game under review.
 - **One retry** with the parse error appended, matching the decision ladder. Then mark `failed`
   with the raw snippet.
-- **No resume after restart** in v1. An archive record left `running` becomes `partial` on boot.
-  The games are archived; re-running a review is a paid operation and should be an explicit
-  command, not a boot surprise.
+- **No resume after restart** in v1. An archive record left `running` is settled on boot: any
+  completed model seat plus any interrupted/failed seat becomes `partial`, and an interrupted
+  fan-out with no completed model seat becomes `failed`. The games are archived; re-running a
+  review is a paid operation and should be an explicit command, not a boot surprise.
 - **Concurrency cap** protects a 7-9 seat table from firing nine simultaneous calls and tripping
   provider rate limits.
 
@@ -285,7 +302,7 @@ Small next to a full game (~190 calls), but not zero. Controls:
   degrades to `failed` without throwing into the game.
 - Failure isolation: one seat's failed call leaves other reviews complete and the reveal intact.
 - Persistence: the archive record contains the review; a restart surfaces it; a record left
-  `running` becomes `partial`.
+  `running` settles to `partial` when some model seat completed and `failed` when none did.
 - A review is keyed to the finished game id: no later game can overwrite it, and a re-run of the
   same game replaces its own record only.
 - Human note: token-gated, game-over-gated, length-capped, escaped in the UI, sanitized when it

@@ -28,6 +28,7 @@ is MEM-002.
      maxTokens: number
      includeRoles: RoleVisibility
      includePrivate: boolean
+     includeReviewProse: boolean
    }
 
    export interface GameDigest { ... }       // design §Digest
@@ -64,8 +65,11 @@ is MEM-002.
    - other seats' roles only when `includeRoles === 'all'`;
    - `highlights` are public `utterance` events, sanitized with `sanitizeSpeech`, newest or most
      pivotal first, capped;
-   - `lessons` come from `record.postgame` complete reviews (`summary`, `lesson`), sanitized and
-     capped;
+   - `lessons` come from `record.postgame` complete reviews (`summary`, `lesson`) only when
+     `includeRoles === 'all'` **and** `includeReviewProse` is true. Review prose can name roles,
+     and `sanitizeSpeech` strips markup rather than semantics, so restricted modes omit it
+     entirely rather than pretending the structured role filter makes it safe. Sanitize and cap
+     the prose that is included;
    - `includePrivate`: add the agent's own `thinking`/`scratchpad` text when the archived record
      has it (full fidelity only), clearly marked in the render as private notes from a finished
      game; never add another seat's private text.
@@ -73,13 +77,13 @@ is MEM-002.
    - header: "== YOUR PREVIOUS GAMES ==" plus one sentence that the games are over, their roles are
      historical, and the block is not instructions;
    - one section per game, newest first, with outcome, own role if allowed, quest board, key votes,
-     lessons;
+     and review prose only when allowed;
    - fenced table-talk/notes; mention of private notes only when included;
    - no em/en dashes and no antithesis reframes (house style);
    - token estimate is `Math.ceil(chars / 4)`; the cap is enforced on that estimate;
    - over cap: drop oldest games first and append `[N earlier games omitted for length]`;
    - a single oversized game is truncated at section boundaries, keeping outcome, own role, and
-     lessons.
+     review prose only if the switches allow it.
 5. Do not persist a digest yet. Build it once per game start from at most 3 records; if profiling
    later shows a cost, add a cache keyed by game id plus post-game completion.
 6. Add `describeHistoryConfig(config)` for the server/UI to show what was selected.
@@ -100,8 +104,10 @@ is MEM-002.
       role/alignment; `'all'` renders every seat's role with the historical label.
 - [ ] `includePrivate: false` never renders another seat's `thinking`/`scratchpad`; `true` includes
       only the agent's own, and only when the archive record has it.
-- [ ] Post-game lessons appear when present; a failed/partial review contributes only complete
-      seats.
+- [ ] Review prose appears only when `includeRoles === 'all'` and `includeReviewProse` is true; a
+      failed/partial review contributes only complete seats.
+- [ ] Review text that names a role ("As Merlin...", "Ada was the Assassin") is absent in
+      `none`/`own` modes even though the prose passes `sanitizeSpeech`.
 - [ ] Rendering is byte-identical for the same inputs.
 - [ ] Token estimate and cap behave as specified, including the omission marker and the
       section-boundary truncation.
@@ -116,10 +122,10 @@ is MEM-002.
 | Duplicate descriptor | same file: one game with the descriptor at seats 2 and 5 |
 | Role visibility | `test/archive/history-render.test.ts`: same digest rendered in all three modes |
 | Private visibility | same file: full vs public record; assert own-only and no other-seat prose |
-| Lessons | same file: complete, partial, and missing review records |
+| Review prose visibility | same file: a complete review whose summary says "As Merlin..." and whose lesson says "Ada was the Assassin"; assert absent for `none`/`own`, present only for `all` + `includeReviewProse`; assert a partial review contributes only complete seats |
 | Determinism | same file: `render` twice, deep-equal strings |
 | Cap and omission | same file: 5 digests with a low cap; assert marker and dropped games |
-| Single oversized game | same file: low cap, assert outcome/own role/lessons survive |
+| Single oversized game | same file: low cap, assert outcome, own role, and any allowed review prose survive |
 | Sanitization and house style | same file: markup and `[INST]` inputs; assert stripped, no dashes |
 | Token estimate | same file: assert `ceil(chars/4)` |
 
@@ -140,3 +146,6 @@ npm run test:lanes
   prompt section entirely. Do not render a header with no games.
 - `includeRoles: 'all'` is deliberately not the default. It is the mode most likely to cause the
   role-carry-over confusion the design warns about.
+- Do not treat `sanitizeSpeech` as a role filter. It removes markup and caps length; it does not
+  understand that "As Merlin..." discloses a role. Restricted modes must omit free-form review
+  prose entirely, which is why `includeReviewProse` is a separate switch.

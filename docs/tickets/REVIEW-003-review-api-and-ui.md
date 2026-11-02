@@ -56,8 +56,10 @@ from REVIEW-002.
      status chip, summary, cited decisions (`seq`, kind, assessment, alternative), comments, lesson,
      and cost when present. Human card shows a textarea and save button when `canReview`.
    - `App.tsx`: fetch `/review` on `gameOver`; if `postgame.status === 'running'`, poll every 1.5-3s
-     or refetch when `payload.postgame.rev` changes. Stop polling on unmount and on `complete` /
-     `partial`. Apply the POST response optimistically and refetch on failure.
+     or refetch when `payload.postgame.rev` changes. Stop polling on unmount and on any terminal
+     status: `complete`, `partial`, or `failed`. A human seat left `pending` because the optional
+     note was not written does not count as running. Apply the POST response optimistically and
+     refetch on failure.
    - Show "reviews are optional and cost a model call" near the section when the game had reviews
      disabled (`postgame` absent) and the human can still write a note.
    - Keep the section collapsed by default so the role flip and thinking timeline stay the primary
@@ -88,11 +90,13 @@ from REVIEW-002.
 - [ ] A human note survives a page refresh and, when the archive is enabled, a restart.
 - [ ] The reveal shows per-seat status and completed reviews; a running review does not block the
       role flip or the thinking timeline.
-- [ ] The client stops polling when unmounted and when the status is terminal.
+- [ ] The client stops polling when unmounted and when the status is terminal
+      (`complete`, `partial`, or `failed`).
+- [ ] An all-failed review renders its per-seat failures and does not leave the section spinning.
 - [ ] The full transcript includes a `## Post-game review` section; a scoped mid-game transcript
       does not.
 - [ ] No review text is inserted as HTML. The UI escapes it; long fields wrap.
-- [ ] The gallery has deterministic fixtures for `running` and `complete` states.
+- [ ] The gallery has deterministic fixtures for `running`, `complete`, and `failed` states.
 
 ## Testing plan
 

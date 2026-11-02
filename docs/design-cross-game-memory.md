@@ -71,7 +71,7 @@ Selection:
 - if the cap is exceeded, drop the oldest games and append a visible marker such as
   `[2 earlier games omitted for length]`;
 - if the newest game alone exceeds the cap, truncate at section boundaries and keep the outcome,
-  the agent's own historical role, and the post-game lessons.
+  the agent's own historical role, and review prose only when the switches allow it.
 
 The set is snapshotted at game start and frozen for the whole game. It never reads the live
 session, so there is no path by which the current deal leaks into its own history.
@@ -86,16 +86,21 @@ So historical roles are **not** shown by default:
 
 | `includeRoles` | What the block shows |
 |---|---|
-| `none` | No roles at all: outcomes, quests, votes, lessons |
-| `own` (default) | **Only the reviewing agent's own historical role and alignment** |
-| `all` | Every seat's historical role, with a strong "this is history" label |
+| `none` | No structured roles: outcomes, quests, votes, no review prose |
+| `own` (default) | **Only the reviewing agent's own historical role and alignment**, no review prose |
+| `all` | Every seat's historical role, with a strong "this is history" label; review prose only if `includeReviewProse` is on |
 
 `own` is the useful compromise: an agent remembers "last game I was the Minion and I over-failed
 quest 2" without learning who else was evil and carrying that into a new deal. `all` is a
 deliberate experimental setting, not the default.
 
-Post-game lessons are the safest form of memory because they are already role-aware prose written
-by the seat after the game, and they are far cheaper than a raw log.
+Free-form post-game reviews are prose, and prose can name roles even when structured fields are
+hidden ("As Merlin, I should have..."). `sanitizeSpeech` strips markup and length, not semantics,
+so it cannot make a review safe. Review prose is therefore a separate switch, `includeReviewProse`,
+default false, and it is only allowed when `includeRoles === 'all'`. In `none` and `own`, the digest
+keeps the structured record and the agent's own historical role; it does not copy review summaries
+or lessons. A future role-free lesson field, generated and validated at review time, could bring
+lessons back to restricted modes. That is not v1.
 
 ### Modes
 
@@ -111,13 +116,15 @@ export interface HistoryConfig {
   includeRoles: RoleVisibility
   /** Include private thinking/notes from the agent's own past games. Default false. */
   includePrivate: boolean
+  /** Copy free-form review prose; only valid with includeRoles 'all'. Default false. */
+  includeReviewProse: boolean
 }
 ```
 
 - **`off`** is the default. No archive read, no extra prompt text, no cost.
 - **`digest`** gives each selected game a deterministic summary: outcome, quest board, proposal and
-  vote highlights, the agent's own historical role when allowed, and the seats' post-game lessons.
-  Roughly 300-500 tokens per game.
+  vote highlights, the agent's own historical role when allowed, and review prose only when both
+  `includeRoles: 'all'` and `includeReviewProse` are set. Roughly 300-500 tokens per game.
 - **`full`** is `digest` for older games plus a compact play-by-play of the most recent game.
   Roughly 5-8k tokens for one game. This is the mode that actually pays the "read the logs" cost.
 
@@ -164,7 +171,7 @@ export interface GameDigest {
   }[]
   /** Sanitized public utterances only, bounded. */
   highlights: string[]
-  /** Post-game lessons, when reviews exist. */
+  /** Review prose, only populated for includeRoles 'all' + includeReviewProse. */
   lessons?: { seat: number; summary: string; lesson: string }[]
 }
 ```
@@ -213,8 +220,10 @@ Previous game. 7 players. Evil won: the Assassin named Merlin on quest 4.
 In that game you were the Minion (evil).
 Quests: Q1 success, Q2 fail, Q3 success, Q4 fail.
 Key votes: Q2.1 the leader approved, a seat rejected, ...
-Post-game lessons from that game: ...
 ```
+
+Review prose appears only when `includeRoles: 'all'` and `includeReviewProse` are both set; a
+restricted block never contains a line like "As Merlin..." or "Adela was the Assassin".
 
 Rules:
 
@@ -223,6 +232,8 @@ Rules:
   carried over.
 - Only public events plus the permitted role reveal by default. `includePrivate: true` may add the
   agent's **own** `thinking`/`scratchpad` from finished games, clearly marked as private reasoning.
+- Review prose is excluded unless `includeRoles: 'all'` and `includeReviewProse` are both set.
+  `sanitizeSpeech` is not a role scrubber; do not use it to make prose safe.
 - Sanitize every player-authored string with `sanitizeSpeech`; fence the block and repeat the
   injection guard. A prior game's human chat is untrusted input, exactly like live table talk.
 - Never include the current game's log, roles, or scratchpads.
@@ -289,7 +300,9 @@ claim it improves play; reuse the eval paired-seed machinery rather than eyeball
 - **Other seats' private reasoning stays out.** `includePrivate` is limited to the reviewing
   agent's own past notes; the default is false.
 - **Role confusion is the main risk.** Default `includeRoles: 'own'`; `all` is opt-in and labelled.
-  This directly addresses the concern that a replay with reshuffled roles would corrupt memory.
+  Free-form review prose is off unless `includeReviewProse` is also on, because a review can name
+  roles no matter how the structured roster is filtered. This directly addresses the concern that
+  a replay with reshuffled roles would corrupt memory.
 - **No current-game leak.** The block is built from finished archive records only and frozen
   before the first decision. Contract test: start game N with history on, play, and assert that no
   event, role, or note from game N appears in the prompt at any decision.
@@ -312,6 +325,7 @@ claim it improves play; reuse the eval paired-seed machinery rather than eyeball
 | `AVALON_HISTORY_MAX_GAMES` | integer | 3 |
 | `AVALON_HISTORY_MAX_TOKENS` | integer | 1500 (`digest`), 6000 (`full`) |
 | `AVALON_HISTORY_ROLES` | `none` / `own` / `all` | `own` |
+| Review prose | only with `all`; `includeReviewProse` | `false` |
 | Agent def | `historyAccess: 'inherit' \| 'deny'` | `inherit` |
 
 The env var is a ceiling and a default; a lobby may choose a lower mode but never a higher cap.
@@ -335,8 +349,11 @@ This keeps a public deployment from being turned into a history experiment by a 
 - Role visibility: `none` renders no role, `own` renders only the reviewing agent's role, `all`
   renders every historical role with the label; no mode leaks a role of a seat that is not
   permitted.
+- Review prose: a review summary or lesson containing "As Merlin..." or "Ada was the Assassin" is
+  absent unless both `includeRoles: 'all'` and `includeReviewProse` are set. Structured roster
+  filtering alone is not the test.
 - Cap: over-budget history drops oldest games and includes the omission marker; a single oversized
-  game truncates at a section boundary and keeps outcome/own role/lessons.
+  game truncates at a section boundary and keeps outcome, own role, and any allowed review prose.
 - Determinism: the same archive and config render byte-identical text.
 - No leak: no current-game event, role, or scratchpad appears in any rendered prompt; no other
   agent's games appear.
@@ -357,8 +374,9 @@ This keeps a public deployment from being turned into a history experiment by a 
   version is cheap and auditable; a narrative reads better and may carry more signal.
 - Does `full` mean one previous game or all selected games? One is the cost-bounded default; all
   is the literal "read all previous logs" and needs a much larger cap.
-- Should the history block include the seats' own post-game reviews verbatim, or only their
-  one-line lessons? Verbatim is richer and more expensive.
+- Should post-game reviews gain a role-free lesson field, generated and validated at review time,
+  so restricted modes can carry lessons without the role leaks this design excludes? That is the
+  clean way to bring prose back to `none`/`own`.
 - Should players be able to see exactly what history the bots were given? Yes, ideally as a
   read-only "memory" panel in the reveal; it is the same transparency principle as the prompt
   preview.

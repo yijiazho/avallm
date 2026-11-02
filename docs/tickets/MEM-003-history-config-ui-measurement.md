@@ -24,13 +24,17 @@ shipping it on vibes.
      - `maxTokens` clamped to `AVALON_HISTORY_MAX_TOKENS` (default 1500 digest / 6000 full);
      - `includeRoles` from `AVALON_HISTORY_ROLES` or the request, default `own`;
      - `includePrivate` only when explicitly true and the archive fidelity is full;
+     - `includeReviewProse` only when explicitly true and `includeRoles === 'all'`; otherwise
+       clamp it to false, because free-form reviews can name roles that the structured filter
+       hides;
      - an unknown/invalid value is a 400 at lobby creation, never a silent coercion.
    - `createLobby` accepts `history` and stores the effective config in `Lobby.config`.
    - `lobbyPayload` exposes the effective config and the server caps so the client can render a
      truthful control.
 2. Client setup (`Launcher` / `TablePicker` area):
    - a "Table memory" control with `Off`, `Digest`, `Full` and a short one-line explanation of each;
-   - an advanced row for role visibility (`Own role only` default, `No roles`, `All roles`) and a
+   - an advanced row for role visibility (`Own role only` default, `No roles`, `All roles`), a
+     disabled "Include post-game review prose" switch unless `All roles` is selected, and a
      read-only cap display;
    - a cost estimate ("about N extra tokens per bot call, from M previous games");
    - default `Off`; if the archive is empty, show "no previous games yet" and keep the toggle
@@ -78,6 +82,8 @@ shipping it on vibes.
       deployment caps and echoed in the lobby payload.
 - [ ] An invalid mode/role visibility is 400 at creation; an invalid env value warns and uses the
       default.
+- [ ] `includeReviewProse` is rejected or clamped to false unless `includeRoles === 'all'`; the UI
+      disables the switch otherwise.
 - [ ] The setup UI defaults to `off`, explains the cost, sends the config, and shows the cap.
 - [ ] `historyAccess: 'deny'` is editable and respected; an agent with deny shows no block.
 - [ ] `POST /api/agents/preview` renders a synthetic history block without touching the archive,
@@ -94,6 +100,7 @@ shipping it on vibes.
 | Acceptance criterion | Test |
 |---|---|
 | Config clamp and invalid values | `test/archive/history-config.test.ts`: request/env matrix |
+| Review prose eligibility | same file: `includeReviewProse: true` with `own` is false in the effective config; with `all` it survives |
 | Lobby payload | `test/server/history-preview.test.ts` or `test/server/http.test.ts`: create a lobby with each mode; assert effective config |
 | UI request bodies | `npm --prefix client run build`; manual: start a game in each mode and inspect the request |
 | Deny field | server test: def with deny, table history on, assert no block |
@@ -122,3 +129,6 @@ npm run test:lanes
   not evidence.
 - `includePrivate: true` is only meaningful for full-fidelity archives. If the deployment is
   `public`, the server should reject or downgrade it with a clear message.
+- `includeReviewProse` is not a cosmetic advanced toggle. Free-form reviews can name roles, so it
+  is only valid when every historical role is already allowed (`includeRoles: 'all'`). Clamping it
+  quietly is safer than accepting a combination that defeats the role-visibility rule.

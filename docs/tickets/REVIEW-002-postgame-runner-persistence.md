@@ -46,20 +46,28 @@ exposes status on the existing game payload so REVIEW-003 can render it.
      - heuristic/random: `unavailable`;
      - human: `pending` (their note is optional and arrives via REVIEW-003).
    - Concurrency cap 2-3, configurable by env (`AVALON_POSTGAME_CONCURRENCY`, clamped 1-4).
-   - Per call: `client.call(modelSlug, messages, { tag: `<agentId>/review`, temperature,
-     max_tokens, response_format })`. On parse failure, one retry with the prior reply and the
-     error appended, matching the decision ladder. On second failure, mark `failed` with a short
-     error and the raw snippet (full-reveal data, so no new leak beyond the reveal).
-   - Record `cost` from a `getSpend()[tag]` before/after delta, plus prompt/completion tokens.
+   - Per call: `client.call(modelSlug, messages, { tag:
+     reviewTag(agentId, game.id, seat), temperature, max_tokens, response_format })`. The tag is
+     game-and-seat specific, for example `<agentId>/review/<gameId>/<seat>`, so two concurrent
+     reviews of the same agent descriptor do not share a spend bucket. Dashboards still group
+     reviews by the `<agentId>/review/` prefix. On parse failure, one retry with the prior reply
+     and the error appended, matching the decision ladder. On second failure, mark `failed` with a
+     short error and the raw snippet (full-reveal data, so no new leak beyond the reveal).
+   - Record `cost` from a `getSpend()[reviewTag]` before/after delta, plus prompt/completion
+     tokens. With a unique tag the delta cannot include another game's or seat's calls.
    - Update `session.postgame`, increment `postgameRev`, and call `broadcast(session)` after each
      seat and at the end.
    - Persist after each seat and at the end through `deps.archive.update(game.id, record)`; a write
      failure is warned and does not stop the remaining seats.
-   - `completedAt` and `status`:
-     - `complete` when every non-human seat is `complete` or `unavailable`, and no human note is
-       outstanding;
-     - `partial` when at least one seat is `failed` and at least one completed;
-     - keep `running` until the fan-out settles.
+   - `completedAt` and `status`, computed from model seats only. Human notes are optional and
+     never keep the record running:
+     - `running` while any model seat is still pending/running;
+     - `complete` when every model seat is `complete` or `unavailable` (including the case where
+       there are no model seats at all);
+     - `partial` when at least one model seat is `complete` and at least one is `failed`;
+     - `failed` when every model seat is `failed`.
+     A human seat stays `pending` until its note is written, then becomes `complete`; that
+     transition updates `postgameRev` but not the terminal record status.
 3. Hook the trigger in `server/server.ts` `pump`, at `gameOver`:
    - write the archive base record first (ARCH-001);
    - then `void runPostgame(session, game)`; do not await it in `pump`;
@@ -69,16 +77,17 @@ exposes status on the existing game payload so REVIEW-003 can render it.
 4. Add `postgameStatus` to `payloadFor`:
    ```ts
    postgame: {
-     status: 'none' | 'running' | 'complete' | 'partial'
+     status: 'none' | 'running' | 'complete' | 'partial' | 'failed'
      completed: number
      total: number
      rev: number
    } | undefined
    ```
    Do not put model prose or the full record in every SSE payload.
-5. Boot behavior: `loadArchive` may see a record with `postgame.status === 'running'`. Mark it
-   `partial` with `completedAt` set to the archive load time and a `resume: false` note; do not
-   spend money automatically. A re-run is an explicit CLI or route in a later ticket.
+5. Boot behavior: `loadArchive` may see a record with `postgame.status === 'running'`. Settle it
+   with `completedAt` set to the archive load time and a `resume: false` note: any completed model
+   seat makes it `partial`, otherwise `failed`. Do not spend money automatically. A re-run is an
+   explicit CLI or route in a later ticket.
 6. Add a CLI for re-running a review on one archived game:
    `node tools/postgame.ts <gameId> [--seat n] [--force]`. It uses the same runner with a fake or
    real client, reads the archived game, writes the record, and reports cost. This is also the
@@ -102,12 +111,16 @@ exposes status on the existing game payload so REVIEW-003 can render it.
 - [ ] Each modeled seat gets exactly one call; a parse failure gets exactly one retry; a second
       failure marks that seat `failed` and does not affect other seats.
 - [ ] Heuristic/random seats are `unavailable`; composed/bounded-llm seats are `unavailable` in v1;
-      human seats are `pending`.
+      human seats are `pending` and never block a terminal status.
+- [ ] A game whose model seats all fail ends `failed`; a mixed fan-out ends `partial`; a human who
+      declines to write a note leaves the record `complete`.
 - [ ] `AVALON_POSTGAME=off` performs no calls and leaves `postgame` unset.
 - [ ] Completed reviews are written to the archive record keyed by the finished game id.
-- [ ] A restart while a review is running turns the record into `partial`; no automatic paid retry.
+- [ ] A restart while a review is running settles the record to `partial` (some completed) or
+      `failed` (none completed); no automatic paid retry.
 - [ ] `payloadFor` exposes only status counts and a revision, never model prose or the full record.
-- [ ] Spend is tagged `<agentId>/review` and visible in `/api/usage`.
+- [ ] Spend is tagged `<agentId>/review/<gameId>/<seat>` and visible in `/api/usage`; overlapping
+      reviews of the same agent descriptor do not share a cost bucket.
 - [ ] A write failure or a single model failure never throws out of the runner or the pump.
 
 ## Testing plan
@@ -118,12 +131,14 @@ exposes status on the existing game payload so REVIEW-003 can render it.
 | Non-blocking | same file: start run, assert `postgame.status === 'running'` and `pump`/payload available before resolution |
 | One call and one retry | fake client that returns invalid then valid; assert two calls and `complete` |
 | Failure isolation | fake client fails seat 2 twice; assert seat 2 `failed`, others `complete`, overall `partial` |
-| Unavailable seats | heuristic fixture: all `unavailable`, no calls |
+| All-failed fan-out | fake client fails every model seat twice; assert overall `failed` and a terminal `completedAt` |
+| Human note is optional | fake client succeeds for every model seat, human seat stays `pending`; assert overall `complete` and no polling state |
+| Unavailable seats | heuristic fixture: all `unavailable`, no calls, overall `complete` |
 | Off switch | same file with `AVALON_POSTGAME=off`; assert zero calls |
 | Archive persistence | fake archive sink; assert update called with the game id and final record |
-| Restart partial | write a `running` record, call `loadArchive`; assert `partial` and no call |
-| Payload shape | `test/server/postgame-status.test.ts`: finish a fake game, assert status/rev fields and no prose |
-| Spend tag | fake client records tags; assert `<agentId>/review` |
+| Restart settlement | write a `running` record with one completed seat, then with none; assert `partial` and `failed` respectively, and no call |
+| Payload shape | `test/server/postgame-status.test.ts`: finish a fake game, assert status/rev fields (including `failed`) and no prose |
+| Spend isolation | fake client records tags; run two overlapping reviews for the same descriptor in different games/seats; assert unique `<agentId>/review/<gameId>/<seat>` tags and per-tag cost deltas with no double count |
 
 Run:
 
