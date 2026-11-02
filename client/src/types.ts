@@ -12,6 +12,7 @@
 // server-side declaration to share.
 export type {
   Alignment,
+  DecisionKind,
   DecisionRequest,
   EventType,
   GameEvent,
@@ -29,6 +30,7 @@ export type {
 
 import type {
   Alignment,
+  DecisionKind,
   DecisionRequest,
   GameEvent,
   PlayerView,
@@ -110,6 +112,66 @@ export interface PreviewResponse {
   error?: string
 }
 
+export interface PostgameDecision {
+  seq: number
+  kind: DecisionKind
+  assessment: string
+  alternative?: string
+}
+
+export interface PostgameComment {
+  seat: Seat
+  note: string
+}
+
+export interface PostgameReview {
+  summary: string
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
+  lesson: string
+}
+
+export type PostgameStatus = 'running' | 'complete' | 'partial' | 'failed'
+export type PostgameSeatStatus =
+  | 'pending'
+  | 'running'
+  | 'complete'
+  | 'failed'
+  | 'unavailable'
+
+export interface PostgameSeat {
+  seat: Seat
+  kind: 'agent' | 'human'
+  model?: string
+  status: PostgameSeatStatus
+  review?: PostgameReview
+  note?: string
+  error?: string
+  cost?: { promptTokens: number; completionTokens: number; usd: number }
+}
+
+export interface PostgameRecord {
+  version: 1
+  startedAt: string
+  completedAt?: string
+  status: PostgameStatus
+  seats: Record<Seat, PostgameSeat>
+}
+
+export interface PostgameSummary {
+  status: PostgameStatus
+  completed: number
+  total: number
+  rev: number
+}
+
+/** GET /api/game/:id/review. The full record is deliberately not in /reveal. */
+export interface ReviewPayload {
+  postgame?: PostgameRecord
+  canReview: boolean
+  rev: number
+}
+
 export interface ServerPayload {
   view: PlayerView
   ask: DecisionRequest[]
@@ -119,6 +181,7 @@ export interface ServerPayload {
   degradedSeqs: number[]
   bots: Record<number, AgentInfo>
   spectator: boolean
+  postgame?: PostgameSummary
 }
 
 // Mirrors the server's lobby DTO (server/server.ts lobbyPayload). gameId's
@@ -151,4 +214,8 @@ export interface RevealPayload {
   degraded: { seat: Seat; kind: string; error: string }[]
   // Def snapshots taken at game start — the configs that actually played.
   agents?: Record<number, AgentInfo>
+  // Only whether this requester may write a note, and the cap the server
+  // enforces. The review itself is fetched separately from /review.
+  canReview?: boolean
+  reviewNoteCap?: number
 }

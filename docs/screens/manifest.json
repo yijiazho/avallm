@@ -13,6 +13,9 @@
     "components/quest-party-mission.jpg",
     "components/quest-party.jpg",
     "components/reveal-assassin.jpg",
+    "components/reveal-review-complete.jpg",
+    "components/reveal-review-failed.jpg",
+    "components/reveal-review-running.jpg",
     "components/role-merlin.jpg",
     "components/role-minion.jpg",
     "components/role-oberon.jpg",
@@ -40,13 +43,13 @@
     "desktop/spectator.jpg",
     "desktop/vote-ballot.jpg",
     "desktop/vote.jpg",
+    "mobile/assassinate.jpg",
     "mobile/codex-sheet.jpg",
     "mobile/discuss.jpg",
     "mobile/finalize.jpg",
     "mobile/game-start.jpg",
     "mobile/propose.jpg",
     "mobile/quest-ballot.jpg",
-    "mobile/quest-card.jpg",
     "mobile/reconnect-banner.jpg",
     "mobile/record-sheet.jpg",
     "mobile/reveal-thinking.jpg",
@@ -57,5 +60,5 @@
     "mobile/vote-ballot.jpg",
     "mobile/vote.jpg"
   ],
-  "sourceHash": "875b2f2b50da2f20"
+  "sourceHash": "87bf946ded7533bb"
 }

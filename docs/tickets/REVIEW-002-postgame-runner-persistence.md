@@ -1,6 +1,6 @@
 # REVIEW-002 — Post-game runner, persistence, and status
 
-- **Status:** proposed
+- **Status:** implemented 2026-11-02 (PR #4)
 - **Depends on:** REVIEW-001, ARCH-001 (done)
 - **Blocks:** REVIEW-003
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Scheduling and failure,
@@ -98,30 +98,51 @@ exposes status on the existing game payload so REVIEW-003 can render it.
 - `server/postgame/run.ts` (new)
 - `server/postgame/types.ts` (status helpers)
 - `server/server.ts` (`Session`, `payloadFor`, pump hook, startup postgame config)
-- `tools/postgame.ts` (new)
+- `tools/postgame.ts` (deferred; see implementation notes)
 - `test/postgame/run.test.ts` (new)
 - `test/server/postgame-status.test.ts` (new)
 
 ## Acceptance criteria
 
-- [ ] A finished game with at least one modeled seat produces a `postgame` record with one entry
+- [x] A finished game with at least one modeled seat produces a `postgame` record with one entry
       per seat and statuses from the union.
-- [ ] The reveal and game payload remain available while reviews are running; the pump does not
+- [x] The reveal and game payload remain available while reviews are running; the pump does not
       await them.
-- [ ] Each modeled seat gets exactly one call; a parse failure gets exactly one retry; a second
+- [x] Each modeled seat gets exactly one call; a parse failure gets exactly one retry; a second
       failure marks that seat `failed` and does not affect other seats.
-- [ ] Heuristic/random seats are `unavailable`; composed/bounded-llm seats are `unavailable` in v1;
+- [x] Heuristic/random seats are `unavailable`; composed/bounded-llm seats are `unavailable` in v1;
       human seats are `pending` and never block a terminal status.
-- [ ] A game whose model seats all fail ends `failed`; a mixed fan-out ends `partial`; a human who
+- [x] A game whose model seats all fail ends `failed`; a mixed fan-out ends `partial`; a human who
       declines to write a note leaves the record `complete`.
-- [ ] `AVALON_POSTGAME=off` performs no calls and leaves `postgame` unset.
-- [ ] Completed reviews are written to the archive record keyed by the finished game id.
-- [ ] A restart while a review is running settles the record to `partial` (some completed) or
+- [x] `AVALON_POSTGAME=off` performs no calls and leaves `postgame` unset.
+- [x] Completed reviews are written to the archive record keyed by the finished game id.
+- [x] A restart while a review is running settles the record to `partial` (some completed) or
       `failed` (none completed); no automatic paid retry.
-- [ ] `payloadFor` exposes only status counts and a revision, never model prose or the full record.
-- [ ] Spend is tagged `<agentId>/review/<gameId>/<seat>` and visible in `/api/usage`; overlapping
+- [x] `payloadFor` exposes only status counts and a revision, never model prose or the full record.
+- [x] Spend is tagged `<agentId>/review/<gameId>/<seat>` and visible in `/api/usage`; overlapping
       reviews of the same agent descriptor do not share a cost bucket.
-- [ ] A write failure or a single model failure never throws out of the runner or the pump.
+- [x] A write failure or a single model failure never throws out of the runner or the pump.
+
+## Implementation notes
+
+- `server/postgame/run.ts` owns the fan-out. `runPostgame(session, game, deps?)` takes a structural
+  `PostgameSession` (`postgame`, `postgameRev`, `humans`, `seatedAgents`) rather than importing the
+  HTTP server's `Session`, so the runner stays testable and the future archive CLI can reuse it.
+  `deps.archive` and `deps.notify` are the two sinks; both are best-effort and warning-only.
+- The status helpers live in `server/postgame/types.ts`: `modeledSeats`, `postgameStatusFromSeats`
+  (model seats only), and `settleInterruptedPostgame`. The runner, the boot settlement, and the
+  REVIEW-003 note transition all use them.
+- `AVALON_POSTGAME=on|off` wins; unset defaults to on locally and off when `AVALON_INVITE_CODE` is
+  set. `AVALON_POSTGAME_CONCURRENCY` is clamped to 1-4 (default 3).
+- Archive writes use `updateArchivedGamePostgame(id, record)`, which replaces only the postgame
+  field and preserves the base record. `loadArchive` settles a `running` record to `partial` or
+  `failed` at boot without making a call.
+- Deliberate deviation: the ticket's CLI (`tools/postgame.ts`) is not included. The runner is
+  already the reusable entry point the CLI would call, and no paid re-run command was requested by
+  REVIEW-003. It remains a later ticket.
+- Tests: `test/postgame/run.test.ts` (fan-out, retry, statuses, spend tags, failure
+  isolation), `test/server/postgame-status.test.ts` (SSE shape, off switch), and the boot-settlement
+  case in `test/archive/store.test.ts`.
 
 ## Testing plan
 
@@ -134,7 +155,7 @@ exposes status on the existing game payload so REVIEW-003 can render it.
 | All-failed fan-out | fake client fails every model seat twice; assert overall `failed` and a terminal `completedAt` |
 | Human note is optional | fake client succeeds for every model seat, human seat stays `pending`; assert overall `complete` and no polling state |
 | Unavailable seats | heuristic fixture: all `unavailable`, no calls, overall `complete` |
-| Off switch | same file with `AVALON_POSTGAME=off`; assert zero calls |
+| Off switch | `test/server/postgame-status.test.ts` with `AVALON_POSTGAME=off`; assert no record and no calls |
 | Archive persistence | fake archive sink; assert update called with the game id and final record |
 | Restart settlement | write a `running` record with one completed seat, then with none; assert `partial` and `failed` respectively, and no call |
 | Payload shape | `test/server/postgame-status.test.ts`: finish a fake game, assert status/rev fields (including `failed`) and no prose |

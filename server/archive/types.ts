@@ -8,6 +8,7 @@
 import type { TableSeat } from '../agents/def-types.ts'
 import type { Alignment, Role } from '../engine/types.ts'
 import type { GameArtifact } from '../eval/core/artifact.ts'
+import type { PostgameRecord } from '../postgame/types.ts'
 
 export const ARCHIVE_VERSION = 1
 
@@ -23,7 +24,8 @@ export interface ArchivedGame {
     historyMode: HistoryMode
     botTable: TableSeat[]
   }
-  postgame?: never // reserved for REVIEW-002
+  /** The post-game review, written back after the base record. */
+  postgame?: PostgameRecord
 }
 
 export type ArchivePostgameStatus =
@@ -32,6 +34,7 @@ export type ArchivePostgameStatus =
   | 'running'
   | 'complete'
   | 'partial'
+  | 'failed'
 
 export interface ArchiveMeta {
   id: string

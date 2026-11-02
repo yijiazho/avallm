@@ -14,6 +14,8 @@ import { gamesDir } from '../data-dir.ts'
 import { toArtifact } from '../eval/core/artifact.ts'
 import type { Game } from '../engine/types.ts'
 import { isTempFile, readJsonFile, writeJsonAtomic } from '../json-io.ts'
+import { settleInterruptedPostgame } from '../postgame/types.ts'
+import type { PostgameRecord } from '../postgame/types.ts'
 import type { DegradedDecision } from '../sim/runner.ts'
 import {
   ARCHIVE_VERSION,
@@ -143,6 +145,29 @@ export function readArchivedGame(id: string): ArchivedGame | undefined {
   return readArchivedGameFile(file)
 }
 
+/**
+ * Rewrite one archived game's review after the base record exists. Idempotent
+ * by game id: a missing file (archive disabled, or a session from another
+ * process) is a no-op rather than a new record invented from incomplete data.
+ *
+ * The whole postgame record is replaced, because it is the runner's current
+ * snapshot: a human note and a model seat can both be changing, and they share
+ * one session object, so the later write always carries both.
+ */
+export function updateArchivedGamePostgame(
+  id: string,
+  postgame: PostgameRecord,
+): ArchiveMeta | undefined {
+  const file = archiveFile(id)
+  if (!fs.existsSync(file)) return undefined
+  const existing = readArchivedGameFile(file)
+  const next: ArchivedGame = { ...existing, postgame }
+  writeJsonAtomic(file, next)
+  const meta = archiveMeta(next)
+  index.set(meta.id, meta)
+  return meta
+}
+
 // Reads every record at boot and builds the in-memory metadata index. A bad
 // file is reported and skipped; it never aborts the scan. The scan is
 // read-only: a missing archive directory stays missing until the first write.
@@ -170,6 +195,18 @@ export function loadArchive(): ArchiveScan {
     const file = path.join(dir, entry.name)
     try {
       const record = readArchivedGameFile(file)
+      // A review cannot resume after a restart, and boot must never spend
+      // money. Settle it in memory first so the index is honest, then try to
+      // make the settlement durable; a failed rewrite is a scan problem, not a
+      // reason to drop the record.
+      if (record.postgame?.status === 'running') {
+        settleInterruptedPostgame(record.postgame, new Date().toISOString())
+        try {
+          writeJsonAtomic(file, record)
+        } catch (err) {
+          problems.push({ file, reason: `could not settle interrupted review: ${errorMessage(err)}` })
+        }
+      }
       const meta = archiveMeta(record)
       metas.push(meta)
       index.set(meta.id, meta)
@@ -189,10 +226,7 @@ export function archiveMeta(record: ArchivedGame): ArchiveMeta {
     roles: [...artifact.roles],
     winner: artifact.winner,
     winReason: artifact.winReason,
-    // The post-game review lands in REVIEW-002; until then every record is
-    // base-only. Keeping the field in the index now means the read API and UI
-    // do not need a schema change to start showing the status.
-    postgame: 'none',
+    postgame: record.postgame?.status ?? 'none',
     agents: artifact.players.map((player) => {
       const model = modelFromDescriptor(player.agent)
       return {

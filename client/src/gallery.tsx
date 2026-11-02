@@ -11,7 +11,16 @@
 // before shooting (for the seat/quest tooltips).
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import type { AgentInfo, DecisionRequest, GameEvent, PlayerView, RevealPayload, Role } from './types.ts'
+import type {
+  AgentInfo,
+  DecisionRequest,
+  GameEvent,
+  PlayerView,
+  PostgameRecord,
+  RevealPayload,
+  ReviewPayload,
+  Role,
+} from './types.ts'
 import { NameEditor } from './components/NameEditor.tsx'
 import { QuestParty } from './components/QuestParty.tsx'
 import { RoleCard } from './components/RoleCard.tsx'
@@ -116,8 +125,89 @@ const revealData: RevealPayload = {
   log: [{ seq: 1, type: 'assassination', payload: { assassin: 4, target: 3, wasMerlin: false }, visibility: 'public' }],
   degraded: [],
   agents: bots,
+  // The assassin fixture shows the base reveal only; the review fixtures below
+  // supply their own ReviewPayload with canReview true.
+  canReview: false,
+  reviewNoteCap: 2000,
 }
 const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameOver', outcome: { winner: 'good', reason: 'assassinMissed' } })
+
+// Deterministic post-game fixtures. The live section is collapsed by default,
+// so the gallery variants pass reviewOpen to capture the cards themselves.
+const agentReview = {
+  summary: 'Held the line on the first quest, then over-read a quiet seat in the second.',
+  decisions: [
+    { seq: 12, kind: 'vote' as const, assessment: 'Approved a team with no evil read behind it.', alternative: 'Reject and force a different leader.' },
+    { seq: 30, kind: 'quest' as const, assessment: 'Played the card the table expected.' },
+  ],
+  commentary: [
+    { seat: 2, note: 'The careful early vote was doing work.' },
+    { seat: 5, note: 'Quiet until the second fail, which was its own tell.' },
+  ],
+  lesson: 'A quiet table is not a cleared table. Ask a question before the vote closes.',
+}
+const reviewComplete: ReviewPayload = {
+  rev: 4,
+  canReview: true,
+  postgame: {
+    version: 1,
+    startedAt: '2026-11-02T00:00:00.000Z',
+    completedAt: '2026-11-02T00:01:00.000Z',
+    status: 'complete',
+    seats: {
+      0: {
+        seat: 0,
+        kind: 'human',
+        status: 'complete',
+        note: 'I should have asked why the second team changed. <script>alert(1)</script> stays text.',
+      },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'complete', review: agentReview, cost: { promptTokens: 3120, completionTokens: 480, usd: 0.0042 } },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: { summary: 'The revision was the moment the table should have stopped.', decisions: [], commentary: [], lesson: 'Name the pivot when it happens.' } },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'complete', review: { summary: 'A clean read of the final vote, spent too late.', decisions: [], commentary: [], lesson: 'Say the read before the ballots close.' } },
+      4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
+      5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
+      6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
+    },
+  } as PostgameRecord,
+}
+const reviewRunning: ReviewPayload = {
+  rev: 2,
+  canReview: true,
+  postgame: {
+    version: 1,
+    startedAt: '2026-11-02T00:00:00.000Z',
+    status: 'running',
+    seats: {
+      0: { seat: 0, kind: 'human', status: 'pending' },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'running' },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: agentReview },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'pending' },
+      4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
+      5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
+      6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
+    },
+  } as PostgameRecord,
+}
+const reviewFailed: ReviewPayload = {
+  rev: 3,
+  canReview: true,
+  postgame: {
+    version: 1,
+    startedAt: '2026-11-02T00:00:00.000Z',
+    completedAt: '2026-11-02T00:01:00.000Z',
+    status: 'failed',
+    seats: {
+      0: { seat: 0, kind: 'human', status: 'pending' },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'failed', error: 'missing summary | reply: {"decisions": []' },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'failed', error: 'OpenRouter timeout after 60000ms' },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'failed', error: 'missing lesson' },
+      4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
+      5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
+      6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
+    },
+  } as PostgameRecord,
+}
+const saveReviewNote = async () => {}
 
 // Faithful wrappers — mirror App.tsx so the components' parent-scoped styles
 // (aside width, the lacquer action rail, the table zone) resolve as they do in game.
@@ -223,7 +313,13 @@ const VARIANTS: Variant[] = [
   { id: 'tip-quest', sel: '.gallery-stage', hover: '.qcards .qcard:nth-child(1)', node: <Table><QuestBoard view={questView} /></Table> },
   // End-game reveal on an Assassin miss — the deal-and-flip spread, the struck
   // card, and the "who marked whom" line. Reached live only by luck of the deal.
-  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
+  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={null} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
+  // Post-game review: the three terminal shapes a live run reaches only after
+  // the fan-out settles. The gallery opens the section so the per-seat cards
+  // are the specimen; in the app it starts collapsed.
+  { id: 'reveal-review-complete', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewComplete} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-running', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewRunning} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-failed', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewFailed} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
 ]
 
 // Published for the harness to enumerate (id + crop selector + optional hover),

@@ -242,3 +242,35 @@ test('archiveMeta does not depend on a cached index entry', async () => {
   assert.equal(meta.id, game.id)
   assert.equal(meta.agents.length, game.config.playerCount)
 })
+
+test('boot scan settles an interrupted review without spending money', async () => {
+  const game = await finishedFixture('archive-postgame-running')
+  const dir = tempDir('postgame-running')
+  useArchiveDir(dir)
+
+  const record = recordFor(game)
+  record.postgame = {
+    version: 1,
+    startedAt: '2026-01-01T00:00:00.000Z',
+    status: 'running',
+    seats: {
+      0: { seat: 0, kind: 'agent', model: 'test/model', status: 'complete' },
+      1: { seat: 1, kind: 'agent', model: 'test/model', status: 'running' },
+      2: { seat: 2, kind: 'human', status: 'pending' },
+      3: { seat: 3, kind: 'agent', status: 'unavailable' },
+      4: { seat: 4, kind: 'agent', status: 'unavailable' },
+    },
+  }
+  writeArchivedGame(record)
+
+  const scan = loadArchive()
+  assert.deepEqual(scan.problems, [])
+  const meta = getArchiveMeta(game.id)
+  assert.equal(meta?.postgame, 'partial')
+  const read = readArchivedGame(game.id)
+  assert.equal(read?.postgame?.status, 'partial')
+  assert.ok(read?.postgame?.completedAt)
+  assert.equal(read?.postgame?.seats[1]?.status, 'failed')
+  assert.match(read?.postgame?.seats[1]?.error ?? '', /interrupted/)
+  assert.equal(read?.postgame?.seats[2]?.status, 'pending')
+})

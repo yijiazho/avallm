@@ -55,7 +55,7 @@ This document designs that persistent layer. It deliberately reuses the existing
 | Default | Off | Archive on; JSONL corpus still opt-in | Done |
 | Discovery | Must parse the whole corpus | Boot metadata index; no HTTP list yet | Read API (ARCH-003) |
 | History selection | No per-agent view of the corpus | Index carries per-seat descriptor and model | Selection query (MEM-001) |
-| Lifecycle | Write-once | Base record write-once; `postgame` reserved | Post-game review (REVIEW-002) |
+| Lifecycle | Write-once | Base record write-once; `postgame` rewritten by REVIEW-002 | Done |
 | Durability | In-memory sessions | Finished games survive; live sessions still do not | Snapshots for in-progress games |
 | Retention | None | None | Bounded growth and deletion (ARCH-002) |
 | Reuse | `readArtifacts` rejects future schemas | Archive reads are tolerant per file | Corpus import/export (ARCH-004) |
@@ -171,8 +171,10 @@ archive API.
 4. A failed write is warned and swallowed. The game result is already in memory and on clients;
    bookkeeping must not take the game down.
 5. Post-game review updates are full-record rewrites (small, one game). ARCH-001's
-   `writeArchivedGame` is deliberately write-once by game id for base records, so REVIEW-002 must
-   add a dedicated update path instead of weakening that guard.
+   `writeArchivedGame` is deliberately write-once by game id for base records, so REVIEW-002 added
+   `updateArchivedGamePostgame(id, postgame)`: it reads the existing file, replaces only the
+   `postgame` field, and writes atomically. The base-record guard is unchanged. A record left
+   `running` at boot settles to `partial` or `failed` in the same scan, with no paid retry.
 6. If the process dies mid-write, the temp file is ignored on boot and the previous record (if
    any) is intact.
 

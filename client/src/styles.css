@@ -1561,6 +1561,108 @@ footer .error::before {
 .think-row.card-fail b { color: var(--evil); }
 .think-row.card-success b { color: var(--good); }
 
+/* ---- post-game review ---- */
+.postgame-review {
+  width: 100%;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.9rem 0.9rem;
+}
+.postgame-review > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  color: var(--gold);
+  font: 600 0.78rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pg-optional, .pg-running, .pg-empty, .pg-count, .pg-cost, .pg-seat {
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+.pg-running { margin: 0 0 0.7rem; }
+.pg-failed, .pg-error { color: var(--evil); }
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.8rem;
+}
+.pg-card {
+  min-width: 0;
+  background: var(--night-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+.pg-card.pg-card-failed { border-color: color-mix(in srgb, var(--evil) 45%, var(--line)); }
+.pg-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+.pg-name { font-weight: 700; }
+.pg-status {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--dim);
+  font: 700 0.6rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pg-complete { color: var(--good); }
+.pg-partial, .pg-running, .pg-none { color: var(--gold); }
+.pg-failed { color: var(--evil); }
+.pg-unavailable, .pg-pending { color: var(--faint); }
+.pg-block { margin: 0.5rem 0; }
+.pg-block h4 {
+  margin: 0 0 0.2rem;
+  color: var(--gold);
+  font: 600 0.65rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pg-decisions, .pg-comments { margin: 0; padding-left: 1rem; font-size: 0.84rem; }
+.pg-seq, .pg-kind { color: var(--gold); font-family: var(--mono); font-size: 0.72rem; }
+.pg-alt { color: var(--dim); }
+.pg-summary, .pg-lesson, .pg-note, .pg-error {
+  margin: 0.45rem 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.pg-error { font-size: 0.78rem; }
+.pg-editor { margin-top: 0.6rem; }
+.pg-editor textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--night);
+  color: var(--text);
+  font: inherit;
+}
+.pg-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+.pg-over { color: var(--evil); font-size: 0.8rem; }
+
 /* ---- motion: cards land, results flip ---- */
 .feed-row.moment { animation: momentIn 0.45s ease both; }
 @keyframes lay { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

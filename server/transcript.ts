@@ -15,6 +15,8 @@
 
 import type { Alignment, GameEvent, Phase, Quest, Role, Seat } from './engine/types.ts'
 import type { TraceDegradedDecision } from './agents/trace.ts'
+import { renderPostgameMarkdown } from './postgame/render.ts'
+import type { PostgameRecord } from './postgame/types.ts'
 
 export interface TranscriptSeat {
   seat: Seat
@@ -48,6 +50,10 @@ export interface TranscriptInput {
   violations?: { seat: Seat; rule: string; round: number; detail: string }[]
   winner?: Alignment
   winReason?: string
+  // Full-reveal-only post-game analysis. A review can quote every seat's
+  // private reasoning, so the renderer refuses to include one in a scoped
+  // transcript even if a caller passes it by mistake.
+  postgame?: PostgameRecord
   // True when roles + hidden events are present (full reveal). False when the
   // log is scoped to one seat's visibility.
   revealed: boolean
@@ -148,6 +154,15 @@ export function renderTranscript(input: TranscriptInput): string {
   }
   const pbpBar = fenceBar(pbp.join('\n'))
   out.push(pbpBar, ...pbp, pbpBar, '')
+
+  // ---- post-game review ----
+  if (input.revealed && input.postgame) {
+    out.push(renderPostgameMarkdown(
+      input.postgame,
+      (seat) => seatName.get(seat)?.name ?? `seat ${seat}`,
+    ))
+    out.push('')
+  }
 
   // ---- raw log ----
   if (input.includeRaw !== false) {

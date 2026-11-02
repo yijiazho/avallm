@@ -1,6 +1,6 @@
 # REVIEW-003 — Review API, reveal UI, and human notes
 
-- **Status:** proposed
+- **Status:** implemented 2026-11-02 (PR #4)
 - **Depends on:** REVIEW-002
 - **Blocks:** none
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Human seats, §Presentation
@@ -82,21 +82,51 @@ from REVIEW-002.
 
 ## Acceptance criteria
 
-- [ ] `GET /api/game/:id/review` is 403 before `gameOver`, returns `postgame` and `canReview` after,
+- [x] `GET /api/game/:id/review` is 403 before `gameOver`, returns `postgame` and `canReview` after,
       and 404 for an unknown game.
-- [ ] `canReview` is true only for a seated human; spectators and bot seats are false.
-- [ ] `POST /api/game/:id/review` stores a trimmed note for a seated human, rejects empty/over-cap
+- [x] `canReview` is true only for a seated human; spectators and bot seats are false.
+- [x] `POST /api/game/:id/review` stores a trimmed note for a seated human, rejects empty/over-cap
       text with 400, rejects spectators/bots with 403, and rejects a running game with 409.
-- [ ] A human note survives a page refresh and, when the archive is enabled, a restart.
-- [ ] The reveal shows per-seat status and completed reviews; a running review does not block the
+- [x] A human note survives a page refresh and, when the archive is enabled, a restart.
+- [x] The reveal shows per-seat status and completed reviews; a running review does not block the
       role flip or the thinking timeline.
-- [ ] The client stops polling when unmounted and when the status is terminal
+- [x] The client stops polling when unmounted and when the status is terminal
       (`complete`, `partial`, or `failed`).
-- [ ] An all-failed review renders its per-seat failures and does not leave the section spinning.
-- [ ] The full transcript includes a `## Post-game review` section; a scoped mid-game transcript
+- [x] An all-failed review renders its per-seat failures and does not leave the section spinning.
+- [x] The full transcript includes a `## Post-game review` section; a scoped mid-game transcript
       does not.
-- [ ] No review text is inserted as HTML. The UI escapes it; long fields wrap.
-- [ ] The gallery has deterministic fixtures for `running`, `complete`, and `failed` states.
+- [x] No review text is inserted as HTML. The UI escapes it; long fields wrap.
+- [x] The gallery has deterministic fixtures for `running`, `complete`, and `failed` states.
+
+## Implementation notes
+
+- `GET` and `POST /api/game/:id/review` live in `server/server.ts`. `GET` is gated on `gameOver`
+  exactly like `/reveal`; `POST` rejects a running game with 409 before auth, then uses `seatOf` so
+  only a numeric seat (human) can write. `REVIEW_NOTE_CAP` is imported from
+  `server/postgame/types.ts`.
+- The reveal response omits the full record on purpose. It carries `canReview` (derived from the
+  optional `?token=`) and `reviewNoteCap`; the client fetches `GET /review` separately. The client
+  now sends its token on `/reveal` so `canReview` is correct.
+- Reviews disabled: `POST` creates a minimal record containing the human seats, with status
+  `complete`. The note is kept, no model seats are invented, and the UI explains that generated
+  reviews were not run. This choice is documented in the design doc.
+- A note POST can race the post-game runner's first archive write, because the decide route
+  broadcasts `gameOver` before `pump` reaches `saveArtifact`. The POST route calls `saveArtifact`
+  before updating the archive, so the note is never lost in that window.
+- `Reveal.tsx` renders a collapsed `<details>` section below the thinking timeline. It renders one
+  card per seat with status, summary, cited decisions, comments, lesson, cost, and errors; the
+  human's card has the note editor. All prose is a React text node, and `.pg-*` styles use
+  `overflow-wrap: anywhere` plus `white-space: pre-wrap` for long fields.
+- `App.tsx` fetches `/review` on `gameOver`, refetches when `payload.postgame.rev` changes, and
+  polls every 2s only while `postgame.status === 'running'`. The timer is cleared on unmount, game
+  change, and every terminal status; a failed fetch retries at the same cadence.
+- The transcript section is appended by the pure renderer only when `revealed` is true, so a scoped
+  mid-game transcript cannot carry another seat's review even if a caller passes one by mistake.
+- Gallery fixtures: `reveal-review-complete`, `reveal-review-running`, and `reveal-review-failed`
+  in `client/src/gallery.tsx`, listed in `tools/screens-expected.mjs`. They open the section via a
+  gallery-only `reviewOpen` prop so the cards are the specimen; the app default stays collapsed.
+- Tests: `test/server/review-http.test.ts`, `test/server/transcript.test.ts`,
+  `test/server/postgame-status.test.ts`, `test/postgame/run.test.ts`.
 
 ## Testing plan
 
@@ -106,9 +136,9 @@ from REVIEW-002.
 | Human note auth/caps | same file: human token 200; spectator/bot 403; empty/2001 chars 400; running 409 |
 | Persistence | same file: write note, read again; archive record contains it when enabled |
 | Transcript section | `test/server/transcript.test.ts`: full reveal includes the section; scoped one omits it |
-| UI polling/cleanup | `npm --prefix client run build`; manual: open reveal during a running review, leave the page, check no repeated fetches; use the gallery fixture |
-| No HTML injection | manual/gallery: a note containing `<script>` renders as text |
-| Gallery fixtures | `npm --prefix client run build && node tools/screenshots.mjs --check`; regenerate only if the UI visibly changes |
+| UI polling/cleanup | `test/client/app-lifecycle.test.ts` pins the running-only timer and the abort/clear cleanup; `npm --prefix client run build` and the gallery fixtures cover layout |
+| No HTML injection | `test/client/app-lifecycle.test.ts` rejects `dangerouslySetInnerHTML` and asserts note/review prose is a text child; the complete gallery fixture carries a literal `<script>` note |
+| Gallery fixtures | `npm --prefix client run build && node tools/screenshots.mjs --check`; `docs/screens/components/reveal-review-{complete,running,failed}.jpg` |
 
 Run:
 

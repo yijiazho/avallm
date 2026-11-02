@@ -39,6 +39,9 @@ const COMPONENTS = [
   'feed-vote-sealing', 'feed-vote-reveal',
   'tip-seat', 'tip-quest', // hover-only tooltips (off on touch)
   'reveal-assassin', // end-game reveal on an Assassin miss (deal, struck card, target line)
+  // Post-game review: complete, running, and all-failed are deterministic
+  // fixtures; a live deal rarely reaches any of them with a readable table.
+  'reveal-review-complete', 'reveal-review-running', 'reveal-review-failed',
 ]
 
 function build() {

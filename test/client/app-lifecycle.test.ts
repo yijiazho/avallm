@@ -12,6 +12,10 @@ const appPath = path.join(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'src', 'App.tsx',
 )
 const app = fs.readFileSync(appPath, 'utf8')
+const revealPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'src', 'components', 'Reveal.tsx',
+)
+const reveal = fs.readFileSync(revealPath, 'utf8')
 
 test('App follows hash navigation and releases the listener', () => {
   assert.match(app, /window\.addEventListener\('hashchange', syncFromHash\)/)
@@ -48,6 +52,25 @@ test('reveal loading rejects error payloads and retries transient failures', () 
   assert.match(effect[1]!, /const data: RevealPayload = await res\.json\(\)/)
   assert.match(effect[1]!, /window\.setTimeout\(\(\) => void loadReveal\(\), 2_000\)/)
   assert.match(app, /ctrl\.abort\(\)[\s\S]*?window\.clearTimeout\(retryTimer\)/)
+})
+
+test('review polling is conditional on running and is cleared on unmount', () => {
+  assert.match(app, /if \(data\.postgame\?\.status === 'running'\)/)
+  assert.match(app, /reviewTimerRef\.current = window\.setTimeout/)
+  assert.match(app, /reviewAbortRef\.current\?\.abort\(\)/)
+  assert.match(app, /stopReviewPolling\(\)/)
+  // Terminal statuses schedule no timer, and the effect cleanup clears the one
+  // that is pending.
+  const poll = app.match(/const fetchReview = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[gameId, gameOver, gameToken, stopReviewPolling\]\)/)
+  assert.ok(poll, 'App no longer owns the review loader')
+  assert.match(poll[1]!, /if \(data\.postgame\?\.status === 'running'\)/)
+})
+
+test('review prose is rendered as text, never as HTML', () => {
+  assert.doesNotMatch(reveal, /dangerouslySetInnerHTML/)
+  assert.match(reveal, /\{seat\.note\}/)
+  assert.match(reveal, /\{seat\.review\.summary\}/)
+  assert.match(reveal, /\{decision\.assessment\}/)
 })
 
 test('agent library loading validates, reports, and retries failures', () => {
