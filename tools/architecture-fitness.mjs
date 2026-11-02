@@ -2929,6 +2929,28 @@ export const TEST_ONLY_EXPORT_EXEMPTIONS = new Map([
     'listArchiveMeta',
     'readArchivedGame',
   ])],
+  // REVIEW-001 deliberately ships the offline half of the post-game review
+  // ahead of its runner. REVIEW-002 wires these into production; until then the
+  // tests are the only callers, and the staleness check reports each entry the
+  // moment the runner consumes it.
+  ['server/engine/view.ts', new Set([
+    'viewForPostgame',
+  ])],
+  ['server/postgame/types.ts', new Set([
+    'postgameRecord',
+  ])],
+  ['server/postgame/params.ts', new Set([
+    'POSTGAME_CALL_PARAMS',
+  ])],
+  ['server/postgame/prompts.ts', new Set([
+    'buildPostgameMessages',
+  ])],
+  ['server/postgame/parse.ts', new Set([
+    'parsePostgameReply',
+  ])],
+  ['server/postgame/render.ts', new Set([
+    'renderPostgameMarkdown',
+  ])],
 ])
 
 /** Module-level function/const export surfaces, including `export { local }`. */

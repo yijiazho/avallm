@@ -51,6 +51,9 @@ server/
   json-io.ts       ← atomic JSON write and tolerant read helpers for server persistence
   archive/         ← durable finished-game records: one ArchivedGame per game plus a boot metadata
                      index. Server-layer only; the engine never imports it.
+  postgame/        ← offline half of the post-game review: record types, a gameOver-only
+                     full-reveal prompt, tolerant parser, and Markdown renderer. Server-layer only;
+                     the engine and decision agents never import it.
   server.ts        ← http glue: game session store, POST /api/game/*, SSE stream to client
 client/            ← React+Vite+TS view layer. Renders HumanView JSON; posts human actions.
 ```
@@ -359,7 +362,9 @@ log to events visible to that seat plus that seat's own `privateInfo`. The human
 
 This makes leak-by-accident structurally impossible rather than a per-call-site discipline —
 the same "one chokepoint owns the side effect" pattern used for reasoning suppression (per-family
-suppression moved from N call sites into the transport). Pin it with contract tests:
+suppression moved from N call sites into the transport). Post-game review uses a second, separate
+chokepoint, `viewForPostgame(game, seat)`, which throws before `gameOver`, is consumed only by
+`server/postgame/`, and is not assignable to `PlayerView`. Pin it with contract tests:
 
 - Deal a game with a known seed; assert `viewFor(goodNonMerlinSeat)` serialized contains **no role
   string of any other player** and no seat list matching the evil team.

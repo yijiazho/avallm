@@ -3,8 +3,11 @@
 // Contract tests in test/knowledge.test.ts and test/leaks.test.ts pin this.
 
 import { computeKnowledge } from './knowledge.ts'
+import { freezeDeep } from '../shared/deep-freeze.ts'
+import type { DeepReadonly } from '../shared/deep-readonly.ts'
 import type {
-  Game, GameEvent, PlayerView, ProposalRecord, ProposalVote, Seat,
+  Alignment, Game, GameEvent, PlayerView, PrivateInfo, ProposalRecord,
+  ProposalVote, Quest, Role, Seat,
 } from './types.ts'
 
 // Internal accumulator for the incremental fold. A proposal is materialized at
@@ -365,4 +368,65 @@ export function viewFor(game: Game, seat: Seat): PlayerView {
     [seat],
     false,
   ).viewFor(game, seat)
+}
+
+// A SECOND, deliberately separate chokepoint for post-game review. viewFor
+// stays the live hidden-information boundary and does not grow a "reveal
+// everything" flag: one boolean there is how a live prompt eventually leaks.
+// This projection names its exception instead, throws before gameOver, and is
+// consumed only by server/postgame.
+//
+// PostgameView is not assignable to PlayerView: it lacks the live phase/round
+// fields and its players carry roles and alignments. That is intentional, so
+// an accidental hand-off to a decision prompt is a type error as well as a
+// contract-test failure. The whole graph is frozen because this is a snapshot
+// handed to offline code, not engine-owned state it may mutate.
+interface PostgameViewShape {
+  seat: Seat
+  name: string
+  role: Role
+  alignment: Alignment
+  privateInfo: PrivateInfo
+  playerCount: number
+  rolesInPlay: Role[]
+  players: { seat: Seat; name: string; role: Role; alignment: Alignment }[]
+  quests: Quest[]
+  proposals: ProposalRecord[]
+  transcript: PlayerView['transcript']
+  events: readonly GameEvent[]
+  outcome: { winner: Alignment; reason: string }
+}
+
+export type PostgameView = DeepReadonly<PostgameViewShape>
+
+export function viewForPostgame(game: Game, seat: Seat): PostgameView {
+  if (game.phase !== 'gameOver') {
+    throw new Error('viewForPostgame requires gameOver')
+  }
+  const me = game.players[seat]
+  if (!me) throw new Error(`no player at seat ${seat}`)
+  if (!game.outcome) throw new Error('gameOver without an outcome')
+  // The public record is identical to the live view's, because it was already
+  // public. Only the role-bearing roster and the complete event log are new.
+  const base = viewFor(game, seat)
+  return freezeDeep({
+    seat,
+    name: me.name,
+    role: me.role,
+    alignment: me.alignment,
+    privateInfo: computeKnowledge(game.players, seat),
+    playerCount: game.config.playerCount,
+    rolesInPlay: game.config.roles.slice().sort(),
+    players: game.players.map((player) => ({
+      seat: player.seat,
+      name: player.name,
+      role: player.role,
+      alignment: player.alignment,
+    })),
+    quests: base.quests,
+    proposals: base.proposals,
+    transcript: base.transcript,
+    events: game.log.slice(),
+    outcome: { ...game.outcome },
+  })
 }

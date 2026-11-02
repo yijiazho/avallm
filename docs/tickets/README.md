@@ -1,6 +1,7 @@
 # Implementation tickets: game archive, post-game review, cross-game memory
 
-**Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2); remaining tickets proposed.
+**Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2). SHARED-002 and REVIEW-001
+implemented 2026-11-02 (PR pending); remaining tickets proposed.
 Written 2026-11-01.
 Source designs: [design-game-archive.md](../design-game-archive.md),
 [design-postgame-review.md](../design-postgame-review.md),
@@ -43,9 +44,9 @@ SHARED-001 [done]  data root + atomic JSON I/O
     |       +--> ARCH-004  corpus import/export + dual-write
     |
 
-SHARED-002  shared speech sanitizer
+SHARED-002 [done]  shared speech sanitizer
     |
-    +--> REVIEW-001  post-game projection + prompt + parser
+    +--> REVIEW-001 [done]  post-game projection + prompt + parser
             |
             +--> REVIEW-002  runner + persistence
                     |
@@ -61,12 +62,12 @@ ARCH-002, and SHARED-002.
 | ID | Title | Status | Depends on | Size | Design |
 |---|---|---|---|---|---|
 | SHARED-001 | Data root and atomic JSON I/O | implemented | none | S | archive §Where it lives, §Write path |
-| SHARED-002 | Shared speech sanitizer | proposed | none | XS | review §What the prompt sees; memory §What the block says |
+| SHARED-002 | Shared speech sanitizer | implemented | none | XS | review §What the prompt sees; memory §What the block says |
 | ARCH-001 | Archive record, writer, boot index | implemented | SHARED-001 | M | archive §Design, §Write path, §Read path |
 | ARCH-002 | Archive fidelity, retention, delete | proposed | ARCH-001 | M | archive §Fidelity, §Retention |
 | ARCH-003 | Archive read API and previous-games UI | proposed | ARCH-001, ARCH-002 | M | archive §HTTP surface |
 | ARCH-004 | Artifact corpus import/export and dual-write | proposed | ARCH-001 | S | archive §Relationship to the artifact corpus |
-| REVIEW-001 | Post-game projection, prompt, parser | proposed | SHARED-002 | M | review §Record shape, §Projection, §Not a LlmCallKind |
+| REVIEW-001 | Post-game projection, prompt, parser | implemented | SHARED-002 | M | review §Record shape, §Projection, §Not a LlmCallKind |
 | REVIEW-002 | Post-game runner and persistence | proposed | REVIEW-001, ARCH-001 | M | review §Scheduling and failure |
 | REVIEW-003 | Review API and reveal UI | proposed | REVIEW-002 | M | review §Presentation, §Human seats |
 | MEM-001 | History selection and digest | proposed | ARCH-001, ARCH-002, SHARED-002 | M | memory §Scope, §Digest |

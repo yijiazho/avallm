@@ -1,6 +1,6 @@
 # REVIEW-001 — Post-game projection, prompt, and parser
 
-- **Status:** proposed
+- **Status:** implemented 2026-11-02 (PR pending)
 - **Depends on:** SHARED-002 (fixture games are enough for the rest)
 - **Blocks:** REVIEW-002, REVIEW-003
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Record shape,
@@ -87,22 +87,22 @@ call table and parser.
 
 ## Acceptance criteria
 
-- [ ] `viewForPostgame` throws before `gameOver` and returns every role, every event, and the
+- [x] `viewForPostgame` throws before `gameOver` and returns every role, every event, and the
       outcome after it.
-- [ ] `PostgameView` is not assignable to `PlayerView`; no live decision path imports
+- [x] `PostgameView` is not assignable to `PlayerView`; no live decision path imports
       `viewForPostgame` (grep contract test).
-- [ ] `PostgameView` is deeply read-only.
-- [ ] `review` is not in `LlmCallKind` or `CALL_PARAMS`; `/api/agents` `kinds` is unchanged.
-- [ ] The rendered prompt contains the reviewing seat's own decision trail and the full public
+- [x] `PostgameView` is deeply read-only.
+- [x] `review` is not in `LlmCallKind` or `CALL_PARAMS`; `/api/agents` `kinds` is unchanged.
+- [x] The rendered prompt contains the reviewing seat's own decision trail and the full public
       record, and does not contain another seat's scratchpad as "your notes".
-- [ ] The prompt and contract contain no em/en dashes and no antithesis reframes.
-- [ ] The ledger respects its char budget; over-budget truncation keeps proposals, votes, cards,
+- [x] The prompt and contract contain no em/en dashes and no antithesis reframes.
+- [x] The ledger respects its char budget; over-budget truncation keeps proposals, votes, cards,
       and pivotal moments.
-- [ ] The parser accepts strict and fenced JSON, rejects unknown `seq`/kind mismatches, clamps
+- [x] The parser accepts strict and fenced JSON, rejects unknown `seq`/kind mismatches, clamps
       caps, and returns an error instead of throwing.
-- [ ] Every player-authored string in the rendered prompt goes through
+- [x] Every player-authored string in the rendered prompt goes through
       `sanitizeSpeech` from `server/shared/speech.ts`.
-- [ ] Every new test file declares `// test-lane: fast` or `contract` as appropriate.
+- [x] Every new test file declares `// test-lane: fast` or `contract` as appropriate.
 
 ## Testing plan
 
@@ -125,6 +125,31 @@ npm run typecheck
 npm run test:lanes
 npm run verify:contract
 ```
+
+## Implementation notes
+
+- `PostgameView` and `viewForPostgame` live in `server/engine/view.ts`. The projection is built from
+  the live public record plus the complete `game.log`, then frozen with `freezeDeep`. It lacks the
+  live phase/round fields and its roster carries roles, so it is not assignable to `PlayerView`.
+- `server/postgame/types.ts` exports the record shape, the two status unions, the shared caps, and
+  `postgameRecord(seats, startedAt?)`. `startedAt` is optional so the runner can stay deterministic
+  and tests can pass a fixed timestamp.
+- `server/postgame/params.ts` keeps `review` out of `LlmCallKind`, `CALL_PARAMS`, and
+  `OUTPUT_CONTRACTS`; `/api/agents` is untouched.
+- `server/postgame/prompts.ts` renders roster, quest board, full proposal/vote record, the seat's
+  own ledger, pivotal moments, a fenced public-talk block with the injection guard, and the JSON
+  contract. `renderLedger` keeps structural decisions and pivotal events, dropping the oldest
+  chatter first under an 8,000-character default budget.
+- `server/postgame/parse.ts` uses a local strict-then-greedy-object extractor so the module does not
+  import live agent code. It accepts either a `DecisionKind` or the concrete event type as a
+  citation kind, normalizes to `DecisionKind`, and rejects unknown, foreign, or mismatched
+  citations.
+- `server/postgame/render.ts` renders the record as Markdown and re-applies the caps.
+- The REVIEW-001 exports are listed in `TEST_ONLY_EXPORT_EXEMPTIONS` until REVIEW-002 wires the
+  runner, because this ticket intentionally ships no production consumer. The staleness check
+  reports each entry when the runner lands.
+- Verified with the five new test files (22 tests), the existing prompt suites (221 tests),
+  `npm run typecheck`, `npm run test:lanes`, `npm run verify:contract`, and `npm run test:fast`.
 
 ## Risks and notes
 

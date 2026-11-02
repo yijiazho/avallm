@@ -1,6 +1,8 @@
 # Design: post-game review and commentary
 
-**Status:** proposed, unbuilt. Written 2026-11-01. The archive foundation (ARCH-001) is built, so
+**Status:** partially built. REVIEW-001 (full-reveal projection, review prompt, parser, and
+Markdown renderer) landed 2026-11-02. The runner, persistence, API, and reveal UI remain proposed.
+Written 2026-11-01. The archive foundation (ARCH-001) is built, so
 REVIEW-002 now has its persistence dependency.
 Companions: [design-game-archive.md](design-game-archive.md),
 [design-cross-game-memory.md](design-cross-game-memory.md),
@@ -286,7 +288,8 @@ Small next to a full game (~190 calls), but not zero. Controls:
 
 ## Phasing
 
-1. **Types, projection, parser, prompt** with offline tests against a fixture game.
+1. **Types, projection, parser, prompt** with offline tests against a fixture game. **Built
+   2026-11-02 (REVIEW-001):** `viewForPostgame`, `server/postgame/`, and the offline tests.
 2. **Runner and storage:** run after `gameOver`, write `postgame` into the archive, status in the
    session.
 3. **API and reveal UI:** fetch/poll, per-seat cards, human note endpoint.
