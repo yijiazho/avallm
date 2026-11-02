@@ -18,6 +18,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { useDataDirBase, userAgentsDir } from '../data-dir.ts'
+import { writeJsonAtomic } from '../json-io.ts'
 import { DEFAULT_MODEL, ROSTER, rosterById } from '../llm/roster.ts'
 import { CALL_PARAMS } from '../llm/call-params.ts'
 import type { LlmCallKind } from '../llm/call-params.ts'
@@ -137,24 +139,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // image, so their home is fixed at the repo-relative path.
 export const CURATED_AGENTS_DIR = path.join(__dirname, '..', '..', 'agent-cards')
 
-// User agents are LIVE STATE created at runtime. On a PaaS the container
-// filesystem is ephemeral (wiped every redeploy), so the store can be pointed
-// at a mounted persistent disk. The composition root (server startup) resolves
-// the target from the environment AFTER .env has loaded and calls useDataDir
-// ONCE; the whole module then reads this single value, so the boot library scan
-// and every later save/delete agree on one directory. Tests and the sim never
-// call the setter, so they always use the repo-local default regardless of any
-// ambient RAILWAY_*/AVALON_* vars in the developer's shell.
-let userAgentsDirPath = path.join(__dirname, '..', '..', 'data', 'agents')
+// User agents are LIVE STATE created at runtime. Their path now comes from the
+// shared server data root (server/data-dir.ts), so the agent store and the game
+// archive can never resolve a different volume. The composition root resolves
+// the target from the environment AFTER .env has loaded and calls
+// useDataDirBase ONCE; tests and the sim never call the setter, so they always
+// use the repo-local default regardless of any ambient RAILWAY_*/AVALON_* vars
+// in the developer's shell.
+export { userAgentsDir } from '../data-dir.ts'
 
-export function userAgentsDir(): string {
-  return userAgentsDirPath
-}
-
-// Point the user-agents store under `base` (…/agents is appended). Called once
-// at startup; an undefined/empty base keeps the repo-local default.
+// Deprecated compatibility adapter for callers that already import this name.
+// New code should call useDataDirBase from server/data-dir.ts directly.
 export function useDataDir(base: string | undefined): void {
-  if (base) userAgentsDirPath = path.join(base, 'agents')
+  useDataDirBase(base)
 }
 
 // Exported so the API payload can serve them — the client meter must display
@@ -409,14 +406,12 @@ export function loadAgentLibrary(): AgentLibrary {
 
 // Atomic write (temp + rename): a Railway redeploy mid-write must not leave
 // truncated JSON that silently drops the agent from the next boot's library.
+// The shared writer keeps the same pretty-printed on-disk format.
 export function saveCustomDef(def: AgentDef): void {
-  const dir = userAgentsDir()
-  fs.mkdirSync(dir, { recursive: true })
   const { tier, unavailable, ...persisted } = def
-  const file = path.join(dir, `${def.id}.json`)
-  const tmp = `${file}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(persisted, null, 2))
-  fs.renameSync(tmp, file)
+  writeJsonAtomic(path.join(userAgentsDir(), `${def.id}.json`), persisted, {
+    pretty: true,
+  })
 }
 
 export function deleteCustomDef(id: string): void {

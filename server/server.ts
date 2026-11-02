@@ -32,13 +32,21 @@ import {
   expectedDecisions,
   renamePlayer,
 } from './engine/game.ts'
-import { appendArtifact, toArtifact } from './eval/core/artifact.ts'
+import { appendArtifact } from './eval/core/artifact.ts'
 import { viewFor, viewForSpectator } from './engine/view.ts'
 import { heuristicDecide } from './agents/heuristic.ts'
 import { createAgentFromDef } from './agents/registry.ts'
-import { AGGREGATE_CAP, FIELD_CAP, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, useDataDir, validateDef } from './agents/defs.ts'
+import { AGGREGATE_CAP, FIELD_CAP, customDefFileExists, deleteCustomDef, loadAgentLibrary, parseTableSeat, promptOverridesOf, publicInfo, saveCustomDef, validateDef } from './agents/defs.ts'
 import { loadEnv } from './llm/env.ts'
 import type { AgentDef, LibraryProblem, LlmEngine, TableSeat } from './agents/defs.ts'
+import { gamesDir, resolveDataDirBase, useDataDirBase } from './data-dir.ts'
+import {
+  archiveDir,
+  loadArchive,
+  toArchivedGame,
+  useArchiveDir,
+  writeArchivedGame,
+} from './archive/store.ts'
 import type { ResolvedPack } from './agents/packs.ts'
 import { RULES_DIGEST, ROLE_GUIDANCE, ALIGNMENT_SHARED, TABLE_TALK_NORMS, OUTPUT_CONTRACTS, buildMessages } from './agents/prompts.ts'
 import { CALL_PARAMS } from './llm/call-params.ts'
@@ -100,13 +108,13 @@ const gateOn = () => inviteCodes().length > 0
 const inviteOk = (body: Readonly<Record<string, unknown>>) =>
   !gateOn() || inviteCodes().includes(String(body?.invite ?? '').trim())
 
-// Resolve where user-created agents live BEFORE the first library scan. Load
-// .env up front (the LLM client also loads it lazily, but the boot scan and
-// later saves must agree on one directory — real env vars still win, so this is
-// idempotent) and point the store at a persistent disk if one is configured.
-// AVALON_DATA_DIR wins, else Railway's injected RAILWAY_VOLUME_MOUNT_PATH.
+// Resolve where user-created agents and finished-game archives live BEFORE the
+// first library scan. Load .env up front (the LLM client also loads it lazily,
+// but the boot scan and later saves must agree on one directory — real env vars
+// still win, so this is idempotent) and point the store at a persistent disk if
+// one is configured. AVALON_DATA_DIR wins over Railway's mount path.
 loadEnv(__dirname)
-const dataDirBase = process.env.AVALON_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH
+const dataDirBase = resolveDataDirBase(process.env)
 if (dataDirBase && !fs.existsSync(dataDirBase)) {
   // A configured base that doesn't exist means the volume almost certainly
   // isn't mounted — mkdirSync would silently create it in the ephemeral
@@ -114,7 +122,18 @@ if (dataDirBase && !fs.existsSync(dataDirBase)) {
   // it instead of masking it.
   console.warn(`[agents] data dir "${dataDirBase}" does not exist — is the persistent volume mounted? Custom agents written there will be LOST on redeploy.`)
 }
-useDataDir(dataDirBase)
+useDataDirBase(dataDirBase)
+
+// The archive follows the same data root. The boot scan is read-only: when the
+// volume (and therefore <dataDir>/games) is absent we log no records rather
+// than creating a directory on an unmounted filesystem. The first finished
+// game creates it.
+useArchiveDir(gamesDir())
+const archiveBoot = loadArchive()
+console.log(`[archive] loaded ${archiveBoot.metas.length} finished game(s) from ${archiveDir()}`)
+for (const problem of archiveBoot.problems) {
+  console.warn(`[archive] skipping ${problem.file}: ${problem.reason}`)
+}
 
 let library: AgentDef[] = []
 let libraryPacks: ResolvedPack[] = []
@@ -464,8 +483,13 @@ function startLobby(l: Lobby): void {
   const id = newId()
   const session: Session = {
     game, agents, humans, seatedAgents, decisionTraces,
+    lobbyConfig: {
+      humanSeats: l.config.humanSeats,
+      botTable: l.config.table.map((seat) => ({ ...seat })),
+    },
     spectators: new Set(l.spectators.map((s) => s.token)),
-    waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0, artifactWritten: false,
+    waiting: [], acting: [], degraded: [], degradedSeqs: [], steps: 0,
+    artifactAppended: false,
     listeners: new Set(), pumping: false,
   }
   sessions.set(id, session)
@@ -496,7 +520,14 @@ interface Session {
   listeners: Set<{ res: http.ServerResponse; token: string }>
   pumping: boolean
   steps: number            // decisions applied, for the artifact's steps field
-  artifactWritten: boolean // one artifact per game, however often pump re-enters
+  // Runtime config the eval artifact does not carry. The archive records it so
+  // a finished game can be read without a live lobby or session.
+  lobbyConfig: { humanSeats: number; botTable: TableSeat[] }
+  // Two independent sinks. Track each by its own id/flag so a repeated pump
+  // iteration cannot duplicate either, and one sink failing cannot suppress the
+  // other. The archive is keyed by engine game id, not by this session.
+  archivedGameId?: string
+  artifactAppended: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -508,18 +539,20 @@ function seatAgentLabel(s: Session, seat: Seat): string {
   return s.humans.has(seat) ? 'human' : (s.seatedAgents[seat]?.descriptor ?? 'bot')
 }
 
-// ---------- post-game artifacts ----------
+// ---------- post-game artifacts and archive ----------
 //
-// Games played in the app were invisible to the eval tooling. The sim writes
-// GameArtifacts and both graders read them (eval/forced.ts for forced plays,
-// eval/norms.ts for house style), but a web game only ever produced a rendered
-// transcript, which is built for humans. Two web games were hand-graded this
-// session because there was nothing else to grade.
+// Every finished game has two possible durable sinks:
 //
-// OPT-IN and off by default. An artifact is a FULL reveal: every role, and every
-// private thinking and scratchpad event. Writing one is a data-retention choice
-// the operator should make deliberately, not something a server quietly starts
-// doing because it was upgraded. Set AVALON_ARTIFACTS to a file path.
+// - The per-game archive (default on) is the product record: one
+//   <dataDir>/games/<gameId>.json file discovered by the boot index.
+// - The AVALON_ARTIFACTS JSONL corpus (opt-in, unchanged) is the explicit eval
+//   export consumed by readArtifacts, probe, judge, and the bench tools.
+//
+// Both carry a FULL reveal: every role, and every private thinking and scratchpad
+// event. The archive's retention/fidelity split arrives in ARCH-002; until then
+// the archive has the same privacy posture as the artifact corpus. Set
+// AVALON_ARTIFACTS to a file path to keep the eval corpus, and
+// AVALON_GAME_ARCHIVE=off to disable the archive.
 const artifactFile = process.env.AVALON_ARTIFACTS?.trim() || ''
 if (artifactFile) {
   // Surface a bad path at boot rather than at the end of the first finished
@@ -536,21 +569,63 @@ if (artifactFile) {
   }
 }
 
+// The archive is on by default: keeping finished games is the product behavior.
+// AVALON_GAME_ARCHIVE=off opts out. Read live so an operator can stop new
+// writes without restarting, matching the invite-code gate above.
+const archiveEnabled = () =>
+  (process.env.AVALON_GAME_ARCHIVE ?? '').trim().toLowerCase() !== 'off'
+
 function saveArtifact(s: Session): void {
-  if (!artifactFile || s.artifactWritten) return
-  // Set BEFORE the write, so a failing disk cannot make every later pump retry.
-  s.artifactWritten = true
+  const appendWanted = Boolean(artifactFile) && !s.artifactAppended
+  const archiveWanted = archiveEnabled() && s.archivedGameId !== s.game.id
+  if (!appendWanted && !archiveWanted) return
+
+  // Build one record and feed both sinks from it. The JSONL corpus and the
+  // per-game archive therefore cannot disagree about id, roles, winner, players,
+  // or log — they are the same artifact object.
+  let record: ReturnType<typeof toArchivedGame>
   try {
-    appendArtifact(artifactFile, toArtifact(s.game, {
+    record = toArchivedGame(s.game, {
       agents: s.game.players.map((p) => seatAgentLabel(s, p.seat)),
       degraded: s.degraded,
       steps: s.steps,
       decisionTraces: s.decisionTraces,
-    }))
+      config: {
+        humanSeats: s.lobbyConfig.humanSeats,
+        fidelity: 'full',
+        historyMode: 'off',
+        botTable: s.lobbyConfig.botTable,
+      },
+    })
   } catch (err) {
-    // Never let bookkeeping take down a finished game. The result is already in
-    // memory and on every client; losing the artifact is much the cheaper loss.
-    console.warn(`[artifacts] could not write ${artifactFile}: ${(err as Error).message}`)
+    // Never let bookkeeping take down a finished game. Without a complete
+    // record neither sink can uphold its contract, so skip both and say so.
+    console.warn(`[archive] could not build a record for ${s.game.id}: ${(err as Error).message}`)
+    return
+  }
+
+  if (appendWanted) {
+    // Set BEFORE the write, so a failing disk cannot make every later pump
+    // retry. This sink remains opt-in (AVALON_ARTIFACTS) and unchanged.
+    s.artifactAppended = true
+    try {
+      appendArtifact(artifactFile, record.artifact)
+    } catch (err) {
+      console.warn(`[artifacts] could not write ${artifactFile}: ${(err as Error).message}`)
+    }
+  }
+
+  if (archiveWanted) {
+    // Also set before the write: a failed archive must not be retried on every
+    // pump. The game result is already in memory and on every client; losing
+    // the durable copy is the cheaper loss. The store's own id check protects a
+    // file written by an earlier process.
+    s.archivedGameId = record.artifact.id
+    try {
+      writeArchivedGame(record)
+    } catch (err) {
+      console.warn(`[archive] could not write ${record.artifact.id}: ${(err as Error).message}`)
+    }
   }
 }
 
