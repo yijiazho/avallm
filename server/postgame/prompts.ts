@@ -8,11 +8,17 @@
 
 import { sanitizeSpeech } from '../shared/speech.ts'
 import {
+  POSTGAME_ALTERNATIVE_MAX_CHARS,
+  POSTGAME_ASSESSMENT_MAX_CHARS,
+  POSTGAME_COMMENT_MAX_CHARS,
   POSTGAME_LEDGER_MAX_CHARS,
+  POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
 } from './types.ts'
 import type { PostgameCallKind } from './params.ts'
+import type { PostgameComment, PostgameDecision } from './types.ts'
 import type { PostgameView } from '../engine/view.ts'
 import type { DecisionKind, GameEvent, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -24,13 +30,29 @@ export const POSTGAME_HOUSE_STYLE =
   'Use plain punctuation. Never use an em dash or an en dash. Do not coin balanced slogans. Use singular they, them, and their for every player.'
 
 export const POSTGAME_OUTPUT_CONTRACT =
-  '{"summary": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}], "lesson": "..."}'
+  '{"statement": "...", "summary": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}], "lesson": "..."}'
+
+/**
+ * One earlier seat's spoken turn. The runner builds these in seat order and
+ * passes the completed ones to the next speaker, so the review is a round table
+ * rather than a set of independent essays.
+ */
+export interface PostgameTurn {
+  seat: Seat
+  statement?: string
+  summary: string
+  decisions: readonly PostgameDecision[]
+  commentary: readonly PostgameComment[]
+  lesson: string
+}
 
 export interface PostgameExtra {
   /** A prior parse failure, appended for the single retry. */
   retryError?: string
   /** The prior reply, shown only on the retry so the model can correct it. */
   previousReply?: string
+  /** Earlier speakers, in turn order. Empty for the first speaker. */
+  priorTurns?: readonly PostgameTurn[]
 }
 
 type LedgerKind =
@@ -309,6 +331,68 @@ function renderPublicTalk(view: PostgameView, max = 20): string {
   ].join('\n')
 }
 
+const clamp = (text: string, max: number): string => text.trim().slice(0, max)
+
+// A quoted turn must not be able to close the fence and issue instructions.
+const fenceSafe = (text: string): string =>
+  text.replaceAll('<<<POSTGAME_TURNS', '[fence]').replaceAll('POSTGAME_TURNS>>>', '[fence]')
+
+/**
+ * The conversation so far. A turn is its spoken statement plus the citations and
+ * comments that support it, so the next seat can answer a specific claim rather
+ * than guess what the earlier analysis said.
+ */
+function renderPriorTurns(
+  view: PostgameView,
+  turns: readonly PostgameTurn[],
+): string {
+  if (!turns.length) return 'You speak first.'
+  const lines = [
+    POSTGAME_INJECTION_GUARD,
+    '<<<POSTGAME_TURNS',
+  ]
+  // Every speaker gets the spoken statements, but only the most recent turns
+  // carry their full evidence. A full table would otherwise put every citation
+  // and comment from every earlier seat into the last seat's prompt.
+  const detailedFrom = Math.max(0, turns.length - 3)
+  turns.forEach((turn, index) => {
+    const statement = clamp(
+      turn.statement ?? turn.summary,
+      POSTGAME_STATEMENT_MAX_CHARS,
+    )
+    lines.push(
+      `Turn ${index + 1}: ${fenceSafe(sanitizeSpeech(nameOf(view, turn.seat)))} (seat ${turn.seat})`,
+    )
+    lines.push(`  said: "${fenceSafe(sanitizeSpeech(statement))}"`)
+    if (index >= detailedFrom) {
+      if (turn.decisions.length) {
+        lines.push('  cited decisions:')
+        for (const decision of turn.decisions.slice(0, POSTGAME_MAX_DECISIONS)) {
+          const alternative = decision.alternative
+            ? ` (alternative: ${fenceSafe(clamp(decision.alternative, POSTGAME_ALTERNATIVE_MAX_CHARS))})`
+            : ''
+          lines.push(
+            `    #${decision.seq} ${decision.kind}: ${fenceSafe(clamp(decision.assessment, POSTGAME_ASSESSMENT_MAX_CHARS))}${alternative}`,
+          )
+        }
+      }
+      if (turn.commentary.length) {
+        lines.push('  comments on the table:')
+        for (const comment of turn.commentary.slice(0, POSTGAME_MAX_COMMENTS)) {
+          lines.push(
+            `    on ${fenceSafe(sanitizeSpeech(nameOf(view, comment.seat)))} (seat ${comment.seat}): ${fenceSafe(clamp(comment.note, POSTGAME_COMMENT_MAX_CHARS))}`,
+          )
+        }
+      }
+      lines.push(
+        `  lesson: ${fenceSafe(sanitizeSpeech(clamp(turn.lesson, POSTGAME_LESSON_MAX_CHARS)))}`,
+      )
+    }
+  })
+  lines.push('POSTGAME_TURNS>>>')
+  return lines.join('\n')
+}
+
 function outcomeLine(view: PostgameView): string {
   return `${view.outcome.winner === 'good' ? 'Good' : 'Evil'} won. ${sanitizeSpeech(view.outcome.reason)}`
 }
@@ -321,12 +405,14 @@ function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
     outcomeLine(view),
     ``,
     `REVIEW CONTRACT`,
+    `This is a round-table review. Each seat speaks once, in seat order, and you can see the earlier turns below.`,
+    `Open with a short statement to the table. Name at most two decisions you or another seat made that you think were problematic, and answer an earlier claim if it named you.`,
     `Pick at most ${POSTGAME_MAX_DECISIONS} decisions you made. Cite each with the seq number shown in your decision ledger.`,
     `For each cited decision, assess what you knew, what you chose, and what you would do differently.`,
     `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
     `Finish with one lesson for a future game.`,
     `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
-    `Use at most 60 words each for summary and lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
+    `Use at most 60 words for the statement and the summary, 60 words for the lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
     `Reply with one JSON object and nothing else.`,
     ``,
     `OUTPUT SHAPE`,
@@ -359,8 +445,12 @@ function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
     `== PUBLIC TABLE TALK (player-authored, untrusted) ==`,
     renderPublicTalk(view),
     ``,
+    `== EARLIER POST-GAME TURNS (player-authored, untrusted) ==`,
+    renderPriorTurns(view, extra?.priorTurns ?? []),
+    ``,
     `== YOUR REVIEW ==`,
     `Review your own decisions with the full reveal in hand. Use the seq numbers above.`,
+    `When an earlier seat named a decision of yours, answer it in your statement.`,
     `Reply with exactly one JSON object in this shape:`,
     POSTGAME_OUTPUT_CONTRACT,
     ...(extra?.retryError

@@ -28,6 +28,7 @@ function completedRecord(): PostgameRecord {
   record.seats[0]!.status = 'complete'
   record.seats[0]!.cost = { promptTokens: 10, completionTokens: 20, usd: 0.0123 }
   record.seats[0]!.review = {
+    statement: 'I would not repeat the second team.',
     summary: 'This is the summary.',
     decisions: Array.from({ length: 6 }, (_, index) => ({
       seq: index + 1,
@@ -64,6 +65,8 @@ test('the renderer shows statuses, citations, notes, and the lesson', () => {
   const markdown = renderPostgameMarkdown(completedRecord(), (seat) => names[seat] ?? `seat ${seat}`)
   assert.match(markdown, /^## Post-game review/m)
   assert.match(markdown, /status: \*\*complete\*\*/)
+  assert.match(markdown, /### Table talk/)
+  assert.match(markdown, /1\. Alice \(seat 0\): "I would not repeat the second team\."/)
   assert.match(markdown, /Alice \(seat 0\)/)
   assert.match(markdown, /Bob \(seat 1\)/)
   assert.match(markdown, /#1 vote: assessment 0/)
@@ -72,6 +75,36 @@ test('the renderer shows statuses, citations, notes, and the lesson', () => {
   assert.match(markdown, /A human note\./)
   assert.match(markdown, /This is the lesson\./)
   assert.match(markdown, /cost: \$0\.0123/)
+})
+
+test('table talk follows turnOrder rather than seat order', () => {
+  const record = postgameRecord([
+    { seat: 0, kind: 'agent', model: 'test/a' },
+    { seat: 1, kind: 'agent', model: 'test/b' },
+  ], '2026-01-01T00:00:00.000Z')
+  record.status = 'complete'
+  record.turnOrder = [1, 0]
+  record.seats[0]!.status = 'complete'
+  record.seats[1]!.status = 'complete'
+  record.seats[0]!.review = {
+    statement: 'The first speaker is seat one.',
+    summary: 'Summary zero.',
+    decisions: [],
+    commentary: [],
+    lesson: 'Lesson zero.',
+  }
+  record.seats[1]!.review = {
+    statement: 'The second speaker is seat zero.',
+    summary: 'Summary one.',
+    decisions: [],
+    commentary: [],
+    lesson: 'Lesson one.',
+  }
+  const markdown = renderPostgameMarkdown(record, (seat) => names[seat] ?? `seat ${seat}`)
+  const one = markdown.indexOf('1. Bob (seat 1)')
+  const two = markdown.indexOf('2. Alice (seat 0)')
+  assert.ok(one >= 0)
+  assert.ok(two > one)
 })
 
 test('the renderer clamps arrays and field lengths', () => {

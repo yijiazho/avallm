@@ -18,6 +18,7 @@ import {
   POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
   POSTGAME_SUMMARY_MAX_CHARS,
 } from '../../server/postgame/types.ts'
 import type { PostgameView } from '../../server/engine/view.ts'
@@ -98,6 +99,7 @@ function baseReview(
   otherSeat: number,
 ): Record<string, unknown> {
   return {
+    statement: 'I would take back the second team.',
     summary: 'A short review of this finished game.',
     decisions: [
       {
@@ -119,6 +121,7 @@ test('strict JSON parses and keeps the citation', () => {
     view,
   )
   assert.ok(result.ok)
+  assert.equal(result.review.statement, 'I would take back the second team.')
   assert.equal(result.review.decisions.length, 1)
   assert.equal(result.review.decisions[0]!.seq, ownProposal.seq)
   assert.equal(result.review.decisions[0]!.kind, 'propose')
@@ -171,6 +174,7 @@ test('caps clamp array lengths and field lengths', () => {
   const review = baseReview(ownProposal.seq, otherSeat)
   const decision = (review.decisions as Record<string, unknown>[])[0]!
   const comment = (review.commentary as Record<string, unknown>[])[0]!
+  review.statement = 't'.repeat(2_000)
   review.summary = 's'.repeat(2_000)
   review.lesson = 'l'.repeat(2_000)
   decision.assessment = 'a'.repeat(2_000)
@@ -183,6 +187,7 @@ test('caps clamp array lengths and field lengths', () => {
   assert.ok(result.ok)
   assert.equal(result.review.decisions.length, POSTGAME_MAX_DECISIONS)
   assert.equal(result.review.commentary.length, POSTGAME_MAX_COMMENTS)
+  assert.equal(result.review.statement?.length, POSTGAME_STATEMENT_MAX_CHARS)
   assert.equal(result.review.summary.length, POSTGAME_SUMMARY_MAX_CHARS)
   assert.equal(result.review.lesson.length, POSTGAME_LESSON_MAX_CHARS)
   assert.equal(
@@ -197,6 +202,15 @@ test('caps clamp array lengths and field lengths', () => {
     result.review.commentary[0]!.note.length,
     POSTGAME_COMMENT_MAX_CHARS,
   )
+})
+
+test('a missing statement still parses for older records', () => {
+  const { view, ownProposal, otherSeat } = fixture()
+  const review = baseReview(ownProposal.seq, otherSeat)
+  delete review.statement
+  const result = parsePostgameReply(JSON.stringify(review), view)
+  assert.ok(result.ok)
+  assert.equal(result.review.statement, undefined)
 })
 
 test('a non-object reply and non-string input return errors', () => {

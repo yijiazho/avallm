@@ -127,6 +127,9 @@ from REVIEW-002.
   gallery-only `reviewOpen` prop so the cards are the specimen; the app default stays collapsed.
 - Tests: `test/server/review-http.test.ts`, `test/server/transcript.test.ts`,
   `test/server/postgame-status.test.ts`, `test/postgame/run.test.ts`.
+- REVIEW-004 supersedes the parallel review fan-out described above: the per-seat calls now run
+  sequentially in seat order, and each later prompt carries the earlier spoken turns. The API, note
+  path, and reveal section are unchanged; the client already polls while the status is `running`.
 
 ## Testing plan
 

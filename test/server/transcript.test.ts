@@ -51,6 +51,7 @@ function postgameFixture(): PostgameRecord {
     startedAt: '2026-01-01T00:00:00.000Z',
     completedAt: '2026-01-01T00:01:00.000Z',
     status: 'complete',
+    turnOrder: [0],
     seats: {
       0: {
         seat: 0,
@@ -58,6 +59,7 @@ function postgameFixture(): PostgameRecord {
         model: 'test/model',
         status: 'complete',
         review: {
+          statement: 'I would have rejected the second team.',
           summary: 'A useful summary.',
           decisions: [],
           commentary: [],
@@ -84,6 +86,8 @@ test('full-reveal transcript appends the post-game review', async () => {
     capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: false,
   })
   assert.match(text, /## Post-game review/)
+  assert.match(text, /### Table talk/)
+  assert.match(text, /1\. .*\(seat 0\): "I would have rejected the second team\."/)
   assert.match(text, /A useful summary\./)
   assert.match(text, /Trust the vote record\./)
   assert.match(text, /My own note\./)

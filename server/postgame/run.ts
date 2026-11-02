@@ -6,11 +6,15 @@
 // HTTP server's `Session` type. That keeps server/postgame independent of the
 // HTTP composition root (and lets the future archive CLI reuse the same runner
 // without booting a server). A real Session satisfies this interface as-is.
+//
+// REVIEW-004 turned the fan-out into a sequential round table: seats speak once
+// in seat order and each later prompt carries the completed earlier turns.
 
 import { viewForPostgame } from '../engine/view.ts'
 import { getClient } from '../llm/client.ts'
 import { POSTGAME_CALL_PARAMS } from './params.ts'
 import { buildPostgameMessages } from './prompts.ts'
+import type { PostgameTurn } from './prompts.ts'
 import { parsePostgameReply } from './parse.ts'
 import {
   POSTGAME_ERROR_MAX_CHARS,
@@ -48,12 +52,6 @@ export function reviewTag(agentId: string, gameId: string, seat: Seat): string {
   return `${agentId}/review/${gameId}/${seat}`
 }
 
-function postgameConcurrency(): number {
-  const raw = Number(process.env.AVALON_POSTGAME_CONCURRENCY)
-  if (!Number.isFinite(raw)) return 3
-  return Math.min(4, Math.max(1, Math.trunc(raw)))
-}
-
 const clamp = (text: string, max: number): string => text.trim().slice(0, max)
 
 function seatInit(session: PostgameSession, seat: Seat): PostgameSeatInit {
@@ -86,22 +84,6 @@ function unavailableReason(session: PostgameSession, seat: Seat): string | undef
   return 'no model to ask for a review'
 }
 
-async function runBounded<T>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  let next = 0
-  const count = Math.max(1, Math.min(limit, items.length))
-  await Promise.all(Array.from({ length: count }, async () => {
-    for (;;) {
-      const index = next++
-      if (index >= items.length) return
-      await worker(items[index]!)
-    }
-  }))
-}
-
 export async function runPostgame(
   session: PostgameSession,
   game: Game,
@@ -124,9 +106,14 @@ export async function runPostgame(
   session.postgameRev += 1
   commit(session, game, record, deps)
 
-  const modeled = Object.values(record.seats).filter(
-    (seat) => seat.kind === 'agent' && seat.model !== undefined,
-  )
+  const modeled = Object.values(record.seats)
+    .filter((seat) => seat.kind === 'agent' && seat.model !== undefined)
+    .sort((a, b) => a.seat - b.seat)
+  // The seats speak once each, in seat order. Later turns see the completed
+  // earlier turns, so the review is a conversation rather than a set of
+  // independent essays. Same call count as the old parallel fan-out, but the
+  // wall-clock cost is now the sum of the calls rather than the slowest one.
+  const priorTurns: PostgameTurn[] = []
 
   const reviewSeat = async (seat: PostgameSeat): Promise<void> => {
     const model = seat.model
@@ -151,9 +138,10 @@ export async function runPostgame(
         max_tokens: params.max_tokens,
         ...(params.json ? { response_format: { type: 'json_object' } } : {}),
       } as const
+      const promptExtra = priorTurns.length ? { priorTurns } : {}
       content = await client.call(
         model,
-        buildPostgameMessages('review', view),
+        buildPostgameMessages('review', view, promptExtra),
         callOpts,
       )
       let parsed = parsePostgameReply(content, view)
@@ -161,6 +149,7 @@ export async function runPostgame(
         content = await client.call(
           model,
           buildPostgameMessages('review', view, {
+            ...promptExtra,
             retryError: parsed.error,
             previousReply: content,
           }),
@@ -171,6 +160,14 @@ export async function runPostgame(
       if (parsed.ok) {
         seat.review = parsed.review
         seat.status = 'complete'
+        priorTurns.push({
+          seat: seat.seat,
+          ...(parsed.review.statement ? { statement: parsed.review.statement } : {}),
+          summary: parsed.review.summary,
+          decisions: parsed.review.decisions,
+          commentary: parsed.review.commentary,
+          lesson: parsed.review.lesson,
+        })
       } else {
         error = parsed.error
         seat.status = 'failed'
@@ -201,11 +198,11 @@ export async function runPostgame(
   }
 
   try {
-    await runBounded(modeled, postgameConcurrency(), reviewSeat)
+    for (const seat of modeled) await reviewSeat(seat)
   } catch (err) {
-    // runBounded rejects only if a worker escaped reviewSeat's own guard, which
+    // The loop rejects only if a turn escaped reviewSeat's own guard, which
     // should be impossible. The finished game must still get a terminal record.
-    console.warn(`[postgame] review fan-out failed for ${game.id}: ${err instanceof Error ? err.message : String(err)}`)
+    console.warn(`[postgame] round table failed for ${game.id}: ${err instanceof Error ? err.message : String(err)}`)
     for (const seat of modeled) {
       if (seat.status === 'pending' || seat.status === 'running') {
         seat.status = 'failed'
