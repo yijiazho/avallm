@@ -65,7 +65,8 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
 - [x] A later talk prompt contains the earlier seats' statements and citations; the first speaker
       gets `You speak first.`
 - [x] The table talk requires a statement and parses/caps cited decisions and comments without a
-      lesson or summary.
+      lesson or summary. Talk citations may belong to any seat at the table; review citations stay
+      limited to the reviewing seat.
 - [x] Every review runs after the talk and receives the completed talk as context, but no review
       sees another review.
 - [x] The record stores `tableTalk`, `phase`, `talkError`, and separate `talkCost`/`cost`; older
@@ -84,7 +85,7 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
 |---|---|
 | Talk before review and order | `test/postgame/run.test.ts`: two model seats, assert talk tags first in seat order, then review tags |
 | Prior context | same file: the second talk prompt contains the first statement; every review prompt contains the whole talk |
-| Talk parse | `test/postgame/parse.test.ts`: statement required, citations checked, caps clamped, no lesson needed |
+| Talk parse | `test/postgame/parse.test.ts`: statement required, own and foreign citations accepted, non-decisions rejected, caps clamped, no lesson needed |
 | Review independence | `test/postgame/run.test.ts`: review prompts contain the talk, not another review's summary |
 | Phase/storage | same file: `phase === 'talk'` while gated, `phase === 'review'` after; `tableTalk`, `talkCost`, `cost` |
 | Failure isolation | existing partial/all-failed cases plus a talk failure case |
@@ -125,8 +126,10 @@ npm run test:lanes
   sanitized/fenced talk renderer. Every quoted field passes `sanitizeSpeech`; detailed evidence is
   limited to the most recent three turns.
 - `server/postgame/parse.ts` factors the citation parser into `parseEvidence` and adds
-  `parsePostgameTalkReply`. A missing statement fails the talk; a missing review statement is still
-  accepted for legacy replies.
+  `parsePostgameTalkReply`. The talk uses an `any` ownership policy so it can cite another seat's
+  decision, which is the point of the cross-seat criticism; reviews keep the `self` policy. A
+  missing statement fails the talk; a missing review statement is still accepted for legacy
+  replies.
 - `server/postgame/run.ts` runs the talk sequentially, records `talkCost` and `talkError`, then
   sets `phase: 'review'` and runs the reviews with the bounded worker pool. Talk spend uses
   `<agentId>/talk/...`; review spend uses `<agentId>/review/...`. A failed talk turn is skipped; a

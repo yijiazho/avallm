@@ -292,8 +292,10 @@ independently from the completed talk. The talk gives every seat the table's out
 it writes its own analysis; the reviews do not see each other, so one conclusion cannot anchor the
 next.
 
-- A talk turn is `PostgameTurn`: a spoken `statement`, cited decisions, and comments. The statement
-  is capped at 500 characters and sanitized whenever it is quoted into another prompt.
+- A talk turn is `PostgameTurn`: a spoken `statement`, cited decisions, and comments. Talk
+  citations may point at any seat's decision, including another player's; the review parser keeps
+  the stricter own-seat rule. The statement is capped at 500 characters and sanitized whenever it
+  is quoted into another prompt.
 - The table talk is stored in `PostgameRecord.tableTalk`; `PostgameRecord.phase` says whether the
   running record is still in `talk` or has moved to `review`. A failed talk turn is a
   `PostgameSeat.talkError` and is skipped.

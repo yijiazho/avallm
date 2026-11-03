@@ -205,21 +205,44 @@ test('caps clamp array lengths and field lengths', () => {
 })
 
 test('table talk parses a statement and citations without a lesson', () => {
-  const { view, ownProposal, otherSeat } = fixture()
+  const { game, view, ownProposal, otherSeat } = fixture()
+  const foreignVote = game.log.find(
+    (event) => event.type === 'voteCast' && event.payload.seat !== view.seat,
+  )
+  assert.ok(foreignVote)
   const result = parsePostgameTalkReply(JSON.stringify({
     statement: 'I would take back the second team.',
-    decisions: [{
-      seq: ownProposal.seq,
-      kind: 'propose',
-      assessment: 'The team was too easy to approve.',
-    }],
+    decisions: [
+      {
+        seq: ownProposal.seq,
+        kind: 'propose',
+        assessment: 'The team was too easy to approve.',
+      },
+      {
+        seq: foreignVote.seq,
+        kind: 'vote',
+        assessment: 'Seat one approved a team with no read behind it.',
+      },
+    ],
     commentary: [{ seat: otherSeat, note: 'Asked the right question.' }],
   }), view)
   assert.ok(result.ok)
   assert.equal(result.turn.seat, view.seat)
   assert.equal(result.turn.statement, 'I would take back the second team.')
   assert.equal(result.turn.decisions[0]!.seq, ownProposal.seq)
+  assert.equal(result.turn.decisions[1]!.seq, foreignVote.seq)
   assert.equal(result.turn.commentary[0]!.seat, otherSeat)
+
+  const notDecision = parsePostgameTalkReply(JSON.stringify({
+    statement: 'This cites a non-decision.',
+    decisions: [{ seq: 0, kind: 'gameCreated', assessment: 'Not a decision.' }],
+    commentary: [],
+  }), view)
+  assert.equal(notDecision.ok, false)
+  assert.match(
+    notDecision.ok ? '' : notDecision.error,
+    /not a reviewable decision/,
+  )
 
   const missing = parsePostgameTalkReply(
     JSON.stringify({ decisions: [], commentary: [] }),

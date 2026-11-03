@@ -76,6 +76,7 @@ function citedDecision(
   value: unknown,
   view: PostgameView,
   eventsBySeq: ReadonlyMap<number, GameEvent>,
+  ownership: 'self' | 'any',
 ): PostgameDecision | string {
   const object = asObject(value)
   if (!object) return 'decision entry is not an object'
@@ -83,11 +84,11 @@ function citedDecision(
   if (!Number.isInteger(seq)) return 'decision seq is not an integer'
   const ev = eventsBySeq.get(seq as number)
   if (!ev) return `decision seq ${String(seq)} is not in the game log`
-  if (decisionSeatOf(ev) !== view.seat) {
-    return `decision seq ${String(seq)} does not belong to seat ${view.seat}`
-  }
   const actualKind = decisionKindOf(ev)
   if (!actualKind) return `event seq ${String(seq)} is not a reviewable decision`
+  if (ownership === 'self' && decisionSeatOf(ev) !== view.seat) {
+    return `decision seq ${String(seq)} does not belong to seat ${view.seat}`
+  }
   const rawKind = object.kind
   if (typeof rawKind !== 'string') return `decision seq ${String(seq)} has no kind`
   const normalized = rawKind.trim()
@@ -136,6 +137,7 @@ type CitedEvidence = {
 function parseEvidence(
   object: Record<string, unknown>,
   view: PostgameView,
+  ownership: 'self' | 'any',
 ): CitedEvidence | string {
   const rawDecisions = object.decisions
   if (!Array.isArray(rawDecisions)) return 'decisions must be an array'
@@ -147,7 +149,7 @@ function parseEvidence(
 
   const decisions: PostgameDecision[] = []
   for (const raw of rawDecisions.slice(0, POSTGAME_MAX_DECISIONS)) {
-    const parsed = citedDecision(raw, view, eventsBySeq)
+    const parsed = citedDecision(raw, view, eventsBySeq, ownership)
     if (typeof parsed === 'string') return parsed
     decisions.push(parsed)
   }
@@ -180,7 +182,7 @@ export function parsePostgameReply(
       ? clamp(statementRaw, POSTGAME_STATEMENT_MAX_CHARS)
       : ''
 
-    const evidence = parseEvidence(object, view)
+    const evidence = parseEvidence(object, view, 'self')
     if (typeof evidence === 'string') return { ok: false, error: evidence }
 
     return {
@@ -214,7 +216,7 @@ export function parsePostgameTalkReply(
     )
     if (!statement) return { ok: false, error: 'missing statement' }
 
-    const evidence = parseEvidence(object, view)
+    const evidence = parseEvidence(object, view, 'any')
     if (typeof evidence === 'string') return { ok: false, error: evidence }
 
     return {
