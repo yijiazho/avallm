@@ -51,7 +51,13 @@ function postgameFixture(): PostgameRecord {
     startedAt: '2026-01-01T00:00:00.000Z',
     completedAt: '2026-01-01T00:01:00.000Z',
     status: 'complete',
-    turnOrder: [0],
+    phase: 'review',
+    tableTalk: [{
+      seat: 0,
+      statement: 'I would have rejected the second team.',
+      decisions: [],
+      commentary: [],
+    }],
     seats: {
       0: {
         seat: 0,
@@ -59,7 +65,6 @@ function postgameFixture(): PostgameRecord {
         model: 'test/model',
         status: 'complete',
         review: {
-          statement: 'I would have rejected the second team.',
           summary: 'A useful summary.',
           decisions: [],
           commentary: [],

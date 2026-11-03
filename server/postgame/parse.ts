@@ -26,10 +26,15 @@ import type {
   PostgameComment,
   PostgameDecision,
   PostgameReview,
+  PostgameTurn,
 } from './types.ts'
 
 export type PostgameParseResult =
   | { ok: true; review: PostgameReview }
+  | { ok: false; error: string }
+
+export type PostgameTalkParseResult =
+  | { ok: true; turn: PostgameTurn }
   | { ok: false; error: string }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -123,6 +128,39 @@ function citedComment(
   return { seat: seat as Seat, note }
 }
 
+type CitedEvidence = {
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
+}
+
+function parseEvidence(
+  object: Record<string, unknown>,
+  view: PostgameView,
+): CitedEvidence | string {
+  const rawDecisions = object.decisions
+  if (!Array.isArray(rawDecisions)) return 'decisions must be an array'
+  const rawComments = object.commentary
+  if (!Array.isArray(rawComments)) return 'commentary must be an array'
+
+  const eventsBySeq = new Map<number, GameEvent>()
+  for (const ev of view.events) eventsBySeq.set(ev.seq, ev)
+
+  const decisions: PostgameDecision[] = []
+  for (const raw of rawDecisions.slice(0, POSTGAME_MAX_DECISIONS)) {
+    const parsed = citedDecision(raw, view, eventsBySeq)
+    if (typeof parsed === 'string') return parsed
+    decisions.push(parsed)
+  }
+
+  const commentary: PostgameComment[] = []
+  for (const raw of rawComments.slice(0, POSTGAME_MAX_COMMENTS)) {
+    const parsed = citedComment(raw, view)
+    if (typeof parsed === 'string') return parsed
+    commentary.push(parsed)
+  }
+  return { decisions, commentary }
+}
+
 export function parsePostgameReply(
   content: string,
   view: PostgameView,
@@ -135,51 +173,61 @@ export function parsePostgameReply(
     if (!summary) return { ok: false, error: 'missing summary' }
     const lesson = requiredText(object, 'lesson', POSTGAME_LESSON_MAX_CHARS)
     if (!lesson) return { ok: false, error: 'missing lesson' }
-    // The statement is the spoken turn. Old records and a model that omits it
-    // still parse; the renderer falls back to the summary.
+    // Legacy review-as-turn records may still carry a statement. New reviews
+    // put the spoken words in the separate table talk.
     const statementRaw = object.statement
     const statement = typeof statementRaw === 'string'
       ? clamp(statementRaw, POSTGAME_STATEMENT_MAX_CHARS)
       : ''
 
-    const rawDecisions = object.decisions
-    if (!Array.isArray(rawDecisions)) {
-      return { ok: false, error: 'decisions must be an array' }
-    }
-    const rawComments = object.commentary
-    if (!Array.isArray(rawComments)) {
-      return { ok: false, error: 'commentary must be an array' }
-    }
-
-    const eventsBySeq = new Map<number, GameEvent>()
-    for (const ev of view.events) eventsBySeq.set(ev.seq, ev)
-
-    const decisions: PostgameDecision[] = []
-    for (const raw of rawDecisions.slice(0, POSTGAME_MAX_DECISIONS)) {
-      const parsed = citedDecision(raw, view, eventsBySeq)
-      if (typeof parsed === 'string') return { ok: false, error: parsed }
-      decisions.push(parsed)
-    }
-
-    const commentary: PostgameComment[] = []
-    for (const raw of rawComments.slice(0, POSTGAME_MAX_COMMENTS)) {
-      const parsed = citedComment(raw, view)
-      if (typeof parsed === 'string') return { ok: false, error: parsed }
-      commentary.push(parsed)
-    }
+    const evidence = parseEvidence(object, view)
+    if (typeof evidence === 'string') return { ok: false, error: evidence }
 
     return {
       ok: true,
       review: {
         ...(statement ? { statement } : {}),
         summary,
-        decisions,
-        commentary,
+        decisions: evidence.decisions,
+        commentary: evidence.commentary,
         lesson,
       },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, error: `could not parse review: ${message}` }
+  }
+}
+
+export function parsePostgameTalkReply(
+  content: string,
+  view: PostgameView,
+): PostgameTalkParseResult {
+  try {
+    const object = extractObject(content)
+    if (!object) return { ok: false, error: 'expected one JSON object' }
+
+    const statement = requiredText(
+      object,
+      'statement',
+      POSTGAME_STATEMENT_MAX_CHARS,
+    )
+    if (!statement) return { ok: false, error: 'missing statement' }
+
+    const evidence = parseEvidence(object, view)
+    if (typeof evidence === 'string') return { ok: false, error: evidence }
+
+    return {
+      ok: true,
+      turn: {
+        seat: view.seat,
+        statement,
+        decisions: evidence.decisions,
+        commentary: evidence.commentary,
+      },
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: `could not parse table talk: ${message}` }
   }
 }

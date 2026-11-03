@@ -48,15 +48,23 @@ export interface PostgameComment {
 
 export interface PostgameReview {
   /**
-   * The seat's spoken turn in the post-game round table. Optional so records
-   * written before the round table (or a model that omits it) still parse; the
-   * UI and renderer fall back to `summary` when it is absent.
+   * Legacy spoken turn from the review-as-turn design. New records put the
+   * spoken words in `PostgameRecord.tableTalk`; this stays optional so older
+   * archives still render.
    */
   statement?: string
   summary: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
   lesson: string
+}
+
+/** One seat's turn in the table talk that runs before the reviews. */
+export interface PostgameTurn {
+  seat: Seat
+  statement: string
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
 }
 
 export interface PostgameSeat {
@@ -68,17 +76,32 @@ export interface PostgameSeat {
   review?: PostgameReview
   /** Human-authored note, stored verbatim and sanitized only when rendered. */
   note?: string
+  /** Review failure. A failed review is a status, not a game error. */
   error?: string
+  /** Table-talk failure. The review can still run from the other turns. */
+  talkError?: string
+  /** Review spend. */
   cost?: { promptTokens: number; completionTokens: number; usd: number }
+  /** Table-talk spend, kept separate so the two paid phases are visible. */
+  talkCost?: { promptTokens: number; completionTokens: number; usd: number }
 }
+
+export type PostgamePhase = 'talk' | 'review'
 
 export interface PostgameRecord {
   version: 1
   startedAt: string
   completedAt?: string
   status: PostgameStatus
+  /** Which phase the running record is in; absent on older records. */
+  phase?: PostgamePhase
   seats: Record<Seat, PostgameSeat>
-  /** Model seats in the order they spoke. Optional on older records. */
+  /**
+   * The table talk that ran before the independent reviews. Present (possibly
+   * empty) on new records; absent on records written before the split.
+   */
+  tableTalk?: PostgameTurn[]
+  /** Legacy turn order from the review-as-turn design; optional. */
   turnOrder?: Seat[]
 }
 
@@ -111,11 +134,9 @@ export function postgameRecord(
     version: POSTGAME_VERSION,
     startedAt,
     status: 'running',
+    phase: 'talk',
     seats: bySeat,
-    turnOrder: seats
-      .filter((seat) => seat.kind === 'agent' && seat.model !== undefined)
-      .map((seat) => seat.seat)
-      .sort((a, b) => a - b),
+    tableTalk: [],
   }
 }
 

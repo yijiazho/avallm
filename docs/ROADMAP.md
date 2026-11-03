@@ -79,11 +79,11 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
   **Design in [design-game-archive.md](design-game-archive.md).**
 - **Post-game review.** Each modeled seat reviews its own decisions with hindsight; humans can
   write a note. Stored beside the game, shown in the reveal, included in the transcript.
-  **Built 2026-11-02 (REVIEW-001 to REVIEW-004):** the gameOver-only full-reveal projection, review
-  prompt, tolerant parser, record types, Markdown renderer, best-effort runner, archive
-  persistence, review routes, human notes, reveal UI, transcript section, and the sequential
-  post-game round table where each seat answers the earlier turns. Remaining: measurement and
-  tuning on real games (phase 6 of the design).
+  **Built 2026-11-02, revised 2026-11-03 (REVIEW-001 to REVIEW-004):** the gameOver-only full-reveal
+  projection, review prompt, tolerant parser, record types, Markdown renderer, best-effort runner,
+  archive persistence, review routes, human notes, reveal UI, transcript section, and a two-phase
+  post-game round table: a sequential table talk first, then independent reviews that use the talk
+  as outside context. Remaining: measurement and tuning on real games (phase 6 of the design).
   **Design in [design-postgame-review.md](design-postgame-review.md).**
 - **Optional cross-game memory.** Agents read bounded digests of games they played before, off by
   default because it raises input tokens and retention sensitivity. Other seats' historical roles

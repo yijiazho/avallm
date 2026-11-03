@@ -133,8 +133,8 @@ exposes status on the existing game payload so REVIEW-003 can render it.
   (model seats only), and `settleInterruptedPostgame`. The runner, the boot settlement, and the
   REVIEW-003 note transition all use them.
 - `AVALON_POSTGAME=on|off` wins; unset defaults to on locally and off when `AVALON_INVITE_CODE` is
-  set. `AVALON_POSTGAME_CONCURRENCY` was clamped to 1-4 (default 3) in the initial fan-out;
-  REVIEW-004 removed it because the round table runs one review request at a time.
+  set. `AVALON_POSTGAME_CONCURRENCY` (clamped 1-4, default 3) now caps the independent-review phase
+  added by REVIEW-004; the table talk that precedes it is always sequential.
 - Archive writes use `updateArchivedGamePostgame(id, record)`, which replaces only the postgame
   field and preserves the base record. `loadArchive` settles a `running` record to `partial` or
   `failed` at boot without making a call.

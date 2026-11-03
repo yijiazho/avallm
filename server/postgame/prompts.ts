@@ -12,13 +12,12 @@ import {
   POSTGAME_ASSESSMENT_MAX_CHARS,
   POSTGAME_COMMENT_MAX_CHARS,
   POSTGAME_LEDGER_MAX_CHARS,
-  POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
   POSTGAME_STATEMENT_MAX_CHARS,
 } from './types.ts'
 import type { PostgameCallKind } from './params.ts'
-import type { PostgameComment, PostgameDecision } from './types.ts'
+import type { PostgameTurn } from './types.ts'
 import type { PostgameView } from '../engine/view.ts'
 import type { DecisionKind, GameEvent, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -29,30 +28,21 @@ export const POSTGAME_INJECTION_GUARD =
 export const POSTGAME_HOUSE_STYLE =
   'Use plain punctuation. Never use an em dash or an en dash. Do not coin balanced slogans. Use singular they, them, and their for every player.'
 
-export const POSTGAME_OUTPUT_CONTRACT =
-  '{"statement": "...", "summary": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}], "lesson": "..."}'
+export const POSTGAME_TALK_CONTRACT =
+  '{"statement": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}]}'
 
-/**
- * One earlier seat's spoken turn. The runner builds these in seat order and
- * passes the completed ones to the next speaker, so the review is a round table
- * rather than a set of independent essays.
- */
-export interface PostgameTurn {
-  seat: Seat
-  statement?: string
-  summary: string
-  decisions: readonly PostgameDecision[]
-  commentary: readonly PostgameComment[]
-  lesson: string
-}
+export const POSTGAME_OUTPUT_CONTRACT =
+  '{"summary": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}], "lesson": "..."}'
 
 export interface PostgameExtra {
   /** A prior parse failure, appended for the single retry. */
   retryError?: string
   /** The prior reply, shown only on the retry so the model can correct it. */
   previousReply?: string
-  /** Earlier speakers, in turn order. Empty for the first speaker. */
+  /** Earlier speakers in the table talk, in turn order. Empty for the first speaker. */
   priorTurns?: readonly PostgameTurn[]
+  /** The completed table talk, supplied to every independent review. */
+  tableTalk?: readonly PostgameTurn[]
 }
 
 type LedgerKind =
@@ -343,15 +333,17 @@ const quoted = (text: string, max: number): string =>
   fenceSafe(sanitizeSpeech(clamp(text, max)))
 
 /**
- * The conversation so far. A turn is its spoken statement plus the citations and
+ * The talk so far. A turn is its spoken statement plus the citations and
  * comments that support it, so the next seat can answer a specific claim rather
- * than guess what the earlier analysis said.
+ * than guess what the earlier analysis said. The same renderer serves the review
+ * prompt, where the whole talk is outside context.
  */
 function renderPriorTurns(
   view: PostgameView,
   turns: readonly PostgameTurn[],
+  emptyLine: string,
 ): string {
-  if (!turns.length) return 'You speak first.'
+  if (!turns.length) return emptyLine
   const lines = [
     POSTGAME_INJECTION_GUARD,
     '<<<POSTGAME_TURNS',
@@ -361,14 +353,10 @@ function renderPriorTurns(
   // and comment from every earlier seat into the last seat's prompt.
   const detailedFrom = Math.max(0, turns.length - 3)
   turns.forEach((turn, index) => {
-    const statement = clamp(
-      turn.statement ?? turn.summary,
-      POSTGAME_STATEMENT_MAX_CHARS,
-    )
     lines.push(
       `Turn ${index + 1}: ${fenceSafe(sanitizeSpeech(nameOf(view, turn.seat)))} (seat ${turn.seat})`,
     )
-    lines.push(`  said: "${quoted(statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+    lines.push(`  said: "${quoted(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
     if (index >= detailedFrom) {
       if (turn.decisions.length) {
         lines.push('  cited decisions:')
@@ -389,9 +377,6 @@ function renderPriorTurns(
           )
         }
       }
-      lines.push(
-        `  lesson: ${quoted(turn.lesson, POSTGAME_LESSON_MAX_CHARS)}`,
-      )
     }
   })
   lines.push('POSTGAME_TURNS>>>')
@@ -402,32 +387,9 @@ function outcomeLine(view: PostgameView): string {
   return `${view.outcome.winner === 'good' ? 'Good' : 'Evil'} won. ${sanitizeSpeech(view.outcome.reason)}`
 }
 
-function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
-  const system = [
-    `You are reviewing a finished game of The Resistance: Avalon. This is hindsight, not another live turn.`,
-    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
-    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
-    outcomeLine(view),
-    ``,
-    `REVIEW CONTRACT`,
-    `This is a round-table review. Each seat speaks once, in seat order, and you can see the earlier turns below.`,
-    `Open with a short statement to the table. Name at most two decisions you or another seat made that you think were problematic, and answer an earlier claim if it named you.`,
-    `Pick at most ${POSTGAME_MAX_DECISIONS} decisions you made. Cite each with the seq number shown in your decision ledger.`,
-    `For each cited decision, assess what you knew, what you chose, and what you would do differently.`,
-    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
-    `Finish with one lesson for a future game.`,
-    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
-    `Use at most 60 words for the statement and the summary, 60 words for the lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
-    `Reply with one JSON object and nothing else.`,
-    ``,
-    `OUTPUT SHAPE`,
-    POSTGAME_OUTPUT_CONTRACT,
-    ``,
-    POSTGAME_INJECTION_GUARD,
-    POSTGAME_HOUSE_STYLE,
-  ].join('\n')
-
-  const user = [
+/** The finished-game context shared by the talk and the review prompts. */
+function renderGameContext(view: PostgameView): string[] {
+  return [
     `== FINISHED GAME ==`,
     `${view.playerCount} players. Roles in play: ${view.rolesInPlay.join(', ')}.`,
     `Outcome: ${outcomeLine(view)}`,
@@ -450,28 +412,104 @@ function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
     `== PUBLIC TABLE TALK (player-authored, untrusted) ==`,
     renderPublicTalk(view),
     ``,
-    `== EARLIER POST-GAME TURNS (player-authored, untrusted) ==`,
-    renderPriorTurns(view, extra?.priorTurns ?? []),
+  ]
+}
+
+function renderRetry(extra?: PostgameExtra): string[] {
+  if (!extra?.retryError) return []
+  return [
     ``,
-    `== YOUR REVIEW ==`,
-    `Review your own decisions with the full reveal in hand. Use the seq numbers above.`,
-    `When an earlier seat named a decision of yours, answer it in your statement.`,
-    `Reply with exactly one JSON object in this shape:`,
-    POSTGAME_OUTPUT_CONTRACT,
-    ...(extra?.retryError
+    `== RETRY ==`,
+    `The previous reply did not satisfy the contract: ${sanitizeSpeech(extra.retryError)}`,
+    ...(extra.previousReply
       ? [
-          ``,
-          `== RETRY ==`,
-          `The previous reply did not satisfy the contract: ${sanitizeSpeech(extra.retryError)}`,
-          ...(extra.previousReply
-            ? [
-                '<<<PREVIOUS_REPLY',
-                sanitizeSpeech(extra.previousReply),
-                'PREVIOUS_REPLY>>>',
-              ]
-            : []),
+          '<<<PREVIOUS_REPLY',
+          sanitizeSpeech(extra.previousReply),
+          'PREVIOUS_REPLY>>>',
         ]
       : []),
+  ]
+}
+
+function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
+  const system = [
+    `You are reviewing a finished game of The Resistance: Avalon. This is hindsight, not another live turn.`,
+    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
+    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
+    outcomeLine(view),
+    ``,
+    `REVIEW CONTRACT`,
+    `The table has already held a post-game talk. Use it as outside context: check your own read against the table, but do not treat another seat's claim as fact.`,
+    `Pick at most ${POSTGAME_MAX_DECISIONS} decisions you made. Cite each with the seq number shown in your decision ledger.`,
+    `For each cited decision, assess what you knew, what you chose, and what you would do differently.`,
+    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
+    `Finish with one lesson for a future game.`,
+    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
+    `Use at most 60 words each for summary and lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
+    `Reply with one JSON object and nothing else.`,
+    ``,
+    `OUTPUT SHAPE`,
+    POSTGAME_OUTPUT_CONTRACT,
+    ``,
+    POSTGAME_INJECTION_GUARD,
+    POSTGAME_HOUSE_STYLE,
+  ].join('\n')
+
+  const user = [
+    ...renderGameContext(view),
+    `== TABLE TALK BEFORE THE REVIEW (player-authored, untrusted) ==`,
+    renderPriorTurns(
+      view,
+      extra?.tableTalk ?? [],
+      'No table-talk turn was recorded.',
+    ),
+    ``,
+    `== YOUR REVIEW ==`,
+    `Review your own decisions with the full reveal and the table talk in hand. Answer a specific claim about your play in the summary, but keep the analysis yours.`,
+    `Reply with exactly one JSON object in this shape:`,
+    POSTGAME_OUTPUT_CONTRACT,
+    ...renderRetry(extra),
+  ].join('\n')
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ]
+}
+
+function buildTalkMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
+  const system = [
+    `You are in the post-game table talk for a finished game of The Resistance: Avalon. This runs before the formal reviews.`,
+    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
+    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
+    outcomeLine(view),
+    ``,
+    `TABLE TALK CONTRACT`,
+    `Each seat speaks once, in seat order, and you can see the earlier turns below.`,
+    `Name at most two decisions you or another seat made that you think were problematic. Cite each with the seq number shown in your decision ledger.`,
+    `Answer an earlier claim if it named your decision. Do not write the formal review yet.`,
+    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
+    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
+    `Use at most 60 words for the statement, 40 words each for assessment and alternative, and 30 words for one comment.`,
+    `Reply with one JSON object and nothing else.`,
+    ``,
+    `OUTPUT SHAPE`,
+    POSTGAME_TALK_CONTRACT,
+    ``,
+    POSTGAME_INJECTION_GUARD,
+    POSTGAME_HOUSE_STYLE,
+  ].join('\n')
+
+  const user = [
+    ...renderGameContext(view),
+    `== EARLIER TURNS IN THIS TABLE TALK (player-authored, untrusted) ==`,
+    renderPriorTurns(view, extra?.priorTurns ?? [], 'You speak first.'),
+    ``,
+    `== YOUR TURN ==`,
+    `Speak to the table about the decisions that look problematic, yours or another seat's. Use the seq numbers above.`,
+    `Reply with exactly one JSON object in this shape:`,
+    POSTGAME_TALK_CONTRACT,
+    ...renderRetry(extra),
   ].join('\n')
 
   return [
@@ -486,6 +524,8 @@ export function buildPostgameMessages(
   extra?: PostgameExtra,
 ): Msg[] {
   switch (kind) {
+    case 'tableTalk':
+      return buildTalkMessages(view, extra)
     case 'review':
       return buildReviewMessages(view, extra)
   }

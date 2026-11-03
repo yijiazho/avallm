@@ -10,7 +10,7 @@ import {
   expectedDecisions,
 } from '../../server/engine/game.ts'
 import { viewForPostgame } from '../../server/engine/view.ts'
-import { parsePostgameReply } from '../../server/postgame/parse.ts'
+import { parsePostgameReply, parsePostgameTalkReply } from '../../server/postgame/parse.ts'
 import {
   POSTGAME_ALTERNATIVE_MAX_CHARS,
   POSTGAME_ASSESSMENT_MAX_CHARS,
@@ -204,7 +204,39 @@ test('caps clamp array lengths and field lengths', () => {
   )
 })
 
-test('a missing statement still parses for older records', () => {
+test('table talk parses a statement and citations without a lesson', () => {
+  const { view, ownProposal, otherSeat } = fixture()
+  const result = parsePostgameTalkReply(JSON.stringify({
+    statement: 'I would take back the second team.',
+    decisions: [{
+      seq: ownProposal.seq,
+      kind: 'propose',
+      assessment: 'The team was too easy to approve.',
+    }],
+    commentary: [{ seat: otherSeat, note: 'Asked the right question.' }],
+  }), view)
+  assert.ok(result.ok)
+  assert.equal(result.turn.seat, view.seat)
+  assert.equal(result.turn.statement, 'I would take back the second team.')
+  assert.equal(result.turn.decisions[0]!.seq, ownProposal.seq)
+  assert.equal(result.turn.commentary[0]!.seat, otherSeat)
+
+  const missing = parsePostgameTalkReply(
+    JSON.stringify({ decisions: [], commentary: [] }),
+    view,
+  )
+  assert.equal(missing.ok, false)
+
+  const long = parsePostgameTalkReply(JSON.stringify({
+    statement: 's'.repeat(2_000),
+    decisions: [],
+    commentary: [],
+  }), view)
+  assert.ok(long.ok)
+  assert.equal(long.turn.statement.length, POSTGAME_STATEMENT_MAX_CHARS)
+})
+
+test('a missing statement still parses for older review records', () => {
   const { view, ownProposal, otherSeat } = fixture()
   const review = baseReview(ownProposal.seq, otherSeat)
   delete review.statement

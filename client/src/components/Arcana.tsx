@@ -45,9 +45,9 @@ const CELESTIAL: Record<string, { glyph: string; body: string }> = {
   qwen: { glyph: '✧', body: 'the Evening Star' },
   mistral: { glyph: '✷', body: 'the North Star' },
   'gpt-nano': { glyph: '✵', body: 'the Wandering Star' },
-  solar: { glyph: '✺', body: 'the Corona' },
 }
 const OUTER_POOL: { glyph: string; body: string }[] = [
+  { glyph: '✺', body: 'the Corona' },
   { glyph: '♅', body: 'Uranus' },
   { glyph: '♇', body: 'Pluto' },
   { glyph: '⚳', body: 'Ceres' },

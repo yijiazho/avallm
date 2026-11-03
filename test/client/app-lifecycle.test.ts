@@ -71,12 +71,13 @@ test('review prose is rendered as text, never as HTML', () => {
   assert.match(reveal, /\{seat\.note\}/)
   assert.match(reveal, /\{seat\.review\.summary\}/)
   assert.match(reveal, /\{decision\.assessment\}/)
-  assert.match(reveal, /\{seat\.review\?\.statement \?\? seat\.review\?\.summary\}/)
+  assert.match(reveal, /\{turn\.statement\}/)
 })
 
-test('table talk renders in the recorded turn order', () => {
-  assert.match(reveal, /record\.turnOrder/)
+test('table talk renders from the separate talk phase', () => {
+  assert.match(reveal, /record\.tableTalk/)
   assert.match(reveal, /function PostgameTableTalk/)
+  assert.match(reveal, /record\.turnOrder/)
 })
 
 test('agent library loading validates, reports, and retries failures', () => {

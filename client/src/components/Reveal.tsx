@@ -133,7 +133,12 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
         </p>
       )}
       {record?.status === 'running' && (
-        <p className="pg-running">The table is still writing its reviews. Your note is saved separately.</p>
+        <p className="pg-running">
+          {record.phase === 'talk'
+            ? 'The table is speaking first. The reviews come after the talk.'
+            : 'The table has spoken. The independent reviews are being written.'}
+          {' '}Your note is saved separately.
+        </p>
       )}
       {record?.status === 'failed' && (
         <p className="pg-running pg-failed">
@@ -178,19 +183,32 @@ function PostgameTableTalk({ record, name }: {
   record: PostgameRecord
   name: (seat: Seat) => string
 }) {
-  const turns = (record.turnOrder ?? [])
-    .map((seat) => record.seats[seat])
-    .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+  let turns: { seat: Seat; statement: string }[]
+  if (record.tableTalk !== undefined) {
+    turns = record.tableTalk.map((turn) => ({
+      seat: turn.seat,
+      statement: turn.statement,
+    }))
+  } else {
+    // Legacy records made the review call itself the turn.
+    turns = (record.turnOrder ?? [])
+      .map((seat) => record.seats[seat])
+      .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+      .map((seat) => ({
+        seat: seat.seat,
+        statement: seat.review?.statement ?? seat.review?.summary ?? '',
+      }))
+  }
   if (!turns.length) return null
   return (
     <div className="pg-talk">
       <h4>Table talk</h4>
       <ol>
-        {turns.map((seat) => (
-          <li key={seat.seat}>
-            <span className="pg-talk-name">{name(seat.seat)}</span>
-            <span className="pg-talk-seat">seat {seat.seat}</span>
-            <p>{seat.review?.statement ?? seat.review?.summary}</p>
+        {turns.map((turn) => (
+          <li key={turn.seat}>
+            <span className="pg-talk-name">{name(turn.seat)}</span>
+            <span className="pg-talk-seat">seat {turn.seat}</span>
+            <p>{turn.statement}</p>
           </li>
         ))}
       </ol>
@@ -218,6 +236,9 @@ function PostgameCard({ seat, name, canEdit, noteSaving, noteCap, onSaveNote }: 
         <span className="pg-seat">seat {seat.seat} · {identity}</span>
         <StatusChip status={seat.status} />
       </header>
+      {seat.talkError && (
+        <p className="pg-empty">table talk: {seat.talkError}</p>
+      )}
       {seat.error && (
         <p className={seat.status === 'failed' ? 'pg-error' : 'pg-empty'}>{seat.error}</p>
       )}
@@ -262,9 +283,14 @@ function PostgameCard({ seat, name, canEdit, noteSaving, noteCap, onSaveNote }: 
           <p className="pg-lesson"><b>Lesson:</b> {seat.review.lesson}</p>
         </>
       )}
+      {seat.talkCost && (
+        <p className="pg-cost">
+          talk ${seat.talkCost.usd.toFixed(4)} · {seat.talkCost.promptTokens} prompt / {seat.talkCost.completionTokens} completion tokens
+        </p>
+      )}
       {seat.cost && (
         <p className="pg-cost">
-          ${seat.cost.usd.toFixed(4)} · {seat.cost.promptTokens} prompt / {seat.cost.completionTokens} completion tokens
+          review ${seat.cost.usd.toFixed(4)} · {seat.cost.promptTokens} prompt / {seat.cost.completionTokens} completion tokens
         </p>
       )}
       {seat.kind === 'human' && !seat.note && !canEdit && (

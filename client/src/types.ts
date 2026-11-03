@@ -125,12 +125,20 @@ export interface PostgameComment {
 }
 
 export interface PostgameReview {
-  /** Spoken turn in the post-game round table; old records may omit it. */
+  /** Legacy spoken turn from the review-as-turn design; old records may have it. */
   statement?: string
   summary: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
   lesson: string
+}
+
+/** One seat's turn in the table talk that runs before the reviews. */
+export interface PostgameTurn {
+  seat: Seat
+  statement: string
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
 }
 
 export type PostgameStatus = 'running' | 'complete' | 'partial' | 'failed'
@@ -149,16 +157,24 @@ export interface PostgameSeat {
   review?: PostgameReview
   note?: string
   error?: string
+  talkError?: string
   cost?: { promptTokens: number; completionTokens: number; usd: number }
+  talkCost?: { promptTokens: number; completionTokens: number; usd: number }
 }
+
+export type PostgamePhase = 'talk' | 'review'
 
 export interface PostgameRecord {
   version: 1
   startedAt: string
   completedAt?: string
   status: PostgameStatus
+  /** Which phase a running record is in; old records may omit it. */
+  phase?: PostgamePhase
   seats: Record<Seat, PostgameSeat>
-  /** Model seats in the order they spoke; old records may omit it. */
+  /** The talk that ran before the reviews; absent on old records. */
+  tableTalk?: PostgameTurn[]
+  /** Legacy speaking order from the review-as-turn design; old records may have it. */
   turnOrder?: Seat[]
 }
 

@@ -27,8 +27,13 @@ function completedRecord(): PostgameRecord {
   record.completedAt = '2026-01-01T00:01:00.000Z'
   record.seats[0]!.status = 'complete'
   record.seats[0]!.cost = { promptTokens: 10, completionTokens: 20, usd: 0.0123 }
-  record.seats[0]!.review = {
+  record.tableTalk = [{
+    seat: 0,
     statement: 'I would not repeat the second team.',
+    decisions: [],
+    commentary: [],
+  }]
+  record.seats[0]!.review = {
     summary: 'This is the summary.',
     decisions: Array.from({ length: 6 }, (_, index) => ({
       seq: index + 1,
@@ -54,6 +59,8 @@ test('postgameRecord starts every seat pending and running', () => {
   ], '2026-01-01T00:00:00.000Z')
   assert.equal(record.version, 1)
   assert.equal(record.status, 'running')
+  assert.equal(record.phase, 'talk')
+  assert.deepEqual(record.tableTalk, [])
   assert.equal(record.startedAt, '2026-01-01T00:00:00.000Z')
   assert.equal(record.seats[0]!.status, 'pending')
   assert.equal(record.seats[1]!.status, 'pending')
@@ -77,34 +84,43 @@ test('the renderer shows statuses, citations, notes, and the lesson', () => {
   assert.match(markdown, /cost: \$0\.0123/)
 })
 
-test('table talk follows turnOrder rather than seat order', () => {
+test('table talk follows the stored talk order', () => {
   const record = postgameRecord([
     { seat: 0, kind: 'agent', model: 'test/a' },
     { seat: 1, kind: 'agent', model: 'test/b' },
   ], '2026-01-01T00:00:00.000Z')
   record.status = 'complete'
-  record.turnOrder = [1, 0]
+  record.phase = 'review'
+  record.tableTalk = [
+    { seat: 1, statement: 'The first speaker is seat one.', decisions: [], commentary: [] },
+    { seat: 0, statement: 'The second speaker is seat zero.', decisions: [], commentary: [] },
+  ]
   record.seats[0]!.status = 'complete'
   record.seats[1]!.status = 'complete'
-  record.seats[0]!.review = {
-    statement: 'The first speaker is seat one.',
-    summary: 'Summary zero.',
-    decisions: [],
-    commentary: [],
-    lesson: 'Lesson zero.',
-  }
-  record.seats[1]!.review = {
-    statement: 'The second speaker is seat zero.',
-    summary: 'Summary one.',
-    decisions: [],
-    commentary: [],
-    lesson: 'Lesson one.',
-  }
   const markdown = renderPostgameMarkdown(record, (seat) => names[seat] ?? `seat ${seat}`)
   const one = markdown.indexOf('1. Bob (seat 1)')
   const two = markdown.indexOf('2. Alice (seat 0)')
   assert.ok(one >= 0)
   assert.ok(two > one)
+})
+
+test('legacy turnOrder records still render a table talk', () => {
+  const record = postgameRecord([
+    { seat: 0, kind: 'agent', model: 'test/model' },
+  ], '2026-01-01T00:00:00.000Z')
+  record.status = 'complete'
+  record.tableTalk = undefined
+  record.turnOrder = [0]
+  record.seats[0]!.status = 'complete'
+  record.seats[0]!.review = {
+    statement: 'A legacy spoken turn.',
+    summary: 'A legacy summary.',
+    decisions: [],
+    commentary: [],
+    lesson: 'A legacy lesson.',
+  }
+  const markdown = renderPostgameMarkdown(record, (seat) => names[seat] ?? `seat ${seat}`)
+  assert.match(markdown, /A legacy spoken turn\./)
 })
 
 test('the renderer clamps arrays and field lengths', () => {

@@ -134,9 +134,9 @@ const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameO
 
 // Deterministic post-game fixtures. The live section is collapsed by default,
 // so the gallery variants pass reviewOpen to capture the cards themselves.
-const agentReview = {
+const agentTalk = {
+  seat: 1,
   statement: 'I approved the second team too quickly. Beatrix revised it and I did not ask why.',
-  summary: 'Held the line on the first quest, then over-read a quiet seat in the second.',
   decisions: [
     { seq: 12, kind: 'vote' as const, assessment: 'Approved a team with no evil read behind it.', alternative: 'Reject and force a different leader.' },
     { seq: 30, kind: 'quest' as const, assessment: 'Played the card the table expected.' },
@@ -145,22 +145,38 @@ const agentReview = {
     { seat: 2, note: 'The careful early vote was doing work.' },
     { seat: 5, note: 'Quiet until the second fail, which was its own tell.' },
   ],
+}
+const agentReview = {
+  summary: 'Held the line on the first quest, then over-read a quiet seat in the second.',
+  decisions: agentTalk.decisions,
+  commentary: agentTalk.commentary,
   lesson: 'A quiet table is not a cleared table. Ask a question before the vote closes.',
 }
-const beatrixReview = {
+const beatrixTalk = {
+  seat: 2,
   statement: 'I disagree with Alden. The revision was fine; the table should have questioned Corin\'s quiet vote instead.',
+  decisions: [],
+  commentary: [],
+}
+const beatrixReview = {
   summary: 'The revision was the moment the table should have stopped.',
   decisions: [],
   commentary: [],
   lesson: 'Name the pivot when it happens.',
 }
-const corinReview = {
+const corinTalk = {
+  seat: 3,
   statement: 'The final vote was mine to call out and I stayed quiet. That is the decision I would change.',
+  decisions: [],
+  commentary: [],
+}
+const corinReview = {
   summary: 'A clean read of the final vote, spent too late.',
   decisions: [],
   commentary: [],
   lesson: 'Say the read before the ballots close.',
 }
+const tableTalk = [agentTalk, beatrixTalk, corinTalk]
 const reviewComplete: ReviewPayload = {
   rev: 4,
   canReview: true,
@@ -169,7 +185,8 @@ const reviewComplete: ReviewPayload = {
     startedAt: '2026-11-02T00:00:00.000Z',
     completedAt: '2026-11-02T00:01:00.000Z',
     status: 'complete',
-    turnOrder: [1, 2, 3],
+    phase: 'review',
+    tableTalk,
     seats: {
       0: {
         seat: 0,
@@ -177,7 +194,7 @@ const reviewComplete: ReviewPayload = {
         status: 'complete',
         note: 'I should have asked why the second team changed. <script>alert(1)</script> stays text.',
       },
-      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'complete', review: agentReview, cost: { promptTokens: 3120, completionTokens: 480, usd: 0.0042 } },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'complete', review: agentReview, talkCost: { promptTokens: 1800, completionTokens: 260, usd: 0.0021 }, cost: { promptTokens: 3120, completionTokens: 480, usd: 0.0042 } },
       2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: beatrixReview },
       3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'complete', review: corinReview },
       4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
@@ -193,7 +210,8 @@ const reviewRunning: ReviewPayload = {
     version: 1,
     startedAt: '2026-11-02T00:00:00.000Z',
     status: 'running',
-    turnOrder: [1, 2, 3],
+    phase: 'review',
+    tableTalk,
     seats: {
       0: { seat: 0, kind: 'human', status: 'pending' },
       1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'running' },
@@ -213,7 +231,8 @@ const reviewFailed: ReviewPayload = {
     startedAt: '2026-11-02T00:00:00.000Z',
     completedAt: '2026-11-02T00:01:00.000Z',
     status: 'failed',
-    turnOrder: [1, 2, 3],
+    phase: 'review',
+    tableTalk,
     seats: {
       0: { seat: 0, kind: 'human', status: 'pending' },
       1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'failed', error: 'missing summary | reply: {"decisions": []' },
