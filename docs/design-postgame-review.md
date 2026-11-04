@@ -206,6 +206,9 @@ The two paid phases run per modeled seat (budget roughly 1.5k system plus 2-4k u
    rather than re-asking the model to remember.
 3. **The table's pivotal moments.** A bounded selection (for example the final vote, the
    assassination, every failed quest, and any vote that contradicted the seat's stated position).
+   The talk prompt also gets an all-seat decision index with the `seq`, seat, and action for every
+   proposal, revision, vote, quest card, and assassination, so a seat can cite another player's
+   decision. The independent review keeps the own-seat ledger.
 4. **The table talk.** The talk prompt sees the earlier completed turns only; the first speaker
    sees none. The review prompt sees the whole completed talk as outside context. Both sanitize
    and fence every quoted field. Every statement is quoted; full citations, comments, and lessons

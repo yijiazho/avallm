@@ -30,6 +30,9 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
    - output is a `statement`, at most four cited problematic decisions, and at most two comments;
    - the first speaker gets `You speak first.`; later speakers see the earlier talk and can answer
      a claim that named them;
+   - the prompt carries an all-seat decision index with the `seq`, seat, and action for every
+     proposal, revision, vote, quest card, and assassination, so a seat can cite another player's
+     decision without guessing; the independent review keeps the own-seat ledger;
    - every quoted field is sanitized and fenced; detailed evidence is carried for the three most
      recent turns.
 3. Add `parsePostgameTalkReply`: require a statement, validate every citation like the review
@@ -105,6 +108,7 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
 |---|---|
 | Talk before review and order | `test/postgame/run.test.ts`: two model seats, assert talk tags first in seat order, then review tags |
 | Prior context | same file: the second talk prompt contains the first statement; every review prompt contains the whole talk |
+| All-seat citation IDs | `test/postgame/prompts.test.ts`: the talk prompt lists another seat's `voteCast` seq; the review prompt does not include the all-seat index |
 | Talk parse | `test/postgame/parse.test.ts`: statement required, own and foreign citations accepted, non-decisions rejected, caps clamped, no lesson needed |
 | Review independence | `test/postgame/run.test.ts`: review prompts contain the talk, not another review's summary |
 | Phase/storage | same file: `phase === 'talk'` while gated, `phase === 'review'` after; `tableTalk`, `talkCost`, `cost` |
@@ -147,9 +151,11 @@ npm run test:lanes
   `turnOrder` remain optional.
 - `server/postgame/prompts.ts` builds two prompts. `tableTalk` asks for a statement plus cited
   problematic decisions and comments; `review` asks for the structured summary/decisions/comments/
-  lesson and receives the completed talk as outside context. Both share the game context and the
-  sanitized/fenced talk renderer. Every quoted field passes `sanitizeSpeech`; detailed evidence is
-  limited to the most recent three turns.
+  lesson and receives the completed talk as outside context. The talk prompt adds
+  `renderDecisionIndex`, an all-seat list of proposal/revision/vote/quest/assassination `seq`s, so a
+  speaker can cite another player's decision; the review keeps the own-seat ledger. Both share the
+  game context and the sanitized/fenced talk renderer. Every quoted field passes `sanitizeSpeech`;
+  detailed evidence is limited to the most recent three turns.
 - `server/postgame/parse.ts` factors the citation parser into `parseEvidence` and adds
   `parsePostgameTalkReply`. The talk uses an `any` ownership policy so it can cite another seat's
   decision, which is the point of the cross-seat criticism; reviews keep the `self` policy. A

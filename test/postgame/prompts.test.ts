@@ -126,6 +126,7 @@ test('the prompt carries the roster, public record, own ledger, and guard', () =
   assert.ok(!user.content.includes('"statement"'))
   assert.ok(user.content.includes('TABLE TALK BEFORE THE REVIEW'))
   assert.ok(user.content.includes('No table-talk turn was recorded.'))
+  assert.doesNotMatch(user.content, /TABLE DECISION INDEX/)
 
   assert.doesNotMatch(rendered, SPEECH_NORMS['em-or-en-dash'].pattern)
   assert.doesNotMatch(rendered, SPEECH_NORMS['not-x-that-y'].pattern)
@@ -145,6 +146,16 @@ test('the table-talk prompt asks for a spoken turn and citations', () => {
   assert.ok(!user.content.includes('"lesson"'))
   assert.ok(user.content.includes('You speak first.'))
   assert.ok(!user.content.includes('TABLE TALK BEFORE THE REVIEW'))
+  assert.ok(user.content.includes('TABLE DECISION INDEX'))
+  const foreignVote = view.events.find(
+    (event): event is Extract<GameEvent, { type: 'voteCast' }> =>
+      event.type === 'voteCast' && event.payload.seat !== view.seat,
+  )
+  assert.ok(foreignVote)
+  assert.ok(
+    user.content.includes(`#${foreignVote.seq} vote: seat ${foreignVote.payload.seat}`),
+    'the talk index carries another seat decision seq',
+  )
   const rendered = `${system.content}\n${user.content}`
   assert.doesNotMatch(rendered, SPEECH_NORMS['em-or-en-dash'].pattern)
   assert.doesNotMatch(rendered, SPEECH_NORMS['not-x-that-y'].pattern)

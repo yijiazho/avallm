@@ -323,6 +323,52 @@ function renderPublicTalk(view: PostgameView, max = 20): string {
 
 const clamp = (text: string, max: number): string => text.trim().slice(0, max)
 
+// The talk can criticize any seat, so the talk prompt needs the seq of every
+// public decision, not just the reviewing seat's ledger. This is deliberately
+// larger than the own-seat ledger; it is still bounded, and a pathological log
+// gets an explicit truncation marker rather than an unbounded prompt.
+const DECISION_INDEX_MAX_CHARS = 12_000
+
+function renderDecisionIndex(view: PostgameView): string {
+  const lines: string[] = []
+  for (const ev of view.events) {
+    const seat = decisionSeatOf(ev)
+    const kind = decisionKindOf(ev)
+    if (seat === null || kind === null) continue
+    const name = nameOf(view, seat)
+    switch (ev.type) {
+      case 'proposal':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) team [${teamOf(view, ev.payload.team)}]${ev.payload.pitch ? ` pitch "${sanitizeSpeech(ev.payload.pitch)}"` : ''}`,
+        )
+        break
+      case 'proposalRevised':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) revised [${teamOf(view, ev.payload.from)}] to [${teamOf(view, ev.payload.to)}]${ev.payload.reason ? ` reason "${sanitizeSpeech(ev.payload.reason)}"` : ''}`,
+        )
+        break
+      case 'voteCast':
+        lines.push(`#${ev.seq} ${kind}: seat ${seat} (${name}) voted ${ev.payload.vote}`)
+        break
+      case 'questCard':
+        lines.push(`#${ev.seq} ${kind}: seat ${seat} (${name}) played ${ev.payload.card}`)
+        break
+      case 'assassination':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) targeted ${nameOf(view, ev.payload.target)} (${ev.payload.wasMerlin ? 'Merlin' : 'not Merlin'})`,
+        )
+        break
+      default:
+        break
+    }
+  }
+  if (!lines.length) return '(no decisions)'
+  const body = lines.join('\n')
+  if (body.length <= DECISION_INDEX_MAX_CHARS) return body
+  const tail = '\n[decision index truncated]'
+  return `${body.slice(0, DECISION_INDEX_MAX_CHARS - tail.length)}${tail}`
+}
+
 // A quoted turn must not be able to close the fence and issue instructions.
 const fenceSafe = (text: string): string =>
   text.replaceAll('<<<POSTGAME_TURNS', '[fence]').replaceAll('POSTGAME_TURNS>>>', '[fence]')
@@ -486,7 +532,7 @@ function buildTalkMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
     ``,
     `TABLE TALK CONTRACT`,
     `Each seat speaks once, in seat order, and you can see the earlier turns below.`,
-    `Name at most two decisions you or another seat made that you think were problematic. Cite each with the seq number shown in your decision ledger.`,
+    `Name at most two decisions you or another seat made that you think were problematic. Cite each with a seq from the table decision index.`,
     `Answer an earlier claim if it named your decision. Do not write the formal review yet.`,
     `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
     `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
@@ -502,6 +548,9 @@ function buildTalkMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
 
   const user = [
     ...renderGameContext(view),
+    `== TABLE DECISION INDEX (all seats; cite these seq values) ==`,
+    renderDecisionIndex(view),
+    ``,
     `== EARLIER TURNS IN THIS TABLE TALK (player-authored, untrusted) ==`,
     renderPriorTurns(view, extra?.priorTurns ?? [], 'You speak first.'),
     ``,
