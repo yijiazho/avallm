@@ -15,6 +15,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-postgame-status-'))
 const dataDir = path.join(root, 'data')
 process.env.AVALON_DATA_DIR = dataDir
 process.env.AVALON_GAME_ARCHIVE = 'on'
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 process.env.AVALON_INVITE_CODE = ''
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 

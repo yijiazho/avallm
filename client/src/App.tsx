@@ -125,6 +125,7 @@ export function App() {
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle')
   const [review, setReview] = useState<ReviewPayload | null>(null)
   const [reviewSaving, setReviewSaving] = useState(false)
+  const [talkSaving, setTalkSaving] = useState(false)
   const esRef = useRef<EventSource | null>(null)
   const lobbyEsRef = useRef<EventSource | null>(null)
   const decisionAbortRef = useRef<AbortController | null>(null)
@@ -550,6 +551,31 @@ export function App() {
     }
   }, [gameId, gameToken, review?.postgame])
 
+  const postTalk = useCallback(async (body: { text?: string; skip?: boolean }) => {
+    if (!gameId || !gameToken) throw new Error('not seated in this game')
+    setTalkSaving(true)
+    try {
+      const res = await fetch(`/api/game/${gameId}/talk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: gameToken, ...body }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'could not save your table talk')
+      }
+      reviewFetchRef.current()
+    } finally {
+      setTalkSaving(false)
+    }
+  }, [gameId, gameToken])
+
+  const saveTalk = useCallback(
+    (text: string) => postTalk({ text }),
+    [postTalk],
+  )
+  const skipTalk = useCallback(() => postTalk({ skip: true }), [postTalk])
+
   const decide = useCallback(async (decision: Record<string, unknown>) => {
     if (!gameId || !gameToken || decisionAbortRef.current) return
     const ctrl = new AbortController()
@@ -713,6 +739,9 @@ export function App() {
             review={review}
             noteSaving={reviewSaving}
             onSaveNote={saveReviewNote}
+            talkSaving={talkSaving}
+            onSaveTalk={saveTalk}
+            onSkipTalk={skipTalk}
             onNewGame={backToLanding}
             onCopyLog={copyLog}
             copyLabel={copyLabel}

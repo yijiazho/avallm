@@ -10,12 +10,14 @@
 ## Description
 
 Give the post-game review a separate table-talk phase before the reviews. Model seats speak once
-each, in seat order, about the decisions they think were problematic. The talk runs first so every
-seat hears the table's outside view before it writes its own review.
+each, in seat order, about the decisions they think were problematic. Seated humans also get a
+turn: they can speak after hearing the model turns, skip, or let the timeout pass. The talk runs
+first so every seat hears the table's outside view before it writes its own review.
 
 The reviews then run independently from the same completed talk. No review sees another review, so
 one seat's conclusion cannot anchor the next. The talk is the conversation; the review is the
-private analysis. This costs two model calls per modeled seat: one talk turn and one review.
+private analysis. This costs one talk call and one review call per modeled seat. A human talk turn
+is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, default five minutes).
 
 ## Implementation plan
 
@@ -34,15 +36,25 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
    parser, clamp caps, and never throw.
 4. Change the review prompt to consume the **whole completed table talk** as outside context. The
    review no longer asks for a spoken statement and no longer sees another review.
-5. Run the talk sequentially, then run the reviews with bounded concurrency
+5. Add human talk participation:
+   - `POST /api/game/:id/talk` accepts `{ token, text }` or `{ token, skip: true }` while
+     `postgame.phase === 'talk'`; only a seated human may write, empty/over-cap text is 400, and a
+     game that is still running or already reviewing is 409.
+   - The turn is a `PostgameTurn` with empty citations/comments, stored in `tableTalk`; a skip is
+     recorded in `skippedTalk` and removes any previous human turn.
+   - After the model talk, the runner waits until every seated human has a turn or skipped, up to
+     `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes). Only then does it set
+     `phase: 'review'` and run the analysis.
+6. Run the model talk sequentially, then run the reviews with bounded concurrency
    (`AVALON_POSTGAME_CONCURRENCY`, clamped 1-4, default 3). Tag spend `<agentId>/talk/<gameId>/<seat>`
    and `<agentId>/review/<gameId>/<seat>`. A failed talk turn is skipped; the review still runs. A
    failed review is a status on that seat.
-6. Render the `tableTalk` array as a `### Table talk` block in the transcript and a compact block
-   in `Reveal`, with a legacy fallback to `turnOrder` plus `review.statement`/`summary`. Show the
-   current phase while running.
-7. Add deterministic gallery talk turns and reviews to the complete/running/failed fixtures and
-   refresh the review screenshots.
+7. Render the `tableTalk` array as a `### Table talk` block in the transcript and a compact block
+   in `Reveal`, with a legacy fallback to `turnOrder` plus `review.statement`/`summary`. While the
+   phase is `talk`, a seated human gets a textarea, Speak/Update, and Skip; after the phase, the
+   editor closes.
+8. Add deterministic gallery talk turns, a human talk editor fixture, and reviews to the
+   complete/running/failed fixtures, and refresh the review screenshots.
 
 ### Files
 
@@ -50,12 +62,14 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
 - `server/postgame/params.ts` (`tableTalk` call params)
 - `server/postgame/prompts.ts` (talk prompt, review context, shared renderer)
 - `server/postgame/parse.ts` (`parsePostgameTalkReply`)
-- `server/postgame/run.ts` (talk phase, independent review phase, two spend tags)
+- `server/postgame/run.ts` (talk phase, human wait, independent review phase, two spend tags)
 - `server/postgame/render.ts` (`Table talk` section with legacy fallback)
-- `client/src/types.ts`, `client/src/components/Reveal.tsx`
+- `server/server.ts` (human talk route)
+- `client/src/types.ts`, `client/src/components/Reveal.tsx`, `client/src/styles.css`
+- `client/src/App.tsx` (talk submit/skip and refetch)
 - `client/src/gallery.tsx`
 - `test/postgame/{prompts,parse,render,run}.test.ts`
-- `test/server/transcript.test.ts`
+- `test/server/{review-http,transcript}.test.ts`
 - `test/client/app-lifecycle.test.ts`
 
 ## Acceptance criteria
@@ -73,8 +87,14 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
       records without them still render.
 - [x] A failed talk turn is skipped and does not block the remaining talk or the reviews; terminal
       status still comes from the reviews.
+- [x] A seated human can submit a trimmed, capped table-talk statement or skip; the turn is stored
+      in `tableTalk` and appears in the transcript and review context. Spectators, bots, running
+      games, and a closed talk phase are rejected.
+- [x] The reviews wait for every seated human to speak or skip, up to the configured timeout; the
+      human's turn is part of the outside context every review sees.
 - [x] The transcript renders `### Table talk` from `tableTalk`; the reveal renders the same turns
-      above the detailed cards with the current phase.
+      above the detailed cards with the current phase and the human talk editor, and auto-opens the
+      section for a seated human when the talk phase starts.
 - [x] No quoted turn can close the prompt fence or reach the model as an instruction.
 - [x] The gallery fixtures carry separate talk and review data, and the refreshed screenshots show
       the table-talk block.
@@ -89,8 +109,11 @@ private analysis. This costs two model calls per modeled seat: one talk turn and
 | Review independence | `test/postgame/run.test.ts`: review prompts contain the talk, not another review's summary |
 | Phase/storage | same file: `phase === 'talk'` while gated, `phase === 'review'` after; `tableTalk`, `talkCost`, `cost` |
 | Failure isolation | existing partial/all-failed cases plus a talk failure case |
+| Human talk route | `test/server/review-http.test.ts`: trimmed statement, skip, empty/over-cap 400, spectator 403, running/review 409, archive/transcript inclusion |
+| Human blocks analysis | `test/postgame/run.test.ts`: reviews wait for a human turn and the review prompt contains it; HTTP test waits for the phase transition |
+| Timeout path | `test/postgame/run.test.ts` uses a short `humanTalkTimeoutMs` to proceed without a turn |
 | Rendering | `test/postgame/render.test.ts` and `test/server/transcript.test.ts`: table talk order, legacy fallback |
-| UI | `npm --prefix client run build` and refreshed gallery fixtures |
+| UI | `npm --prefix client run build` and the refreshed talk/review gallery fixtures |
 
 Run:
 
@@ -109,6 +132,8 @@ npm run test:lanes
 - The talk is model-authored and untrusted. Every quoted field is sanitized, fenced, and guarded;
   a quoted turn cannot close the fence.
 - A talk failure is a `talkError`, not a review failure. Later speakers see only completed turns.
+- A seated human can delay the reviews for up to the timeout. The UI offers Skip, and the timeout is
+  the fallback for a human who leaves. The timeout is an operator knob, not a per-game setting.
 - No table-level synthesis ("who was right") is added. The reviews use the talk; a synthesis would
   be another paid call and a separate ticket.
 - Older archived records have no `tableTalk`/`phase`; the renderer and UI fall back to the legacy
@@ -131,11 +156,22 @@ npm run test:lanes
   missing statement fails the talk; a missing review statement is still accepted for legacy
   replies.
 - `server/postgame/run.ts` runs the talk sequentially, records `talkCost` and `talkError`, then
-  sets `phase: 'review'` and runs the reviews with the bounded worker pool. Talk spend uses
-  `<agentId>/talk/...`; review spend uses `<agentId>/review/...`. A failed talk turn is skipped; a
-  failed review is a seat status.
+  waits for every seated human (`waitForHumanTalk`) until they have a `tableTalk` turn or are in
+  `skippedTalk`, up to `deps.humanTalkTimeoutMs` / `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`
+  (default five minutes). Only then does it set `phase: 'review'` and run the reviews with the
+  bounded worker pool. Talk spend uses `<agentId>/talk/...`; review spend uses
+  `<agentId>/review/...`. A failed talk turn is skipped; a failed review is a seat status.
+- `server/server.ts` adds `POST /api/game/:id/talk`. It requires `gameOver`, a seated human, and
+  `postgame.phase === 'talk'`; it trims and caps the statement, stores a `PostgameTurn`, or records
+  an explicit skip in `skippedTalk`. It rewrites the archive and broadcasts like the note route.
+- `Reveal.tsx` adds the human talk editor while the phase is `talk`: Speak/Update and Skip. The
+  editor sends the route and then refetches. The review `<details>` auto-opens for a seated human
+  when the talk phase starts, because their turn blocks the reviews; it remains user-closable. The
+  complete/running/failed fixtures carry a human talk turn; the new talk fixture captures the open
+  editor.
 - `server/postgame/render.ts` prefers `record.tableTalk`, then falls back to the legacy
-  `turnOrder` + review statement/summary. `Reveal.tsx` renders the same block and shows the phase
-  message while running.
-- `test/postgame/run.test.ts` proves talk-first order, review independence, two spend buckets, and
-  phase transitions. The prompt, parse, render, transcript, and client tests cover the new shapes.
+  `turnOrder` + review statement/summary. The human turn is just another table-talk turn.
+- `test/postgame/run.test.ts` proves talk-first order, review independence, two spend buckets,
+  phase transitions, and the human wait. `test/server/review-http.test.ts` covers the talk route,
+  skip, gating, archive/transcript inclusion, and the phase transition. The prompt, parse, render,
+  transcript, and client tests cover the remaining shapes.

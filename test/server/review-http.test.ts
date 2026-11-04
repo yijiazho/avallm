@@ -13,6 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import type { DecisionRequest, PlayerView } from '../../server/engine/types.ts'
+import { POSTGAME_STATEMENT_MAX_CHARS } from '../../server/postgame/types.ts'
 import type { PostgameRecord } from '../../server/postgame/types.ts'
 
 interface ReviewPayload {
@@ -28,6 +29,7 @@ const gamesDir = path.join(dataDir, 'games')
 process.env.AVALON_DATA_DIR = dataDir
 process.env.AVALON_GAME_ARCHIVE = 'on'
 process.env.AVALON_POSTGAME = 'on'
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 process.env.AVALON_INVITE_CODE = ''
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 
@@ -183,6 +185,37 @@ async function postNote(id: string, token: string, text: string): Promise<Respon
   })
 }
 
+async function postTalk(
+  id: string,
+  token: string,
+  body: { text?: string; skip?: boolean },
+): Promise<Response> {
+  return fetch(`${base}/api/game/${id}/talk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, ...body }),
+  })
+}
+
+async function waitForPostgame(
+  id: string,
+  token: string,
+  predicate: (payload: ReviewPayload) => boolean,
+  timeoutMs = 4_000,
+): Promise<ReviewPayload> {
+  const deadline = Date.now() + timeoutMs
+  let last: ReviewPayload | undefined
+  while (Date.now() < deadline) {
+    const response = await review(id, token)
+    if (response.ok) {
+      last = await response.json() as ReviewPayload
+      if (predicate(last)) return last
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error(`postgame did not reach the expected state: ${JSON.stringify(last?.postgame)}`)
+}
+
 interface ArchivedReview {
   artifact: { id: string }
   postgame?: PostgameRecord
@@ -276,6 +309,89 @@ test('POST rejects a running game with 409 for a seated human', async () => {
   const { id, token } = await newSoloGame()
   // The game has not been driven to gameOver.
   assert.equal((await postNote(id, token, 'hello')).status, 409)
+})
+
+test('a human table-talk turn is stored, unblocks the reviews, and reaches the transcript and archive', async () => {
+  process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '5000'
+  try {
+    const { id, token } = await newSoloGame()
+    await finishGame(id, token)
+    const talkPhase = await waitForPostgame(
+      id,
+      token,
+      (payload) => payload.postgame?.phase === 'talk',
+    )
+    assert.ok(talkPhase.postgame)
+
+    const saved = await postTalk(id, token, { text: '  The second team was the problem.  ' })
+    assert.equal(saved.status, 200)
+    const body = await saved.json() as { seat: number; statement: string }
+    assert.equal(body.statement, 'The second team was the problem.')
+
+    const done = await waitForPostgame(
+      id,
+      token,
+      (payload) => payload.postgame?.phase === 'review',
+    )
+    assert.equal(
+      done.postgame?.tableTalk?.find((turn) => turn.seat === body.seat)?.statement,
+      body.statement,
+    )
+
+    const transcript = await (await fetch(`${base}/api/game/${id}/transcript?token=${token}`)).text()
+    assert.match(transcript, /The second team was the problem\./)
+
+    const archived = archivedReviews().find(
+      (record) => record.postgame?.tableTalk?.some(
+        (turn) => turn.statement === body.statement,
+      ),
+    )
+    assert.ok(archived)
+  } finally {
+    process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
+  }
+})
+
+test('a human can skip the table talk; invalid talk bodies and late turns are rejected', async () => {
+  process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '5000'
+  try {
+    const { id, token, spectator } = await newHumanGameWithSpectator()
+    await finishGame(id, token)
+    await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'talk')
+
+    assert.equal((await postTalk(id, token, { text: '   ' })).status, 400)
+    assert.equal(
+      (await postTalk(id, token, { text: 'x'.repeat(POSTGAME_STATEMENT_MAX_CHARS + 1) })).status,
+      400,
+    )
+    assert.equal((await postTalk(id, spectator, { text: 'hello' })).status, 403)
+    assert.equal((await postTalk(id, 'not-a-token', { text: 'hello' })).status, 403)
+
+    assert.equal((await postTalk(id, token, { skip: true })).status, 200)
+    const done = await waitForPostgame(
+      id,
+      token,
+      (payload) => payload.postgame?.phase === 'review',
+    )
+    const humanSeat = Object.values(done.postgame!.seats)
+      .find((seat) => seat.kind === 'human')!.seat
+    assert.ok(done.postgame!.skippedTalk?.includes(humanSeat))
+    assert.equal(
+      done.postgame!.tableTalk?.some((turn) => turn.seat === humanSeat),
+      false,
+    )
+    assert.equal((await postTalk(id, token, { text: 'too late' })).status, 409)
+  } finally {
+    process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
+  }
+})
+
+test('POST talk rejects a running game and a review phase with 409', async () => {
+  const { id, token } = await newSoloGame()
+  assert.equal((await postTalk(id, token, { text: 'hello' })).status, 409)
+  await finishGame(id, token)
+  await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'review')
+  assert.equal((await postTalk(id, token, { text: 'hello' })).status, 409)
 })
 
 test('a note survives an archive re-read after the game is over', async () => {

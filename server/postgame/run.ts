@@ -51,6 +51,8 @@ export interface PostgameDeps {
   archive?: PostgameArchive
   /** A cheap change signal, typically the session's SSE broadcast. */
   notify?: (record: PostgameRecord) => void
+  /** How long the reviews wait for a human talk turn (default 5 minutes). */
+  humanTalkTimeoutMs?: number
 }
 
 /** The spend bucket for one table-talk turn, unique per game and seat. */
@@ -67,6 +69,31 @@ function postgameConcurrency(): number {
   const raw = Number(process.env.AVALON_POSTGAME_CONCURRENCY)
   if (!Number.isFinite(raw)) return 3
   return Math.min(4, Math.max(1, Math.trunc(raw)))
+}
+
+function humanTalkTimeout(deps: PostgameDeps): number {
+  if (deps.humanTalkTimeoutMs !== undefined) {
+    return Math.max(0, deps.humanTalkTimeoutMs)
+  }
+  const raw = Number(process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS)
+  return Number.isFinite(raw) && raw >= 0 ? raw : 5 * 60_000
+}
+
+async function waitForHumanTalk(
+  record: PostgameRecord,
+  humanSeats: readonly Seat[],
+  timeoutMs: number,
+): Promise<void> {
+  if (!humanSeats.length) return
+  const done = (): boolean => humanSeats.every((seat) =>
+    record.tableTalk?.some((turn) => turn.seat === seat) === true
+    || record.skippedTalk?.includes(seat) === true,
+  )
+  if (done()) return
+  const deadline = Date.now() + timeoutMs
+  while (!done() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
 }
 
 const clamp = (text: string, max: number): string => text.trim().slice(0, max)
@@ -236,6 +263,12 @@ export async function runPostgame(
       bumpAndCommit(session, game, record, deps)
     }
   }
+
+  // A seated human is part of the talk too. Give every human who is still at
+  // the table a chance to speak after hearing the model turns; the reviews do
+  // not start until each human has spoken, skipped, or the timeout expires.
+  const humanSeats = [...session.humans.keys()].sort((a, b) => a - b)
+  await waitForHumanTalk(record, humanSeats, humanTalkTimeout(deps))
 
   // Phase 2: independent reviews. Every review sees the completed talk, but no
   // review sees another review. That keeps the outside context without letting

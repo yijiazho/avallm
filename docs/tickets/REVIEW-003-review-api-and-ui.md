@@ -128,9 +128,9 @@ from REVIEW-002.
 - Tests: `test/server/review-http.test.ts`, `test/server/transcript.test.ts`,
   `test/server/postgame-status.test.ts`, `test/postgame/run.test.ts`.
 - REVIEW-004 adds a separate table-talk phase before the reviews. The talk runs sequentially in
-  seat order; the reviews then run independently from the completed talk with a bounded cap. The
-  API, note path, and reveal section are unchanged; the client already polls while the status is
-  `running`.
+  seat order, includes a human talk turn via `POST /api/game/:id/talk`, and the reviews then run
+  independently from the completed talk with a bounded cap. The note path and reveal section are
+  extended; the client already polls while the status is `running`.
 
 ## Testing plan
 

@@ -41,7 +41,7 @@ const COMPONENTS = [
   'reveal-assassin', // end-game reveal on an Assassin miss (deal, struck card, target line)
   // Post-game review: complete, running, and all-failed are deterministic
   // fixtures; a live deal rarely reaches any of them with a readable table.
-  'reveal-review-complete', 'reveal-review-running', 'reveal-review-failed',
+  'reveal-review-talk', 'reveal-review-complete', 'reveal-review-running', 'reveal-review-failed',
 ]
 
 function build() {

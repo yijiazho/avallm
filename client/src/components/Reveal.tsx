@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { POSTGAME_STATEMENT_CAP } from '../types.ts'
 import type {
   PlayerView,
   PostgameRecord,
@@ -14,12 +15,15 @@ import { ARCANA, Emblem } from './Arcana.tsx'
 
 // The reveal takes over the stage: every identity dealt face-down in seat
 // order, then flipped one by one. The flip is the arcana's core animation.
-export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame, onCopyLog, copyLabel, reviewOpen = false }: {
+export function Reveal({ view, reveal, review, noteSaving, onSaveNote, talkSaving, onSaveTalk, onSkipTalk, onNewGame, onCopyLog, copyLabel, reviewOpen = false }: {
   view: PlayerView
   reveal: RevealPayload | null
   review: ReviewPayload | null
   noteSaving: boolean
   onSaveNote: (text: string) => Promise<void>
+  talkSaving: boolean
+  onSaveTalk: (text: string) => Promise<void>
+  onSkipTalk: () => Promise<void>
   onNewGame: () => void
   onCopyLog: () => void
   copyLabel: string
@@ -90,6 +94,9 @@ export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame
         review={review}
         noteSaving={noteSaving}
         onSaveNote={onSaveNote}
+        talkSaving={talkSaving}
+        onSaveTalk={onSaveTalk}
+        onSkipTalk={onSkipTalk}
         defaultOpen={reviewOpen}
       />
       {reveal && <AgentCards reveal={reveal} />}
@@ -101,12 +108,15 @@ export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame
 // timeline are the primary reveal, and the analysis is a second pass. Every
 // field is rendered as a text node, so user-authored notes and model prose can
 // never become markup.
-function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultOpen }: {
+function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, talkSaving, onSaveTalk, onSkipTalk, defaultOpen }: {
   view: PlayerView
   reveal: RevealPayload | null
   review: ReviewPayload | null
   noteSaving: boolean
   onSaveNote: (text: string) => Promise<void>
+  talkSaving: boolean
+  onSaveTalk: (text: string) => Promise<void>
+  onSkipTalk: () => Promise<void>
   defaultOpen: boolean
 }) {
   const canReview = review?.canReview ?? reveal?.canReview ?? false
@@ -118,9 +128,27 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
     ? Object.values(record.seats).slice().sort((a, b) => a.seat - b.seat)
     : []
   const myHumanSeat = seats.find((seat) => seat.kind === 'human' && seat.seat === view.seat)
+  const myTalkTurn = record?.tableTalk?.find((turn) => turn.seat === view.seat)
+  const myTalkSkipped = record?.skippedTalk?.includes(view.seat) ?? false
+  const detailsRef = useRef<HTMLDetailsElement | null>(null)
+
+  // The human's talk turn blocks the reviews, so open the section for them
+  // when the talk phase starts rather than leaving the invitation collapsed.
+  // It stays uncontrolled: the human can close it again and it will not reopen
+  // until the phase changes.
+  useEffect(() => {
+    if (!detailsRef.current) return
+    if (defaultOpen || (record?.phase === 'talk' && canReview)) {
+      detailsRef.current.open = true
+    }
+  }, [defaultOpen, record?.phase, canReview])
 
   return (
-    <details className="postgame-review" {...(defaultOpen ? { open: true } : {})}>
+    <details
+      ref={detailsRef}
+      className="postgame-review"
+      {...(defaultOpen ? { open: true } : {})}
+    >
       <summary>
         <span>Post-game review</span>
         {record && <StatusChip status={record.status} />}
@@ -146,6 +174,23 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
         </p>
       )}
       {record && <PostgameTableTalk record={record} name={name} />}
+      {record?.phase === 'talk' && canReview && (
+        <HumanTalk
+          key={myTalkTurn?.statement ?? 'new'}
+          initial={myTalkTurn?.statement ?? ''}
+          skipped={myTalkSkipped}
+          saving={talkSaving}
+          onSave={onSaveTalk}
+          onSkip={onSkipTalk}
+        />
+      )}
+      {record?.phase === 'review' && canReview && myTalkSkipped && (
+        <p className="pg-empty">You passed on the table talk.</p>
+      )}
+      {record?.phase === 'review' && canReview
+        && !myTalkTurn && !myTalkSkipped && (
+          <p className="pg-empty">The table talk closed before you spoke.</p>
+        )}
       {record && (
         <div className="pg-grid">
           {seats.map((seat) => (
@@ -153,7 +198,8 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
               key={seat.seat}
               seat={seat}
               name={name(seat.seat)}
-              canEdit={canReview && seat.seat === view.seat && seat.kind === 'human'}
+              canEdit={canReview && seat.seat === view.seat && seat.kind === 'human'
+                && record?.phase !== 'talk'}
               noteSaving={noteSaving}
               noteCap={cap}
               onSaveNote={onSaveNote}
@@ -212,6 +258,81 @@ function PostgameTableTalk({ record, name }: {
           </li>
         ))}
       </ol>
+    </div>
+  )
+}
+
+// A seated human takes a turn in the talk before the reviews. The review phase
+// waits for this (or an explicit skip), so the human's outside view is part of
+// the context every model review receives.
+function HumanTalk({ initial, skipped, saving, onSave, onSkip }: {
+  initial: string
+  skipped: boolean
+  saving: boolean
+  onSave: (text: string) => Promise<void>
+  onSkip: () => Promise<void>
+}) {
+  const [text, setText] = useState(initial)
+  const [error, setError] = useState<string | null>(null)
+  const [skipping, setSkipping] = useState(false)
+  if (skipped) {
+    return (
+      <div className="pg-talk-editor">
+        <h4>Your table talk</h4>
+        <p className="pg-empty">You passed on the table talk.</p>
+      </div>
+    )
+  }
+  const trimmed = text.trim()
+  const disabled = saving || skipping || trimmed.length === 0
+  const submit = async () => {
+    setError(null)
+    try {
+      await onSave(trimmed)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not save your table talk')
+    }
+  }
+  const skip = async () => {
+    setError(null)
+    setSkipping(true)
+    try {
+      await onSkip()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not skip your table talk')
+    } finally {
+      setSkipping(false)
+    }
+  }
+  return (
+    <div className="pg-talk-editor">
+      <h4>Your table talk</h4>
+      <p className="pg-empty">
+        Speak to the table about the decisions you think were problematic.
+        The independent reviews start after your turn.
+      </p>
+      <label>
+        <span className="visually-hidden">Your table-talk statement</span>
+        <textarea
+          value={text}
+          maxLength={POSTGAME_STATEMENT_CAP}
+          rows={3}
+          placeholder="Which decision would you call out, and why?"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+      <div className="pg-editor-row">
+        <span className="pg-count">{text.length}/{POSTGAME_STATEMENT_CAP}</span>
+        <span className="pg-talk-actions">
+          <button className="secondary" disabled={saving || skipping} onClick={() => void skip()}>
+            {skipping ? 'Skipping…' : 'Skip my turn'}
+          </button>
+          <button className="secondary" disabled={disabled} onClick={() => void submit()}>
+            {saving ? 'Saving…' : initial ? 'Update talk' : 'Speak'}
+          </button>
+        </span>
+      </div>
+      {error && <p className="pg-error">{error}</p>}
     </div>
   )
 }

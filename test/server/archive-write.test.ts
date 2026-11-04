@@ -22,6 +22,7 @@ const artifactFile = path.join(root, 'artifacts.jsonl')
 process.env.AVALON_DATA_DIR = dataDir
 process.env.AVALON_ARTIFACTS = artifactFile
 process.env.AVALON_INVITE_CODE = ''
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 delete process.env.AVALON_GAME_ARCHIVE
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 

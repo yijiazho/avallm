@@ -176,7 +176,13 @@ const corinReview = {
   commentary: [],
   lesson: 'Say the read before the ballots close.',
 }
-const tableTalk = [agentTalk, beatrixTalk, corinTalk]
+const humanTalk = {
+  seat: 0,
+  statement: 'I should have asked why the second team changed before approving it. That was my miss.',
+  decisions: [],
+  commentary: [],
+}
+const tableTalk = [agentTalk, beatrixTalk, corinTalk, humanTalk]
 const reviewComplete: ReviewPayload = {
   rev: 4,
   canReview: true,
@@ -244,7 +250,30 @@ const reviewFailed: ReviewPayload = {
     },
   } as PostgameRecord,
 }
+const reviewTalk: ReviewPayload = {
+  rev: 2,
+  canReview: true,
+  postgame: {
+    version: 1,
+    startedAt: '2026-11-02T00:00:00.000Z',
+    status: 'running',
+    phase: 'talk',
+    tableTalk: [agentTalk, beatrixTalk],
+    skippedTalk: [],
+    seats: {
+      0: { seat: 0, kind: 'human', status: 'pending' },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'pending' },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'pending' },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'pending' },
+      4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
+      5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
+      6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
+    },
+  } as PostgameRecord,
+}
 const saveReviewNote = async () => {}
+const saveTalk = async () => {}
+const skipTalk = async () => {}
 
 // Faithful wrappers — mirror App.tsx so the components' parent-scoped styles
 // (aside width, the lacquer action rail, the table zone) resolve as they do in game.
@@ -350,13 +379,14 @@ const VARIANTS: Variant[] = [
   { id: 'tip-quest', sel: '.gallery-stage', hover: '.qcards .qcard:nth-child(1)', node: <Table><QuestBoard view={questView} /></Table> },
   // End-game reveal on an Assassin miss — the deal-and-flip spread, the struck
   // card, and the "who marked whom" line. Reached live only by luck of the deal.
-  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={null} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
+  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={null} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
   // Post-game review: the three terminal shapes a live run reaches only after
   // the fan-out settles. The gallery opens the section so the per-seat cards
   // are the specimen; in the app it starts collapsed.
-  { id: 'reveal-review-complete', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewComplete} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
-  { id: 'reveal-review-running', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewRunning} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
-  { id: 'reveal-review-failed', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewFailed} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-talk', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewTalk} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-complete', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewComplete} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-running', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewRunning} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-failed', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewFailed} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
 ]
 
 // Published for the harness to enumerate (id + crop selector + optional hover),

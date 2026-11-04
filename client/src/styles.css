@@ -1621,6 +1621,37 @@ footer .error::before {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.pg-talk-editor {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--night-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.pg-talk-editor h4 {
+  margin: 0 0 0.35rem;
+  color: var(--gold);
+  font: 600 0.65rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pg-talk-editor label { display: block; }
+.pg-talk-editor textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--night);
+  color: var(--text);
+  font: inherit;
+}
+.pg-talk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .pg-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

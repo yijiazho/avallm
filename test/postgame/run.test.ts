@@ -20,6 +20,8 @@ import type { OpenRouterClient, CallOpts, Msg, SpendEntry } from '../../server/l
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Game, Seat } from '../../server/engine/types.ts'
 
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
+
 const VALID_TALK = JSON.stringify({
   statement: 'I would take back the second team.',
   decisions: [],
@@ -246,6 +248,37 @@ test('the talk runs first in seat order, then independent reviews see it', async
     assert.match(reviewPrompt, /I would take back the second team\./)
     assert.doesNotMatch(reviewPrompt, /You speak first\./)
   }
+})
+
+test('the reviews wait for a human talk turn and use it as context', async () => {
+  const game = await finishedGame('postgame-human-talk')
+  const session = sessionFor(game, { human: [4], modelSeats: [0] })
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
+  const running = runPostgame(session, game, { client, humanTalkTimeoutMs: 2_000 })
+
+  for (let i = 0; i < 40; i++) {
+    if (
+      session.postgame?.phase === 'talk'
+      && session.postgame.tableTalk?.some((turn) => turn.seat === 0)
+    ) break
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  assert.equal(session.postgame?.phase, 'talk')
+  session.postgame!.tableTalk!.push({
+    seat: 4,
+    statement: 'The human says the second team was the problem.',
+    decisions: [],
+    commentary: [],
+  })
+
+  const record = await running
+  assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 4])
+  const reviewPrompt = client.calls
+    .find((call) => String(call.opts.tag).includes('/review/'))
+    ?.messages.map((message) => message.content).join('\n') ?? ''
+  assert.match(reviewPrompt, /The human says the second team was the problem\./)
 })
 
 test('a parse failure gets exactly one retry and can then complete', async () => {

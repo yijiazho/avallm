@@ -82,8 +82,9 @@ during M1→MP1 plus what deployment newly unblocks, in rough priority order.
   **Built 2026-11-02, revised 2026-11-03 (REVIEW-001 to REVIEW-004):** the gameOver-only full-reveal
   projection, review prompt, tolerant parser, record types, Markdown renderer, best-effort runner,
   archive persistence, review routes, human notes, reveal UI, transcript section, and a two-phase
-  post-game round table: a sequential table talk first, then independent reviews that use the talk
-  as outside context. Remaining: measurement and tuning on real games (phase 6 of the design).
+  post-game round table: a sequential table talk first (including a seated-human turn), then
+  independent reviews that use the talk as outside context. Remaining: measurement and tuning on
+  real games (phase 6 of the design).
   **Design in [design-postgame-review.md](design-postgame-review.md).**
 - **Optional cross-game memory.** Agents read bounded digests of games they played before, off by
   default because it raises input tokens and retention sensitivity. Other seats' historical roles

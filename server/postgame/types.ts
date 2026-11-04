@@ -101,6 +101,8 @@ export interface PostgameRecord {
    * empty) on new records; absent on records written before the split.
    */
   tableTalk?: PostgameTurn[]
+  /** Human seats that explicitly passed on their table-talk turn. */
+  skippedTalk?: Seat[]
   /** Legacy turn order from the review-as-turn design; optional. */
   turnOrder?: Seat[]
 }
@@ -137,6 +139,7 @@ export function postgameRecord(
     phase: 'talk',
     seats: bySeat,
     tableTalk: [],
+    skippedTalk: [],
   }
 }
 

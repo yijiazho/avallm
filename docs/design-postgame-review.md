@@ -3,8 +3,8 @@
 **Status:** built through the post-game round table. REVIEW-001 (full-reveal projection, review
 prompt, parser, and Markdown renderer) landed 2026-11-02; REVIEW-002 (runner, archive persistence,
 status), REVIEW-003 (review routes, human notes, reveal UI, transcript section), and REVIEW-004
-(sequential round table) landed the same day. The only remaining phase is measurement and tuning on
-real games.
+(sequential round table with a seated-human turn) landed the same day, with the human turn added
+2026-11-03. The only remaining phase is measurement and tuning on real games.
 Written 2026-11-01. The archive foundation (ARCH-001) is built.
 Companions: [design-game-archive.md](design-game-archive.md),
 [design-cross-game-memory.md](design-cross-game-memory.md),
@@ -253,12 +253,17 @@ gameOver
   fan-out with no completed model seat becomes `failed`. The games are archived; re-running a
   review is a paid operation and should be an explicit command, not a boot surprise.
 - **Talk first, then independent reviews.** REVIEW-004 runs the table talk sequentially in seat
-  order, then runs the reviews from the completed talk. The talk gives each seat the table's outside
-  view; the reviews stay independent, so one review cannot anchor another. This costs two calls per
-  modeled seat. The talk's wall-clock cost is the sum of its turns; the reviews use the bounded
-  `AVALON_POSTGAME_CONCURRENCY` cap (1-4, default 3) because they no longer depend on each other.
+  order, then waits for every seated human to speak or skip, then runs the reviews from the
+  completed talk. The talk gives each seat the table's outside view; the reviews stay independent,
+  so one review cannot anchor another. This costs two calls per modeled seat, plus a free human
+  turn. The talk's wall-clock cost is the sum of its turns plus the human wait; the reviews use the
+  bounded `AVALON_POSTGAME_CONCURRENCY` cap (1-4, default 3) because they no longer depend on each
+  other.
 - **A failed talk turn is skipped, not substituted.** Later speakers see only turns that completed,
   and the talk failure is recorded as `talkError`. The review still runs from the successful turns.
+- **A human who leaves does not block forever.** The review phase waits until
+  `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes) and then proceeds without that
+  turn. The reveal offers Skip for a human who does not want to speak.
 
 ### Human seats
 
@@ -282,6 +287,23 @@ from the human.
 may still write a note: the POST creates a minimal record with the human seats only and status
 `complete`. This keeps the human's words without inventing reviews for seats that were never asked.
 The record is durable only when `AVALON_GAME_ARCHIVE` is on, like every other archive field.
+
+**Human table talk (REVIEW-004).** While `postgame.phase === 'talk'`, a seated human posts:
+
+```
+POST /api/game/:id/talk
+  body: { token, text }          // or { token, skip: true }
+  200:  { ok: true, seat, statement }  // or { ok: true, seat, skipped: true }
+  400:  empty or over 500 characters
+  403:  not a seated human
+  409:  game still running, or the talk phase is over
+```
+
+The statement becomes a `PostgameTurn` in `tableTalk` with no citations or comments. It is stored
+verbatim and displayed as a normal talk turn. A skip is recorded in `skippedTalk` and removes any
+previous human turn. The reviews start once every seated human has a turn or has skipped, or when
+`AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes) expires. The human note endpoint
+remains separate.
 
 ### Post-game round table
 
@@ -308,8 +330,10 @@ next.
   while the talk runs; the table-talk block fills in first, then the review cards.
 - No synthesis pass in v1. The analysis is the seats' own reviews with the table talk in context.
   A table-level verdict is a separate, optional call and remains an open question.
-- Human seats keep the note editor instead of a model turn. A human's written note is not quoted
-  into the model turns, because it can arrive after the fan-out has finished.
+- Human seats also take a table-talk turn. They can speak after hearing the model turns, skip, or
+  let `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` pass. The reviews wait for every human before they
+  start, so the human's outside view is part of the context every review sees. The human note in
+  the reveal is separate from this talk turn.
 - Older records that used the review-as-turn design keep `PostgameReview.statement` and
   `PostgameRecord.turnOrder`; the renderer and UI fall back to them when `tableTalk` is absent.
 
@@ -331,8 +355,11 @@ next.
   survives the process. A record left `running` at boot is settled without spending money.
 - `Reveal` renders the section as a collapsed `<details>` below the thinking timeline, with a
   compact "Table talk" block in speaking order, one detailed card per seat, and a note editor on
-  the human's card. While running, it says whether the table is still talking or already writing
-  its independent reviews.
+  the human's card. While the phase is `talk`, a seated human also gets a talk textarea with
+  Speak/Update and Skip; the editor closes when the review phase starts. The section auto-opens for
+  a seated human when the talk phase starts, because that turn blocks the reviews; the human can
+  close it again. While running, the section says whether the table is still talking or already
+  writing its independent reviews.
 - A review can be quoted into the next speaker's prompt only through the round-table section. Every
   quoted field (statement, assessment, alternative, comment note, lesson, and seat name) passes
   through `sanitizeSpeech`, and the quoted turns are fenced with the injection guard.
@@ -364,8 +391,8 @@ Small next to a full game (~190 calls), but not zero. Controls:
 3. **API and reveal UI.** Built 2026-11-02 (REVIEW-003): `GET`/`POST /api/game/:id/review`, the
    human note path, and the collapsed per-seat cards.
 4. **Transcript section** and copy-log integration. Built 2026-11-02 (REVIEW-003).
-5. **Round table:** a sequential table talk with prior-turn context, then independent reviews
-   from the completed talk. Built 2026-11-02, revised 2026-11-03 (REVIEW-004).
+5. **Round table:** a sequential table talk with prior-turn context and a seated-human turn, then
+   independent reviews from the completed talk. Built 2026-11-02, revised 2026-11-03 (REVIEW-004).
 6. **Measure** the review quality and spend on real games; tune the ledger budget and the caps.
    Still proposed.
 
@@ -384,6 +411,9 @@ Small next to a full game (~190 calls), but not zero. Controls:
   same game replaces its own record only.
 - Human note: token-gated, game-over-gated, length-capped, escaped in the UI, sanitized when it
   later enters a history prompt.
+- Human talk: token-gated, talk-phase-gated, length-capped, stored in `tableTalk`, and included in
+  the review context. A skip or timeout lets the reviews proceed; the UI shows the open editor only
+  during the talk phase.
 - Round table: talk calls run in seat order; a later talk prompt contains the earlier statements
   and citations; every review prompt contains the whole talk; the first speaker gets
   `You speak first.`; a failed talk turn is skipped; every quoted field is sanitized, and quoted

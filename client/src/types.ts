@@ -141,6 +141,9 @@ export interface PostgameTurn {
   commentary: PostgameComment[]
 }
 
+/** Mirrors POSTGAME_STATEMENT_MAX_CHARS on the server; the route is the authority. */
+export const POSTGAME_STATEMENT_CAP = 500
+
 export type PostgameStatus = 'running' | 'complete' | 'partial' | 'failed'
 export type PostgameSeatStatus =
   | 'pending'
@@ -174,6 +177,8 @@ export interface PostgameRecord {
   seats: Record<Seat, PostgameSeat>
   /** The talk that ran before the reviews; absent on old records. */
   tableTalk?: PostgameTurn[]
+  /** Human seats that explicitly passed on their table-talk turn. */
+  skippedTalk?: Seat[]
   /** Legacy speaking order from the review-as-turn design; old records may have it. */
   turnOrder?: Seat[]
 }
