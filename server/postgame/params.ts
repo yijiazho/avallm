@@ -8,8 +8,11 @@
 // The transport is still shared: the runner calls OpenRouterClient.call with
 // these params and the same global spend ceiling.
 
-export type PostgameCallKind = 'review'
+export type PostgameCallKind = 'tableTalk' | 'review'
 
 export const POSTGAME_CALL_PARAMS = {
+  // The talk is smaller than the review and runs once per seat before it. It
+  // stays warmer because it is a conversation, not a verdict.
+  tableTalk: { temperature: 0.6, max_tokens: 900, json: true },
   review: { temperature: 0.4, max_tokens: 1200, json: true },
 } as const

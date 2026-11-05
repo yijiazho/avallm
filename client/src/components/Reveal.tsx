@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { POSTGAME_STATEMENT_CAP } from '../types.ts'
 import type {
   PlayerView,
+  PostgameRecord,
   PostgameSeat,
   RevealPayload,
   ReviewPayload,
@@ -13,12 +15,15 @@ import { ARCANA, Emblem } from './Arcana.tsx'
 
 // The reveal takes over the stage: every identity dealt face-down in seat
 // order, then flipped one by one. The flip is the arcana's core animation.
-export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame, onCopyLog, copyLabel, reviewOpen = false }: {
+export function Reveal({ view, reveal, review, noteSaving, onSaveNote, talkSaving, onSaveTalk, onSkipTalk, onNewGame, onCopyLog, copyLabel, reviewOpen = false }: {
   view: PlayerView
   reveal: RevealPayload | null
   review: ReviewPayload | null
   noteSaving: boolean
   onSaveNote: (text: string) => Promise<void>
+  talkSaving: boolean
+  onSaveTalk: (text: string) => Promise<void>
+  onSkipTalk: () => Promise<void>
   onNewGame: () => void
   onCopyLog: () => void
   copyLabel: string
@@ -89,6 +94,9 @@ export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame
         review={review}
         noteSaving={noteSaving}
         onSaveNote={onSaveNote}
+        talkSaving={talkSaving}
+        onSaveTalk={onSaveTalk}
+        onSkipTalk={onSkipTalk}
         defaultOpen={reviewOpen}
       />
       {reveal && <AgentCards reveal={reveal} />}
@@ -100,12 +108,15 @@ export function Reveal({ view, reveal, review, noteSaving, onSaveNote, onNewGame
 // timeline are the primary reveal, and the analysis is a second pass. Every
 // field is rendered as a text node, so user-authored notes and model prose can
 // never become markup.
-function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultOpen }: {
+function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, talkSaving, onSaveTalk, onSkipTalk, defaultOpen }: {
   view: PlayerView
   reveal: RevealPayload | null
   review: ReviewPayload | null
   noteSaving: boolean
   onSaveNote: (text: string) => Promise<void>
+  talkSaving: boolean
+  onSaveTalk: (text: string) => Promise<void>
+  onSkipTalk: () => Promise<void>
   defaultOpen: boolean
 }) {
   const canReview = review?.canReview ?? reveal?.canReview ?? false
@@ -117,9 +128,27 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
     ? Object.values(record.seats).slice().sort((a, b) => a.seat - b.seat)
     : []
   const myHumanSeat = seats.find((seat) => seat.kind === 'human' && seat.seat === view.seat)
+  const myTalkTurn = record?.tableTalk?.find((turn) => turn.seat === view.seat)
+  const myTalkSkipped = record?.skippedTalk?.includes(view.seat) ?? false
+  const detailsRef = useRef<HTMLDetailsElement | null>(null)
+
+  // The human's talk turn blocks the reviews, so open the section for them
+  // when the talk phase starts rather than leaving the invitation collapsed.
+  // It stays uncontrolled: the human can close it again and it will not reopen
+  // until the phase changes.
+  useEffect(() => {
+    if (!detailsRef.current) return
+    if (defaultOpen || (record?.phase === 'talk' && canReview)) {
+      detailsRef.current.open = true
+    }
+  }, [defaultOpen, record?.phase, canReview])
 
   return (
-    <details className="postgame-review" {...(defaultOpen ? { open: true } : {})}>
+    <details
+      ref={detailsRef}
+      className="postgame-review"
+      {...(defaultOpen ? { open: true } : {})}
+    >
       <summary>
         <span>Post-game review</span>
         {record && <StatusChip status={record.status} />}
@@ -132,13 +161,36 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
         </p>
       )}
       {record?.status === 'running' && (
-        <p className="pg-running">The table is still writing its reviews. Your note is saved separately.</p>
+        <p className="pg-running">
+          {record.phase === 'talk'
+            ? 'The table is speaking first. The reviews come after the talk.'
+            : 'The table has spoken. The independent reviews are being written.'}
+          {' '}Your note is saved separately.
+        </p>
       )}
       {record?.status === 'failed' && (
         <p className="pg-running pg-failed">
           No seat review could be completed. The per-seat errors are below.
         </p>
       )}
+      {record && <PostgameTableTalk record={record} name={name} />}
+      {record?.phase === 'talk' && canReview && (
+        <HumanTalk
+          key={myTalkTurn?.statement ?? 'new'}
+          initial={myTalkTurn?.statement ?? ''}
+          skipped={myTalkSkipped}
+          saving={talkSaving}
+          onSave={onSaveTalk}
+          onSkip={onSkipTalk}
+        />
+      )}
+      {record?.phase === 'review' && canReview && myTalkSkipped && (
+        <p className="pg-empty">You passed on the table talk.</p>
+      )}
+      {record?.phase === 'review' && canReview
+        && !myTalkTurn && !myTalkSkipped && (
+          <p className="pg-empty">The table talk closed before you spoke.</p>
+        )}
       {record && (
         <div className="pg-grid">
           {seats.map((seat) => (
@@ -146,7 +198,8 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
               key={seat.seat}
               seat={seat}
               name={name(seat.seat)}
-              canEdit={canReview && seat.seat === view.seat && seat.kind === 'human'}
+              canEdit={canReview && seat.seat === view.seat && seat.kind === 'human'
+                && record?.phase !== 'talk'}
               noteSaving={noteSaving}
               noteCap={cap}
               onSaveNote={onSaveNote}
@@ -170,6 +223,120 @@ function PostgameReview({ view, reveal, review, noteSaving, onSaveNote, defaultO
   )
 }
 
+// The spoken turns, in the order they happened. The detailed cards below keep
+// the evidence; this block is the conversation a human actually wants to read.
+function PostgameTableTalk({ record, name }: {
+  record: PostgameRecord
+  name: (seat: Seat) => string
+}) {
+  let turns: { seat: Seat; statement: string }[]
+  if (record.tableTalk !== undefined) {
+    turns = record.tableTalk.map((turn) => ({
+      seat: turn.seat,
+      statement: turn.statement,
+    }))
+  } else {
+    // Legacy records made the review call itself the turn.
+    turns = (record.turnOrder ?? [])
+      .map((seat) => record.seats[seat])
+      .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+      .map((seat) => ({
+        seat: seat.seat,
+        statement: seat.review?.statement ?? seat.review?.summary ?? '',
+      }))
+  }
+  if (!turns.length) return null
+  return (
+    <div className="pg-talk">
+      <h4>Table talk</h4>
+      <ol>
+        {turns.map((turn) => (
+          <li key={turn.seat}>
+            <span className="pg-talk-name">{name(turn.seat)}</span>
+            <span className="pg-talk-seat">seat {turn.seat}</span>
+            <p>{turn.statement}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+// A seated human takes a turn in the talk before the reviews. The review phase
+// waits for this (or an explicit skip), so the human's outside view is part of
+// the context every model review receives.
+function HumanTalk({ initial, skipped, saving, onSave, onSkip }: {
+  initial: string
+  skipped: boolean
+  saving: boolean
+  onSave: (text: string) => Promise<void>
+  onSkip: () => Promise<void>
+}) {
+  const [text, setText] = useState(initial)
+  const [error, setError] = useState<string | null>(null)
+  const [skipping, setSkipping] = useState(false)
+  if (skipped) {
+    return (
+      <div className="pg-talk-editor">
+        <h4>Your table talk</h4>
+        <p className="pg-empty">You passed on the table talk.</p>
+      </div>
+    )
+  }
+  const trimmed = text.trim()
+  const disabled = saving || skipping || trimmed.length === 0
+  const submit = async () => {
+    setError(null)
+    try {
+      await onSave(trimmed)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not save your table talk')
+    }
+  }
+  const skip = async () => {
+    setError(null)
+    setSkipping(true)
+    try {
+      await onSkip()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not skip your table talk')
+    } finally {
+      setSkipping(false)
+    }
+  }
+  return (
+    <div className="pg-talk-editor">
+      <h4>Your table talk</h4>
+      <p className="pg-empty">
+        Speak to the table about the decisions you think were problematic.
+        The independent reviews start after your turn.
+      </p>
+      <label>
+        <span className="visually-hidden">Your table-talk statement</span>
+        <textarea
+          value={text}
+          maxLength={POSTGAME_STATEMENT_CAP}
+          rows={3}
+          placeholder="Which decision would you call out, and why?"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+      <div className="pg-editor-row">
+        <span className="pg-count">{text.length}/{POSTGAME_STATEMENT_CAP}</span>
+        <span className="pg-talk-actions">
+          <button className="secondary" disabled={saving || skipping} onClick={() => void skip()}>
+            {skipping ? 'Skipping…' : 'Skip my turn'}
+          </button>
+          <button className="secondary" disabled={disabled} onClick={() => void submit()}>
+            {saving ? 'Saving…' : initial ? 'Update talk' : 'Speak'}
+          </button>
+        </span>
+      </div>
+      {error && <p className="pg-error">{error}</p>}
+    </div>
+  )
+}
+
 function StatusChip({ status }: { status: string }) {
   return <span className={`pg-status pg-${status}`}>{status}</span>
 }
@@ -190,6 +357,9 @@ function PostgameCard({ seat, name, canEdit, noteSaving, noteCap, onSaveNote }: 
         <span className="pg-seat">seat {seat.seat} · {identity}</span>
         <StatusChip status={seat.status} />
       </header>
+      {seat.talkError && (
+        <p className="pg-empty">table talk: {seat.talkError}</p>
+      )}
       {seat.error && (
         <p className={seat.status === 'failed' ? 'pg-error' : 'pg-empty'}>{seat.error}</p>
       )}
@@ -234,9 +404,14 @@ function PostgameCard({ seat, name, canEdit, noteSaving, noteCap, onSaveNote }: 
           <p className="pg-lesson"><b>Lesson:</b> {seat.review.lesson}</p>
         </>
       )}
+      {seat.talkCost && (
+        <p className="pg-cost">
+          talk ${seat.talkCost.usd.toFixed(4)} · {seat.talkCost.promptTokens} prompt / {seat.talkCost.completionTokens} completion tokens
+        </p>
+      )}
       {seat.cost && (
         <p className="pg-cost">
-          ${seat.cost.usd.toFixed(4)} · {seat.cost.promptTokens} prompt / {seat.cost.completionTokens} completion tokens
+          review ${seat.cost.usd.toFixed(4)} · {seat.cost.promptTokens} prompt / {seat.cost.completionTokens} completion tokens
         </p>
       )}
       {seat.kind === 'human' && !seat.note && !canEdit && (

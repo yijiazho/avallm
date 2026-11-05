@@ -8,7 +8,7 @@ import { createAgent } from '../../server/agents/registry.ts'
 import { createGame } from '../../server/engine/game.ts'
 import { runGame } from '../../server/sim/runner.ts'
 import { snapshotSeatedAgent } from '../../server/seated-agent.ts'
-import { runPostgame, reviewTag } from '../../server/postgame/run.ts'
+import { runPostgame, reviewTag, talkTag } from '../../server/postgame/run.ts'
 import {
   postgameStatusFromSeats,
   settleInterruptedPostgame,
@@ -20,7 +20,14 @@ import type { OpenRouterClient, CallOpts, Msg, SpendEntry } from '../../server/l
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Game, Seat } from '../../server/engine/types.ts'
 
-const VALID = JSON.stringify({
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
+
+const VALID_TALK = JSON.stringify({
+  statement: 'I would take back the second team.',
+  decisions: [],
+  commentary: [],
+})
+const VALID_REVIEW = JSON.stringify({
   summary: 'A reasonable game.',
   decisions: [],
   commentary: [],
@@ -60,18 +67,23 @@ interface FakeClient extends OpenRouterClient {
   calls: { model: string; messages: Msg[]; opts: CallOpts }[]
 }
 
-function fakeClient(replyFor: (seat: number) => FakeReply[]): FakeClient {
+function fakeClient(
+  replyFor: (seat: number, kind: 'talk' | 'review') => FakeReply[],
+): FakeClient {
   const calls: FakeClient['calls'] = []
   const spend: Record<string, SpendEntry> = {}
-  const queue = new Map<number, FakeReply[]>()
+  const queue = new Map<string, FakeReply[]>()
   return {
     calls,
     async call(model, messages, opts = {}) {
       const tag = opts.tag ?? 'other'
+      const kind = tag.includes('/talk/') ? 'talk' : 'review'
       const seat = Number(tag.slice(tag.lastIndexOf('/') + 1))
-      const replies = queue.get(seat) ?? replyFor(seat)
-      queue.set(seat, replies)
-      const next = replies.shift() ?? { content: VALID }
+      const key = `${kind}:${seat}`
+      const replies = queue.get(key) ?? replyFor(seat, kind)
+      queue.set(key, replies)
+      const fallback = kind === 'talk' ? VALID_TALK : VALID_REVIEW
+      const next = replies.shift() ?? { content: fallback }
       calls.push({ model, messages, opts })
       const entry = spend[tag] ?? (spend[tag] = {
         cost: 0, calls: 0, prompt: 0, completion: 0, reasoning: 0,
@@ -136,11 +148,14 @@ function statuses(record: PostgameRecord): Record<number, PostgameSeat['status']
 test('a finished game yields one record with terminal statuses and ignored human pending', async () => {
   const game = await finishedGame('postgame-shape')
   const session = sessionFor(game, { human: [2], modelSeats: [0, 1] })
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
   const record = await runPostgame(session, game, { client })
 
   assert.equal(record.version, 1)
   assert.equal(record.status, 'complete')
+  assert.equal(record.phase, 'review')
   assert.ok(record.completedAt)
   assert.deepEqual(statuses(record), {
     0: 'complete',
@@ -149,15 +164,21 @@ test('a finished game yields one record with terminal statuses and ignored human
     3: 'unavailable',
     4: 'unavailable',
   })
+  assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 1])
   assert.equal(record.seats[0]!.kind, 'agent')
   assert.equal(record.seats[3]!.error, 'no model to ask for a review')
   assert.equal(session.postgame, record)
   assert.ok(session.postgameRev > 0)
-  // One call per model seat, no more.
-  assert.equal(client.calls.length, 2)
+  // One talk call and one review call per model seat.
+  assert.equal(client.calls.length, 4)
   assert.deepEqual(
     client.calls.map((call) => call.opts.tag).sort(),
-    [reviewTag('llm-0', game.id, 0), reviewTag('llm-1', game.id, 1)].sort(),
+    [
+      talkTag('llm-0', game.id, 0),
+      talkTag('llm-1', game.id, 1),
+      reviewTag('llm-0', game.id, 0),
+      reviewTag('llm-1', game.id, 1),
+    ].sort(),
   )
 })
 
@@ -166,71 +187,157 @@ test('the reveal is available while the fan-out is still running', async () => {
   const session = sessionFor(game, { human: [4], modelSeats: [0] })
   let release!: () => void
   const gate = new Promise<void>((resolve) => { release = resolve })
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
   // Replace the fake call with one that waits on the gate.
   client.call = async (model, messages, opts = {}) => {
     client.calls.push({ model, messages, opts })
     await gate
-    return VALID
+    return String(opts.tag).includes('/talk/') ? VALID_TALK : VALID_REVIEW
   }
   const running = runPostgame(session, game, { client })
   assert.equal(session.postgame?.status, 'running')
-  assert.equal(session.postgame?.seats[0]!.status, 'running')
+  assert.equal(session.postgame?.phase, 'talk')
+  assert.equal(session.postgame?.seats[0]!.status, 'pending')
+  assert.deepEqual(session.postgame?.tableTalk, [])
   release()
   const record = await running
   assert.equal(record.status, 'complete')
+  assert.equal(record.phase, 'review')
+})
+
+test('the talk runs first in seat order, then independent reviews see it', async () => {
+  const game = await finishedGame('postgame-round-table')
+  const session = sessionFor(game, { human: [4], modelSeats: [0, 1] })
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
+  const record = await runPostgame(session, game, { client })
+
+  assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 1])
+  assert.equal(record.seats[0]!.review?.summary, 'A reasonable game.')
+  assert.equal(record.seats[0]!.talkCost?.usd, 0.01)
+  assert.equal(record.seats[0]!.cost?.usd, 0.01)
+
+  const tags = client.calls.map((call) => String(call.opts.tag))
+  assert.deepEqual(
+    tags.slice(0, 2),
+    [talkTag('llm-0', game.id, 0), talkTag('llm-1', game.id, 1)],
+    'talk turns are sequential in seat order',
+  )
+  assert.deepEqual(
+    new Set(tags.slice(2)),
+    new Set([
+      reviewTag('llm-0', game.id, 0),
+      reviewTag('llm-1', game.id, 1),
+    ]),
+    'both reviews run after the talk',
+  )
+
+  const firstTalkPrompt = client.calls[0]!.messages.map((message) => message.content).join('\n')
+  assert.match(firstTalkPrompt, /You speak first\./)
+  const secondTalkPrompt = client.calls[1]!.messages.map((message) => message.content).join('\n')
+  assert.match(secondTalkPrompt, /EARLIER TURNS IN THIS TABLE TALK/)
+  assert.match(secondTalkPrompt, /I would take back the second team\./)
+  assert.doesNotMatch(secondTalkPrompt, /You speak first\./)
+
+  for (const call of client.calls.slice(2)) {
+    const reviewPrompt = call.messages.map((message) => message.content).join('\n')
+    assert.match(reviewPrompt, /TABLE TALK BEFORE THE REVIEW/)
+    assert.match(reviewPrompt, /I would take back the second team\./)
+    assert.doesNotMatch(reviewPrompt, /You speak first\./)
+  }
+})
+
+test('the reviews wait for a human talk turn and use it as context', async () => {
+  const game = await finishedGame('postgame-human-talk')
+  const session = sessionFor(game, { human: [4], modelSeats: [0] })
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
+  const running = runPostgame(session, game, { client, humanTalkTimeoutMs: 2_000 })
+
+  for (let i = 0; i < 40; i++) {
+    if (
+      session.postgame?.phase === 'talk'
+      && session.postgame.tableTalk?.some((turn) => turn.seat === 0)
+    ) break
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  assert.equal(session.postgame?.phase, 'talk')
+  session.postgame!.tableTalk!.push({
+    seat: 4,
+    statement: 'The human says the second team was the problem.',
+    decisions: [],
+    commentary: [],
+  })
+
+  const record = await running
+  assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 4])
+  const reviewPrompt = client.calls
+    .find((call) => String(call.opts.tag).includes('/review/'))
+    ?.messages.map((message) => message.content).join('\n') ?? ''
+  assert.match(reviewPrompt, /The human says the second team was the problem\./)
 })
 
 test('a parse failure gets exactly one retry and can then complete', async () => {
   const game = await finishedGame('postgame-retry')
   const session = sessionFor(game, { human: [4], modelSeats: [0] })
-  const client = fakeClient((seat) => seat === 0
-    ? [{ content: 'not json' }, { content: VALID }]
-    : [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => kind === 'talk'
+    ? [{ content: VALID_TALK }]
+    : [{ content: 'not json' }, { content: VALID_REVIEW }])
   const record = await runPostgame(session, game, { client })
 
-  assert.equal(client.calls.length, 2)
+  assert.equal(client.calls.length, 3)
   assert.equal(record.seats[0]!.status, 'complete')
   assert.equal(record.seats[0]!.error, undefined)
-  const retryMessages = client.calls[1]!.messages.map((m) => m.content).join('\n')
+  const retryMessages = client.calls[2]!.messages.map((m) => m.content).join('\n')
   assert.match(retryMessages, /RETRY/)
 })
 
 test('one seat failing twice leaves the others complete and the record partial', async () => {
   const game = await finishedGame('postgame-partial')
   const session = sessionFor(game, { human: [4], modelSeats: [0, 1] })
-  const client = fakeClient((seat) => seat === 1
-    ? [{ content: 'nope' }, { content: 'still nope' }]
-    : [{ content: VALID }])
+  const client = fakeClient((seat, kind) => kind === 'talk'
+    ? [{ content: VALID_TALK }]
+    : seat === 1
+      ? [{ content: 'nope' }, { content: 'still nope' }]
+      : [{ content: VALID_REVIEW }])
   const record = await runPostgame(session, game, { client })
 
   assert.equal(record.status, 'partial')
   assert.equal(record.seats[0]!.status, 'complete')
   assert.equal(record.seats[1]!.status, 'failed')
   assert.match(record.seats[1]!.error ?? '', /expected one JSON object/)
-  assert.equal(client.calls.length, 3)
+  assert.equal(record.seats[1]!.talkError, undefined)
+  assert.equal(client.calls.length, 5)
 })
 
 test('an all-failed fan-out is terminal, not spinning', async () => {
   const game = await finishedGame('postgame-failed')
   const session = sessionFor(game, { human: [4], modelSeats: [0, 1] })
-  const client = fakeClient(() => [{ content: 'bad' }, { content: 'bad again' }])
+  const client = fakeClient((_seat, kind) => kind === 'talk'
+    ? [{ content: VALID_TALK }]
+    : [{ content: 'bad' }, { content: 'bad again' }])
   const record = await runPostgame(session, game, { client })
 
   assert.equal(record.status, 'failed')
   assert.ok(record.completedAt)
   assert.equal(record.seats[0]!.status, 'failed')
   assert.equal(record.seats[1]!.status, 'failed')
+  assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 1])
 })
 
 test('a heuristic-only table makes no calls and settles complete', async () => {
   const game = await finishedGame('postgame-offline')
   const session = sessionFor(game, { human: [0] })
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient(() => [{ content: VALID_REVIEW }])
   const record = await runPostgame(session, game, { client })
 
   assert.equal(client.calls.length, 0)
   assert.equal(record.status, 'complete')
+  assert.deepEqual(record.tableTalk, [])
   for (const seat of Object.values(record.seats)) {
     assert.equal(seat.status, seat.kind === 'human' ? 'pending' : 'unavailable')
   }
@@ -239,18 +346,22 @@ test('a heuristic-only table makes no calls and settles complete', async () => {
 test('composed seats are unavailable in v1', async () => {
   const game = await finishedGame('postgame-composed')
   const session = sessionFor(game, { human: [4], modelSeats: [0], composedSeats: [1] })
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
   const record = await runPostgame(session, game, { client })
 
   assert.equal(record.seats[1]!.status, 'unavailable')
   assert.match(record.seats[1]!.error ?? '', /composed/)
-  assert.equal(client.calls.length, 1)
+  assert.equal(client.calls.length, 2)
 })
 
 test('archive updates are keyed by the finished game id and never fatal', async () => {
   const game = await finishedGame('postgame-archive')
   const session = sessionFor(game, { human: [4], modelSeats: [0] })
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
   const updates: { id: string; record: PostgameRecord }[] = []
   const record = await runPostgame(session, game, {
     client,
@@ -271,17 +382,23 @@ test('archive updates are keyed by the finished game id and never fatal', async 
 test('commissioned reviews keep distinct spend tags per game and seat', async () => {
   const first = await finishedGame('postgame-tags-a')
   const second = await finishedGame('postgame-tags-b')
-  const client = fakeClient(() => [{ content: VALID }])
+  const client = fakeClient((_seat, kind) => [
+    { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
+  ])
   const [a, b] = await Promise.all([
     runPostgame(sessionFor(first, { human: [4], modelSeats: [0] }), first, { client }),
     runPostgame(sessionFor(second, { human: [4], modelSeats: [0] }), second, { client }),
   ])
+  assert.equal(a.seats[0]!.talkCost?.usd, 0.01)
   assert.equal(a.seats[0]!.cost?.usd, 0.01)
+  assert.equal(b.seats[0]!.talkCost?.usd, 0.01)
   assert.equal(b.seats[0]!.cost?.usd, 0.01)
   const tags = client.calls.map((call) => call.opts.tag)
-  assert.equal(new Set(tags).size, 2)
+  assert.equal(new Set(tags).size, 4)
   assert.deepEqual(new Set(tags), new Set([
+    talkTag('llm-0', first.id, 0),
     reviewTag('llm-0', first.id, 0),
+    talkTag('llm-0', second.id, 0),
     reviewTag('llm-0', second.id, 0),
   ]))
 })
@@ -289,10 +406,13 @@ test('commissioned reviews keep distinct spend tags per game and seat', async ()
 test('a model error is a seat failure, never an exception out of the runner', async () => {
   const game = await finishedGame('postgame-error')
   const session = sessionFor(game, { human: [4], modelSeats: [0] })
-  const client = fakeClient(() => [{ content: VALID, error: new Error('provider exploded') }])
+  const client = fakeClient((_seat, kind) => kind === 'talk'
+    ? [{ content: VALID_TALK }]
+    : [{ content: VALID_REVIEW, error: new Error('provider exploded') }])
   const record = await runPostgame(session, game, { client })
   assert.equal(record.seats[0]!.status, 'failed')
   assert.match(record.seats[0]!.error ?? '', /provider exploded/)
+  assert.equal(record.seats[0]!.talkError, undefined)
 })
 
 test('restart settlement never spends money and settles partial or failed', () => {

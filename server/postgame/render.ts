@@ -12,6 +12,7 @@ import {
   POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
   POSTGAME_SUMMARY_MAX_CHARS,
   REVIEW_NOTE_CAP,
 } from './types.ts'
@@ -83,6 +84,37 @@ function renderSeat(
   return out
 }
 
+function renderTableTalk(
+  record: PostgameRecord,
+  nameOf: (seat: number) => string,
+): string[] {
+  let turns: { seat: number; statement: string }[]
+  if (record.tableTalk !== undefined) {
+    turns = record.tableTalk.map((turn) => ({
+      seat: turn.seat,
+      statement: turn.statement,
+    }))
+  } else if (record.turnOrder?.length) {
+    // Legacy records made the review call itself the turn.
+    turns = record.turnOrder
+      .map((seat) => record.seats[seat])
+      .filter((seat): seat is PostgameSeat => seat?.review !== undefined)
+      .map((seat) => ({
+        seat: seat.seat,
+        statement: seat.review?.statement ?? seat.review?.summary ?? '',
+      }))
+  } else {
+    return []
+  }
+  if (!turns.length) return []
+  const out: string[] = ['### Table talk', '']
+  turns.forEach((turn, index) => {
+    out.push(`${index + 1}. ${nameOf(turn.seat)} (seat ${turn.seat}): "${clamp(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+  })
+  out.push('')
+  return out
+}
+
 export function renderPostgameMarkdown(
   record: PostgameRecord,
   nameOf: (seat: number) => string,
@@ -101,6 +133,7 @@ export function renderPostgameMarkdown(
     out.push('')
     return out.join('\n')
   }
+  out.push(...renderTableTalk(record, nameOf))
   for (const seat of seats) out.push(...renderSeat(seat, nameOf))
   return out.join('\n')
 }

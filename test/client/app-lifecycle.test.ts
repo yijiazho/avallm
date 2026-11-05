@@ -71,6 +71,22 @@ test('review prose is rendered as text, never as HTML', () => {
   assert.match(reveal, /\{seat\.note\}/)
   assert.match(reveal, /\{seat\.review\.summary\}/)
   assert.match(reveal, /\{decision\.assessment\}/)
+  assert.match(reveal, /\{turn\.statement\}/)
+})
+
+test('table talk renders from the separate talk phase', () => {
+  assert.match(reveal, /record\.tableTalk/)
+  assert.match(reveal, /function PostgameTableTalk/)
+  assert.match(reveal, /record\.turnOrder/)
+  assert.match(reveal, /Skip my turn/)
+})
+
+test('the human talk editor posts to the talk route and refetches', () => {
+  assert.match(app, /const postTalk = useCallback/)
+  assert.match(app, /\/api\/game\/\$\{gameId\}\/talk/)
+  assert.match(app, /const saveTalk = useCallback/)
+  assert.match(app, /const skipTalk = useCallback/)
+  assert.match(app, /reviewFetchRef\.current\(\)/)
 })
 
 test('agent library loading validates, reports, and retries failures', () => {

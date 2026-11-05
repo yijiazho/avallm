@@ -16,6 +16,7 @@
 //   POST /api/game/:id/decide         {token, decision}
 //   GET  /api/game/:id/reveal?token=  (gameOver only; token only supplies canReview)
 //   GET  /api/game/:id/review?token=  (gameOver only; full record plus canReview/rev)
+//   POST /api/game/:id/talk           {token, text|skip} (human table-talk turn, talk phase only)
 //   POST /api/game/:id/review         {token, text} (seated human note, gameOver only)
 //   GET  /api/game/:id/transcript?token=&raw=  (copyable debug transcript; full reveal when final or solo-vs-bots, else scoped to the seat)
 //   GET/POST /api/agents, GET /api/usage
@@ -75,7 +76,11 @@ import { tableAliases } from './table-aliases.ts'
 import { buildBotSeatPlans } from './bot-seat-plan.ts'
 import type { SeatedAgent } from './seated-agent.ts'
 import { runPostgame } from './postgame/run.ts'
-import { postgameRecord, REVIEW_NOTE_CAP } from './postgame/types.ts'
+import {
+  POSTGAME_STATEMENT_MAX_CHARS,
+  postgameRecord,
+  REVIEW_NOTE_CAP,
+} from './postgame/types.ts'
 import type { PostgameRecord } from './postgame/types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1057,6 +1062,57 @@ const server = http.createServer(async (req, res) => {
         broadcast(s)
         json(res, 200, { ok: true, name: player.name })
         return
+      }
+      // ---- human table-talk turn (before the independent reviews) ----
+      if (req.method === 'POST' && parts[3] === 'talk') {
+        const body = await readBody(req)
+        if (s.game.phase !== 'gameOver') return json(res, 409, { error: 'game still running' })
+        const who = seatOf(s, typeof body.token === 'string' ? body.token : '')
+        if (typeof who !== 'number') {
+          return json(res, 403, { error: 'only a seated player can join the table talk' })
+        }
+        if (!s.postgame || s.postgame.phase !== 'talk') {
+          return json(res, 409, { error: 'the table talk is over' })
+        }
+        const skipped = s.postgame.skippedTalk ?? (s.postgame.skippedTalk = [])
+        const talk = s.postgame.tableTalk ?? (s.postgame.tableTalk = [])
+        if (body.skip === true) {
+          if (!skipped.includes(who)) skipped.push(who)
+          const index = talk.findIndex((turn) => turn.seat === who)
+          if (index >= 0) talk.splice(index, 1)
+          s.postgameRev += 1
+          if (archiveEnabled()) {
+            saveArtifact(s)
+            persistPostgame(s.game.id, s.postgame)
+          }
+          broadcast(s)
+          return json(res, 200, { ok: true, seat: who, skipped: true })
+        }
+        const text = typeof body.text === 'string' ? body.text.trim() : ''
+        if (!text) return json(res, 400, { error: 'talk must not be empty' })
+        if (text.length > POSTGAME_STATEMENT_MAX_CHARS) {
+          return json(res, 400, {
+            error: `talk must be at most ${POSTGAME_STATEMENT_MAX_CHARS} characters`,
+          })
+        }
+        const skipIndex = skipped.indexOf(who)
+        if (skipIndex >= 0) skipped.splice(skipIndex, 1)
+        const turn = {
+          seat: who,
+          statement: text,
+          decisions: [],
+          commentary: [],
+        }
+        const existing = talk.findIndex((entry) => entry.seat === who)
+        if (existing >= 0) talk[existing] = turn
+        else talk.push(turn)
+        s.postgameRev += 1
+        if (archiveEnabled()) {
+          saveArtifact(s)
+          persistPostgame(s.game.id, s.postgame)
+        }
+        broadcast(s)
+        return json(res, 200, { ok: true, seat: who, statement: text })
       }
       // ---- post-game review (fetched separately from the game stream) ----
       if (req.method === 'GET' && parts[3] === 'review') {

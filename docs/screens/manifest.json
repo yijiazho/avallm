@@ -16,6 +16,7 @@
     "components/reveal-review-complete.jpg",
     "components/reveal-review-failed.jpg",
     "components/reveal-review-running.jpg",
+    "components/reveal-review-talk.jpg",
     "components/role-merlin.jpg",
     "components/role-minion.jpg",
     "components/role-oberon.jpg",
@@ -60,5 +61,5 @@
     "mobile/vote-ballot.jpg",
     "mobile/vote.jpg"
   ],
-  "sourceHash": "87bf946ded7533bb"
+  "sourceHash": "7f0b93f5107631a9"
 }

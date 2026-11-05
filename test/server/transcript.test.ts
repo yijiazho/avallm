@@ -25,6 +25,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-transcript-http-'))
 process.env.AVALON_DATA_DIR = path.join(root, 'data')
 process.env.AVALON_GAME_ARCHIVE = 'on'
 process.env.AVALON_POSTGAME = 'on'
+process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 process.env.AVALON_INVITE_CODE = ''
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 const { server } = await import('../../server/server.ts')
@@ -51,6 +52,13 @@ function postgameFixture(): PostgameRecord {
     startedAt: '2026-01-01T00:00:00.000Z',
     completedAt: '2026-01-01T00:01:00.000Z',
     status: 'complete',
+    phase: 'review',
+    tableTalk: [{
+      seat: 0,
+      statement: 'I would have rejected the second team.',
+      decisions: [],
+      commentary: [],
+    }],
     seats: {
       0: {
         seat: 0,
@@ -84,6 +92,8 @@ test('full-reveal transcript appends the post-game review', async () => {
     capturedAt: '2026-07-23T00:00:00.000Z', includeRaw: false,
   })
   assert.match(text, /## Post-game review/)
+  assert.match(text, /### Table talk/)
+  assert.match(text, /1\. .*\(seat 0\): "I would have rejected the second team\."/)
   assert.match(text, /A useful summary\./)
   assert.match(text, /Trust the vote record\./)
   assert.match(text, /My own note\./)

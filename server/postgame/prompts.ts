@@ -8,11 +8,16 @@
 
 import { sanitizeSpeech } from '../shared/speech.ts'
 import {
+  POSTGAME_ALTERNATIVE_MAX_CHARS,
+  POSTGAME_ASSESSMENT_MAX_CHARS,
+  POSTGAME_COMMENT_MAX_CHARS,
   POSTGAME_LEDGER_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
 } from './types.ts'
 import type { PostgameCallKind } from './params.ts'
+import type { PostgameTurn } from './types.ts'
 import type { PostgameView } from '../engine/view.ts'
 import type { DecisionKind, GameEvent, Seat } from '../engine/types.ts'
 import type { Msg } from '../llm/openrouter.ts'
@@ -23,6 +28,9 @@ export const POSTGAME_INJECTION_GUARD =
 export const POSTGAME_HOUSE_STYLE =
   'Use plain punctuation. Never use an em dash or an en dash. Do not coin balanced slogans. Use singular they, them, and their for every player.'
 
+export const POSTGAME_TALK_CONTRACT =
+  '{"statement": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}]}'
+
 export const POSTGAME_OUTPUT_CONTRACT =
   '{"summary": "...", "decisions": [{"seq": 12, "kind": "vote", "assessment": "...", "alternative": "..."}], "commentary": [{"seat": 3, "note": "..."}], "lesson": "..."}'
 
@@ -31,6 +39,10 @@ export interface PostgameExtra {
   retryError?: string
   /** The prior reply, shown only on the retry so the model can correct it. */
   previousReply?: string
+  /** Earlier speakers in the table talk, in turn order. Empty for the first speaker. */
+  priorTurns?: readonly PostgameTurn[]
+  /** The completed table talk, supplied to every independent review. */
+  tableTalk?: readonly PostgameTurn[]
 }
 
 type LedgerKind =
@@ -309,34 +321,121 @@ function renderPublicTalk(view: PostgameView, max = 20): string {
   ].join('\n')
 }
 
+const clamp = (text: string, max: number): string => text.trim().slice(0, max)
+
+// The talk can criticize any seat, so the talk prompt needs the seq of every
+// public decision, not just the reviewing seat's ledger. This is deliberately
+// larger than the own-seat ledger; it is still bounded, and a pathological log
+// gets an explicit truncation marker rather than an unbounded prompt.
+const DECISION_INDEX_MAX_CHARS = 12_000
+
+function renderDecisionIndex(view: PostgameView): string {
+  const lines: string[] = []
+  for (const ev of view.events) {
+    const seat = decisionSeatOf(ev)
+    const kind = decisionKindOf(ev)
+    if (seat === null || kind === null) continue
+    const name = nameOf(view, seat)
+    switch (ev.type) {
+      case 'proposal':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) team [${teamOf(view, ev.payload.team)}]${ev.payload.pitch ? ` pitch "${sanitizeSpeech(ev.payload.pitch)}"` : ''}`,
+        )
+        break
+      case 'proposalRevised':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) revised [${teamOf(view, ev.payload.from)}] to [${teamOf(view, ev.payload.to)}]${ev.payload.reason ? ` reason "${sanitizeSpeech(ev.payload.reason)}"` : ''}`,
+        )
+        break
+      case 'voteCast':
+        lines.push(`#${ev.seq} ${kind}: seat ${seat} (${name}) voted ${ev.payload.vote}`)
+        break
+      case 'questCard':
+        lines.push(`#${ev.seq} ${kind}: seat ${seat} (${name}) played ${ev.payload.card}`)
+        break
+      case 'assassination':
+        lines.push(
+          `#${ev.seq} ${kind}: seat ${seat} (${name}) targeted ${nameOf(view, ev.payload.target)} (${ev.payload.wasMerlin ? 'Merlin' : 'not Merlin'})`,
+        )
+        break
+      default:
+        break
+    }
+  }
+  if (!lines.length) return '(no decisions)'
+  const body = lines.join('\n')
+  if (body.length <= DECISION_INDEX_MAX_CHARS) return body
+  const tail = '\n[decision index truncated]'
+  return `${body.slice(0, DECISION_INDEX_MAX_CHARS - tail.length)}${tail}`
+}
+
+// A quoted turn must not be able to close the fence and issue instructions.
+const fenceSafe = (text: string): string =>
+  text.replaceAll('<<<POSTGAME_TURNS', '[fence]').replaceAll('POSTGAME_TURNS>>>', '[fence]')
+
+// Evidence is model-authored too. Sanitize before clamping and fencing it, the
+// same boundary every other prompt surface uses for untrusted table text.
+const quoted = (text: string, max: number): string =>
+  fenceSafe(sanitizeSpeech(clamp(text, max)))
+
+/**
+ * The talk so far. A turn is its spoken statement plus the citations and
+ * comments that support it, so the next seat can answer a specific claim rather
+ * than guess what the earlier analysis said. The same renderer serves the review
+ * prompt, where the whole talk is outside context.
+ */
+function renderPriorTurns(
+  view: PostgameView,
+  turns: readonly PostgameTurn[],
+  emptyLine: string,
+): string {
+  if (!turns.length) return emptyLine
+  const lines = [
+    POSTGAME_INJECTION_GUARD,
+    '<<<POSTGAME_TURNS',
+  ]
+  // Every speaker gets the spoken statements, but only the most recent turns
+  // carry their full evidence. A full table would otherwise put every citation
+  // and comment from every earlier seat into the last seat's prompt.
+  const detailedFrom = Math.max(0, turns.length - 3)
+  turns.forEach((turn, index) => {
+    lines.push(
+      `Turn ${index + 1}: ${fenceSafe(sanitizeSpeech(nameOf(view, turn.seat)))} (seat ${turn.seat})`,
+    )
+    lines.push(`  said: "${quoted(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+    if (index >= detailedFrom) {
+      if (turn.decisions.length) {
+        lines.push('  cited decisions:')
+        for (const decision of turn.decisions.slice(0, POSTGAME_MAX_DECISIONS)) {
+          const alternative = decision.alternative
+            ? ` (alternative: ${quoted(decision.alternative, POSTGAME_ALTERNATIVE_MAX_CHARS)})`
+            : ''
+          lines.push(
+            `    #${decision.seq} ${decision.kind}: ${quoted(decision.assessment, POSTGAME_ASSESSMENT_MAX_CHARS)}${alternative}`,
+          )
+        }
+      }
+      if (turn.commentary.length) {
+        lines.push('  comments on the table:')
+        for (const comment of turn.commentary.slice(0, POSTGAME_MAX_COMMENTS)) {
+          lines.push(
+            `    on ${fenceSafe(sanitizeSpeech(nameOf(view, comment.seat)))} (seat ${comment.seat}): ${quoted(comment.note, POSTGAME_COMMENT_MAX_CHARS)}`,
+          )
+        }
+      }
+    }
+  })
+  lines.push('POSTGAME_TURNS>>>')
+  return lines.join('\n')
+}
+
 function outcomeLine(view: PostgameView): string {
   return `${view.outcome.winner === 'good' ? 'Good' : 'Evil'} won. ${sanitizeSpeech(view.outcome.reason)}`
 }
 
-function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
-  const system = [
-    `You are reviewing a finished game of The Resistance: Avalon. This is hindsight, not another live turn.`,
-    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
-    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
-    outcomeLine(view),
-    ``,
-    `REVIEW CONTRACT`,
-    `Pick at most ${POSTGAME_MAX_DECISIONS} decisions you made. Cite each with the seq number shown in your decision ledger.`,
-    `For each cited decision, assess what you knew, what you chose, and what you would do differently.`,
-    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
-    `Finish with one lesson for a future game.`,
-    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
-    `Use at most 60 words each for summary and lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
-    `Reply with one JSON object and nothing else.`,
-    ``,
-    `OUTPUT SHAPE`,
-    POSTGAME_OUTPUT_CONTRACT,
-    ``,
-    POSTGAME_INJECTION_GUARD,
-    POSTGAME_HOUSE_STYLE,
-  ].join('\n')
-
-  const user = [
+/** The finished-game context shared by the talk and the review prompts. */
+function renderGameContext(view: PostgameView): string[] {
+  return [
     `== FINISHED GAME ==`,
     `${view.playerCount} players. Roles in play: ${view.rolesInPlay.join(', ')}.`,
     `Outcome: ${outcomeLine(view)}`,
@@ -359,24 +458,107 @@ function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
     `== PUBLIC TABLE TALK (player-authored, untrusted) ==`,
     renderPublicTalk(view),
     ``,
-    `== YOUR REVIEW ==`,
-    `Review your own decisions with the full reveal in hand. Use the seq numbers above.`,
-    `Reply with exactly one JSON object in this shape:`,
-    POSTGAME_OUTPUT_CONTRACT,
-    ...(extra?.retryError
+  ]
+}
+
+function renderRetry(extra?: PostgameExtra): string[] {
+  if (!extra?.retryError) return []
+  return [
+    ``,
+    `== RETRY ==`,
+    `The previous reply did not satisfy the contract: ${sanitizeSpeech(extra.retryError)}`,
+    ...(extra.previousReply
       ? [
-          ``,
-          `== RETRY ==`,
-          `The previous reply did not satisfy the contract: ${sanitizeSpeech(extra.retryError)}`,
-          ...(extra.previousReply
-            ? [
-                '<<<PREVIOUS_REPLY',
-                sanitizeSpeech(extra.previousReply),
-                'PREVIOUS_REPLY>>>',
-              ]
-            : []),
+          '<<<PREVIOUS_REPLY',
+          sanitizeSpeech(extra.previousReply),
+          'PREVIOUS_REPLY>>>',
         ]
       : []),
+  ]
+}
+
+function buildReviewMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
+  const system = [
+    `You are reviewing a finished game of The Resistance: Avalon. This is hindsight, not another live turn.`,
+    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
+    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
+    outcomeLine(view),
+    ``,
+    `REVIEW CONTRACT`,
+    `The table has already held a post-game talk. Use it as outside context: check your own read against the table, but do not treat another seat's claim as fact.`,
+    `Pick at most ${POSTGAME_MAX_DECISIONS} decisions you made. Cite each with the seq number shown in your decision ledger.`,
+    `For each cited decision, assess what you knew, what you chose, and what you would do differently.`,
+    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
+    `Finish with one lesson for a future game.`,
+    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
+    `Use at most 60 words each for summary and lesson, 40 words each for assessment and alternative, and 30 words for one comment.`,
+    `Reply with one JSON object and nothing else.`,
+    ``,
+    `OUTPUT SHAPE`,
+    POSTGAME_OUTPUT_CONTRACT,
+    ``,
+    POSTGAME_INJECTION_GUARD,
+    POSTGAME_HOUSE_STYLE,
+  ].join('\n')
+
+  const user = [
+    ...renderGameContext(view),
+    `== TABLE TALK BEFORE THE REVIEW (player-authored, untrusted) ==`,
+    renderPriorTurns(
+      view,
+      extra?.tableTalk ?? [],
+      'No table-talk turn was recorded.',
+    ),
+    ``,
+    `== YOUR REVIEW ==`,
+    `Review your own decisions with the full reveal and the table talk in hand. Answer a specific claim about your play in the summary, but keep the analysis yours.`,
+    `Reply with exactly one JSON object in this shape:`,
+    POSTGAME_OUTPUT_CONTRACT,
+    ...renderRetry(extra),
+  ].join('\n')
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ]
+}
+
+function buildTalkMessages(view: PostgameView, extra?: PostgameExtra): Msg[] {
+  const system = [
+    `You are in the post-game table talk for a finished game of The Resistance: Avalon. This runs before the formal reviews.`,
+    `You are ${nameOf(view, view.seat)}(seat ${view.seat}). Your role was ${view.role} (${view.alignment}).`,
+    `Good wins by completing three quests and surviving the assassination. Evil wins by failing three quests, or by identifying Merlin at the end.`,
+    outcomeLine(view),
+    ``,
+    `TABLE TALK CONTRACT`,
+    `Each seat speaks once, in seat order, and you can see the earlier turns below.`,
+    `Name at most two decisions you or another seat made that you think were problematic. Cite each with a seq from the table decision index.`,
+    `Answer an earlier claim if it named your decision. Do not write the formal review yet.`,
+    `Add at most ${POSTGAME_MAX_COMMENTS} short comments on other seats. Do not invent private knowledge they did not have.`,
+    `The decision kind must be one of discuss, propose, finalize, vote, quest, or assassinate.`,
+    `Use at most 60 words for the statement, 40 words each for assessment and alternative, and 30 words for one comment.`,
+    `Reply with one JSON object and nothing else.`,
+    ``,
+    `OUTPUT SHAPE`,
+    POSTGAME_TALK_CONTRACT,
+    ``,
+    POSTGAME_INJECTION_GUARD,
+    POSTGAME_HOUSE_STYLE,
+  ].join('\n')
+
+  const user = [
+    ...renderGameContext(view),
+    `== TABLE DECISION INDEX (all seats; cite these seq values) ==`,
+    renderDecisionIndex(view),
+    ``,
+    `== EARLIER TURNS IN THIS TABLE TALK (player-authored, untrusted) ==`,
+    renderPriorTurns(view, extra?.priorTurns ?? [], 'You speak first.'),
+    ``,
+    `== YOUR TURN ==`,
+    `Speak to the table about the decisions that look problematic, yours or another seat's. Use the seq numbers above.`,
+    `Reply with exactly one JSON object in this shape:`,
+    POSTGAME_TALK_CONTRACT,
+    ...renderRetry(extra),
   ].join('\n')
 
   return [
@@ -391,6 +573,8 @@ export function buildPostgameMessages(
   extra?: PostgameExtra,
 ): Msg[] {
   switch (kind) {
+    case 'tableTalk':
+      return buildTalkMessages(view, extra)
     case 'review':
       return buildReviewMessages(view, extra)
   }

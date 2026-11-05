@@ -134,8 +134,9 @@ const revealView = v({ seat: 0, role: 'merlin', alignment: 'good', phase: 'gameO
 
 // Deterministic post-game fixtures. The live section is collapsed by default,
 // so the gallery variants pass reviewOpen to capture the cards themselves.
-const agentReview = {
-  summary: 'Held the line on the first quest, then over-read a quiet seat in the second.',
+const agentTalk = {
+  seat: 1,
+  statement: 'I approved the second team too quickly. Beatrix revised it and I did not ask why.',
   decisions: [
     { seq: 12, kind: 'vote' as const, assessment: 'Approved a team with no evil read behind it.', alternative: 'Reject and force a different leader.' },
     { seq: 30, kind: 'quest' as const, assessment: 'Played the card the table expected.' },
@@ -144,8 +145,44 @@ const agentReview = {
     { seat: 2, note: 'The careful early vote was doing work.' },
     { seat: 5, note: 'Quiet until the second fail, which was its own tell.' },
   ],
+}
+const agentReview = {
+  summary: 'Held the line on the first quest, then over-read a quiet seat in the second.',
+  decisions: agentTalk.decisions,
+  commentary: agentTalk.commentary,
   lesson: 'A quiet table is not a cleared table. Ask a question before the vote closes.',
 }
+const beatrixTalk = {
+  seat: 2,
+  statement: 'I disagree with Alden. The revision was fine; the table should have questioned Corin\'s quiet vote instead.',
+  decisions: [],
+  commentary: [],
+}
+const beatrixReview = {
+  summary: 'The revision was the moment the table should have stopped.',
+  decisions: [],
+  commentary: [],
+  lesson: 'Name the pivot when it happens.',
+}
+const corinTalk = {
+  seat: 3,
+  statement: 'The final vote was mine to call out and I stayed quiet. That is the decision I would change.',
+  decisions: [],
+  commentary: [],
+}
+const corinReview = {
+  summary: 'A clean read of the final vote, spent too late.',
+  decisions: [],
+  commentary: [],
+  lesson: 'Say the read before the ballots close.',
+}
+const humanTalk = {
+  seat: 0,
+  statement: 'I should have asked why the second team changed before approving it. That was my miss.',
+  decisions: [],
+  commentary: [],
+}
+const tableTalk = [agentTalk, beatrixTalk, corinTalk, humanTalk]
 const reviewComplete: ReviewPayload = {
   rev: 4,
   canReview: true,
@@ -154,6 +191,8 @@ const reviewComplete: ReviewPayload = {
     startedAt: '2026-11-02T00:00:00.000Z',
     completedAt: '2026-11-02T00:01:00.000Z',
     status: 'complete',
+    phase: 'review',
+    tableTalk,
     seats: {
       0: {
         seat: 0,
@@ -161,9 +200,9 @@ const reviewComplete: ReviewPayload = {
         status: 'complete',
         note: 'I should have asked why the second team changed. <script>alert(1)</script> stays text.',
       },
-      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'complete', review: agentReview, cost: { promptTokens: 3120, completionTokens: 480, usd: 0.0042 } },
-      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: { summary: 'The revision was the moment the table should have stopped.', decisions: [], commentary: [], lesson: 'Name the pivot when it happens.' } },
-      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'complete', review: { summary: 'A clean read of the final vote, spent too late.', decisions: [], commentary: [], lesson: 'Say the read before the ballots close.' } },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'complete', review: agentReview, talkCost: { promptTokens: 1800, completionTokens: 260, usd: 0.0021 }, cost: { promptTokens: 3120, completionTokens: 480, usd: 0.0042 } },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: beatrixReview },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'complete', review: corinReview },
       4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
       5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
       6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
@@ -177,10 +216,12 @@ const reviewRunning: ReviewPayload = {
     version: 1,
     startedAt: '2026-11-02T00:00:00.000Z',
     status: 'running',
+    phase: 'review',
+    tableTalk,
     seats: {
       0: { seat: 0, kind: 'human', status: 'pending' },
       1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'running' },
-      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: agentReview },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'complete', review: beatrixReview },
       3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'pending' },
       4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
       5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
@@ -196,6 +237,8 @@ const reviewFailed: ReviewPayload = {
     startedAt: '2026-11-02T00:00:00.000Z',
     completedAt: '2026-11-02T00:01:00.000Z',
     status: 'failed',
+    phase: 'review',
+    tableTalk,
     seats: {
       0: { seat: 0, kind: 'human', status: 'pending' },
       1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'failed', error: 'missing summary | reply: {"decisions": []' },
@@ -207,7 +250,30 @@ const reviewFailed: ReviewPayload = {
     },
   } as PostgameRecord,
 }
+const reviewTalk: ReviewPayload = {
+  rev: 2,
+  canReview: true,
+  postgame: {
+    version: 1,
+    startedAt: '2026-11-02T00:00:00.000Z',
+    status: 'running',
+    phase: 'talk',
+    tableTalk: [agentTalk, beatrixTalk],
+    skippedTalk: [],
+    seats: {
+      0: { seat: 0, kind: 'human', status: 'pending' },
+      1: { seat: 1, kind: 'agent', model: 'google/gemini-3.1-flash-lite', status: 'pending' },
+      2: { seat: 2, kind: 'agent', model: 'deepseek/deepseek-v4-flash', status: 'pending' },
+      3: { seat: 3, kind: 'agent', model: 'anthropic/claude-4.5', status: 'pending' },
+      4: { seat: 4, kind: 'agent', model: 'openai/gpt-oss-120b', status: 'unavailable', error: 'no model to ask for a review' },
+      5: { seat: 5, kind: 'agent', model: 'moonshotai/kimi-k2.5', status: 'unavailable', error: 'no model to ask for a review' },
+      6: { seat: 6, kind: 'agent', model: 'z-ai/glm-4.6', status: 'unavailable', error: 'no model to ask for a review' },
+    },
+  } as PostgameRecord,
+}
 const saveReviewNote = async () => {}
+const saveTalk = async () => {}
+const skipTalk = async () => {}
 
 // Faithful wrappers — mirror App.tsx so the components' parent-scoped styles
 // (aside width, the lacquer action rail, the table zone) resolve as they do in game.
@@ -313,13 +379,14 @@ const VARIANTS: Variant[] = [
   { id: 'tip-quest', sel: '.gallery-stage', hover: '.qcards .qcard:nth-child(1)', node: <Table><QuestBoard view={questView} /></Table> },
   // End-game reveal on an Assassin miss — the deal-and-flip spread, the struck
   // card, and the "who marked whom" line. Reached live only by luck of the deal.
-  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={null} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
+  { id: 'reveal-assassin', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={null} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" /></main> },
   // Post-game review: the three terminal shapes a live run reaches only after
   // the fan-out settles. The gallery opens the section so the per-seat cards
   // are the specimen; in the app it starts collapsed.
-  { id: 'reveal-review-complete', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewComplete} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
-  { id: 'reveal-review-running', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewRunning} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
-  { id: 'reveal-review-failed', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewFailed} noteSaving={false} onSaveNote={saveReviewNote} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-talk', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewTalk} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-complete', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewComplete} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-running', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewRunning} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
+  { id: 'reveal-review-failed', sel: '.reveal', node: <main className="reveal-main"><Reveal view={revealView} reveal={revealData} review={reviewFailed} noteSaving={false} onSaveNote={saveReviewNote} talkSaving={false} onSaveTalk={saveTalk} onSkipTalk={skipTalk} onNewGame={noop} onCopyLog={noop} copyLabel="Copy log" reviewOpen /></main> },
 ]
 
 // Published for the harness to enumerate (id + crop selector + optional hover),

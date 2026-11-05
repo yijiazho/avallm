@@ -127,10 +127,6 @@ export const ROSTER: RosterEntry[] = [
     id: 'gpt-nano', displayName: 'GPT Nano', slug: 'openai/gpt-5.4-nano',
     badge: { color: '#10A37F' }, tier: 'mid', seatOrder: 9,
   },
-  {
-    id: 'solar', displayName: 'Solar', slug: 'upstage/solar-pro-3',
-    badge: { color: '#00838F' }, tier: 'cheap', seatOrder: 8,
-  },
 ]
 
 // Every seated model — the pool a table draws from. Auto-fill paths

@@ -19,6 +19,7 @@ export const POSTGAME_LESSON_MAX_CHARS = 400
 export const POSTGAME_ASSESSMENT_MAX_CHARS = 400
 export const POSTGAME_ALTERNATIVE_MAX_CHARS = 400
 export const POSTGAME_COMMENT_MAX_CHARS = 300
+export const POSTGAME_STATEMENT_MAX_CHARS = 500
 export const POSTGAME_ERROR_MAX_CHARS = 500
 /** Human-authored note cap (REVIEW-003 owns the endpoint that enforces it). */
 export const REVIEW_NOTE_CAP = 2000
@@ -46,10 +47,24 @@ export interface PostgameComment {
 }
 
 export interface PostgameReview {
+  /**
+   * Legacy spoken turn from the review-as-turn design. New records put the
+   * spoken words in `PostgameRecord.tableTalk`; this stays optional so older
+   * archives still render.
+   */
+  statement?: string
   summary: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
   lesson: string
+}
+
+/** One seat's turn in the table talk that runs before the reviews. */
+export interface PostgameTurn {
+  seat: Seat
+  statement: string
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
 }
 
 export interface PostgameSeat {
@@ -61,16 +76,35 @@ export interface PostgameSeat {
   review?: PostgameReview
   /** Human-authored note, stored verbatim and sanitized only when rendered. */
   note?: string
+  /** Review failure. A failed review is a status, not a game error. */
   error?: string
+  /** Table-talk failure. The review can still run from the other turns. */
+  talkError?: string
+  /** Review spend. */
   cost?: { promptTokens: number; completionTokens: number; usd: number }
+  /** Table-talk spend, kept separate so the two paid phases are visible. */
+  talkCost?: { promptTokens: number; completionTokens: number; usd: number }
 }
+
+export type PostgamePhase = 'talk' | 'review'
 
 export interface PostgameRecord {
   version: 1
   startedAt: string
   completedAt?: string
   status: PostgameStatus
+  /** Which phase the running record is in; absent on older records. */
+  phase?: PostgamePhase
   seats: Record<Seat, PostgameSeat>
+  /**
+   * The table talk that ran before the independent reviews. Present (possibly
+   * empty) on new records; absent on records written before the split.
+   */
+  tableTalk?: PostgameTurn[]
+  /** Human seats that explicitly passed on their table-talk turn. */
+  skippedTalk?: Seat[]
+  /** Legacy turn order from the review-as-turn design; optional. */
+  turnOrder?: Seat[]
 }
 
 /** The seat facts a fresh record needs; no review or status yet. */
@@ -102,7 +136,10 @@ export function postgameRecord(
     version: POSTGAME_VERSION,
     startedAt,
     status: 'running',
+    phase: 'talk',
     seats: bySeat,
+    tableTalk: [],
+    skippedTalk: [],
   }
 }
 

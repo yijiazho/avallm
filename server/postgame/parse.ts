@@ -17,6 +17,7 @@ import {
   POSTGAME_LESSON_MAX_CHARS,
   POSTGAME_MAX_COMMENTS,
   POSTGAME_MAX_DECISIONS,
+  POSTGAME_STATEMENT_MAX_CHARS,
   POSTGAME_SUMMARY_MAX_CHARS,
 } from './types.ts'
 import type { DecisionKind, GameEvent, Seat } from '../engine/types.ts'
@@ -25,10 +26,15 @@ import type {
   PostgameComment,
   PostgameDecision,
   PostgameReview,
+  PostgameTurn,
 } from './types.ts'
 
 export type PostgameParseResult =
   | { ok: true; review: PostgameReview }
+  | { ok: false; error: string }
+
+export type PostgameTalkParseResult =
+  | { ok: true; turn: PostgameTurn }
   | { ok: false; error: string }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -70,6 +76,7 @@ function citedDecision(
   value: unknown,
   view: PostgameView,
   eventsBySeq: ReadonlyMap<number, GameEvent>,
+  ownership: 'self' | 'any',
 ): PostgameDecision | string {
   const object = asObject(value)
   if (!object) return 'decision entry is not an object'
@@ -77,11 +84,11 @@ function citedDecision(
   if (!Number.isInteger(seq)) return 'decision seq is not an integer'
   const ev = eventsBySeq.get(seq as number)
   if (!ev) return `decision seq ${String(seq)} is not in the game log`
-  if (decisionSeatOf(ev) !== view.seat) {
-    return `decision seq ${String(seq)} does not belong to seat ${view.seat}`
-  }
   const actualKind = decisionKindOf(ev)
   if (!actualKind) return `event seq ${String(seq)} is not a reviewable decision`
+  if (ownership === 'self' && decisionSeatOf(ev) !== view.seat) {
+    return `decision seq ${String(seq)} does not belong to seat ${view.seat}`
+  }
   const rawKind = object.kind
   if (typeof rawKind !== 'string') return `decision seq ${String(seq)} has no kind`
   const normalized = rawKind.trim()
@@ -122,6 +129,40 @@ function citedComment(
   return { seat: seat as Seat, note }
 }
 
+type CitedEvidence = {
+  decisions: PostgameDecision[]
+  commentary: PostgameComment[]
+}
+
+function parseEvidence(
+  object: Record<string, unknown>,
+  view: PostgameView,
+  ownership: 'self' | 'any',
+): CitedEvidence | string {
+  const rawDecisions = object.decisions
+  if (!Array.isArray(rawDecisions)) return 'decisions must be an array'
+  const rawComments = object.commentary
+  if (!Array.isArray(rawComments)) return 'commentary must be an array'
+
+  const eventsBySeq = new Map<number, GameEvent>()
+  for (const ev of view.events) eventsBySeq.set(ev.seq, ev)
+
+  const decisions: PostgameDecision[] = []
+  for (const raw of rawDecisions.slice(0, POSTGAME_MAX_DECISIONS)) {
+    const parsed = citedDecision(raw, view, eventsBySeq, ownership)
+    if (typeof parsed === 'string') return parsed
+    decisions.push(parsed)
+  }
+
+  const commentary: PostgameComment[] = []
+  for (const raw of rawComments.slice(0, POSTGAME_MAX_COMMENTS)) {
+    const parsed = citedComment(raw, view)
+    if (typeof parsed === 'string') return parsed
+    commentary.push(parsed)
+  }
+  return { decisions, commentary }
+}
+
 export function parsePostgameReply(
   content: string,
   view: PostgameView,
@@ -134,39 +175,61 @@ export function parsePostgameReply(
     if (!summary) return { ok: false, error: 'missing summary' }
     const lesson = requiredText(object, 'lesson', POSTGAME_LESSON_MAX_CHARS)
     if (!lesson) return { ok: false, error: 'missing lesson' }
+    // Legacy review-as-turn records may still carry a statement. New reviews
+    // put the spoken words in the separate table talk.
+    const statementRaw = object.statement
+    const statement = typeof statementRaw === 'string'
+      ? clamp(statementRaw, POSTGAME_STATEMENT_MAX_CHARS)
+      : ''
 
-    const rawDecisions = object.decisions
-    if (!Array.isArray(rawDecisions)) {
-      return { ok: false, error: 'decisions must be an array' }
-    }
-    const rawComments = object.commentary
-    if (!Array.isArray(rawComments)) {
-      return { ok: false, error: 'commentary must be an array' }
-    }
-
-    const eventsBySeq = new Map<number, GameEvent>()
-    for (const ev of view.events) eventsBySeq.set(ev.seq, ev)
-
-    const decisions: PostgameDecision[] = []
-    for (const raw of rawDecisions.slice(0, POSTGAME_MAX_DECISIONS)) {
-      const parsed = citedDecision(raw, view, eventsBySeq)
-      if (typeof parsed === 'string') return { ok: false, error: parsed }
-      decisions.push(parsed)
-    }
-
-    const commentary: PostgameComment[] = []
-    for (const raw of rawComments.slice(0, POSTGAME_MAX_COMMENTS)) {
-      const parsed = citedComment(raw, view)
-      if (typeof parsed === 'string') return { ok: false, error: parsed }
-      commentary.push(parsed)
-    }
+    const evidence = parseEvidence(object, view, 'self')
+    if (typeof evidence === 'string') return { ok: false, error: evidence }
 
     return {
       ok: true,
-      review: { summary, decisions, commentary, lesson },
+      review: {
+        ...(statement ? { statement } : {}),
+        summary,
+        decisions: evidence.decisions,
+        commentary: evidence.commentary,
+        lesson,
+      },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, error: `could not parse review: ${message}` }
+  }
+}
+
+export function parsePostgameTalkReply(
+  content: string,
+  view: PostgameView,
+): PostgameTalkParseResult {
+  try {
+    const object = extractObject(content)
+    if (!object) return { ok: false, error: 'expected one JSON object' }
+
+    const statement = requiredText(
+      object,
+      'statement',
+      POSTGAME_STATEMENT_MAX_CHARS,
+    )
+    if (!statement) return { ok: false, error: 'missing statement' }
+
+    const evidence = parseEvidence(object, view, 'any')
+    if (typeof evidence === 'string') return { ok: false, error: evidence }
+
+    return {
+      ok: true,
+      turn: {
+        seat: view.seat,
+        statement,
+        decisions: evidence.decisions,
+        commentary: evidence.commentary,
+      },
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: `could not parse table talk: ${message}` }
   }
 }
