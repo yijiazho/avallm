@@ -59,7 +59,7 @@ test('postgameRecord starts every seat pending and running', () => {
   ], '2026-01-01T00:00:00.000Z')
   assert.equal(record.version, 1)
   assert.equal(record.status, 'running')
-  assert.equal(record.phase, 'talk')
+  assert.equal(record.phase, undefined)
   assert.deepEqual(record.tableTalk, [])
   assert.equal(record.startedAt, '2026-01-01T00:00:00.000Z')
   assert.equal(record.seats[0]!.status, 'pending')

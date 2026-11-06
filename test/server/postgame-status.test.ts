@@ -198,8 +198,23 @@ test('AVALON_POSTGAME=off starts no review but a human note still survives', asy
   const after = await fetch(`${base}/api/game/${id}/review?token=${token}`)
   const payload = await after.json() as { postgame?: PostgameRecord }
   assert.equal(payload.postgame?.status, 'complete')
+  // No runner will ever finish a talk phase on this record, so the note-only
+  // record must stay phase-less and keep the note editor available.
+  assert.equal(payload.postgame?.phase, undefined)
   // A minimal record keeps the note without inventing reviews for bot seats.
   assert.deepEqual(Object.keys(payload.postgame!.seats), [String(savedBody.seat)])
   assert.equal(payload.postgame!.seats[savedBody.seat]!.note, savedBody.note)
   assert.equal(payload.postgame!.seats[savedBody.seat]!.kind, 'human')
+
+  const edited = await fetch(`${base}/api/game/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, text: 'A second thought.' }),
+  })
+  assert.equal(edited.status, 200)
+  const updated = await (await fetch(`${base}/api/game/${id}/review?token=${token}`)).json() as {
+    postgame?: PostgameRecord
+  }
+  assert.equal(updated.postgame?.phase, undefined)
+  assert.equal(updated.postgame!.seats[savedBody.seat]!.note, 'A second thought.')
 })

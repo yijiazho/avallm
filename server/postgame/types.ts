@@ -138,7 +138,9 @@ export function postgameRecord(
     version: POSTGAME_VERSION,
     startedAt,
     status: 'running',
-    phase: 'talk',
+    // The runner sets the talk phase explicitly. A minimal record created by the
+    // human-note route (reviews disabled) must stay phase-less so the reveal
+    // keeps showing the note editor rather than a talk turn no runner will run.
     seats: bySeat,
     tableTalk: [],
     skippedTalk: [],

@@ -1,6 +1,6 @@
 # REVIEW-004 — Post-game round table
 
-- **Status:** implemented 2026-11-02, revised 2026-11-03 (PR #6)
+- **Status:** implemented 2026-11-02, revised 2026-11-03 (PR #7)
 - **Depends on:** REVIEW-003
 - **Blocks:** none
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Post-game round table,
