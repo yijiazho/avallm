@@ -5,14 +5,18 @@
 //
 // Strip markup that could pose as system or format directives before human or
 // bot text enters any prompt (sanitize-at-boundary). The order matters: the
-// directive-shaped tags go first, then ordinary tags, then whitespace collapse,
-// then the length cap. This is a move of the function that used to live in
-// server/agents/raw-llm/prompts.ts, so callers keep byte-identical output.
-export function sanitizeSpeech(text: string): string {
+// directive-shaped tags go first, then ordinary tags, then whitespace collapse.
+// `sanitizeSpeech` keeps the historical 400-character cap for ordinary prompt
+// surfaces. `sanitizeSpeechText` is the same hardening without the cap, used
+// only for the post-game human talk where the player controls the length.
+export function sanitizeSpeechText(text: string): string {
   return text
     .replace(/\[\/?INST\]|<<\/?SYS>>|<\|[^|]*\|>/gi, ' ')
     .replace(/<\/?[a-z_|/\\-]+>/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 400)
+}
+
+export function sanitizeSpeech(text: string): string {
+  return sanitizeSpeechText(text).slice(0, 400)
 }

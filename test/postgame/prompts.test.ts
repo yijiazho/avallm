@@ -273,6 +273,25 @@ test('talk turns keep every statement but bound the evidence', () => {
   assert.ok(user.content.includes('assessment 4'), 'recent evidence is kept')
 })
 
+test('human talk statements are not truncated in either prompt', () => {
+  const game = playedGame('postgame-human-long')
+  const view = viewForPostgame(game, 0)
+  const statement = `human feedback ${'h'.repeat(1_500)}`
+  const turn = {
+    seat: 1,
+    kind: 'human' as const,
+    statement,
+    decisions: [],
+    commentary: [],
+  }
+  const [, talkUser] = buildPostgameMessages('tableTalk', view, { priorTurns: [turn] })
+  assert.ok(talkUser)
+  assert.ok(talkUser.content.includes(statement), 'talk prompt keeps the full human statement')
+  const [, reviewUser] = buildPostgameMessages('review', view, { tableTalk: [turn] })
+  assert.ok(reviewUser)
+  assert.ok(reviewUser.content.includes(statement), 'review prompt keeps the full human statement')
+})
+
 test('a retry appends the previous failure and reply', () => {
   const game = playedGame('postgame-retry')
   const view = viewForPostgame(game, 0)

@@ -88,11 +88,12 @@ function renderTableTalk(
   record: PostgameRecord,
   nameOf: (seat: number) => string,
 ): string[] {
-  let turns: { seat: number; statement: string }[]
+  let turns: { seat: number; statement: string; human: boolean }[]
   if (record.tableTalk !== undefined) {
     turns = record.tableTalk.map((turn) => ({
       seat: turn.seat,
       statement: turn.statement,
+      human: turn.kind === 'human' || record.seats[turn.seat]?.kind === 'human',
     }))
   } else if (record.turnOrder?.length) {
     // Legacy records made the review call itself the turn.
@@ -102,6 +103,7 @@ function renderTableTalk(
       .map((seat) => ({
         seat: seat.seat,
         statement: seat.review?.statement ?? seat.review?.summary ?? '',
+        human: seat.kind === 'human',
       }))
   } else {
     return []
@@ -109,7 +111,10 @@ function renderTableTalk(
   if (!turns.length) return []
   const out: string[] = ['### Table talk', '']
   turns.forEach((turn, index) => {
-    out.push(`${index + 1}. ${nameOf(turn.seat)} (seat ${turn.seat}): "${clamp(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+    const statement = turn.human
+      ? turn.statement
+      : clamp(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)
+    out.push(`${index + 1}. ${nameOf(turn.seat)} (seat ${turn.seat}): "${statement}"`)
   })
   out.push('')
   return out

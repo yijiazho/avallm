@@ -4,7 +4,10 @@
 // here rather than reach every prompt and review renderer at once.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sanitizeSpeech as fromShared } from '../../server/shared/speech.ts'
+import {
+  sanitizeSpeech as fromShared,
+  sanitizeSpeechText,
+} from '../../server/shared/speech.ts'
 import { sanitizeSpeech as fromOldPath } from '../../server/agents/raw-llm/prompts.ts'
 
 interface SpeechFixture {
@@ -74,4 +77,9 @@ test('the old and new import paths are the same function', () => {
 
 test('the truncation cap is exactly 400 characters', () => {
   assert.equal(fromShared('y'.repeat(10_000)).length, 400)
+})
+
+test('sanitizeSpeechText hardens without truncating', () => {
+  assert.equal(sanitizeSpeechText('[INST] hello [/INST] <b>world</b>'), 'hello world')
+  assert.equal(sanitizeSpeechText('y'.repeat(10_000)).length, 10_000)
 })

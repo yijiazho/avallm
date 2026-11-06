@@ -1,6 +1,6 @@
 # REVIEW-004 — Post-game round table
 
-- **Status:** implemented 2026-11-02, revised 2026-11-03 (PR #6)
+- **Status:** implemented 2026-11-02, revised 2026-11-03 (PR #7)
 - **Depends on:** REVIEW-003
 - **Blocks:** none
 - **Design:** [design-postgame-review.md](../design-postgame-review.md) §Post-game round table,
@@ -11,13 +11,14 @@
 
 Give the post-game review a separate table-talk phase before the reviews. Model seats speak once
 each, in seat order, about the decisions they think were problematic. Seated humans also get a
-turn: they can speak after hearing the model turns, skip, or let the timeout pass. The talk runs
-first so every seat hears the table's outside view before it writes its own review.
+turn: they can speak after hearing the model turns, or explicitly skip. Human feedback is not
+length-capped. The talk runs first so every seat hears the table's outside view before it writes
+its own review.
 
 The reviews then run independently from the same completed talk. No review sees another review, so
 one seat's conclusion cannot anchor the next. The talk is the conversation; the review is the
 private analysis. This costs one talk call and one review call per modeled seat. A human talk turn
-is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, default five minutes).
+is free and the reviews wait for it, with no timeout; Skip is how a human releases them.
 
 ## Implementation plan
 
@@ -45,9 +46,9 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
      game that is still running or already reviewing is 409.
    - The turn is a `PostgameTurn` with empty citations/comments, stored in `tableTalk`; a skip is
      recorded in `skippedTalk` and removes any previous human turn.
-   - After the model talk, the runner waits until every seated human has a turn or skipped, up to
-     `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes). Only then does it set
-     `phase: 'review'` and run the analysis.
+   - After the model talk, the runner waits until every seated human has a turn or skipped. There is
+     no timeout; the Skip button is the explicit release. Only then does it set `phase: 'review'`
+     and run the analysis.
 6. Run the model talk sequentially, then run the reviews with bounded concurrency
    (`AVALON_POSTGAME_CONCURRENCY`, clamped 1-4, default 3). Tag spend `<agentId>/talk/<gameId>/<seat>`
    and `<agentId>/review/<gameId>/<seat>`. A failed talk turn is skipped; the review still runs. A
@@ -62,6 +63,7 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
 ### Files
 
 - `server/postgame/types.ts` (`PostgameTurn`, `tableTalk`, `phase`, talk error/cost, caps)
+- `server/shared/speech.ts` (uncapped sanitizer for human talk)
 - `server/postgame/params.ts` (`tableTalk` call params)
 - `server/postgame/prompts.ts` (talk prompt, review context, shared renderer)
 - `server/postgame/parse.ts` (`parsePostgameTalkReply`)
@@ -93,8 +95,8 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
 - [x] A seated human can submit a trimmed, capped table-talk statement or skip; the turn is stored
       in `tableTalk` and appears in the transcript and review context. Spectators, bots, running
       games, and a closed talk phase are rejected.
-- [x] The reviews wait for every seated human to speak or skip, up to the configured timeout; the
-      human's turn is part of the outside context every review sees.
+- [x] The reviews wait for every seated human to speak or skip, with no timeout; the human's turn is
+      part of the outside context every review sees. Human talk text is not length-capped.
 - [x] The transcript renders `### Table talk` from `tableTalk`; the reveal renders the same turns
       above the detailed cards with the current phase and the human talk editor, and auto-opens the
       section for a seated human when the talk phase starts.
@@ -115,7 +117,7 @@ is free and waits for the human (or `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`, def
 | Failure isolation | existing partial/all-failed cases plus a talk failure case |
 | Human talk route | `test/server/review-http.test.ts`: trimmed statement, skip, empty/over-cap 400, spectator 403, running/review 409, archive/transcript inclusion |
 | Human blocks analysis | `test/postgame/run.test.ts`: reviews wait for a human turn and the review prompt contains it; HTTP test waits for the phase transition |
-| Timeout path | `test/postgame/run.test.ts` uses a short `humanTalkTimeoutMs` to proceed without a turn |
+| No-timeout wait | `test/postgame/run.test.ts` starts the runner, then supplies a human turn; the unit helper `waitForHumanTalk: false` is only for cases that do not exercise the wait |
 | Rendering | `test/postgame/render.test.ts` and `test/server/transcript.test.ts`: table talk order, legacy fallback |
 | UI | `npm --prefix client run build` and the refreshed talk/review gallery fixtures |
 
@@ -136,8 +138,9 @@ npm run test:lanes
 - The talk is model-authored and untrusted. Every quoted field is sanitized, fenced, and guarded;
   a quoted turn cannot close the fence.
 - A talk failure is a `talkError`, not a review failure. Later speakers see only completed turns.
-- A seated human can delay the reviews for up to the timeout. The UI offers Skip, and the timeout is
-  the fallback for a human who leaves. The timeout is an operator knob, not a per-game setting.
+- A seated human can delay the reviews indefinitely. This is deliberate: the review is not written
+  without their feedback. The UI offers Skip, and leaving the page without speaking or skipping
+  blocks the analysis until the restart settlement. There is no hidden timeout.
 - No table-level synthesis ("who was right") is added. The reviews use the talk; a synthesis would
   be another paid call and a separate ticket.
 - Older archived records have no `tableTalk`/`phase`; the renderer and UI fall back to the legacy
@@ -154,8 +157,9 @@ npm run test:lanes
   lesson and receives the completed talk as outside context. The talk prompt adds
   `renderDecisionIndex`, an all-seat list of proposal/revision/vote/quest/assassination `seq`s, so a
   speaker can cite another player's decision; the review keeps the own-seat ledger. Both share the
-  game context and the sanitized/fenced talk renderer. Every quoted field passes `sanitizeSpeech`;
-  detailed evidence is limited to the most recent three turns.
+  game context and the sanitized/fenced talk renderer. Model text passes `sanitizeSpeech`; human
+  talk passes `sanitizeSpeechText`, which strips directive markup without the 400-character cap.
+  Detailed evidence is limited to the most recent three turns.
 - `server/postgame/parse.ts` factors the citation parser into `parseEvidence` and adds
   `parsePostgameTalkReply`. The talk uses an `any` ownership policy so it can cite another seat's
   decision, which is the point of the cross-seat criticism; reviews keep the `self` policy. A
@@ -163,9 +167,9 @@ npm run test:lanes
   replies.
 - `server/postgame/run.ts` runs the talk sequentially, records `talkCost` and `talkError`, then
   waits for every seated human (`waitForHumanTalk`) until they have a `tableTalk` turn or are in
-  `skippedTalk`, up to `deps.humanTalkTimeoutMs` / `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS`
-  (default five minutes). Only then does it set `phase: 'review'` and run the reviews with the
-  bounded worker pool. Talk spend uses `<agentId>/talk/...`; review spend uses
+  `skippedTalk`. There is no timeout; `waitForHumanTalk: false` is a test-only deps seam for cases
+  that do not exercise the wait. Only then does it set `phase: 'review'` and run the reviews with
+  the bounded worker pool. Talk spend uses `<agentId>/talk/...`; review spend uses
   `<agentId>/review/...`. A failed talk turn is skipped; a failed review is a seat status.
 - `server/server.ts` adds `POST /api/game/:id/talk`. It requires `gameOver`, a seated human, and
   `postgame.phase === 'talk'`; it trims and caps the statement, stores a `PostgameTurn`, or records

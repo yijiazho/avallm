@@ -59,7 +59,7 @@ test('postgameRecord starts every seat pending and running', () => {
   ], '2026-01-01T00:00:00.000Z')
   assert.equal(record.version, 1)
   assert.equal(record.status, 'running')
-  assert.equal(record.phase, 'talk')
+  assert.equal(record.phase, undefined)
   assert.deepEqual(record.tableTalk, [])
   assert.equal(record.startedAt, '2026-01-01T00:00:00.000Z')
   assert.equal(record.seats[0]!.status, 'pending')
@@ -102,6 +102,14 @@ test('table talk follows the stored talk order', () => {
   const two = markdown.indexOf('2. Alice (seat 0)')
   assert.ok(one >= 0)
   assert.ok(two > one)
+})
+
+test('human table talk is not capped in the transcript', () => {
+  const record = completedRecord()
+  const statement = `human feedback ${'h'.repeat(1_500)}`
+  record.tableTalk = [{ seat: 0, kind: 'human', statement, decisions: [], commentary: [] }]
+  const markdown = renderPostgameMarkdown(record, (seat) => names[seat] ?? `seat ${seat}`)
+  assert.ok(markdown.includes(statement))
 })
 
 test('legacy turnOrder records still render a table talk', () => {

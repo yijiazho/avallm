@@ -76,11 +76,7 @@ import { tableAliases } from './table-aliases.ts'
 import { buildBotSeatPlans } from './bot-seat-plan.ts'
 import type { SeatedAgent } from './seated-agent.ts'
 import { runPostgame } from './postgame/run.ts'
-import {
-  POSTGAME_STATEMENT_MAX_CHARS,
-  postgameRecord,
-  REVIEW_NOTE_CAP,
-} from './postgame/types.ts'
+import { postgameRecord, REVIEW_NOTE_CAP } from './postgame/types.ts'
 import type { PostgameRecord } from './postgame/types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1090,15 +1086,11 @@ const server = http.createServer(async (req, res) => {
         }
         const text = typeof body.text === 'string' ? body.text.trim() : ''
         if (!text) return json(res, 400, { error: 'talk must not be empty' })
-        if (text.length > POSTGAME_STATEMENT_MAX_CHARS) {
-          return json(res, 400, {
-            error: `talk must be at most ${POSTGAME_STATEMENT_MAX_CHARS} characters`,
-          })
-        }
         const skipIndex = skipped.indexOf(who)
         if (skipIndex >= 0) skipped.splice(skipIndex, 1)
         const turn = {
           seat: who,
+          kind: 'human' as const,
           statement: text,
           decisions: [],
           commentary: [],

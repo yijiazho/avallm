@@ -51,8 +51,12 @@ export interface PostgameDeps {
   archive?: PostgameArchive
   /** A cheap change signal, typically the session's SSE broadcast. */
   notify?: (record: PostgameRecord) => void
-  /** How long the reviews wait for a human talk turn (default 5 minutes). */
-  humanTalkTimeoutMs?: number
+  /**
+   * Test-only seam. Production leaves this unset and waits for every seated
+   * human to speak or skip; unit tests that do not exercise that wait set it
+   * false so they can reach the review phase.
+   */
+  waitForHumanTalk?: boolean
 }
 
 /** The spend bucket for one table-talk turn, unique per game and seat. */
@@ -71,27 +75,21 @@ function postgameConcurrency(): number {
   return Math.min(4, Math.max(1, Math.trunc(raw)))
 }
 
-function humanTalkTimeout(deps: PostgameDeps): number {
-  if (deps.humanTalkTimeoutMs !== undefined) {
-    return Math.max(0, deps.humanTalkTimeoutMs)
-  }
-  const raw = Number(process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS)
-  return Number.isFinite(raw) && raw >= 0 ? raw : 5 * 60_000
+function humanTalkDone(
+  record: PostgameRecord,
+  humanSeats: readonly Seat[],
+): boolean {
+  return humanSeats.every((seat) =>
+    record.tableTalk?.some((turn) => turn.seat === seat) === true
+    || record.skippedTalk?.includes(seat) === true,
+  )
 }
 
 async function waitForHumanTalk(
   record: PostgameRecord,
   humanSeats: readonly Seat[],
-  timeoutMs: number,
 ): Promise<void> {
-  if (!humanSeats.length) return
-  const done = (): boolean => humanSeats.every((seat) =>
-    record.tableTalk?.some((turn) => turn.seat === seat) === true
-    || record.skippedTalk?.includes(seat) === true,
-  )
-  if (done()) return
-  const deadline = Date.now() + timeoutMs
-  while (!done() && Date.now() < deadline) {
+  while (!humanTalkDone(record, humanSeats)) {
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
 }
@@ -189,6 +187,11 @@ export async function runPostgame(
     }
   }
   settleStatus(record, new Date().toISOString())
+  // A human talk turn is still owed, so a model-free table is not terminal yet.
+  if (session.humans.size > 0) {
+    record.status = 'running'
+    delete record.completedAt
+  }
   bumpAndCommit(session, game, record, deps)
 
   const modeled = Object.values(record.seats)
@@ -236,7 +239,7 @@ export async function runPostgame(
         parsed = parsePostgameTalkReply(content, view)
       }
       if (parsed.ok) {
-        tableTalk.push(parsed.turn)
+        tableTalk.push({ ...parsed.turn, kind: 'agent' })
       } else {
         error = parsed.error
       }
@@ -266,9 +269,22 @@ export async function runPostgame(
 
   // A seated human is part of the talk too. Give every human who is still at
   // the table a chance to speak after hearing the model turns; the reviews do
-  // not start until each human has spoken, skipped, or the timeout expires.
+  // not start until each human has spoken or explicitly skipped. There is no
+  // timeout: Skip is the human's way to release the reviews.
   const humanSeats = [...session.humans.keys()].sort((a, b) => a - b)
-  await waitForHumanTalk(record, humanSeats, humanTalkTimeout(deps))
+  if (
+    deps.waitForHumanTalk !== false
+    && humanSeats.length
+    && !humanTalkDone(record, humanSeats)
+  ) {
+    // A model-free table has no pending review seats, so the aggregate status
+    // would say complete while the human still owes a talk turn. Keep the
+    // record running until the talk phase is actually over.
+    record.status = 'running'
+    delete record.completedAt
+    bumpAndCommit(session, game, record, deps)
+    await waitForHumanTalk(record, humanSeats)
+  }
 
   // Phase 2: independent reviews. Every review sees the completed talk, but no
   // review sees another review. That keeps the outside context without letting
