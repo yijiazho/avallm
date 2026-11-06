@@ -13,7 +13,6 @@ import os from 'node:os'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import type { DecisionRequest, PlayerView } from '../../server/engine/types.ts'
-import { POSTGAME_STATEMENT_MAX_CHARS } from '../../server/postgame/types.ts'
 import type { PostgameRecord } from '../../server/postgame/types.ts'
 
 interface ReviewPayload {
@@ -29,7 +28,6 @@ const gamesDir = path.join(dataDir, 'games')
 process.env.AVALON_DATA_DIR = dataDir
 process.env.AVALON_GAME_ARCHIVE = 'on'
 process.env.AVALON_POSTGAME = 'on'
-process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 process.env.AVALON_INVITE_CODE = ''
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 
@@ -216,6 +214,20 @@ async function waitForPostgame(
   throw new Error(`postgame did not reach the expected state: ${JSON.stringify(last?.postgame)}`)
 }
 
+/** Finish a game and release the human talk wait so the note/review cases can run. */
+async function finishGameAndSkipTalk(id: string, token: string): Promise<void> {
+  await finishGame(id, token)
+  const talk = await waitForPostgame(
+    id,
+    token,
+    (payload) => payload.postgame?.phase === 'talk',
+  )
+  assert.equal(talk.postgame?.status, 'running')
+  const skipped = await postTalk(id, token, { skip: true })
+  assert.equal(skipped.status, 200)
+  await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'review')
+}
+
 interface ArchivedReview {
   artifact: { id: string }
   postgame?: PostgameRecord
@@ -238,7 +250,7 @@ test('GET review is 404 for an unknown game and 403 mid-game', async () => {
 
 test('GET review is public after the game and canReview needs a seated human', async () => {
   const { id, token, spectator } = await newHumanGameWithSpectator()
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
 
   const seated = await review(id, token)
   assert.equal(seated.status, 200)
@@ -262,7 +274,7 @@ test('GET review is public after the game and canReview needs a seated human', a
 
 test('POST stores a trimmed note for a seated human and a refresh reads it back', async () => {
   const { id, token } = await newSoloGame()
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
 
   const saved = await postNote(id, token, '  I should have rejected the second team.  ')
   assert.equal(saved.status, 200)
@@ -291,7 +303,7 @@ test('POST stores a trimmed note for a seated human and a refresh reads it back'
 
 test('POST rejects empty and over-cap notes with 400', async () => {
   const { id, token } = await newSoloGame()
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
   for (const text of ['   ', '', 'x'.repeat(2001)]) {
     const response = await postNote(id, token, text)
     assert.equal(response.status, 400)
@@ -300,7 +312,7 @@ test('POST rejects empty and over-cap notes with 400', async () => {
 
 test('POST rejects spectators and unknown tokens after the game', async () => {
   const { id, token, spectator } = await newHumanGameWithSpectator()
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
   assert.equal((await postNote(id, spectator, 'hello')).status, 403)
   assert.equal((await postNote(id, 'not-a-token', 'hello')).status, 403)
 })
@@ -311,92 +323,80 @@ test('POST rejects a running game with 409 for a seated human', async () => {
   assert.equal((await postNote(id, token, 'hello')).status, 409)
 })
 
-test('a human table-talk turn is stored, unblocks the reviews, and reaches the transcript and archive', async () => {
-  process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '5000'
-  try {
-    const { id, token } = await newSoloGame()
-    await finishGame(id, token)
-    const talkPhase = await waitForPostgame(
-      id,
-      token,
-      (payload) => payload.postgame?.phase === 'talk',
-    )
-    assert.ok(talkPhase.postgame)
+test('a human table-talk turn is stored in full, unblocks the reviews, and reaches the transcript and archive', async () => {
+  const { id, token } = await newSoloGame()
+  await finishGame(id, token)
+  const talkPhase = await waitForPostgame(
+    id,
+    token,
+    (payload) => payload.postgame?.phase === 'talk',
+  )
+  assert.ok(talkPhase.postgame)
+  assert.equal(talkPhase.postgame.status, 'running')
 
-    const saved = await postTalk(id, token, { text: '  The second team was the problem.  ' })
-    assert.equal(saved.status, 200)
-    const body = await saved.json() as { seat: number; statement: string }
-    assert.equal(body.statement, 'The second team was the problem.')
+  const statement = `The second team was the problem. ${'detail '.repeat(200)}`.trim()
+  assert.ok(statement.length > 1_000)
+  const saved = await postTalk(id, token, { text: `  ${statement}  ` })
+  assert.equal(saved.status, 200)
+  const body = await saved.json() as { seat: number; statement: string }
+  assert.equal(body.statement, statement)
 
-    const done = await waitForPostgame(
-      id,
-      token,
-      (payload) => payload.postgame?.phase === 'review',
-    )
-    assert.equal(
-      done.postgame?.tableTalk?.find((turn) => turn.seat === body.seat)?.statement,
-      body.statement,
-    )
+  const done = await waitForPostgame(
+    id,
+    token,
+    (payload) => payload.postgame?.phase === 'review',
+  )
+  const turn = done.postgame?.tableTalk?.find((entry) => entry.seat === body.seat)
+  assert.equal(turn?.statement, statement)
+  assert.equal(turn?.kind, 'human')
 
-    const transcript = await (await fetch(`${base}/api/game/${id}/transcript?token=${token}`)).text()
-    assert.match(transcript, /The second team was the problem\./)
+  const transcript = await (await fetch(`${base}/api/game/${id}/transcript?token=${token}`)).text()
+  assert.ok(transcript.includes(statement), 'the transcript keeps the full human statement')
 
-    const archived = archivedReviews().find(
-      (record) => record.postgame?.tableTalk?.some(
-        (turn) => turn.statement === body.statement,
-      ),
-    )
-    assert.ok(archived)
-  } finally {
-    process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
-  }
+  const archived = archivedReviews().find(
+    (record) => record.postgame?.tableTalk?.some(
+      (entry) => entry.statement === statement,
+    ),
+  )
+  assert.ok(archived)
 })
 
 test('a human can skip the table talk; invalid talk bodies and late turns are rejected', async () => {
-  process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '5000'
-  try {
-    const { id, token, spectator } = await newHumanGameWithSpectator()
-    await finishGame(id, token)
-    await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'talk')
+  const { id, token, spectator } = await newHumanGameWithSpectator()
+  await finishGame(id, token)
+  await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'talk')
 
-    assert.equal((await postTalk(id, token, { text: '   ' })).status, 400)
-    assert.equal(
-      (await postTalk(id, token, { text: 'x'.repeat(POSTGAME_STATEMENT_MAX_CHARS + 1) })).status,
-      400,
-    )
-    assert.equal((await postTalk(id, spectator, { text: 'hello' })).status, 403)
-    assert.equal((await postTalk(id, 'not-a-token', { text: 'hello' })).status, 403)
+  assert.equal((await postTalk(id, token, { text: '   ' })).status, 400)
+  assert.equal((await postTalk(id, spectator, { text: 'hello' })).status, 403)
+  assert.equal((await postTalk(id, 'not-a-token', { text: 'hello' })).status, 403)
 
-    assert.equal((await postTalk(id, token, { skip: true })).status, 200)
-    const done = await waitForPostgame(
-      id,
-      token,
-      (payload) => payload.postgame?.phase === 'review',
-    )
-    const humanSeat = Object.values(done.postgame!.seats)
-      .find((seat) => seat.kind === 'human')!.seat
-    assert.ok(done.postgame!.skippedTalk?.includes(humanSeat))
-    assert.equal(
-      done.postgame!.tableTalk?.some((turn) => turn.seat === humanSeat),
-      false,
-    )
-    assert.equal((await postTalk(id, token, { text: 'too late' })).status, 409)
-  } finally {
-    process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
-  }
+  assert.equal((await postTalk(id, token, { skip: true })).status, 200)
+  const done = await waitForPostgame(
+    id,
+    token,
+    (payload) => payload.postgame?.phase === 'review',
+  )
+  const humanSeat = Object.values(done.postgame!.seats)
+    .find((seat) => seat.kind === 'human')!.seat
+  assert.ok(done.postgame!.skippedTalk?.includes(humanSeat))
+  assert.equal(
+    done.postgame!.tableTalk?.some((turn) => turn.seat === humanSeat),
+    false,
+  )
+  assert.equal((await postTalk(id, token, { text: 'too late' })).status, 409)
 })
 
 test('POST talk rejects a running game and a review phase with 409', async () => {
   const { id, token } = await newSoloGame()
   assert.equal((await postTalk(id, token, { text: 'hello' })).status, 409)
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
   await waitForPostgame(id, token, (payload) => payload.postgame?.phase === 'review')
   assert.equal((await postTalk(id, token, { text: 'hello' })).status, 409)
 })
 
 test('a note survives an archive re-read after the game is over', async () => {
   const { id, token } = await newSoloGame()
-  await finishGame(id, token)
+  await finishGameAndSkipTalk(id, token)
   const saved = await postNote(id, token, 'The third quest was the tell.')
   assert.equal(saved.status, 200)
   const body = await saved.json() as { seat: number; note: string }

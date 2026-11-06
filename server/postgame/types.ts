@@ -62,6 +62,8 @@ export interface PostgameReview {
 /** One seat's turn in the table talk that runs before the reviews. */
 export interface PostgameTurn {
   seat: Seat
+  /** Present on new records; human statements are not length-capped. */
+  kind?: 'agent' | 'human'
   statement: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]

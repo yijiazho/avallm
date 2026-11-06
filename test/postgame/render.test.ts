@@ -104,6 +104,14 @@ test('table talk follows the stored talk order', () => {
   assert.ok(two > one)
 })
 
+test('human table talk is not capped in the transcript', () => {
+  const record = completedRecord()
+  const statement = `human feedback ${'h'.repeat(1_500)}`
+  record.tableTalk = [{ seat: 0, kind: 'human', statement, decisions: [], commentary: [] }]
+  const markdown = renderPostgameMarkdown(record, (seat) => names[seat] ?? `seat ${seat}`)
+  assert.ok(markdown.includes(statement))
+})
+
 test('legacy turnOrder records still render a table talk', () => {
   const record = postgameRecord([
     { seat: 0, kind: 'agent', model: 'test/model' },

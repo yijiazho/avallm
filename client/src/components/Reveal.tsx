@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { POSTGAME_STATEMENT_CAP } from '../types.ts'
 import type {
   PlayerView,
   PostgameRecord,
@@ -315,14 +314,13 @@ function HumanTalk({ initial, skipped, saving, onSave, onSkip }: {
         <span className="visually-hidden">Your table-talk statement</span>
         <textarea
           value={text}
-          maxLength={POSTGAME_STATEMENT_CAP}
-          rows={3}
+          rows={5}
           placeholder="Which decision would you call out, and why?"
           onChange={(e) => setText(e.target.value)}
         />
       </label>
       <div className="pg-editor-row">
-        <span className="pg-count">{text.length}/{POSTGAME_STATEMENT_CAP}</span>
+        <span className="pg-count">No limit.</span>
         <span className="pg-talk-actions">
           <button className="secondary" disabled={saving || skipping} onClick={() => void skip()}>
             {skipping ? 'Skipping…' : 'Skip my turn'}

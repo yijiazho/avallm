@@ -9,6 +9,7 @@ import { createGame } from '../../server/engine/game.ts'
 import { runGame } from '../../server/sim/runner.ts'
 import { snapshotSeatedAgent } from '../../server/seated-agent.ts'
 import { runPostgame, reviewTag, talkTag } from '../../server/postgame/run.ts'
+import type { PostgameDeps } from '../../server/postgame/run.ts'
 import {
   postgameStatusFromSeats,
   settleInterruptedPostgame,
@@ -19,8 +20,6 @@ import type { AgentDef } from '../../server/agents/defs.ts'
 import type { OpenRouterClient, CallOpts, Msg, SpendEntry } from '../../server/llm/openrouter.ts'
 import type { AvalonAgent } from '../../server/agents/types.ts'
 import type { Game, Seat } from '../../server/engine/types.ts'
-
-process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 
 const VALID_TALK = JSON.stringify({
   statement: 'I would take back the second team.',
@@ -101,6 +100,15 @@ function fakeClient(
   }
 }
 
+/** Most unit tests do not exercise the human wait; only the wait test uses it. */
+function runWithoutHumanWait(
+  session: PostgameSession,
+  game: Game,
+  deps: Omit<PostgameDeps, 'waitForHumanTalk'> = {},
+): Promise<PostgameRecord> {
+  return runPostgame(session, game, { ...deps, waitForHumanTalk: false })
+}
+
 function sessionFor(
   game: Game,
   config: { human?: Seat[]; modelSeats?: Seat[]; composedSeats?: Seat[] },
@@ -151,7 +159,7 @@ test('a finished game yields one record with terminal statuses and ignored human
   const client = fakeClient((_seat, kind) => [
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(record.version, 1)
   assert.equal(record.status, 'complete')
@@ -196,7 +204,7 @@ test('the reveal is available while the fan-out is still running', async () => {
     await gate
     return String(opts.tag).includes('/talk/') ? VALID_TALK : VALID_REVIEW
   }
-  const running = runPostgame(session, game, { client })
+  const running = runWithoutHumanWait(session, game, { client })
   assert.equal(session.postgame?.status, 'running')
   assert.equal(session.postgame?.phase, 'talk')
   assert.equal(session.postgame?.seats[0]!.status, 'pending')
@@ -213,7 +221,7 @@ test('the talk runs first in seat order, then independent reviews see it', async
   const client = fakeClient((_seat, kind) => [
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.deepEqual(record.tableTalk?.map((turn) => turn.seat), [0, 1])
   assert.equal(record.seats[0]!.review?.summary, 'A reasonable game.')
@@ -256,7 +264,7 @@ test('the reviews wait for a human talk turn and use it as context', async () =>
   const client = fakeClient((_seat, kind) => [
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
-  const running = runPostgame(session, game, { client, humanTalkTimeoutMs: 2_000 })
+  const running = runPostgame(session, game, { client })
 
   for (let i = 0; i < 40; i++) {
     if (
@@ -287,7 +295,7 @@ test('a parse failure gets exactly one retry and can then complete', async () =>
   const client = fakeClient((_seat, kind) => kind === 'talk'
     ? [{ content: VALID_TALK }]
     : [{ content: 'not json' }, { content: VALID_REVIEW }])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(client.calls.length, 3)
   assert.equal(record.seats[0]!.status, 'complete')
@@ -304,7 +312,7 @@ test('one seat failing twice leaves the others complete and the record partial',
     : seat === 1
       ? [{ content: 'nope' }, { content: 'still nope' }]
       : [{ content: VALID_REVIEW }])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(record.status, 'partial')
   assert.equal(record.seats[0]!.status, 'complete')
@@ -320,7 +328,7 @@ test('an all-failed fan-out is terminal, not spinning', async () => {
   const client = fakeClient((_seat, kind) => kind === 'talk'
     ? [{ content: VALID_TALK }]
     : [{ content: 'bad' }, { content: 'bad again' }])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(record.status, 'failed')
   assert.ok(record.completedAt)
@@ -333,7 +341,7 @@ test('a heuristic-only table makes no calls and settles complete', async () => {
   const game = await finishedGame('postgame-offline')
   const session = sessionFor(game, { human: [0] })
   const client = fakeClient(() => [{ content: VALID_REVIEW }])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(client.calls.length, 0)
   assert.equal(record.status, 'complete')
@@ -349,7 +357,7 @@ test('composed seats are unavailable in v1', async () => {
   const client = fakeClient((_seat, kind) => [
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
 
   assert.equal(record.seats[1]!.status, 'unavailable')
   assert.match(record.seats[1]!.error ?? '', /composed/)
@@ -363,7 +371,7 @@ test('archive updates are keyed by the finished game id and never fatal', async 
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
   const updates: { id: string; record: PostgameRecord }[] = []
-  const record = await runPostgame(session, game, {
+  const record = await runWithoutHumanWait(session, game, {
     client,
     archive: {
       update(id, next) {
@@ -386,8 +394,8 @@ test('commissioned reviews keep distinct spend tags per game and seat', async ()
     { content: kind === 'talk' ? VALID_TALK : VALID_REVIEW },
   ])
   const [a, b] = await Promise.all([
-    runPostgame(sessionFor(first, { human: [4], modelSeats: [0] }), first, { client }),
-    runPostgame(sessionFor(second, { human: [4], modelSeats: [0] }), second, { client }),
+    runWithoutHumanWait(sessionFor(first, { human: [4], modelSeats: [0] }), first, { client }),
+    runWithoutHumanWait(sessionFor(second, { human: [4], modelSeats: [0] }), second, { client }),
   ])
   assert.equal(a.seats[0]!.talkCost?.usd, 0.01)
   assert.equal(a.seats[0]!.cost?.usd, 0.01)
@@ -409,7 +417,7 @@ test('a model error is a seat failure, never an exception out of the runner', as
   const client = fakeClient((_seat, kind) => kind === 'talk'
     ? [{ content: VALID_TALK }]
     : [{ content: VALID_REVIEW, error: new Error('provider exploded') }])
-  const record = await runPostgame(session, game, { client })
+  const record = await runWithoutHumanWait(session, game, { client })
   assert.equal(record.seats[0]!.status, 'failed')
   assert.match(record.seats[0]!.error ?? '', /provider exploded/)
   assert.equal(record.seats[0]!.talkError, undefined)

@@ -15,7 +15,6 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'avalon-postgame-status-'))
 const dataDir = path.join(root, 'data')
 process.env.AVALON_DATA_DIR = dataDir
 process.env.AVALON_GAME_ARCHIVE = 'on'
-process.env.AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS = '0'
 process.env.AVALON_INVITE_CODE = ''
 delete process.env.RAILWAY_VOLUME_MOUNT_PATH
 
@@ -110,10 +109,42 @@ async function finishGame(id: string, token: string): Promise<GamePayload> {
   }
 }
 
+async function skipHumanTalk(id: string, token: string): Promise<void> {
+  for (let i = 0; i < 100; i++) {
+    const response = await fetch(`${base}/api/game/${id}/review?token=${token}`)
+    if (response.ok) {
+      const payload = await response.json() as {
+        postgame?: { phase?: string; status?: string }
+      }
+      if (payload.postgame?.phase === 'talk') {
+        assert.equal(payload.postgame.status, 'running')
+        const skipped = await fetch(`${base}/api/game/${id}/talk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, skip: true }),
+        })
+        assert.equal(skipped.status, 200)
+        for (let j = 0; j < 100; j++) {
+          const after = await fetch(`${base}/api/game/${id}/review?token=${token}`)
+          if (after.ok) {
+            const state = await after.json() as { postgame?: { phase?: string } }
+            if (state.postgame?.phase === 'review') return
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        throw new Error('postgame never reached the review phase after skip')
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error('postgame never entered the talk phase')
+}
+
 test('the game payload carries status counts and a revision, never prose', async () => {
   process.env.AVALON_POSTGAME = 'on'
   const { id, token } = await newSoloGame()
   await finishGame(id, token)
+  await skipHumanTalk(id, token)
 
   // Read a fresh initial SSE frame. The frame broadcast from the decide POST
   // can precede saveArtifact/runPostgame, so the first gameOver frame is not a

@@ -44,13 +44,13 @@
     "desktop/spectator.jpg",
     "desktop/vote-ballot.jpg",
     "desktop/vote.jpg",
-    "mobile/assassinate.jpg",
     "mobile/codex-sheet.jpg",
     "mobile/discuss.jpg",
     "mobile/finalize.jpg",
     "mobile/game-start.jpg",
     "mobile/propose.jpg",
     "mobile/quest-ballot.jpg",
+    "mobile/quest-card.jpg",
     "mobile/reconnect-banner.jpg",
     "mobile/record-sheet.jpg",
     "mobile/reveal-thinking.jpg",
@@ -61,5 +61,5 @@
     "mobile/vote-ballot.jpg",
     "mobile/vote.jpg"
   ],
-  "sourceHash": "7f0b93f5107631a9"
+  "sourceHash": "e95afc5d61235189"
 }
