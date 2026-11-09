@@ -2,7 +2,7 @@
 
 **Status:** SHARED-001 and ARCH-001 implemented 2026-11-02 (PR #2). SHARED-002 and REVIEW-001
 implemented 2026-11-02 (PR #3). REVIEW-002 and REVIEW-003 implemented 2026-11-02 (PR #4).
-REVIEW-004 implemented 2026-11-02, revised 2026-11-03 (PR #6); remaining tickets proposed.
+REVIEW-004 implemented 2026-11-02, revised 2026-11-03 (PR #7); remaining tickets proposed.
 Written 2026-11-01.
 Source designs: [design-game-archive.md](../design-game-archive.md),
 [design-postgame-review.md](../design-postgame-review.md),

@@ -264,9 +264,10 @@ gameOver
   other.
 - **A failed talk turn is skipped, not substituted.** Later speakers see only turns that completed,
   and the talk failure is recorded as `talkError`. The review still runs from the successful turns.
-- **A human who leaves does not block forever.** The review phase waits until
-  `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes) and then proceeds without that
-  turn. The reveal offers Skip for a human who does not want to speak.
+- **A human who leaves can block the review.** The review phase waits until every seated human
+  speaks or explicitly skips. There is no timeout: the reveal offers Skip, and a human who closes
+  the page without either action leaves the record running until the restart settlement. This is
+  deliberate; the analysis is not written without the human's feedback.
 
 ### Human seats
 
@@ -297,16 +298,18 @@ The record is durable only when `AVALON_GAME_ARCHIVE` is on, like every other ar
 POST /api/game/:id/talk
   body: { token, text }          // or { token, skip: true }
   200:  { ok: true, seat, statement }  // or { ok: true, seat, skipped: true }
-  400:  empty or over 500 characters
+  400:  empty
   403:  not a seated human
   409:  game still running, or the talk phase is over
 ```
 
+The human statement has no length cap. It is stored verbatim and quoted into every review prompt
+through the uncapped speech sanitizer, so the model reviews see the full feedback.
+
 The statement becomes a `PostgameTurn` in `tableTalk` with no citations or comments. It is stored
 verbatim and displayed as a normal talk turn. A skip is recorded in `skippedTalk` and removes any
 previous human turn. The reviews start once every seated human has a turn or has skipped, or when
-`AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` (default five minutes) expires. The human note endpoint
-remains separate.
+the human explicitly skips. There is no timeout. The human note endpoint remains separate.
 
 ### Post-game round table
 
@@ -319,8 +322,9 @@ next.
 
 - A talk turn is `PostgameTurn`: a spoken `statement`, cited decisions, and comments. Talk
   citations may point at any seat's decision, including another player's; the review parser keeps
-  the stricter own-seat rule. The statement is capped at 500 characters and sanitized whenever it
-  is quoted into another prompt.
+  the stricter own-seat rule. Model statements are capped at 500 characters; a human statement is
+  not capped. Every quoted statement is sanitized, and human statements use the uncapped sanitizer
+  so the full feedback reaches the reviews.
 - The table talk is stored in `PostgameRecord.tableTalk`; `PostgameRecord.phase` says whether the
   running record is still in `talk` or has moved to `review`. A failed talk turn is a
   `PostgameSeat.talkError` and is skipped.
@@ -333,10 +337,10 @@ next.
   while the talk runs; the table-talk block fills in first, then the review cards.
 - No synthesis pass in v1. The analysis is the seats' own reviews with the table talk in context.
   A table-level verdict is a separate, optional call and remains an open question.
-- Human seats also take a table-talk turn. They can speak after hearing the model turns, skip, or
-  let `AVALON_POSTGAME_HUMAN_TALK_TIMEOUT_MS` pass. The reviews wait for every human before they
-  start, so the human's outside view is part of the context every review sees. The human note in
-  the reveal is separate from this talk turn.
+- Human seats also take a table-talk turn. They can speak after hearing the model turns or
+  explicitly skip. Human statements have no length cap. The reviews wait for every human before
+  they start, so the human's outside view is part of the context every review sees. The human note
+  in the reveal is separate from this talk turn.
 - Older records that used the review-as-turn design keep `PostgameReview.statement` and
   `PostgameRecord.turnOrder`; the renderer and UI fall back to them when `tableTalk` is absent.
 
@@ -414,9 +418,9 @@ Small next to a full game (~190 calls), but not zero. Controls:
   same game replaces its own record only.
 - Human note: token-gated, game-over-gated, length-capped, escaped in the UI, sanitized when it
   later enters a history prompt.
-- Human talk: token-gated, talk-phase-gated, length-capped, stored in `tableTalk`, and included in
-  the review context. A skip or timeout lets the reviews proceed; the UI shows the open editor only
-  during the talk phase.
+- Human talk: token-gated, talk-phase-gated, stored in `tableTalk` without a length cap, and
+  included in the review context. An explicit skip lets the reviews proceed; the UI shows the open
+  editor only during the talk phase.
 - Round table: talk calls run in seat order; a later talk prompt contains the earlier statements
   and citations; every review prompt contains the whole talk; the first speaker gets
   `You speak first.`; a failed talk turn is skipped; every quoted field is sanitized, and quoted

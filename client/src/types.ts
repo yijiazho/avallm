@@ -136,13 +136,12 @@ export interface PostgameReview {
 /** One seat's turn in the table talk that runs before the reviews. */
 export interface PostgameTurn {
   seat: Seat
+  /** Present on new records; human statements are not length-capped. */
+  kind?: 'agent' | 'human'
   statement: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
 }
-
-/** Mirrors POSTGAME_STATEMENT_MAX_CHARS on the server; the route is the authority. */
-export const POSTGAME_STATEMENT_CAP = 500
 
 export type PostgameStatus = 'running' | 'complete' | 'partial' | 'failed'
 export type PostgameSeatStatus =

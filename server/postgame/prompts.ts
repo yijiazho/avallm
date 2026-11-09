@@ -6,7 +6,7 @@
 // sanitizeSpeech from server/shared/speech.ts. That includes names, pitches,
 // revision reasons, utterances, thinking, and scratchpads.
 
-import { sanitizeSpeech } from '../shared/speech.ts'
+import { sanitizeSpeech, sanitizeSpeechText } from '../shared/speech.ts'
 import {
   POSTGAME_ALTERNATIVE_MAX_CHARS,
   POSTGAME_ASSESSMENT_MAX_CHARS,
@@ -402,7 +402,12 @@ function renderPriorTurns(
     lines.push(
       `Turn ${index + 1}: ${fenceSafe(sanitizeSpeech(nameOf(view, turn.seat)))} (seat ${turn.seat})`,
     )
-    lines.push(`  said: "${quoted(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)}"`)
+    // A human controls the length of their own feedback. Strip directive markup
+    // but do not truncate it; model turns keep the contract cap.
+    const statement = turn.kind === 'human'
+      ? fenceSafe(sanitizeSpeechText(turn.statement))
+      : quoted(turn.statement, POSTGAME_STATEMENT_MAX_CHARS)
+    lines.push(`  said: "${statement}"`)
     if (index >= detailedFrom) {
       if (turn.decisions.length) {
         lines.push('  cited decisions:')

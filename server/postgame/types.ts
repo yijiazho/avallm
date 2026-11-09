@@ -62,6 +62,8 @@ export interface PostgameReview {
 /** One seat's turn in the table talk that runs before the reviews. */
 export interface PostgameTurn {
   seat: Seat
+  /** Present on new records; human statements are not length-capped. */
+  kind?: 'agent' | 'human'
   statement: string
   decisions: PostgameDecision[]
   commentary: PostgameComment[]
@@ -136,7 +138,9 @@ export function postgameRecord(
     version: POSTGAME_VERSION,
     startedAt,
     status: 'running',
-    phase: 'talk',
+    // The runner sets the talk phase explicitly. A minimal record created by the
+    // human-note route (reviews disabled) must stay phase-less so the reveal
+    // keeps showing the note editor rather than a talk turn no runner will run.
     seats: bySeat,
     tableTalk: [],
     skippedTalk: [],
